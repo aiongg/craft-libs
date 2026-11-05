@@ -10,7 +10,7 @@ use egui::{Modifiers, PointerButton, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::grid::{GridLayout, LineIndex, SheetGeometry};
-use super::outline::{Frame, OutlineAction, OutlineAxis, OutlineBand, OutlineGroup, lane};
+use super::outline::{BAND_SLACK, Frame, OutlineAction, OutlineAxis, OutlineBand, OutlineGroup, lane};
 use super::style::SheetStyle;
 
 fn style() -> SheetStyle {
@@ -25,8 +25,7 @@ fn band_thickness_counts_a_lane_per_level_plus_one() {
     let style = style();
     let step = lane(style.outline_lane, 1.0);
     assert_eq!(OutlineBand::thickness(0, 1.0, &style), 0.0);
-    let slack = OutlineBand::thickness(2, 1.0, &style) - 3.0 * step;
-    assert!((slack - 0.2 * step).abs() < 1e-3, "{slack}");
+    assert_eq!(OutlineBand::thickness(2, 1.0, &style), 3.0 * step + BAND_SLACK);
     assert!(OutlineBand::thickness(3, 1.0, &style) > OutlineBand::thickness(2, 1.0, &style));
     assert_eq!(lane(style.outline_lane, 0.1), lane(style.outline_lane, 0.75), "lanes stop shrinking at the least zoom");
     assert_eq!(lane(style.outline_lane, 2.0), (style.outline_lane * 2.0).round());
@@ -64,7 +63,7 @@ fn show(ui: &mut Ui, app: &mut App) {
     let band = vec2(OutlineBand::thickness(1, 1.0, &style), 0.0);
     let geometry = geometry(&style, band);
     let none = OutlineAxis::default();
-    app.actions.extend(OutlineBand::new("outline", &rows(), &none, &geometry, 1.0).show(ui).action);
+    app.actions.extend(OutlineBand::new("outline", &rows(), &none, &geometry).show(ui).actions);
 }
 
 // a click on a level button and a − button report their actions.
@@ -75,7 +74,7 @@ fn buttons_report_levels_and_toggles() {
     let geometry = geometry(&style, band);
     let none = OutlineAxis::default();
     let rows = rows();
-    let layout = Frame::new(&geometry, &rows, &none, 1.0, &style).layout();
+    let layout = Frame::new(&geometry, &rows, &none, &style).layout();
     let target = |wanted: fn(&OutlineAction) -> bool| layout.buttons.iter().find(|b| wanted(&b.action)).expect("button").rect.center();
     let mut harness = Harness::<App>::builder()
         .with_size([500.0, 400.0])
@@ -94,4 +93,28 @@ fn buttons_report_levels_and_toggles() {
     assert_eq!(actions.len(), 2);
     // The group's bracket runs from its first row to the button on the summary row.
     assert_eq!(layout.buttons.iter().filter(|b| matches!(b.action, OutlineAction::Toggle { .. })).count(), 1);
+}
+
+// A group whose first line is hidden and whose other lines are frozen keeps its bracket.
+#[test]
+fn a_group_hidden_at_its_start_in_a_frozen_pane_keeps_its_bracket() {
+    let style = style();
+    let hidden = BTreeMap::from([(1, 0.0)]);
+    let layout = GridLayout {
+        rect: Rect::from_min_size(pos2(0.0, 0.0), vec2(500.0, 400.0)),
+        zoom: 1.0,
+        rows: LineIndex::new(&hidden, 20.0, 1000),
+        columns: LineIndex::new(&BTreeMap::new(), 80.0, 100),
+        frozen: (3, 0),
+        scroll: egui::Vec2::ZERO,
+        headings: true,
+        bands: vec2(OutlineBand::thickness(1, 1.0, &style), 0.0),
+        right_to_left: false,
+    };
+    let geometry = SheetGeometry::new(layout, &style);
+    let group = OutlineGroup { start: 1, end: 2, level: 1, collapsed: false, summary_before: false };
+    let rows = OutlineAxis { levels: 1, groups: vec![group] };
+    let none = OutlineAxis::default();
+    let frame = Frame::new(&geometry, &rows, &none, &style);
+    assert_eq!(frame.layout().brackets.len(), 1);
 }

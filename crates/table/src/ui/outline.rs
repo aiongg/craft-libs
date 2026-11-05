@@ -45,6 +45,7 @@ pub struct OutlineAxis {
 
 /// What a band button does.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum OutlineAction {
     /// Show levels 1…`level` (the corner buttons 1…n+1).
     Level { rows: bool, level: u8 },
@@ -63,20 +64,21 @@ pub fn lane(lane: f32, zoom: f32) -> f32 {
 /// headers, a lane per level; each expanded group a bracket along its lane from its first detail
 /// line to its button, with a tick at the start; − / + on the summary line; the level buttons
 /// 1…n+1 in the corner. Layout and hit tests are in logical coordinates and mirrored with the
-/// grid. Buttons are Tab stops (level buttons first), Space presses; AccessKit `Button`s named by
+/// grid; [`CellGrid::outline_levels`](super::CellGrid::outline_levels) reserves the bands inside
+/// the grid's rect, and the band reads them and the zoom from the grid's geometry. A press
+/// reports its [`OutlineAction`] in [`OutlineBandOutput::actions`], in order. Buttons are Tab stops (level buttons first), Space presses; AccessKit `Button`s named by
 /// [`OutlineBandLabels`] ("Level 2", "Hide Detail, rows 4–9", numbers through `LocaleNumbers`).
 pub struct OutlineBand<'a> {
     id_salt: IdSalt,
     rows: &'a OutlineAxis,
     columns: &'a OutlineAxis,
     geometry: &'a SheetGeometry,
-    zoom: f32,
     labels: Option<OutlineBandLabels>,
 }
 
 impl<'a> OutlineBand<'a> {
-    pub fn new(id_salt: impl AsIdSalt, rows: &'a OutlineAxis, columns: &'a OutlineAxis, geometry: &'a SheetGeometry, zoom: f32) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), rows, columns, geometry, zoom, labels: None }
+    pub fn new(id_salt: impl AsIdSalt, rows: &'a OutlineAxis, columns: &'a OutlineAxis, geometry: &'a SheetGeometry) -> Self {
+        Self { id_salt: IdSalt::new(id_salt), rows, columns, geometry, labels: None }
     }
 
     pub fn labels(mut self, labels: OutlineBandLabels) -> Self {
@@ -85,30 +87,48 @@ impl<'a> OutlineBand<'a> {
     }
 
     /// The band's thickness for an outline `levels` deep: `(levels + 1)` lanes ([`lane`] of
-    /// `style.outline_lane`) plus [`BAND_SLACK_LANES`] of a lane; 0 without an outline.
+    /// `style.outline_lane`) plus [`BAND_SLACK`]; 0 without an outline.
     // gridcraft: crates/ui-egui/src/outline.rs:50 `band` (`(levels + 1) × lane + 3`).
     pub fn thickness(levels: u8, zoom: f32, style: &super::SheetStyle) -> f32 {
         if levels == 0 {
             return 0.0;
         }
-        let step = lane(style.outline_lane, zoom);
-        (f32::from(levels) + 1.0 + BAND_SLACK_LANES) * step
+        (f32::from(levels) + 1.0) * lane(style.outline_lane, zoom) + BAND_SLACK
+    }
+
+    /// The bands a grid reserves for outlines `(rows, columns)` levels deep: the row band's
+    /// width and the column band's height. Without headings the level buttons still need a
+    /// corner: the band on the other axis is at least a lane and the slack thick then (GridCraft
+    /// `grid/geo.rs:50-60`).
+    pub(super) fn bands((rows, columns): (u8, u8), headings: bool, zoom: f32, style: &super::SheetStyle) -> Vec2 {
+        let corner = lane(style.outline_lane, zoom) + BAND_SLACK;
+        let mut band = Vec2::new(Self::thickness(rows, zoom, style), Self::thickness(columns, zoom, style));
+        if !headings {
+            if rows > 0 {
+                band.y = band.y.max(corner);
+            }
+            if columns > 0 {
+                band.x = band.x.max(corner);
+            }
+        }
+        band
     }
 
     // gridcraft: crates/ui-egui/src/outline.rs:88 `Button`, `:96` `Bracket`, `:105` `Layout`,
     // `:113` `bands` and the layout below.
     pub fn show(self, ui: &mut Ui) -> OutlineBandOutput {
-        let Self { id_salt, rows, columns, geometry, zoom, labels } = self;
+        let Self { id_salt, rows, columns, geometry, labels } = self;
+        let zoom = geometry.zoom();
         let labels = labels.unwrap_or_else(|| OutlineBandLabels::of(ui));
         let numbers = LocaleNumbers::of(ui);
         let tokens = Tokens::of(ui);
         let style = SheetStyle::of(&tokens);
         let id = ui.make_persistent_id(id_salt);
-        let frame = Frame::new(geometry, rows, columns, zoom, &style);
+        let frame = Frame::new(geometry, rows, columns, &style);
         let response = ui.interact(geometry.mirror_rect(frame.bounds()), id, Sense::hover());
-        let mut action = None;
+        let mut actions = Vec::new();
         if frame.row_band.width() <= 0.0 && frame.column_band.height() <= 0.0 {
-            return OutlineBandOutput { response, action };
+            return OutlineBandOutput { response, actions };
         }
         let layout = frame.layout();
 
@@ -161,8 +181,8 @@ impl<'a> OutlineBand<'a> {
             let screen = geometry.mirror_rect(visible.expand(frame.hit));
             let pressed = ui.interact(screen, button_id, Sense::click());
             pressed.widget_info(|| WidgetInfo::labeled(Role::Button, true, &name));
-            if pressed.clicked() && action.is_none() {
-                action = Some(button.action);
+            if pressed.clicked() {
+                actions.push(button.action);
             }
             let clipped = painter.with_clip_rect(geometry.mirror_rect(clip));
             let face = geometry.mirror_rect(button.rect);
@@ -174,19 +194,19 @@ impl<'a> OutlineBand<'a> {
                 clipped.rect_stroke(face, frame.radius, focus, StrokeKind::Outside);
             }
         }
-        OutlineBandOutput { response, action }
+        OutlineBandOutput { response, actions }
     }
 }
 
-/// The room after the last lane, as a share of one lane: GridCraft's 3 points over its 15-point
-/// lane, kept as a proportion so it follows `sheet.outline_lane`.
-pub const BAND_SLACK_LANES: f32 = 0.2;
+/// The room after the last lane, in points at any zoom (GridCraft `outline.rs:50` `band`, `+ 3.0`).
+pub const BAND_SLACK: f32 = 3.0;
 
 /// What the bands did this pass.
 #[must_use]
 pub struct OutlineBandOutput {
     pub response: Response,
-    pub action: Option<OutlineAction>,
+    /// The buttons pressed this pass, in order.
+    pub actions: Vec<OutlineAction>,
 }
 
 impl OutlineAction {
@@ -239,7 +259,7 @@ impl Button {
 
 /// An expanded group's bracket: a line along its lane from the first detail line to its button,
 /// with a tick at the start (none when the start is scrolled out of view).
-struct Bracket {
+pub(super) struct Bracket {
     line: [Pos2; 2],
     tick: Option<[Pos2; 2]>,
 }
@@ -247,7 +267,7 @@ struct Bracket {
 #[derive(Default)]
 pub(super) struct Layout {
     pub(super) buttons: Vec<Button>,
-    brackets: Vec<Bracket>,
+    pub(super) brackets: Vec<Bracket>,
 }
 
 /// One pass's geometry, in logical coordinates: the bands and the two axes.
@@ -267,9 +287,9 @@ pub(super) struct Frame<'a> {
 }
 
 impl<'a> Frame<'a> {
-    pub(super) fn new(geometry: &'a SheetGeometry, rows: &'a OutlineAxis, columns: &'a OutlineAxis, zoom: f32, style: &SheetStyle) -> Self {
-        let step = lane(style.outline_lane, zoom);
-        let band = Vec2::new(OutlineBand::thickness(rows.levels, zoom, style), OutlineBand::thickness(columns.levels, zoom, style));
+    pub(super) fn new(geometry: &'a SheetGeometry, rows: &'a OutlineAxis, columns: &'a OutlineAxis, style: &SheetStyle) -> Self {
+        let step = lane(style.outline_lane, geometry.zoom());
+        let band = geometry.bands();
         let cells = geometry.cells();
         let min = cells.min - geometry.header_size() - band;
         Self {
@@ -319,14 +339,21 @@ impl<'a> Frame<'a> {
         if rows { cell.bottom() } else { cell.right() }
     }
 
-    /// The first on-screen line of `start..=end`: `start` itself, else the lines from the first
-    /// scrolling line on, so a long group isn't scanned from its far-off start.
+    /// The first on-screen line of `start..=end`: `start` itself, else the first shown line of the
+    /// group's frozen lines, else the lines from the first scrolling line on, so a long group isn't
+    /// scanned from its far-off start.
     fn first_visible(&self, rows: bool, start: u32, end: u32) -> Option<(u32, (f32, f32))> {
         if let Some(extent) = self.extent(rows, start) {
             return Some((start, extent));
         }
+        let (frozen_rows, frozen_columns) = self.geometry.frozen();
+        let frozen = if rows { frozen_rows } else { frozen_columns };
         let ((first_row, _), (first_column, _)) = self.geometry.visible();
-        (start.max(if rows { first_row } else { first_column })..=end).find_map(|line| self.extent(rows, line).map(|extent| (line, extent)))
+        let scrolled = start.max(if rows { first_row } else { first_column });
+        let in_frozen = start..=end.min(frozen.saturating_sub(1));
+        let mut in_scroll = scrolled..=end;
+        let shown = |line: u32| self.extent(rows, line).map(|extent| (line, extent));
+        if start < frozen { in_frozen.chain(in_scroll).find_map(shown) } else { in_scroll.find_map(shown) }
     }
 
     fn point(rows: bool, along: f32, across: f32) -> Pos2 {

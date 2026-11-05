@@ -17,7 +17,6 @@
 //! | `composites/slicer/tiles` | a two-column slicer with three of six values on |
 //! | `composites/selection-stats/readout` | Average, Count and Sum of a selection |
 
-use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use craft_theme::TypeRole;
@@ -37,7 +36,7 @@ use super::conditions::{Condition, ConditionBuilder, ConditionFields, ConditionG
 use super::error_tag::ErrorTag;
 use super::fields::{FieldArea, FieldListEdit, FieldListPane, PivotField};
 use super::filter::{FilterButton, filter_button_rect};
-use super::grid::{CellGrid, CellRange, CellRef, CellSelection, GridEdit, GridLayout, GridModel, GridState, LineIndex, SheetGeometry};
+use super::grid::{CellGrid, CellRange, CellRef, CellSelection, GridEdit, GridModel, GridState, LineIndex};
 use super::outline::{OutlineAction, OutlineAxis, OutlineBand, OutlineGroup};
 use super::slicer::{Slicer, SlicerAction};
 use super::stats::{SelectionStats, SelectionStatsReadout, StatsLabels, StatsShown, stats_parts};
@@ -170,8 +169,6 @@ struct Sheet {
     columns: LineIndex,
     texts: Vec<Vec<String>>,
     numbers: Vec<Vec<Option<f64>>>,
-    /// The zoom of the pass, which `paint_cell` is not told.
-    zoom: Cell<f32>,
     /// Row heights and column widths at 100 %.
     default_row: f32,
     default_column: f32,
@@ -228,7 +225,6 @@ impl Sheet {
             columns: LineIndex::new(&BTreeMap::new(), default_column, COLUMNS),
             texts,
             numbers,
-            zoom: Cell::new(1.0),
             default_row,
             default_column,
         };
@@ -240,20 +236,6 @@ impl Sheet {
     fn set_lines(&mut self, rows: &BTreeMap<u32, f32>, columns: &BTreeMap<u32, f32>) {
         self.rows = LineIndex::new(rows, self.default_row, ROWS);
         self.columns = LineIndex::new(columns, self.default_column, COLUMNS);
-    }
-
-    fn layout(&self, rect: Rect, state: &GridState, bands: Vec2) -> GridLayout {
-        GridLayout {
-            rect,
-            zoom: state.zoom,
-            rows: self.rows.clone(),
-            columns: self.columns.clone(),
-            frozen: self.frozen(),
-            scroll: state.scroll,
-            headings: true,
-            bands,
-            right_to_left: false,
-        }
     }
 
     fn stats(&self, selection: &CellSelection) -> SelectionStats {
@@ -296,9 +278,8 @@ impl GridModel for Sheet {
         CellRef::new(ROWS - 1, COLUMNS - 1)
     }
 
-    fn paint_cell(&self, painter: &Painter, rect: Rect, c: CellRef) {
+    fn paint_cell(&self, painter: &Painter, rect: Rect, c: CellRef, zoom: f32) {
         let tokens = craft_ui::theme::current(painter.ctx());
-        let zoom = self.zoom.get();
         let header = c.row == 0;
         if header {
             painter.rect_filled(rect, CornerRadius::ZERO, tokens.color.surface.chrome.to_egui());
@@ -356,7 +337,6 @@ fn cell_grid(ui: &mut Ui, _: &mut NoArgs) {
 
     let width = ui.available_width();
     let (area, _) = ui.allocate_exact_size(vec2(width, width * GRID_ASPECT), Sense::hover());
-    demo.sheet.zoom.set(demo.state.zoom);
     let out = ui.scope_builder(UiBuilder::new().max_rect(area), |ui| CellGrid::new("grid", &demo.sheet, &mut demo.state).show(ui)).inner;
 
     // The tag and the filter buttons sit over the cells, clipped to them.
@@ -453,16 +433,16 @@ fn outline(ui: &mut Ui, _: &mut NoArgs) {
     let (rows, columns) = (hidden_lines(&demo.rows), hidden_lines(&demo.columns));
     demo.sheet.set_lines(&rows, &columns);
 
-    let zoom = demo.state.zoom;
-    let bands = vec2(OutlineBand::thickness(demo.rows.levels, zoom, &style), OutlineBand::thickness(demo.columns.levels, zoom, &style));
     let width = ui.available_width();
-    let (outer, _) = ui.allocate_exact_size(vec2(width, width * GRID_ASPECT), Sense::hover());
-    let inner = Rect::from_min_max(outer.min + bands, outer.max);
-    demo.sheet.zoom.set(zoom);
-    let out = ui.scope_builder(UiBuilder::new().max_rect(inner), |ui| CellGrid::new("grid", &demo.sheet, &mut demo.state).show(ui)).inner;
-    let geometry = SheetGeometry::new(demo.sheet.layout(outer, &demo.state, bands), &style);
-    let band = OutlineBand::new("outline", &demo.rows, &demo.columns, &geometry, zoom).show(ui);
-    if let Some(action) = band.action {
+    let (area, _) = ui.allocate_exact_size(vec2(width, width * GRID_ASPECT), Sense::hover());
+    let (row_levels, column_levels) = (demo.rows.levels, demo.columns.levels);
+    let out = ui
+        .scope_builder(UiBuilder::new().max_rect(area), |ui| {
+            CellGrid::new("grid", &demo.sheet, &mut demo.state).outline_levels(row_levels, column_levels).show(ui)
+        })
+        .inner;
+    let band = OutlineBand::new("outline", &demo.rows, &demo.columns, &out.geometry).show(ui);
+    for action in band.actions {
         demo.last = Some(format!("{action:?}"));
         apply_outline(&mut demo.rows, action, true);
         apply_outline(&mut demo.columns, action, false);

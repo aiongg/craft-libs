@@ -1,12 +1,15 @@
 //! The cell grid (egui_kittest).
 
+use std::cell::Cell;
 use std::collections::BTreeMap;
 
 use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, events, symbols};
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
+use egui::accesskit::Role;
 use egui::{Event, ImeEvent, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
+use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::grid::{
     CellGrid, CellRange, CellRef, GridEdit, GridLayout, GridModel, GridState, LineIndex, SHEET_COLUMNS, SHEET_ROWS, SheetGeometry, column_letters,
@@ -25,6 +28,8 @@ struct Sheet {
     columns: LineIndex,
     frozen: (u32, u32),
     merges: Vec<CellRange>,
+    /// The zoom `paint_cell` was last told.
+    painted_at: Cell<f32>,
 }
 
 impl Default for Sheet {
@@ -35,6 +40,7 @@ impl Default for Sheet {
             columns: LineIndex::new(&none, 80.0, SHEET_COLUMNS),
             frozen: (0, 0),
             merges: Vec::new(),
+            painted_at: Cell::new(0.0),
         }
     }
 }
@@ -55,7 +61,9 @@ impl GridModel for Sheet {
     fn last_used(&self) -> CellRef {
         CellRef::new(9, 9)
     }
-    fn paint_cell(&self, _painter: &Painter, _rect: Rect, _c: CellRef) {}
+    fn paint_cell(&self, _painter: &Painter, _rect: Rect, _c: CellRef, zoom: f32) {
+        self.painted_at.set(zoom);
+    }
     fn cell_text(&self, c: CellRef) -> String {
         format!("{}{}", column_letters(c.column), c.row + 1)
     }
@@ -69,10 +77,17 @@ struct App {
     right_to_left: bool,
     geometry: Option<SheetGeometry>,
     copy_mark: Vec<CellRange>,
+    outline: (u8, u8),
+    no_headings: bool,
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let out = CellGrid::new("grid", &app.sheet, &mut app.state).right_to_left(app.right_to_left).copy_mark(&app.copy_mark).show(ui);
+    let out = CellGrid::new("grid", &app.sheet, &mut app.state)
+        .right_to_left(app.right_to_left)
+        .copy_mark(&app.copy_mark)
+        .outline_levels(app.outline.0, app.outline.1)
+        .headings(!app.no_headings)
+        .show(ui);
     app.edits.extend(out.edits);
     app.geometry = Some(out.geometry);
 }
@@ -562,4 +577,45 @@ fn scrolling_stops_at_the_sheets_extent() {
     harness.run();
     let scroll = harness.state().state.scroll;
     assert_eq!(scroll, vec2(f64::from(SHEET_COLUMNS - 20) as f32 * 80.0, f64::from(SHEET_ROWS - 40) as f32 * 20.0));
+}
+
+// `paint_cell` is told the zoom the grid draws at.
+#[test]
+fn paint_cell_is_told_the_zoom() {
+    let harness = harness(App { state: GridState { zoom: 2.0, ..GridState::default() }, ..App::default() });
+    assert_eq!(harness.state().sheet.painted_at.get(), 2.0);
+}
+
+// The outline bands sit inside the grid's rect: the cells start after them and the response's
+// geometry carries them; without headings the level buttons get a corner.
+#[test]
+fn outline_levels_reserve_the_bands_inside_the_grid() {
+    let style = style();
+    let plain = harness(App::default());
+    let plain = plain.state().geometry.as_ref().unwrap().clone();
+    let rows_only = harness(App { outline: (2, 0), ..App::default() });
+    let geometry = rows_only.state().geometry.as_ref().unwrap();
+    let band = super::outline::OutlineBand::thickness(2, 1.0, &style);
+    assert_eq!(geometry.bands(), vec2(band, 0.0));
+    assert_eq!(geometry.cells().left() - plain.cells().left(), band);
+    assert_eq!(geometry.cells().right(), plain.cells().right(), "the grid's rect is the same");
+
+    let corner = harness(App { outline: (2, 0), no_headings: true, ..App::default() });
+    let bands = corner.state().geometry.as_ref().unwrap().bands();
+    assert_eq!(bands, vec2(band, super::outline::lane(style.outline_lane, 1.0) + super::outline::BAND_SLACK));
+}
+
+// After a key scrolls the active cell into view, the grid's node names it as the active
+// descendant in the same pass.
+#[test]
+fn the_active_descendant_follows_a_key_in_the_same_pass() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(2, 2), Modifiers::NONE);
+    press(&mut harness, Modifiers::NONE, Key::PageDown);
+    let cell = active(&harness);
+    assert!(cell.row > 10);
+    let label = format!("{}{}", column_letters(cell.column), cell.row + 1);
+    let named = harness.get_by_label(&label).accesskit_node().id();
+    let grid = harness.get_by_role(Role::Grid);
+    assert_eq!(grid.accesskit_node().active_descendant().map(|node| node.id()), Some(named));
 }
