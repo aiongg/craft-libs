@@ -167,6 +167,9 @@ pub struct StandardPrompt {
     can_apply: bool,
 }
 
+/// A prompt's title, message and answers, each answer `(role, label, key)`.
+type PromptContent = (String, String, Vec<(ButtonRole, String, Option<Key>)>);
+
 impl StandardPrompt {
     /// A prompt asking `kind`, with no tag and no "Don't show again" box.
     pub fn new(kind: PromptKind) -> Self {
@@ -326,7 +329,7 @@ impl StandardPrompt {
     }
 
     /// The title, message and answers of the kind: `(role, label, key)`.
-    fn content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Option<Key>)>) {
+    fn content(&self, ctx: &Context, labels: &PromptLabels) -> PromptContent {
         let (mut title, mut message, mut answers) = self.kind_content(ctx, labels);
         if let Some(own) = &self.title {
             title.clone_from(own);
@@ -354,7 +357,7 @@ impl StandardPrompt {
         (title, message, answers)
     }
 
-    fn kind_content(&self, ctx: &Context, labels: &PromptLabels) -> (String, String, Vec<(ButtonRole, String, Option<Key>)>) {
+    fn kind_content(&self, ctx: &Context, labels: &PromptLabels) -> PromptContent {
         let cancel = (ButtonRole::Cancel, "Cancel".to_owned(), Some(Key::C));
         match &self.kind {
             PromptKind::ConfirmDelete { names, count } => {
