@@ -3,6 +3,8 @@
 
 use craft_theme::ControlSize;
 use craft_ui::behavior::{ClaimedKey, KeyClaim, Selection, SelectionChange, SelectionPick};
+use craft_ui::canvas::kurbo::{Point, Rect as KurboRect};
+use craft_ui::canvas::{CanvasScrollbars, CanvasView, ScrollbarNames};
 use craft_ui::controls::IconButton;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture, GestureId};
 use craft_ui::icons::Icon;
@@ -10,18 +12,17 @@ use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::accesskit::Role;
-use egui::containers::scroll_area::ScrollSource;
 use egui::text::LayoutJob;
 use egui::{
     Align, Align2, AsIdSalt, CornerRadius, CursorIcon, EventFilter, Id, IdSalt, Key, Layout, Modifiers, Painter, PointerButton, Pos2, Rect, Response,
-    ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2,
+    Sense, Stroke, StrokeKind, Ui, UiBuilder, WidgetInfo, pos2, vec2,
 };
 
 use super::clips::{ClipLane, ClipPainter, TimelineTool};
 use super::markers::MarkerEdit;
 use super::ruler::{SHIFT_STEP_FRAMES, STEP_FRAMES, TimelineRuler, TimelineScrollBar, wheel_zoom_factor};
 use super::{LabelPalette, TimecodeField, TimelineStyle};
-use crate::clips::{ClipEdit, EdgeZones, SnapTargets, edge_at, marquee_clips};
+use crate::clips::{ClipEdit, SnapTargets, marquee_clips};
 use crate::clock::{Follow, FollowMode};
 use crate::markers::MarkerColor;
 use crate::model::{ClipId, ClipInfo, TimelineModel, TrackId, TrackInfo, TrackKind};
@@ -201,7 +202,7 @@ pub type HeaderExtra<'a> = Box<dyn FnMut(&mut Ui, &TrackInfo<'_>) + 'a>;
 ///   the wheel zoom about the pointer by `(1 + dy * 0.01).clamp(0.5, 2.0)`, a pinch zooms. A sideways
 ///   scroll is not eased; zooms ease to their target as FilmCraft's do.
 /// - `=` and `-` zoom in and out by 1.6 about the playhead (FilmCraft), `\` fits the sequence.
-/// - Each side of the divider has a vertical scroll bar (a kernel scroll area) right of the time
+/// - Each side of the divider has a vertical scroll bar (the kernel's vertical scroll bar) right of the time
 ///   area, and the divider drags ([`TimelineEdit::Divider`], [`divider`](Self::divider)).
 /// - A clip drag keeps its source row shown (clipped) when a wheel scroll takes the row out of
 ///   view, so it ends when the button is released. A move onto a locked track is refused (the
@@ -403,7 +404,14 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 &style,
                 outer,
                 header_w,
-                Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix: mix.is_some(), share: divider },
+                Needs {
+                    caption: caption_need,
+                    upper: upper_need,
+                    lower: lower_need,
+                    mix: mix.is_some(),
+                    share: divider,
+                    bar: CanvasScrollbars::style(&tokens).width,
+                },
             );
             let (left, width) = (geo.time_left, geo.time_area.width());
 
@@ -558,13 +566,29 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(labels.empty.clone(), text.clone())));
                 painter.galley(geo.time_area.center() - galley.size() / 2.0, galley, text.color);
             }
+            // Where the selected clips are, in view or not: a move carries the whole selection, and a
+            // locked track under any of them refuses it. Looked up only while the button is down or just released.
+            let owners: Vec<(ClipId, usize)> = if !selection.is_empty() && ui.input(|i| i.pointer.primary_down() || i.pointer.primary_released()) {
+                let everything = TimeRange::new(Tick::ZERO, duration);
+                (0..tracks.len())
+                    .flat_map(|index| {
+                        model
+                            .clips(tracks[index].id, everything)
+                            .into_iter()
+                            .filter(|clip| selection.contains(&clip.id))
+                            .map(move |clip| (clip.id, index))
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            };
             let cx = RowCx {
                 id,
                 area_id,
                 geo,
                 rows: &rows,
                 clips: &clips,
-                zones: EdgeZones { edge: style.edge_zone, roll: style.roll_zone },
+                owners: &owners,
                 track_ids: &track_ids,
                 view: &view,
                 rate,
@@ -1197,6 +1221,8 @@ struct Needs {
     mix: bool,
     /// The video side's share of the room below the captions, when the app keeps one.
     share: Option<f32>,
+    /// The width of the vertical scroll bars.
+    bar: f32,
 }
 
 impl Geo {
@@ -1204,9 +1230,9 @@ impl Geo {
     /// they need up to half the room, then the divider sits where each side gets what it needs,
     /// else the sides share the room.
     fn new(style: &TimelineStyle, outer: Rect, header_w: f32, needs: Needs) -> Self {
-        let Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix, share } = needs;
+        let Needs { caption: caption_need, upper: upper_need, lower: lower_need, mix, share, .. } = needs;
         let time_left = outer.left() + header_w;
-        let content_right = (outer.right() - style.scrollbar_height).max(time_left);
+        let content_right = (outer.right() - needs.bar).max(time_left);
         let top = Rect::from_min_size(outer.min, vec2(outer.width(), style.top_height.min(outer.height())));
         let rows =
             Rect::from_min_max(pos2(outer.left(), top.bottom()), pos2(outer.right(), (outer.bottom() - style.scrollbar_height).max(top.bottom())));
@@ -1523,7 +1549,8 @@ struct RowCx<'a> {
     geo: Geo,
     rows: &'a [Row],
     clips: &'a [Vec<ClipInfo<'a>>],
-    zones: EdgeZones,
+    /// The track index of each selected clip.
+    owners: &'a [(ClipId, usize)],
     track_ids: &'a [TrackId],
     view: &'a TimeView,
     rate: FrameRate,
@@ -1552,31 +1579,12 @@ impl RowCx<'_> {
         Rect::from_min_max(pos2(self.view.x_of(clip.range.start, left), row.top), pos2(self.view.x_of(clip.range.end(), left), row.bottom))
     }
 
-    /// The zero move of the clips a press on this lane's body grabbed, for a `Begin` that carries
-    /// no value (the pointer has not moved the clips yet): the app previews it, and the panel
-    /// reports the track change of a drag that only crosses rows. `None` when the press is not a
-    /// move (an edge, a slip, a slide, a cut or empty space).
-    fn zero_move(&self, ui: &Ui, clips: &[ClipInfo<'_>]) -> Option<ClipEdit> {
-        if matches!(self.tool, TimelineTool::Razor | TimelineTool::Slip | TimelineTool::Slide) {
-            return None;
-        }
-        let (view, left) = (self.view, self.geo.time_left);
-        let origin = ui.input(|i| i.pointer.press_origin())?;
-        let ranges: Vec<_> = clips.iter().map(|clip| (clip.id, clip.range)).collect();
-        if edge_at(&ranges, view, left, origin.x, &self.zones).is_some() {
-            return None;
-        }
-        let clip = clips.iter().find(|clip| (view.x_of(clip.range.start, left)..view.x_of(clip.range.end(), left)).contains(&origin.x))?.id;
-        let moving = if self.selection.contains(&clip) { self.selection.to_vec() } else { vec![clip] };
-        Some(ClipEdit::Move { clips: moving, delta: Tick::ZERO, track_delta: 0, new_track: false, copy: false })
-    }
-
     /// Where moving `moving` from `source`'s row heads with the pointer where it is.
     fn derive(&self, source: &Row, moving: &[ClipId]) -> Derived {
         let Some(y) = self.pointer_y else { return Derived::STAY };
         let mut sources = vec![source];
         for row in self.rows {
-            if row.index != source.index && self.clips[row.index].iter().any(|clip| moving.contains(&clip.id)) {
+            if row.index != source.index && self.owners.iter().any(|(clip, index)| *index == row.index && moving.contains(clip)) {
                 sources.push(row);
             }
         }
@@ -1640,11 +1648,12 @@ impl RowCx<'_> {
         out.snapped = lane.snapped_at.or(out.snapped);
         if let Some(event) = lane.edit {
             out.drag_seen = true;
-            let event = match event {
-                EditEvent::Begin { id, value: None, .. } => {
-                    self.zero_move(child, clips).map_or(EditEvent::begin(id), |zero| EditEvent::begin_with(id, zero))
-                }
-                other => other,
+            let event = match (event, &lane.grabbed) {
+                (EditEvent::Begin { id, value: None, .. }, Some(clips)) => EditEvent::begin_with(
+                    id,
+                    ClipEdit::Move { clips: clips.clone(), delta: Tick::ZERO, track_delta: 0, new_track: false, copy: false },
+                ),
+                (event, _) => event,
             };
             let moving = moved_clips(&event).or_else(|| out.drag.as_ref().and_then(|drag| moved_by(&drag.value))).unwrap_or_default().to_vec();
             let derived = self.derive(row, &moving);
@@ -1782,29 +1791,24 @@ fn resize_headers(ui: &Ui, geo: &Geo, header_w: f32, id: Id, labels: &TimelineLa
     resize.finish().map(TimelineEdit::HeaderWidth)
 }
 
-/// One side's vertical scroll bar, a kernel scroll area over `strip` (right of the time area, as
-/// tall as the side) whose content is as tall as the side's tracks need. Only the bar scrolls it:
-/// the panel's wheel handling owns the wheel. `offset` is how far the side is scrolled in points
-/// (`inverted` for the video side, whose tracks stack upward, so its bar's top is the most
-/// scrolled); the new offset comes back in the same pass. FilmCraft `timeline.rs:435`,
-/// `timeline/scrollbars.rs:116` `vertical_scrollbar`.
-fn side_scroll_bar(ui: &mut Ui, salt: impl AsIdSalt, strip: Rect, need: f32, offset: f32, inverted: bool, name: &str) -> f32 {
+/// One side's vertical scroll bar: the kernel's [`CanvasScrollbars`] (its look, AccessKit value and
+/// range), vertical only, over `strip` (right of the time area, as tall as the side). The side
+/// is a document as tall as its tracks need, seen through the strip at one point per unit.
+/// `offset` is how far the side is scrolled in points (`inverted` for the video side, whose
+/// tracks stack upward, so its bar's top is the most scrolled); the new offset comes back in the
+/// same pass. FilmCraft `timeline.rs:435`, `timeline/scrollbars.rs:116` `vertical_scrollbar`.
+fn side_scroll_bar(ui: &Ui, salt: impl AsIdSalt, strip: Rect, need: f32, offset: f32, inverted: bool, name: &str) -> f32 {
     let max = (need - strip.height()).max(0.0);
     if max <= 0.0 || strip.width() <= 0.0 {
         return offset;
     }
-    let shown = if inverted { max - offset } else { offset };
-    let mut child = ui.new_child(UiBuilder::new().max_rect(strip));
-    let out = ScrollArea::vertical()
-        .id_salt(salt)
-        .scroll_source(ScrollSource::SCROLL_BAR)
-        .vertical_scroll_offset(shown)
-        .vertical_scroll_bar_label(name)
-        .auto_shrink([false, false])
-        .show(&mut child, |ui| {
-            ui.allocate_space(vec2(0.0, need));
-        });
-    let moved = out.state.clamped_offset().y.clamp(0.0, max);
+    let half = f64::from(strip.height()) / 2.0;
+    let shown = f64::from(if inverted { max - offset } else { offset });
+    let mut view = CanvasView::new(strip, Point::new(0.0, shown + half), 1.0);
+    let names = ScrollbarNames::new(String::new(), name);
+    let doc = KurboRect::new(0.0, 0.0, 1.0, f64::from(need));
+    let _ = CanvasScrollbars::new(salt, names).vertical_only().show(ui, &mut view, doc);
+    let moved = ((view.center.y - half) as f32).clamp(0.0, max);
     if inverted { max - moved } else { moved }
 }
 

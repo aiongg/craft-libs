@@ -73,10 +73,10 @@ impl TimelineModel for Model {
             .collect()
     }
 
-    fn clips(&self, track: TrackId, _visible: TimeRange) -> Vec<ClipInfo<'_>> {
+    fn clips(&self, track: TrackId, visible: TimeRange) -> Vec<ClipInfo<'_>> {
         self.clips
             .iter()
-            .filter(|(_, t, _)| *t == track)
+            .filter(|(_, t, range)| *t == track && range.overlaps(&visible))
             .map(|&(id, track, range)| ClipInfo { id, track, range, name: "clip", label: None, enabled: true, source: None })
             .collect()
     }
@@ -716,4 +716,20 @@ fn a_vertical_only_drag_previews_the_track_change() {
         )
     });
     assert!(previewed, "{events:?}");
+}
+
+// A move carries the whole selection: a locked track under a selected clip refuses it even when
+// that clip is far outside the time in view.
+#[test]
+fn a_selected_clip_on_a_locked_track_out_of_view_refuses_the_new_track() {
+    let mut harness = harness();
+    let (v2, v1) = (row(&harness, "V2"), row(&harness, "V1"));
+    let far = TimeRange::from_bounds(seconds(50), seconds(55));
+    harness.state_mut().model.clips.push((ClipId(3), A1, far));
+    harness.state_mut().model.locked = vec![A1];
+    harness.state_mut().model.selection = vec![ClipId(1), ClipId(3)];
+    harness.run_steps(2);
+    let above = harness.state().time_area.top() + (v2.top() - harness.state().time_area.top()) / 2.0;
+    drag_y(&mut harness, v1.center().y, above);
+    assert!(matches!(committed(&harness), Some(ClipEdit::Move { track_delta: 0, new_track: false, .. })), "{:?}", committed(&harness));
 }

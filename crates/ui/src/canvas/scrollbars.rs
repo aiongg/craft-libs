@@ -159,12 +159,20 @@ pub struct CanvasScrollbars {
     id_salt: IdSalt,
     names: ScrollbarNames,
     overscroll: bool,
+    horizontal: bool,
 }
 
 impl CanvasScrollbars {
     /// Scroll bars named `names` in the AccessKit tree.
     pub fn new(id_salt: impl AsIdSalt, names: ScrollbarNames) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), names, overscroll: false }
+        Self { id_salt: IdSalt::new(id_salt), names, overscroll: false, horizontal: true }
+    }
+
+    /// Shows the vertical bar only, for a host that scrolls one axis (a timeline's track side):
+    /// the document's width is then ignored and no horizontal bar or corner is drawn.
+    pub fn vertical_only(mut self) -> Self {
+        self.horizontal = false;
+        self
     }
 
     /// Whether a document that fits in the window can still be scrolled edge to edge within it
@@ -248,7 +256,7 @@ impl CanvasScrollbars {
         // The horizontal axis in screen order: with the view flipped, run the document backwards.
         let hx = |c: f32| if flip { w - c } else { c };
         let with_extent = |s: Span| (s, s.extent(self.overscroll));
-        let ex = Span::of(w, hx(view.center.x as f32 - x0), rect.width() / aspect, zoom).map(with_extent);
+        let ex = Span::of(w, hx(view.center.x as f32 - x0), rect.width() / aspect, zoom).map(with_extent).filter(|_| self.horizontal);
         let ey = Span::of(h, view.center.y as f32 - y0, rect.height(), zoom).map(with_extent);
         if ex.is_none() && ey.is_none() {
             return out;
