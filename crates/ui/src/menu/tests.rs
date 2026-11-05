@@ -1297,3 +1297,14 @@ fn a_submenu_row_ends_in_a_filled_triangle_pointing_towards_its_submenu() {
         assert!((edge - tip.x).abs() < row.height(), "rtl {rtl}: the arrow is at the row's end");
     }
 }
+
+#[test]
+fn a_popup_not_drawn_last_pass_keeps_no_rows_from_before() {
+    let ctx = egui::Context::default();
+    let id = Id::new("nav");
+    let row = super::nav::Row { widget: Id::new("row"), enabled: true, path: vec![0], submenu: false, mnemonic: None };
+    let mut stale = Nav::default();
+    stale.rows = vec![vec![row]];
+    ctx.data_mut(|d| d.insert_temp(id, stale));
+    assert!(Nav::load(&ctx, id, true).rows.is_empty(), "a menu that was not open starts with no rows");
+}
