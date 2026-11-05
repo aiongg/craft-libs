@@ -118,6 +118,8 @@ pub struct ColorPickerDialog {
     pub(super) id: DialogId,
     key: String,
     title: Title,
+    /// `{name}` values filled into the title after it is translated ([`arg`](ColorPickerDialog::arg)).
+    title_args: Vec<(String, String)>,
     opening: PickedColor,
     current: PickedColor,
     compare: bool,
@@ -170,6 +172,7 @@ impl ColorPickerDialog {
             id: dialog_id(("color-picker", key.as_str())),
             key,
             title,
+            title_args: Vec::new(),
             opening,
             current: opening,
             compare: true,
@@ -187,6 +190,15 @@ impl ColorPickerDialog {
             gesture_start: None,
             seed: None,
         }
+    }
+
+    /// Fills `{name}` in a given title (`new`, `from_request`) with `value`, after the title is
+    /// translated: the title is a catalog key in the Host's language, drawn fresh every pass, so
+    /// "Color Picker ({name})" follows a language switch while the dialog is open. The value is
+    /// shown as given, never translated.
+    pub fn arg(mut self, name: impl Into<String>, value: impl Into<String>) -> ColorPickerDialog {
+        self.title_args.push((name.into(), value.into()));
+        self
     }
 
     /// The model values the colour was picked in (a CMYK fill's inks): the fields show them as
@@ -331,7 +343,15 @@ impl StackDialog for ColorPickerDialog {
             Title::Default => labels.title.clone(),
             Title::Foreground => labels.foreground_title.clone(),
             Title::Background => labels.background_title.clone(),
-            Title::Given(title) => craft_ui::dialog::translated(ctx, title),
+            Title::Given(title) => {
+                let title = craft_ui::dialog::translated(ctx, title);
+                if self.title_args.is_empty() {
+                    title
+                } else {
+                    let args: Vec<(&str, &str)> = self.title_args.iter().map(|(name, value)| (name.as_str(), value.as_str())).collect();
+                    craft_i18n::fmt(&title, &args)
+                }
+            }
         };
         let numbers = LocaleNumbers::of_ctx(ctx);
         let alt = ctx.input(|i| i.modifiers.alt);

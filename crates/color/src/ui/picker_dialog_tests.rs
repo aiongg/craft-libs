@@ -344,3 +344,20 @@ fn a_given_title_follows_the_hosts_language_while_open() {
     rig.frames(3);
     assert!(rig.nodes.iter().any(|(_, n)| n.label() == Some("Farbe wählen")));
 }
+
+/// A given title's `{name}` is filled after translation, so it follows the language with its value.
+#[test]
+fn a_given_title_fills_its_arg_after_translation() {
+    let (i18n, problems) = craft_i18n::I18n::new(&[("de", "\tColor Picker ({name})\tFarbwähler ({name})\n", "")], &["de"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    let de = i18n.from_code("de").expect("de");
+    let mut rig = Rig::open(ColorPickerDialog::new("tint", "Color Picker ({name})", BLUE).arg("name", "Tint"));
+    let titled = |rig: &Rig, text: &str| rig.nodes.iter().any(|(_, n)| n.label().is_some_and(|l| l.contains(text)));
+    assert!(titled(&rig, "Color Picker (") && titled(&rig, "Tint"), "the value is filled");
+    craft_host::Host::builder(craft_host::AppInfo { id: "test", name: "Test", version: "1.0" })
+        .i18n(std::sync::Arc::new(i18n))
+        .lang(de)
+        .install(&rig.ctx);
+    rig.frames(3);
+    assert!(titled(&rig, "Farbwähler (") && titled(&rig, "Tint"), "and follows the language");
+}
