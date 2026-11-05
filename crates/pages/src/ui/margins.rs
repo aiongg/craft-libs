@@ -12,12 +12,16 @@
 //! }
 //! ```
 
+use std::ops::{Range, RangeInclusive};
+
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::units::{Length, LengthUnit, UnitContext};
+use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
 use craft_ui::primitives::Interactive;
 use craft_ui::theme::{Tokens, TokensOf as _};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::{CursorIcon, EventFilter, Key, Modifiers, PointerButton, Rect, Sense, Ui};
+use kurbo::Point;
 
 use super::style::MarginHandlesStyle;
 use super::view::PlacedPage;
@@ -40,6 +44,8 @@ craft_ui::words! {
         bottom: "pages.bottomMargin" = "Bottom Margin";
         header: "pages.headerMargin" = "Header Margin";
         footer: "pages.footerMargin" = "Footer Margin";
+        /// The drag tooltip: the edge's name and its value ("Left Margin: 1.25 in").
+        drag: "pages.marginDrag" = "{name}: {value}";
     }
 }
 
@@ -77,12 +83,56 @@ pub struct MarginRules {
     pub snap: f64,
     /// The least text width or height left, points.
     pub min_text: f64,
+    /// The header's distance from the top edge, points: the top margin never drops below it (0
+    /// with no header).
+    pub header: f64,
+    /// The footer's distance from the bottom edge, points: the bottom margin never drops below it.
+    pub footer: f64,
+}
+
+/// The values the stored `edge` can take under `rules`, points: from 0 (or, for the top and
+/// bottom margins, the header and footer distances) to the largest that leaves
+/// `rules.min_text` of text and the gutter; a header or footer stays within its page margin.
+pub fn margin_range(edge: MarginEdge, rules: &MarginRules) -> RangeInclusive<f64> {
+    let (width, height) = rules.page;
+    let m = &rules.margins;
+    let (least, most) = match edge {
+        MarginEdge::Left => (0.0, width - m.right - rules.gutter - rules.min_text),
+        MarginEdge::Right => (0.0, width - m.left - rules.gutter - rules.min_text),
+        MarginEdge::Top => (rules.header, height - m.bottom - rules.min_text),
+        MarginEdge::Bottom => (rules.footer, height - m.top - rules.min_text),
+        MarginEdge::Header => (0.0, m.top),
+        MarginEdge::Footer => (0.0, m.bottom),
+    };
+    let least = least.max(0.0);
+    least..=most.max(least)
+}
+
+/// The stored `edge` set to `points`: snapped to `rules.snap` (none when 0) and kept within
+/// [`margin_range`]. A value that isn't finite leaves the edge as it is.
+pub fn clamp_margin(edge: MarginEdge, points: f64, rules: &MarginRules) -> MarginChange {
+    let m = &rules.margins;
+    let current = match edge {
+        MarginEdge::Left => m.left,
+        MarginEdge::Right => m.right,
+        MarginEdge::Top => m.top,
+        MarginEdge::Bottom => m.bottom,
+        MarginEdge::Header => rules.header,
+        MarginEdge::Footer => rules.footer,
+    };
+    let range = margin_range(edge, rules);
+    if !points.is_finite() || !range.end().is_finite() {
+        return MarginChange { edge, points: current };
+    }
+    let snapped = if rules.snap > 0.0 { (points / rules.snap).round() * rules.snap } else { points };
+    MarginChange { edge, points: snapped.clamp(*range.start(), *range.end()) }
 }
 
 /// The margin a drag of the visible `edge` to `at` points from the page's left (or top) edge
 /// gives: snapped to `rules.snap` (none when 0), never negative, leaving `rules.min_text` between
 /// it and the opposite margin (and the gutter). On an even page of mirrored margins the pointer
-/// is reflected across the page and the edge swapped (WordCraft #2914).
+/// is reflected across the page and the edge swapped (WordCraft #2914). A header or footer stays
+/// within its page margin, and the top and bottom margins stay beyond them.
 // wordcraft: crates/ui-egui/src/canvas/margins.rs:37 `dragged_margin`, :54 `margin_drag`;
 // gridcraft: crates/ui-egui/src/paper_view.rs:695 `margin_from_drag`.
 pub fn dragged_margin(edge: MarginEdge, at: f64, rules: &MarginRules) -> MarginChange {
@@ -93,21 +143,13 @@ pub fn dragged_margin(edge: MarginEdge, at: f64, rules: &MarginRules) -> MarginC
         edge => (edge, at),
     };
     let (width, height) = rules.page;
-    let m = &rules.margins;
-    let (raw, room, current) = match edge {
-        MarginEdge::Left => (at - rules.gutter, width - m.right - rules.gutter - rules.min_text, m.left),
-        MarginEdge::Right => (width - at, width - m.left - rules.gutter - rules.min_text, m.right),
-        MarginEdge::Top => (at, height - m.bottom - rules.min_text, m.top),
-        MarginEdge::Bottom => (height - at, height - m.top - rules.min_text, m.bottom),
-        // A header or footer sits within its page margin.
-        MarginEdge::Header => (at, m.top, 0.0),
-        MarginEdge::Footer => (height - at, m.bottom, 0.0),
+    let raw = match edge {
+        MarginEdge::Left => at - rules.gutter,
+        MarginEdge::Right => width - at,
+        MarginEdge::Top | MarginEdge::Header => at,
+        MarginEdge::Bottom | MarginEdge::Footer => height - at,
     };
-    if !raw.is_finite() || !room.is_finite() {
-        return MarginChange { edge, points: current };
-    }
-    let snapped = if rules.snap > 0.0 { (raw / rules.snap).round() * rules.snap } else { raw };
-    MarginChange { edge, points: snapped.clamp(0.0, room.max(0.0)) }
+    clamp_margin(edge, raw, rules)
 }
 
 /// What the handles did this pass.
@@ -120,7 +162,8 @@ pub struct MarginResponse {
 /// horizontal and vertical ruler strips.
 ///
 /// - The strips are the ruler rects of craft-ui's [`Rulers`](craft_ui::canvas::Rulers) the app
-///   shows (its `RulersResponse`); the margins shade them with [`MarginHandlesStyle::shade`].
+///   shows (its `RulersResponse`). The rulers paint the margin shade themselves: the app gives
+///   them [`spans`](Self::spans) through `Rulers::margins`.
 /// - Each edge grabs within [`MarginHandlesStyle::edge_grab`] of it on its ruler; the cursor is
 ///   ResizeHorizontal or ResizeVertical; the tooltip names it, and while dragging shows the value
 ///   in [`unit`](Self::unit) through craft-ui's length formatting (`LengthUnit`, its decimals and
@@ -130,8 +173,10 @@ pub struct MarginResponse {
 ///   event a pass. The view doesn't follow the caret during the drag (the page would move under
 ///   the pointer).
 /// - Keys: each edge is a Tab stop after the rulers (an AccessKit Splitter named by
-///   [`MarginLabels`], its value the margin in the unit); ← / → (↑ / ↓ on the vertical ruler)
-///   move it one [`snap`](Self::snap) step as one `EditEvent::Set`, ⇧ ten steps. Word reaches
+///   [`MarginLabels`], its value the margin in the unit, its range [`margin_range`]); ← / → (↑ /
+///   ↓ on the vertical ruler) move the edge one [`snap`](Self::snap) step toward the arrow as one
+///   `EditEvent::Set`, ⇧ ten steps. A screen reader's Increment and Decrement step the margin's
+///   value (a larger margin for Increment, on every edge), SetValue sets it. Word reaches
 ///   margins from the keyboard only through Page Setup; the suite's rule is every control from
 ///   the keyboard.
 pub struct MarginHandles<'a> {
@@ -209,19 +254,30 @@ impl<'a> MarginHandles<'a> {
         self
     }
 
-    /// Draw the margin shading on the two ruler strips (from the app's `RulersResponse`) and run
-    /// the drags and keys.
+    /// The margin parts of the page as document ranges along the x axis and along the y axis,
+    /// for `Rulers::margins`; `origin` is the page's top-left corner in the rulers' document
+    /// space. The ranges follow the visible edges (an even page of mirrored margins swaps them).
+    pub fn spans(&self, origin: Point) -> (Vec<Range<f64>>, Vec<Range<f64>>) {
+        let (width, height) = self.page_size();
+        let at = |edge: MarginEdge| self.position(edge, self.points(self.stored(edge)));
+        let (left, right) = (at(MarginEdge::Left), at(MarginEdge::Right));
+        let (top, bottom) = (at(MarginEdge::Top), at(MarginEdge::Bottom));
+        (vec![origin.x..origin.x + left, origin.x + right..origin.x + width], vec![origin.y..origin.y + top, origin.y + bottom..origin.y + height])
+    }
+
+    /// Run the drags and keys of the edges on the two ruler strips (from the app's
+    /// `RulersResponse`).
     // wordcraft: crates/ui-egui/src/canvas/margins.rs:67 `margin_handle`; gridcraft:
     // crates/ui-egui/src/paper_view.rs:779 `ruler_margins`.
     pub fn show(self, ui: &mut Ui, horizontal: Rect, vertical: Rect) -> MarginResponse {
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);
-        let labels = self.labels.clone().unwrap_or_default();
-        self.shade(ui, &style, horizontal, vertical);
+        let labels = self.labels.clone().unwrap_or_else(|| MarginLabels::of(ui));
+        let numbers = LocaleNumbers::of(ui);
         let mut edit = None;
         for visible in self.edges() {
             let strip = if visible.horizontal() { horizontal } else { vertical };
-            let event = self.edge(ui, &style, &labels, visible, strip);
+            let event = self.edge(ui, &style, &labels, &numbers, visible, strip);
             edit = edit.or(event);
         }
         MarginResponse { edit }
@@ -243,6 +299,7 @@ impl<'a> MarginHandles<'a> {
     }
 
     fn rules(&self, snap: f64) -> MarginRules {
+        let (header, footer) = self.header_footer.unwrap_or_default();
         MarginRules {
             page: self.page_size(),
             margins: self.margins,
@@ -250,6 +307,8 @@ impl<'a> MarginHandles<'a> {
             mirrored_even: self.mirrored_even,
             snap,
             min_text: self.min_text,
+            header,
+            footer,
         }
     }
 
@@ -295,25 +354,11 @@ impl<'a> MarginHandles<'a> {
         origin + (self.position(visible, points) * self.page.scale) as f32
     }
 
-    /// The margin parts of the two strips, within the page.
-    fn shade(&self, ui: &Ui, style: &MarginHandlesStyle, horizontal: Rect, vertical: Rect) {
-        let text = |a: MarginEdge, b: MarginEdge| (self.screen(a, self.points(self.stored(a))), self.screen(b, self.points(self.stored(b))));
-        let (left, right) = text(MarginEdge::Left, MarginEdge::Right);
-        let (top, bottom) = text(MarginEdge::Top, MarginEdge::Bottom);
-        let page = self.page.rect;
-        let painter = ui.painter();
-        for (min, max) in [(page.min.x, left), (right, page.max.x)] {
-            painter.rect_filled(Rect::from_x_y_ranges(min..=max, horizontal.y_range()).intersect(horizontal), 0.0, style.shade);
-        }
-        for (min, max) in [(page.min.y, top), (bottom, page.max.y)] {
-            painter.rect_filled(Rect::from_x_y_ranges(vertical.x_range(), min..=max).intersect(vertical), 0.0, style.shade);
-        }
-    }
-
-    /// `points` in the display unit with its suffix ("1.25 in").
-    fn shown(&self, points: f64) -> String {
+    /// `points` in the display unit with its suffix ("1.25 in"), the number in the locale's
+    /// digits.
+    fn shown(&self, numbers: &LocaleNumbers, points: f64) -> String {
         let value = UnitContext::default().convert(Length { value: points, unit: LengthUnit::Points }, self.unit).unwrap_or(points);
-        format!("{value:.*} {}", self.unit.decimals(), self.unit.suffix())
+        format!("{} {}", numbers.format(value, self.unit.decimals()..=self.unit.decimals()), self.unit.suffix())
     }
 
     /// One edge: its grab area on `strip`, drag, keys and screen reader requests.
@@ -322,6 +367,7 @@ impl<'a> MarginHandles<'a> {
         ui: &mut Ui,
         style: &MarginHandlesStyle,
         labels: &MarginLabels,
+        numbers: &LocaleNumbers,
         visible: MarginEdge,
         strip: Rect,
     ) -> Option<EditEvent<MarginChange>> {
@@ -335,8 +381,7 @@ impl<'a> MarginHandles<'a> {
             Rect::from_x_y_ranges(strip.x_range(), (at - style.edge_grab)..=(at + style.edge_grab))
         };
         let name = visible.name(labels);
-        let room = self.rules(0.0);
-        let largest = dragged_margin(visible, if horizontal { room.page.0 } else { room.page.1 }, &room).points;
+        let range = margin_range(stored, &self.rules(0.0));
         let sensed = Interactive::with_id(ui.make_persistent_id((self.id_salt, visible)), Role::Splitter, name)
             .sense(Sense::drag())
             .state_layer(false)
@@ -365,6 +410,7 @@ impl<'a> MarginHandles<'a> {
         if !dragging {
             let step = if self.snap > 0.0 { self.snap } else { SNAP };
             let mut delta = 0.0;
+            let mut steps = 0.0;
             let mut to = None;
             if ui.memory(|m| m.has_focus(response.id)) {
                 let keys = if horizontal { [Key::ArrowRight, Key::ArrowLeft] } else { [Key::ArrowDown, Key::ArrowUp] };
@@ -378,7 +424,7 @@ impl<'a> MarginHandles<'a> {
             }
             ui.input(|i| {
                 let requests = |action| i.num_accesskit_action_requests(response.id, action) as f64;
-                delta += step * (requests(Action::Increment) - requests(Action::Decrement));
+                steps = requests(Action::Increment) - requests(Action::Decrement);
                 let value = i.accesskit_action_requests(response.id, Action::SetValue).filter_map(|r| match r.data {
                     Some(ActionData::NumericValue(v)) if v.is_finite() => Some(v),
                     _ => None,
@@ -386,10 +432,19 @@ impl<'a> MarginHandles<'a> {
                 to = value.last();
             });
             let current = *gesture.shown();
-            let wanted = match to {
-                Some(value) => Some(dragged_margin(visible, value, &self.rules(0.0))),
-                None if delta != 0.0 => Some(dragged_margin(visible, position(&current) + delta, &self.rules(self.snap))),
-                None => None,
+            let wanted = if let Some(value) = to {
+                Some(clamp_margin(stored, value, &self.rules(0.0)))
+            } else if steps != 0.0 || delta != 0.0 {
+                let mut value = current;
+                if steps != 0.0 {
+                    value = clamp_margin(stored, value.points + step * steps, &self.rules(self.snap));
+                }
+                if delta != 0.0 {
+                    value = dragged_margin(visible, position(&value) + delta, &self.rules(self.snap));
+                }
+                Some(value)
+            } else {
+                None
             };
             if let Some(value) = wanted {
                 response.request_focus();
@@ -397,14 +452,14 @@ impl<'a> MarginHandles<'a> {
             }
         }
         let shown = *gesture.shown();
-        let value_text = self.shown(shown.points);
-        sensed.value(value_text.clone()).numeric(shown.points, 0.0..=largest, self.snap).finish(ui);
+        let value_text = self.shown(numbers, shown.points);
+        sensed.value(value_text.clone()).numeric(shown.points, range, self.snap).finish(ui);
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(if horizontal { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical });
         }
         if response.dragged() {
             egui::Tooltip::always_open(ui.ctx().clone(), ui.layer_id(), response.id.with("value"), egui::PopupAnchor::Pointer)
-                .show(|ui| ui.label(format!("{name}: {value_text}")));
+                .show(|ui| ui.label(fmt(&labels.drag, &[("name", name), ("value", &value_text)])));
         } else {
             response.on_hover_text(name);
         }
