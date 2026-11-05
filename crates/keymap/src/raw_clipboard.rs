@@ -86,8 +86,9 @@ pub(crate) fn swallowed_paste(ctx: &Context, raw: &mut RawInput) {
 ///
 /// In a text field the press becomes egui's `Copy` or `Cut` event, or, for paste, a
 /// `ViewportCommand::RequestPaste` (the window answers with a `Paste` event next frame) and the
-/// press goes. Outside text fields it becomes the Cmd+C, Cmd+V or Cmd+X press, so the Copy,
-/// Paste and Cut bindings run.
+/// press goes. Outside text fields Ctrl+Insert and Shift+Insert become the Cmd+C and Cmd+V
+/// presses, so the Copy and Paste bindings run; Shift+Delete stays itself there, where Photoshop
+/// binds it to Fill.
 pub(crate) fn insert_chords(ctx: &Context, raw: &mut RawInput, typing: bool) {
     use ::egui::os::OperatingSystem as Os;
     if cfg!(target_arch = "wasm32") || !matches!(ctx.os(), Os::Nix | Os::Windows) {
@@ -103,7 +104,7 @@ pub(crate) fn insert_chords(ctx: &Context, raw: &mut RawInput, typing: bool) {
         let shift_only = m.shift && !m.ctrl && !m.alt && !m.command && !m.mac_cmd;
         match key {
             Key::Insert if ctrl_only => out.push(if typing { Event::Copy } else { press(Key::C, Modifiers::COMMAND) }),
-            Key::Delete if shift_only => out.push(if typing { Event::Cut } else { press(Key::X, Modifiers::COMMAND) }),
+            Key::Delete if shift_only && typing => out.push(Event::Cut),
             Key::Insert if shift_only && typing => ctx.send_viewport_cmd(::egui::ViewportCommand::RequestPaste),
             Key::Insert if shift_only => out.push(press(Key::V, Modifiers::COMMAND)),
             _ => out.push(e),

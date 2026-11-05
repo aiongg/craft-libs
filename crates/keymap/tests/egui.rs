@@ -713,10 +713,11 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
         raw.events
     };
     let is_press = |events: &[Event], key| matches!(events, [Event::Key { key: k, pressed: true, modifiers, .. }] if *k == key && modifiers.command);
-    // Outside text fields they are the Copy, Paste and Cut chords.
+    // Outside text fields Ctrl+Insert and Shift+Insert are the Copy and Paste chords.
     assert!(is_press(&after(EguiKey::Insert, Modifiers::CTRL, false), EguiKey::C));
     assert!(is_press(&after(EguiKey::Insert, Modifiers::SHIFT, false), EguiKey::V));
-    assert!(is_press(&after(EguiKey::Delete, Modifiers::SHIFT, false), EguiKey::X));
+    // Outside text fields Shift+Delete stays itself (Fill in Photoshop).
+    assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT, false).as_slice(), [Event::Key { key: EguiKey::Delete, modifiers, .. }] if modifiers.shift));
     // In a text field Ctrl+Insert and Shift+Delete are egui's events; Shift+Insert asks for the text.
     assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
     assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
