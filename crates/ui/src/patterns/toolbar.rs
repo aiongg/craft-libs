@@ -124,6 +124,7 @@ pub struct Toolbar<'a> {
     groups: Vec<Vec<ToolbarItem<'a>>>,
     selected: Option<(usize, usize)>,
     overflow: bool,
+    button: Option<f32>,
     label: String,
     more_label: String,
 }
@@ -137,6 +138,7 @@ impl<'a> Toolbar<'a> {
             groups: Vec::new(),
             selected: None,
             overflow: false,
+            button: None,
             label: "Toolbar".into(),
             more_label: "More".into(),
         }
@@ -175,6 +177,14 @@ impl<'a> Toolbar<'a> {
     /// narrow row scrolls).
     pub fn overflow(mut self, overflow: bool) -> Self {
         self.overflow = overflow;
+        self
+    }
+
+    /// Horizontal only: the side of the buttons, and so the bar's height, where the toolbar's own
+    /// `toolbar.button` is not the family's size (the timeline's transport bar passes
+    /// `timeline.transport_button`). Default: `toolbar.button`.
+    pub fn button_size(mut self, side: f32) -> Self {
+        self.button = Some(side);
         self
     }
 
@@ -235,7 +245,10 @@ impl<'a> Toolbar<'a> {
     /// `toolbar.width` wide and spans the available height.
     pub fn show(mut self, ui: &mut Ui) -> ToolbarResponse {
         let tokens = Tokens::of(ui);
-        let style = Toolbar::style(&tokens);
+        let mut style = Toolbar::style(&tokens);
+        if let Some(side) = self.button {
+            style.button = side;
+        }
         let vertical = self.orientation == Orientation::Vertical;
         let rtl = direction::is_rtl(ui);
         let flow = Flow { vertical, rtl, side: if vertical { style.button_large } else { style.button }, gap: style.gap, group_gap: style.group_gap };

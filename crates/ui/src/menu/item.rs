@@ -99,6 +99,8 @@ pub struct MenuItem<T> {
     keyed: bool,
     tint: Option<Srgba>,
     tooltip: Option<String>,
+    /// Boxed to keep a row, and so `MenuEntry`, under clippy's large-variant size.
+    detail: Option<Box<str>>,
     keep_open: bool,
     accessible_name: Option<String>,
     action: Action<T>,
@@ -128,6 +130,7 @@ impl<T> MenuItem<T> {
             keyed: true,
             tint: None,
             tooltip: None,
+            detail: None,
             keep_open: false,
             accessible_name: None,
             action,
@@ -205,6 +208,15 @@ impl<T> MenuItem<T> {
         self
     }
 
+    /// A muted second line under the label, as Word's Layout menus show a paper's size under its
+    /// name. The row is a line taller and as wide as the longer of the two lines; the line is
+    /// shown in the shortcut's type role and colour, and AccessKit reports it as the row's
+    /// description unless the row has a [`tooltip`](Self::tooltip).
+    pub fn detail(mut self, text: impl Into<String>) -> Self {
+        self.detail = Some(text.into().into_boxed_str()).filter(|t| !t.is_empty());
+        self
+    }
+
     /// Running the row leaves the menu open, so the user flips several settings in one visit
     /// (PhotoCraft's panel "…" menus: the crop options' Use Classic Mode and Show Cropped Area,
     /// the Actions panel's Shift and Command checks, EffectCraft's Columns menu). For check and
@@ -255,6 +267,7 @@ impl<T> MenuItem<T> {
             keyed: self.keyed,
             tint: self.tint,
             tooltip: self.tooltip.clone(),
+            detail: self.detail.clone(),
             keep_open: self.keep_open,
             accessible_name: self.accessible_name.clone(),
             action: match &self.action {
@@ -294,6 +307,10 @@ impl<T> MenuItem<T> {
 
     pub(crate) fn tooltip_of(&self) -> Option<&str> {
         self.tooltip.as_deref()
+    }
+
+    pub(crate) fn detail_of(&self) -> Option<&str> {
+        self.detail.as_deref()
     }
 
     pub(crate) fn shortcut_of(&self) -> Option<&Kbd> {
