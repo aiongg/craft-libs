@@ -682,7 +682,7 @@ fn finish_file_pick(ctx: &Context, host: &Host, key: Id, library: &mut SwatchLib
     match pick.job {
         FileJob::Import { replace } => {
             let file = match picked {
-                Picked::Cancelled => return,
+                Picked::Cancelled | Picked::Unavailable(_) => return,
                 Picked::Paths(paths) => paths.into_iter().next().map(|path| {
                     let name = path.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
                     host.files().read(&path).map(|bytes| (name, bytes))

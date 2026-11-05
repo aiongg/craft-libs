@@ -251,7 +251,7 @@ impl<'a, K> PresetFiles<'a, K> {
         if let Stage::Asked(ticket) = &pending.stage {
             let Some(picked) = host.files().take_answer(*ticket) else { return out };
             match (&pending.job, picked) {
-                (_, Picked::Cancelled) => {
+                (_, Picked::Cancelled | Picked::Unavailable(_)) => {
                     ctx.data_mut(|d| d.remove::<Pending>(key));
                     return out;
                 }

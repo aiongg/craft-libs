@@ -325,7 +325,7 @@ fn poll_load(ctx: &Context, host: Option<&Arc<Host>>, key: Id) -> Option<Result<
             let slot = Arc::new(Mutex::new(None));
             let (shared, wake, reader) = (Arc::clone(&slot), ctx.clone(), Arc::clone(host));
             let job = match picked {
-                Picked::Cancelled => return None,
+                Picked::Cancelled | Picked::Unavailable(_) => return None,
                 Picked::Paths(paths) => {
                     let path = paths.into_iter().next()?;
                     Box::new(move || {

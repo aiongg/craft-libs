@@ -25,7 +25,7 @@ use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
 
 use craft_host::{PickKind, Picked};
 
-use crate::{Answer, Dialogs, FileDialog, Filter, Kind, Message, MessageButtons, MessageLevel, MessageResult};
+use crate::{Answer, Dialogs, FileDialog, Filter, Kind, Message, MessageButtons, MessageLevel, MessageResult, probe};
 
 /// The words of the Replace question: a native message box, so they come from the app's catalog
 /// (see `ReplaceLabels` in the `ui` feature) instead of `words!` at draw time.
@@ -186,6 +186,8 @@ pub struct FilePanels {
     extension_policy: ExtensionPolicy,
     replace_guard: ReplaceGuard,
     replace_words: ReplaceWords,
+    /// Why no file dialog can open on this system, when the probe knows.
+    backend_problem: fn() -> Option<String>,
     /// The replace questions [`pump_with`](FilePanels::pump_with) put on the app's dialog host.
     #[cfg(feature = "ui")]
     prompts: Vec<AskedPrompt>,
@@ -204,6 +206,7 @@ impl FileService {
     /// `wake` requests a repaint from any thread (`ctx.request_repaint()`).
     // pc: apps/photocraft/src/services.rs:203 show_file_dialog; crates/ui-egui/src/file_dialog.rs:310 poll_file_dialog
     pub fn new(wake: Wake) -> (Self, FilePanels) {
+        probe::start();
         let inner = Arc::new(Mutex::new(Inner {
             next: 0,
             pending: HashMap::new(),
@@ -219,6 +222,7 @@ impl FileService {
             extension_policy: ExtensionPolicy::default(),
             replace_guard: ReplaceGuard::default(),
             replace_words: ReplaceWords::default(),
+            backend_problem: probe::known_problem,
             #[cfg(feature = "ui")]
             prompts: Vec::new(),
         };
@@ -427,8 +431,9 @@ impl FilePanels {
     }
 
     /// Turns a panel answer into the pick's answer: `Cancelled` stays, `Paths` for Save go through
-    /// the policy and guard, `Unavailable` becomes `Cancelled` plus a log line (the service has no
-    /// way to show an error; the feature sees nothing chosen). A Save that needs the replace
+    /// the policy and guard, `Unavailable` stays `Unavailable` with the cause, and a `Cancelled` on a
+    /// system where the probe found no dialog backend becomes `Unavailable` with the probe's
+    /// cause. A Save that needs the replace
     /// question stays pending and returns the question for the caller to ask.
     fn finish(&mut self, id: PickId, answer: Answer) -> Option<ReplaceQuestion> {
         let pending = lock(&self.inner).pending.remove(&id)?;
@@ -452,10 +457,10 @@ impl FilePanels {
                 }
                 Picked::Paths(paths)
             }
-            (Answer::Unavailable(why), _) => {
-                eprintln!("craft-dialogs: no file dialog could be shown: {why}");
-                Picked::Cancelled
-            }
+            (Answer::Unavailable(why), _) => Picked::Unavailable(why),
+            // A panel that answers nothing on a system without a dialog backend did not get
+            // cancelled; the probe knows why.
+            (Answer::Cancelled, None) => (self.backend_problem)().map_or(Picked::Cancelled, Picked::Unavailable),
             (Answer::Cancelled | Answer::Message(_), _) => Picked::Cancelled,
         };
         self.complete(id, pending.request, picked);
@@ -568,6 +573,7 @@ mod service_tests {
     /// A service whose panels answer each request with the next of `answers`, recording the requests.
     fn service_with(answers: Vec<Answer>) -> (FileService, FilePanels, Log) {
         let (service, mut panels) = FileService::new(Wake::none());
+        panels.backend_problem = || None;
         let log: Log = Rc::default();
         let seen = log.clone();
         let mut answers = answers.into_iter();
@@ -711,6 +717,23 @@ mod service_tests {
         assert_eq!(typed("Photo", ExtensionPolicy::AS_TYPED), PathBuf::from("Photo"));
     }
 
+    // A panel's "unavailable" reaches the app with its cause; an empty answer counts as one only
+    // where the probe found no backend.
+    #[test]
+    fn unavailable_panels_answer_unavailable() {
+        let (service, mut panels, _) = service_with(vec![Answer::Unavailable("no window".into()), Answer::Cancelled, Answer::Cancelled]);
+        let unavailable = service.pick(PickRequest::open("document"));
+        let cancelled = service.pick(PickRequest::open("document"));
+        panels.pump(NONE);
+        assert_eq!(answered(&service, unavailable), Picked::Unavailable("no window".into()));
+        assert_eq!(answered(&service, cancelled), Picked::Cancelled);
+
+        panels.backend_problem = || Some("libdbus is missing".into());
+        let empty = service.pick(PickRequest::open("document"));
+        panels.pump(NONE);
+        assert_eq!(answered(&service, empty), Picked::Unavailable("libdbus is missing".into()));
+    }
+
     // A hard link is another entry of the same file.
     #[cfg(unix)]
     #[test]
@@ -741,10 +764,10 @@ mod service_tests {
 
         use super::*;
 
-        /// A Save that typed "Photo" over an existing "Photo.png", pumped once: the question is
-        /// open on the returned host.
-        fn asked() -> (FileService, FilePanels, DialogHost, PickId, PathBuf) {
-            let dir = scratch("prompt");
+        /// A Save that typed "Photo" over an existing "Photo.png" in the scratch folder `name`,
+        /// pumped once: the question is open on the returned host.
+        fn asked(name: &str) -> (FileService, FilePanels, DialogHost, PickId, PathBuf) {
+            let dir = scratch(name);
             std::fs::write(dir.join("Photo.png"), b"old").expect("fixture");
             let (service, mut panels, _) = service_with(vec![Answer::Paths(vec![dir.join("Photo")])]);
             let mut dialogs = DialogHost::new();
@@ -759,7 +782,7 @@ mod service_tests {
         // Confirming the prompt, as `ui.dialog.confirm` does, settles the pick on the next pump.
         #[test]
         fn confirming_the_replace_prompt_answers_the_settled_path() {
-            let (service, mut panels, mut dialogs, id, settled) = asked();
+            let (service, mut panels, mut dialogs, id, settled) = asked("prompt-confirm");
             assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
             panels.pump_with(&mut dialogs, NONE);
             assert_eq!(answered(&service, id), Picked::Paths(vec![settled]));
@@ -768,7 +791,7 @@ mod service_tests {
 
         #[test]
         fn cancelling_the_replace_prompt_answers_cancelled() {
-            let (service, mut panels, mut dialogs, id, _) = asked();
+            let (service, mut panels, mut dialogs, id, _) = asked("prompt-cancel");
             assert!(dialogs.cancel::<StandardPrompt>(&Context::default()));
             panels.pump_with(&mut dialogs, NONE);
             assert_eq!(answered(&service, id), Picked::Cancelled);
@@ -777,7 +800,7 @@ mod service_tests {
         // A result someone else took leaves no prompt to wait for: the pick ends rather than hangs.
         #[test]
         fn a_prompt_result_taken_elsewhere_ends_the_pick() {
-            let (service, mut panels, mut dialogs, id, _) = asked();
+            let (service, mut panels, mut dialogs, id, _) = asked("prompt-taken");
             assert!(dialogs.confirm::<StandardPrompt>(&Context::default()));
             assert!(dialogs.take::<StandardPrompt>().is_some());
             panels.pump_with(&mut dialogs, NONE);

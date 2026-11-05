@@ -20,6 +20,10 @@ egui = { workspace = true, optional = true }
 raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
 
+# The file-dialog probe asks the session bus whether the desktop portal offers a file chooser.
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+
 # The free-standing Open and Folder panel (`beginWithCompletionHandler:`). rfd and winit already
 # use these.
 [target.'cfg(target_os = "macos")'.dependencies]

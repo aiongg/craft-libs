@@ -346,7 +346,7 @@ fn poll_load(ctx: &Context, host: Option<&Arc<Host>>, key: Id, unreadable: &str)
             let Some(picked) = host.files().take_answer(id) else { return Vec::new() };
             ctx.data_mut(|d| d.remove::<Load>(key));
             match picked {
-                Picked::Cancelled => Vec::new(),
+                Picked::Cancelled | Picked::Unavailable(_) => Vec::new(),
                 Picked::Contents(contents) => contents.into_iter().next().map(|file| vec![finished(Ok(file))]).unwrap_or_default(),
                 Picked::Paths(paths) => {
                     let Some(path) = paths.into_iter().next() else { return Vec::new() };

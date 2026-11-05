@@ -136,24 +136,28 @@ pub enum Picked {
     Paths(Vec<PathBuf>),
     /// Files read by the browser (wasm): name and contents.
     Contents(Vec<(String, Vec<u8>)>),
+    /// No picker could be shown (no desktop portal or `zenity` on Linux, no window to attach to);
+    /// the text is the technical cause, not a sentence for the user. A feature without a status
+    /// line to report on treats it as nothing chosen.
+    Unavailable(String),
 }
 
 impl Picked {
-    /// The first chosen path; on wasm the first file's name. `None` when cancelled.
+    /// The first chosen path; on wasm the first file's name. `None` when cancelled or unavailable.
     pub fn first_path(&self) -> Option<PathBuf> {
         match self {
             Picked::Paths(paths) => paths.first().cloned(),
             Picked::Contents(files) => files.first().map(|(name, _)| PathBuf::from(name)),
-            Picked::Cancelled => None,
+            Picked::Cancelled | Picked::Unavailable(_) => None,
         }
     }
 
-    /// Every chosen path; on wasm the files' names. Empty when cancelled.
+    /// Every chosen path; on wasm the files' names. Empty when cancelled or unavailable.
     pub fn paths(&self) -> Vec<PathBuf> {
         match self {
             Picked::Paths(paths) => paths.clone(),
             Picked::Contents(files) => files.iter().map(|(name, _)| PathBuf::from(name)).collect(),
-            Picked::Cancelled => Vec::new(),
+            Picked::Cancelled | Picked::Unavailable(_) => Vec::new(),
         }
     }
 }
@@ -320,5 +324,7 @@ mod tests {
         assert_eq!(contents.first_path(), Some(PathBuf::from("x.png")));
         assert_eq!(Picked::Cancelled.first_path(), None);
         assert!(Picked::Cancelled.paths().is_empty());
+        assert_eq!(Picked::Unavailable("no portal".into()).first_path(), None);
+        assert!(Picked::Unavailable("no portal".into()).paths().is_empty());
     }
 }

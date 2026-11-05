@@ -207,7 +207,7 @@ match event {
 
 **Interrupted gesture.** Besides Esc, other events end a gesture with `Cancel`; the `CancelReason` says which: `FocusLost`, `Dismissed`, `DocumentSwitched`, `UndoDuringGesture`, `Removed`, `Disabled`, `External`. The handler above covers all of them. After `External`, the control shows the host's value and the outside change stays.
 
-**Error.** A failing service call returns a typed error, and the feature shows it in its own UI without an edit. File calls return `Result<_, FileError>`. A dismissed picker answers `Picked::Cancelled`, not an error.
+**Error.** A failing service call returns a typed error, and the feature shows it in its own UI without an edit. File calls return `Result<_, FileError>`. A dismissed picker answers `Picked::Cancelled`, not an error; a picker that cannot open answers `Picked::Unavailable(cause)`.
 
 **Async job.** Work runs on the host's `Jobs`, never on a thread a feature starts. `JobQueue` adds priorities, one job per key, replacement and cancellation. Dropping a key sets the job's cancel flag, and a cancelled job's result is never delivered.
 

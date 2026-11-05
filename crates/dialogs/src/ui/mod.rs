@@ -30,6 +30,23 @@ craft_ui::words! {
     }
 }
 
+craft_ui::words! {
+    /// What a feature tells the user when `Picked::Unavailable` says no file dialog can open.
+    /// `{cause}` is the technical cause the answer carries.
+    #[non_exhaustive]
+    pub struct UnavailableLabels {
+        message: "fileService.unavailable" = "No file dialog can open: {cause}. Install xdg-desktop-portal with a backend (xdg-desktop-portal-gtk, -kde or -gnome) and libdbus, or zenity. Meanwhile, drop a file onto the window or paste a copied image.";
+    }
+}
+
+impl UnavailableLabels {
+    /// The sentence for `cause`, the text of a `Picked::Unavailable`.
+    // pc: apps/photocraft/src/file_dialog_probe.rs:36 problem (wording)
+    pub fn message(&self, cause: &str) -> String {
+        craft_i18n::fmt(&self.message, &[("cause", cause)])
+    }
+}
+
 impl ReplaceLabels {
     /// The words for [`FilePanels::replace_words`](crate::service::FilePanels::replace_words).
     pub fn words(&self) -> crate::service::ReplaceWords {
@@ -53,4 +70,5 @@ pub const WORDS: &[&[craft_ui::localized::Word]] = &[
     <FileListLabels as craft_ui::localized::Labels>::WORDS,
     <PathFieldLabels as craft_ui::localized::Labels>::WORDS,
     <ReplaceLabels as craft_ui::localized::Labels>::WORDS,
+    <UnavailableLabels as craft_ui::localized::Labels>::WORDS,
 ];

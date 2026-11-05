@@ -20,6 +20,7 @@
 
 mod filter;
 mod native;
+mod probe;
 pub mod save;
 #[cfg(test)]
 mod save_tests;
