@@ -307,8 +307,13 @@ impl<'a> CellSpace<'a> {
 }
 
 /// The selected cells: one or more ranges, the active cell (where typing goes, drawn clear of the
-/// selection fill) and the anchor (the corner Shift extends from). The last range is the current
-/// one; it holds the active cell. Never empty: a grid always has an active cell, A1 at first.
+/// selection fill) and the anchor (the corner Shift extends from). One range is the current one
+/// ([`current`](Self::current)); it holds the active cell. A new range is added last and becomes
+/// current; Enter and Tab move the current index and keep [`ranges`](Self::ranges) in the order
+/// they were added, as Excel does (it moves only the active area). Never empty: a grid always has
+/// an active cell, A1 at first. Deserializing checks these invariants and fails on a selection
+/// that breaks them (no ranges, a current index out of range, an active cell outside the current
+/// range).
 ///
 /// Excel's rules, which document tables share:
 /// - A click selects the cell, or its whole merged cell with the active cell at the merge's
@@ -328,12 +333,43 @@ impl<'a> CellSpace<'a> {
 /// Every change goes through these methods, which keep the invariants (ranges cover the merged
 /// cells they cross, the active cell is in the current range, a Tab run ends on any other move).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "CellSelectionData")]
 pub struct CellSelection {
     ranges: Vec<CellRange>,
+    /// The index in `ranges` of the current range.
+    current: usize,
     active: CellRef,
     anchor: CellRef,
     /// The column the current run of Tabs started in, while the last move was a Tab.
     tab_run: Option<u32>,
+}
+
+/// The stored form of a [`CellSelection`], checked by [`CellSelection::from_ranges`]'s rule on
+/// the way in. A selection stored without `current` has the last range current.
+#[derive(Deserialize)]
+struct CellSelectionData {
+    ranges: Vec<CellRange>,
+    #[serde(default)]
+    current: Option<usize>,
+    active: CellRef,
+    anchor: CellRef,
+    #[serde(default)]
+    tab_run: Option<u32>,
+}
+
+impl TryFrom<CellSelectionData> for CellSelection {
+    type Error = String;
+
+    fn try_from(data: CellSelectionData) -> Result<Self, String> {
+        let current = data.current.unwrap_or(data.ranges.len().saturating_sub(1));
+        let Some(range) = data.ranges.get(current) else {
+            return Err(format!("a cell selection needs a current range: {} ranges, current {current}", data.ranges.len()));
+        };
+        if !range.contains(data.active) {
+            return Err("the active cell is outside the current range".to_owned());
+        }
+        Ok(Self { ranges: data.ranges, current, active: data.active, anchor: data.anchor, tab_run: data.tab_run })
+    }
 }
 
 impl Default for CellSelection {
@@ -347,19 +383,20 @@ impl CellSelection {
     /// One cell, active and the anchor. A cell inside a merge selects the merge through
     /// [`select`](Self::select) instead.
     pub fn cell(c: CellRef) -> Self {
-        Self { ranges: vec![CellRange::cell(c)], active: c, anchor: c, tab_run: None }
+        Self { ranges: vec![CellRange::cell(c)], current: 0, active: c, anchor: c, tab_run: None }
     }
 
     /// One range with its top-left active and the anchor.
     pub fn range(r: CellRange) -> Self {
-        Self { ranges: vec![r], active: r.start, anchor: r.start, tab_run: None }
+        Self { ranges: vec![r], current: 0, active: r.start, anchor: r.start, tab_run: None }
     }
 
-    /// Several ranges (an automation's `A1:B2,D4`) with `active` in the last one, the anchor at
-    /// `active`. `None` when `ranges` is empty or the last range doesn't hold `active`.
+    /// Several ranges (an automation's `A1:B2,D4`) with `active` in the last one, which is the
+    /// current range, and the anchor at `active`. `None` when `ranges` is empty or the last range
+    /// doesn't hold `active`.
     pub fn from_ranges(ranges: Vec<CellRange>, active: CellRef) -> Option<Self> {
         let holds = ranges.last().is_some_and(|r| r.contains(active));
-        holds.then_some(Self { ranges, active, anchor: active, tab_run: None })
+        holds.then(|| Self { current: ranges.len() - 1, ranges, active, anchor: active, tab_run: None })
     }
 
     pub fn ranges(&self) -> &[CellRange] {
@@ -374,9 +411,9 @@ impl CellSelection {
         self.anchor
     }
 
-    /// The range Shift extends (the last one).
+    /// The range Shift extends: the last one added, until Enter or Tab moves into another.
     pub fn current(&self) -> CellRange {
-        self.ranges.last().copied().unwrap_or(CellRange::cell(self.active))
+        self.ranges[self.current]
     }
 
     /// The smallest range holding every selected range.
@@ -422,7 +459,7 @@ impl CellSelection {
     /// Ends a Tab run.
     pub fn select_range(&mut self, range: CellRange, space: &CellSpace<'_>) -> bool {
         let range = space.cover(range);
-        self.replace(vec![range], range.start, range.start)
+        self.replace(vec![range], 0, range.start, range.start)
     }
 
     /// Shift+click and a drag: the current range runs from the anchor to `c`, covered over
@@ -431,12 +468,9 @@ impl CellSelection {
     pub fn extend_to(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
         let range = space.cover(CellRange::new(self.anchor, c));
         let mut ranges = self.ranges.clone();
-        match ranges.last_mut() {
-            Some(last) => *last = range,
-            None => ranges.push(range),
-        }
+        ranges[self.current] = range;
         let active = if range.contains(self.active) { self.active } else { self.anchor };
-        self.replace(ranges, active, self.anchor)
+        self.replace(ranges, self.current, active, self.anchor)
     }
 
     /// Shift+arrow: the [`head`](Self::head) moves one cell toward `direction` through
@@ -462,6 +496,7 @@ impl CellSelection {
         let mut ranges = self.ranges.clone();
         ranges.push(range);
         self.tab_run = None;
+        self.current = ranges.len() - 1;
         self.ranges = ranges;
         self.active = range.start;
         self.anchor = range.start;
@@ -483,11 +518,13 @@ impl CellSelection {
     ///   row for Tab and down the column for Enter, wrapping to the next row or column; past the
     ///   range's last cell it goes on to the next range's first cell, after the last range back to
     ///   the first (Excel cycles every range; `back` runs the other way). Merged cells are
-    ///   visited once, hidden lines skipped. The selection is kept.
+    ///   visited once, hidden lines skipped. The selection is kept, with [`ranges`](Self::ranges)
+    ///   in the same order; the current range moves to the one the active cell is in.
     /// - One cell: the selection moves one cell, Tab right and Enter down ([`step`](Self::step),
     ///   stopping at the sheet's edge). A Tab starts or continues a Tab run; Enter after a run
     ///   goes down one row to the column the run started in (Excel's "return to the starting
-    ///   column"), which ends the run.
+    ///   column") when a walk may stop there (shown and selectable), else to the plain Down
+    ///   neighbour. Either way it ends the run.
     ///
     /// Returns whether the active cell moved.
     // gridcraft: crates/engine/src/selection.rs:90 `cycle` (inside the current range only;
@@ -499,7 +536,7 @@ impl CellSelection {
             self.tab_run = None;
             self.anchor = self.active;
             let count = self.ranges.len();
-            let at = self.ranges.iter().rposition(|r| r.contains(self.active)).unwrap_or(count - 1);
+            let at = self.current;
             let mut next = space.scan(self.ranges[at], Some(self.active), along, back).map(|c| (at, c));
             for k in 1..=count {
                 if next.is_some() {
@@ -511,14 +548,18 @@ impl CellSelection {
             let Some((i, c)) = next else {
                 return false;
             };
-            self.ranges.rotate_left(i + 1);
+            self.current = i;
             self.active = c;
             self.anchor = c;
             return c != moved_from;
         }
         let run = self.tab_run;
         let target = match (along, back, run) {
-            (CellAdvance::Enter, false, Some(column)) => space.neighbour(self.active, CellDirection::Down).map(|n| CellRef::new(n.row, column)),
+            // The run's start column only when a walk may stop there; else the plain neighbour.
+            (CellAdvance::Enter, false, Some(column)) => {
+                let below = space.neighbour(self.active, CellDirection::Down);
+                below.map(|n| CellRef::new(n.row, column)).filter(|t| space.visitable(*t)).or(below)
+            }
             (CellAdvance::Enter, false, None) => space.neighbour(self.active, CellDirection::Down),
             (CellAdvance::Enter, true, _) => space.neighbour(self.active, CellDirection::Up),
             (CellAdvance::Tab, false, _) => space.neighbour(self.active, CellDirection::Right),
@@ -528,6 +569,9 @@ impl CellSelection {
             return false;
         };
         self.select(target, space);
+        if along == CellAdvance::Enter {
+            self.tab_run = None;
+        }
         if along == CellAdvance::Tab {
             self.tab_run = Some(run.unwrap_or(moved_from.column));
         }
@@ -535,10 +579,11 @@ impl CellSelection {
     }
 
     /// Sets the state, ends the Tab run, and returns whether ranges, active or anchor changed.
-    fn replace(&mut self, ranges: Vec<CellRange>, active: CellRef, anchor: CellRef) -> bool {
+    fn replace(&mut self, ranges: Vec<CellRange>, current: usize, active: CellRef, anchor: CellRef) -> bool {
         self.tab_run = None;
-        let changed = self.ranges != ranges || self.active != active || self.anchor != anchor;
+        let changed = self.ranges != ranges || self.current != current || self.active != active || self.anchor != anchor;
         self.ranges = ranges;
+        self.current = current;
         self.active = active;
         self.anchor = anchor;
         changed
@@ -548,6 +593,6 @@ impl CellSelection {
     fn collapse_to(&mut self, c: CellRef, space: &CellSpace<'_>) -> bool {
         let range = space.merge_at(c).unwrap_or(CellRange::cell(c));
         let active = range.start;
-        self.replace(vec![range], active, active)
+        self.replace(vec![range], 0, active, active)
     }
 }

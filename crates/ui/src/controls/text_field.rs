@@ -125,6 +125,7 @@ pub struct TextField<'a> {
     invalid: bool,
     leading: Option<Icon>,
     password: bool,
+    secret: bool,
     char_limit: usize,
     keep_focus: bool,
     multiline: Option<usize>,
@@ -164,6 +165,7 @@ impl<'a> TextField<'a> {
             invalid: false,
             leading: None,
             password: false,
+            secret: false,
             char_limit: usize::MAX,
             keep_focus: false,
             multiline: None,
@@ -225,9 +227,17 @@ impl<'a> TextField<'a> {
         self
     }
 
-    /// Shows a bullet per character.
+    /// Shows a bullet per character; AccessKit reports a `PasswordInput` with the bullets as its
+    /// value. A [`layouter`](TextField::layouter) doesn't see the text of a masked field.
     pub fn password(mut self, password: bool) -> Self {
         self.password = password;
+        self
+    }
+
+    /// Masked like a [`password`](TextField::password), and AccessKit gets no value, not even the
+    /// number of characters: for a token or a code that a screen reader must not read back.
+    pub fn secret(mut self, secret: bool) -> Self {
+        self.secret = secret;
         self
     }
 
@@ -292,13 +302,13 @@ impl<'a> TextField<'a> {
     }
 
     pub fn show(self, ui: &mut Ui) -> EditResponse<String> {
-        self.show_with_text_rect(ui).0
+        self.show_full(ui).edit
     }
 
     /// [`show`](TextField::show) and the rect of the laid-out text this pass, in screen
-    /// coordinates (an empty rect at the text's start in an empty field): a host draws over the
-    /// text, such as a list marker, relative to it.
-    pub fn show_with_text_rect(self, ui: &mut Ui) -> (EditResponse<String>, Rect) {
+    /// coordinates: a host draws over the text, such as a list marker, relative to it. In an
+    /// empty field the rect has zero width and is one line high, at the text's start.
+    pub fn show_full(self, ui: &mut Ui) -> TextFieldOutput {
         let spec = Spec {
             id_salt: self.id_salt,
             label: &self.label,
@@ -312,6 +322,7 @@ impl<'a> TextField<'a> {
             clear: None,
             policy: self.policy,
             password: self.password,
+            secret: self.secret,
             char_limit: self.char_limit,
             keep_focus: self.keep_focus,
             keys: EventFilter::default(),
@@ -472,6 +483,7 @@ impl<'a> SearchField<'a> {
             clear: Some(&self.clear_label),
             policy: self.policy,
             password: false,
+            secret: false,
             char_limit: usize::MAX,
             keep_focus: self.keep_focus,
             keys: self.keys,
@@ -482,8 +494,19 @@ impl<'a> SearchField<'a> {
             id: None,
             layouter: None,
         };
-        show_field(ui, &spec).0
+        show_field(ui, &spec).edit
     }
+}
+
+/// What [`TextField::show_full`] returns.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct TextFieldOutput {
+    /// The edit [`TextField::show`] returns.
+    pub edit: EditResponse<String>,
+    /// The laid-out text's rect this pass, in screen coordinates; zero width and one line high in
+    /// an empty field.
+    pub text_rect: Rect,
 }
 
 /// What [`show_field`] draws.
@@ -502,6 +525,7 @@ struct Spec<'a> {
     clear: Option<&'a str>,
     policy: EditPolicy,
     password: bool,
+    secret: bool,
     char_limit: usize,
     keep_focus: bool,
     /// The embedding control's keys.
@@ -555,7 +579,7 @@ fn clear_inset(height: f32, side: f32) -> f32 {
 
 const CLEAR_SIZE: ControlSize = ControlSize::Sm;
 
-fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> (EditResponse<String>, Rect) {
+fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> TextFieldOutput {
     let tokens = Tokens::of(ui);
     let mut style = TextField::style(&tokens, spec.size);
     if let Some(role) = spec.role {
@@ -600,6 +624,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> (EditResponse<String>, Rect) {
         .enabled(spec.enabled)
         .invalid(spec.invalid)
         .password(spec.password)
+        .secret(spec.secret)
         .char_limit(spec.char_limit)
         .keep_focus(spec.keep_focus)
         .escape(escape)
@@ -632,7 +657,7 @@ fn show_field(ui: &mut Ui, spec: &Spec<'_>) -> (EditResponse<String>, Rect) {
         }
     }
     let text_rect = typed.text_rect();
-    (typed.end(ui), text_rect)
+    TextFieldOutput { edit: typed.end(ui), text_rect }
 }
 
 /// What a field-like box shows: [`TextField`]'s, `NumberField`'s, and a closed `Select`'s
