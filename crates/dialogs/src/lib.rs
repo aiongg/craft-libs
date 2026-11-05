@@ -20,6 +20,8 @@
 
 mod filter;
 mod native;
+#[cfg(target_os = "linux")]
+mod portal;
 mod probe;
 pub mod save;
 #[cfg(test)]

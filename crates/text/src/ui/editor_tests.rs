@@ -488,12 +488,12 @@ fn tool_host_updates_each_pass_and_counts_clicks() {
     let mut host = Host::new("hello world");
     let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0)), Point::new(200.0, 150.0), 1.0);
     let mut tool_id = CanvasId::from_id(egui::Id::NULL);
-    let mut step = |editor: &mut TextEditor, host: &mut Host, inputs: &[ToolInput], events: Vec<Event>| -> TextEditorResponse {
+    let mut step = |editor: &mut TextEditor, host: &mut Host, time: f64, inputs: &[ToolInput], events: Vec<Event>| -> TextEditorResponse {
         for input in inputs {
             ToolHost::inject(&ctx, tool_id, *input);
         }
         let mut update = TextEditorResponse::default();
-        let raw = RawInput { time: Some(1.0), events, screen_rect: Some(view.rect), ..Default::default() };
+        let raw = RawInput { time: Some(time), events, screen_rect: Some(view.rect), ..Default::default() };
         let mut out = ctx.run_ui(raw, |ui| {
             let canvas_id = CanvasId::new(ui, "canvas");
             let canvas = canvas_id.interact(ui, view.rect, egui::Sense::click_and_drag());
@@ -504,8 +504,8 @@ fn tool_host_updates_each_pass_and_counts_clicks() {
         out.textures_delta.clear();
         update
     };
-    let _ = step(&mut editor, &mut host, &[], Vec::new());
-    let r = step(&mut editor, &mut host, &[], vec![Event::Text("X".into())]);
+    let _ = step(&mut editor, &mut host, 1.0, &[], Vec::new());
+    let r = step(&mut editor, &mut host, 1.0, &[], vec![Event::Text("X".into())]);
     assert!(r.changed && r.took_keys, "{r:?}");
     assert_eq!(host.text, "helloX world");
 
@@ -519,7 +519,10 @@ fn tool_host_updates_each_pass_and_counts_clicks() {
         modifiers: m,
     };
     let up = ToolInput::Up { doc: Point::new(3.0, 0.5), modifiers: m };
-    let _ = step(&mut editor, &mut host, &[down, up, down], Vec::new());
+    // The second press comes a pass later, within the double-click delay, as a real double click
+    // does: a press at the same time and point is the same press asked again.
+    let _ = step(&mut editor, &mut host, 1.0, &[down, up], Vec::new());
+    let _ = step(&mut editor, &mut host, 1.1, &[down], Vec::new());
     assert_eq!(editor.selection(), TextSelection { anchor: 0, caret: 6 }, "the second press of the run selects the word");
 }
 
