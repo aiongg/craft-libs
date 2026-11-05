@@ -8,18 +8,28 @@ use egui::{Color32, Stroke, Visuals};
 /// The dialog's colors.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DialogStyle {
+    /// Selection and focus colour.
     pub accent: Color32,
+    /// Warning text and markers.
     pub warning: Color32,
+    /// Secondary text.
     pub dim: Color32,
+    /// Marks a command whose bindings differ from the defaults.
     pub changed: Color32,
+    /// Keyboard pane: a key with an application binding.
     pub app_key: Color32,
+    /// Keyboard pane: a key with a panel or context binding.
     pub scoped_key: Color32,
+    /// Keyboard pane: a key with both kinds.
     pub both_key: Color32,
+    /// Keyboard pane: a modifier that is on.
     pub modifier_key: Color32,
+    /// Keyboard pane: a key with no binding, and a modifier that is off.
     pub free_key: Color32,
 }
 
 impl DialogStyle {
+    /// The dialog colours from egui's `Visuals`; the accent is the selection fill.
     pub fn from_visuals(v: &Visuals) -> DialogStyle {
         let accent = v.selection.bg_fill;
         DialogStyle {

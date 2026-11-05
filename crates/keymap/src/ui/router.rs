@@ -69,10 +69,12 @@ impl KeyRouter {
         KeyRouter { dispatcher }
     }
 
+    /// The dispatcher the router uses.
     pub fn dispatcher(&self) -> &Dispatcher {
         &self.dispatcher
     }
 
+    /// The dispatcher the router uses, to change its settings.
     pub fn dispatcher_mut(&mut self) -> &mut Dispatcher {
         &mut self.dispatcher
     }

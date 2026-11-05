@@ -18,6 +18,7 @@ pub struct KeymapCommands {
 }
 
 impl KeymapCommands {
+    /// Commands for `lang`, with texts from `i18n`.
     pub fn new(i18n: Arc<I18n>, lang: Lang) -> Self {
         KeymapCommands { i18n, lang, hints: None }
     }
