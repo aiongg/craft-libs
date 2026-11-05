@@ -255,6 +255,13 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
             ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
             minimum: 4.5,
         });
+        // A review's cancelled status badge is `text.faint` on the panel (a mark: 3:1).
+        expected.push(ContrastCheck {
+            fg: ComponentField::Review(ReviewField::StatusCancelled).into(),
+            bg: T::SurfacePanel.into(),
+            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
+            minimum: 3.0,
+        });
         // A list row's dimmed label and its detail line are `text.faint` on the panel.
         for f in [ComponentField::List(ListField::Dimmed), ComponentField::List(ListField::Detail), ComponentField::Preset(PresetField::Count)] {
             expected.push(ContrastCheck {
