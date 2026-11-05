@@ -29,14 +29,17 @@ fn params_errors_name_the_field() {
     assert_eq!(Params(&json!(null)).only(None, &["x"]).unwrap(), json!({}));
     assert_eq!(Params(&json!({"z": 1})).only(Some("modifiers"), &["shift"]).unwrap_err(), "unknown modifiers field `z` (fields: shift)");
 
-    let grouped = json!({"modifiers": {"shift": true, "ctrl": true}, "alt": true});
-    let m = Params(&grouped).modifiers(&KEY_MODIFIERS).unwrap();
-    assert!(m.shift && m.ctrl && !m.alt);
-    let bad = json!({"modifiers": {"shift": "yes"}});
-    assert_eq!(Params(&bad).modifiers(&KEY_MODIFIERS).unwrap_err(), "modifiers.shift must be a boolean");
-    let space = json!({"modifiers": {"space": true}});
-    assert!(Params(&space).modifiers(&KEY_MODIFIERS).unwrap_err().starts_with("unknown modifiers field `space`"));
-    assert_eq!(Params(&json!({"alt": 1})).modifiers(&KEY_MODIFIERS).unwrap_err(), "alt must be a boolean");
+    #[cfg(feature = "ui")]
+    {
+        let grouped = json!({"modifiers": {"shift": true, "ctrl": true}, "alt": true});
+        let m = Params(&grouped).modifiers(&KEY_MODIFIERS).unwrap();
+        assert!(m.shift && m.ctrl && !m.alt);
+        let bad = json!({"modifiers": {"shift": "yes"}});
+        assert_eq!(Params(&bad).modifiers(&KEY_MODIFIERS).unwrap_err(), "modifiers.shift must be a boolean");
+        let space = json!({"modifiers": {"space": true}});
+        assert!(Params(&space).modifiers(&KEY_MODIFIERS).unwrap_err().starts_with("unknown modifiers field `space`"));
+        assert_eq!(Params(&json!({"alt": 1})).modifiers(&KEY_MODIFIERS).unwrap_err(), "alt must be a boolean");
+    }
 
     #[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
     struct Panels {

@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use serde_json::{Value, json};
 
-use crate::control::REPLY_DEADLINE;
+use crate::protocol::REPLY_DEADLINE;
 use crate::security::{AUTH_METHOD, IO_TIMEOUT};
 
 /// How long a call waits for its reply: the server's [`REPLY_DEADLINE`] plus a margin, so the
@@ -87,6 +87,6 @@ enum Failure {
     Reply(String),
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "ui"))]
 #[path = "client_tests.rs"]
 mod client_tests;

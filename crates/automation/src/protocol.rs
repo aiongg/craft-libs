@@ -8,6 +8,8 @@
 
 use std::io::Write;
 
+use std::time::Duration;
+
 use serde_json::{Value, json};
 
 /// Longest reply, in bytes (the newline included); a longer one is replaced by an error reply.
@@ -102,6 +104,9 @@ pub fn write_reply(out: &mut impl Write, reply: &Value) -> std::io::Result<()> {
 
 /// The pointer buttons a request may name.
 pub const BUTTONS: [&str; 4] = ["left", "right", "secondary", "middle"];
+/// The per-request reply deadline.
+pub const REPLY_DEADLINE: Duration = Duration::from_secs(60);
+
 /// The modifier flags of `ui.key`.
 pub const KEY_MODIFIERS: [&str; 4] = ["shift", "alt", "command", "ctrl"];
 /// The modifier flags of `ui.pointer` (`space` is the momentary pan).
@@ -200,6 +205,7 @@ impl Params<'_> {
     /// ignored but still type-checked. Off the Mac `ctrl` and `command` carry the same value, as
     /// egui expects (`egui::Modifiers::command`), so a request that sets only one reaches the
     /// same shortcuts as a real Ctrl press; on the Mac they stay apart.
+    #[cfg(feature = "ui")]
     pub fn modifiers(&self, flags: &[&str]) -> Result<egui::Modifiers, String> {
         for flag in flags {
             self.bool_field(flag)?;

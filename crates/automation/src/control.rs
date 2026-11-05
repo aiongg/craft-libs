@@ -14,7 +14,7 @@
 //! two happened, once, between the UI thread and the transport.
 
 use std::sync::mpsc::{Receiver, Sender};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use serde_json::{Value, json};
 
@@ -27,8 +27,7 @@ pub type ControlResponse = Value;
 /// A background job's id in `jobs.list`, `jobs.cancel` and [`Reply::AfterJob`].
 pub type JobId = u64;
 
-/// The per-request reply deadline.
-pub const REPLY_DEADLINE: Duration = Duration::from_secs(60);
+pub use crate::protocol::REPLY_DEADLINE;
 
 /// The error for a dispatched request with no reply in [`REPLY_DEADLINE`]: the command may still
 /// run and apply, so re-sending it blindly could apply an edit twice.
