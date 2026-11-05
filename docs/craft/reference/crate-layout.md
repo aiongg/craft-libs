@@ -1,6 +1,6 @@
 # Crate and module layout
 
-Maintainer reference. The concepts are in [3. Architecture](../3-architecture.md). Crates are alphabetical, and modules are alphabetical inside each crate. The State column says whether a module exists in the repository or is planned, and in which migration step (see [Migration and landing](../migration-and-landing.md)). A module marked "exists" may gain features in later steps; the note says so.
+Maintainer reference. The concepts are in [3. Architecture](../3-architecture.md). Crates are alphabetical, and modules are alphabetical inside each crate. The State column says whether a module exists in the repository is planned, or is next, and in which migration step (see [Migration and landing](../migration-and-landing.md)). 
 
 Conventions:
 
@@ -9,7 +9,25 @@ Conventions:
 - Types carry their full name (`LayersPanel`, not `layers::Panel`), so they read the same wherever they are imported.
 - In a family crate, a module `ui::x` is the egui side and a bare `x` is core.
 
-Twenty crates are new relative to upstream. Thirteen exist on the `design-system` branch: `craft`, `craft-automation`, `craft-browse`, `craft-color`, `craft-design-lint`, `craft-draw`, `craft-host`, `craft-imaging`, `craft-layers`, `craft-theme`, `craft-theme-store`, `craft-ui-gallery`, `craft-ui-macros`. Seven are planned: `craft-audio`, `craft-code`, `craft-gpu`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline`.
+Twenty crates are new relative to upstream. Seventeen exist on the `design-system` branch: `craft`, `craft-automation`, `craft-browse`, `craft-color`, `craft-design-lint`, `craft-draw`, `craft-host`, `craft-imaging`, `craft-layers`, `craft-pages`, `craft-review`, `craft-table`, `craft-theme`, `craft-theme-store`, `craft-timeline`, `craft-ui-gallery`, `craft-ui-macros`. `craft-gpu` is the next step, and `craft-audio` and `craft-code` are planned.
+
+## Facade features
+
+| Feature | Meaning |
+| --- | --- |
+| `ui` | The family's egui side, on `craft-ui`. The only UI feature name in every crate. The facade's `ui` turns on `?/ui` for every enabled family |
+| `screen-testing` | Stories and snapshot tests; implies `ui` |
+| `egui` | Converts a crate's types to egui's without `craft-ui`, where that is the whole feature (the model is `craft-theme`'s `ecolor`) |
+| `serde`, `collab`, per-service features | Keep their names. `craft-platform` has one feature per service (`job`, `clipboard`, ...) |
+
+## Host service rules
+
+| Rule | Detail |
+| --- | --- |
+| Settings keys | Each feature exports a `serde` struct with a `const KEY`, which the app embeds in its settings file through `craft-settings` |
+| Words | Library words are rows in the shared `craft-i18n` catalog, looked up through the host |
+| Commands | A feature exports its command catalog. The app registers it with `craft-keymap` |
+| Files | Features ask the host to pick, read and write. Native apps implement the service natively; web apps implement it over the browser |
 
 ### craft
 
@@ -128,7 +146,8 @@ Colour for apps: picker, wells, swatch tables, ramps, hex field. New on the bran
 | `ui::harmony` | Harmony wheel | exists |
 | `ui::hex`, `ui::readout` | Hex field and channel readout | exists |
 | `ui::lut_picker` | LUT picker | exists |
-| `ui::paint_chip`, `ui::paints` | Paint chip and paint list | planned, step 4 |
+| `ui::paint_chip` | Paint chip | exists |
+| `ui::paints` | Paint list | planned, step 4 |
 | `ui::pair` | Foreground and background swatch pair | exists |
 | `ui::palette` | Swatch palette | exists |
 | `ui::panel` | Colour panel modes and menus | exists |
@@ -255,11 +274,11 @@ GPU device, diagnostics and memory budget, plus the GPU canvas surface. New crat
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `budget` | Memory budget and probes | planned, step 8 |
-| `canvas` | GPU canvas display surface | planned, step 8 |
-| `device` | Device setup and diagnostics | planned, step 8 |
-| `health` | Device loss, fallback and upload guard | planned, step 8 |
-| `vector` | Vector canvas renderer | planned, step 8 |
+| `budget` | Memory budget and probes | next |
+| `canvas` | GPU canvas display surface | next |
+| `device` | Device setup and diagnostics | next |
+| `health` | Device loss, fallback and upload guard | next |
+| `vector` | Vector canvas renderer | next |
 
 ### craft-host
 
@@ -269,7 +288,7 @@ The `Host` bundle and service traits. Egui-free (egui only under `ui`, for `inst
 | --- | --- | --- |
 | root | `Host`, `HostBuilder`, `Host::of`, `install` | exists |
 | `services` | `AppInfo`, `SectionStore`, `Section`, `Commands`, `Jobs`, `ThreadJobs`, `InlineJobs` and defaults | exists |
-| `files`, `clock` | File and clock services | planned, steps 3 and 4 |
+| `files` | File service | exists |
 
 ### craft-i18n
 
@@ -280,7 +299,7 @@ Translations: embedded catalogs, lookup with fallback, plurals, numbers for a re
 | `catalog` | Reading a catalog (the shared `common.tsv` holds library words) | exists |
 | `collate` | Locale sorting for lists people see | exists |
 | `fold` | Case- and accent-insensitive search matching | exists |
-| `format` | Numbers, percentages and counts for a region | exists; dates and relative times planned, step 5 |
+| `format` | Numbers, percentages and counts for a region | exists |
 | `number` | Reading numbers people type | exists |
 | `region`, `scripts` | Formatting region; scripts, direction and Han forms of a language | exists |
 | `size` | Sizes and measures with a unit | exists |
@@ -330,7 +349,7 @@ Chords, keymaps, conflicts, overrides and shortcut-set import; the Keyboard Shor
 | `profiles` | Named override sets | exists |
 | `reserved` | Chords the OS takes first | exists |
 | `scope` | Where a binding works | exists |
-| `ui` | Shortcuts dialog | exists; tabs, set row and conflict flow planned, step 3 |
+| `ui` | Shortcuts dialog | exists |
 | `ui::import_offer` | First-launch import offer | exists |
 | `ui::router` | Focus gate and key owners | exists |
 
@@ -381,29 +400,29 @@ Page geometry, setup, ranges, numbering and paged-document UI. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `layout` | Paged layout: rectangles, columns, facing pages | planned, step 6 |
-| `numbering` | Page numbering styles | planned, step 6 |
-| `range` | Page range parsing | planned, step 6 |
-| `setup` | Page setup model | planned, step 6 |
+| `layout` | Paged layout: rectangles, columns, facing pages | exists |
+| `numbering` | Page numbering styles | exists |
+| `range` | Page range parsing | exists |
+| `setup` | Page setup model | exists |
 | `show` | Slideshow playback | planned, step 8 |
-| `ui::access` | Accessibility bridge for a canvas of pages | planned, step 6 |
-| `ui::column_bar` | Column width bar | planned, step 6 |
+| `ui::access` | Accessibility bridge for a canvas of pages | exists |
+| `ui::column_bar` | Column width bar | exists |
 | `ui::flatten_preview` | Transparency flattener options and preview | planned, step 4 |
-| `ui::grid` | Page grid overlay | planned, step 6 |
-| `ui::header_footer` | Header and footer zones | planned, step 6 |
-| `ui::list` | Page and artboard list | planned, step 6 |
-| `ui::margins` | Margin handles on rulers | planned, step 6 |
-| `ui::marks` | Text frame marks overlay | planned, step 6 |
-| `ui::preview` | Page preview overlay | planned, step 6 |
-| `ui::range` | Page range field | planned, step 6 |
-| `ui::reading` | Reading view | planned, step 6 |
-| `ui::setup` | Page setup dialog | planned, step 6 |
+| `ui::grid` | Page grid overlay | exists |
+| `ui::header_footer` | Header and footer zones | exists |
+| `ui::list` | Page and artboard list | exists |
+| `ui::margins` | Margin handles on rulers | exists |
+| `ui::marks` | Text frame marks overlay | exists |
+| `ui::preview` | Page preview overlay | exists |
+| `ui::range` | Page range field | exists |
+| `ui::reading` | Reading view | exists |
+| `ui::setup` | Page setup dialog | exists |
 | `ui::show` | Presenter window, transitions, timer, pen and laser | planned, step 8 |
-| `ui::sync_views` | Synchronised side-by-side views | planned, step 6 |
-| `ui::table` | Document tables: edges, properties, size picker, cell selection | planned, step 6 |
-| `ui::text_selection` | Text selection layer over rendered pages | planned, step 6 |
-| `ui::thumbnails` | Page thumbnail strip | planned, step 6 |
-| `ui::view` | Paged document view | planned, step 6 |
+| `ui::sync_views` | Synchronised side-by-side views | exists |
+| `ui::table` | Document tables: edges, properties, size picker, cell selection | exists |
+| `ui::text_selection` | Text selection layer over rendered pages | exists |
+| `ui::thumbnails` | Page thumbnail strip | exists |
+| `ui::view` | Paged document view | exists |
 
 ### craft-pdf
 
@@ -426,8 +445,10 @@ Small platform lifecycle services, one cargo feature per service. No craft-ui.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `appearance` | Desktop colour, contrast and motion preferences | exists; reduced-motion setting planned, step 4 |
-| `autosave`, `ui::recovery` | Autosave and crash recovery | planned, step 4 |
+| `appearance` | Desktop colour, contrast and motion preferences | exists |
+| `autosave` | Autosave | exists |
+| `clock` | Clock service | exists |
+| `ui::recovery` | Crash recovery | planned, step 4 |
 | `browser` | Browser downloads | exists |
 | `clipboard` | Clipboard with synthetic input and size limits | exists |
 | `clock` | Injectable clock | exists |
@@ -464,7 +485,7 @@ System PDF print spooler (Unix and Windows) and the print dialog.
 | `browser` | Browser print | planned, step 4 |
 | `progress`, `sheets`, `ticket`, `windows` | Worker events, sheets of a print-ready PDF, print ticket, Windows spooler | exists |
 | `spool` | Spooler front end for the print dialog | planned, step 4 |
-| `ui` | Printer selection and job feedback | exists; print dialog planned, step 4 |
+| `ui` | Printer selection and job feedback | exists |
 | `ui::layout` | Print layout sheet | planned, step 4 |
 
 ### craft-quit
@@ -473,7 +494,7 @@ Quits an app the platform's way.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `close` | Routes an egui window close through the platform quit | exists; the unsaved-changes guard planned, step 2 |
+| `close` | Routes an egui window close through the platform quit | exists |
 | `macos`, `menu` | `terminate:` on macOS; the app menu with a Quit that asks first | exists |
 
 ### craft-review
@@ -482,12 +503,12 @@ Comments, annotations, signatures, versions and revisions; collaboration behind 
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `annotate`, `ui::annotate` | Page annotation tool | planned, step 6 |
-| `collab` (feature) | Presence, voting, chat, join by code, with `ui::chat`, `ui::presence`, `ui::vote` | planned, step 6 |
-| `comments`, `ui::comments`, `ui::thread` | Comments panel and threads | planned, step 6 |
-| `revisions`, `ui::revisions` | Revision compare list | planned, step 6 |
-| `signature`, `ui::signature` | Signature pad | planned, step 6 |
-| `versions`, `ui::versions` | Version history panel | planned, step 6 |
+| `annotate`, `ui::annotate` | Page annotation tool | exists |
+| `collab` (feature) | Presence, voting, chat, join by code, with `ui::chat`, `ui::presence`, `ui::vote` | exists |
+| `comments`, `ui::comments`, `ui::thread` | Comments panel and threads | exists |
+| `revisions`, `ui::revisions` | Revision compare list | exists |
+| `signature`, `ui::signature` | Signature pad | exists |
+| `versions`, `ui::versions` | Version history panel | exists |
 
 ### craft-settings
 
@@ -502,7 +523,7 @@ Shared settings storage: platform folders, `config.toml`, atomic saves, recovery
 | `profiles` | Settings profiles | exists |
 | `recovery` | Keeping damaged and previous files | exists |
 | `remember` | `Remembered<T>`: last-used options for dialogs, panels and tools | exists |
-| `store` | In-memory store | exists; multi-instance merge planned, step 4 |
+| `store` | In-memory store | exists |
 
 ### craft-table
 
@@ -510,16 +531,16 @@ Spreadsheet grid and related UI. UI-only family. New crate.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `ui::chart` | Chart painting | planned, step 6 |
-| `ui::conditions` | Condition builder | planned, step 6 |
-| `ui::error_tag` | Error-checking tag | planned, step 6 |
-| `ui::fields` | Field list pane | planned, step 6 |
-| `ui::filter` | Filter buttons | planned, step 6 |
-| `ui::grid` | Spreadsheet cell grid | planned, step 6 |
-| `ui::outline` | Row and column outline | planned, step 6 |
-| `ui::refpick` | Cell reference picking | planned, step 6 |
-| `ui::slicer` | Slicer filter chips | planned, step 6 |
-| `ui::stats` | Selection statistics | planned, step 6 |
+| `ui::chart` | Chart painting | exists |
+| `ui::conditions` | Condition builder | exists |
+| `ui::error_tag` | Error-checking tag | exists |
+| `ui::fields` | Field list pane | exists |
+| `ui::filter` | Filter buttons | exists |
+| `ui::grid` | Spreadsheet cell grid | exists |
+| `ui::outline` | Row and column outline | exists |
+| `ui::refpick` | Cell reference picking | exists |
+| `ui::slicer` | Slicer filter chips | exists |
+| `ui::stats` | Selection statistics | exists |
 
 ### craft-text
 
@@ -527,20 +548,22 @@ Text processing below the composer, and text UI.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `bidi` | Bidirectional text (UAX #9) | exists; logical-end elision planned, step 4 |
-| `find` | Find and replace | planned, step 6 |
+| `bidi` | Bidirectional text (UAX #9) | exists |
+| `find` | Find and replace | exists |
 | `hyphen` | Hyphenation | exists |
 | `linebreak` | Knuth-Plass line breaking | exists |
-| `lists` | Bullet paragraph layout | planned, step 6 |
+| `lists` | Bullet paragraph layout | exists |
 | `quotes` | Smart quotes | exists |
 | `segment` | Line-break opportunities | exists |
 | `spell` | Spelling check | exists |
-| `styles` | Named style list | planned, step 6 |
+| `styles` | Named style list | exists |
 | `ui::character`, `ui::style_panel` | Character format controls; text style panel | exists |
-| `ui::columns`, `ui::hyperlink`, `ui::notes`, `ui::paragraph` | Columns dialog, hyperlink dialog, rich-text notes, paragraph format dialog | planned, step 6 |
+| `ui::columns`, `ui::hyperlink`, `ui::notes` | Columns dialog, hyperlink dialog, rich-text notes | exists |
+| `ui::paragraph` | Paragraph format dialog | planned, step 6 |
 | `ui::editor` | Canvas text editor | exists |
-| `ui::find`, `ui::styles` | Find bar; named styles panel | planned, step 6 |
-| `ui::ruler`, `ui::tabs_dialog` | Text ruler with tab stops; tab stops dialog | planned, step 6 |
+| `ui::find` | Find bar | exists |
+| `ui::styles` | Named styles panel | planned, step 6 |
+| `ui::ruler`, `ui::tabs_dialog` | Text ruler with tab stops; tab stops dialog | exists |
 | `ui::spelling` | Spelling dialog | exists |
 
 ### craft-theme
@@ -582,24 +605,24 @@ Time, clips, keyframes, markers, frame cache, playback clock, and timeline UI. N
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `cache` | Frame cache with prefetch | planned, step 6 |
-| `clips` | Clip editing model | planned, step 6 |
-| `clock` | Playback clock and follow modes | planned, step 6 |
-| `frames` | Playback frame server | planned, step 6 |
-| `markers` | Markers | planned, step 6 |
-| `rates` | Media format presets | planned, step 6 |
-| `timecode` | Timecode and durations | planned, step 6 |
-| `ui::clips` | Clip editing UI | planned, step 6 |
-| `ui::graph` | Keyframe graph editor | planned, step 6 |
-| `ui::keyframes` | Keyframe lane | planned, step 6 |
-| `ui::markers` | Marker UI | planned, step 6 |
-| `ui::overview` | Overview strip | planned, step 6 |
-| `ui::panel` | Timeline panel with track headers | planned, step 6 |
-| `ui::preview` | Video frame painter and preview panel | planned, step 6 |
-| `ui::render_queue` | Render queue list | planned, step 6 |
-| `ui::ruler` | Time ruler | planned, step 6 |
-| `ui::timecode` | Timecode fields and readout | planned, step 6 |
-| `ui::transport` | Transport bar | planned, step 6 |
+| `cache` | Frame cache with prefetch | exists |
+| `clips` | Clip editing model | exists |
+| `clock` | Playback clock and follow modes | exists |
+| `frames` | Playback frame server | exists |
+| `markers` | Markers | exists |
+| `rates` | Media format presets | exists |
+| `timecode` | Timecode and durations | exists |
+| `ui::clips` | Clip editing UI | exists |
+| `ui::graph` | Keyframe graph editor | exists |
+| `ui::keyframes` | Keyframe lane | exists |
+| `ui::markers` | Marker UI | exists |
+| `ui::overview` | Overview strip | exists |
+| `ui::panel` | Timeline panel with track headers | exists |
+| `ui::preview` | Video frame painter and preview panel | exists |
+| `ui::render_queue` | Render queue list | exists |
+| `ui::ruler` | Time ruler | exists |
+| `ui::timecode` | Timecode fields and readout | exists |
+| `ui::transport` | Transport bar | exists |
 
 ### craft-ui
 
@@ -607,40 +630,40 @@ The kernel. Roughly 100 features after the family crates take theirs.
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `behavior` | Shared keyboard, focus, selection, typing and reorder rules | exists; scrub and pointer wrap (step 3), input quirks (step 4), drag feedback (step 5), move gesture (step 7) planned |
+| `behavior` | Shared keyboard, focus, selection, typing and reorder rules | exists |
 | `buttons` | Icon buttons with app-supplied colours | exists, deprecated (kept until the last app moves) |
-| `canvas` | Overlays and the canvas foundation: guides, rulers, marquee, readout, grid, view, scrollbars, hit testing | exists; cursor, navigation, snapping, raster display, pasteboard, split views, tool host (step 3), navigator and textures (step 6), hover, selection frame, compare (step 7) planned |
+| `canvas` | Overlays and the canvas foundation: guides, rulers, marquee, readout, grid, view, scrollbars, hit testing | exists |
 | `capture` | Screenshot completion slots | exists |
 | `combo` | Combo boxes and drop-downs | exists, deprecated |
-| `composites` | Field rows, form grid, group box, property rows, headers, curve editor, histogram, empty state, notice, toast | exists; notice centre planned, step 3 |
+| `composites` | Field rows, form grid, group box, property rows, headers, curve editor, histogram, empty state, notice, toast | exists |
 | `conformance` | An app's real appearance setup against the reference | exists |
-| `controls` | Button, checkbox, radio, switch, fields, sliders, select, combo box, swatch, badge, tooltip, thumb row | exists; point picker (step 2), number expressions (step 3), long tail of controls (step 5) planned |
-| `dialog` | Frame, footer, alert, prompt, full-window dialog, preview, local history, size, id-only stack | exists; typed stack, fields, parameter and command dialogs, size dialogs, prompts, unsaved guard, properties and report (step 2); new document, export, file list, recovery, progress (step 4); guides, About, password, list manager (step 5) planned |
+| `controls` | Button, checkbox, radio, switch, fields, sliders, select, combo box, swatch, badge, tooltip, thumb row | exists |
+| `dialog` | Frame, footer, alert, prompt, full-window dialog, preview, local history, size, id-only stack | exists |
 | `direction` | Right-to-left interface direction | exists |
-| `docking` | Panel docking, floating groups, iconic column, workspaces | exists; dock queries and commands, arrange, workspaces, multi-window host planned, step 3 |
-| `edit` | The edit lifecycle | exists; history panel and snapshots planned, step 6 |
-| `focus` | Window focus as pointer gestures read it | exists; region focus navigation planned, step 3 |
-| `fonts` | The UI font stack every app installs | exists; on-demand per-script registration planned, step 4 |
-| `icons` | Icons by meaning, rasterised per size, tinted when drawn | exists; tool icon set (step 3), painting helpers (step 5) planned |
+| `docking` | Panel docking, floating groups, iconic column, workspaces | exists |
+| `edit` | The edit lifecycle | exists |
+| `focus` | Window focus as pointer gestures read it | exists |
+| `fonts` | The UI font stack every app installs | exists |
+| `icons` | Icons by meaning, rasterised per size, tinted when drawn | exists |
 | `ime` | Input methods for text typed onto canvases | exists |
 | `inspect` | Debug recorder for layout boxes and the AccessKit tree | exists |
 | `interface_scale` | Device pixels per point | exists |
 | `layout` | Pane geometry and resize handles | exists |
-| `list` | Rows for panels that list things; tree; drag; rename | exists; sortable table, metadata table, event log (step 5), findings (step 4) planned |
-| `localized` | Region-aware number widgets; the word tables | exists; length units planned, step 3 |
-| `menu` | Menu, context menu, menu bar, press menu | exists; keep-open toggle rows planned, step 5 |
+| `list` | Rows for panels that list things; tree; drag; rename | exists |
+| `localized` | Region-aware number widgets; the word tables | exists |
+| `menu` | Menu, context menu, menu bar, press menu | exists |
 | `motion` | Animated caret and selection outline; reduced motion | exists |
-| `panes` | Task panes and rail | exists; reorderable sidebar sections planned, step 6 |
-| `patterns` | Panel, inspector, command palette, options bar, status bar, rail, toolbar | exists; options cells, status bar readout, toolbar drawer, coach marks (step 3), align bars (step 5) planned |
+| `panes` | Task panes and rail | exists |
+| `patterns` | Panel, inspector, command palette, options bar, status bar, rail, toolbar | exists |
 | `popover`, `popup_list` | Anchored popups; the list popup under a field | exists |
-| `preferences` | Preferences window model, search, body | exists; settings-document pages and cache page planned, step 4 |
-| `presets` | Preset browser: model, view, menu, toolbar | exists; library model, named-preset menu, pickers planned, step 6 |
-| `primitives` | Surface, state layer, focus ring, divider, stack, interactive, text, icon, handle | exists; painter helpers planned, step 5 |
-| `shell` | `AppShell`, `CanvasShell`, `ScreenMode` | exists; start screen planned, step 3; office-style preset planned, step 8 |
+| `preferences` | Preferences window model, search, body | exists |
+| `presets` | Preset browser: model, view, menu, toolbar | exists |
+| `primitives` | Surface, state layer, focus ring, divider, stack, interactive, text, icon, handle | exists |
+| `shell` | `AppShell`, `CanvasShell`, `ScreenMode` | exists; office-style preset planned, step 8 |
 | `story` | Stories and the registry macro | exists |
-| `tab_strip`, `tabs` | Document and panel tab strips; tab fitting | exists; drag between document tabs planned, step 3 |
-| `testing` | Accessibility, style dump, screens, symbols | exists; headless render harness, i18n audit planned, step 3 |
-| `text` | Shaped text in a reading area | exists; elided text and path labels planned, step 5 |
+| `tab_strip`, `tabs` | Document and panel tab strips; tab fitting | exists |
+| `testing` | Accessibility, style dump, screens, symbols | exists |
+| `text` | Shaped text in a reading area | exists |
 | `theme` | Tokens bridge to egui styles | exists |
 | `title_bar` | App-drawn title bar, caption buttons, resize zones | exists |
 | `viewport` | Windows in their own OS viewport | exists |
@@ -672,7 +695,7 @@ Release checking, downloading, installing and self-updating for the app suite an
 | --- | --- | --- |
 | `app`, `suite`, `version`, `pins` | Apps, releases and versions | exists |
 | `desktop_entry`, `detect`, `distro`, `folders`, `install`, `manifest`, `msi_*`, `packages`, `paths`, `platform`, `portable`, `process`, `queue`, `status` | Installing, detecting and removing apps | exists |
-| `dialog` | Startup update prompt | exists; moves onto the dialog stack, with a startup modal queue, planned step 2 |
+| `dialog` | Startup update prompt | exists |
 | `http`, `proxy`, `release`, `source`, `time` | Network access and release lookup | exists |
 | `protocol` | Vocabulary jobs and results report in | exists |
 | `self_update`, `updater` | Launcher self-update; the update flow of an egui app | exists |
@@ -683,7 +706,7 @@ Decides who draws the window frame, makes an app-drawn strip act as the title ba
 
 | Module | Holds | State |
 | --- | --- | --- |
-| `desktop` | Desktop and backend detection | exists; visible work area planned, step 3 |
+| `desktop` | Desktop and backend detection | exists |
 | `layout` | Window button layout per desktop | exists |
 | `list`, `menu` | Open windows; the Window menu | exists |
 | `mac` | macOS traffic lights, measured | exists |

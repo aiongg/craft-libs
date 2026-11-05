@@ -9,7 +9,7 @@ How apps move onto the Craft framework, and how the work lands in `craft-libs`. 
 3. [Steps](#3-steps)
 4. [Critical path](#4-critical-path)
 5. [What each step delivers](#5-what-each-step-delivers)
-6. [How each step runs](#6-how-each-step-runs)
+6. [Documentation for each step](#6-documentation-for-each-step)
 7. [Landing strategy](#7-landing-strategy)
 8. [Breaking changes](#8-breaking-changes)
 9. [Status and open questions](#9-status-and-open-questions)
@@ -42,13 +42,14 @@ Every app-port step passes all of these before it counts as done:
 | --- | --- | --- | --- |
 | 0 | PhotoCraft adopts the types the library already has; gaps become library work | none | done |
 | 1 | Foundations: `ui` feature names, `craft-host`, module moves into family crates, the `craft` facade, gallery and word registry over every crate, one egui revision | 0 | done |
-| 2 | Dialog framework: typed results, parameter and command dialogs, size dialogs, prompts, unsaved guard, startup modal queue; text and number control gaps | 1 | built |
-| 3 | Shell (dock, panel menus, floating frames, workspaces, start screen, focus regions), keymap completion, canvas core, options bar cells, testing tools | 2 | built |
-| 4 | Files, preferences, text and fonts, colour, previews and jobs | 2, 3 | built |
-| 5 | Common controls, system services, value formatting, guides and About, align bars | 2 | built |
-| 6 | 6a: layers, presets, history, navigator, browsing. 6b: pages, timeline, review, tables | 2, 3, 4 (6a); 2, 3, 5 (6b) | 6a built; 6b planned |
-| 7 | Canvas tools and the image-editing workspaces | 3, 4, 6a | in progress |
-| 8 | Office-style shell, audio, scripts and code, slideshow, GPU | 2, 3; 6b timeline for audio | planned |
+| 2 | Dialog framework: typed results, parameter and command dialogs, size dialogs, prompts, unsaved guard, startup modal queue; text and number control gaps | 1 | done |
+| 3 | Shell (dock, panel menus, floating frames, workspaces, start screen, focus regions), keymap completion, canvas core, options bar cells, testing tools | 2 | done |
+| 4 | Files, preferences, text and fonts, colour, previews and jobs | 2, 3 | done |
+| 5 | Common controls, system services, value formatting, guides and About, align bars | 2 | done |
+| 6 | 6a: layers, presets, history, navigator, browsing. 6b: pages, timeline, review, tables | 2, 3, 4 (6a); 2, 3, 5 (6b) | 6a done; 6b built, fix pass pending |
+| 7 | Canvas tools and the image-editing workspaces | 3, 4, 6a | built |
+| GPU | `craft-gpu`: GPU device, diagnostics, memory budget and the GPU canvas surface; PhotoCraft moves its GPU display onto it | 2, 3 | next |
+| 8 | Office-style shell, audio, code editor and console, slideshow | 2, 3; 6b timeline for audio | planned |
 
 Size: about 185 library tasks, plus about 28 PhotoCraft tasks and about 20 VectorCraft tasks. Step 3 is about 30 library tasks, step 4 about 35, step 6 about 44.
 
@@ -115,25 +116,19 @@ Size: about 185 library tasks, plus about 28 PhotoCraft tasks and about 20 Vecto
 - PhotoCraft adopts every tool through the library tool host. Its port then runs the lint clean and passes conformance and the render matrix.
 - VectorCraft adopts the draw family and finishes its port.
 
-**Step 8: office-style shell, audio, scripts, slideshow, GPU.** Mostly other apps' code.
+**GPU canvas.** `craft-gpu` delivers the GPU device, diagnostics, memory budget and the GPU canvas surface. PhotoCraft's only task is to move its GPU display onto it. Nothing visible changes.
 
-- Delivers: ribbon, backstage view, keytips and the office-style preset; audio engine and mixer UI; code editor and console; slideshow presenter; `craft-gpu`.
-- PhotoCraft only moves its GPU display onto `craft-gpu`. Nothing visible changes.
+**Step 8: office-style shell, audio, code editor, slideshow.** Mostly other apps' code.
 
-## 6. How each step runs
+- Delivers: ribbon, backstage view, keytips and the office-style preset; audio engine and mixer UI; code editor and console; slideshow presenter.
 
-1. **Spec.** A written spec is reviewed before code. Open questions are settled in one round.
-2. **Parallel tracks.** Independent tasks, one branch each, narrow checks only.
-3. **Integration.** Branches merge into one and the dumps are regenerated.
-4. **One full test run**, then a review of each track.
-5. **Fixes**, then a final full run.
-6. **PhotoCraft adoption.** The port branch repins to the library and replaces its code. The screenshot comparison runs at each adoption task.
+## 6. Documentation for each step
 
 Each step also adds its families to the library docs: a page per family with the out-of-the-box recipe (the `Host`, the trait the app implements, the builder call, the `Outcome`) and a migration table from old path to new path.
 
 ## 7. Landing strategy
 
-Measured on `design-system` against `upstream/main` (c39e435c):
+The series totals:
 
 | Measure | Value |
 | --- | --- |
@@ -157,7 +152,8 @@ It lands as a series of upstream pull requests, one at a time, bottom-up. Each P
 | 5 | Composites, patterns, shells | With `craft-draw` and `craft-imaging` |
 | 6 | Host, facade and changes to existing crates | `craft-host`, `craft`, and changes in `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` |
 | 7 | Tooling | The gallery, `craft-design-lint`, conformance |
-| 8 | Apps | PhotoCraft, then VectorCraft, one PR each, then the other apps |
+| GPU | `craft-gpu`: GPU device, diagnostics, memory budget and the GPU canvas surface; PhotoCraft moves its GPU display onto it | 2, 3 | next |
+| 8 | Office-style shell, audio, code editor and console, slideshow | 2, 3; 6b timeline for audio | planned |
 
 The egui patches are seven numbered changes (E22 to E28) on top of the fork's earlier patches:
 
@@ -171,11 +167,9 @@ The egui patches are seven numbered changes (E22 to E28) on top of the fork's ea
 
 **Timing.** A layer lands once PhotoCraft's port has used it in earnest. Bottom layers land first. Landing early stops drift from upstream. A landed layer's API is shared, and changes to it need the same deprecation care.
 
-**Staying current.** `design-system` merges upstream main daily. After each landed PR, the remaining work rebases onto main. A merge whose conflicts are only lockfile and version pins needs no local build; CI checks it.
-
 ## 8. Breaking changes
 
-About 100 public items in `craft-ui`, `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` are removed or renamed (106 on the current branch). The count is an upper bound: it counts every removed `pub` item, including items that moved to another crate.
+About 100 public items in `craft-ui`, `craft-menu`, `craft-keymap`, `craft-window` and `craft-platform` are removed or renamed, counting every removed `pub` item, including items that moved to another crate.
 
 Each PR that removes or renames a public item keeps the old name as a deprecated alias or shim until every app has moved past it, so an app's next pin bump still builds. A migration table from old path to new path goes with each PR. The old APIs apps use today (the icon-button and combo-box modules, the old rail and number-field types) stay `#[deprecated]` until the last app that uses them has migrated.
 
@@ -189,20 +183,20 @@ Each PR that removes or renames a public item keeps the old name as a deprecated
 | Primitives, controls, composites, patterns | built |
 | Canvas shell, docking with iconic column and flyouts, title bar | built |
 | Dialog frame, prompts, full-window dialogs, preferences window, typed dialog stack | built |
-| `craft-color`, `craft-draw`, `craft-imaging`, `craft-layers`, `craft-browse`, `craft-automation` | built (parts) |
+| `craft-color`, `craft-draw`, `craft-imaging`, `craft-layers`, `craft-browse`, `craft-automation`, `craft-pages`, `craft-review`, `craft-table`, `craft-timeline` | built |
 | `craft-host`, the `craft` facade, one egui revision check | built |
 | Gallery with Components and Theme workspaces, Variants, app preview | built |
 | Design lint, conformance test, `craft-theme check` | built |
-| PhotoCraft on library components | window frame, title bar, menus (native on macOS), start screen, document tabs, status bar, options bar, tool rail, dock, dialog frame, Levels, Curves and Threshold, histograms, gradient editor, layer and guide dialogs, fill and stroke dialogs, Layers panel body |
-| Still PhotoCraft's own code, restyled by the theme | most panels, most dialogs, canvas overlays, other adjustment editors |
+| PhotoCraft | Builds against the library through step 6a and is moving its dialogs onto it. Most panels, dialogs, canvas overlays and adjustment editors are still its own code, restyled by the theme |
 | macOS | The port builds on macOS; window, title bar and menu bar checks pass |
 | Comparison | Screenshots of 59 screens, current PhotoCraft beside the port, refreshed after each port batch |
 
 ### What is next
 
-1. Finish step 7, completing PhotoCraft's port.
-2. VectorCraft's port, then the other apps.
-3. The upstream PR series, starting with the egui patches.
+1. The GPU canvas (`craft-gpu`).
+2. PhotoCraft's dialogs on the library, completing its port.
+3. VectorCraft's port, then the other apps.
+4. The upstream PR series, starting with the egui patches.
 
 ### Questions for the team
 

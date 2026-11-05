@@ -4,12 +4,9 @@ This section indexes the components by layer. Examples and every state of each c
 
 ## 6.1 What every component provides
 
-- A builder API with semantic props only: no colour, pixel size or corner shape of its own.
+- A builder API with semantic props only: no colour, pixel size or corner shape of its own. The idiom is `Type::new(required).option(..).show(ui)`. Panels take `&mut Model` in `new`. A dialog's per-pass answer is an `Outcome`; on the host it returns a `DialogResult<T>`.
 - Gallery stories for every state.
-- Keyboard behaviour, a keyboard-only focus ring, AccessKit roles, RTL and reduced-motion support, and translated library words.
-- Edit events for value changes ([3.4](3-architecture.md#34-the-host-convention-services-in-edits-out)).
-
-The checklist that makes a component complete is in [7.1](7-accessibility-and-translation.md#71-required-for-every-component).
+- Everything in the checklist in [7.1](7-accessibility-and-translation.md#71-required-for-every-component).
 
 ## 6.2 Index by layer
 
@@ -18,12 +15,12 @@ The checklist that makes a component complete is in [7.1](7-accessibility-and-tr
 | Foundations | Colours, edit lifecycle, stock egui |
 | Specimens | Icons |
 | Primitives | Surface, State layer, Focus ring, Divider, Stack, Row, Interactive, Text, Icon, Handle. Canvas overlays: canvas, grid, guides, marquee, readout, reference point, rulers, smart guides |
-| Controls | Button, IconButton, ToggleButton, Segmented, Link. Checkbox, Radio, Switch. TextField, SearchField, NumberField. Slider, RangeSlider, AngleDial. Select, ComboBox. Swatch, Badge, Kbd, Spinner, Progress, Tooltip, ThumbRow |
-| Composites | Field, FormGrid, GroupBox, PropertyRow, SliderRow, SectionHeader, SectionLabel, PanelHeader, PanelFooter. Menu, ContextMenu, PressMenu, MenuBar. List, ListRow, TreeRow. Tab, TabStrip. Toast, Notice, EmptyState. CurveEditor, CurvePreview, Histogram. PresetBrowser |
-| Patterns | Panel, Popover, Dialog, FullWindowDialog, PreferencesWindow, CommandPalette, Inspector, DockArea, ViewportWindow, PanelRail, ToolRail, Toolbar, OptionsBar, StatusBar, TitleBar, FlyoutButton |
-| Shells | AppShell with the Canvas preset (`CanvasShell`) |
+| Controls | Button, IconButton, ToggleButton, SplitButton, Segmented, Link. Checkbox, Radio, Switch. TextField, SearchField, NumberField, Autocomplete, Linked and Mixed fields, PointPicker. Slider, RangeSlider, AngleDial. Select, ComboBox, TreePicker, Chips, Date. Swatch, Badge, Kbd, Spinner, Progress, Rating, Breadcrumb, Tooltip, ThumbRow |
+| Composites | Field, FormGrid, GroupBox, PropertyRow, SliderRow, SectionHeader, SectionLabel, PanelHeader, PanelFooter. Menu, ContextMenu, PressMenu, MenuBar. List, ListRow, TreeRow, Table. Tab, TabStrip. Toast, Notice, NoticeCentre, EmptyState. CurveEditor, CurvePreview, Histogram. PresetBrowser |
+| Patterns | Panel, Popover, Dialog, FullWindowDialog, PreferencesWindow, CommandPalette, Inspector, DockArea, ViewportWindow, PanelRail, ToolRail, Toolbar, ToolbarDrawer, OptionsBar, OptionsCell, StatusBar, StatusReadout, TitleBar, FlyoutButton, AlignBar, Tour |
+| Shells | AppShell with the Canvas preset (`CanvasShell`), start screen |
 
-Components added by later migration steps (tables, chips, date pickers, notice centre and others) are listed in the gallery.
+The gallery lists every component.
 
 ## 6.3 Family components
 

@@ -2,6 +2,75 @@
 
 Maintainer reference. The rule is in [5.4 Dimensions](../5-foundations.md#54-dimensions): components name semantic tokens, and semantic tokens pick from the scale. This page lists which role each component takes, and which components still hold raw values.
 
+## Semantic colour tokens
+
+| Group | Tokens |
+| --- | --- |
+| Surface | background, canvas, canvas pattern, chrome, panel, raised, sunken, knob, scrim, shadow |
+| Text | normal, muted, faint, disabled, on accent, on strong, on selected, on status |
+| Line | divider, border, control edge, knob edge, mark, focus |
+| Accent | solid, hover, pressed, strong (+ hover, pressed), soft, text |
+| Status | good, warn, bad, info, each with fg, bg, border, solid |
+| State | hover, pressed, selected, selected hover, disabled fill |
+| Canvas overlay | stroke, halo, handle, marquee, guide, grid |
+| Data | 8 series; histogram R, G, B, luma |
+
+The strong accent pair fills the menu highlight, primary buttons and solid accent badges.
+
+## Appearance settings
+
+| Setting | Options | Changes | Stored |
+| --- | --- | --- | --- |
+| Theme | 10 built-ins or a JSON file, per mode (`theme_light`, `theme_dark`) | Colours; shape for four themes | Suite |
+| Mode | light, dark, system | Palette | Suite |
+| Contrast | standard, high, system (default) | Contrast minimums | Suite |
+| Size | Compact, Comfortable | Heights, padding, gaps, type, corners | Suite |
+| Text size | 0.83x, 1x, 1.17x, 1.33x | Type only | Suite |
+| Reduced motion | full, reduced, system (default) | Animations to zero | Suite |
+| Interface font | Suite face, System | UI face | App |
+| Direction | Language (default), LTR, RTL | Mirroring; sliders, number fields and key chords never mirror | App |
+| UI scaling | Auto, or 75 to 300 % (steps of 5 from 75 to 125, then 150, 175, 200, 250, 300) | Whole-interface zoom | App |
+
+UI scaling omits sizes that would shrink the window below the app's minimum on the current screen; the size in use stays listed. Every app has a "Reset UI Scaling" command. Pointers an app draws grow with the scale.
+
+## Built-in themes
+
+Ten themes, 17 mode variants. The suite default is ArtCraft.
+
+| Theme | Modes | Look |
+| --- | --- | --- |
+| ArtCraft | light, dark | Mid-grey panels; suite default |
+| Pro | light, dark | Neutral greys |
+| Pro Light Gray | light | Light grey panels |
+| Graphite | light, dark | Near-black fields in dark |
+| Studio | light, dark | PhotoCraft Studio colours |
+| Solarized Dark | dark | Muted teal-tinted dark |
+| Adwaita | light, dark | Rounded, light grey; radii 6 / 9 / 12 |
+| Breeze | light, dark | Flat; 5 px corners |
+| Soft | light, dark | Low contrast (declared); corners rounder by +1 / +2 / +2 |
+| Classic | light | Square, bevelled; 1 pt bevel, all radii 0 |
+
+## Generic or family placement
+
+| Component | Placed in | Reason |
+| --- | --- | --- |
+| Button, Slider, List, Tab strip | `craft-ui` | General inputs |
+| Menu | `craft-ui` (`menu`) | Takes rows and shortcuts; the app supplies the commands |
+| Curve editor, histogram | `craft-ui` (composites) | Take points and bin counts; channel names are app words |
+| Preset browser | `craft-ui` (`presets`) | Works on a generic preset library model |
+| Canvas overlays: grid, guides, marquee, rulers, readout, reference point | `craft-ui` (`canvas`) | Draw over any canvas; no document type |
+| Crop frame, gradient overlay, transform box, bezier paths | `craft-draw` | Need shape and gradient types |
+| Colour picker, wheel, swatch palette | `craft-color` | Need colour models |
+| Levels editor, warp grid | `craft-imaging` | Need image-adjustment types |
+| Layers panel | `craft-layers` | Needs the `LayerTree` trait |
+
+## Docking details
+
+- Panels live as tabs in an expanded dock column or as icons in a collapsed (iconic) column, never both.
+- A click on an icon opens its group in a flyout beside the column.
+- Dialogs move by their title only.
+- A floating panel group has square corners and the floating shadow.
+
 ## Radius roles
 
 | Role | Components |
@@ -10,8 +79,8 @@ Maintainer reference. The rule is in [5.4 Dimensions](../5-foundations.md#54-dim
 | `radius.popup` | Popups, menus |
 | `radius.window` | Windows, dialogs |
 | `radius.panel` | Docked panels (0 in every built-in size set) |
-| `radius.button` | Push buttons. `full` in the built-in size sets |
-| `radius.pill` | Switch and slider tracks and knobs, progress bars, badges. Clamps to half the part's height |
+| `radius.button` | Push buttons. `full` in the built-in size sets; Classic sets it to 0 |
+| `radius.pill` | Switch and slider tracks and knobs, progress bars, badges. Clamps to half the part's height; Classic sets it to 0 |
 
 A theme with its own shape replaces the radii or adds an offset to control, popup and window. Panel, button and pill are not offset.
 
