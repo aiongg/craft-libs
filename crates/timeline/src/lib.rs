@@ -19,7 +19,7 @@ pub mod timecode;
 pub mod ui;
 
 pub use cache::{FrameCache, FrameCacheKey, FramePlayhead, FrameSize};
-pub use clips::{ClipEdge, ClipEdit, EdgeHit, EdgeZones, SnapTargets, TrimKind, edge_at, snap_time};
+pub use clips::{ClipEdge, ClipEdit, EdgeHit, EdgeZones, SnapTargets, TrimKind, edge_at, marquee_clips, selection_trim, snap_time};
 pub use clock::{ClockEvent, Follow, FollowMode, PlaybackClock, PlaybackState};
 pub use frames::{CancelToken, FrameRenderer, FrameServer, FrameStats, PlaybackRequest, playback_plan, prefetch_depth};
 pub use markers::{Marker, MarkerColor, MarkerId};

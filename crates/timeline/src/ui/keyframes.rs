@@ -82,7 +82,8 @@ pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeIn
 ///   with the kernel's [`ListSelection`](craft_ui::behavior::ListSelection) rules over that
 ///   order, with Photoshop's and Premiere's picks: a click replaces, Shift+click and
 ///   Cmd/Ctrl+click toggle the key; a drag on empty lane draws a marquee (Shift adds to the
-///   selection). Changes arrive as [`SelectionChange`]s.
+///   selection). The lane applies the change to the `&mut Selection` in the pass and reports it
+///   as a [`SelectionChange`].
 /// - Dragging a selected key moves every selected key by the same delta, snapped to frames of
 ///   `rate` and kept inside `bounds` (the clip); with Shift it snaps to the playhead and the
 ///   other keys within `style.keyframe_snap`. Reported as an `EditEvent<Tick>` (the delta)
@@ -92,14 +93,14 @@ pub fn paint_keyframe(painter: &Painter, center: Pos2, interpolation: KeyframeIn
 ///   keyframe's dialog and menu, `timeline.rs:4083`, `:4101`).
 /// - Keyboard: one Tab stop when it has keys; Left and Right move the selection to the previous
 ///   and next key, Shift+Left/Right nudge the selected keys one frame (a `Set` on
-///   [`KeyframeLaneResponse::moved`]), Delete reports [`KeyframeLaneResponse::delete`] (claimed
+///   [`KeyframeLaneResponse::moved`]), Delete and Backspace report [`KeyframeLaneResponse::delete`] (claimed
 ///   through [`KeyClaim`](craft_ui::behavior::KeyClaim) so the app's Delete shortcut leaves it).
 ///   AccessKit: a `ListBox` named by [`KeyframeLabels::lane`], one `ListBoxOption` per key named
 ///   by its time as timecode of the lane's rate, `selected` set.
 pub struct KeyframeLane<'a> {
     id_salt: IdSalt,
     keys: &'a [KeyframeMark],
-    selection: &'a Selection<KeyframeId>,
+    selection: &'a mut Selection<KeyframeId>,
     view: &'a TimeView,
     rate: FrameRate,
     playhead: Tick,
@@ -108,7 +109,13 @@ pub struct KeyframeLane<'a> {
 }
 
 impl<'a> KeyframeLane<'a> {
-    pub fn new(id_salt: impl AsIdSalt, keys: &'a [KeyframeMark], selection: &'a Selection<KeyframeId>, view: &'a TimeView, rate: FrameRate) -> Self {
+    pub fn new(
+        id_salt: impl AsIdSalt,
+        keys: &'a [KeyframeMark],
+        selection: &'a mut Selection<KeyframeId>,
+        view: &'a TimeView,
+        rate: FrameRate,
+    ) -> Self {
         Self { id_salt: IdSalt::new(id_salt), keys, selection, view, rate, playhead: Tick::ZERO, bounds: None, labels: None }
     }
 
@@ -226,7 +233,7 @@ impl<'a> KeyframeLane<'a> {
                 } else {
                     pointer.map(|pos| marquee.extended(Rect::from_two_pos(marquee.origin, pos).intersect(rect), &sorted, center_of))
                 };
-                if let Some(next) = next.filter(|next| next != selection) {
+                if let Some(next) = next.filter(|next| *next != *selection) {
                     out.change = Some(SelectionChange {
                         pick: if next.is_empty() { SelectionPick::Clear } else { SelectionPick::Replace },
                         row: next.lead,
@@ -240,6 +247,9 @@ impl<'a> KeyframeLane<'a> {
             }
         }
 
+        if let Some(change) = &out.change {
+            *selection = change.selection.clone();
+        }
         let shown = *gesture.shown();
         let group = ui.data(|d| d.get_temp::<Drag>(drag_key)).map(|drag| drag.group).unwrap_or_default();
         let painter = ui.painter_at(rect);
@@ -288,6 +298,10 @@ impl<'a> KeyframeLane<'a> {
         }
     }
 }
+
+/// The keys that delete the selected keyframes: Delete, and Backspace where the Delete key sends
+/// it (Premiere on a Mac keyboard).
+const DELETE: [ClaimedKey; 2] = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)];
 
 /// What a pass of input did, besides the key move.
 #[derive(Default)]
@@ -340,7 +354,7 @@ impl Interaction {
         gesture: &mut Gesture<Tick>,
     ) {
         ui.memory_mut(|m| m.set_focus_lock_filter(id, EventFilter { horizontal_arrows: true, ..EventFilter::default() }));
-        KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete)]);
+        KeyClaim::claim(ui.ctx(), id, &DELETE);
         let rules = ListSelection::new(SelectionMode::Multiple);
         let selected: Vec<KeyframeId> = moves.keys.iter().filter(|key| selection.contains(&key.id)).map(|key| key.id).collect();
         for (key, step, toward) in [(Key::ArrowLeft, Step::Previous, -1), (Key::ArrowRight, Step::Next, 1)] {
@@ -354,7 +368,9 @@ impl Interaction {
                 self.change = rules.select(selection, order, step, 1, false);
             }
         }
-        self.delete = !selection.is_empty() && ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete));
+        // Both keys are consumed even when both were pressed.
+        let pressed = DELETE.map(|key| ui.input_mut(|i| key.consume(i))).contains(&true);
+        self.delete = pressed && !selection.is_empty();
     }
 }
 
@@ -448,7 +464,7 @@ pub struct KeyframeLaneResponse {
     pub moved: Option<EditEvent<Tick>>,
     pub double_clicked: Option<KeyframeId>,
     pub context_menu: Option<KeyframeId>,
-    /// Delete was pressed with keys selected.
+    /// Delete or Backspace was pressed with keys selected.
     pub delete: bool,
 }
 
@@ -560,6 +576,11 @@ pub struct AnimationToggle<'a> {
 impl<'a> AnimationToggle<'a> {
     pub fn new(id_salt: impl AsIdSalt, on: &'a bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), on, labels: None }
+    }
+
+    pub fn labels(mut self, labels: KeyframeLabels) -> Self {
+        self.labels = Some(labels);
+        self
     }
 
     // effectcraft: crates/ui-egui/src/panels/timeline.rs:3922 `prop_stopwatch`.

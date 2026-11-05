@@ -687,7 +687,7 @@ fn keyframe_lane(ui: &mut Ui, _: &mut NoArgs) {
             let toggle = AnimationToggle::new("animate", &demo.animated).show(ui);
             let navigator = KeyframeNavigator::new("navigator", before, after, at).animated(demo.animated).show(ui);
             let (rect, _) = ui.allocate_exact_size(vec2(ui.available_width(), style.keyframe_arrow_height), Sense::hover());
-            let lane = KeyframeLane::new("lane", &demo.keys, &demo.selection, &demo.view, RATE).playhead(demo.playhead).show(ui, rect);
+            let lane = KeyframeLane::new("lane", &demo.keys, &mut demo.selection, &demo.view, RATE).playhead(demo.playhead).show(ui, rect);
             (toggle, navigator, lane)
         })
         .inner;
@@ -722,7 +722,6 @@ fn keyframe_lane(ui: &mut Ui, _: &mut NoArgs) {
     }
     if let Some(change) = lane.selection {
         demo.last = Some(format!("{:?}", change.pick));
-        demo.selection = change.selection;
     }
     if let Some(event) = &lane.moved {
         if let Some(&delta) = settled(event) {
@@ -861,7 +860,6 @@ fn graph_editor(ui: &mut Ui, _: &mut NoArgs) {
         GraphEditor::new("graph", &demo.curves, &demo.selection, &demo.view, &mut demo.range).playhead(demo.playhead).format(format()).show(ui, rect);
     if let Some(change) = out.selection {
         demo.last = Some(format!("{:?}", change.pick));
-        demo.selection = change.selection;
     }
     if let Some(event) = &out.keys_moved {
         if let Some(delta) = settled(event) {
@@ -1238,7 +1236,7 @@ fn render_queue(ui: &mut Ui, _: &mut NoArgs) {
     });
     let mut demo = lock(&demo);
     let demo = &mut *demo;
-    let out = RenderQueueList::new("queue", &demo.items, &demo.selection, demo.running).show(ui);
+    let out = RenderQueueList::new("queue", &demo.items, &mut demo.selection, demo.running).show(ui);
     for event in out.events {
         demo.last = Some(format!("{event:?}"));
         match event {
@@ -1247,7 +1245,7 @@ fn render_queue(ui: &mut Ui, _: &mut NoArgs) {
                     reorder(&mut demo.items, change);
                 }
             }
-            RenderQueueEvent::Selection(change) => demo.selection = change.selection,
+            RenderQueueEvent::Selection(_) => {}
             RenderQueueEvent::Cancel(id) => set_status(&mut demo.items, id, RenderStatus::Cancelled),
             RenderQueueEvent::Retry(id) => set_status(&mut demo.items, id, RenderStatus::Ready),
             RenderQueueEvent::Remove(id) => {

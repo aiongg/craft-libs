@@ -10,9 +10,10 @@ use craft_ui::controls::{Button, Progress};
 use craft_ui::direction;
 use craft_ui::edit::EditEvent;
 use craft_ui::list::{List, ListEvent, ListRow, ThumbSize};
-use craft_ui::localized::{Labels as _, LocaleNumbers, fmt};
+use craft_ui::localized::words::Counted;
+use craft_ui::localized::{Labels as _, LocaleNumbers, Words, fmt};
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
-use egui::{Align2, AsIdSalt, IdSalt, Key, Modifiers, Rect, Response, RichText, Ui, pos2, vec2};
+use egui::{Align2, AsIdSalt, Context, IdSalt, Key, Modifiers, Rect, Response, RichText, Ui, pos2, vec2};
 
 craft_ui::words! {
     /// The queue's words, English by default (FilmCraft's).
@@ -26,6 +27,7 @@ craft_ui::words! {
         failed: "renderQueue.failed" = "Failed: {e}";
         cancelled: "renderQueue.cancelled" = "Cancelled";
         time_left: "renderQueue.timeLeft" = "{time} left";
+        seconds: "renderQueue.seconds" = "{n} s";
         cancel: "renderQueue.cancel" = "Cancel";
         retry: "renderQueue.retry" = "Retry";
         remove: "renderQueue.remove" = "Remove";
@@ -34,6 +36,10 @@ craft_ui::words! {
         clear_finished: "renderQueue.clearFinished" = "Clear Finished";
     }
 }
+
+/// The seconds of a time left under a minute (FilmCraft's `45 s`): the count word of
+/// [`RenderQueueLabels::seconds`].
+pub const SECONDS: Counted = Counted::new("renderQueue.seconds", "{n} s", "{n} s");
 
 /// An item's state.
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +72,7 @@ pub struct RenderQueueItem {
 
 /// What the queue asks of the app, in the order the user did it this pass.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum RenderQueueEvent {
     /// A drag of rows, or Cmd/Ctrl+] and [ on the selected rows (the list's reorder; Premiere's
     /// queue moves items by drag), as one gesture.
@@ -73,7 +80,8 @@ pub enum RenderQueueEvent {
     Selection(SelectionChange<RenderItemId>),
     Cancel(RenderItemId),
     Retry(RenderItemId),
-    /// The row's Remove button, or Delete on the selection (one event per item, in order).
+    /// The row's Remove button, or Delete or Backspace on the selection (one event per item, in
+    /// order).
     Remove(RenderItemId),
     Start,
     Stop,
@@ -84,26 +92,28 @@ pub enum RenderQueueEvent {
 /// [`List`](craft_ui::list::List) of [`ListRow`](craft_ui::list::ListRow)s: each row's label
 /// "source → file", its detail line "preset · status"; an Encoding row shows its progress with a
 /// [`Progress`](craft_ui::controls::Progress) bar and the time left on its own line
-/// ([`RenderQueueLabels::time_left`] with the time written as FilmCraft's `format_eta`: seconds
-/// under a minute, `m:ss` under an hour, then `h:mm:ss`, digits through `LocaleNumbers`).
+/// ([`RenderQueueLabels::time_left`] with the time written as FilmCraft's `format_eta`: `45 s`
+/// ([`RenderQueueLabels::seconds`], a count word) under a minute, `m:ss` under an hour, then
+/// `h:mm:ss`, digits through `LocaleNumbers`).
 /// Trailing row buttons: Cancel (Ready or Encoding) or Retry (Failed or Cancelled), and Remove
 /// (not while encoding). Under the list a row of buttons: Start Queue (when something is Ready
 /// and the queue is stopped), Stop (while running), Clear Finished (when an item is Done, Failed
 /// or Cancelled). The empty queue shows [`RenderQueueLabels::empty`].
 ///
 /// Keyboard and AccessKit are the list's: one Tab stop, arrows move, Shift and Cmd/Ctrl select,
-/// Cmd/Ctrl+] and [ move the selected rows (decisions §4.2, lists), Delete removes them; the
+/// Cmd/Ctrl+] and [ move the selected rows (decisions §4.2, lists), Delete and Backspace remove
+/// them; the
 /// trailing buttons are row actions; the footer buttons are Tab stops after the list.
 pub struct RenderQueueList<'a> {
     id_salt: IdSalt,
     items: &'a [RenderQueueItem],
-    selection: &'a Selection<RenderItemId>,
+    selection: &'a mut Selection<RenderItemId>,
     running: bool,
     labels: Option<RenderQueueLabels>,
 }
 
 impl<'a> RenderQueueList<'a> {
-    pub fn new(id_salt: impl AsIdSalt, items: &'a [RenderQueueItem], selection: &'a Selection<RenderItemId>, running: bool) -> Self {
+    pub fn new(id_salt: impl AsIdSalt, items: &'a [RenderQueueItem], selection: &'a mut Selection<RenderItemId>, running: bool) -> Self {
         Self { id_salt: IdSalt::new(id_salt), items, selection, running, labels: None }
     }
 
@@ -143,10 +153,9 @@ impl<'a> RenderQueueList<'a> {
                 RenderStatus::Encoding { .. } => encoding_height,
                 _ => row_style.height(ThumbSize::None, true),
             };
-            let mut picked = selection.clone();
             let max_height = (ui.available_height() - footer).max(0.0);
             let output = List::new(id_salt, &labels.title, order.as_slice())
-                .selection(&mut picked)
+                .selection(&mut *selection)
                 .heights(height)
                 .max_height(max_height)
                 .reorder(Reorder::new(Axis::Vertical))
@@ -183,7 +192,7 @@ impl<'a> RenderQueueList<'a> {
                         }
                     });
                     if let RenderStatus::Encoding { progress, remaining } = item.status {
-                        let left = remaining.map(|time| fmt(&labels.time_left, &[("time", &format_eta(&numbers, time))]));
+                        let left = remaining.map(|time| fmt(&labels.time_left, &[("time", &format_eta(&ctx, &labels.seconds, time))]));
                         let text_width = left.as_ref().map_or(0.0, |left| {
                             ctx.fonts_mut(|fonts| fonts.layout_no_wrap(left.clone(), caption_font.clone(), caption_color).size().x)
                         });
@@ -211,8 +220,9 @@ impl<'a> RenderQueueList<'a> {
                 }
             }
             KeyClaim::claim(ui.ctx(), list_id, &CLAIMED);
-            if ui.memory(|memory| memory.has_focus(list_id)) && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Delete)) {
-                for item in items.iter().filter(|item| picked.contains(&item.id) && !matches!(item.status, RenderStatus::Encoding { .. })) {
+            let delete = ui.memory(|memory| memory.has_focus(list_id)) && CLAIMED.map(|key| ui.input_mut(|input| key.consume(input))).contains(&true);
+            if delete {
+                for item in items.iter().filter(|item| selection.contains(&item.id) && !matches!(item.status, RenderStatus::Encoding { .. })) {
                     out.push(RenderQueueEvent::Remove(item.id));
                 }
             }
@@ -247,15 +257,17 @@ pub struct RenderQueueListOutput {
 }
 
 /// The keys a focused queue keeps from the app's shortcuts.
-const CLAIMED: [ClaimedKey; 1] = [ClaimedKey::exact(Modifiers::NONE, Key::Delete)];
+const CLAIMED: [ClaimedKey; 2] = [ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)];
 
-/// A time left, rounded up to the second, in the locale's digits: `0:45`, `2:05`, `1:02:05`.
-fn format_eta(numbers: &LocaleNumbers, time: Duration) -> String {
+/// A time left, rounded up to the second, in the locale's digits: `45 s`, `2:05`, `1:02:05`.
+pub(super) fn format_eta(ctx: &Context, seconds_word: &str, time: Duration) -> String {
+    let numbers = LocaleNumbers::of_ctx(ctx);
     let seconds = time.as_secs().saturating_add(u64::from(time.subsec_nanos() > 0));
     let digits = |n: u64| numbers.format(n as f64, 0..=0);
     let two = |n: u64| if n < 10 { format!("{}{}", digits(0), digits(n)) } else { digits(n) };
     match seconds {
-        0..3600 => format!("{}:{}", digits(seconds / 60), two(seconds % 60)),
+        0..60 => Words::of_ctx(ctx).counted(ctx, SECONDS, seconds_word, seconds),
+        60..3600 => format!("{}:{}", digits(seconds / 60), two(seconds % 60)),
         _ => format!("{}:{}:{}", digits(seconds / 3600), two(seconds % 3600 / 60), two(seconds % 60)),
     }
 }

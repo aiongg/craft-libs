@@ -127,10 +127,14 @@ pub fn selection_trim(command: bool, shift: bool, no_modifier: bool, distance: f
 /// An edit a clip drag reports, as the value of an `EditEvent` gesture: the app previews each
 /// update and applies the commit (one undo step).
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum ClipEdit {
     /// Clips moved by `delta` and `track_delta` tracks. `new_track`: dropped in the empty space
     /// past the last track of their kind (FilmCraft #1104), the app adds a track there. `copy`:
-    /// Alt was held on the last drag frame, the drop copies.
+    /// Alt was held on the last drag frame, the drop copies. A `ClipLane`
+    /// knows only its own row, so it reports `track_delta: 0` and `new_track: false`; the panel
+    /// that holds the rows works both out from the pointer and sets them before the edit reaches
+    /// the app.
     Move { clips: Vec<ClipId>, delta: Tick, track_delta: i32, new_track: bool, copy: bool },
     /// An edge moved by `delta` with `kind` ([`TrimKind::Trim`], `Ripple` or `Stretch`).
     /// `linked`: linked partners trim along (false when Alt was held as the drag started).

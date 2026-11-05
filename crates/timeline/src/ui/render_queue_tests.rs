@@ -5,12 +5,12 @@ use std::time::Duration;
 use craft_ui::behavior::Selection;
 use craft_ui::testing::symbols;
 use craft_ui::theme::{Base, install};
-use egui::Ui;
 use egui::accesskit::Role;
+use egui::{Context, Key, Ui};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::render_queue::{RenderItemId, RenderQueueEvent, RenderQueueItem, RenderQueueList, RenderStatus};
+use super::render_queue::{RenderItemId, RenderQueueEvent, RenderQueueItem, RenderQueueList, RenderStatus, format_eta};
 
 struct App {
     items: Vec<RenderQueueItem>,
@@ -30,7 +30,7 @@ fn item(id: u64, status: RenderStatus) -> RenderQueueItem {
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let output = RenderQueueList::new("queue", &app.items, &app.selection, app.running).show(ui);
+    let output = RenderQueueList::new("queue", &app.items, &mut app.selection, app.running).show(ui);
     app.events.extend(output.events);
 }
 
@@ -89,4 +89,34 @@ fn footer_buttons_follow_the_queue() {
     running.get_by_role_and_label(Role::Button, "Clear Finished").click();
     running.run();
     assert_eq!(running.state().events, vec![RenderQueueEvent::ClearFinished]);
+}
+
+// under a minute the time reads "45 s" (count-aware unit word), then m:ss and h:mm:ss, rounded up.
+#[test]
+fn time_left_reads_seconds_then_clock_digits() {
+    let ctx = Context::default();
+    let eta = |millis: u64| format_eta(&ctx, "{n} s", Duration::from_millis(millis));
+    assert_eq!(eta(45_000), "45 s");
+    assert_eq!(eta(44_200), "45 s", "rounded up to the second");
+    assert_eq!(eta(59_001), "1:00");
+    assert_eq!(eta(125_000), "2:05");
+    assert_eq!(eta(3_725_000), "1:02:05");
+}
+
+// Delete and Backspace both remove the selected rows that are not encoding.
+#[test]
+fn delete_and_backspace_remove_the_selection() {
+    let items = vec![item(1, RenderStatus::Ready), item(2, RenderStatus::Encoding { progress: 0.5, remaining: None }), item(3, RenderStatus::Done)];
+    for key in [Key::Delete, Key::Backspace] {
+        let mut harness = harness(items.clone(), false);
+        harness.get_by_label_contains("out1.mp4").click();
+        harness.run();
+        harness.state_mut().selection =
+            Selection { items: vec![RenderItemId(1), RenderItemId(2)], lead: Some(RenderItemId(1)), anchor: Some(RenderItemId(1)) };
+        harness.state_mut().events.clear();
+        harness.key_press(key);
+        harness.run();
+        assert!(harness.state().events.contains(&RenderQueueEvent::Remove(RenderItemId(1))), "{key:?}: {:?}", harness.state().events);
+        assert!(!harness.state().events.contains(&RenderQueueEvent::Remove(RenderItemId(2))), "an encoding row stays");
+    }
 }
