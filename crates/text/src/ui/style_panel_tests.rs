@@ -1,6 +1,7 @@
 //! The styles panel in a harness.
 
 use craft_ui::localized::Labels as _;
+use craft_ui::menu::facts_id;
 use craft_ui::theme::{Base, install};
 use egui::{Key, Modifiers};
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
@@ -47,7 +48,7 @@ fn harness(kind: TextStyleKind, names: &[&str], current: u64, overridden: bool, 
                     .target(true)
                     .text_selected(app.text_selected)
                     .show(ui);
-                app.actions.extend(r.action);
+                app.actions.extend(r.actions);
                 app.statuses.extend(r.status);
             },
             app,
@@ -77,7 +78,69 @@ fn rows_apply_clear_overrides_and_open_options() {
     harness.run();
     harness.get_by_label("Body").click();
     harness.run();
-    assert_eq!(harness.state().actions.last(), Some(&TextStyleAction::Options(2)));
+    // The second click of a double-click reports its Apply and then Options, in that order.
+    let n = harness.state().actions.len();
+    assert_eq!(harness.state().actions[n - 2..], [TextStyleAction::Apply { id: 2, clear_overrides: false }, TextStyleAction::Options(2)]);
+}
+
+// Delete and Backspace both delete the picked style while the list has the keyboard.
+#[test]
+fn delete_and_backspace_delete_the_picked_style() {
+    let mut harness = harness(TextStyleKind::Paragraph, &["Basic Paragraph", "Heading", "Body"], 1, false, true);
+    harness.run();
+    harness.get_by_label("Body").click();
+    harness.run();
+    for key in [Key::Delete, Key::Backspace] {
+        harness.state_mut().actions.clear();
+        harness.key_press(key);
+        harness.run();
+        assert_eq!(harness.state().actions, [TextStyleAction::Delete(2)], "{key:?}");
+    }
+}
+
+// The footer keeps the end group's buttons clear of the start group's: at a width that can't hold
+// all six, a press on the part of Redefine that sticks out past Options reaches neither it nor Clear Override.
+#[test]
+fn a_narrow_footer_leaves_the_end_buttons_uncovered() {
+    let labels = TextStylesLabels::english();
+    let app = App {
+        kind: TextStyleKind::Paragraph,
+        rows: rows(&["Basic Paragraph", "Heading"]),
+        state: TextStylesState::default(),
+        current: Some(1),
+        overridden: true,
+        text_selected: true,
+        actions: Vec::new(),
+        statuses: Vec::new(),
+    };
+    let mut harness = HarnessBuilder::default()
+        .with_step_dt(0.05)
+        .with_size(egui::vec2(150.0, 300.0))
+        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+        .build_ui_state(
+            |ui, app: &mut App| {
+                let r =
+                    TextStylesPanel::new("styles", app.kind, &app.rows, &mut app.state).current(app.current, app.overridden).target(true).show(ui);
+                app.actions.extend(r.actions);
+            },
+            app,
+        );
+    harness.run();
+    let options = harness.get_by_label(&labels.options).rect();
+    let redefine = harness.get_by_label(&labels.redefine).rect();
+    assert!(redefine.right() > options.right(), "the width must be too narrow for the six buttons: {redefine:?} {options:?}");
+
+    // Redefine's right edge sticks out past Options; the start group is clipped before Options.
+    let at = egui::pos2(redefine.right() - 1.0, redefine.center().y);
+    for frame in craft_ui::testing::events::click(at, egui::PointerButton::Primary, 1, Modifiers::NONE) {
+        for event in frame {
+            harness.event(event);
+        }
+        harness.step();
+    }
+    harness.run();
+    let actions = &harness.state().actions;
+    assert!(!actions.iter().any(|a| matches!(a, TextStyleAction::Redefine | TextStyleAction::ClearOverride)), "{actions:?}");
 }
 
 // A character style click at a bare caret applies nothing and sets the "Select text…" status;
@@ -174,7 +237,7 @@ fn highlighted_rows_act_together() {
                     .target(true)
                     .highlighted(&mut app.highlighted)
                     .show(ui);
-                app.actions.extend(r.action);
+                app.actions.extend(r.actions);
             },
             app,
         );
@@ -194,6 +257,15 @@ fn highlighted_rows_act_together() {
     items.sort_unstable();
     assert_eq!(items, [1, 2, 3, 4]);
     assert!(harness.state().actions.is_empty(), "{:?}", harness.state().actions);
+
+    // The panel menu's facts sit under the kernel's id and count the highlight, so its Duplicate
+    // and Delete act on every highlighted style.
+    let ctx = harness.ctx.clone();
+    let facts = ctx.data(|d| d.get_temp::<MenuFacts>(facts_id(egui::IdSalt::new("styles"))));
+    assert_eq!(facts.map(|facts| facts.highlighted), Some(4));
+    let mut state = TextStylesState::default();
+    assert_eq!(TextStylesPanel::run_command(&ctx, "styles", &mut state, "textStyles.duplicate"), Some(TextStyleAction::DuplicateHighlighted));
+    assert_eq!(TextStylesPanel::run_command(&ctx, "styles", &mut state, "textStyles.delete"), Some(TextStyleAction::DeleteHighlighted));
 
     harness.key_press(Key::Delete);
     harness.run();

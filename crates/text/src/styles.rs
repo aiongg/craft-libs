@@ -16,10 +16,11 @@ pub fn style_folder(name: &str) -> &str {
     name.rsplit_once(FOLDER_SEPARATOR).map_or("", |(folder, _)| folder.trim())
 }
 
-/// The last part of a style name, trimmed: "500" for "Brand/Blue/500".
+/// The last part of a style name: "500" for "Brand/Blue/500", trimmed after a separator. A name
+/// without a separator comes back as typed, spaces included (FigCraft).
 // figcraft: crates/ui-egui/src/widgets/style_picker.rs:331 `leaf`.
 pub fn style_leaf(name: &str) -> &str {
-    name.rsplit_once(FOLDER_SEPARATOR).map_or(name, |(_, leaf)| leaf).trim()
+    name.rsplit_once(FOLDER_SEPARATOR).map_or(name, |(_, leaf)| leaf.trim())
 }
 
 /// `"{base} {n}"` with the smallest n ≥ 1 that no name in `taken` has ("Paragraph Style 3").

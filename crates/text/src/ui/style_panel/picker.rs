@@ -3,6 +3,7 @@
 //! opening a picker popover of the document's styles as a list (preview, name, meta) or a tile
 //! grid, grouped by folder, with a create button.
 
+use craft_theme::TypeRole;
 use craft_ui::behavior::{GridNav, RowInfo, Selection, SelectionMode};
 use craft_ui::controls::{Button, ButtonVariant, ControlSize, IconButton, SearchField, Segmented, TooltipExt as _};
 use craft_ui::icons::{Icon, IconSize};
@@ -11,9 +12,10 @@ use craft_ui::localized::Labels as _;
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use craft_ui::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use craft_ui::primitives::Interactive;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 use egui::accesskit::Role;
-use egui::{Align2, Color32, Id, Key, Modifiers, Painter, Rect, Response, RichText, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::text::LayoutJob;
+use egui::{Align2, Color32, Id, Key, Modifiers, Painter, Rect, Response, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::styles::{group_by_folder, style_leaf};
 
@@ -83,8 +85,10 @@ pub struct StyleChipResponse {
 
 /// The chip, built per pass.
 ///
-/// - Shows the applied style's preview and leaf name, "Mixed" for several, or the app's own value
-///   field when no style is applied ([`StyleChip::show`] returns and the app draws it).
+/// - Shows the applied style's preview and leaf name with a detach button, or "Mixed" for
+///   several. With no style applied FigCraft draws no chip, and its section header's Styles button
+///   opens the picker; this chip is that button (a palette icon button), and the app draws its
+///   own value field beside it.
 /// - A click (or Enter, Space) opens the picker popover under the chip (craft-ui's popover: focus
 ///   moves in, Esc closes and returns it): a header with the list/grid toggle (`Segmented`) and
 ///   create (`IconButton`), a `SearchField` that filters by name, then the styles by folder
@@ -98,6 +102,7 @@ pub struct StyleChip<'a> {
     styles: &'a [NamedStyleRow],
     applied: Option<Option<u64>>,
     view: &'a mut StylePickerView,
+    opened: bool,
     labels: Option<StylePickerLabels>,
 }
 
@@ -141,18 +146,20 @@ pub struct StylePickerStyle {
     pub tile_side: f32,
     /// The side of a style's preview square in the chip (`text_styles.preview_side`).
     pub preview_side: f32,
+    /// The type role of a folder's caption in the grid view (FigCraft's 10 pt dim caption).
+    pub folder_caption: TypeRole,
 }
 
 impl<'a> StyleChip<'a> {
     /// The picker's measures, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> StylePickerStyle {
         let t = &tokens.component.text_styles;
-        StylePickerStyle { tile_side: t.tile_side, preview_side: t.preview_side }
+        StylePickerStyle { tile_side: t.tile_side, preview_side: t.preview_side, folder_caption: TypeRole::Caption }
     }
 
     /// `applied`: `Some(Some(id))` one style, `Some(None)` mixed, `None` no style.
     pub fn new(id_salt: impl egui::AsIdSalt, styles: &'a [NamedStyleRow], applied: Option<Option<u64>>, view: &'a mut StylePickerView) -> Self {
-        StyleChip { id_salt: egui::IdSalt::new(id_salt), styles, applied, view, labels: None }
+        StyleChip { id_salt: egui::IdSalt::new(id_salt), styles, applied, view, opened: false, labels: None }
     }
 
     pub fn labels(mut self, labels: StylePickerLabels) -> Self {
@@ -160,15 +167,23 @@ impl<'a> StyleChip<'a> {
         self
     }
 
+    /// Open the picker in this pass, as a click on the chip does (a story shows the picker open
+    /// by passing `true` on its first pass). The popover closes by its own rules afterwards; the
+    /// app passes `false` from the next pass on.
+    pub fn opened(mut self, on: bool) -> Self {
+        self.opened = on;
+        self
+    }
+
     // figcraft: crates/ui-egui/src/widgets/style_picker.rs:211 `chip`, :154 `Picker`, :341
     // `by_folder`.
     pub fn show(self, ui: &mut Ui) -> StyleChipResponse {
-        let StyleChip { id_salt, styles, applied, view, labels } = self;
+        let StyleChip { id_salt, styles, applied, view, opened, labels } = self;
         let labels = labels.unwrap_or_else(|| StylePickerLabels::of_ctx(ui.ctx()));
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(id_salt);
         let open_id = id.with("open");
-        let mut open = ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+        let mut open = opened || ui.data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
         let applied_style = applied.flatten().and_then(|wanted| styles.iter().find(|style| style.id == wanted));
         let side = IconButton::style(&tokens, ControlSize::Md).side;
         let style = Self::style(&tokens);
@@ -214,15 +229,9 @@ impl<'a> StyleChip<'a> {
                     selection: applied_style.map_or_else(Selection::new, |style| Selection::only(RowKey::Style(style.id))),
                 });
                 let mut result = Picked::default();
-                show_picker(
-                    ui,
-                    id,
-                    &Pass { styles, applied_style, labels: &labels, side: style.tile_side },
-                    view,
-                    &mut state,
-                    &mut result,
-                    |field| pop.initial_focus(field),
-                );
+                show_picker(ui, id, &Pass { styles, applied_style, labels: &labels, style }, view, &mut state, &mut result, |field| {
+                    pop.initial_focus(field)
+                });
                 ui.data_mut(|d| d.insert_temp(id.with("browsing"), state));
                 if result.picked.is_some() || result.edit.is_some() {
                     pop.close();
@@ -258,7 +267,7 @@ struct Pass<'a> {
     styles: &'a [NamedStyleRow],
     applied_style: Option<&'a NamedStyleRow>,
     labels: &'a StylePickerLabels,
-    side: f32,
+    style: StylePickerStyle,
 }
 
 /// The popover's content: the header (view toggle and create), the search field, and the styles by folder.
@@ -397,7 +406,8 @@ fn paint_glyph(tokens: &craft_ui::theme::UiTokens, painter: &Painter, rect: Rect
 }
 
 fn grid_view(ui: &mut Ui, id: Id, pass: &Pass<'_>, groups: &[(String, Vec<&NamedStyleRow>)], search_id: Id, result: &mut Picked) {
-    let Pass { applied_style, labels, side, .. } = *pass;
+    let Pass { applied_style, labels, style, .. } = *pass;
+    let side = style.tile_side;
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let gap = tokens.space.gap.inline;
@@ -439,7 +449,7 @@ fn grid_view(ui: &mut Ui, id: Id, pass: &Pass<'_>, groups: &[(String, Vec<&Named
         let mut at = 0;
         for (folder, members) in groups {
             if !folder.is_empty() {
-                ui.label(RichText::new(folder.as_str()).color(muted));
+                ui.label(LayoutJob::single_section(folder.clone(), role_format(&tokens, style.folder_caption, muted)));
             }
             for row in members.chunks(columns) {
                 let (_, strip) = ui.allocate_space(vec2(columns as f32 * (side + gap) - gap, side));
@@ -453,7 +463,7 @@ fn grid_view(ui: &mut Ui, id: Id, pass: &Pass<'_>, groups: &[(String, Vec<&Named
                     }
                     let response = cell.interact_at(ui, rect).finish(ui);
                     if ui.is_rect_visible(rect) {
-                        paint_preview(ui, &ui.painter().with_clip_rect(rect), rect.shrink(gap), &style.preview);
+                        paint_preview(ui, &ui.painter().with_clip_rect(rect), rect, &style.preview);
                     }
                     if moved && at == stop {
                         response.scroll_to_me(None);

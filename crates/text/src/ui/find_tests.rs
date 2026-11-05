@@ -1,6 +1,7 @@
 //! The find bar and the Find and Replace dialog.
 
 use craft_ui::dialog::DialogHost;
+use craft_ui::localized::Labels as _;
 use craft_ui::theme::{Base, install};
 use egui::accesskit::Role;
 use egui::{Key, Modifiers};
@@ -8,13 +9,14 @@ use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use egui_kittest::{Harness, HarnessBuilder};
 
 use super::find::*;
-use crate::find::{FindMatches, FindOptions};
+use crate::find::{FindError, FindMatches, FindOptions, FindPattern, RegexError, WildcardError};
 
 struct BarApp {
     query: String,
     options: FindOptions,
     matches: FindMatches,
     progress: Option<(usize, usize)>,
+    state: FindBarState,
     steps: usize,
     closed: bool,
 }
@@ -26,7 +28,7 @@ fn bar(query: &str, matches: FindMatches, progress: Option<(usize, usize)>) -> H
         .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
         .build_ui_state(
             |ui, app: &mut BarApp| {
-                let mut bar = FindBar::new("bar", &mut app.query, &mut app.options, &mut app.matches);
+                let mut bar = FindBar::new("bar", &mut app.query, &mut app.options, &mut app.matches).state(&mut app.state);
                 if let Some((searched, pages)) = app.progress {
                     bar = bar.progress(searched, pages);
                 }
@@ -34,14 +36,22 @@ fn bar(query: &str, matches: FindMatches, progress: Option<(usize, usize)>) -> H
                 app.steps += usize::from(out.stepped);
                 app.closed |= out.closed;
             },
-            BarApp { query: query.to_owned(), options: FindOptions::default(), matches, progress, steps: 0, closed: false },
+            BarApp {
+                query: query.to_owned(),
+                options: FindOptions::default(),
+                matches,
+                progress,
+                state: FindBarState::default(),
+                steps: 0,
+                closed: false,
+            },
         )
 }
 
 fn matches_on(pages: &[usize]) -> FindMatches {
     let mut matches = FindMatches::new(0);
     for &page in pages {
-        matches.set_page(page, (0..1).map(|i| i..i + 3).collect());
+        matches.set_page(page, (0..1).map(|i| i..i + 3).collect::<Vec<_>>());
     }
     matches
 }
@@ -96,11 +106,82 @@ fn counts_read_searching_none_or_c_of_n() {
     assert!(label_text(&harness, |t| t == "No matches").is_some());
 
     let mut matches = FindMatches::new(0);
-    matches.set_page(0, (0..12).map(|i| i * 4..i * 4 + 3).collect());
+    matches.set_page(0, (0..12).map(|i| i * 4..i * 4 + 3).collect::<Vec<_>>());
     matches.pick(2);
     harness.state_mut().matches = matches;
     harness.run();
     assert!(label_text(&harness, |t| t == "3 of 12").is_some());
+}
+
+// A page that hit the match limit makes the count a lower bound: "3 of 12+".
+#[test]
+fn a_page_at_its_limit_marks_the_count() {
+    let mut harness = bar("a", FindMatches::new(0), None);
+    let pattern = FindPattern::compile("a", &FindOptions::default());
+    let mut matches = FindMatches::new(0);
+    if let Ok(pattern) = pattern {
+        matches.set_page(0, pattern.find_page("aaaa", 3));
+    }
+    harness.state_mut().matches = matches;
+    harness.run();
+    assert!(label_text(&harness, |t| t == "1 of 3+").is_some());
+}
+
+// The field takes the keyboard on the pass the app opens the bar, and again when the app asks for
+// it with the bar open; the bar never claims it unasked.
+#[test]
+fn the_app_decides_when_the_field_takes_the_keyboard() {
+    let focused = |harness: &Harness<'_, BarApp>| harness.get_by_role_and_label(Role::SearchInput, "Find text").is_focused();
+    let mut harness = bar("cat", matches_on(&[0]), None);
+    harness.run();
+    assert!(!focused(&harness));
+
+    harness.state_mut().state.open();
+    harness.run();
+    assert!(focused(&harness));
+    assert!(!harness.state().state.is_opening());
+
+    harness.get_by_label("Find options").focus();
+    harness.run();
+    assert!(!focused(&harness));
+    harness.state_mut().state.open();
+    harness.run();
+    assert!(focused(&harness));
+}
+
+// The refusal of a pattern is worded by FindLabels, in the labels' own text and numbers.
+#[test]
+fn refusals_read_in_the_labels_words() {
+    let labels = FindLabels::english();
+    let numbers = craft_ui::localized::LocaleNumbers::from_tag("en");
+    let wild = |kind| labels.error(&FindError::Wildcards(kind), &numbers);
+    assert_eq!(wild(WildcardError::UnclosedBracket), "A [ needs a closing ]");
+    assert_eq!(wild(WildcardError::BadCount("x".into())), "{x} is not a valid count");
+    assert_eq!(wild(WildcardError::CountTooLarge), "Counts go up to 1,000");
+    assert_eq!(wild(WildcardError::ReversedRange { from: 'z', to: 'a' }), "[z-a] is not in ascending order");
+    assert_eq!(labels.error(&FindError::Regex(RegexError::UnclosedGroup), &numbers), "A ( needs a closing )");
+    assert_eq!(labels.error(&FindError::TooLong, &numbers), "The Find what text is longer than 1,024 characters");
+
+    let own = FindLabels { regex_unclosed_group: "offen".into(), ..FindLabels::english() };
+    assert_eq!(own.error(&FindError::Regex(RegexError::UnclosedGroup), &numbers), "offen");
+}
+
+// The dialog's Replace… button and the Special menu's rows are the labels' own words, not joins.
+#[test]
+fn replace_more_and_special_rows_come_from_the_labels() {
+    let labels = FindLabels { replace_more: "Ersetzen mit".into(), special_item: "{code} = {name}".into(), ..FindLabels::english() };
+    let mut harness = dialog(FindReplaceDialog::new("a", FindTab::Find).labels(labels.clone()));
+    harness.run();
+    harness.get_by_label("Ersetzen mit");
+    drop(harness);
+
+    let mut harness = dialog(FindReplaceDialog::new("a", FindTab::Find).word(true).labels(labels));
+    harness.run();
+    harness.get_by_label("Search Options").click();
+    harness.run();
+    harness.get_by_label("Special").click();
+    harness.run();
+    harness.get_by_label_contains("^p = Paragraph Mark");
 }
 
 struct DialogApp {

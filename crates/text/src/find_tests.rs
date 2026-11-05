@@ -1,7 +1,8 @@
 //! Find patterns, replacements and the matches across pages.
 
 use crate::find::{
-    FindError, FindMatches, FindOptions, FindPattern, PARAGRAPH_MARK, ReplacePiece, expand_replacement, parse_replacement, resolve_group_names,
+    FindError, FindMatches, FindOptions, FindPattern, PARAGRAPH_MARK, RegexError, ReplacePiece, WildcardError, expand_replacement, parse_replacement,
+    resolve_group_names,
 };
 
 fn span(start: usize, end: usize) -> std::ops::Range<usize> {
@@ -86,4 +87,73 @@ fn matches_follow_the_start_page_until_the_user_moves() {
     assert_eq!(matches.step(true).map(|m| m.page), Some(3));
     matches.pick(1);
     assert_eq!(matches.current(), Some(1));
+}
+
+fn refused(query: &str, options: FindOptions) -> FindError {
+    FindPattern::compile(query, &options).err().unwrap_or(FindError::TooLong)
+}
+
+// Each refusal is a kind the UI words itself: wildcard problems as WordCraft names them, regex
+// refusals by what is wrong.
+#[test]
+fn refusals_are_kinds_not_english() {
+    let wild = FindOptions { wildcards: true, ..Default::default() };
+    let regex = FindOptions { regex: true, ..Default::default() };
+    let wildcard = |query: &str| refused(query, wild);
+    assert_eq!(wildcard("a{2"), FindError::Wildcards(WildcardError::UnclosedBrace));
+    assert_eq!(wildcard("a[b"), FindError::Wildcards(WildcardError::UnclosedBracket));
+    assert_eq!(wildcard("(a)\\1"), FindError::Wildcards(WildcardError::BackReference));
+    assert_eq!(wildcard("a{x}"), FindError::Wildcards(WildcardError::BadCount("x".into())));
+    assert_eq!(wildcard("a{2,1}"), FindError::Wildcards(WildcardError::BadCount("2,1".into())));
+    assert_eq!(wildcard("a{5000}"), FindError::Wildcards(WildcardError::CountTooLarge));
+    assert_eq!(wildcard("[]"), FindError::Wildcards(WildcardError::EmptyClass));
+    assert_eq!(wildcard("[z-a]"), FindError::Wildcards(WildcardError::ReversedRange { from: 'z', to: 'a' }));
+    assert_eq!(wildcard("a)"), FindError::Wildcards(WildcardError::Refused));
+
+    let expression = |query: &str| refused(query, regex);
+    assert_eq!(expression("(a"), FindError::Regex(RegexError::UnclosedGroup));
+    assert_eq!(expression("a)"), FindError::Regex(RegexError::UnopenedGroup));
+    assert_eq!(expression("[a"), FindError::Regex(RegexError::UnclosedClass));
+    assert_eq!(expression("*a"), FindError::Regex(RegexError::NothingToRepeat));
+    assert_eq!(expression("a{2,1}"), FindError::Regex(RegexError::BadRepetition));
+    assert_eq!(expression("[z-a]"), FindError::Regex(RegexError::ReversedRange));
+    assert_eq!(expression("\\q"), FindError::Regex(RegexError::BadEscape));
+    assert_eq!(expression("(?=a)"), FindError::Regex(RegexError::Unsupported));
+    assert_eq!(expression("(?P<>a)"), FindError::Regex(RegexError::BadGroupName));
+    assert_eq!(expression("a{1000}{1000}{1000}"), FindError::Regex(RegexError::TooBig));
+}
+
+// A page with more matches than the limit keeps `limit` of them and says so; setting the page again
+// without the signal clears it.
+#[test]
+fn a_page_over_the_limit_says_so() {
+    let pattern = compile("a", FindOptions::default());
+    let at_limit = pattern.find_page("aaa", 3);
+    assert_eq!((at_limit.ranges.len(), at_limit.limit_reached), (3, false));
+    let over = pattern.find_page("aaaa", 3);
+    assert_eq!((over.ranges.len(), over.limit_reached), (3, true));
+
+    let mut matches = FindMatches::new(0);
+    matches.set_page(0, over);
+    matches.set_page(1, at_limit);
+    assert!(matches.limit_reached());
+    matches.set_page(0, vec![span(0, 1)]);
+    assert!(!matches.limit_reached());
+}
+
+// A pattern lists its named groups with their numbers; the lookup resolves `${name}` in a replacement.
+#[test]
+fn named_groups_resolve_in_replacements() {
+    let options = FindOptions { regex: true, ..Default::default() };
+    let pattern = compile(r"(?P<year>\d+)-(?P<month>\d+)", options);
+    assert_eq!(pattern.group_names(), [(1, "year"), (2, "month")]);
+    assert_eq!(pattern.group_index("month"), Some(2));
+    assert_eq!(pattern.group_index("day"), None);
+    assert!(compile("plain", FindOptions::default()).group_names().is_empty());
+
+    let pieces = resolve_group_names(parse_replacement("${month}/${year}", &options), &|name| pattern.group_index(name));
+    let text = "2026-11";
+    let groups = pattern.groups(text, 0..7);
+    let group = |n: usize| groups.get(n).cloned().flatten().map(|range| text[range].to_owned());
+    assert_eq!(expand_replacement(&pieces, text, &group, ""), "11/2026");
 }

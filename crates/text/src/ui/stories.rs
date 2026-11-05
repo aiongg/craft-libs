@@ -338,13 +338,15 @@ fn text_styles(ui: &mut Ui, _: &mut NoArgs) {
     let Panel { state: styles, current, overridden } = &mut *guard;
     let rows = [(0, "Basic Paragraph"), (1, "Body Copy"), (2, "Heading")].map(|(id, name)| TextStyleRow { id, name: name.to_owned() });
     let response = TextStylesPanel::new("styles", TextStyleKind::Paragraph, &rows, styles).current(Some(*current), *overridden).target(true).show(ui);
-    match response.action {
-        Some(TextStyleAction::Apply { id, clear_overrides }) => {
-            *current = id;
-            *overridden = *overridden && !clear_overrides && id == *current;
+    for action in response.actions {
+        match action {
+            TextStyleAction::Apply { id, clear_overrides } => {
+                *current = id;
+                *overridden = *overridden && !clear_overrides && id == *current;
+            }
+            TextStyleAction::ClearOverride => *overridden = false,
+            _ => {}
         }
-        Some(TextStyleAction::ClearOverride) => *overridden = false,
-        _ => {}
     }
 }
 

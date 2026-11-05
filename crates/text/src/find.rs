@@ -56,24 +56,123 @@ pub struct FindOptions {
     pub literal: bool,
 }
 
-/// Why a Find what text can't be searched for. The app shows it under the field.
+/// Why a Find what text can't be searched for. The app shows it under the field in its own
+/// words (`FindLabels::error` in the `ui` module).
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum FindError {
     /// Longer than [`MAX_PATTERN`] characters.
     TooLong,
-    /// A wildcard pattern Word would refuse: an unclosed `[` or `{`, a reversed range, a count
-    /// above [`MAX_COUNT`]. The text names the problem in English, as WordCraft's engine does.
-    Wildcards(String),
-    /// A regular expression the engine refuses, with its message.
-    Regex(String),
+    /// A wildcard pattern Word would refuse.
+    Wildcards(WildcardError),
+    /// A regular expression the engine refuses.
+    Regex(RegexError),
+}
+
+/// What is wrong with a wildcard pattern (WordCraft's engine names the same problems).
+// wordcraft: crates/engine/src/cmd/find_pattern.rs:250,290,314,330 (its error strings).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WildcardError {
+    /// A `{` with no closing `}`.
+    UnclosedBrace,
+    /// A `[` with no closing `]`.
+    UnclosedBracket,
+    /// `\1` in Find what: back-references belong in Replace with.
+    BackReference,
+    /// The text between braces is not a count (`{x}`, or an upper bound below the lower one).
+    BadCount(String),
+    /// A count above [`MAX_COUNT`].
+    CountTooLarge,
+    /// `[]` or `[!]`.
+    EmptyClass,
+    /// A range of a class that runs downwards (`[z-a]`).
+    ReversedRange { from: char, to: char },
+    /// The translated expression is one the engine refuses (an unbalanced parenthesis).
+    Refused,
+}
+
+/// Why the engine refuses a regular expression.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RegexError {
+    /// A `(` with no `)`.
+    UnclosedGroup,
+    /// A `)` with no `(`.
+    UnopenedGroup,
+    /// A `[` with no `]`.
+    UnclosedClass,
+    /// A repetition (`*`, `+`, `?`, `{n}`) with nothing before it.
+    NothingToRepeat,
+    /// A `{n,m}` that is not a count, is unclosed, or runs downwards.
+    BadRepetition,
+    /// A class range that runs downwards (`[z-a]`).
+    ReversedRange,
+    /// A `\` followed by something that is not an escape.
+    BadEscape,
+    /// A group name that is empty, repeated or not a name.
+    BadGroupName,
+    /// Back-references (`\1`) and look-around, which the linear-time engine leaves out.
+    Unsupported,
+    /// A flag group (`(?i)`) the engine does not read.
+    BadFlag,
+    /// The expression is too big or too deeply nested to compile.
+    TooBig,
+    /// Any other refusal.
+    Invalid,
+}
+
+impl RegexError {
+    /// The kind of `pattern`'s refusal.
+    fn of(pattern: &str, error: &regex::Error) -> RegexError {
+        use regex_syntax::ast::ErrorKind as Ast;
+        if matches!(error, regex::Error::CompiledTooBig(_)) {
+            return RegexError::TooBig;
+        }
+        match regex_syntax::ParserBuilder::new().build().parse(pattern) {
+            Err(regex_syntax::Error::Parse(parse)) => match parse.kind() {
+                Ast::GroupUnclosed => RegexError::UnclosedGroup,
+                Ast::GroupUnopened => RegexError::UnopenedGroup,
+                Ast::ClassUnclosed => RegexError::UnclosedClass,
+                Ast::RepetitionMissing => RegexError::NothingToRepeat,
+                Ast::RepetitionCountInvalid
+                | Ast::RepetitionCountUnclosed
+                | Ast::DecimalEmpty
+                | Ast::DecimalInvalid
+                | Ast::SpecialWordOrRepetitionUnexpectedEof => RegexError::BadRepetition,
+                Ast::ClassRangeInvalid | Ast::ClassRangeLiteral => RegexError::ReversedRange,
+                Ast::EscapeUnrecognized
+                | Ast::EscapeUnexpectedEof
+                | Ast::EscapeHexEmpty
+                | Ast::EscapeHexInvalid
+                | Ast::EscapeHexInvalidDigit
+                | Ast::ClassEscapeInvalid
+                | Ast::SpecialWordBoundaryUnclosed
+                | Ast::SpecialWordBoundaryUnrecognized => RegexError::BadEscape,
+                Ast::GroupNameDuplicate { .. } | Ast::GroupNameEmpty | Ast::GroupNameInvalid | Ast::GroupNameUnexpectedEof => {
+                    RegexError::BadGroupName
+                }
+                Ast::UnsupportedBackreference | Ast::UnsupportedLookAround => RegexError::Unsupported,
+                Ast::FlagDanglingNegation
+                | Ast::FlagDuplicate { .. }
+                | Ast::FlagRepeatedNegation { .. }
+                | Ast::FlagUnexpectedEof
+                | Ast::FlagUnrecognized => RegexError::BadFlag,
+                Ast::NestLimitExceeded(_) | Ast::CaptureLimitExceeded => RegexError::TooBig,
+                _ => RegexError::Invalid,
+            },
+            _ => RegexError::Invalid,
+        }
+    }
 }
 
 impl std::fmt::Display for FindError {
-    // wordcraft: crates/engine/src/cmd/find_pattern.rs:142 `compile` (its error strings).
+    // The words shown to people are `FindLabels::error`; this is for logs.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             FindError::TooLong => write!(f, "the Find what text is longer than {MAX_PATTERN} characters"),
-            FindError::Wildcards(message) | FindError::Regex(message) => f.write_str(message),
+            FindError::Wildcards(kind) => write!(f, "wildcard pattern refused: {kind:?}"),
+            FindError::Regex(kind) => write!(f, "regular expression refused: {kind:?}"),
         }
     }
 }
@@ -187,6 +286,27 @@ impl FindPattern {
         self.find_plain(text, limit)
     }
 
+    /// One page's matches for [`FindMatches::set_page`]: [`find_all`](Self::find_all) with
+    /// `limit`, and whether the page had more than `limit` matches (the bar then counts "12+").
+    pub fn find_page(&self, text: &str, limit: usize) -> PageMatches {
+        let mut ranges = self.find_all(text, limit.saturating_add(1));
+        let limit_reached = ranges.len() > limit;
+        ranges.truncate(limit);
+        PageMatches { ranges, limit_reached }
+    }
+
+    /// The names of the pattern's named groups with their group numbers, in group order. Plain
+    /// patterns have none. [`resolve_group_names`] takes [`group_index`](Self::group_index).
+    pub fn group_names(&self) -> Vec<(usize, &str)> {
+        let Some(regex) = &self.regex else { return Vec::new() };
+        regex.capture_names().enumerate().filter_map(|(index, name)| name.map(|name| (index, name))).collect()
+    }
+
+    /// The number of the group named `name`, if the pattern has one.
+    pub fn group_index(&self, name: &str) -> Option<usize> {
+        self.group_names().into_iter().find(|(_, group)| *group == name).map(|(index, _)| index)
+    }
+
     /// The match's groups for a replacement: group 0 is the match; `None` past the last group or
     /// for a group that took part in no match. Plain patterns have group 0 only.
     pub fn groups(&self, text: &str, found: Range<usize>) -> Vec<Option<Range<usize>>> {
@@ -255,8 +375,8 @@ pub enum ReplacePiece {
     /// `\n` with wildcards, or `$n` / `${n}` / `\n` with an expression: group `n` (0 is the
     /// match).
     Group(usize),
-    /// `${name}` / `$name` with an expression; [`FindPattern::groups`] has none by name, so the
-    /// app resolves it with [`resolve_group_names`] or it expands to nothing.
+    /// `${name}` / `$name` with an expression; resolve it with [`resolve_group_names`] and
+    /// [`FindPattern::group_index`]; unresolved it expands to nothing.
     Named(String),
     /// `^c`: the clipboard.
     Clipboard,
@@ -351,6 +471,21 @@ pub fn expand_replacement(pieces: &[ReplacePiece], found: &str, group: &dyn Fn(u
     out
 }
 
+/// One page's matches, as [`FindPattern::find_page`] finds them.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PageMatches {
+    /// The char ranges, in order, at most the search's limit.
+    pub ranges: Vec<Range<usize>>,
+    /// The page has more matches than the limit allowed.
+    pub limit_reached: bool,
+}
+
+impl From<Vec<Range<usize>>> for PageMatches {
+    fn from(ranges: Vec<Range<usize>>) -> Self {
+        PageMatches { ranges, limit_reached: false }
+    }
+}
+
 /// One match: the page (or story) it is on, by the app's index, and its char range there.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FindMatch {
@@ -372,12 +507,14 @@ pub struct FindMatches {
     from: Option<usize>,
     /// The user ended automatic following (picked a match, navigated, scrolled).
     follow_ended: bool,
+    /// The pages that had more matches than the limit.
+    limited: Vec<usize>,
 }
 
 impl FindMatches {
     /// No matches; a new search starts from page `from`.
     pub fn new(from: usize) -> Self {
-        FindMatches { matches: Vec::new(), current: None, from: Some(from), follow_ended: false }
+        FindMatches { matches: Vec::new(), current: None, from: Some(from), follow_ended: false, limited: Vec::new() }
     }
 
     pub fn matches(&self) -> &[FindMatch] {
@@ -401,14 +538,20 @@ impl FindMatches {
         self.current.and_then(|i| self.matches.get(i))
     }
 
-    /// Replace page `page`'s matches with `ranges` (sorted by start). The current match stays on
+    /// Replace page `page`'s matches with `found` (ranges sorted by start; a plain `Vec` of ranges
+    /// has not reached the limit, [`FindPattern::find_page`] says). The current match stays on
     /// the same page and range when it is still there; while following, the current match becomes
     /// the first at or after the search's start page. Returns whether the current match changed,
     /// so the app scrolls to it (only while following: a match the user already moved away from
     /// is listed, never revealed).
     // pdfcraft: crates/ui-egui/src/canvas/find.rs:120 `refresh_find_page`, :54 `Find::follow_page`.
-    pub fn set_page(&mut self, page: usize, ranges: Vec<Range<usize>>) -> bool {
+    pub fn set_page(&mut self, page: usize, found: impl Into<PageMatches>) -> bool {
+        let PageMatches { ranges, limit_reached } = found.into();
         let previous = self.current_match().cloned();
+        self.limited.retain(|limited| *limited != page);
+        if limit_reached {
+            self.limited.push(page);
+        }
         self.matches.retain(|m| m.page != page);
         self.matches.extend(ranges.into_iter().map(|range| FindMatch { page, range }));
         self.matches.sort_by_key(|m| (m.page, m.range.start));
@@ -420,6 +563,11 @@ impl FindMatches {
             None => previous.as_ref().and_then(|k| self.matches.iter().position(|m| m == k)).or_else(|| self.first_at_or_after(0)),
         };
         following && self.current_match() != previous.as_ref()
+    }
+
+    /// Whether a page had more matches than the limit, so the count is a lower bound.
+    pub fn limit_reached(&self) -> bool {
+        !self.limited.is_empty()
     }
 
     /// The first match at or after `page`, or the first match when none follows: a search wraps
@@ -494,9 +642,12 @@ fn advance(needle: &[char], prefix: &[usize], mut matched: usize, c: char) -> us
 fn expression_pattern(pattern: String, spans: bool, options: FindOptions, empty: FindPattern) -> Result<FindPattern, FindError> {
     // Word's wildcard search always matches case.
     let case_insensitive = !options.match_case && (!options.wildcards || options.regex);
-    let regex = regex::RegexBuilder::new(&pattern).case_insensitive(case_insensitive).build().map_err(|e| {
-        let message = e.to_string();
-        if options.wildcards && !options.regex { FindError::Wildcards(message) } else { FindError::Regex(message) }
+    let regex = regex::RegexBuilder::new(&pattern).case_insensitive(case_insensitive).build().map_err(|error| {
+        if options.wildcards && !options.regex {
+            FindError::Wildcards(WildcardError::Refused)
+        } else {
+            FindError::Regex(RegexError::of(&pattern, &error))
+        }
     })?;
     Ok(FindPattern { expression: Some(pattern), spans_paragraphs: spans, regex: Some(regex), ..empty })
 }
@@ -643,7 +794,7 @@ fn is_space(c: char) -> bool {
 
 /// "Use wildcards" search.
 // wordcraft: crates/engine/src/cmd/find_pattern.rs:221 `wildcards`.
-fn wildcards(query: &str) -> Result<(String, bool), String> {
+fn wildcards(query: &str) -> Result<(String, bool), WildcardError> {
     let chars: Vec<char> = query.chars().collect();
     let mut out = String::new();
     let mut spans = false;
@@ -661,18 +812,18 @@ fn wildcards(query: &str) -> Result<(String, bool), String> {
             '>' => out.push_str(r"\b{end}"),
             '(' | ')' => out.push(c),
             '{' => {
-                let end = chars.get(i..).and_then(|r| r.iter().position(|c| *c == '}')).ok_or("a { needs a closing }")?;
+                let end = chars.get(i..).and_then(|r| r.iter().position(|c| *c == '}')).ok_or(WildcardError::UnclosedBrace)?;
                 let body: String = chars.get(i..i + end).unwrap_or(&[]).iter().collect();
                 out.push_str(&count(&body)?);
                 i += end + 1;
             }
             '[' => {
-                let end = chars.get(i..).and_then(|r| r.iter().position(|c| *c == ']')).ok_or("a [ needs a closing ]")?;
+                let end = chars.get(i..).and_then(|r| r.iter().position(|c| *c == ']')).ok_or(WildcardError::UnclosedBracket)?;
                 out.push_str(&class(chars.get(i..i + end).unwrap_or(&[]))?);
                 i += end + 1;
             }
             '\\' => match chars.get(i) {
-                Some(d) if d.is_ascii_digit() => return Err("back-references (\\1) work in Replace with, not in Find what".into()),
+                Some(d) if d.is_ascii_digit() => return Err(WildcardError::BackReference),
                 Some(&n) => {
                     out.push_str(&lit(n));
                     i += 1;
@@ -703,16 +854,16 @@ fn wildcards(query: &str) -> Result<(String, bool), String> {
 }
 
 /// `{n}`, `{n,}`, `{n,m}` (and `{,m}`).
-fn count(body: &str) -> Result<String, String> {
-    let bad = || format!("{{{body}}} is not a valid count");
-    let num = |s: &str| -> Result<Option<u32>, String> {
+fn count(body: &str) -> Result<String, WildcardError> {
+    let bad = || WildcardError::BadCount(body.to_owned());
+    let num = |s: &str| -> Result<Option<u32>, WildcardError> {
         let s = s.trim();
         if s.is_empty() {
             return Ok(None);
         }
         let n: u32 = s.parse().map_err(|_| bad())?;
         if n > MAX_COUNT {
-            return Err(format!("counts go up to {MAX_COUNT}"));
+            return Err(WildcardError::CountTooLarge);
         }
         Ok(Some(n))
     };
@@ -730,13 +881,13 @@ fn count(body: &str) -> Result<String, String> {
 }
 
 /// `[abc]`, `[a-z]`, `[!x]`: the characters inside are literal.
-fn class(inner: &[char]) -> Result<String, String> {
+fn class(inner: &[char]) -> Result<String, WildcardError> {
     let (negated, inner) = match inner.split_first() {
         Some(('!', rest)) => (true, rest),
         _ => (false, inner),
     };
     if inner.is_empty() {
-        return Err("[ ] needs at least one character".into());
+        return Err(WildcardError::EmptyClass);
     }
     let mut out = String::from(if negated { r"[^\r\x{1D}" } else { "[" });
     let mut i = 0;
@@ -752,7 +903,7 @@ fn class(inner: &[char]) -> Result<String, String> {
             && let Some(&hi) = inner.get(i + 1)
         {
             if hi < c {
-                return Err(format!("[{c}-{hi}] is not in ascending order"));
+                return Err(WildcardError::ReversedRange { from: c, to: hi });
             }
             out.push_str(&format!("{}-{}", lit(c), lit(hi)));
             i += 2;

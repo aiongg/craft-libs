@@ -319,7 +319,7 @@ fn notes(ui: &mut Ui, _: &mut NoArgs) {
 mod find_demos {
     use super::*;
     use crate::find::{FindMatches, FindOptions};
-    use crate::ui::find::{FindBar, FindReplaceDialog, FindTab};
+    use crate::ui::find::{FindBar, FindBarState, FindReplaceDialog, FindTab};
 
     /// Four pages with three matches each: twelve in all.
     const MATCH_PAGES: usize = 4;
@@ -332,6 +332,7 @@ mod find_demos {
         query: String,
         options: FindOptions,
         matches: FindMatches,
+        state: FindBarState,
         last: Option<String>,
     }
 
@@ -339,7 +340,7 @@ mod find_demos {
     fn matches() -> FindMatches {
         let mut matches = FindMatches::new(0);
         for page in 0..MATCH_PAGES {
-            matches.set_page(page, (0..MATCHES_PER_PAGE).map(|i| i * MATCH_PITCH..i * MATCH_PITCH + MATCH_LENGTH).collect());
+            matches.set_page(page, (0..MATCHES_PER_PAGE).map(|i| i * MATCH_PITCH..i * MATCH_PITCH + MATCH_LENGTH).collect::<Vec<_>>());
         }
         matches.step(false);
         matches.step(false);
@@ -353,11 +354,16 @@ mod find_demos {
             query: labels.find_query.clone(),
             options: FindOptions { match_case: true, ..FindOptions::default() },
             matches: matches(),
+            state: {
+                let mut state = FindBarState::default();
+                state.open();
+                state
+            },
             last: None,
         });
         let mut demo = lock(&demo);
         let demo = &mut *demo;
-        let out = FindBar::new("bar", &mut demo.query, &mut demo.options, &mut demo.matches).show(ui);
+        let out = FindBar::new("bar", &mut demo.query, &mut demo.options, &mut demo.matches).state(&mut demo.state).show(ui);
         if out.search {
             demo.last = Some(format!("Search({:?})", demo.query));
         }
