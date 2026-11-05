@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use egui::mutex::Mutex;
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Context, CursorIcon, DragAndDrop, Id, LayerId, Modifiers, Order, Painter, Pos2, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Context, CursorIcon, DragAndDrop, Id, LayerId, Modifiers, Order, Painter, Pos2, Rangef, Rect, Stroke, StrokeKind, Ui, pos2, vec2};
 
 use super::row::{DropMark, ListRow, ListRowStyle, RowEvent};
 use super::spans::Spans;
@@ -131,28 +131,31 @@ impl<'p, K: Clone + Eq + Hash + Send + Sync + 'static> RowDrag<'p, K> {
         DragAndDrop::set_payload(&self.ctx, payload);
     }
 
-    /// Finds the target of the drag under way while the pointer is over `ui`'s clip rect (the
-    /// rows' viewport); `top` is where the rows start on the screen.
-    pub(super) fn resolve(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32) {
+    /// Finds the target of the drag under way while the pointer is over the rows' viewport:
+    /// `ui`'s clip rect within `width`, the list's own columns. egui's scroll area clips only its
+    /// scrolling axis to itself, so sideways the clip reaches the parent's edge and would cover a
+    /// list beside this one. `top` is where the rows start on the screen.
+    pub(super) fn resolve(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32, width: Rangef) {
+        let viewport = ui.clip_rect().intersect(Rect::from_x_y_ranges(width, Rangef::EVERYTHING));
         self.target = None;
         self.foreign = None;
         if self.dragging.is_none() {
-            self.resolve_foreign(ui, rows, spans, top);
+            self.resolve_foreign(ui, rows, spans, top, viewport);
             return;
         }
         let (Some(drag), Some(reorder)) = (self.dragging.as_ref(), self.reorder) else { return };
         let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
-        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(ui.clip_rect())) else { return };
+        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(viewport)) else { return };
         self.target = reorder.resolve(rows, spans, pointer.y - top, &drag.items, modifiers);
     }
 
     /// Finds where rows of an accepted list held over this one drop.
-    fn resolve_foreign(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32) {
+    fn resolve_foreign(&mut self, ui: &Ui, rows: &(impl DisplayOrder<K> + ?Sized), spans: &Spans, top: f32, viewport: Rect) {
         let Some(payload) = DragAndDrop::payload::<ListDrag<K>>(&self.ctx).filter(|p| p.list != self.list && self.accepts.contains(&p.list)) else {
             return;
         };
         let (pointer, modifiers) = ui.input(|i| (i.pointer.hover_pos(), i.modifiers));
-        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(ui.clip_rect())) else { return };
+        let Some(pointer) = pointer.filter(|_| ui.rect_contains_pointer(viewport)) else { return };
         let plain = Reorder::new(Axis::Vertical);
         let reorder = self.reorder.unwrap_or(&plain);
         let target = reorder.resolve_foreign(rows, spans, pointer.y - top, &payload.items, modifiers);

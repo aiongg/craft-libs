@@ -450,7 +450,7 @@ fn single_pin(ui: &mut Ui, cx: &PinCx, pin: &CommentPin, me: &str, open: bool, o
     }
     paint_bubble(ui, tokens, style, rect, open || response.hovered() || response.has_focus(), |ui, inner| {
         let fill = if resolved { tokens.color.text.faint.to_egui() } else { Color32::from_rgb(color[0], color[1], color[2]) };
-        paint_avatar(ui.painter(), inner.center(), inner.height() / 2.0, author, fill);
+        paint_avatar(ui.painter(), tokens, inner.center(), inner.height() / 2.0, author, fill);
         let accent = tokens.color.accent.strong.to_egui();
         if unread {
             let centre = rect.right_top() + vec2(-UNREAD_DOT_INSET, UNREAD_DOT_INSET);

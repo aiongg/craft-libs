@@ -28,3 +28,5 @@ egui = { workspace = true, optional = true }
 [dev-dependencies]
 egui = { workspace = true, features = ["default_fonts"] }
 egui_kittest = "0.37"
+# The list test installs a catalog.
+craft-i18n = { workspace = true }

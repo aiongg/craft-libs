@@ -3,12 +3,12 @@
 use super::style::SheetStyle;
 use craft_ui::controls::{Button, Checkbox, ControlSize, DatePicker, IconButton, NumberField, Select, TextField};
 use craft_ui::direction;
-use craft_ui::edit::EditEvent;
-use craft_ui::icons::Icon;
+use craft_ui::edit::{EditEvent, GestureDraft};
+use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::theme::scale::Stroke as Line;
 use craft_ui::theme::{StrokeExt as _, ToEgui as _, Tokens, TokensOf as _, UiTokens, margin};
-use egui::{Align, AsIdSalt, Frame, Id, IdSalt, Layout, Response, RichText, Ui, vec2};
+use egui::{Align, AsIdSalt, Frame, Id, IdSalt, Layout, Response, RichText, Sense, Ui, vec2};
 
 craft_ui::words! {
     /// The builder's words, English by default (LightCraft's).
@@ -66,6 +66,8 @@ pub enum ConditionValue {
     Range(f64, f64),
     /// A date (a day, or a month or year for a partial date), the date picker's value.
     Date(craft_ui::controls::PickedDate),
+    /// Two dates for "is between": each picker stops at the other, so the two stay in order.
+    DateRange(craft_ui::controls::PickedDate, craft_ui::controls::PickedDate),
     /// "in the last N units".
     Last {
         n: u32,
@@ -112,6 +114,12 @@ pub trait ConditionFields {
     }
     /// Why a rule can't apply, shown under it ("Enter a number").
     fn problem(&self, _rule: &Condition) -> Option<String> {
+        None
+    }
+    /// Why a group can't apply, shown under it with the warning icon (LightCraft
+    /// `rules_editor.rs:299`, `:333`). `path` is the group's place: the indices from the top
+    /// group, empty for the top group itself.
+    fn group_problem(&self, _path: &[usize], _group: &ConditionGroup) -> Option<String> {
         None
     }
 }
@@ -192,7 +200,7 @@ impl Cx<'_> {
             (_, V::None)
                 | (K::Text, V::Text(_))
                 | (K::Number, V::Number(_) | V::Range(..))
-                | (K::Date, V::Date(_) | V::Last { .. })
+                | (K::Date, V::Date(_) | V::DateRange(..) | V::Last { .. })
                 | (K::Bool, V::Bool(_))
                 | (K::Choice, V::Choice(_))
         )
@@ -268,6 +276,9 @@ fn edit_group(cx: &Cx<'_>, ui: &mut Ui, group: &mut ConditionGroup, path: &mut V
         group.items.insert(at.min(group.items.len()), item);
         *changed = true;
     }
+    if let Some(problem) = cx.fields.group_problem(path, group) {
+        problem_note(cx, ui, &problem);
+    }
     if group.items.is_empty() || depth == 0 {
         direction::horizontal(ui, |ui| {
             if ui.add(Button::new(&labels.add_rule).size(ControlSize::Sm).id_salt(cx.id(path, "add-rule"))).clicked() {
@@ -308,9 +319,33 @@ fn edit_rule(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], dep
         }
     });
     if let Some(problem) = cx.fields.problem(rule) {
-        let color = cx.tokens.color.status.warn.fg.to_egui();
-        let font = cx.tokens.font(SheetStyle::of(cx.tokens).problem_text);
+        problem_note(cx, ui, &problem);
+    }
+}
+
+/// A problem under a rule or a group: the warning icon, then the text, in the caution colour.
+fn problem_note(cx: &Cx<'_>, ui: &mut Ui, problem: &str) {
+    let color = cx.tokens.color.status.warn.fg.to_egui();
+    let font = cx.tokens.font(SheetStyle::of(cx.tokens).problem_text);
+    direction::horizontal(ui, |ui| {
+        let side = IconSize::Sm.points(cx.tokens);
+        let (rect, _) = ui.allocate_exact_size(vec2(side, side), Sense::hover());
+        icons::paint(ui, rect, Icon::Warning, IconSize::Sm, color);
         ui.label(RichText::new(problem).font(font).color(color));
+    });
+}
+
+/// Applies a number or text control's event to the rule's value through the rule's draft: a
+/// preview shows while the gesture runs, and Esc restores the value from before it began.
+fn write(cx: &Cx<'_>, ui: &Ui, path: &[usize], value: &mut ConditionValue, event: Option<EditEvent<ConditionValue>>, changed: &mut bool) {
+    let Some(event) = event else { return };
+    let key = cx.id(path, "draft");
+    let mut draft = ui.data(|d| d.get_temp::<GestureDraft<ConditionValue>>(key)).unwrap_or_default();
+    let before = value.clone();
+    draft.apply(value, event);
+    ui.data_mut(|d| d.insert_temp(key, draft));
+    if *value != before {
+        *changed = true;
     }
 }
 
@@ -356,54 +391,81 @@ fn pick_operator(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize],
     }
 }
 
-/// The value editor the field's kind and the operator's value call for.
+/// The value editor the field's kind and the operator's value call for. Number and text controls
+/// write through the rule's draft ([`write`]); menus, pickers and the check box write when they
+/// settle.
 fn edit_value(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], changed: &mut bool) {
     let labels = cx.labels;
     if !cx.fits(&rule.field, &rule.value) {
         rule.value = cx.fields.default_value(&rule.field, &rule.operator);
         *changed = true;
     }
-    let number = |ui: &mut Ui, part: &str, value: f64| {
-        let out = NumberField::new(cx.id(path, part), &labels.value, value, cx.numbers).show(ui);
-        out.event.as_ref().and_then(|event| event.value()).copied()
-    };
-    let value = match &rule.value {
+    let number = |ui: &mut Ui, part: &str, value: f64| NumberField::new(cx.id(path, part), &labels.value, value, cx.numbers).show(ui).event;
+    let current = rule.value.clone();
+    let settled_value = match &current {
         ConditionValue::None => return,
         ConditionValue::Text(text) => {
-            let out = TextField::new(cx.id(path, "value"), &labels.value, text).show(ui);
-            out.event.as_ref().and_then(|event| event.value()).map(|text| ConditionValue::Text(text.clone()))
+            let event = TextField::new(cx.id(path, "value"), &labels.value, text).show(ui).event;
+            write(cx, ui, path, &mut rule.value, event.map(|event| event.map(ConditionValue::Text)), changed);
+            None
         }
-        ConditionValue::Number(value) => number(ui, "value", *value).map(ConditionValue::Number),
+        ConditionValue::Number(value) => {
+            let event = number(ui, "value", *value);
+            write(cx, ui, path, &mut rule.value, event.map(|event| event.map(ConditionValue::Number)), changed);
+            None
+        }
         ConditionValue::Range(low, high) => {
-            let low = number(ui, "low", *low);
+            let low_event = number(ui, "low", *low);
             ui.label(&labels.and);
-            let high = number(ui, "high", *high);
-            (low.is_some() || high.is_some()).then(|| {
-                let ConditionValue::Range(old_low, old_high) = rule.value else { unreachable!("matched above") };
-                ConditionValue::Range(low.unwrap_or(old_low), high.unwrap_or(old_high))
-            })
+            let high_event = number(ui, "high", *high);
+            write(cx, ui, path, &mut rule.value, low_event.map(|event| event.map(|low| ConditionValue::Range(low, *high))), changed);
+            write(cx, ui, path, &mut rule.value, high_event.map(|event| event.map(|high| ConditionValue::Range(*low, high))), changed);
+            None
         }
         ConditionValue::Date(date) => {
             let mut picked = Some(*date);
             let out = DatePicker::new(cx.id(path, "value"), &labels.value, &mut picked).show(ui);
             settled(&out.event).copied().flatten().map(ConditionValue::Date)
         }
+        ConditionValue::DateRange(low, high) => {
+            // Each picker stops at the other date (LightCraft `rules_editor.rs:187-193`).
+            let (mut low_picked, mut high_picked) = (Some(*low), Some(*high));
+            let low_out = DatePicker::new(cx.id(path, "low"), &labels.value, &mut low_picked).max(Some(*high)).show(ui);
+            ui.label(&labels.and);
+            let high_out = DatePicker::new(cx.id(path, "high"), &labels.value, &mut high_picked).min(Some(*low)).show(ui);
+            let (new_low, new_high) = (settled(&low_out.event).copied().flatten(), settled(&high_out.event).copied().flatten());
+            (new_low.is_some() || new_high.is_some()).then(|| ConditionValue::DateRange(new_low.unwrap_or(*low), new_high.unwrap_or(*high)))
+        }
         ConditionValue::Last { n, unit } => {
-            let count = number(ui, "count", f64::from(*n)).map(|n| n.max(0.0).round() as u32);
+            let count = number(ui, "count", f64::from(*n));
             let units = cx.fields.choices(&rule.field);
-            let mut unit_value = unit.clone();
-            let unit_changed = if units.is_empty() {
-                let out = TextField::new(cx.id(path, "unit"), &labels.unit, unit).show(ui);
-                out.event.as_ref().and_then(|event| event.value()).map(|text| unit_value = text.clone()).is_some()
+            let unit_value = if units.is_empty() {
+                let event = TextField::new(cx.id(path, "unit"), &labels.unit, unit).show(ui).event;
+                write(cx, ui, path, &mut rule.value, event.map(|event| event.map(|unit| ConditionValue::Last { n: *n, unit })), changed);
+                None
             } else {
-                let mut select = Select::new(cx.id(path, "unit"), &labels.unit, &mut unit_value);
+                let mut picked = unit.clone();
+                let mut select = Select::new(cx.id(path, "unit"), &labels.unit, &mut picked);
                 for (id, label) in units {
                     select = select.option(id, label);
                 }
                 let out = select.show(ui);
-                settled(&out.event).is_some()
+                settled(&out.event).is_some().then_some(picked)
             };
-            (count.is_some() || unit_changed && unit_value != *unit).then(|| ConditionValue::Last { n: count.unwrap_or(*n), unit: unit_value })
+            let to_count = |count: f64| count.max(0.0).round() as u32;
+            let unit_now = match &rule.value {
+                ConditionValue::Last { unit, .. } => unit.clone(),
+                _ => unit.clone(),
+            };
+            write(
+                cx,
+                ui,
+                path,
+                &mut rule.value,
+                count.map(|event| event.map(|count| ConditionValue::Last { n: to_count(count), unit: unit_now })),
+                changed,
+            );
+            unit_value.filter(|picked| picked != unit).map(|unit| ConditionValue::Last { n: *n, unit })
         }
         ConditionValue::Bool(on) => {
             let label =
@@ -422,7 +484,7 @@ fn edit_value(cx: &Cx<'_>, ui: &mut Ui, rule: &mut Condition, path: &[usize], ch
             settled(&out.event).is_some().then_some(ConditionValue::Choice(picked))
         }
     };
-    if let Some(value) = value.filter(|value| *value != rule.value) {
+    if let Some(value) = settled_value.filter(|value| *value != rule.value) {
         rule.value = value;
         *changed = true;
     }

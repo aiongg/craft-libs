@@ -2,7 +2,8 @@
 
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
-use craft_ui::testing::symbols;
+use craft_ui::controls::PickedDate;
+use craft_ui::testing::{HarnessExt as _, symbols};
 use craft_ui::theme::{Base, install};
 use egui::{Modifiers, Ui};
 use egui_kittest::Harness;
@@ -14,11 +15,15 @@ struct Photos;
 
 impl ConditionFields for Photos {
     fn fields(&self) -> Vec<(String, String, Option<String>)> {
-        vec![("rating".into(), "Rating".into(), None), ("name".into(), "File name".into(), None)]
+        vec![("rating".into(), "Rating".into(), None), ("name".into(), "File name".into(), None), ("taken".into(), "Taken".into(), None)]
     }
 
     fn kind(&self, field: &str) -> ConditionKind {
-        if field == "rating" { ConditionKind::Number } else { ConditionKind::Text }
+        match field {
+            "rating" => ConditionKind::Number,
+            "taken" => ConditionKind::Date,
+            _ => ConditionKind::Text,
+        }
     }
 
     fn operators(&self, field: &str) -> Vec<(String, String)> {
@@ -27,7 +32,15 @@ impl ConditionFields for Photos {
     }
 
     fn default_value(&self, field: &str, _operator: &str) -> ConditionValue {
-        if field == "rating" { ConditionValue::Number(3.0) } else { ConditionValue::Text(String::new()) }
+        match field {
+            "rating" => ConditionValue::Number(3.0),
+            "taken" => ConditionValue::DateRange(PickedDate::day(2026, 1, 1), PickedDate::day(2026, 12, 31)),
+            _ => ConditionValue::Text(String::new()),
+        }
+    }
+
+    fn group_problem(&self, path: &[usize], _group: &ConditionGroup) -> Option<String> {
+        path.is_empty().then(|| "Rules overlap".to_string())
     }
 }
 
@@ -109,4 +122,34 @@ fn minus_removes_rules_and_groups() {
     harness.get_by_label("Remove this rule").click();
     harness.run_steps(10);
     assert!(harness.state().items.is_empty());
+}
+
+// Esc during a typing run puts the value from before the run back.
+#[test]
+fn esc_in_a_number_field_restores_the_value() {
+    let mut harness = build(one_rule());
+    harness.get_by_label("Value").click();
+    harness.run_steps(5);
+    harness.type_text("9");
+    harness.run_steps(3);
+    assert_eq!(harness.state().items[0], rule("rating", "lte", ConditionValue::Number(9.0)), "the typed number previews");
+    harness.press(egui::KeyboardShortcut::new(Modifiers::NONE, egui::Key::Escape));
+    harness.run_steps(5);
+    assert_eq!(harness.state().items[0], rule("rating", "lte", ConditionValue::Number(5.0)));
+}
+
+// "is between" on a date edits two dates, each picker stopping at the other.
+#[test]
+fn a_between_date_rule_shows_two_date_pickers() {
+    let range = ConditionValue::DateRange(PickedDate::day(2026, 3, 1), PickedDate::day(2026, 4, 1));
+    let harness = build(ConditionGroup { matching: Match::All, items: vec![rule("taken", "between", range.clone())] });
+    assert_eq!(harness.get_all_by_label("Pick a date").count(), 2);
+    assert_eq!(harness.state().items[0], rule("taken", "between", range), "the value is kept");
+}
+
+// A group's problem shows under it, after the warning icon.
+#[test]
+fn a_group_problem_shows_under_the_group() {
+    let harness = build(one_rule());
+    harness.get_by_label("Rules overlap");
 }

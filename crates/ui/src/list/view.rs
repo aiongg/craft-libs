@@ -148,6 +148,8 @@ enum Heights<'a> {
 }
 
 type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
+type DraftFnRef<'a, K> = dyn Fn(&K) -> Option<String> + 'a;
+type DraftFn<'a, K> = Box<DraftFnRef<'a, K>>;
 type RowMenuFn<'a, K> = dyn Fn(&K) -> Vec<MenuEntry<RowCommand>> + 'a;
 type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 
@@ -196,7 +198,7 @@ type RowMenuEntries<'a, K> = Box<RowMenuFn<'a, K>>;
 ///   for its context menu. Type-ahead is off ([`type_ahead`](List::type_ahead)), so single-letter tool keys keep
 ///   working; Cmd/Ctrl+A, Delete and other commands stay the app's.
 /// - **Rename.** A double click on a row's label, F2 or [`start_rename`](List::start_rename)
-///   opens the row's rename field; one at a time, so starting another commits the open one. Tab
+///   opens the row's rename field, starting from the label or the [`rename_draft`](List::rename_draft); one at a time, so starting another commits the open one. Tab
 ///   and Shift+Tab commit and rename the next and previous row; Enter and Esc give the focus
 ///   back to the list. A row being renamed stays drawn while it scrolls away, and commits when it
 ///   leaves the list.
@@ -234,6 +236,7 @@ pub struct List<'a, K, O: ?Sized> {
     type_ahead: bool,
     reveal: Option<K>,
     start_rename: Option<K>,
+    rename_draft: Option<DraftFn<'a, K>>,
     row_menu: Option<RowMenuEntries<'a, K>>,
     accept_from: Vec<Id>,
     reorder: Option<Reorder<'a, K>>,
@@ -264,6 +267,7 @@ where
             type_ahead: false,
             reveal: None,
             start_rename: None,
+            rename_draft: None,
             row_menu: None,
             accept_from: Vec::new(),
             reorder: None,
@@ -391,6 +395,14 @@ where
         self
     }
 
+    /// The text a row's rename field starts from, `None` for the row's label (the default). A
+    /// rename that ends with the draft unchanged reports no `Renamed`, so a draft of `""` reports
+    /// a typed name only. Asked each pass for the row being renamed.
+    pub fn rename_draft(mut self, draft: impl Fn(&K) -> Option<String> + 'a) -> Self {
+        self.rename_draft = Some(Box::new(draft));
+        self
+    }
+
     /// A "\u{2026}" button on every row with a menu of `entries(key)` (no button for an empty
     /// list). The list draws the button and the menu itself, so a [`Rename`](RowCommand::Rename)
     /// pick opens the row's rename field in the pass of the click, which [`start_rename`](List::start_rename)
@@ -440,6 +452,7 @@ where
             type_ahead,
             reveal,
             start_rename,
+            rename_draft,
             row_menu,
             accept_from,
             tree,
@@ -471,6 +484,7 @@ where
             events: Vec::new(),
             build: row,
             can_rename: can_rename.as_deref(),
+            rename_draft: rename_draft.as_deref(),
             can_drag: can_drag.as_deref(),
             row_menu: row_menu.as_deref(),
             row_rects: Vec::new(),
@@ -647,7 +661,8 @@ impl<K: Clone + Send + Sync + 'static> State<K> {
     }
 }
 
-/// The open rename: its row, and the row's label when it was last drawn.
+/// The open rename: its row, and the text its field started from when it was last drawn (the
+/// row's label or its draft).
 #[derive(Clone)]
 struct Renaming<K> {
     key: K,
@@ -687,6 +702,7 @@ struct Pass<'p, K, O: ?Sized, F> {
     events: Vec<ListEvent<K>>,
     build: F,
     can_rename: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
+    rename_draft: Option<&'p DraftFnRef<'p, K>>,
     can_drag: Option<&'p (dyn Fn(&K) -> bool + 'p)>,
     row_menu: Option<&'p RowMenuFn<'p, K>>,
     /// The rows drawn this frame.
@@ -984,7 +1000,7 @@ where
         let content = ui.max_rect();
         let width = content.width();
         ui.set_min_height(spans.total());
-        self.drag.resolve(ui, self.rows, spans, content.min.y);
+        self.drag.resolve(ui, self.rows, spans, content.min.y, content.x_range());
         let lead = self.lead_at();
         let position = |key: Option<&K>| key.and_then(|k| self.rows.position(k));
         let mut drawn: Vec<usize> = spans.in_view(viewport.min.y..viewport.max.y).collect();
@@ -1031,7 +1047,13 @@ where
         debug_assert!(*row.key() == key, "the row built for {key:?} has the key {:?}", row.key());
         let renaming = match &mut self.state.renaming {
             Some(open) if open.key == key => {
-                row.label().clone_into(&mut open.label);
+                match self.rename_draft.and_then(|draft| draft(&key)) {
+                    Some(draft) => {
+                        open.label.clone_from(&draft);
+                        row = row.rename_draft(draft);
+                    }
+                    None => row.label().clone_into(&mut open.label),
+                }
                 true
             }
             _ => false,

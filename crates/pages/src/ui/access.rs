@@ -13,7 +13,7 @@
 //!
 //! ```ignore
 //! let view = PageView::new("doc", &mut pages, &mut state).name(&doc.title).show(ui);
-//! PagesAccess::new(view.response.id, &view.pages).revision(doc.layout_revision()).show(ui.ctx(), &mut DocDescriber(&doc));
+//! PagesAccess::of(&view).revision(doc.layout_revision()).show(ui.ctx(), &mut DocDescriber(&doc));
 //! ```
 
 use std::collections::HashMap;
@@ -22,7 +22,7 @@ use std::sync::Arc;
 use egui::accesskit::{self, Node, NodeId, Role, TextDirection, TextPosition, TextSelection};
 use egui::{Context, Id, Pos2, Rect};
 
-use super::view::PlacedPage;
+use super::view::{PageViewResponse, PlacedPage};
 
 /// The most nodes described at once (a dense page has a few hundred).
 pub const MAX_NODES: usize = 6000;
@@ -347,13 +347,21 @@ struct Cached {
 pub struct PagesAccess<'a> {
     view: Id,
     placed: &'a [PlacedPage],
+    visible: Rect,
     revision: u64,
 }
 
 impl<'a> PagesAccess<'a> {
-    /// Describes the pages `placed` under the view widget `view`.
-    pub fn new(view: Id, placed: &'a [PlacedPage]) -> Self {
-        PagesAccess { view, placed, revision: 0 }
+    /// Describes the pages `placed` under the view widget `view`, which shows `visible` on the
+    /// screen in this pass.
+    pub fn new(view: Id, placed: &'a [PlacedPage], visible: Rect) -> Self {
+        PagesAccess { view, placed, visible, revision: 0 }
+    }
+
+    /// Describes the pages the [`PageView`](super::view::PageView) drew this pass, at the place
+    /// and over the area they have in it ([`PageViewResponse::pages`] and its `response` rect).
+    pub fn of(view: &'a PageViewResponse) -> Self {
+        Self::new(view.response.id, &view.pages, view.response.rect)
     }
 
     /// The app's layout revision: a new value rebuilds the tree.
@@ -366,14 +374,13 @@ impl<'a> PagesAccess<'a> {
     /// new nodes under the window root; the bridge moves them).
     // wordcraft: crates/ui-egui/src/a11y.rs:87 `expose`, :138 `build`.
     pub fn show(self, ctx: &Context, describer: &mut dyn AccessDescriber) {
-        let PagesAccess { view, placed, revision } = self;
+        let PagesAccess { view, placed, visible, revision } = self;
         let cache_id = view.with("access cache");
         if ctx.accesskit_node_builder(view, |node| node.set_role(Role::Document)).is_none() {
             // No screen reader: describe nothing, keep nothing.
             ctx.data_mut(|d| d.remove::<Cached>(cache_id));
             return;
         }
-        let visible = ctx.read_response(view).map_or_else(|| ctx.content_rect(), |response| response.rect);
         let window = page_window(placed, visible);
         let key =
             Key { revision, pages: placed[window.clone()].iter().map(|page| (page.page, page.rect)).collect(), selection: describer.selection() };

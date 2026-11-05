@@ -27,6 +27,7 @@ struct Host {
     allow_empty: bool,
     type_ahead: bool,
     start_rename: Option<usize>,
+    draft: Option<fn(usize) -> Option<String>>,
     /// Keys of rows the list may focus but not select.
     unselectable: Vec<usize>,
     /// Keys of rows drawn as spacers (also sections of `rows`).
@@ -50,6 +51,7 @@ impl Host {
             allow_empty: true,
             type_ahead: false,
             start_rename: None,
+            draft: None,
             unselectable: Vec::new(),
             spacers: Vec::new(),
         }
@@ -62,7 +64,7 @@ impl Host {
 
 fn show(ui: &mut Ui, host: &mut Host) {
     let hide = KeyboardShortcut::new(Modifiers::COMMAND, Key::Comma);
-    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename, unselectable, spacers } = host;
+    let Host { rows, names, visible, selection, events, heights, allow_empty, type_ahead, start_rename, draft, unselectable, spacers } = host;
     let mut list = List::new("list", "Layers", rows.as_slice())
         .selection(selection)
         .max_height(LIST_HEIGHT)
@@ -74,6 +76,9 @@ fn show(ui: &mut Ui, host: &mut Host) {
     }
     if let Some(key) = start_rename.take() {
         list = list.start_rename(key);
+    }
+    if let Some(draft) = *draft {
+        list = list.rename_draft(move |&key| draft(key));
     }
     let out = list.show(ui, |_, &key| {
         if spacers.contains(&key) {
@@ -346,6 +351,37 @@ fn renamed_events(events: &[ListEvent<usize>]) -> Vec<RowEvent<usize>> {
 
 fn field(harness: &Harness<'_, Host>) -> Option<String> {
     harness.query_by_role(Role::TextInput).and_then(|n| n.value())
+}
+
+// A rename draft is the text the field opens with and the text that counts as unchanged; a row without one opens on its label.
+#[test]
+fn a_rename_draft_replaces_the_label_the_field_starts_from() {
+    let mut host = Host::new(4);
+    host.draft = Some(|key| match key {
+        1 => Some(String::new()),
+        2 => Some("Draft".to_owned()),
+        _ => None,
+    });
+    let mut harness = harness(host);
+    focus(&mut harness);
+    key(&mut harness, Modifiers::NONE, Key::F2);
+    assert_eq!(field(&harness).as_deref(), Some("Row 0"), "no draft keeps the label");
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    assert!(harness.query_by_role(Role::TextInput).is_some(), "the field is open");
+    assert_eq!(field(&harness).unwrap_or_default(), "", "an empty draft opens an empty field");
+    key(&mut harness, Modifiers::NONE, Key::Tab);
+    assert_eq!(field(&harness).as_deref(), Some("Draft"));
+    assert_eq!(
+        renamed_events(&harness.state_mut().take_events()),
+        [RowEvent::RenameEnded { row: 0, end: RenameEnd::Tab }, RowEvent::RenameEnded { row: 1, end: RenameEnd::Tab }],
+        "the draft left as it was reports no Renamed"
+    );
+    harness.event(Event::Text("!".into())); // replaces the selected draft
+    key(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(
+        renamed_events(&harness.state_mut().take_events()),
+        [RowEvent::Renamed { row: 2, text: "!".into() }, RowEvent::RenameEnded { row: 2, end: RenameEnd::Enter }]
+    );
 }
 
 #[test]

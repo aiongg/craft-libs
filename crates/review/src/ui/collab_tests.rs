@@ -28,12 +28,31 @@ fn cursors_glide_and_avatars_take_initials() {
     assert_eq!(initials("  "), "?");
 }
 
+// The ink on a person's colour follows FigCraft's luminance rule: dark above 170, else light.
+#[test]
+fn ink_on_a_person_colour_follows_the_luminance_rule() {
+    use craft_ui::theme::{Base, current, install};
+    use egui::Color32;
+
+    use super::presence::ink_on;
+    use super::style::ReviewStyle;
+
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let style = ReviewStyle::of(&current(&ctx));
+    assert_ne!(style.ink_dark, style.ink_light);
+    assert_eq!(ink_on(&style, Color32::from_rgb(0xF2, 0xC9, 0x4C)), style.ink_dark, "a light yellow gets the dark ink");
+    assert_eq!(ink_on(&style, Color32::from_rgb(0x0D, 0x99, 0xFF)), style.ink_light, "luminance 123 stays light");
+    assert_eq!(ink_on(&style, Color32::from_rgb(170, 170, 170)), style.ink_light, "170 is not above 170");
+    assert_eq!(ink_on(&style, Color32::from_rgb(171, 171, 171)), style.ink_dark);
+}
+
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 mod screens {
     use craft_ui::testing::{HarnessExt as _, symbols};
     use craft_ui::theme::{Base, install};
     use egui::accesskit::Role;
-    use egui::{Key, KeyboardShortcut, Modifiers, Ui};
+    use egui::{Color32, Key, KeyboardShortcut, Modifiers, Rect, Shape, Ui};
     use egui_kittest::Harness;
     use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
@@ -48,6 +67,8 @@ mod screens {
         typed: String,
         chat_open: bool,
         requests: Vec<CollabRequest>,
+        can_remove: bool,
+        has_selection: bool,
     }
 
     impl CollabTransport for Session {
@@ -62,6 +83,9 @@ mod screens {
         }
         fn join_state(&self) -> JoinState {
             self.join.clone()
+        }
+        fn can_remove(&self) -> bool {
+            self.can_remove
         }
     }
 
@@ -99,11 +123,15 @@ mod screens {
             typed: String::new(),
             chat_open: false,
             requests: Vec::new(),
+            can_remove: false,
+            has_selection: false,
         }
     }
 
+    const CANVAS: Rect = Rect::from_min_max(egui::pos2(20.0, 100.0), egui::pos2(440.0, 280.0));
+
     fn show_people(ui: &mut Ui, session: &mut Session) {
-        let out = PeopleBar::new("people", session).following(session.following).show(ui);
+        let out = PeopleBar::new("people", session).following(session.following).show(ui, CANVAS);
         session.following = out.requests.iter().fold(session.following, |now, request| match request {
             CollabRequest::Follow(who) => *who,
             _ => now,
@@ -132,8 +160,125 @@ mod screens {
         assert_eq!(harness.state().requests, [CollabRequest::Spotlight(true)]);
     }
 
+    /// Every rectangle with a visible stroke or fill in `out`, as (rect, stroke colour, fill).
+    fn rects(out: &egui::FullOutput) -> Vec<(Rect, Color32, Color32)> {
+        fn walk(shape: &Shape, found: &mut Vec<(Rect, Color32, Color32)>) {
+            match shape {
+                Shape::Vec(shapes) => shapes.iter().for_each(|shape| walk(shape, found)),
+                Shape::Rect(rect) => found.push((rect.rect, rect.stroke.color, rect.fill)),
+                _ => {}
+            }
+        }
+        let mut found = Vec::new();
+        out.shapes.iter().for_each(|clipped| walk(&clipped.shape, &mut found));
+        found
+    }
+
+    fn frame(ctx: &egui::Context, events: Vec<egui::Event>, mut body: impl FnMut(&mut Ui)) -> egui::FullOutput {
+        let input =
+            egui::RawInput { screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(480.0, 300.0))), events, ..Default::default() };
+        let mut out = ctx.run_ui(input, |ui| body(ui));
+        out.textures_delta.clear();
+        out
+    }
+
+    fn key_press(key: Key) -> egui::Event {
+        egui::Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers: Modifiers::NONE }
+    }
+
+    // Esc stops following; the frame is drawn round the canvas the host passed, in the person's colour.
+    #[test]
+    fn escape_stops_following_and_the_frame_hugs_the_canvas() {
+        let mut harness = harness(show_people, Session { following: Some(ParticipantId(2)), ..session() });
+        harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Escape));
+        assert_eq!(harness.state().requests, [CollabRequest::Follow(None)]);
+        assert_eq!(harness.state().following, None);
+
+        let ctx = egui::Context::default();
+        install(&ctx, &Base::suite_default());
+        let session = Session { following: Some(ParticipantId(2)), ..session() };
+        let out = frame(&ctx, Vec::new(), |ui| {
+            let _ = PeopleBar::new("people", &session).following(session.following).show(ui, CANVAS);
+        });
+        let blue = Color32::from_rgb(0x0D, 0x99, 0xFF);
+        assert!(rects(&out).iter().any(|(rect, stroke, _)| *rect == CANVAS.shrink(1.0) && *stroke == blue), "frame round the canvas");
+    }
+
+    // Your own bubble is drawn in your colour.
+    #[test]
+    fn your_chat_bubble_takes_your_colour() {
+        let ctx = egui::Context::default();
+        install(&ctx, &Base::suite_default());
+        let (mut typed, mut open) = (String::new(), false);
+        let color = [0xF2, 0x48, 0x22];
+        let mut run = |events| {
+            frame(&ctx, events, |ui| {
+                let _ = CursorChatBox::new("chat", &mut typed, &mut open, color).show(ui, Some(egui::pos2(60.0, 60.0)));
+            })
+        };
+        let _ = run(vec![key_press(Key::Slash)]);
+        let out = run(Vec::new());
+        // The area fades in, so the fill is the colour at some opacity.
+        let person = Color32::from_rgb(0xF2, 0x48, 0x22);
+        let close = |fill: Color32| {
+            let want = person.gamma_multiply(f32::from(fill.a()) / 255.0);
+            fill.a() > 0 && fill.to_array().iter().zip(want.to_array()).all(|(a, b)| a.abs_diff(b) <= 2)
+        };
+        assert!(rects(&out).iter().any(|(_, _, fill)| close(*fill)), "the box is filled in the person's colour: {:?}", rects(&out));
+    }
+
+    // Right-click on someone offers Remove only when the transport allows it.
+    #[test]
+    fn people_bar_removes_only_when_allowed() {
+        let mut harness = harness(show_people, Session { can_remove: true, ..session() });
+        harness.get_by_role_and_label(Role::Button, "Follow Bo Li").click_secondary();
+        harness.run();
+        harness.get_by_label("Remove Bo Li from session").click();
+        harness.run();
+        assert_eq!(harness.state().requests, [CollabRequest::Remove(ParticipantId(2))]);
+
+        let mut harness = self::harness(show_people, session());
+        harness.get_by_role_and_label(Role::Button, "Follow Bo Li").click_secondary();
+        harness.run();
+        assert!(harness.query_by_label("Remove Bo Li from session").is_none());
+    }
+
+    // The chevron lists you first and everyone else, marks who is followed, and says when nobody
+    // else is here; choosing someone follows them.
+    #[test]
+    fn people_menu_lists_everyone_and_the_empty_note() {
+        let mut harness = harness(show_people, Session { following: Some(ParticipantId(2)), ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        assert_eq!(harness.get_all_by_label("Ana Ruiz (you)").count(), 2, "the avatar and the menu row");
+        let row = harness.get_by_label("Bo Li");
+        assert_eq!(row.accesskit_node().description().as_deref(), Some("Following"));
+        row.click();
+        harness.run();
+        assert_eq!(harness.state().requests, [CollabRequest::Follow(None)], "choosing the followed person stops following");
+
+        let mut harness = self::harness(show_people, Session { participants: vec![person(1, "Ana Ruiz")], ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        harness.get_by_label("Nobody else is here yet");
+
+        let mut harness = self::harness(show_people, Session { participants: Vec::new(), ..session() });
+        harness.get_by_role_and_label(Role::Button, "People in this file").click();
+        harness.run();
+        harness.get_by_label("Not in a live session");
+    }
+
+    // Try Again asks the app to retry; the field keeps no copy of the code.
+    #[test]
+    fn a_failed_join_reports_retry() {
+        let mut harness = harness(show_join, Session { join: JoinState::Failed("No such session".into()), ..session() });
+        harness.get_by_role_and_label(Role::Button, "Try Again").click();
+        harness.run();
+        assert_eq!(harness.state().requests, [CollabRequest::RetryJoin]);
+    }
+
     fn show_vote(ui: &mut Ui, session: &mut Session) {
-        let out = VotePill::new("vote", session).show(ui);
+        let out = VotePill::new("vote", session).has_selection(session.has_selection).show(ui);
         session.requests.extend(out.requests);
     }
 
@@ -156,6 +301,20 @@ mod screens {
         assert_eq!(harness.state().requests, [CollabRequest::EndVote]);
     }
 
+    // Vote on offers Selection only while something is selected.
+    #[test]
+    fn vote_scope_offers_selection_only_with_a_selection() {
+        for (has_selection, offered) in [(false, false), (true, true)] {
+            let mut harness = harness(show_vote, Session { has_selection, ..session() });
+            harness.get_by_role_and_label(Role::Button, "Voting session").click();
+            harness.run();
+            harness.get_by_role_and_label(Role::ComboBox, "Vote on").click();
+            harness.run();
+            assert!(harness.query_by_label("Sticky notes").is_some(), "the other scopes are there");
+            assert_eq!(harness.query_by_label("Selection").is_some(), offered, "has_selection {has_selection}");
+        }
+    }
+
     fn show_join(ui: &mut Ui, session: &mut Session) {
         let mut typed = std::mem::take(&mut session.typed);
         let out = JoinField::new("join", session, &mut typed).show(ui);
@@ -175,16 +334,25 @@ mod screens {
         harness.state_mut().requests.clear();
         harness.state_mut().join = JoinState::Idle;
         harness.run();
-        harness.get_by_role_and_label(Role::TextInput, "Join code or invite link").click();
+        harness.get_by_role_and_label(Role::PasswordInput, "Join code or invite link").click();
         harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Enter));
         assert_eq!(harness.state().requests, [CollabRequest::Join("ABC-123".into())]);
         assert!(harness.state().typed.is_empty());
     }
 
+    // The join field masks what is typed and keeps it out of the accessibility tree.
+    #[test]
+    fn join_field_hides_the_code_from_accesskit() {
+        let harness = harness(show_join, Session { typed: "SECRET-CODE".into(), ..session() });
+        let node = harness.get_by_role_and_label(Role::PasswordInput, "Join code or invite link");
+        let value = format!("{:?}", node.accesskit_node().value());
+        assert!(!value.contains("SECRET"), "{value}");
+    }
+
     fn show_chat(ui: &mut Ui, session: &mut Session) {
         let mut typed = std::mem::take(&mut session.typed);
         let mut open = session.chat_open;
-        let out = CursorChatBox::new("chat", &mut typed, &mut open).show(ui, Some(egui::pos2(60.0, 60.0)));
+        let out = CursorChatBox::new("chat", &mut typed, &mut open, [0x0D, 0x99, 0xFF]).show(ui, Some(egui::pos2(60.0, 60.0)));
         session.typed = typed;
         session.chat_open = open;
         session.requests.extend(out.requests);
