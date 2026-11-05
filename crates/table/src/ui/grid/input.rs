@@ -154,6 +154,7 @@ pub(super) fn wheel<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, state: &mut GridS
     if !ui.rect_contains_pointer(pass.rect) || !ui.is_enabled() {
         return;
     }
+    // egui gives no way to consume the zoom delta, so a zoomable parent (Scene, a plot) would zoom too.
     let (scroll, pinch) = ui.input(|i| (i.smooth_scroll_delta, i.zoom_delta()));
     if pinch != 1.0
         && pinch.is_finite()
