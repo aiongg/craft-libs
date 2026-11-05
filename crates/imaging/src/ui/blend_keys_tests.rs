@@ -1,4 +1,4 @@
-//! Tests of the blend mode keys (task AD-12).
+//! Tests of the blend mode keys.
 
 use egui::{Context, Event, Id, Key, Modifiers, RawInput};
 

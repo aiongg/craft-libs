@@ -1,4 +1,4 @@
-//! [`LiquifyPanel`]: Liquify's Properties panel (task WS-LQ2).
+//! [`LiquifyPanel`]: Liquify's Properties panel.
 
 use std::ops::RangeInclusive;
 

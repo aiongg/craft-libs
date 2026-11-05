@@ -1,4 +1,4 @@
-//! Tests of the pin overlay and the mesh painter (task TR-T12).
+//! Tests of the pin overlay and the mesh painter.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, Shape, vec2};

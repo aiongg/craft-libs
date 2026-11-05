@@ -1,5 +1,4 @@
-//! [`MagneticLassoTool`]: an outline that snaps to the edges the app's [`EdgeTracer`] finds (task
-//! SE-F10).
+//! [`MagneticLassoTool`]: an outline that snaps to the edges the app's [`EdgeTracer`] finds.
 
 use craft_ui::canvas::draft::DraftReach;
 use craft_ui::canvas::kurbo::{Point, Rect};

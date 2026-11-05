@@ -1,4 +1,4 @@
-//! Select and Mask's tools, their options and the canvas tool (task WS-SM2).
+//! Select and Mask's tools, their options and the canvas tool.
 
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton, Shape, Stroke};
 

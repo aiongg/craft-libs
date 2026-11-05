@@ -1,4 +1,4 @@
-//! Tests of Select and Mask's panel and workspace (task WS-SM3).
+//! Tests of Select and Mask's panel and workspace.
 
 use egui::accesskit::Role;
 use egui::{Color32, ColorImage, Key, Modifiers};

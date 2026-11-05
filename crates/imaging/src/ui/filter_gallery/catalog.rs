@@ -1,4 +1,4 @@
-//! Filter Gallery's catalog: the app's filters, their categories and parameters (task WS-FG1).
+//! Filter Gallery's catalog: the app's filters, their categories and parameters.
 
 use craft_ui::dialog::{DialogFields, Param, ParamKind};
 

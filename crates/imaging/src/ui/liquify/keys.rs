@@ -1,4 +1,4 @@
-//! [`LiquifyKeys`]: Liquify's own keys (task WS-LQ1).
+//! [`LiquifyKeys`]: Liquify's own keys.
 
 use egui::{Context, Event, Key, Modifiers};
 

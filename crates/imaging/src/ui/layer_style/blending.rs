@@ -1,4 +1,4 @@
-//! The Blending Options page (task AD-9).
+//! The Blending Options page.
 
 use egui::{Ui, UiBuilder};
 

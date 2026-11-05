@@ -1,4 +1,4 @@
-//! Tests of the effect pages and the Blending Options page (task AD-9).
+//! Tests of the effect pages and the Blending Options page.
 
 use egui::accesskit::Role;
 use egui::{Id, Key};
@@ -19,7 +19,7 @@ use crate::layer_style::{Blending, Contour, EffectId, EffectInstance, EffectKind
 
 const SIZE: [f32; 2] = [360.0, 1800.0];
 
-/// Drop Shadow without its Contour row: the Contour field is task AD-10's.
+/// Drop Shadow without its Contour row.
 fn shadow_spec() -> EffectSpec {
     EffectSpec::photoshop(EffectKind::DropShadow)
 }

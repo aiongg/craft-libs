@@ -1,5 +1,4 @@
-//! The looks of the pin warp, the perspective warp and the one mesh painter, from tokens (task
-//! TK2). The token leaves are `transform.pin`, `pin_ring`, `pin_core`, `pin_turn`,
+//! The looks of the pin warp, the perspective warp and the one mesh painter, from tokens. The token leaves are `transform.pin`, `pin_ring`, `pin_core`, `pin_turn`,
 //! `pin_turn_line`, `mesh_line`, `plane_corner` and `plane_ring`, and the colours `overlay.pin`,
 //! `pin_ring`, `pin_turn` and `mesh`.
 

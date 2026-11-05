@@ -1,9 +1,9 @@
 //! The black, grey and white point pickers of Levels and Curves: the button row
 //! ([`TonePickerRow`]) and the canvas tool that samples the image for the armed picker
-//! ([`TonePickTool`]) (task AD-1).
+//! ([`TonePickTool`]).
 //!
 //! The library reports the sample; turning it into a Levels or Curves value needs the document's
-//! colour management and mode, so the app does that (lead call L7), as with the Eyedropper.
+//! colour management and mode, so the app does that, as with the Eyedropper.
 
 use craft_theme::{ControlSize, Srgba};
 use egui::{AsIdSalt, Color32, IdSalt, Key, Modifiers, Painter, Response, RichText, Stroke, Ui, vec2};

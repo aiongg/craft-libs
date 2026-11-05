@@ -1,5 +1,5 @@
-//! [`AdjustLabels`]: one word table for every adjustment editor (lead call L4), so the editors
-//! share Preserve Luminosity, Reds and Hue (task AD-1 owns the file; every editor reads it).
+//! [`AdjustLabels`]: one word table for every adjustment editor, so the editors
+//! share Preserve Luminosity, Reds and Hue (every editor reads it).
 //!
 //! One word per English text: the Photo Filter presets Red, Yellow and the rest, Posterize's
 //! Levels and Lab's Lightness reuse the channel and panel words. US spelling; Photoshop's words and capitalisation. Templates take `{key}` (a key name from the

@@ -1,4 +1,4 @@
-//! Adaptive Wide Angle's session: the correction and the constraints (task WS-WA1).
+//! Adaptive Wide Angle's session: the correction and the constraints.
 
 use serde::{Deserialize, Serialize};
 

@@ -1,4 +1,4 @@
-//! Tests of the perspective overlay (task TR-T13).
+//! Tests of the perspective overlay.
 
 use egui::accesskit::Role;
 use egui::{Event, Key, Modifiers, PointerButton, Pos2, Sense, vec2};

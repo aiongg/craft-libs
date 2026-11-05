@@ -1,4 +1,4 @@
-//! Tests of the Polygonal Lasso on the tool host (task SE-F9), on the rig of `lasso_tests`.
+//! Tests of the Polygonal Lasso on the tool host, on the rig of `lasso_tests`.
 
 use craft_ui::canvas::SelectionOperation;
 use craft_ui::canvas::kurbo::{Point, Rect};

@@ -1,4 +1,4 @@
-//! [`LiquifyStyle`]: Liquify's marks on the canvas, from tokens (task TK4), read through
+//! [`LiquifyStyle`]: Liquify's marks on the canvas, from tokens, read through
 //! [`LiquifyWorkspace::style`].
 
 use egui::Color32;

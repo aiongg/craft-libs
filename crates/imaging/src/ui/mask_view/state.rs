@@ -1,5 +1,5 @@
 //! [`MaskViewMode`], [`MaskViewState`] and the [`MaskViewRecipe`] an engine builds the view from
-//! (task SE-F6).
+//!.
 
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};

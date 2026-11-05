@@ -1,5 +1,5 @@
 //! [`PerspectiveWarp`]: Perspective Warp's planes on the canvas, drawn, linked, snapped and dragged
-//! by pointer and keyboard (task TR-T13).
+//! by pointer and keyboard.
 
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, StrokeKind, Ui, vec2};
 use kurbo::{Point, Vec2};

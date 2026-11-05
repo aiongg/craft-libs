@@ -1,4 +1,4 @@
-//! Tests of the Layer Style model (task AD-7).
+//! Tests of the Layer Style model.
 
 use super::*;
 

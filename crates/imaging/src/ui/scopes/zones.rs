@@ -11,7 +11,7 @@ use egui::{EventFilter, Key, Modifiers, Rect, Sense, UiBuilder};
 use super::labels::ScopePanelLabels;
 
 /// One tone zone over the plot: a range of the plot's width (0..=1) that edits one of the host's
-/// controls. Zones are data (lead call L11): PhotoCraft's Camera Raw and LightCraft's Basic panel
+/// controls. Zones are data: PhotoCraft's Camera Raw and LightCraft's Basic panel
 /// disagree, so each app passes its own set until a Photoshop reference decides.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ToneZone {

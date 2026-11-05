@@ -1,4 +1,4 @@
-//! Liquify's tools, its brush and the stroke recorder (task WS-LQ1).
+//! Liquify's tools, its brush and the stroke recorder.
 
 use egui::Modifiers;
 use serde::{Deserialize, Serialize};
@@ -222,7 +222,7 @@ impl LiquifyBrush {
 /// - [`extend`](Self::extend) adds a point (skipped when equal to the last) and reports `Update`
 ///   with the brush of the stroke and that one new point.
 /// - [`end`](Self::end) adds the release point when it differs from the last, so a short stroke is
-///   recorded whole (PhotoCraft #8055: a stroke shorter than the drag threshold still paints), and
+///   recorded whole (storytold/photocraft#8055: a stroke shorter than the drag threshold still paints), and
 ///   reports `Commit` (`changed: true`) with the whole stroke.
 /// - [`cancel`](Self::cancel) drops the stroke and reports `Cancel`.
 ///

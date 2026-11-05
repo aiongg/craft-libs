@@ -1,5 +1,5 @@
 //! [`PreviewPixels`] and [`PreviewTextures`]: the moving pixels of a transform, read once and
-//! uploaded as a mip chain built on demand (task TR-T4).
+//! uploaded as a mip chain built on demand.
 
 use std::sync::{Arc, Mutex, PoisonError};
 

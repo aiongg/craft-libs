@@ -1,5 +1,5 @@
 //! Photoshop's four small adjustments: Brightness/Contrast, Threshold, Color Balance and Photo
-//! Filter (task AD-3).
+//! Filter.
 
 use craft_theme::{Srgba, TypeRole};
 use egui::{AsIdSalt, Context, Id, IdSalt, Stroke, Ui, UiBuilder, pos2, vec2};

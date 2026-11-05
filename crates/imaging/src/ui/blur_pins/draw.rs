@@ -1,4 +1,4 @@
-//! [`BlurPinsOverlay`]: the pins on the main canvas (task WS-BP2).
+//! [`BlurPinsOverlay`]: the pins on the main canvas.
 
 use egui::epaint::PathShape;
 use egui::{AsIdSalt, Context, CornerRadius, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, Stroke, StrokeKind, Ui, Vec2};

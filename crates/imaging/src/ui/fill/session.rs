@@ -1,5 +1,5 @@
 //! Content-Aware Fill's session (what OK and Apply fill with, with undo), its limits and its
-//! remembered settings (task WS-CA1).
+//! remembered settings.
 
 use serde::{Deserialize, Serialize};
 

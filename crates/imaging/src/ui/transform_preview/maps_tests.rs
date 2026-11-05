@@ -1,4 +1,4 @@
-//! Tests of the preview maps and painter (task TR-T10).
+//! Tests of the preview maps and painter.
 
 use egui::{Color32, ColorImage, Context, Pos2, RawInput, Shape};
 use kurbo::{Point, Rect};

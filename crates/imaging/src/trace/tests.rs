@@ -1,4 +1,4 @@
-//! Tests of the outline tracer (task SE-F5). Each uses a small `MaskSource` over a `Vec<f32>`
+//! Tests of the outline tracer. Each uses a small `MaskSource` over a `Vec<f32>`
 //! written in the test.
 
 use super::*;

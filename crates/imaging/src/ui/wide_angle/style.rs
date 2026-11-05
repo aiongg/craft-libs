@@ -1,4 +1,4 @@
-//! [`WideAngleStyle`]: Adaptive Wide Angle's marks, from tokens (task TK4).
+//! [`WideAngleStyle`]: Adaptive Wide Angle's marks, from tokens.
 
 use egui::Color32;
 

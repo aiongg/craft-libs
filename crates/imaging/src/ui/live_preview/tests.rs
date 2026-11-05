@@ -1,4 +1,4 @@
-//! Tests of the live preview (task AD-11).
+//! Tests of the live preview.
 
 use craft_ui::canvas::PixelRect;
 

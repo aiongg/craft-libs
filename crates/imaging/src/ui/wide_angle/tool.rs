@@ -1,4 +1,4 @@
-//! [`ConstraintTool`]: Adaptive Wide Angle's Constraint tool (task WS-WA1).
+//! [`ConstraintTool`]: Adaptive Wide Angle's Constraint tool.
 
 use egui::{Key, Modifiers, Painter, Pos2, Shape, Stroke, vec2};
 

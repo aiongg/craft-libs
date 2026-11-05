@@ -1,4 +1,4 @@
-//! [`SelectMaskPanel`]: Select and Mask's Properties panel (task WS-SM3).
+//! [`SelectMaskPanel`]: Select and Mask's Properties panel.
 
 use std::ops::RangeInclusive;
 

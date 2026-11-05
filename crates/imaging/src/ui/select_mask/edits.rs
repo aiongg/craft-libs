@@ -1,4 +1,4 @@
-//! Select and Mask's edits and Refine Edge Brush strokes as typed data (task WS-SM1).
+//! Select and Mask's edits and Refine Edge Brush strokes as typed data.
 
 use serde::{Deserialize, Serialize};
 

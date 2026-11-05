@@ -1,5 +1,5 @@
 //! [`PinWarp`]: Puppet Warp's pins on the canvas, placed, moved, turned and removed by pointer and
-//! keyboard (task TR-T12).
+//! keyboard.
 
 use egui::{AsIdSalt, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Painter, Pos2, Rect, Response, Shape, Ui, vec2};
 use kurbo::Vec2;

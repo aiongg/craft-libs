@@ -1,4 +1,4 @@
-//! [`ContourField`]: an effect's Contour row and its preset picker (task AD-10), and
+//! [`ContourField`]: an effect's Contour row and its preset picker, and
 //! [`ContourEditorDialog`], the Contour Editor on the host's dialog stack.
 
 use std::sync::Arc;

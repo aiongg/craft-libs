@@ -1,4 +1,4 @@
-//! Content-Aware Fill's tools and the canvas tool (task WS-CA1).
+//! Content-Aware Fill's tools and the canvas tool.
 
 use egui::{CursorIcon, Key, Modifiers, Painter, PointerButton};
 

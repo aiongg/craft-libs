@@ -1,5 +1,5 @@
 //! [`AdjustContext`], what every adjustment editor shares with its host, and the tone channels of
-//! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]) (task AD-1).
+//! Levels and Curves ([`ToneSpace`], [`ToneChannel`], [`ToneChannels`]).
 
 use craft_theme::Srgba;
 use egui::accesskit::Role;
@@ -121,7 +121,7 @@ pub enum ToneChannel {
     /// The one channel of a grey document.
     Gray,
     /// A channel the host names, shown exactly as given (a user-named alpha channel, a layer mask
-    /// or Quick Mask isolated in the Channels panel, PhotoCraft #5335), in `color`.
+    /// or Quick Mask isolated in the Channels panel, storytold/photocraft#5335), in `color`.
     Named {
         #[allow(missing_docs)]
         name: String,
@@ -204,7 +204,7 @@ impl ToneChannels {
     }
 
     /// One channel the host isolated (Image › Curves with one Channels-panel target selected,
-    /// PhotoCraft #5335): the select shows only it, Curves overlays no other channel, and the
+    /// storytold/photocraft#5335): the select shows only it, Curves overlays no other channel, and the
     /// ⌘-click point and the pickers are the host's to refuse for a mask.
     pub fn isolated(channel: ToneChannel) -> Self {
         // pc: crates/ui-egui/src/dialogs/adjust_editors/curves.rs:251-270 (`isolated_curve`).

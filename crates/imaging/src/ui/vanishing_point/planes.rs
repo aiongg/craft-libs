@@ -1,4 +1,4 @@
-//! Vanishing Point's planes as data and the app's scene geometry (task WS-VP1).
+//! Vanishing Point's planes as data and the app's scene geometry.
 
 use serde::{Deserialize, Serialize};
 

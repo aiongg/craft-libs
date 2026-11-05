@@ -1,4 +1,4 @@
-//! The sampling tint and the fill area's ants over Content-Aware Fill's canvas (task WS-CA2).
+//! The sampling tint and the fill area's ants over Content-Aware Fill's canvas.
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};

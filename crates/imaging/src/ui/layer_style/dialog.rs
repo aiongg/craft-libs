@@ -1,4 +1,4 @@
-//! [`LayerStyleDialog`]: the Layer Style dialog's body (task AD-8).
+//! [`LayerStyleDialog`]: the Layer Style dialog's body.
 
 use craft_theme::Srgba;
 use egui::accesskit::Role;

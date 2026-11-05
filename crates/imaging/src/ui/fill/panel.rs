@@ -1,4 +1,4 @@
-//! [`FillPanel`]: the Content-Aware Fill panel (task WS-CA2).
+//! [`FillPanel`]: the Content-Aware Fill panel.
 
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, Label, Modifiers, Response, Ui};

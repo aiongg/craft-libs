@@ -1,4 +1,4 @@
-//! [`PerspectiveBar`]: Perspective Warp's options bar (task TR-T13).
+//! [`PerspectiveBar`]: Perspective Warp's options bar.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Ui};
 

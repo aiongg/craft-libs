@@ -1,4 +1,4 @@
-//! [`FillBar`]: Content-Aware Fill's options bar (task WS-CA2).
+//! [`FillBar`]: Content-Aware Fill's options bar.
 
 use egui::{AsIdSalt, IdSalt, ModifierNames, Modifiers, Response, Ui};
 

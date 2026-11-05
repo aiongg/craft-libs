@@ -1,4 +1,4 @@
-//! Stories of Vanishing Point (task ST-WS2): not registered. Registering them (task RG2) adds
+//! Stories of Vanishing Point: not registered. Registering them adds
 //! `vanishing_point::stories` to the crate's `register!` list, `VanishingPointWorkspace` to
 //! `COMPONENTS` and [`VanishingPointStoryLabels`] to `WORDS`, and regenerates the registry dump.
 //!

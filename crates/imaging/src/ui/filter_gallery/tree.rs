@@ -1,4 +1,4 @@
-//! [`FilterTree`]: the middle column's category folders with thumbnails (task WS-FG2).
+//! [`FilterTree`]: the middle column's category folders with thumbnails.
 
 use egui::accesskit::Role;
 use egui::text::{LayoutJob, TextWrapping};

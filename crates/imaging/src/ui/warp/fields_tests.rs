@@ -1,4 +1,4 @@
-//! Tests of the Warp options-bar group (task TR-T5).
+//! Tests of the Warp options-bar group.
 
 use egui::accesskit::Role;
 use egui_kittest::Harness;

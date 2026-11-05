@@ -1,4 +1,4 @@
-//! The channel-mixing adjustments: Black & White, Channel Mixer and Selective Color (task AD-5).
+//! The channel-mixing adjustments: Black & White, Channel Mixer and Selective Color.
 
 use craft_theme::{Srgba, TypeRole};
 use egui::{AsIdSalt, Context, Id, IdSalt, Label, RichText, Ui};

@@ -1,5 +1,4 @@
-//! [`VanishingPointEditor`]: the plane tools, the paste and the stamp, without a frame (task
-//! WS-VP1).
+//! [`VanishingPointEditor`]: the plane tools, the paste and the stamp, without a frame.
 
 use std::borrow::Cow;
 

@@ -1,4 +1,4 @@
-//! Tests of the preview textures (task TR-T4).
+//! Tests of the preview textures.
 
 use std::sync::Arc;
 

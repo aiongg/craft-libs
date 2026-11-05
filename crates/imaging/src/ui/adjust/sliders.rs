@@ -1,6 +1,6 @@
 //! [`AdjustSliders`]: a table of slider rows for the adjustments that are only sliders (Exposure,
 //! Vibrance, Posterize, VectorCraft's colour effects), with Photoshop's double-click to default
-//! and PhotoCraft's rounding (task AD-3).
+//! and PhotoCraft's rounding.
 
 use std::ops::RangeInclusive;
 
@@ -74,7 +74,7 @@ impl AdjustField {
         self
     }
 
-    /// The value the row stores for `x` (lead call L25, PhotoCraft's `row_value`): rounded to
+    /// The value the row stores for `x` (PhotoCraft's `row_value`): rounded to
     /// `decimals` places when set (at most 6), else to 0.01 for a range 10 wide or less, else to
     /// a whole number.
     pub fn round(&self, x: f64) -> f64 {

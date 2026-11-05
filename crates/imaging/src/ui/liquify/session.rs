@@ -1,4 +1,4 @@
-//! Liquify's session (the steps the engine replays) and its settings (task WS-LQ1).
+//! Liquify's session (the steps the engine replays) and its settings.
 
 use serde::{Deserialize, Serialize};
 

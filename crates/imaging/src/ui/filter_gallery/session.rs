@@ -1,4 +1,4 @@
-//! Filter Gallery's session: the effect-layer stack (task WS-FG1).
+//! Filter Gallery's session: the effect-layer stack.
 
 use craft_ui::dialog::DialogFields;
 

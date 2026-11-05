@@ -1,4 +1,4 @@
-//! [`FillPreviewPane`]: Content-Aware Fill's Preview panel (task WS-CA2).
+//! [`FillPreviewPane`]: Content-Aware Fill's Preview panel.
 
 use egui::{AsIdSalt, Frame, IdSalt, Panel, Response, Ui};
 

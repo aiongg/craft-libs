@@ -11,7 +11,7 @@
 //! its job solves and warps the corrected preview for each [`PreviewTicket`], and
 //! [`WideAngleSource`] shows the source and the preview. OK runs the command with the session.
 //!
-//! Files: everything here is task WS-WA1's, except `style` (TK4).
+//! Files: everything here belongs to the Wide Angle workspace, except `style`.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 

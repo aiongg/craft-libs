@@ -1,4 +1,4 @@
-//! The Blur Gallery's pins as typed data (task WS-BP1).
+//! The Blur Gallery's pins as typed data.
 
 use serde::{Deserialize, Serialize};
 

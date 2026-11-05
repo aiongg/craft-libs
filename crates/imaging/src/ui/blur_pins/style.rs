@@ -1,4 +1,4 @@
-//! [`BlurPinsStyle`]: the pins' marks, from tokens (task TK4).
+//! [`BlurPinsStyle`]: the pins' marks, from tokens.
 
 use egui::Color32;
 

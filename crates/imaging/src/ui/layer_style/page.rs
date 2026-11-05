@@ -1,4 +1,4 @@
-//! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind (task AD-9).
+//! The effect page: one row per field of the effect's [`EffectSpec`], drawn by kind.
 
 use egui::{AsIdSalt, Id, Modifiers, Ui, UiBuilder};
 

@@ -1,5 +1,5 @@
 //! [`AdjustStyle`]: the adjustment editors' own sizes and colours, from the `adjust.*` tokens
-//! (task TK3). Sliders, histograms, Levels and Curves keep their own component tokens.
+//!. Sliders, histograms, Levels and Curves keep their own component tokens.
 //!
 //! Image tones stay constants in code, not tokens: the picker dots' greys (0, 128, 255) and the
 //! two-colour slider tracks show what the adjustment does to the image, as the Levels thumb faces

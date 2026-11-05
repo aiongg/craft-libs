@@ -1,5 +1,5 @@
 //! [`MarqueeTool`]: the Rectangular, Elliptical, Single Row and Single Column Marquees on the tool
-//! host (task SE-F8).
+//! host.
 
 use craft_ui::behavior::move_gesture::ConstrainStyle;
 use craft_ui::canvas::kurbo::{Point, Rect};

@@ -1,4 +1,4 @@
-//! [`VanishingPointStyle`]: Vanishing Point's marks, from tokens (task TK4).
+//! [`VanishingPointStyle`]: Vanishing Point's marks, from tokens.
 
 use egui::Color32;
 

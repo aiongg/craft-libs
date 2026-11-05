@@ -1,5 +1,5 @@
 //! [`PinWarpSession`]: the pins of a Puppet Warp while it is open, and the [`PinSolver`] the app
-//! plugs in (task TR-T6).
+//! plugs in.
 
 use std::collections::BTreeSet;
 

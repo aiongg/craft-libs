@@ -1,4 +1,4 @@
-//! [`WideAnglePanel`]: Adaptive Wide Angle's settings column (task WS-WA1).
+//! [`WideAnglePanel`]: Adaptive Wide Angle's settings column.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui, WidgetInfo};

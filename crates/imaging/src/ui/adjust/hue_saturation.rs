@@ -1,5 +1,5 @@
 //! [`HueSaturationEditor`]: Master and six colour ranges, Colorize, the two spectrum bars and the
-//! four range thumbs that wrap at 360° (task AD-4).
+//! four range thumbs that wrap at 360°.
 
 use craft_theme::{Hsb, Srgba, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};

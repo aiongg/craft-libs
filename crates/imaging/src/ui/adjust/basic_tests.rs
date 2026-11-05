@@ -1,4 +1,4 @@
-//! Tests of Brightness/Contrast, Threshold, Color Balance and Photo Filter (task AD-3).
+//! Tests of Brightness/Contrast, Threshold, Color Balance and Photo Filter.
 
 use egui::accesskit::Role;
 use egui::{Id, Modifiers};

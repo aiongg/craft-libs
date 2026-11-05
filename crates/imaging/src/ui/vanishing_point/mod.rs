@@ -15,8 +15,8 @@
 //! [`VanishingPointSource`] paints the stamp preview, and OK runs `filter.vanishingPoint` with the
 //! session.
 //!
-//! Files: `planes` and `editor` (task WS-VP1); `draw`, `bar` and this file's `show` and `step` (WS-VP2);
-//! `style` (TK4).
+//! Files: `planes` and `editor`; `draw`, `bar` and this file's `show` and `step`;
+//! `style`.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 

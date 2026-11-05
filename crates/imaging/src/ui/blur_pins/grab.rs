@@ -1,4 +1,4 @@
-//! What a press on the pins grabs, and the drag that follows (task WS-BP1).
+//! What a press on the pins grabs, and the drag that follows.
 
 use egui::CursorIcon;
 

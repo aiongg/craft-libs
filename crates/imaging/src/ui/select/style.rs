@@ -1,4 +1,4 @@
-//! [`SelectToolStyle`]: the selection tools' sizes and colours, from tokens (task TK1).
+//! [`SelectToolStyle`]: the selection tools' sizes and colours, from tokens.
 
 use craft_ui::theme::{ToEgui, UiTokens};
 use egui::Color32;

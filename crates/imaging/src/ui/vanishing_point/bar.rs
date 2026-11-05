@@ -1,4 +1,4 @@
-//! [`VanishingPointBar`]: Vanishing Point's options bar (task WS-VP2).
+//! [`VanishingPointBar`]: Vanishing Point's options bar.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
 

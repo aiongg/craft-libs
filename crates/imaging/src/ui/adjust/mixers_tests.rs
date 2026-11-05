@@ -1,5 +1,5 @@
-//! Tests of Black & White, Channel Mixer and Selective Color (task AD-5), and the AccessKit test over every
-//! adjustment editor, which needs the bodies of tasks AD-1 to AD-5.
+//! Tests of Black & White, Channel Mixer and Selective Color, and the AccessKit test over every
+//! adjustment editor, which needs all the editor bodies.
 
 use std::sync::Arc;
 

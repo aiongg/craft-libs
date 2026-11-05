@@ -14,8 +14,8 @@
 //! OK with [`FillCommand`]. Apply keeps the workspace open: the app fills, then calls
 //! [`ContentAwareFillWorkspace::rebase`]. Cancel closes, keeping what Apply did.
 //!
-//! Files: `session`, `lasso` and `tool` (task WS-CA1); `overlay`, `panel`, `preview_pane`, `bar`
-//! and this file's bodies (WS-CA2).
+//! Files: `session`, `lasso` and `tool`; `overlay`, `panel`, `preview_pane`, `bar`
+//! and this file's bodies.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 

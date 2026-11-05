@@ -128,7 +128,7 @@ pub enum StyleValue {
 
 /// An effect's parameters by key (`"opacity"`, `"useGlobalLight"`), the field tables' keys plus
 /// any key the app keeps that no field shows. Unknown keys survive every edit, so an apply never
-/// drops what the dialog does not model (lead call L26, in place of PhotoCraft's `fx` snapshot).
+/// drops what the dialog does not model (PhotoCraft kept an `fx` snapshot for this).
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct StyleParams(pub BTreeMap<String, StyleValue>);
 

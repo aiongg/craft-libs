@@ -1,5 +1,5 @@
 //! [`PerspectiveSession`]: the planes of a Perspective Warp while it is open, and the plane
-//! geometry its screens need (linking, snapping, straightening) (task TR-T7). The warp map itself
+//! geometry its screens need (linking, snapping, straightening). The warp map itself
 //! (PhotoCraft's piecewise homography) stays the app's (LC20, LC21).
 
 use kurbo::{Point, Rect};

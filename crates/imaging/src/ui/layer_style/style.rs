@@ -1,5 +1,4 @@
-//! The looks of the Layer Style dialog, the Blend If bar and the contour field, from tokens (task
-//! TK3: token families `layer_style`, `blend_if`).
+//! The looks of the Layer Style dialog, the Blend If bar and the contour field, from tokens (token families `layer_style`, `blend_if`).
 
 use egui::{Color32, FontId};
 

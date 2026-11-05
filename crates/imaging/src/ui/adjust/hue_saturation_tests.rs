@@ -1,4 +1,4 @@
-//! Tests of Hue/Saturation (task AD-4).
+//! Tests of Hue/Saturation.
 
 use egui::accesskit::Role;
 use egui::{Key, Modifiers};

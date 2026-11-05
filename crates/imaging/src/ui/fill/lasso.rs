@@ -1,4 +1,4 @@
-//! Content-Aware Fill's fill-area edits (task WS-CA1).
+//! Content-Aware Fill's fill-area edits.
 
 use serde::{Deserialize, Serialize};
 

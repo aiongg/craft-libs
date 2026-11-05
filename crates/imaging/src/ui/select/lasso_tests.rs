@@ -1,4 +1,4 @@
-//! Tests of the Lasso on the tool host (task SE-F9). The draft's own rules are tested in
+//! Tests of the Lasso on the tool host. The draft's own rules are tested in
 //! `craft_ui::canvas::draft`; these check what the tool adds: events, operation, keys, the drag
 //! inside the selection. The rig also drives the Polygonal Lasso (`polygon_tests`).
 

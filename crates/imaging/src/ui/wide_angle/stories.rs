@@ -1,5 +1,5 @@
-//! Stories of the Adaptive Wide Angle workspace (task ST-WS1): not registered. Registering them
-//! (task RG2) adds `wide_angle::stories` to the crate's `register!` list and `WideAngleWorkspace`
+//! Stories of the Adaptive Wide Angle workspace: not registered. Registering them
+//! adds `wide_angle::stories` to the crate's `register!` list and `WideAngleWorkspace`
 //! to `COMPONENTS`, and regenerates the registry dump.
 //!
 //! The stories use `Barrel`: `MockImage` seen through a barrel distortion is the source, so the

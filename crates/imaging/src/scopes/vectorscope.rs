@@ -1,7 +1,7 @@
 //! The vectorscope's count grid ([`Vectorscope`], [`HUES`] × [`SATURATIONS`]) and
 //! [`hue_saturation`].
 
-/// Hue cells of the vectorscope grid (PhotoCraft's; lead call L29).
+/// Hue cells of the vectorscope grid (PhotoCraft's).
 pub const HUES: usize = 128;
 /// Saturation cells of the vectorscope grid.
 pub const SATURATIONS: usize = 64;

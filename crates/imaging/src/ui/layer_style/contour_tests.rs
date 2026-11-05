@@ -1,4 +1,4 @@
-//! Tests of the contour field (task AD-10).
+//! Tests of the contour field.
 #![cfg(not(target_arch = "wasm32"))]
 
 use egui::Key;

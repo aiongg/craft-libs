@@ -1,4 +1,4 @@
-//! [`SelectionOverlay`] (task SE-F7).
+//! [`SelectionOverlay`].
 
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;

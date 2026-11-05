@@ -27,8 +27,8 @@
 //! if w.settings().remember { prefs.select_mask = w.settings().clone() }
 //! ```
 //!
-//! Files: `session` and `edits` (task WS-SM1); `tools` and `bar` (WS-SM2); `panel` and this file's
-//! `show` and `step` (WS-SM3).
+//! Files: `session` and `edits`; `tools` and `bar`; `panel` and this file's
+//! `show` and `step`.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowSide`]: craft_ui::dialog::full_window::FullWindowSide

@@ -1,5 +1,5 @@
 //! [`WarpFields`]: the Warp group of a transform's options bar: Split icons, Grid menu, warp style,
-//! orientation and Bend, H and V (task TR-T5).
+//! orientation and Bend, H and V.
 
 use egui::{AsIdSalt, IdSalt, Ui};
 

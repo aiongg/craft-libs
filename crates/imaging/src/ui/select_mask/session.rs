@@ -1,5 +1,5 @@
 //! Select and Mask's session (what OK applies, with undo), its limits and its remembered settings
-//! (task WS-SM1).
+//!.
 
 use craft_theme::Srgba;
 use serde::{Deserialize, Serialize};

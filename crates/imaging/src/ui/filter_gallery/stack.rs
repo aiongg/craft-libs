@@ -1,4 +1,4 @@
-//! [`EffectStack`]: the effect-layer stack under the settings (task WS-FG2).
+//! [`EffectStack`]: the effect-layer stack under the settings.
 
 use egui::{AsIdSalt, IdSalt, Key, KeyboardShortcut, Modifiers, Rect, Response, Ui, UiBuilder};
 

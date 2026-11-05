@@ -1,4 +1,4 @@
-//! Tests of Filter Gallery's columns and workspace (task WS-FG2).
+//! Tests of Filter Gallery's columns and workspace.
 
 use egui::accesskit::Role;
 use egui::os::OperatingSystem;

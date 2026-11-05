@@ -1,4 +1,4 @@
-//! Liquify's canvas: the canvas tool, the backdrop layering, the mesh (task WS-LQ2).
+//! Liquify's canvas: the canvas tool, the backdrop layering, the mesh.
 
 use egui::{Color32, ColorImage, Modifiers, Painter, PointerButton, Pos2, Shape, Stroke};
 

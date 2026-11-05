@@ -1,4 +1,4 @@
-//! [`SelectMaskBar`]: Select and Mask's options bar (task WS-SM2).
+//! [`SelectMaskBar`]: Select and Mask's options bar.
 
 use egui::{AsIdSalt, IdSalt, Modifiers, Response, Ui};
 

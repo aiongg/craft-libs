@@ -1,4 +1,4 @@
-//! [`EffectParameters`]: the selected effect layer's filter select and parameters (task WS-FG2).
+//! [`EffectParameters`]: the selected effect layer's filter select and parameters.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Ui, UiBuilder};

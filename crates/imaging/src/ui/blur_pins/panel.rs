@@ -1,4 +1,4 @@
-//! [`BlurPinsPanel`]: the selected pin's rows in the Blur Gallery dialog (task WS-BP2).
+//! [`BlurPinsPanel`]: the selected pin's rows in the Blur Gallery dialog.
 
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Response, Ui, UiBuilder};

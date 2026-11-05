@@ -13,8 +13,8 @@
 //! ([`FilterGalleryWorkspace::visible`]) for each [`PreviewTicket`]. OK runs `filter.filterGallery`
 //! with the effects; a smart filter opened again passes its recorded effects.
 //!
-//! Files: `catalog` and `session` (task WS-FG1); `tree`, `stack`, `parameters` and this file's
-//! bodies (WS-FG2).
+//! Files: `catalog` and `session`; `tree`, `stack`, `parameters` and this file's
+//! bodies.
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowZoomBar`]: craft_ui::dialog::full_window::FullWindowZoomBar

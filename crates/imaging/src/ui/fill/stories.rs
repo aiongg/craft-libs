@@ -1,5 +1,5 @@
-//! Stories of the Content-Aware Fill workspace (task ST-WS2): not registered. Registering them
-//! (task RG2) adds `fill::stories` to the crate's `register!` list,
+//! Stories of the Content-Aware Fill workspace: not registered. Registering them
+//! adds `fill::stories` to the crate's `register!` list,
 //! `ContentAwareFillWorkspace` to `COMPONENTS` and [`FillStoryLabels`] to `WORDS`, and
 //! regenerates the registry dump.
 //!

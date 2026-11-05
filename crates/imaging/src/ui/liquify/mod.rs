@@ -31,10 +31,10 @@
 //! app.prefs.liquify = app.liquify.settings().clone();
 //! ```
 //!
-//! Files: `session` (the steps, the settings; task WS-LQ1), `tools` (the tools and the stroke
-//! recorder; WS-LQ1), `keys` (the workspace keys; WS-LQ1), `panel` (the Properties panel; WS-LQ2),
-//! `canvas` (the canvas tool, the backdrop, the mask and mesh, the brush resize; WS-LQ2), this file
-//! (`show`, `step`; WS-LQ2).
+//! Files: `session` (the steps, the settings), `tools` (the tools and the stroke
+//! recorder), `keys` (the workspace keys), `panel` (the Properties panel),
+//! `canvas` (the canvas tool, the backdrop, the mask and mesh, the brush resize), this file
+//! (`show`, `step`).
 //!
 //! [`FullWindowDialog`]: craft_ui::dialog::FullWindowDialog
 //! [`FullWindowSide`]: craft_ui::dialog::full_window::FullWindowSide
