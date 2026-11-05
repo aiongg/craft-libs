@@ -6,7 +6,22 @@ use egui::accesskit::Role;
 use egui::{Align2, Color32, FontId, Id, Painter, Pos2, Rect, Sense, Shape, Stroke, Ui, UiBuilder, Vec2, WidgetInfo};
 
 use super::super::style::SheetStyle;
+use super::input::Preview;
 use super::{CellRange, CellRef, CellSelection, GridModel, GridState, HEADER_MIN_ZOOM, Pass, SheetGeometry, column_letters};
+
+/// The marching ants' dashes and gaps in points, which also make the pattern's period
+/// (GridCraft `grid/selection.rs:176`).
+const ANT_DASH: f32 = 4.0;
+const ANT_GAP: f32 = 4.0;
+
+/// Seconds the ants take to advance one point (GridCraft `selection_glide.rs:140` `ants_phase`),
+/// and how often they repaint.
+const ANT_STEP_SECS: f64 = 0.12;
+const ANT_REPAINT: std::time::Duration = std::time::Duration::from_millis(60);
+
+/// A fill preview's dash and gap in points (GridCraft `grid/selection.rs:145`).
+const PREVIEW_DASH: f32 = 4.0;
+const PREVIEW_GAP: f32 = 3.0;
 
 /// The colours and strokes the grid paints with, from the theme.
 struct Look {
@@ -20,6 +35,8 @@ struct Look {
     gridline: Stroke,
     header_line: Stroke,
     accent: Stroke,
+    /// A drag's preview outline.
+    preview: Stroke,
     fill: Color32,
     handle_fill: Color32,
     handle_stroke: Stroke,
@@ -43,6 +60,7 @@ impl Look {
             gridline: Line::Hairline.egui(ctx, c.line.divider.to_egui()),
             header_line: Line::Hairline.egui(ctx, c.line.border.to_egui()),
             accent: Line::W2.egui(ctx, c.accent.solid.to_egui()),
+            preview: Line::W2.egui(ctx, c.text.muted.to_egui()),
             fill: style.selection_fill,
             handle_fill: style.fill_handle_fill,
             handle_stroke: Line::W1.egui(ctx, style.fill_handle_ring),
@@ -97,7 +115,7 @@ fn panes(rows: &[Span], columns: &[Span]) -> Vec<Pane> {
 }
 
 /// Paints the grid: cells, gridlines, headers and selection; mirrored for a right-to-left sheet.
-pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens, state: &GridState, geo: &SheetGeometry) {
+pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens, state: &GridState, geo: &SheetGeometry, preview: Option<Preview>) {
     let look = Look::of(ui, tokens, &pass.style, geo.layout.zoom);
     let painter = ui.painter().with_clip_rect(pass.rect.intersect(ui.clip_rect()));
     let first = painter.add(Shape::Noop);
@@ -110,6 +128,7 @@ pub(super) fn paint<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, tokens: &UiTokens
         paint_cells(pass, &clipped, geo, pane);
     }
     paint_selection(pass, &painter, geo, &state.selection, &look, state.editing);
+    paint_marks(pass, ui, &painter, geo, &look, preview);
     paint_headers(pass, &painter, geo, &state.selection, &look, (&rows, &columns));
     let last = painter.add(Shape::Noop);
     if pass.right_to_left {
@@ -217,6 +236,46 @@ fn paint_selection<M: GridModel>(pass: &Pass<'_, M>, p: &Painter, geo: &SheetGeo
         for clip in geo.range_panes(active) {
             paint_outline(&p.with_clip_rect(clip.intersect(p.clip_rect())), active_rect, Stroke::new(look.accent.width / 2.0, look.accent.color));
         }
+    }
+}
+
+/// The closed outline of `rect`, as a path that starts and ends at its top-left corner.
+fn outline_path(rect: Rect) -> [Pos2; 5] {
+    [rect.left_top(), rect.right_top(), rect.right_bottom(), rect.left_bottom(), rect.left_top()]
+}
+
+/// The marching ants round the copied ranges and the outline of a drag's preview.
+fn paint_marks<M: GridModel>(pass: &Pass<'_, M>, ui: &Ui, p: &Painter, geo: &SheetGeometry, look: &Look, preview: Option<Preview>) {
+    let clipped = |range: CellRange, paint: &dyn Fn(&Painter)| {
+        for clip in geo.range_panes(range) {
+            paint(&p.with_clip_rect(clip.intersect(p.clip_rect())));
+        }
+    };
+    match preview {
+        Some(Preview::Fill(range)) => {
+            let rect = geo.range_rect(range);
+            clipped(range, &|pane| {
+                pane.extend(Shape::dashed_line(&outline_path(rect), look.preview, PREVIEW_DASH, PREVIEW_GAP));
+            });
+        }
+        Some(Preview::Move(range)) => {
+            let rect = geo.range_rect(range);
+            clipped(range, &|pane| {
+                pane.rect_stroke(rect, 0.0, look.preview, egui::StrokeKind::Middle);
+            });
+        }
+        None => {}
+    }
+    if pass.copy_mark.is_empty() {
+        return;
+    }
+    let phase = (ui.input(|i| i.time) / ANT_STEP_SECS).rem_euclid(f64::from(ANT_DASH + ANT_GAP)) as f32;
+    ui.ctx().request_repaint_after(ANT_REPAINT);
+    for &range in pass.copy_mark {
+        let rect = geo.range_rect(range).expand(0.5);
+        clipped(range, &|pane| {
+            pane.extend(Shape::dashed_line_with_offset(&outline_path(rect), look.accent, &[ANT_DASH], &[ANT_GAP], phase));
+        });
     }
 }
 

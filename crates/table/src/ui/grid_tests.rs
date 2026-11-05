@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use craft_ui::edit::EditEvent;
 use craft_ui::testing::{HarnessExt as _, events, symbols};
 use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
-use egui::{Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Ui, pos2, vec2};
+use egui::{Event, ImeEvent, Key, KeyboardShortcut, Modifiers, Painter, PointerButton, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::grid::{
@@ -24,12 +24,18 @@ struct Sheet {
     rows: LineIndex,
     columns: LineIndex,
     frozen: (u32, u32),
+    merges: Vec<CellRange>,
 }
 
 impl Default for Sheet {
     fn default() -> Self {
         let none = BTreeMap::new();
-        Self { rows: LineIndex::new(&none, 20.0, SHEET_ROWS), columns: LineIndex::new(&none, 80.0, SHEET_COLUMNS), frozen: (0, 0) }
+        Self {
+            rows: LineIndex::new(&none, 20.0, SHEET_ROWS),
+            columns: LineIndex::new(&none, 80.0, SHEET_COLUMNS),
+            frozen: (0, 0),
+            merges: Vec::new(),
+        }
     }
 }
 
@@ -42,6 +48,9 @@ impl GridModel for Sheet {
     }
     fn frozen(&self) -> (u32, u32) {
         self.frozen
+    }
+    fn merges(&self) -> &[CellRange] {
+        &self.merges
     }
     fn last_used(&self) -> CellRef {
         CellRef::new(9, 9)
@@ -59,10 +68,11 @@ struct App {
     edits: Vec<GridEdit>,
     right_to_left: bool,
     geometry: Option<SheetGeometry>,
+    copy_mark: Vec<CellRange>,
 }
 
 fn show(ui: &mut Ui, app: &mut App) {
-    let out = CellGrid::new("grid", &app.sheet, &mut app.state).right_to_left(app.right_to_left).show(ui);
+    let out = CellGrid::new("grid", &app.sheet, &mut app.state).right_to_left(app.right_to_left).copy_mark(&app.copy_mark).show(ui);
     app.edits.extend(out.edits);
     app.geometry = Some(out.geometry);
 }
@@ -283,4 +293,273 @@ fn header_edges_resize_and_double_click_autofits() {
     }
     harness.run_steps(3);
     assert!(harness.state().edits.contains(&GridEdit::AutoFitColumn { column: 1 }), "{:?}", harness.state().edits);
+    let (begins, ends) = begins_and_ends(&harness.state().edits);
+    assert_eq!(begins, ends, "each click of the double-click ends the gesture it began: {:?}", harness.state().edits);
+}
+
+/// How many resize and fill gestures the edits begin, and how many end (`Commit`, `Cancel`).
+fn begins_and_ends(edits: &[GridEdit]) -> (usize, usize) {
+    let mut count = (0, 0);
+    for edit in edits {
+        let event = match edit {
+            GridEdit::ResizeColumn { width, .. } | GridEdit::ResizeRow { height: width, .. } => width.clone(),
+            _ => continue,
+        };
+        match event {
+            EditEvent::Begin { .. } => count.0 += 1,
+            EditEvent::Commit { .. } | EditEvent::Cancel { .. } => count.1 += 1,
+            _ => {}
+        }
+    }
+    count
+}
+
+fn send(harness: &mut Harness<'_, App>, events: impl IntoIterator<Item = Event>) {
+    for event in events {
+        harness.event(event);
+    }
+    harness.run_steps(1);
+}
+
+fn button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+}
+
+// A press and release in one pass (a trackpad tap) acts in that pass and leaves no `Begin` open.
+// The harness plays a press and a release in successive passes, so this runs the context with both
+// events in one raw input.
+#[test]
+fn a_tap_in_one_pass_acts_and_leaves_no_gesture_open() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    symbols::install(&ctx);
+    let mut app = App::default();
+    let pass = |events: Vec<Event>, app: &mut App| {
+        let input = egui::RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 500.0))), events, ..egui::RawInput::default() };
+        ctx.run_ui(input, |ui| show(ui, app)).drop_without_applying_deltas();
+    };
+    pass(Vec::new(), &mut app);
+    let edge = {
+        let geometry = app.geometry.as_ref().unwrap();
+        pos2(geometry.x(1) + 80.0, geometry.cells().top() - geometry.header_size().y / 2.0)
+    };
+    pass(vec![Event::PointerMoved(edge)], &mut app);
+    pass(vec![button(edge, true), button(edge, false)], &mut app);
+    pass(Vec::new(), &mut app);
+    pass(Vec::new(), &mut app);
+    let (begins, ends) = begins_and_ends(&app.edits);
+    assert_eq!(begins, ends, "a bare tap leaves no gesture open: {:?}", app.edits);
+
+    // egui tells the button down on a widget only until the release: a tap on a cell, press and
+    // release in one pass, still selects it.
+    let cell = {
+        let geometry = app.geometry.as_ref().unwrap();
+        geometry.cell_rect(CellRef::new(3, 3)).center()
+    };
+    pass(vec![Event::PointerMoved(cell)], &mut app);
+    pass(vec![button(cell, true), button(cell, false)], &mut app);
+    assert_eq!(app.state.selection.active(), CellRef::new(3, 3));
+}
+
+// Esc during a resize cancels the gesture the press began, reported for its column.
+#[test]
+fn escape_cancels_a_header_resize() {
+    let mut harness = harness(App::default());
+    let edge = {
+        let geometry = harness.state().geometry.as_ref().unwrap();
+        pos2(geometry.x(1) + 80.0, geometry.cells().top() - geometry.header_size().y / 2.0)
+    };
+    send(&mut harness, [Event::PointerMoved(edge)]);
+    send(&mut harness, [button(edge, true)]);
+    send(&mut harness, [Event::PointerMoved(edge + vec2(30.0, 0.0))]);
+    press(&mut harness, Modifiers::NONE, Key::Escape);
+    harness.run_steps(2);
+    let edits = &harness.state().edits;
+    assert!(edits.iter().any(|e| matches!(e, GridEdit::ResizeColumn { column: 1, width: EditEvent::Cancel { .. } })), "{edits:?}");
+}
+
+// An input method's first composition reports BeginEdit through the grid's composer.
+#[test]
+fn an_ime_composition_begins_an_edit() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(1, 1), Modifiers::NONE);
+    harness.state_mut().edits.clear();
+    send(&mut harness, [Event::Ime(ImeEvent::Preedit { text: "k".into(), active_range_chars: None })]);
+    assert_eq!(harness.state().edits, [GridEdit::BeginEdit { typed: Some(String::new()) }]);
+}
+
+// Double-clicking the edge where a hidden column sits asks to unhide it.
+#[test]
+fn a_double_click_on_a_hidden_edge_unhides() {
+    let hidden = BTreeMap::from([(2, 0.0)]);
+    let sheet = Sheet { columns: LineIndex::new(&hidden, 80.0, SHEET_COLUMNS), ..Sheet::default() };
+    let mut harness = harness(App { sheet, ..App::default() });
+    let edge = {
+        let geometry = harness.state().geometry.as_ref().unwrap();
+        pos2(geometry.x(3) + 2.0, geometry.cells().top() - geometry.header_size().y / 2.0)
+    };
+    for frame in events::click(edge, PointerButton::Primary, 2, Modifiers::NONE) {
+        send(&mut harness, frame);
+    }
+    harness.run_steps(3);
+    assert!(harness.state().edits.contains(&GridEdit::UnhideColumn { column: 2 }), "{:?}", harness.state().edits);
+}
+
+fn drag_events(harness: &mut Harness<'_, App>, from: Pos2, to: Pos2) {
+    for frame in events::drag(from, to, Modifiers::NONE) {
+        send(harness, frame);
+    }
+    harness.run_steps(2);
+}
+
+fn handle_of(harness: &Harness<'_, App>) -> Pos2 {
+    let geometry = harness.state().geometry.as_ref().unwrap();
+    let range = harness.state().state.selection.current();
+    geometry.mirror_pos(geometry.range_rect(range).right_bottom())
+}
+
+// Dragging the fill handle down reports the grown range as one gesture and selects it.
+#[test]
+fn the_fill_handle_drags_a_range() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(1, 1), Modifiers::NONE);
+    let (from, to) = (handle_of(&harness), center(&harness, CellRef::new(4, 1)));
+    harness.state_mut().edits.clear();
+    drag_events(&mut harness, from, to);
+    let fills: Vec<_> =
+        harness.state().edits.iter().filter_map(|e| if let GridEdit::Fill { range } = e { Some(range.clone()) } else { None }).collect();
+    let target = CellRange::new(CellRef::new(1, 1), CellRef::new(4, 1));
+    assert!(matches!(fills.first(), Some(EditEvent::Begin { .. })), "{fills:?}");
+    assert!(matches!(fills.last(), Some(EditEvent::Commit { value, changed: true, .. }) if *value == target), "{fills:?}");
+    assert_eq!(harness.state().state.selection.ranges(), [target]);
+}
+
+// Dragging the selection's border reports where its top-left corner goes and selects it there.
+#[test]
+fn the_selection_border_drags_cells() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(1, 1), Modifiers::NONE);
+    let from = {
+        let geometry = harness.state().geometry.as_ref().unwrap();
+        let rect = geometry.range_rect(CellRange::cell(CellRef::new(1, 1)));
+        pos2(rect.center().x, rect.top())
+    };
+    let to = from + vec2(160.0, 40.0);
+    harness.state_mut().edits.clear();
+    drag_events(&mut harness, from, to);
+    let moves: Vec<_> =
+        harness.state().edits.iter().filter_map(|e| if let GridEdit::MoveCells { to } = e { Some(to.clone()) } else { None }).collect();
+    assert!(matches!(moves.last(), Some(EditEvent::Commit { value, .. }) if *value == CellRef::new(3, 3)), "{moves:?}");
+    assert_eq!(active(&harness), CellRef::new(3, 3));
+}
+
+// A press and release on the border without moving is a click: it selects the cell.
+#[test]
+fn a_click_on_the_selection_border_selects_without_moving() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(1, 1), Modifiers::NONE);
+    click(&mut harness, CellRef::new(5, 5), Modifiers::COMMAND);
+    harness.state_mut().edits.clear();
+    let rect = {
+        let geometry = harness.state().geometry.as_ref().unwrap();
+        geometry.range_rect(CellRange::cell(CellRef::new(5, 5)))
+    };
+    harness.click_at_with(pos2(rect.center().x, rect.top()), PointerButton::Primary, Modifiers::NONE);
+    assert!(!harness.state().edits.iter().any(|e| matches!(e, GridEdit::MoveCells { .. })), "{:?}", harness.state().edits);
+    assert_eq!(harness.state().state.selection.ranges().len(), 1);
+}
+
+// While a copy mark shows, Esc ends copy mode and Enter pastes; neither moves the active cell.
+#[test]
+fn copy_mode_takes_escape_and_enter() {
+    let mark = vec![CellRange::new(CellRef::new(0, 0), CellRef::new(1, 1))];
+    let mut harness = harness(App { copy_mark: mark, ..App::default() });
+    click(&mut harness, CellRef::new(3, 3), Modifiers::NONE);
+    harness.state_mut().edits.clear();
+    press(&mut harness, Modifiers::NONE, Key::Escape);
+    press(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(harness.state().edits, [GridEdit::ClearCopyMark, GridEdit::PasteAtActive]);
+    assert_eq!(active(&harness), CellRef::new(3, 3));
+    harness.state_mut().copy_mark.clear();
+    harness.run();
+    press(&mut harness, Modifiers::NONE, Key::Enter);
+    assert_eq!(active(&harness), CellRef::new(4, 3), "without a mark Enter moves down");
+}
+
+// Page Down and Up move a screen of rows and Cmd+Page Down the next sheet.
+#[test]
+fn page_keys_move_a_screen_and_cmd_changes_sheet() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(2, 2), Modifiers::NONE);
+    press(&mut harness, Modifiers::NONE, Key::PageDown);
+    let down = active(&harness);
+    assert!(down.row > 10 && down.column == 2, "{down:?}");
+    press(&mut harness, Modifiers::NONE, Key::PageUp);
+    assert!(active(&harness).row < down.row - 10 && active(&harness).column == 2, "{:?}", active(&harness));
+    click(&mut harness, CellRef::new(2, 2), Modifiers::NONE);
+    press(&mut harness, Modifiers::SHIFT, Key::PageDown);
+    assert_eq!(harness.state().state.selection.active(), CellRef::new(2, 2));
+    assert!(harness.state().state.selection.current().end.row > 10, "Shift+Page Down extends");
+    harness.state_mut().edits.clear();
+    press(&mut harness, Modifiers::COMMAND, Key::PageDown);
+    assert_eq!(harness.state().edits, [GridEdit::NextSheet]);
+}
+
+// A merged cell is one stop for the arrow keys.
+#[test]
+fn arrows_step_over_a_merged_cell() {
+    let merge = CellRange::new(CellRef::new(1, 1), CellRef::new(1, 3));
+    let mut harness = harness(App::default());
+    harness.state_mut().sheet.merges = vec![merge];
+    harness.run();
+    click(&mut harness, CellRef::new(1, 0), Modifiers::NONE);
+    press(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(active(&harness), CellRef::new(1, 1));
+    press(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(active(&harness), CellRef::new(1, 4), "the arrow leaves the merge");
+}
+
+// Right to left, the Left arrow goes to the next column.
+#[test]
+fn arrows_mirror_in_a_right_to_left_sheet() {
+    let mut harness = harness(App { right_to_left: true, ..App::default() });
+    click(&mut harness, CellRef::new(2, 2), Modifiers::NONE);
+    press(&mut harness, Modifiers::NONE, Key::ArrowLeft);
+    assert_eq!(active(&harness), CellRef::new(2, 3));
+    press(&mut harness, Modifiers::NONE, Key::ArrowRight);
+    assert_eq!(active(&harness), CellRef::new(2, 2));
+}
+
+// The Menu key and Shift+F10 ask for the menu at the active cell, a secondary click at the pointer.
+#[test]
+fn context_menu_keys_and_clicks_report_anchor_and_pointer() {
+    let mut harness = harness(App::default());
+    click(&mut harness, CellRef::new(2, 2), Modifiers::NONE);
+    harness.state_mut().edits.clear();
+    press(&mut harness, Modifiers::NONE, Key::Menu);
+    press(&mut harness, Modifiers::SHIFT, Key::F10);
+    let cell = {
+        let geometry = harness.state().geometry.as_ref().unwrap();
+        geometry.mirror_rect(geometry.cell_rect(CellRef::new(2, 2)))
+    };
+    let menus = |edits: &[GridEdit]| -> Vec<(Rect, Option<Pos2>)> {
+        edits.iter().filter_map(|e| if let GridEdit::ContextMenu { anchor, pointer, .. } = e { Some((*anchor, *pointer)) } else { None }).collect()
+    };
+    assert_eq!(menus(&harness.state().edits), [(cell, None), (cell, None)]);
+
+    harness.state_mut().edits.clear();
+    let at = center(&harness, CellRef::new(4, 4));
+    harness.click_at_with(at, PointerButton::Secondary, Modifiers::NONE);
+    let target = harness.state().geometry.as_ref().unwrap().cell_rect(CellRef::new(4, 4));
+    assert_eq!(menus(&harness.state().edits), [(target, Some(at))]);
+}
+
+// The scroll stops at the sheet's extent: the last 40 rows and 20 columns still fill the window.
+#[test]
+fn scrolling_stops_at_the_sheets_extent() {
+    let mut harness = harness(App::default());
+    harness.state_mut().state.scroll = vec2(1.0e12, 1.0e12);
+    harness.run();
+    let scroll = harness.state().state.scroll;
+    assert_eq!(scroll, vec2(f64::from(SHEET_COLUMNS - 20) as f32 * 80.0, f64::from(SHEET_ROWS - 40) as f32 * 20.0));
 }
