@@ -42,10 +42,12 @@ pub struct HostBuilder {
 }
 
 impl Host {
+    /// Starts a host for `app`; every service not set on the builder gets its default.
     pub fn builder(app: AppInfo) -> HostBuilder {
         HostBuilder { app, i18n: None, lang: None, settings: None, commands: None, jobs: None, files: None }
     }
 
+    /// The app's name and version.
     pub fn app(&self) -> &AppInfo {
         &self.app
     }
@@ -60,14 +62,17 @@ impl Host {
         self.i18n.as_ref()
     }
 
+    /// The interface language.
     pub fn lang(&self) -> Lang {
         self.lang
     }
 
+    /// The store of library features' settings sections.
     pub fn settings(&self) -> &dyn SectionStore {
         &*self.settings
     }
 
+    /// Command labels and hints by command id.
     pub fn commands(&self) -> &dyn Commands {
         &*self.commands
     }
@@ -77,6 +82,7 @@ impl Host {
         &*self.files
     }
 
+    /// The background job service.
     pub fn jobs(&self) -> &dyn Jobs {
         &*self.jobs
     }
@@ -147,6 +153,7 @@ impl HostBuilder {
         self
     }
 
+    /// Builds the host, filling every unset service with its default.
     pub fn build(self) -> Host {
         let lang = self.lang.or_else(|| self.i18n.as_ref().map(|i18n| i18n.system_lang())).unwrap_or(Lang::EN);
         Host {
@@ -228,6 +235,7 @@ mod ui {
             Host::try_of_ctx(ui.ctx())
         }
 
+        /// [`Host::try_of`] from an egui context.
         pub fn try_of_ctx(ctx: &Context) -> Option<Arc<Host>> {
             ctx.plugin_opt::<Installed>().and_then(|installed| installed.lock().0.clone())
         }

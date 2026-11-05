@@ -14,6 +14,7 @@ use serde::de::DeserializeOwned;
 pub struct Wake(Arc<dyn Fn() + Send + Sync>);
 
 impl Wake {
+    /// A wake that runs `wake`; it may be called from any thread.
     pub fn new(wake: impl Fn() + Send + Sync + 'static) -> Self {
         Self(Arc::new(wake))
     }
@@ -49,7 +50,9 @@ pub struct AppInfo {
 /// Library features' settings sections in the app's settings file, one TOML table per section.
 /// [`MemorySections`] keeps them in memory (tests, wasm without storage).
 pub trait SectionStore: Send + Sync {
+    /// The table stored under `key`, if any.
     fn read(&self, key: &str) -> Option<toml::Table>;
+    /// Stores `table` under `key`, replacing the previous one.
     fn write(&self, key: &str, table: toml::Table);
 }
 
@@ -77,7 +80,9 @@ impl SectionStore for MemorySections {
 /// Command words by command id (`"file.save"`). craft-keymap implements it over the app's
 /// catalog; [`NoCommands`] returns the English label it is given.
 pub trait Commands: Send + Sync {
+    /// The label of command `id`; `english` is the library's default wording.
     fn label(&self, id: &str, english: &str) -> String;
+    /// The shortcut hint of command `id`, if it has one. The default is none.
     fn hint(&self, _id: &str) -> Option<String> {
         None
     }
@@ -94,6 +99,7 @@ impl Commands for NoCommands {
 
 /// Background work.
 pub trait Jobs: Send + Sync {
+    /// Runs `job` in the background; `name` labels the thread where there is one.
     fn spawn(&self, name: &str, job: Box<dyn FnOnce() + Send>);
 }
 
@@ -129,6 +135,7 @@ pub struct ManualJobs {
 }
 
 impl ManualJobs {
+    /// A queue with no waiting jobs.
     pub fn new() -> Self {
         Self::default()
     }
