@@ -8,8 +8,9 @@ use crate::runtime::egui::{fixture, response};
 use crate::runtime::env::ArenaId;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
+use craft_behavior::focus::{PressFocus, classify_press};
 use craft_behavior::{
-    CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressFocus, PressPhase, PressState, Sense,
+    CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressPhase, PressState, Sense,
 };
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
@@ -367,7 +368,7 @@ pub fn egui_click_target(ctx: &Context) -> Option<Id> {
 /// How the focus service classifies a press at `at`, from last pass's shape record; `None` when no shape
 /// takes the press.
 pub fn press_focus(ctx: &Context, at: Pos2) -> Option<PressFocus> {
-    pointer::press_winner(ctx, at).map(|winner| PressFocus::of(winner.sense))
+    pointer::press_winner(ctx, at).map(|winner| classify_press(Some(winner.sense)))
 }
 
 /// Shows an egui area of `size` over everything else, as a popup does.

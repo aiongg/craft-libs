@@ -1,6 +1,6 @@
 //! egui focus, `move_focus` and `surrender_focus_on`.
 
-use egui::{Context, EventFilter, FocusDirection, Id, LayerId, Pos2, SurrenderFocusOn};
+use egui::{Context, EventFilter, FocusDirection, Id, Pos2, SurrenderFocusOn};
 
 /// Stops egui from taking focus away on its own: focus on press is the runtime's (8.3).
 pub(crate) fn never_surrender_focus(ctx: &Context) {
@@ -33,11 +33,6 @@ pub(crate) fn surrender(ctx: &Context, id: Id) {
 /// only mover, so the direction is cleared before any component runs.
 pub(crate) fn clear_directional_focus(ctx: &Context) {
     ctx.memory_mut(|memory| memory.move_focus(FocusDirection::None));
-}
-
-/// The topmost egui layer under `pos`.
-pub(crate) fn layer_at(ctx: &Context, pos: Pos2) -> Option<LayerId> {
-    ctx.layer_id_at(pos)
 }
 
 /// The press origin of the running pass's primary press.

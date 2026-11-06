@@ -5,7 +5,6 @@ use egui::emath::GuiRounding as _;
 use egui::{CornerRadius, Pos2, Rect, Shape, Stroke, StrokeKind};
 
 /// The shape a ring follows.
-// F2-MERGE: F2d
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum FocusShape {

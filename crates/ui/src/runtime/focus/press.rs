@@ -2,65 +2,20 @@
 //! classified focus move applies at the end hook.
 
 use super::{Act, State, StopKey};
-use crate::runtime::egui::areas::LayerKey;
 use crate::runtime::egui::focus as egui_focus;
 use craft_behavior::PartRef;
-use craft_behavior::focus::{PressFocus, PressShape, classify_press};
-use egui::{Context, Id, Pos2, Rect};
+use crate::runtime::pointer;
+use craft_behavior::focus::{PressFocus, classify_press};
+use craft_behavior::Winner;
+use egui::{Context, Id};
 
-/// Where a primary press began and the egui layer on top there.
+/// What won a primary press at the begin hook.
 pub(crate) struct PressAt {
-    pos: Pos2,
-    layer: Option<LayerKey>,
+    winner: Option<Winner<Id>>,
 }
 
 pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
-    egui_focus::primary_press_origin(ctx).map(|pos| PressAt { pos, layer: egui_focus::layer_at(ctx, pos) })
-}
-
-/// A shape that senses a press, as the pointer service's shape record holds it.
-// F2-MERGE: pointer (the shape record and its `resolve` belong to `runtime::pointer`).
-#[doc(hidden)]
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct PressShapeRecord {
-    /// The egui layer the shape is on.
-    pub layer: LayerKey,
-    /// The shape's rect in screen points.
-    pub rect: Rect,
-    /// What the shape's sense says about focus.
-    pub shape: PressShape,
-    /// The component the shape belongs to.
-    pub owner: Id,
-    /// The part, when the shape is a focusable part.
-    pub part: Option<PartRef>,
-    /// The enclosing pane, which takes focus from a text part on a kind 3 press.
-    pub pane: Option<Id>,
-}
-
-impl PressShapeRecord {
-    /// A shape of `owner` on `layer` at `rect`.
-    pub fn new(layer: LayerKey, rect: Rect, shape: PressShape, owner: Id) -> Self {
-        PressShapeRecord { layer, rect, shape, owner, part: None, pane: None }
-    }
-
-    /// Marks the shape as a focusable part.
-    pub fn part(mut self, part: PartRef) -> Self {
-        self.part = Some(part);
-        self
-    }
-
-    /// Names the enclosing pane.
-    pub fn pane(mut self, pane: Id) -> Self {
-        self.pane = Some(pane);
-        self
-    }
-}
-
-/// Records a shape of the running pass; the next pass resolves its press over it.
-#[doc(hidden)]
-pub fn note_press_shape(ctx: &Context, record: PressShapeRecord) {
-    super::with(ctx, |state| state.press.shapes.push(record));
+    egui_focus::primary_press_origin(ctx).map(|pos| PressAt { winner: pointer::press_winner(ctx, pos) })
 }
 
 #[derive(Clone, Debug)]
@@ -74,8 +29,6 @@ struct Plan {
 
 #[derive(Default)]
 pub(crate) struct PressState {
-    pub(super) shapes: Vec<PressShapeRecord>,
-    last_shapes: Vec<PressShapeRecord>,
     plan: Option<Plan>,
     pub(super) commit_now: Option<Id>,
     focus_at_begin: Option<Id>,
@@ -83,7 +36,6 @@ pub(crate) struct PressState {
 
 impl PressState {
     pub(super) fn rotate(&mut self, focused: Option<Id>) {
-        self.last_shapes = std::mem::take(&mut self.shapes);
         self.plan = None;
         self.commit_now = None;
         self.focus_at_begin = focused;
@@ -94,12 +46,13 @@ impl State {
     /// Classifies this pass's primary press by the shape that wins it on the top layer, and marks a focused
     /// text part to commit its draft when the press leaves it.
     pub(super) fn classify_press(&mut self, at: &PressAt) {
-        let winner = self.press.last_shapes.iter().rev().find(|shape| at.layer.is_none_or(|top| top == shape.layer) && shape.rect.contains(at.pos));
-        let kind = classify_press(winner.map(|shape| shape.shape));
-        let (owner, part, pane) = winner.map_or((None, None, None), |shape| (Some(shape.owner), shape.part, shape.pane));
+        let winner = at.winner.as_ref();
+        let kind = classify_press(winner.map(|winner| winner.sense));
+        let (owner, part) = winner.map_or((None, None), |winner| (Some(winner.owner), winner.part));
         let text_stop = self.stop_of_focus().filter(|stop| stop.stop.text).map(|stop| stop.stop.id);
         let was_text = text_stop.is_some() && kind.commits_draft();
         self.press.commit_now = text_stop.filter(|_| was_text);
+        let pane = self.stop_of_focus().filter(|_| was_text).and_then(|rec| self.pane_of(&rec));
         self.press.plan = Some(Plan { kind, owner, part, pane, was_text });
     }
 

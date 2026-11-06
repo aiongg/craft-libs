@@ -177,7 +177,7 @@ impl State {
         (self.focus_stop(entry.arrival().clone()), label.into_iter().collect())
     }
 
-    fn pane_of(&self, rec: &StopRec) -> Option<Id> {
+    pub(super) fn pane_of(&self, rec: &StopRec) -> Option<Id> {
         let mut at = rec.scope;
         while let Some(id) = at {
             let scope = self.last_scopes.get(&id)?;

@@ -2,8 +2,8 @@
 //! stages read.
 
 use crate::runtime::egui::{fixture, focus as egui_focus};
-use crate::runtime::focus::PressShapeRecord;
-use craft_behavior::focus::PressShape;
+use crate::runtime::pointer;
+use craft_behavior::{HitLevel, HitPriority, Sense, Shape};
 use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect, Ui};
 
 /// Shows a focusable egui widget of `id`, as a component root's sensing core does, and returns its rect.
@@ -16,9 +16,11 @@ pub fn egui_focused(ctx: &Context) -> Option<Id> {
     egui_focus::focused(ctx)
 }
 
-/// A shape that senses a press at `rect` on the layer of `ui`, owned by `owner`.
-pub fn press_shape(ui: &Ui, rect: Rect, shape: PressShape, owner: Id) -> PressShapeRecord {
-    PressShapeRecord::new(fixture::layer_of(ui), rect, shape, owner)
+/// Registers a shape of `owner` at `rect` on the layer of `ui` that senses a press as `sense` says, as a
+/// component's sensing core does; the next pass's presses resolve over it.
+pub fn press_shape(ui: &Ui, rect: Rect, sense: Sense, owner: Id) {
+    let shape = Shape::new(rect.into(), sense, owner, None, HitPriority::new(HitLevel::Background, 0), 0);
+    pointer::record_shapes(ui.ctx(), fixture::layer_of(ui), [shape]);
 }
 
 /// A primary button press or release at `pos`.

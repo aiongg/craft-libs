@@ -14,18 +14,13 @@ use crate::runtime::env::ArenaId;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
+use craft_theme::Flags;
 use craft_behavior::{
     CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PressMachine, PressPhase, PressState, ResolveFor, Sense, Shape,
     resolve_mapped,
 };
 use egui::{Context, Id, Pos2, Rect, Response, Ui};
 use std::collections::HashMap;
-
-/// Value flags a part carries into its state (`SELECTED`, `LEAD`, ...).
-// F2-MERGE: F2b (craft_theme::Flags)
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct Flags(pub u32);
 
 /// A part's results this pass.
 #[derive(Clone, Debug, PartialEq)]
@@ -43,7 +38,7 @@ pub struct PartResult {
 
 impl PartResult {
     /// What a read returns for a part with no press history: face mode, or a part first registered this pass.
-    pub const IDLE: PartResult = PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, flags: Flags(0) };
+    pub const IDLE: PartResult = PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, flags: Flags::empty() };
 }
 
 /// A text part's result this pass.

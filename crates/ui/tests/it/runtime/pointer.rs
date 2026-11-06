@@ -416,6 +416,6 @@ fn the_shape_record_classifies_presses_by_the_winning_shape() {
     let at = |x: f32, y: f32| press_focus(&frames.ctx, Pos2::new(x, y));
     assert_eq!(at(300.0, 300.0), Some(PressFocus::Take), "the tool's background takes focus");
     assert_eq!(at(150.0, 150.0), Some(PressFocus::Keep), "a keep-focus member keeps it");
-    assert_eq!(at(230.0, 150.0), Some(PressFocus::Pass), "another control acts without moving it");
+    assert_eq!(at(230.0, 150.0), Some(PressFocus::Release), "another control acts without moving it");
     assert_eq!(at(50.0, 50.0), None, "no shape takes a press outside the canvas");
 }

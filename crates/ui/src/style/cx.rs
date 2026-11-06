@@ -9,7 +9,8 @@ use super::tokens::UiTokens;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
 use craft_i18n::Direction;
-use craft_theme::{ControlSize, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
+use craft_behavior::ControlMetrics;
+use craft_theme::{BySize, ControlSize, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
 use egui::{Color32, Context, CornerRadius};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -118,6 +119,20 @@ impl<'a> StyleCx<'a> {
             Ink::OnPanel => c.normal,
             Ink::OnDark => c.on_strong,
         })
+    }
+
+    /// The height, icon side, padding and gap of a control at the ambient size.
+    pub fn control(&self) -> ControlMetrics {
+        let size = &self.tokens.size;
+        let pad = self.tokens.space.pad.control;
+        let gap = self.tokens.space.gap.inline;
+        ControlMetrics::at(
+            self.size,
+            &BySize { sm: size.control.sm, md: size.control.md },
+            &BySize { sm: size.icon.sm, md: size.icon.md },
+            &BySize { sm: pad, md: pad },
+            &BySize { sm: gap, md: gap },
+        )
     }
 
     /// What a surface of `kind` draws.

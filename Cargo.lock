@@ -1124,6 +1124,7 @@ dependencies = [
  "bitflags 2.13.2",
  "craft-host",
  "craft-keymap",
+ "craft-theme",
  "emath",
  "smallvec",
 ]

@@ -41,9 +41,9 @@ pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
 pub use flow::{Flow, Insets};
-pub use focus::{CancelRule, KeyOwner, OwnerClass, ScopeKind};
+pub use focus::{CancelRule, KeyOwner, OwnerClass, PressFocus, ScopeKind};
 pub use grid::{GridCursor, GridMeasure, resolve_columns};
-pub use hit::{HitLevel, HitPriority, HitShape, PressFocus, ResolveFor, Shape, Winner, resolve, resolve_mapped};
+pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
@@ -59,7 +59,7 @@ pub use press::{
     PressState, PressStep, count_clicks,
 };
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use sizing::{Metrics, Proposal};
+pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
 pub use value::Value;

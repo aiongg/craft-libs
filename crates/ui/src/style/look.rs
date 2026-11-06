@@ -1,6 +1,6 @@
 //! Style parts: surface, text, icon and focus looks, the two colour types `Draw` accepts, and `ComponentStyle`.
 
-use super::metrics::Metrics;
+use craft_behavior::Metrics;
 use craft_i18n::Direction;
 use craft_theme::{Mix, Stateful, TypeRole, Variant};
 use egui::{Color32, CornerRadius, Stroke};

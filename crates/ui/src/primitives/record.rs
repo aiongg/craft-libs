@@ -6,7 +6,6 @@ use egui::Id;
 use std::ops::RangeInclusive;
 
 /// What `Draw` calls record. Step 16 reads the elided text and step 17 the baseline.
-// F2-MERGE: F2a
 #[derive(Debug, Default)]
 pub(crate) struct PaintRecord {
     /// The full text of the first elided run, shown as the tooltip and accessible name when no tooltip is set.

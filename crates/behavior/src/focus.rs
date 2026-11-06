@@ -1,6 +1,8 @@
 //! Pure focus rules (spec 9.3, 9.4, 8.3): key ownership, focus after removal, the Escape order and the
 //! focus-on-press kinds. The runtime's focus service feeds them facts and applies the result.
 
+use crate::sense::Sense;
+
 /// What a focus scope is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
@@ -174,25 +176,6 @@ pub fn escape_step(facts: EscapeFacts, rule: CancelRule) -> EscapeStep {
     }
 }
 
-/// The sense of the shape that wins a press, as far as focus on press reads it.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct PressShape {
-    /// The shape senses `TAKE_FOCUS`.
-    pub takes_focus: bool,
-    /// The shape senses `KEEP_FOCUS`.
-    pub keeps_focus: bool,
-}
-
-impl PressShape {
-    /// A shape that senses a press and neither takes nor keeps focus.
-    pub const CONTROL: PressShape = PressShape { takes_focus: false, keeps_focus: false };
-    /// A shape that takes key focus.
-    pub const TAKES: PressShape = PressShape { takes_focus: true, keeps_focus: false };
-    /// A shape that leaves focus and any draft where they are.
-    pub const KEEPS: PressShape = PressShape { takes_focus: false, keeps_focus: true };
-}
-
 /// How a primary press moves key focus (8.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -214,13 +197,13 @@ impl PressFocus {
     }
 }
 
-/// The kind of a press from the shape that wins it, `None` when no shape senses it. A shape that senses
-/// both counts as keeping focus.
-pub fn classify_press(winner: Option<PressShape>) -> PressFocus {
+/// The kind of a press from the sense of the shape that wins it, `None` when no shape senses it. A shape that
+/// senses both `TAKE_FOCUS` and `KEEP_FOCUS` takes focus.
+pub fn classify_press(winner: Option<Sense>) -> PressFocus {
     match winner {
         None => PressFocus::Unclaimed,
-        Some(shape) if shape.keeps_focus => PressFocus::Keep,
-        Some(shape) if shape.takes_focus => PressFocus::Take,
+        Some(sense) if sense.contains(Sense::TAKE_FOCUS) => PressFocus::Take,
+        Some(sense) if sense.contains(Sense::KEEP_FOCUS) => PressFocus::Keep,
         Some(_) => PressFocus::Release,
     }
 }
@@ -266,9 +249,9 @@ mod tests {
 
     #[test]
     fn presses_classify_by_the_winning_shape() {
-        assert_eq!(classify_press(Some(PressShape::TAKES)), PressFocus::Take);
-        assert_eq!(classify_press(Some(PressShape::KEEPS)), PressFocus::Keep);
-        assert_eq!(classify_press(Some(PressShape::CONTROL)), PressFocus::Release);
+        assert_eq!(classify_press(Some(Sense::CLICK | Sense::TAKE_FOCUS | Sense::KEEP_FOCUS)), PressFocus::Take);
+        assert_eq!(classify_press(Some(Sense::CLICK | Sense::KEEP_FOCUS)), PressFocus::Keep);
+        assert_eq!(classify_press(Some(Sense::CLICK)), PressFocus::Release);
         assert_eq!(classify_press(None), PressFocus::Unclaimed);
         assert!(PressFocus::Release.commits_draft() && PressFocus::Unclaimed.commits_draft());
         assert!(!PressFocus::Keep.commits_draft() && !PressFocus::Take.commits_draft());

@@ -2,8 +2,8 @@
 
 use super::{control, focus, focused, id, stop_with};
 use craft_behavior::Input;
-use craft_behavior::focus::PressShape;
-use craft_ui::runtime::focus::{KeyUse, Stop, commit_now, note_press_shape, register_stop};
+use craft_behavior::Sense;
+use craft_ui::runtime::focus::{FocusPolicy, KeyUse, Stop, commit_now, pop_scope, push_scope, register_stop};
 use craft_ui::testing::focus::{press_shape, primary_button, widget};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Pos2, Rect, Ui};
@@ -19,14 +19,16 @@ struct Rects {
 /// the field's focus moves to.
 fn layout(ui: &mut Ui, rects: &Cell<Option<(Rect, Rect, Rect)>>, commits: &RefCell<Vec<Option<egui::Id>>>) {
     widget(ui, id("pane"));
+    push_scope(ui.ctx(), id("pane"), FocusPolicy::PANE, None);
     let field = widget(ui, id("field"));
     register_stop(ui.ctx(), Stop::new(id("field"), KeyUse::of(Input::Text)).text());
+    pop_scope(ui.ctx());
     let palette = widget(ui, id("palette"));
     let button = widget(ui, id("button"));
     let ctx = ui.ctx().clone();
-    note_press_shape(&ctx, press_shape(ui, field, PressShape::TAKES, id("field")));
-    note_press_shape(&ctx, press_shape(ui, palette, PressShape::KEEPS, id("palette")));
-    note_press_shape(&ctx, press_shape(ui, button, PressShape::CONTROL, id("button")).pane(id("pane")));
+    press_shape(ui, field, Sense::CLICK | Sense::TAKE_FOCUS, id("field"));
+    press_shape(ui, palette, Sense::CLICK | Sense::KEEP_FOCUS, id("palette"));
+    press_shape(ui, button, Sense::CLICK, id("button"));
     rects.set(Some((field, palette, button)));
     commits.borrow_mut().push(commit_now(&ctx));
 }

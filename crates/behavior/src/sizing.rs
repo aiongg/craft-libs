@@ -1,6 +1,7 @@
-//! `Proposal` and `Metrics`: what a measure call is asked and what a style gives it to add.
+//! `Proposal`, `Metrics` and `ControlMetrics`: what a measure call is asked and what a style gives it to add.
 
 use crate::flow::Insets;
+use craft_theme::{BySize, ControlSize};
 use emath::Vec2;
 
 /// The question one measure call answers.
@@ -65,5 +66,46 @@ impl Metrics {
     pub const fn min_text(mut self, width: f32) -> Self {
         self.min_text = width;
         self
+    }
+}
+
+/// The sizes a control takes from its `ControlSize`: height, icon side, horizontal padding and gap.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct ControlMetrics {
+    /// The control's height.
+    pub height: f32,
+    /// The side of an icon inside the control.
+    pub icon: f32,
+    /// The padding at the start and the end.
+    pub pad_x: f32,
+    /// The gap between content parts.
+    pub gap: f32,
+}
+
+impl ControlMetrics {
+    /// The entries of the four tables at `size`.
+    pub fn at(size: ControlSize, height: &BySize<f32>, icon: &BySize<f32>, pad_x: &BySize<f32>, gap: &BySize<f32>) -> Self {
+        ControlMetrics { height: height.get(size), icon: icon.get(size), pad_x: pad_x.get(size), gap: gap.get(size) }
+    }
+
+    /// The `Metrics` of a control of this height: horizontal padding, the height as the least height, the gap.
+    pub const fn metrics(&self) -> Metrics {
+        Metrics::new().padding(Insets::horizontal(self.pad_x)).min_size(Vec2::new(0.0, self.height)).gap(self.gap)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn control_metrics_read_the_table_entries_of_the_size() {
+        let table = |sm, md| BySize { sm, md };
+        let at = ControlMetrics::at(ControlSize::Sm, &table(20.0, 28.0), &table(12.0, 16.0), &table(4.0, 8.0), &table(2.0, 4.0));
+        assert_eq!(at, ControlMetrics { height: 20.0, icon: 12.0, pad_x: 4.0, gap: 2.0 });
+        let metrics = at.metrics();
+        assert_eq!(metrics.min_size, Vec2::new(0.0, 20.0));
+        assert_eq!(metrics.padding, Insets::horizontal(4.0));
     }
 }

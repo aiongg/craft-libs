@@ -5,7 +5,6 @@ mod cache;
 mod cx;
 mod key;
 mod look;
-mod metrics;
 mod paint;
 mod replacements;
 mod state;
@@ -17,7 +16,7 @@ pub use craft_theme::{FlagMask, Flags, Mix, Resolve, State, StateMix, Stateful, 
 pub use cx::{StyleCx, VariantParts};
 pub use key::{EnvKey, Ink, StyleKey};
 pub use look::{ComponentStyle, Corners, DataColor, FocusLook, IconLook, StyleColor, SurfaceKind, SurfaceLook, TextLook};
-pub use metrics::{Insets, Metrics};
+pub use craft_behavior::{ControlMetrics, Insets, Metrics};
 pub use paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook};
 pub use replacements::{DuplicateStyle, StyleReplacements};
 pub use state::StateSet;

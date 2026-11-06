@@ -242,31 +242,6 @@ pub fn resolve_mapped<O: Copy>(shapes: &[Shape<O>], point: Pos2, what: ResolveFo
         .map(|(index, shape)| Winner { index, owner: shape.owner, part: shape.part, sense: shape.sense, local: shape.local })
 }
 
-/// What a press does to key focus, by the winning shape's sense (8.3).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum PressFocus {
-    /// Key focus moves to the shape's component, and to the part when it is focusable.
-    Take,
-    /// Focus and any draft stay.
-    Keep,
-    /// The control acts without moving key focus; a focused text part commits its draft.
-    Pass,
-}
-
-impl PressFocus {
-    /// The class of a press won by a shape with `sense`.
-    pub const fn of(sense: Sense) -> PressFocus {
-        if sense.contains(Sense::TAKE_FOCUS) {
-            PressFocus::Take
-        } else if sense.contains(Sense::KEEP_FOCUS) {
-            PressFocus::Keep
-        } else {
-            PressFocus::Pass
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -342,12 +317,5 @@ mod tests {
         let triangle = HitShape::Polygon(vec![pos2(0.0, 0.0), pos2(100.0, 0.0), pos2(0.0, 100.0)]);
         assert!(triangle.hit(pos2(20.0, 20.0)));
         assert!(!triangle.hit(pos2(80.0, 80.0)));
-    }
-
-    #[test]
-    fn press_focus_classes_take_before_keep() {
-        assert_eq!(PressFocus::of(Sense::CLICK | Sense::TAKE_FOCUS | Sense::KEEP_FOCUS), PressFocus::Take);
-        assert_eq!(PressFocus::of(Sense::CLICK | Sense::KEEP_FOCUS), PressFocus::Keep);
-        assert_eq!(PressFocus::of(Sense::CLICK), PressFocus::Pass);
     }
 }
