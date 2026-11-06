@@ -705,7 +705,7 @@ fn readout_badge(ui: &Ui, cx: &Context<'_>, plot: Rect, readout: ScopeReadout) {
     painter.rect_stroke(
         badge,
         radius,
-        Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), tokens.component.field.border.rest.to_egui()),
+        Stroke::new(craft_theme::Stroke::W1.width(ui.pixels_per_point()), tokens.color.line.control_edge.to_egui()),
         StrokeKind::Inside,
     );
     let text_at = badge.center() - galley.size() / 2.0;

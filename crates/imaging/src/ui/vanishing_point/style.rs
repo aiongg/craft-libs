@@ -4,37 +4,50 @@ use egui::Color32;
 
 use craft_ui::theme::{ToEgui, UiTokens};
 
-/// The planes' and the stamp's look: the `vanishing_point` family, the same at every Size.
+/// The grid lines' width.
+const GRID_STROKE: f32 = 0.75;
+/// The grid lines' alpha.
+const GRID_ALPHA: f32 = 0.6;
+/// The source cross's arm length.
+const SOURCE_ARM: f32 = 7.0;
+/// How far from a node's centre a press reaches, in points.
+const PRESS_REACH: f32 = 8.0;
+/// The click-versus-drag distance of a torn plane's far edge node, in document pixels.
+const CLICK_SLOP: f32 = 2.0;
+/// The pasted image's white tint alpha.
+const PASTE_ALPHA: f32 = 0.9;
+
+/// The planes' and the stamp's look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct VanishingPointStyle {
-    /// Outline: `vanishing_point.line` (1.25); selected `.line_selected` (2).
+    /// Outline: `stroke.thin`; selected `stroke.thick`.
     pub line: f32,
     #[allow(missing_docs)]
     pub line_selected: f32,
-    /// Grid lines: `.grid` (0.75) at `.grid_alpha` (0.6).
+    /// Grid lines: 0.75 at an alpha of 0.6.
     pub grid: f32,
     #[allow(missing_docs)]
     pub grid_alpha: f32,
-    /// Node squares: `.node` (7), white fill, outline in the plane's colour at `line`.
+    /// Node squares: `size.handle.sm / 2 + stroke.thin`, white fill, outline in the plane's colour at `line`.
     pub node: f32,
-    /// Create Plane's pending corners: `.pending` (6).
+    /// Create Plane's pending corners: `size.handle.sm / 2 + stroke.thin`.
     pub pending: f32,
-    /// The halo under lines, the ring and the cross: `.halo` (black at alpha 160), `.halo_width`
-    /// (2.5).
+    /// The halo under lines, the ring and the cross: `surface.panel`, the line's width plus a
+    /// `stroke.thin` on each side.
     pub halo: Color32,
     #[allow(missing_docs)]
     pub halo_width: f32,
-    /// The source cross's arms: `.source_arm` (7).
+    /// The source cross's arms: 7.
     pub source_arm: f32,
-    /// The white line of the ring and the cross: `.ring_line` (1).
+    /// The white line of the ring and the cross: `stroke.thin`.
     pub ring_line: f32,
-    /// How far from a node's centre a press reaches, in points: `.press_reach` (8).
+    /// How far from a node's centre a press reaches, in points: 8.
     pub press_reach: f32,
     /// The click-versus-drag distance of a torn plane's far edge node, in document pixels:
-    /// `.click_slop` (2).
+    /// 2.
     pub click_slop: f32,
-    /// The pasted image's white tint alpha: `.paste_alpha` (230 of 255).
+    /// The pasted image's white tint alpha: 0.9.
     pub paste_alpha: f32,
     /// The node squares' fill.
     pub node_fill: Color32,
@@ -48,23 +61,22 @@ pub struct VanishingPointStyle {
 
 impl VanishingPointStyle {
     pub(crate) fn of(tokens: &UiTokens) -> VanishingPointStyle {
-        // pc: crates/ui-egui/src/dialogs/vp_ui.rs:1091-1135 (widths, alpha, nodes), :1148-1187
-        // (the stamp ring and cross with the 2.5 pt black alpha-160 halo).
-        let v = &tokens.component.vanishing_point;
+        let stroke = &tokens.stroke;
+        let node = tokens.size.handle.sm / 2.0 + stroke.thin;
         VanishingPointStyle {
-            line: v.line,
-            line_selected: v.line_selected,
-            grid: v.grid,
-            grid_alpha: v.grid_alpha,
-            node: v.node,
-            pending: v.pending,
-            halo: v.halo.to_egui(),
-            halo_width: v.halo_width,
-            source_arm: v.source_arm,
-            ring_line: v.ring_line,
-            press_reach: v.press_reach,
-            click_slop: v.click_slop,
-            paste_alpha: v.paste_alpha,
+            line: stroke.thin,
+            line_selected: stroke.thick,
+            grid: GRID_STROKE,
+            grid_alpha: GRID_ALPHA,
+            node,
+            pending: node,
+            halo: tokens.color.surface.panel.to_egui(),
+            halo_width: stroke.thin + 2.0 * stroke.thin,
+            source_arm: SOURCE_ARM,
+            ring_line: stroke.thin,
+            press_reach: PRESS_REACH,
+            click_slop: CLICK_SLOP,
+            paste_alpha: PASTE_ALPHA,
             node_fill: Color32::WHITE,
             valid: tokens.color.accent.solid.to_egui(),
             questionable: tokens.color.status.warn.fg.to_egui(),

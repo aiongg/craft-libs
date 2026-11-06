@@ -101,20 +101,20 @@ impl ConstraintTool {
 
 /// [`ConstraintTool`] as the `CanvasTool` of one pass (A).
 ///
-/// - A drag draws a constraint from the press to the pointer (a 2 pt line in `wide_angle.drawing` while it
+/// - A drag draws a constraint from the press to the pointer (a 2 pt line in `accent.soft` while it
 ///   runs); on release it is added when longer than 6 screen points
 ///   ([`WideAngleConstraint::from_drag`](super::WideAngleConstraint::from_drag) with Shift at
 ///   the release).
 /// - A secondary click opens the menu for the constraint whose curve passes nearest the click
-///   within `wide_angle.hit` (10 points): `menu_for` is set; elsewhere nothing.
+///   within 10 points: `menu_for` is set; elsewhere nothing.
 /// - Keyboard parts: each constraint is a part ("Constraint 2, Horizontal"); Page picks, arrows
 ///   move it one document pixel (Shift ten) while the parts group has the keyboard
 ///   (`ToolContext::parts_focused`) and do nothing otherwise, as `WideAngleConstraintEdit::Move`, Delete and
 ///   Backspace delete it.
 /// - Paint: each constraint as its curve ([`WideAngleGeometry::arc`], 24 segments; through
-///   [`WideAngleGeometry::corrected`] over the corrected preview), `wide_angle.line` (2) in the
+///   [`WideAngleGeometry::corrected`] over the corrected preview), `stroke.thick` in the
 ///   orientation's colour (accent, `status.warn.fg`, `status.bad.fg`) over the `.halo`, with end
-///   dots of `wide_angle.end` (3.5).
+///   dots of `size.handle.sm / 2 + stroke.thin`.
 pub struct ConstraintToolPass<'a> {
     tool: &'a mut ConstraintTool,
     session: &'a WideAngleSession,
@@ -158,7 +158,7 @@ impl ConstraintToolPass<'_> {
         mapped.unwrap_or(arc).into_iter().map(|q| Point::new(q.x / self.scale[0], q.y / self.scale[1])).collect()
     }
 
-    /// The constraint whose curve passes nearest `at` (screen) within `wide_angle.hit`.
+    /// The constraint whose curve passes nearest `at` (screen) within 10 points.
     fn nearest(&self, cx: &ToolContext<'_>, at: Pos2) -> Option<usize> {
         // pc: crates/ui-egui/src/dialogs/wide_angle_ui.rs:310-322 (nearest vertex of the 24-segment
         // arc; here the nearest point of the drawn segments, so a click between vertices hits).

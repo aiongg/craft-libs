@@ -32,14 +32,14 @@ words! {
 /// An open Puppet Warp's pins over the warped picture (drawn by the transform preview under the
 /// guides), and the mesh lines when Show Mesh is on.
 ///
-/// Pointer (strict `<` on `transform.hit` as the box):
+/// Pointer (strict `<` on the hit reach as the box):
 /// - A click on the mesh away from pins places a pin at the rest position under it
 ///   ([`PinMeshView::rest_of`]), selects it, and the drag that follows moves it: one step. A click
 ///   off the mesh does nothing.
 /// - A press on a pin selects it and drags it; Shift-click adds it to the selection or takes it
 ///   out; dragging a selected pin moves every selected pin.
 /// - ⌥-click on a pin deletes it (one step).
-/// - ⌥-drag within `transform.pin_turn` of a selected pin, not on it, turns it: the pin's turn at
+/// - ⌥-drag within the turn radius of a selected pin, not on it, turns it: the pin's turn at
 ///   the press (its fixed rotation, or an Auto pin's turn in the deformed mesh,
 ///   [`PinMeshView::turn_at`]) changes by the angle the pointer sweeps about the pin, and the
 ///   result is its fixed rotation, which it keeps (Photoshop; VectorCraft).
@@ -121,7 +121,7 @@ impl<'a> PinWarp<'a> {
     pub fn show(self, ui: &mut Ui, canvas: &Response, view: &CanvasView, mesh: PinMeshView<'_>) -> PinWarpResponse {
         // pc: crates/ui-egui/src/tools/puppet_ui.rs:293 (`pointer`), :365 (`draw`), :154
         // (`pin_at`); crates/ui-egui/src/dialogs/distort_ui.rs:409 (`tolerance`, 8, replaced by
-        // `transform.hit` 12).
+        // the hit reach 12).
         let ctx = ui.ctx().clone();
         let tokens = Tokens::of(ui);
         let style = PinWarp::style(&tokens);

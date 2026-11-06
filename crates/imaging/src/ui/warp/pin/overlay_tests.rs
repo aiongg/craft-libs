@@ -197,12 +197,12 @@ fn shift_click_toggles_the_selection_and_a_drag_moves_every_selected_pin() {
     assert_eq!(selected(&h), vec![2]);
 }
 
-// ⌥-drag within `transform.pin_turn` of a selected pin, not on it, reports the pin with its angle
+// ⌥-drag within the turn radius of a selected pin, not on it, reports the pin with its angle
 // set to the drag's angle.
 #[test]
 fn alt_drag_near_a_selected_pin_turns_it_and_fixes_its_rotation() {
     let mut h = harness(vec![pin(200.0, 150.0)], vec![0]);
-    let turn = craft_ui::theme::current(&h.ctx).component.transform.pin_turn;
+    let turn = craft_ui::style::transform::TransformStyle::new(&craft_ui::theme::current(&h.ctx)).pin_turn;
     drag(&mut h, (200.0 + f64::from(turn) - 2.0, 150.0), (200.0, 190.0), Modifiers::ALT);
     let turned = h.state().session.pins()[0];
     assert!((turned.angle.expect("fixed") - 90.0).abs() < 1e-9, "{:?}", turned.angle);

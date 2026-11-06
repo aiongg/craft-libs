@@ -366,7 +366,7 @@ impl VanishingPointEditor {
 }
 
 /// [`VanishingPointEditor`] as the `CanvasTool` of one pass. Node presses reach
-/// `vanishing_point.press_reach` screen points from a node's centre; the selected plane's nodes
+/// 8 screen points from a node's centre; the selected plane's nodes
 /// win.
 ///
 /// - **Create Plane**: four clicks in any order make a plane ([`VanishingScene::normalized`]),
@@ -861,7 +861,7 @@ impl CanvasTool for VanishingPointPass<'_> {
         }
         let labels = self.words(cx);
         let corners = [&labels.top_left, &labels.top_right, &labels.bottom_right, &labels.bottom_left];
-        let size = cx.tokens.component.handle.hit;
+        let size = cx.tokens.size.hit.target;
         let parts = self
             .session
             .planes

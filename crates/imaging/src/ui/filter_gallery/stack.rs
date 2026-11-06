@@ -27,7 +27,7 @@ pub struct EffectStackResponse {
     pub change: Option<EffectChange>,
 }
 
-/// The stack (lead call 39): a library `List` `filter_gallery.stack_height` high, top row last
+/// The stack (lead call 39): a library `List` of `FilterGalleryStyle::stack_height`, top row last
 /// applied (so the rows show `effects` in reverse), each row with an eye column
 /// (`ToggleColumn::eye`) and the filter's name; the selected row is the list's selection. Under it
 /// a `PanelFooter` with Move up and Move down at the reading start and New effect layer and Delete

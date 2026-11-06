@@ -103,30 +103,38 @@ craft_ui::words! {
     }
 }
 
+/// The editor's narrowest width, in control heights.
+const MIN_WIDTH_ROWS: f32 = 5.0;
+/// The editor's widest width, in control heights.
+const MAX_WIDTH_ROWS: f32 = 12.5;
+/// The histogram's height, in control heights.
+const HISTOGRAM_ROWS: f32 = 4.6;
+/// The output bar's thickness, as a share of the row height.
+const BAR_SHARE: f32 = 0.7;
+
 /// A levels editor's sizes and colours, from [`LevelsEditor::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct LevelsStyle {
-    /// The width range the editor takes of the available width: `levels.min_width`,
-    /// `levels.max_width`.
+    /// The width range the editor takes of the available width: 5 to 12.5 control heights.
     pub min_width: f32,
     #[allow(missing_docs)]
     pub max_width: f32,
-    /// Height of a row of thumbs: `levels.row`.
+    /// Height of a row of thumbs: `size.control.sm`.
     pub row: f32,
-    /// A triangle thumb: `levels.thumb_width` × `levels.thumb_height`.
+    /// A triangle thumb: `size.handle.md` plus half `size.handle.sm`, by `size.handle.md`.
     pub thumb_width: f32,
     #[allow(missing_docs)]
     pub thumb_height: f32,
-    /// Distance from a thumb's centre within which a press grabs it: `levels.hit`.
+    /// Distance from a thumb's centre within which a press grabs it: `size.hit.target`.
     pub hit: f32,
-    /// Height of the output bar: `levels.bar`.
+    /// Height of the output bar: 0.7 of the row.
     pub bar: f32,
-    /// A thumb's edge, and a disabled one's: `levels.thumb_edge`, `levels.disabled_edge`.
+    /// A thumb's edge, and a disabled one's: `text.muted`, `text.disabled`.
     pub thumb_edge: Color32,
     #[allow(missing_docs)]
     pub disabled_edge: Color32,
-    /// The ring round a hovered or pressed thumb: `levels.ring`, `slider.ring_width` wide.
+    /// The ring round a hovered or pressed thumb: `accent.soft`, `stroke.thick` wide.
     pub ring: States<Color32>,
     #[allow(missing_docs)]
     pub ring_width: f32,
@@ -426,8 +434,7 @@ impl<'a> LevelsEditor<'a> {
         self
     }
 
-    /// The editor's width; by default the available width within `levels.min_width ..=
-    /// levels.max_width`.
+    /// The editor's width; by default the available width within 5 to 12.5 control heights.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -467,19 +474,21 @@ impl<'a> LevelsEditor<'a> {
 
     /// The editor's sizes and colours from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> LevelsStyle {
-        let l = &tokens.component.levels;
+        let c = &tokens.color;
+        let (clear, soft) = (Color32::TRANSPARENT, c.accent.soft.to_egui());
+        let k = tokens.size.control.md;
         LevelsStyle {
-            min_width: l.min_width,
-            max_width: l.max_width,
-            row: l.row,
-            thumb_width: l.thumb_width,
-            thumb_height: l.thumb_height,
-            hit: l.hit,
-            bar: l.bar,
-            thumb_edge: l.thumb_edge.to_egui(),
-            disabled_edge: l.disabled_edge.to_egui(),
-            ring: l.ring.to_egui(),
-            ring_width: tokens.component.slider.ring_width,
+            min_width: k * MIN_WIDTH_ROWS,
+            max_width: k * MAX_WIDTH_ROWS,
+            row: tokens.size.control.sm,
+            thumb_width: tokens.size.handle.md + tokens.size.handle.sm / 2.0,
+            thumb_height: tokens.size.handle.md,
+            hit: tokens.size.hit.target,
+            bar: tokens.size.control.sm * BAR_SHARE,
+            thumb_edge: c.text.muted.to_egui(),
+            disabled_edge: c.text.disabled.to_egui(),
+            ring: States::new(clear, soft, soft, clear),
+            ring_width: tokens.stroke.thick,
             caption_role: TypeRole::Caption,
             field_gap: tokens.space.gap.inline,
         }
@@ -574,7 +583,7 @@ impl<'a> LevelsEditor<'a> {
         }
         // The histogram touches the input row, and the bar the output row.
         ui.spacing_mut().item_spacing.y = 0.0;
-        let (plot, _) = ui.allocate_exact_size(vec2(width, tokens.component.levels.histogram), Sense::hover());
+        let (plot, _) = ui.allocate_exact_size(vec2(width, tokens.size.control.md * HISTOGRAM_ROWS), Sense::hover());
         let plot = plot.shrink2(vec2(rows.inset(), 0.0));
         let mut histogram = Histogram::new("histogram", self.labels.histogram.as_str()).height(plot.height()).bordered(true).stale(self.stale);
         if let Some(data) = self.histogram {
@@ -690,7 +699,7 @@ struct FieldStrip {
 
 impl FieldStrip {
     fn new(ui: &mut Ui, width: f32, gap: f32) -> Self {
-        let height = NumberField::style(&Tokens::of(ui), ControlSize::Md).field.height;
+        let height = Tokens::of(ui).size.control.md;
         let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
         Self { rect, gap }
     }

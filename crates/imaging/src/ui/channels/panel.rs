@@ -42,8 +42,7 @@ use super::style::ChannelsStyle;
 ///   [`PanelFooter`](craft_ui::composites::PanelFooter); a [`List`](craft_ui::list::List) of
 ///   `ListRow`s in the layer form (`rows::channel_row`), every row one height
 ///   (`ListRowStyle::height` of the thumbnail side). The thumbnail side is
-///   [`thumbnail_size`](Self::thumbnail_size)'s, else `channels.thumb` (28 at Compact, 30 at
-///   Comfortable).
+///   [`thumbnail_size`](Self::thumbnail_size)'s, else `size.thumb.md`.
 /// - **Selection**: the list shows the rows the app marks `targeted` as selected (several while
 ///   the composite is targeted), so it runs in Multiple mode over a selection rebuilt from the
 ///   rows each pass; its own changes are not kept. A click (Shift or not) reports
@@ -117,7 +116,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
 
     /// The user's Panel Options thumbnail size (Photoshop's; PhotoCraft sets none): `Small`,
     /// `Medium` and `Large` use `list.thumb.*`, `None` hides the thumbnails. Without it the side is
-    /// `channels.thumb`.
+    /// `size.thumb.md`.
     pub fn thumbnail_size(mut self, size: ThumbSize) -> Self {
         self.thumbnail_size = Some(size);
         self
@@ -137,10 +136,9 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> ChannelsPanel<'a,
         self
     }
 
-    /// The panel's style from `tokens`: the `channels` family.
+    /// The panel's style from `tokens`: a thumbnail of `size.thumb.md` and an ink swatch of `size.icon.sm`.
     pub fn style(tokens: &UiTokens) -> ChannelsStyle {
-        let channels = &tokens.component.channels;
-        ChannelsStyle { thumb: channels.thumb, spot_swatch: channels.spot_swatch }
+        ChannelsStyle { thumb: tokens.size.thumb.md, spot_swatch: tokens.size.icon.sm }
     }
 
     /// Draws the panel over the available rect.
@@ -276,10 +274,9 @@ fn list_events<K: Clone + PartialEq>(ui: &Ui, rows: &[ChannelRow<K>], events: &[
     out
 }
 
-/// The thumbnail side for `size` (`None`: the style's `channels.thumb`): `list.thumb.*` for
+/// The thumbnail side for `size` (`None`: the style's `size.thumb.md`): `list.thumb.*` for
 /// `Small`, `Medium` and `Large`, 0 for `ThumbSize::None`, the points of `Px`.
 pub(super) fn thumb_side(size: Option<ThumbSize>, style: &ChannelsStyle, row_style: &ListRowStyle) -> f32 {
-    // pc: crates/ui-egui/src/panels/channels_panel.rs:375 (28 Pro, 30 Studio: `channels.thumb`).
     size.map_or(style.thumb, |size| row_style.thumb_side(size))
 }
 
