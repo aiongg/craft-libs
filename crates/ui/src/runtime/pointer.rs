@@ -3,13 +3,14 @@
 //! The begin hook converts the pass's pointer input once. The sensing core in `primitives` runs the press
 //! lifecycle over it and writes the shapes it registers into the record the focus service reads.
 
-use crate::runtime::egui::{areas, input, pass};
+use crate::runtime::egui::areas::{self, Layer};
+use crate::runtime::egui::{input, pass};
 use crate::runtime::frame::{PerViewport, Stamped};
 use craft_behavior::{
-    Buttons, MultiTouch, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner, count_clicks, resolve,
+    Buttons, Mods, MultiTouch, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner,
+    count_clicks, resolve,
 };
-use craft_keymap::Mods;
-use egui::{Context, Id, LayerId, Pos2, Vec2};
+use egui::{Context, Id, Pos2, Vec2};
 use std::collections::HashMap;
 
 /// The least hit size across, in points.
@@ -87,8 +88,8 @@ struct Memory {
 
 #[derive(Default)]
 struct Shapes {
-    this: HashMap<LayerId, Vec<Shape<Id>>>,
-    last: HashMap<LayerId, Vec<Shape<Id>>>,
+    this: HashMap<Layer, Vec<Shape<Id>>>,
+    last: HashMap<Layer, Vec<Shape<Id>>>,
 }
 
 /// The begin hook (H5): converts the pass's pointer input.
@@ -101,7 +102,7 @@ pub(crate) fn begin(ctx: &Context) {
     let (events, targets) = PerViewport::<Memory>::with(ctx, viewport, |memory| {
         let mut events = read.events.clone();
         for event in &mut events {
-            if let PointerEvent::Pressed { pos, time, clicks } = event {
+            if let PointerEvent::Pressed { pos, time, clicks, .. } = event {
                 *clicks = count_clicks(memory.last_press, *pos, *time, read.slop);
                 memory.last_press = Some((*pos, *time, *clicks));
             }
@@ -112,7 +113,7 @@ pub(crate) fn begin(ctx: &Context) {
         (events, memory.press_targets)
     });
     let press = events.iter().rev().find_map(|event| match event {
-        PointerEvent::Pressed { pos, time, clicks } => Some(PressStart::new(*pos, PointerButton::Primary, *time, *clicks)),
+        PointerEvent::Pressed { pos, time, clicks, .. } => Some(PressStart::new(*pos, PointerButton::Primary, *time, *clicks)),
         _ => None,
     });
     let release = events.iter().any(|event| matches!(event, PointerEvent::Released { .. })).then_some(PointerButton::Primary);
@@ -133,7 +134,14 @@ pub(crate) fn begin(ctx: &Context) {
         slop: read.slop,
         target: HIT_TARGET,
     };
-    let pass_pointer = PassPointer { frame: Some(frame), events, hover: read.hover, primary_down: read.primary_down, press_targets: targets, focus_lost: read.focus_lost };
+    let pass_pointer = PassPointer {
+        frame: Some(frame),
+        events,
+        hover: read.hover,
+        primary_down: read.primary_down,
+        press_targets: targets,
+        focus_lost: read.focus_lost,
+    };
     PerViewport::<Stamped<PassPointer>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| *record = pass_pointer);
     PerViewport::<Shapes>::with(ctx, viewport, |shapes| shapes.last = std::mem::take(&mut shapes.this));
 }
@@ -165,6 +173,7 @@ pub fn frame(ctx: &Context) -> PointerFrame {
     })
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2d"))]
 /// Ends every captured press of the running viewport at its next lifecycle run in this pass (Escape, a part
 /// turning disabled). The next begin hook ends egui's own drag so hover reaches other widgets again.
 pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
@@ -182,11 +191,12 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
 }
 
 /// Writes `shapes` into the running pass's shape record under `layer`.
-pub(crate) fn record_shapes(ctx: &Context, layer: LayerId, shapes: impl IntoIterator<Item = Shape<Id>>) {
+pub(crate) fn record_shapes(ctx: &Context, layer: Layer, shapes: impl IntoIterator<Item = Shape<Id>>) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().extend(shapes));
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2d"))]
 /// The winner of a press at `at` among last pass's shapes on the topmost layer under it: what the focus
 /// service classifies the press by (8.3, H7). Shapes of transformed bodies lie on their own layers.
 pub(crate) fn press_winner(ctx: &Context, at: Pos2) -> Option<Winner<Id>> {
@@ -194,5 +204,5 @@ pub(crate) fn press_winner(ctx: &Context, at: Pos2) -> Option<Winner<Id>> {
     let viewport = pass::current_viewport(ctx);
     let shapes = PerViewport::<Shapes>::with(ctx, viewport, |record| record.last.get(&layer).cloned())?;
     let map = areas::layer_map(ctx, layer);
-    resolve(&shapes, map.map_or(at, |map| map.from_screen(at)), ResolveFor::Press)
+    resolve(&shapes, map.map_or(at, |map| map.to_layer(at)), ResolveFor::Press)
 }

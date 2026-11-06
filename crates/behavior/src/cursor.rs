@@ -84,11 +84,13 @@ pub enum PaintedCursor {
     /// A crosshair.
     Crosshair,
     /// A circle of `radius` points.
+    #[non_exhaustive]
     Circle {
         /// The radius.
         radius: f32,
     },
     /// App shapes, as closed rings around the pointer.
+    #[non_exhaustive]
     Outline {
         /// The rings.
         rings: Vec<Vec<Pos2>>,
@@ -96,11 +98,13 @@ pub enum PaintedCursor {
     /// An open hand.
     Hand,
     /// A magnifier.
+    #[non_exhaustive]
     Zoom {
         /// Zooming out.
         out: bool,
     },
     /// A tool's icon.
+    #[non_exhaustive]
     Tool {
         /// The icon.
         icon: IconId,
@@ -110,6 +114,7 @@ pub enum PaintedCursor {
         badge: Option<CursorBadge>,
     },
     /// A system cursor with a mark.
+    #[non_exhaustive]
     Badged {
         /// The system cursor.
         base: CursorIcon,

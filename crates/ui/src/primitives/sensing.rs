@@ -7,22 +7,24 @@
 
 #![cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 
-use crate::runtime::egui::areas::{self, LayerMap};
-use crate::runtime::egui::response::{self, MemberView};
+use crate::runtime::egui::areas::{self, Layer, LayerMap};
 use crate::runtime::egui::pass;
+use crate::runtime::egui::response::{self, MemberView};
 use crate::runtime::env::ArenaId;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
 use craft_behavior::{
-    CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PressMachine, PressPhase, PressState, ResolveFor, Sense, Shape, resolve_mapped,
+    CursorIcon, HitLevel, HitPriority, HitShape, PartKey, PartRef, PassInput, PressMachine, PressPhase, PressState, ResolveFor, Sense, Shape,
+    resolve_mapped,
 };
-use egui::{Context, Id, LayerId, Pos2, Rect, Response, Ui};
+use egui::{Context, Id, Pos2, Rect, Response, Ui};
 use std::collections::HashMap;
 
 /// Value flags a part carries into its state (`SELECTED`, `LEAD`, ...).
 // F2-MERGE: F2b (craft_theme::Flags)
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Flags(pub u32);
 
 /// A part's results this pass.
@@ -73,7 +75,6 @@ pub(crate) struct PartDecl {
     pub sense: Sense,
     pub priority: HitPriority,
     pub cursor: Option<CursorIcon>,
-    pub focusable: bool,
     /// Drawn by `paint_over`: stacks above the body members.
     pub over: bool,
     pub flags: Flags,
@@ -82,7 +83,7 @@ pub(crate) struct PartDecl {
 impl PartDecl {
     /// A part of `key` over `shape` sensing `sense`.
     pub(crate) fn new(key: PartKey, shape: impl Into<HitShape>, sense: Sense) -> Self {
-        PartDecl { key, index: None, shape: shape.into(), sense, priority: HitPriority::BODY, cursor: None, focusable: false, over: false, flags: Flags::default() }
+        PartDecl { key, index: None, shape: shape.into(), sense, priority: HitPriority::BODY, cursor: None, over: false, flags: Flags::default() }
     }
 
     fn part_ref(&self) -> PartRef {
@@ -156,7 +157,7 @@ struct ArenaState {
     /// The senses and bounds of the members that joined this pass and last pass.
     union_sense: Sense,
     previous_union_sense: Sense,
-    layer: Option<LayerId>,
+    layer: Option<Layer>,
     root: Option<RootInfo>,
     /// The egui widgets of the root: the root's, the transform forwarder and the edge widgets.
     widgets: Vec<Id>,
@@ -192,13 +193,19 @@ fn rotate(state: &mut ArenaState, pass_nr: u64) {
 const OVER: u32 = u32::MAX;
 
 fn own_shapes(own: &[PartDecl], root: Id) -> Vec<Shape<Id>> {
-    own.iter().map(|part| Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, if part.over { OVER } else { 0 })).collect()
+    own.iter()
+        .map(|part| Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, if part.over { OVER } else { 0 }))
+        .collect()
 }
 
 fn member_shapes(member: &MemberDecl, position: u32) -> Vec<Shape<Id>> {
     let local = member.local;
-    let root = (!member.sense.is_empty()).then(|| Shape::new(member.rect.into(), member.sense, member.id, None, HitPriority::BODY, position).local(local));
-    let parts = member.parts.iter().map(|part| Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(local));
+    let root =
+        (!member.sense.is_empty()).then(|| Shape::new(member.rect.into(), member.sense, member.id, None, HitPriority::BODY, position).local(local));
+    let parts = member
+        .parts
+        .iter()
+        .map(|part| Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(local));
     root.into_iter().chain(parts).collect()
 }
 
@@ -214,7 +221,7 @@ fn candidates(state: &ArenaState) -> Vec<Shape<Id>> {
 
 /// Joins `decl` to `arena`: a member registers its root shape and parts at its show-order position.
 /// Returns whether its shapes lie in the arena's body layer.
-pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: LayerId, mut decl: MemberDecl) -> bool {
+pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: MemberDecl) -> bool {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     let (local, shapes) = with_arena(ctx, arena, pass_nr, |state| {
         rotate(state, pass_nr);
@@ -233,11 +240,10 @@ pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: LayerId, mut decl: Memb
 }
 
 /// Records the transformed body's egui layer.
-pub(crate) fn set_layer(ctx: &Context, arena: ArenaId, layer: LayerId) {
+pub(crate) fn set_layer(ctx: &Context, arena: ArenaId, layer: Layer) {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     with_arena(ctx, arena, pass_nr, |state| state.layer = Some(layer));
 }
-
 
 /// What a root registers and reads at step 8.
 pub(crate) struct RootSpec<'a> {
@@ -251,7 +257,6 @@ pub(crate) struct RootSpec<'a> {
 /// What a root reads back: the response, the lifecycle outcome and the owner's own results.
 pub(crate) struct RootResult {
     pub response: Response,
-    pub outcome: Outcome,
     pub parts: PartResults,
     pub press: PressState,
     /// The root's own shapes won a click.
@@ -306,7 +311,6 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     };
     RootResult {
         response,
-        outcome,
         parts: part_results(ctx, arena, spec.id, spec.own),
         press: shape_press(ctx, arena, spec.id),
         activation,
@@ -355,7 +359,7 @@ fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>
         dragged: phase.is_some_and(|phase| phase.is_drag()),
         drag_stopped: matches!(phase, Some(PressPhase::Release { click: false, .. })),
         clicked: outcome.activated.is_some_and(|hit| hit.owner == id),
-        pointer: pointer_pos.map(|at| if local { outcome.xf.map_or(at, |map| map.from_screen(at)) } else { at }),
+        pointer: pointer_pos.map(|at| if local { outcome.xf.map_or(at, |map| map.to_layer(at)) } else { at }),
     }
 }
 
@@ -363,14 +367,14 @@ fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>
 /// the root's own background when the root senses a press.
 fn resolve_in(state: &ArenaState, xf: Option<LayerMap>, point: Pos2, kind: ResolveFor) -> Option<Hit> {
     let shapes = candidates(state);
-    let won = resolve_mapped(&shapes, point, kind, |p| xf.map_or(p, |map| map.from_screen(p)));
+    let won = resolve_mapped(&shapes, point, kind, |p| xf.map_or(p, |map| map.to_layer(p)));
     won.map(|winner| Hit { owner: winner.owner, part: winner.part, sense: winner.sense, local: winner.local })
 }
 
 /// Runs the press lifecycle for this pass, once: later calls in the pass return the same outcome. A repeated
 /// pass has no events, so phases hold and a release, click or activation does not repeat. `union_sense` is
 /// what the root's egui widgets sense.
-fn outcome(ctx: &Context, arena: ArenaId, layer: LayerId, enabled: bool, union_sense: Sense) -> Outcome {
+fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sense: Sense) -> Outcome {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     let done = with_arena(ctx, arena, pass_nr, |state| state.outcome.filter(|outcome| outcome.pass == pass_nr));
     if let Some(outcome) = done {
@@ -399,7 +403,12 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: LayerId, enabled: bool, union_s
                 return None;
             }
             let hit = resolve_in(state, xf, at, ResolveFor::Press).or_else(|| {
-                (root.rect.contains(at) && root.own_sense.takes_press()).then_some(Hit { owner: root.id, part: None, sense: root.own_sense, local: false })
+                (root.rect.contains(at) && root.own_sense.takes_press()).then_some(Hit {
+                    owner: root.id,
+                    part: None,
+                    sense: root.own_sense,
+                    local: false,
+                })
             });
             hit.map(|hit| (hit, hit.sense))
         });
@@ -433,7 +442,7 @@ pub(crate) fn read_outcome(ctx: &Context, arena: ArenaId) -> Outcome {
 /// A phase in the owner's space: a member of a transformed body reads positions in the body layer.
 fn in_owner_space(phase: PressPhase, target: &Hit, xf: Option<LayerMap>) -> PressPhase {
     match xf {
-        Some(map) if target.local => phase.mapped(|at| map.from_screen(at), |delta| map.delta_from_screen(delta)),
+        Some(map) if target.local => phase.mapped(|at| map.to_layer(at), |delta| map.delta_to_layer(delta)),
         _ => phase,
     }
 }

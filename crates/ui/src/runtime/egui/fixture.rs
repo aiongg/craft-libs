@@ -57,7 +57,13 @@ pub(crate) fn click_target(ctx: &Context) -> Option<egui::Id> {
 
 /// A wheel event at the pointer, `dy` points of vertical scroll.
 pub(crate) fn wheel_event(dy: f32) -> Event {
-    Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::Vec2::new(0.0, dy), phase: egui::TouchPhase::Move, modifiers: Modifiers::NONE, source: egui::MouseWheelSource::Wheel }
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+        source: egui::MouseWheelSource::Wheel,
+    }
 }
 
 /// The primary button going down or up at `pos`.

@@ -16,4 +16,3 @@ emath = { version = "0.37", default-features = false }
 accesskit = "0.25"
 smallvec = "1"
 bitflags = "2"
-craft-keymap = { workspace = true }

@@ -69,3 +69,9 @@ pub fn drag(frames: &mut Frames, from: Pos2, by: Vec2, show: &mut impl FnMut(&mu
     frames.frame(vec![release(from + by)], &mut *show);
     frames.frame(vec![], &mut *show);
 }
+
+/// Asks the pointer service to end every captured press in the running pass, as Escape does. Call it from the
+/// frame closure before the roots show.
+pub fn cancel_captured_presses(ctx: &egui::Context) {
+    crate::runtime::pointer::cancel_press(ctx, craft_behavior::PressCancel::Escape);
+}

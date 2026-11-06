@@ -194,6 +194,7 @@ impl<O> Shape<O> {
 
 /// What a resolution is for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ResolveFor {
     /// A press: only shapes that sense a click or a drag take part, as in egui.
     Press,
@@ -300,7 +301,10 @@ mod tests {
         assert_eq!(owner(&level), Some(1));
         let sub = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 3), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 1)];
         assert_eq!(owner(&sub), Some(1));
-        let near = [shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(rect(40.0, 40.0, 20.0, 20.0), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
+        let near = [
+            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0),
+            shape(rect(40.0, 40.0, 20.0, 20.0), Sense::CLICK, 2, 0, HitLevel::Body, 0),
+        ];
         assert_eq!(owner(&near), Some(2));
         let tie = [shape(big(), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(big(), Sense::CLICK, 2, 0, HitLevel::Body, 0)];
         assert_eq!(owner(&tie), Some(2));
@@ -308,7 +312,10 @@ mod tests {
 
     #[test]
     fn a_hover_only_shape_never_wins_or_hides_a_press() {
-        let shapes = [shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0), shape(rect(0.0, 0.0, 100.0, 100.0), Sense::HOVER, 2, 1, HitLevel::Body, 0)];
+        let shapes = [
+            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::CLICK, 1, 0, HitLevel::Body, 0),
+            shape(rect(0.0, 0.0, 100.0, 100.0), Sense::HOVER, 2, 1, HitLevel::Body, 0),
+        ];
         let at = pos2(10.0, 10.0);
         assert_eq!(resolve(&shapes, at, ResolveFor::Press).map(|w| w.owner), Some(1));
         assert_eq!(resolve(&shapes, at, ResolveFor::Hover).map(|w| w.owner), Some(2));
@@ -318,7 +325,7 @@ mod tests {
     fn local_shapes_are_tested_at_the_mapped_point() {
         let local = shape(rect(0.0, 0.0, 10.0, 10.0), Sense::CLICK, 1, 1, HitLevel::Body, 0).local(true);
         let to_local = |p: Pos2| pos2(p.x / 2.0, p.y / 2.0);
-        assert!(resolve_mapped(&[local.clone()], pos2(15.0, 15.0), ResolveFor::Press, to_local).is_some());
+        assert!(resolve_mapped(std::slice::from_ref(&local), pos2(15.0, 15.0), ResolveFor::Press, to_local).is_some());
         assert!(resolve_mapped(&[local], pos2(25.0, 25.0), ResolveFor::Press, to_local).is_none());
     }
 

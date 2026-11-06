@@ -8,7 +8,9 @@ use crate::runtime::egui::{fixture, response};
 use crate::runtime::env::ArenaId;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
-use craft_behavior::{CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressFocus, PressPhase, PressState, Sense};
+use craft_behavior::{
+    CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressFocus, PressPhase, PressState, Sense,
+};
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
 
@@ -104,7 +106,18 @@ pub struct ProbeRoot {
 impl ProbeRoot {
     /// A root named `name` over `rect` sensing `sense`.
     pub fn new(name: &'static str, rect: Rect, sense: Sense) -> Self {
-        ProbeRoot { name, rect, sense, parts: Vec::new(), members: Vec::new(), arena: false, transform: None, blocker: None, enabled: true, cursor: None }
+        ProbeRoot {
+            name,
+            rect,
+            sense,
+            parts: Vec::new(),
+            members: Vec::new(),
+            arena: false,
+            transform: None,
+            blocker: None,
+            enabled: true,
+            cursor: None,
+        }
     }
 
     /// Adds an own part.
@@ -232,7 +245,14 @@ impl RootReport {
 fn parts_report(decls: &[PartDecl], results: &std::collections::HashMap<(PartKey, Option<u64>), PartResult>) -> Vec<PartReport> {
     decls
         .iter()
-        .filter_map(|decl| results.get(&(decl.key, decl.index)).map(|result| PartReport { key: decl.key, index: decl.index, press: result.press, hovered: result.hovered }))
+        .filter_map(|decl| {
+            results.get(&(decl.key, decl.index)).map(|result| PartReport {
+                key: decl.key,
+                index: decl.index,
+                press: result.press,
+                hovered: result.hovered,
+            })
+        })
         .collect()
 }
 
@@ -252,7 +272,8 @@ fn show_members(ui: &mut Ui, arena: ArenaId, root: &ProbeRoot, ctx: &Context) ->
         .map(|member| {
             let decls = member_decls(&member.parts);
             let id = id_of(member.name);
-            let result = sensing::sense_member(ui, arena, MemberSpec { id, rect: member.rect, sense: member.sense, parts: &decls, enabled: root.enabled });
+            let result =
+                sensing::sense_member(ui, arena, MemberSpec { id, rect: member.rect, sense: member.sense, parts: &decls, enabled: root.enabled });
             request_cursor(ctx, &decls, &result.parts);
             SenseReport {
                 id,
@@ -353,4 +374,3 @@ pub fn press_focus(ctx: &Context, at: Pos2) -> Option<PressFocus> {
 pub fn cover(ctx: &Context, size: Vec2) {
     areas::show_cover(ctx, "probe_cover", |ui| fixture::allocate_blocker(ui, size));
 }
-

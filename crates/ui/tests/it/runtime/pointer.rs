@@ -110,7 +110,11 @@ fn member_on_canvas(transform: Option<CanvasTransform>) {
         assert_eq!(log.activated_members(0), 1, "the root's activated member named the member once");
     }
     if transform.is_some() {
-        assert_eq!(egui_click_target(&frames.ctx), Some(ProbeRoot::transform_widget("canvas")), "egui's click target is the forwarding widget on the body layer");
+        assert_eq!(
+            egui_click_target(&frames.ctx),
+            Some(ProbeRoot::transform_widget("canvas")),
+            "egui's click target is the forwarding widget on the body layer"
+        );
     }
 
     // A click has no duration limit: a press held for two seconds still activates once.
@@ -152,7 +156,11 @@ fn member_on_zoomed_canvas_click_and_slop_drag() {
 
 /// Skeleton: `frames_pointer::interactive_container_activates_on_its_background_only`.
 fn card(arena: bool) {
-    let root = ProbeRoot::new("card", rect(100.0, 100.0, 400.0, 300.0), Sense::CLICK | Sense::FOCUS).member(ProbeMember::new("child", rect(120.0, 120.0, 100.0, 30.0), Sense::CLICK | Sense::FOCUS));
+    let root = ProbeRoot::new("card", rect(100.0, 100.0, 400.0, 300.0), Sense::CLICK | Sense::FOCUS).member(ProbeMember::new(
+        "child",
+        rect(120.0, 120.0, 100.0, 30.0),
+        Sense::CLICK | Sense::FOCUS,
+    ));
     let root = if arena { root.arena() } else { root };
     let (mut show_frame, log) = scene(vec![root]);
     let mut frames = Frames::new();
@@ -193,7 +201,11 @@ fn tap_on_canvas(transform: Option<CanvasTransform>, gone: bool) {
     frames.idle(1, &mut show_frame);
     let phases = log.borrow().root_phases(0, Some(BACKGROUND));
     // The input hook splits a one-frame tap over two passes, so the one lifecycle shows Down then Release.
-    assert_eq!(phases.iter().filter(|phase| matches!(phase, PressPhase::Down { .. })).count(), 1, "one tap, one press lifecycle on the tool: {phases:?}");
+    assert_eq!(
+        phases.iter().filter(|phase| matches!(phase, PressPhase::Down { .. })).count(),
+        1,
+        "one tap, one press lifecycle on the tool: {phases:?}"
+    );
     assert!(matches!(phases.last(), Some(PressPhase::Release { .. })), "{phases:?}");
     assert_eq!(log.borrow().member_clicks(0, "tool"), 1, "the member saw nothing more");
     assert_eq!(log.borrow().activated_members(0), 1);
@@ -213,7 +225,8 @@ fn touchpad_tap_activates_one_component() {
 fn drag_from_a_member_part_reaches_the_part_and_not_the_member() {
     let node = rect(140.0, 140.0, 140.0, 50.0);
     let graph = ProbeRoot::new("graph", rect(100.0, 100.0, 600.0, 400.0), Sense::CLICK | Sense::DRAG | Sense::FOCUS).arena().member(
-        ProbeMember::new("node", node, Sense::CLICK | Sense::DRAG).part(ProbePart::new(PORT, rect(134.0, 144.0, 12.0, 12.0), Sense::DRAG).level(HitLevel::Handle, 0)),
+        ProbeMember::new("node", node, Sense::CLICK | Sense::DRAG)
+            .part(ProbePart::new(PORT, rect(134.0, 144.0, 12.0, 12.0), Sense::DRAG).level(HitLevel::Handle, 0)),
     );
     let (mut show_frame, log) = scene(vec![graph]);
     let mut frames = Frames::new();
@@ -235,9 +248,13 @@ fn drag_from_a_member_part_reaches_the_part_and_not_the_member() {
 /// Skeleton: `frames_pointer::drag_from_list_row_part_toggles_nothing`.
 #[trial]
 fn a_click_only_part_clicks_and_a_dragged_press_on_it_does_nothing() {
-    let list = ProbeRoot::new("list", rect(100.0, 100.0, 400.0, 200.0), Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::TAKE_FOCUS).arena().member(
-        ProbeMember::new("row", rect(100.0, 100.0, 400.0, 24.0), Sense::CLICK | Sense::DRAG).part(ProbePart::new(EYE, rect(480.0, 102.0, 20.0, 20.0), Sense::CLICK)),
-    );
+    let list = ProbeRoot::new("list", rect(100.0, 100.0, 400.0, 200.0), Sense::CLICK | Sense::DRAG | Sense::FOCUS | Sense::TAKE_FOCUS)
+        .arena()
+        .member(ProbeMember::new("row", rect(100.0, 100.0, 400.0, 24.0), Sense::CLICK | Sense::DRAG).part(ProbePart::new(
+            EYE,
+            rect(480.0, 102.0, 20.0, 20.0),
+            Sense::CLICK,
+        )));
     let (mut show_frame, log) = scene(vec![list]);
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
@@ -251,7 +268,10 @@ fn a_click_only_part_clicks_and_a_dragged_press_on_it_does_nothing() {
     log.borrow_mut().clear();
     drag(&mut frames, eye, Vec2::new(0.0, 40.0), &mut show_frame);
     let phases = log.borrow().member_phases(0, "row", Some(EYE));
-    assert!(phases.iter().all(|phase| !phase.is_click() && !phase.is_drag()), "a press on a click-only part that moves away neither clicks nor drags: {phases:?}");
+    assert!(
+        phases.iter().all(|phase| !phase.is_click() && !phase.is_drag()),
+        "a press on a click-only part that moves away neither clicks nor drags: {phases:?}"
+    );
     assert!(log.borrow().member_phases(0, "row", None).is_empty(), "the row starts no drag from its part");
 }
 
@@ -260,9 +280,10 @@ fn a_click_only_part_clicks_and_a_dragged_press_on_it_does_nothing() {
 fn a_press_beside_an_edge_part_outside_the_root_reaches_the_widget_below() {
     let below = ProbeRoot::new("below", rect(100.0, 100.0, 400.0, 60.0), Sense::CLICK | Sense::FOCUS);
     let root_rect = rect(200.0, 100.0, 200.0, 60.0);
-    let root = ProbeRoot::new("root", root_rect, Sense::CLICK | Sense::FOCUS)
-        .arena()
-        .part(ProbePart::new(EDGE, Rect::from_center_size(Pos2::new(root_rect.right(), root_rect.center().y), Vec2::new(6.0, 20.0)), Sense::DRAG).level(HitLevel::Edge, 0));
+    let root = ProbeRoot::new("root", root_rect, Sense::CLICK | Sense::FOCUS).arena().part(
+        ProbePart::new(EDGE, Rect::from_center_size(Pos2::new(root_rect.right(), root_rect.center().y), Vec2::new(6.0, 20.0)), Sense::DRAG)
+            .level(HitLevel::Edge, 0),
+    );
     let (mut show_frame, log) = scene(vec![below, root]);
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
@@ -289,7 +310,10 @@ fn a_canvas_control_with_an_empty_root_sense_leaves_the_tool_its_press() {
     let canvas = ProbeRoot::new("canvas", area, Sense::empty())
         .arena()
         .part(ProbePart::new(BACKGROUND, area, Sense::DRAG).level(HitLevel::Background, 0))
-        .member(ProbeMember::new("crop", area, Sense::empty()).part(ProbePart::new(CORNER, rect(154.0, 154.0, 12.0, 12.0), Sense::DRAG).level(HitLevel::Handle, 0)));
+        .member(
+            ProbeMember::new("crop", area, Sense::empty())
+                .part(ProbePart::new(CORNER, rect(154.0, 154.0, 12.0, 12.0), Sense::DRAG).level(HitLevel::Handle, 0)),
+        );
     let (mut show_frame, log) = scene(vec![canvas]);
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
@@ -327,6 +351,35 @@ fn a_window_blur_cancels_a_captured_press_once() {
     let cancels = phases.iter().filter(|phase| matches!(phase, PressPhase::Cancel { reason: PressCancel::FocusLost, .. })).count();
     assert_eq!(cancels, 1, "one cancel: {phases:?}");
     assert!(!phases.iter().any(|phase| matches!(phase, PressPhase::Release { .. })), "no release after the cancel: {phases:?}");
+}
+
+/// Escape, through the pointer service, ends a captured press the same way.
+#[trial]
+fn a_requested_cancel_ends_a_captured_press() {
+    let area = rect(100.0, 100.0, 400.0, 300.0);
+    let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, Sense::DRAG));
+    let (mut show_frame, log) = scene(vec![canvas]);
+    let cancelling = std::cell::Cell::new(false);
+    let mut with_cancel = |ui: &mut Ui| {
+        if cancelling.get() {
+            pointer::cancel_captured_presses(ui.ctx());
+        }
+        show_frame(ui);
+    };
+    let mut frames = Frames::new();
+    settle(&mut frames, &mut with_cancel);
+    log.borrow_mut().clear();
+    let from = Pos2::new(200.0, 200.0);
+    frames.frame(vec![pointer::moved(from)], &mut with_cancel);
+    frames.frame(vec![pointer::press(from)], &mut with_cancel);
+    frames.frame(vec![pointer::moved(from + Vec2::new(30.0, 0.0))], &mut with_cancel);
+    cancelling.set(true);
+    frames.idle(1, &mut with_cancel);
+    cancelling.set(false);
+    frames.idle(1, &mut with_cancel);
+    let phases = log.borrow().root_phases(0, Some(BACKGROUND));
+    let cancels = phases.iter().filter(|phase| matches!(phase, PressPhase::Cancel { reason: PressCancel::Escape, .. })).count();
+    assert_eq!(cancels, 1, "one cancel: {phases:?}");
 }
 
 /// An egui layer over the pointer takes the hover: the arena's part under it reads idle.

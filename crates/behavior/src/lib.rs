@@ -10,6 +10,7 @@ pub mod eviction;
 pub mod hit;
 pub mod item_layout;
 pub mod layout_memory;
+pub mod mods;
 pub mod motion;
 pub mod nav;
 pub mod one_press;
@@ -22,16 +23,20 @@ pub mod value;
 pub mod wheel;
 
 pub use canvas::CanvasTransform;
-pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
+pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use hit::{HitLevel, HitPriority, HitShape, PressFocus, ResolveFor, Shape, Winner, resolve, resolve_mapped};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
+pub use mods::Mods;
 pub use motion::MotionMode;
 pub use nav::NavShape;
 pub use part::{PartKey, PartRef};
-pub use press::{Buttons, count_clicks, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart, PressState, PressStep};
+pub use press::{
+    Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
+    PressState, PressStep, count_clicks,
+};
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use sense::Sense;
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
+pub use sense::Sense;
 pub use value::Value;
 pub use wheel::{Wheel, WheelPhase, WheelTaker, WheelUnit};

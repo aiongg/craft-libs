@@ -26,7 +26,6 @@ testing-gpu = ["testing", "egui_kittest/wgpu"]
 
 [dependencies]
 craft-behavior = { workspace = true }
-craft-keymap = { workspace = true }
 craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 egui = { workspace = true }

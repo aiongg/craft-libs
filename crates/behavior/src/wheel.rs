@@ -28,7 +28,7 @@ pub enum WheelPhase {
     Cancel,
 }
 
-use craft_keymap::Mods;
+use crate::mods::Mods;
 use emath::{Pos2, Rect, Vec2};
 
 /// One wheel event, or the sum of one pass's, as a taker reads it with `take_wheel`.

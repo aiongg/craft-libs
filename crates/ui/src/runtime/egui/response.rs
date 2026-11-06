@@ -87,7 +87,13 @@ fn member_on(ctx: &egui::Context, layer_id: LayerId, clip: Rect, id: Id, rect: R
 pub(crate) fn keep_press_flags(response: &mut Response, own: bool) {
     if !own {
         response.flags.remove(
-            Flags::CLICKED | Flags::FAKE_PRIMARY_CLICKED | Flags::LONG_TOUCHED | Flags::DRAG_STARTED | Flags::DRAGGED | Flags::DRAG_STOPPED | Flags::IS_POINTER_BUTTON_DOWN_ON,
+            Flags::CLICKED
+                | Flags::FAKE_PRIMARY_CLICKED
+                | Flags::LONG_TOUCHED
+                | Flags::DRAG_STARTED
+                | Flags::DRAGGED
+                | Flags::DRAG_STOPPED
+                | Flags::IS_POINTER_BUTTON_DOWN_ON,
         );
     }
 }

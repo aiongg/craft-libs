@@ -1,9 +1,9 @@
 //! Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime converts egui's events once per
 //! pass and feeds them to a [`PressMachine`].
 
+use crate::mods::Mods;
 use crate::sense::Sense;
 use bitflags::bitflags;
-use craft_keymap::Mods;
 use emath::{Pos2, Vec2};
 
 /// A pointer button.
@@ -308,6 +308,7 @@ pub enum PointerEvent {
     /// The pointer moved.
     Moved(Pos2),
     /// The primary button went down.
+    #[non_exhaustive]
     Pressed {
         /// Where.
         pos: Pos2,
@@ -317,10 +318,23 @@ pub enum PointerEvent {
         clicks: u32,
     },
     /// The primary button went up.
+    #[non_exhaustive]
     Released {
         /// Where.
         pos: Pos2,
     },
+}
+
+impl PointerEvent {
+    /// The primary button going down at `pos`, `time`, as the `clicks`th press in a row.
+    pub const fn pressed(pos: Pos2, time: f64, clicks: u32) -> Self {
+        PointerEvent::Pressed { pos, time, clicks }
+    }
+
+    /// The primary button going up at `pos`.
+    pub const fn released(pos: Pos2) -> Self {
+        PointerEvent::Released { pos }
+    }
 }
 
 /// What the machine reads of one pass.

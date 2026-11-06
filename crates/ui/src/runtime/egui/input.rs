@@ -1,8 +1,7 @@
 //! Raw input in the input hook, key events converted to craft-keymap's key types, `InputOptions`.
 
 use craft_behavior::one_press::split_after_first_press;
-use craft_behavior::{PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
-use craft_keymap::Mods;
+use craft_behavior::{Mods, PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
 use egui::{Context, Event, Id, Modifiers, MouseWheelUnit, Pos2, TouchPhase, Vec2, ViewportId};
 
 pub use egui::RawInput;
@@ -60,7 +59,7 @@ pub(crate) fn stop_dragging(ctx: &Context) {
 /// distinct from it (macOS).
 pub(crate) fn mods_of(modifiers: Modifiers) -> Mods {
     let ctrl_is_command = modifiers.command && !modifiers.mac_cmd;
-    Mods { cmd: modifiers.command, ctrl: modifiers.ctrl && !ctrl_is_command, alt: modifiers.alt, shift: modifiers.shift }
+    Mods::new(modifiers.command, modifiers.ctrl && !ctrl_is_command, modifiers.alt, modifiers.shift)
 }
 
 /// What the running pass's pointer input says, converted once.
@@ -89,8 +88,6 @@ pub(crate) struct PointerRead {
     pub zoom: f32,
     /// The two-finger gesture: translation, zoom, rotation and centre.
     pub multi_touch: Option<(Vec2, f32, f32, Pos2)>,
-    /// The press position egui holds for the pass's primary press.
-    pub press_origin: Option<Pos2>,
     /// egui's longest movement that still makes a click.
     pub slop: f32,
 }
@@ -107,10 +104,10 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             match event {
                 Event::PointerMoved(pos) => events.push(PointerEvent::Moved(*pos)),
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
-                    events.push(PointerEvent::Pressed { pos: *pos, time: input.time, clicks: 1 });
+                    events.push(PointerEvent::pressed(*pos, input.time, 1));
                 }
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, .. } => {
-                    events.push(PointerEvent::Released { pos: *pos });
+                    events.push(PointerEvent::released(*pos));
                 }
                 Event::WindowFocused(false) => focus_lost = true,
                 Event::Touch { phase, force, .. } => {
@@ -137,7 +134,6 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             focus_lost,
             zoom: input.zoom_delta(),
             multi_touch,
-            press_origin: input.pointer.press_origin(),
             slop,
         }
     })
@@ -173,9 +169,4 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
         }
         read
     })
-}
-
-/// Where the pointer hovers, wherever the viewport is.
-pub(crate) fn hover_pos(ctx: &Context) -> Option<Pos2> {
-    ctx.pointer_hover_pos()
 }
