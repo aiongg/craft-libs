@@ -369,12 +369,12 @@ fn shapes(h: &Harness<'_, Host>) -> Vec<Shape> {
 /// The end points of the dashes of the rubber band: the dashed segments are 1 pt wide.
 fn rubber_end(h: &Harness<'_, Host>) -> Option<Pos2> {
     let tokens = craft_ui::theme::current(&h.ctx);
-    let width = tokens.component.bezier.line;
+    let width = tokens.stroke.thin;
     shapes(h)
         .iter()
         .filter_map(|s| match s {
             Shape::LineSegment { points, stroke }
-                if stroke.width == width && (points[1] - points[0]).length() <= tokens.component.bezier.rubber_dash + 0.01 =>
+                if stroke.width == width && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 =>
             {
                 Some(points[1])
             }
@@ -416,7 +416,7 @@ fn over_the_first_anchor_the_close_cue_shows() {
     let first = screen(&h, doc(60.0, 60.0));
     move_to(&mut h, first + vec2(2.0, 2.0), Modifiers::NONE);
     let tokens = craft_ui::theme::current(&h.ctx);
-    let b = tokens.component.bezier;
+    let b = craft_ui::style::bezier::BezierStyle::new(&tokens);
     let ring = shapes(&h).into_iter().find_map(|s| match s {
         Shape::Circle(c) if c.fill == egui::Color32::TRANSPARENT && c.stroke.width > 0.0 => Some(c),
         _ => None,

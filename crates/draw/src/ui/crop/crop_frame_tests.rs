@@ -8,6 +8,7 @@ use kurbo::{Point, Rect, Vec2};
 
 use super::geometry::{Hit, drawn, handle_part, hit, resized, resized_turned, turn, turned_angle, within};
 use super::{CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropReadout, turn_toward};
+use super::super::style::{CROP, CROP_GUIDE};
 use crate::ui::CropGuide;
 use craft_ui::canvas::quad::BoxPart;
 use craft_ui::canvas::{CanvasView, RulerUnits, ToolKey};
@@ -1122,7 +1123,7 @@ fn paint_gesture_takes_the_labels_and_units_as_values() {
 }
 
 #[test]
-fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
+fn the_style_is_the_semantic_tokens_and_a_halo_shows_in_high_contrast_only() {
     let tokens = |contrast| {
         let appearance = Appearance { mode: Mode::Dark, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
         let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap().clone();
@@ -1130,10 +1131,9 @@ fn the_style_is_the_crop_tokens_and_a_halo_shows_in_high_contrast_only() {
     };
     let normal = CropFrame::style(&tokens(Contrast::Standard));
     let t = tokens(Contrast::Standard);
-    let (c, o) = (&t.component.crop, &t.color.overlay);
-    assert_eq!((normal.frame.width, normal.frame.color), (c.line, o.crop.to_egui()));
-    assert_eq!((normal.guide.width, normal.guide.color), (c.guide_line, o.crop_guide.to_egui()));
-    assert_eq!((normal.bracket.width, normal.hit, normal.bracket_arm), (c.bracket, c.hit, c.bracket_arm));
+    assert_eq!((normal.frame.width, normal.frame.color), (t.stroke.thin, CROP.to_egui()));
+    assert_eq!((normal.guide.width, normal.guide.color), (t.stroke.thin, CROP_GUIDE.to_egui()));
+    assert_eq!((normal.bracket.width, normal.hit, normal.bracket_arm), (t.stroke.thick, t.size.hit.target, t.size.icon.sm));
     assert_eq!(normal.halo.width, 0.0);
     let high = CropFrame::style(&tokens(Contrast::High));
     assert!(high.halo.width > high.bracket.width);

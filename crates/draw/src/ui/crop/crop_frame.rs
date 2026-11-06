@@ -3,7 +3,8 @@
 use egui::{Color32, Context, CursorIcon, Event, Id, IdSalt, Key, Mesh, Modifiers, Painter, Pos2, Response, Shape, Stroke, Ui, pos2};
 use kurbo::{Point, Rect, Vec2};
 
-use super::crop_guides::CropGuide;
+use super::crop_guides::{CropGuide, GRID_MAX, GRID_STEP};
+use super::style::{CROP, CROP_GUIDE};
 use crate::ui::transform::transform_box::{fixed, key_part, part_key, pos};
 use craft_ui::behavior::nudge::{self, NudgeKeys};
 use craft_ui::canvas::claim::PrimaryPress;
@@ -23,6 +24,11 @@ mod straighten;
 
 pub use geometry::{CropBox, hit_rect};
 use geometry::{Hit, direction, drawn, handle_part, hit, normalized_angle, part_handle, resized_turned, turn, turned_angle, within};
+
+/// Divisor of a side giving an edge bar's length.
+const BAR_SHARE: f32 = 4.0;
+/// The shortest Straighten line, in screen points.
+const STRAIGHTEN_MIN: f32 = 3.0;
 
 /// The AccessKit names of a frame and its parts. `Default` is English; a host passes its own
 /// translated text, or [`CropNames::of`] for the words installed in the context.
@@ -137,36 +143,36 @@ impl CropLabels {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CropStyle {
-    /// The frame line: `crop.line` of `overlay.crop`, bare.
+    /// The frame line, bare.
     pub frame: Stroke,
-    /// A composition guide line: `crop.guide_line` of `overlay.crop_guide`, bare.
+    /// A composition guide line, bare.
     pub guide: Stroke,
-    /// Corner brackets and edge bars: `crop.bracket` of `overlay.crop`.
+    /// Corner brackets and edge bars.
     pub bracket: Stroke,
-    /// Under the brackets and bars: `overlay.halo`, `handle.halo` wider on each side; no width
+    /// Under the brackets and bars: the handle halo, wider on each side; no width
     /// outside high contrast.
     pub halo: Stroke,
-    /// Reach of the edges and corners in screen points: `crop.hit`.
+    /// Reach of the edges and corners in screen points.
     pub hit: f32,
-    /// Corner bracket arm: `crop.bracket_arm`.
+    /// Corner bracket arm.
     pub bracket_arm: f32,
-    /// Divisor of a side giving an edge bar's length: `crop.bar_share`.
+    /// Divisor of a side giving an edge bar's length.
     pub bar_share: f32,
-    /// The Grid guide's target cell side: `crop.grid_step`.
+    /// The Grid guide's target cell side.
     pub grid_step: f32,
-    /// Most Grid guide lines per axis: `crop.grid_max`.
+    /// Most Grid guide lines per axis.
     pub grid_max: usize,
     /// The focus line round the whole frame: the focus ring's stroke.
     pub focus: Stroke,
-    /// Under it: `overlay.halo`, `handle.halo` wider on each side.
+    /// Under it: `overlay.halo`, wider on each side by the thin stroke.
     pub focus_halo: Stroke,
     /// From the frame line to the focus line: the focus ring's offset.
     pub focus_offset: f32,
-    /// The Straighten line: `crop.straighten_line` of `overlay.stroke`.
+    /// The Straighten line, in `overlay.stroke`.
     pub straighten: Stroke,
-    /// Under the Straighten line: `crop.straighten_halo` of `overlay.halo`.
+    /// Under the Straighten line, in `overlay.halo`.
     pub straighten_halo: Stroke,
-    /// The shortest Straighten line, in screen points: `crop.straighten_min`.
+    /// The shortest Straighten line, in screen points.
     pub straighten_min: f32,
 }
 
@@ -373,7 +379,7 @@ struct Drag {
 ///   ([`CropShield::fill`](super::CropShield::fill)) and the guide to show
 ///   ([`GuideShow::shows`](super::GuideShow::shows)) and passes them in.
 /// - Pointer: the frame takes every press on the canvas that no overlay shown before it took.
-///   The nearest edge or corner within `crop.hit` on screen resizes along the frame's own axes
+///   The nearest edge or corner within `hit` on screen resizes along the frame's own axes
 ///   (⇧ keeps the proportions, ⌥ resizes about the centre); inside moves; outside turns the
 ///   frame about its centre (⇧ in `turn_step` steps). Inside the [default frame](Self::default_frame),
 ///   a drag draws a new frame (⇧ square, ⌥ from the centre, Space moves it while it is drawn).
@@ -512,7 +518,7 @@ impl<'a> CropFrame<'a> {
     /// Straighten is armed (the options bar's button for one line, or ⌘ held; the host reads the
     /// modifiers and resets the one-shot): a drag on the canvas draws a line instead of a frame
     /// gesture, and its release gives [`CropResponse::straightened`] when the line is at least
-    /// `crop.straighten_min` screen points long. The pointer is a crosshair; with a
+    /// a minimum number of screen points long. The pointer is a crosshair; with a
     /// [readout](Self::readout) the line's angle shows beside it.
     pub fn straighten(mut self, armed: bool) -> Self {
         self.straighten = armed;
@@ -569,26 +575,25 @@ impl<'a> CropFrame<'a> {
 
     /// The crop frame's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> CropStyle {
-        let (c, o) = (&tokens.component.crop, &tokens.color.overlay);
+        let (stroke, o) = (&tokens.stroke, &tokens.color.overlay);
         let halo = Handle::style(tokens, HandleShape::Square).halo;
         let ring = FocusRing::style(tokens);
-        let handle_halo = tokens.component.handle.halo;
         CropStyle {
-            frame: Stroke::new(c.line, o.crop.to_egui()),
-            guide: Stroke::new(c.guide_line, o.crop_guide.to_egui()),
-            bracket: Stroke::new(c.bracket, o.crop.to_egui()),
-            halo: Stroke::new(if halo.width > 0.0 { c.bracket + 2.0 * halo.width } else { 0.0 }, halo.color),
-            hit: c.hit,
-            bracket_arm: c.bracket_arm,
-            bar_share: c.bar_share,
-            grid_step: c.grid_step,
-            grid_max: c.grid_max.max(0.0) as usize,
+            frame: Stroke::new(stroke.thin, CROP.to_egui()),
+            guide: Stroke::new(stroke.thin, CROP_GUIDE.to_egui()),
+            bracket: Stroke::new(stroke.thick, CROP.to_egui()),
+            halo: Stroke::new(if halo.width > 0.0 { stroke.thick + 2.0 * halo.width } else { 0.0 }, halo.color),
+            hit: tokens.size.hit.target,
+            bracket_arm: tokens.size.icon.sm,
+            bar_share: BAR_SHARE,
+            grid_step: GRID_STEP,
+            grid_max: GRID_MAX,
             focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * handle_halo, o.halo.to_egui()),
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * stroke.thin, o.halo.to_egui()),
             focus_offset: ring.offset,
-            straighten: Stroke::new(c.straighten_line, o.stroke.to_egui()),
-            straighten_halo: Stroke::new(c.straighten_halo, o.halo.to_egui()),
-            straighten_min: c.straighten_min,
+            straighten: Stroke::new(stroke.thin, o.stroke.to_egui()),
+            straighten_halo: Stroke::new(stroke.medium + 2.0 * stroke.thin, o.halo.to_egui()),
+            straighten_min: STRAIGHTEN_MIN,
         }
     }
 

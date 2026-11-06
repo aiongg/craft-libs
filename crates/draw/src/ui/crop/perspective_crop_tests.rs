@@ -9,7 +9,8 @@ use super::{PerspectiveCropQuad, PerspectiveHit, PerspectiveQuad, english_names,
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use craft_ui::theme::{Base, ToEgui, current, install};
+use super::super::style::{CROP, CROP_INVALID};
+use craft_ui::theme::{Base, ToEgui, install};
 
 /// A valid quad: a skewed page.
 const QUAD: [Point; 4] = [Point::new(100.0, 80.0), Point::new(300.0, 100.0), Point::new(280.0, 220.0), Point::new(120.0, 200.0)];
@@ -373,7 +374,7 @@ fn shapes_of(h: &Harness<'_, Host>, keep: impl Fn(&Shape) -> bool) -> usize {
 }
 
 fn grid_color(h: &Harness<'_, Host>) -> Color32 {
-    current(&h.ctx).color.overlay.crop.to_egui().gamma_multiply(150.0 / 255.0)
+    CROP.to_egui().gamma_multiply(150.0 / 255.0)
 }
 
 #[test]
@@ -381,7 +382,7 @@ fn a_valid_quad_draws_its_grid_and_an_invalid_one_draws_red_without_it() {
     let mut h = harness(Some(QUAD), |_| {});
     h.run();
     let grid = grid_color(&h);
-    let is_grid = move |s: &Shape| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == grid && (stroke.width - 0.75).abs() < 1e-6);
+    let is_grid = move |s: &Shape| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == grid && (stroke.width - 1.0).abs() < 1e-6);
     let n = grid_steps(200.0, 48.0);
     assert!(h.state().committable);
     assert_eq!(shapes_of(&h, is_grid), 2 * (n - 1));
@@ -390,7 +391,7 @@ fn a_valid_quad_draws_its_grid_and_an_invalid_one_draws_red_without_it() {
     assert_eq!(shapes_of(&h, is_grid), 0, "Show Grid off");
 
     let [a, b, c, d] = QUAD;
-    let red = current(&h.ctx).color.overlay.crop_invalid.to_egui();
+    let red = CROP_INVALID.to_egui();
     let is_red =
         move |s: &Shape| matches!(s, Shape::Path(p) if p.stroke.color == ColorMode::Solid(red) && (p.stroke.width.round() - 2.0).abs() <= 1.0);
     let mut h = harness(Some([a, c, b, d]), |_| {});

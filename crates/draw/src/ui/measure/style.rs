@@ -8,16 +8,14 @@ use craft_ui::theme::UiTokens;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MeasureStyle {
-    /// The line and the protractor arm: the line guide's look (`line_guide.width` 1 in
-    /// `overlay.stroke` over `line_guide.halo` 3 in `overlay.halo`), shared with the Shift-click
-    /// line.
+    /// The line and the protractor arm: the line guide's look (`overlay.stroke` over
+    /// `overlay.halo`), shared with the Shift-click line.
     pub line: LineGuideStyle,
-    /// A press within this many screen points of an end grabs it: `measure.hit` (7).
+    /// A press within this many screen points of an end grabs it.
     pub hit: f32,
-    /// Each arm of an end's cross, in screen points: `measure.handle_arm` (5), drawn as the line
-    /// is (halo, then line).
+    /// Each arm of an end's cross, in screen points, drawn as the line is (halo, then line).
     pub handle_arm: f32,
-    /// The gap after each readout in the options bar: `measure.readout_gap` (6).
+    /// The gap after each readout in the options bar.
     pub readout_gap: f32,
 }
 
@@ -27,7 +25,11 @@ impl MeasureStyle {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:210 (7 / zoom), :408 `handle` (5 pt arms,
         // 3 pt black under 1 pt white), :489 `readout` (6 pt gap); the line from
         // `LineGuideStyle::of`.
-        let m = &tokens.component.measure;
-        Self { line: LineGuideStyle::of(tokens), hit: m.hit, handle_arm: m.handle_arm, readout_gap: m.readout_gap }
+        Self {
+            line: LineGuideStyle::of(tokens),
+            hit: tokens.size.hit.target,
+            handle_arm: tokens.size.handle.sm,
+            readout_gap: tokens.space.gap.inline,
+        }
     }
 }

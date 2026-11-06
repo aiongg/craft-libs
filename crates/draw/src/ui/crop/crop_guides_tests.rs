@@ -1,8 +1,6 @@
 use egui::Color32;
 
 use super::*;
-use craft_theme::Mode;
-use craft_ui::theme::{Base, install, tokens_in_mode};
 
 fn all_points(g: &[Polyline]) -> impl Iterator<Item = [f32; 2]> + '_ {
     g.iter().flatten().copied()
@@ -241,16 +239,4 @@ fn older_settings_get_the_defaults() {
     assert_eq!(serde_json::to_value(ShieldColor::MatchCanvas).unwrap(), "matchCanvas");
     assert_eq!(serde_json::to_value(CropGuide::GoldenSpiral).unwrap(), "goldenSpiral");
     assert!(serde_json::from_str::<CropShield>(r#"{"opacity": "high"}"#).is_err());
-}
-
-/// The geometry's defaults are the `crop` family's values.
-#[test]
-fn defaults_follow_the_crop_tokens() {
-    let ctx = egui::Context::default();
-    install(&ctx, &Base::suite_default());
-    let crop = tokens_in_mode(&ctx, Mode::Dark).component.crop;
-    assert_eq!(
-        (crop.grid_step, crop.grid_max, crop.shield_opacity, crop.shield_editing),
-        (GRID_STEP, GRID_MAX as f32, SHIELD_OPACITY, SHIELD_EDITING)
-    );
 }

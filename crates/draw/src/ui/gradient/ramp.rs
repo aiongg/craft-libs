@@ -19,10 +19,10 @@ pub struct GradientRampStyle {
     /// The checkerboard behind translucent parts: `swatch.checker.a` holds the corners,
     /// `swatch.checker.b` the other cells.
     pub checker: [Color32; 2],
-    /// Side of a checkerboard cell, as a swatch's: `swatch.checker_cell`. The ramp rounds it so
+    /// Side of a checkerboard cell, as a swatch's: `checker_cell`. The ramp rounds it so
     /// whole cells fill its height.
     pub cell: f32,
-    /// The one-point edge round a stop bar's ramp: `gradient_editor.edge`.
+    /// The one-point edge round a stop bar's ramp.
     pub edge: Color32,
 }
 
@@ -35,8 +35,12 @@ pub struct GradientRamp;
 impl GradientRamp {
     /// The ramp's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientRampStyle {
-        let (s, g) = (&tokens.component.swatch, &tokens.component.gradient_editor);
-        GradientRampStyle { checker: [s.checker_a.to_egui(), s.checker_b.to_egui()], cell: s.checker_cell, edge: g.edge.to_egui() }
+        let c = &tokens.color;
+        GradientRampStyle {
+            checker: [c.overlay.checker_light.to_egui(), c.overlay.checker_dark.to_egui()],
+            cell: tokens.size.checker,
+            edge: c.line.control_edge.to_egui(),
+        }
     }
 
     /// The colours to draw `stops` with at the locations a mesh needs: the ends, every stop and

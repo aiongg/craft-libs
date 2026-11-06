@@ -14,16 +14,16 @@ const LAYER_MARK: f32 = 0.45;
 /// The slices drawn over the document, shown while a Slice tool is active and, without the tools,
 /// when View › Show › Slices is on and the document has slices (the app draws it itself then).
 ///
-/// - User and layer slices: a `slice.outline` (1 pt) line inside the edge in the slice colour
-///   ([`color`](Self::color), `overlay.slice` by default); the selected slice
-///   `slice.selected_outline` (2 pt) in `overlay.slice_selected`.
-/// - Auto slices (only with [`auto`](Self::auto)): dashed `slice.auto_dash` / `slice.auto_gap`
-///   (3 / 3) at `slice.auto_alpha` (0.7) of the slice colour.
+/// - User and layer slices: a `outline` (1 pt) line inside the edge in the slice colour
+///   ([`color`](Self::color), the slice colour by default); the selected slice
+///   `selected_outline` (2 pt) in the selected slice colour.
+/// - Auto slices (only with [`auto`](Self::auto)): dashed `auto_dash` /
+///   (3 / 3) at `auto_alpha` (0.7) of the slice colour.
 /// - Badges ([`numbers`](Self::numbers)): the number "NN" (two digits, the locale's digits; layer
-///   slices "NN" and a small square) in the caption role on a `slice.badge_radius` rounded rect at
-///   `slice.badge_offset` from the top-left corner, padded `slice.badge_pad`; only on a slice
-///   larger on screen than `slice.badge_min` (18 × 12). Fill: `overlay.slice_auto` (auto),
-///   `overlay.slice_selected` (selected), the slice colour (others); text `overlay.slice_text`.
+///   slices "NN" and a small square) in the caption role on a `badge_radius` rounded rect at
+///   `badge_offset` from the top-left corner, padded `badge_pad`; only on a slice
+///   larger on screen than `badge_min` (18 × 12). Fill: the auto slice colour (auto),
+///   the selected slice colour (selected), the slice colour (others); white text.
 /// - Document geometry never mirrors right to left.
 #[derive(Clone, Copy, Debug)]
 pub struct SliceOverlay<'a> {
@@ -46,7 +46,7 @@ impl<'a> SliceOverlay<'a> {
         self
     }
 
-    /// The slice colour preference; `overlay.slice` when `None`.
+    /// The slice colour preference; the slice colour when `None`.
     pub fn color(mut self, color: Option<Srgba>) -> Self {
         self.color = color;
         self

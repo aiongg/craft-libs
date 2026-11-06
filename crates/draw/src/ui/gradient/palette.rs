@@ -24,6 +24,9 @@ use craft_ui::presets::PresetStyle;
 use craft_ui::primitives::{Content, FocusRing, Gap, Interactive, Text};
 use craft_ui::theme::{Tokens, TokensOf};
 
+/// Rows of the small control height that the area shows before it scrolls.
+const MAX_ROWS: f32 = 5.0;
+
 /// How a [`GradientPalette`] lays its presets out.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PaletteLayout {
@@ -188,7 +191,7 @@ impl<'a> GradientPalette<'a> {
         self
     }
 
-    /// The height past which the area scrolls. Default `gradient_palette.max_height`.
+    /// The height past which the area scrolls. Default: five rows of the small control height.
     pub fn max_height(mut self, height: f32) -> Self {
         self.max_height = Some(height);
         self
@@ -235,7 +238,7 @@ impl<'a> GradientPalette<'a> {
         if list {
             builder = builder.sense(Sense::CLICK | Sense::FOCUSABLE);
         }
-        let max_height = self.max_height.unwrap_or(tokens.component.gradient_palette.max_height);
+        let max_height = self.max_height.unwrap_or(tokens.size.control.sm * MAX_ROWS);
         let inner = ui.scope_builder(builder, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, Gap::Inline.points(&tokens));
             ui.ctx().accesskit_node_builder(id, |node| node.set_size_of_set(total));
@@ -275,10 +278,10 @@ impl<'a> GradientPalette<'a> {
         enabled: bool,
     ) -> Option<usize> {
         let tokens = Tokens::of(ui);
-        let t = tokens.component.gradient_palette;
+        let cell_room = tokens.space.gap.tight;
         let rtl = direction::is_rtl(ui);
         let width = ui.available_width();
-        let slot = vec2(t.cell_width + 2.0 * t.cell_room, t.cell_height + 2.0 * t.cell_room);
+        let slot = vec2(tokens.size.control.md + tokens.size.control.sm + 2.0 * cell_room, tokens.size.control.sm + 2.0 * cell_room);
         let columns = GridNav::columns(width, 0.0, 0.0, slot.x);
         let nav = GridNav::ragged(shown.iter().flat_map(|(_, r)| {
             let n = r.len();
@@ -303,7 +306,7 @@ impl<'a> GradientPalette<'a> {
                 let (row, col) = (k / columns, k % columns);
                 let x = if rtl { area.right() - (col + 1) as f32 * slot.x } else { area.left() + col as f32 * slot.x };
                 let rect = Rect::from_min_size(pos2(x, area.top() + row as f32 * slot.y), slot);
-                let cell = rect.shrink(t.cell_room);
+                let cell = rect.shrink(cell_room);
                 let element = Interactive::with_id(ids[i], Role::Button, entry.name.as_str())
                     .sense(if i == stop { Sense::click() } else { Sense::CLICK })
                     .state_layer(false)
@@ -353,7 +356,6 @@ impl GradientPalette<'_> {
         enabled: bool,
     ) -> Option<usize> {
         let tokens = Tokens::of(ui);
-        let t = tokens.component.gradient_palette;
         let swatch = Swatch::style(&tokens, ControlSize::Md);
         let ramp = GradientRamp::style(&tokens);
         let default = default_sampler(self.rows);
@@ -390,7 +392,7 @@ impl GradientPalette<'_> {
                 let colors = GradientRamp::colors(entry.stops, sampler);
                 let (radius, ppp) = (f32::from(swatch.radius.nw), ui.pixels_per_point());
                 let row = ListRow::new(i, entry.name.as_str())
-                    .thumb_sized(vec2(t.list_swatch_width, t.list_swatch_height), |painter, rect| {
+                    .thumb_sized(vec2(tokens.size.control.md * 2.0, tokens.size.icon.lg), |painter, rect| {
                         GradientRamp::paint_rounded(painter, rect, radius, &colors, &ramp);
                         painter.extend(Swatch::outline(&swatch, rect, false, enabled, ppp));
                     })

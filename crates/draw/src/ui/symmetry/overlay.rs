@@ -9,6 +9,11 @@ use craft_ui::canvas::CanvasView;
 use craft_ui::primitives::{Handle, HandleShape};
 use craft_ui::theme::{ToEgui, UiTokens};
 
+/// Reach of the transform's handles, in screen points.
+const HIT: f32 = 8.0;
+/// Distance of the rotation handle from the centre, as a share of the document's shorter side.
+const HANDLE_SHARE: f32 = 0.35;
+
 /// The guides of a painting symmetry: each axis clipped to the document, a bare line in
 /// `overlay.line`, drawn while a painting tool is picked or the symmetry is being transformed;
 /// while [editing](Self::editing) also the centre anchor and a handle line to the rotation
@@ -36,11 +41,10 @@ impl<'a> SymmetryOverlay<'a> {
     pub fn style(tokens: &UiTokens) -> SymmetryStyle {
         // pc: crates/ui-egui/src/tools/symmetry_ui.rs:280 `draw` (1 pt accent), :111 `cursor` and
         // :233 `pointer` (8 / zoom), :227 `rotation_handle` (0.35).
-        let s = &tokens.component.symmetry;
         SymmetryStyle {
-            line: Stroke::new(s.line, tokens.color.overlay.line.to_egui()),
-            hit: s.hit,
-            handle_share: f64::from(s.handle_share),
+            line: Stroke::new(tokens.stroke.thin, tokens.color.overlay.line.to_egui()),
+            hit: HIT,
+            handle_share: f64::from(HANDLE_SHARE),
             handle: Handle::style(tokens, HandleShape::Square),
         }
     }

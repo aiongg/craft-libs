@@ -48,43 +48,43 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GradientLineStyle {
-    /// The line and the circle and square extents: `gradient_line.line` of `overlay.handle_fill`.
+    /// The line and the circle and square extents: `line` of `overlay.handle_fill`.
     pub line: Stroke,
-    /// The outline each side of those: `gradient_line.halo` of `overlay.halo`.
+    /// The outline each side of those: `halo` of `overlay.halo`.
     pub halo: Stroke,
-    /// Dash and gap of the mirrored extent: `gradient_line.dash`, `gradient_line.gap`.
+    /// Dash and gap of the mirrored extent.
     pub dash: (f32, f32),
-    /// Radius of an end handle's ring: `gradient_line.end_ring`.
+    /// Radius of an end handle's ring.
     pub end_ring: f32,
-    /// An end handle's ring: `gradient_line.end_width` of `overlay.handle_fill`.
+    /// An end handle's ring: `end_width` of `overlay.handle_fill`.
     pub end: Stroke,
-    /// The outline each side of the ring: `gradient_line.end_halo` of `overlay.halo`.
+    /// The outline each side of the ring: `end_halo` of `overlay.halo`.
     pub end_halo: Stroke,
-    /// Radius of a colour stop's disc: `gradient_line.stop`.
+    /// Radius of a colour stop's disc.
     pub stop: f32,
-    /// The ring just outside the disc: `gradient_line.stop_ring` of `overlay.handle_fill`.
+    /// The ring just outside the disc: `stop_ring` of `overlay.handle_fill`.
     pub stop_ring: Stroke,
-    /// The 1 pt ring outside that: `handle.halo` of `overlay.halo`.
+    /// The 1 pt ring outside that: `stroke.thin` of `overlay.halo`.
     pub stop_halo: Stroke,
-    /// Radius of a midpoint's diamond: `gradient_line.diamond`.
+    /// Radius of a midpoint's diamond.
     pub diamond: f32,
     /// A diamond's fill: `overlay.handle_fill`.
     pub diamond_fill: Color32,
-    /// A diamond's outline: `handle.halo` of `overlay.halo`.
+    /// A diamond's outline: `stroke.thin` of `overlay.halo`.
     pub diamond_halo: Stroke,
     /// The selected stop's ring and the selected diamond's fill: `overlay.handle_stroke`.
     pub selected: Color32,
     /// The fill under a stop's colour where the colour has opacity: `overlay.handle_fill`.
     pub backing: Color32,
-    /// Distance from a part within which the pointer takes it: `gradient_line.hit`.
+    /// Distance from a part within which the pointer takes it.
     pub hit: f32,
-    /// Farthest a press may move and still be a click: `gradient_line.click_slop`.
+    /// Farthest a press may move and still be a click.
     pub click_slop: f32,
-    /// Distance from the line past which a dragged stop is torn off: `gradient_line.tear_off`.
+    /// Distance from the line past which a dragged stop is torn off.
     pub tear_off: f32,
     /// The lines beside the picked line and the ring round a picked part: the focus ring's stroke.
     pub focus: Stroke,
-    /// Under each focus line, so it reads on any image: `overlay.halo`, `handle.halo` wider than
+    /// Under each focus line, so it reads on any image: `overlay.halo`, `stroke.thin` wider than
     /// the line on each side.
     pub focus_halo: Stroke,
     /// From the line's edge to the focus lines: the focus ring's offset.
@@ -147,12 +147,12 @@ type Cursor<'a> = Box<dyn Fn(LineCursor) -> CursorIcon + 'a>;
 /// - The overlay senses through the host's canvas response and takes a press on one of its parts
 ///   with [`Claim`], before the host's guides and tool. A press off every part, or
 ///   with ⌘ (Ctrl) held, is the host's.
-/// - Parts within `gradient_line.hit` of the pointer, in this order: the end handle, the start
+/// - Parts within `hit` of the pointer, in this order: the end handle, the start
 ///   handle, the nearest stop, the nearest midpoint, the line.
-/// - A drag begins past `gradient_line.click_slop`. An end follows the pointer (⇧: 45° steps from
+/// - A drag begins past `click_slop`. An end follows the pointer (⇧: 45° steps from
 ///   [`angle_base`](Self::angle_base) about the other end); the line moves both ends; a stop moves
 ///   to the location under the pointer and is torn off (removed while its row is above
-///   `rules.min`) more than `gradient_line.tear_off` from the line; a midpoint moves within its
+///   `rules.min`) more than `tear_off` from the line; a midpoint moves within its
 ///   segment. Alt drags a copy of a stop with [`alt_copies`](Self::alt_copies). Every update is
 ///   the whole edit of the gradient at the press, so a stop torn off and brought back is as it
 ///   was.
@@ -385,29 +385,29 @@ impl<'a> GradientOverlay<'a> {
 
     /// The overlay's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientLineStyle {
-        let (g, o, h) = (&tokens.component.gradient_line, &tokens.color.overlay, &tokens.component.handle);
+        let (o, stroke, size) = (&tokens.color.overlay, &tokens.stroke, &tokens.size);
         let (fill, halo) = (o.handle_fill.to_egui(), o.halo.to_egui());
         let ring = FocusRing::style(tokens);
         GradientLineStyle {
-            line: Stroke::new(g.line, fill),
-            halo: Stroke::new(g.halo, halo),
-            dash: (g.dash, g.gap),
-            end_ring: g.end_ring,
-            end: Stroke::new(g.end_width, fill),
-            end_halo: Stroke::new(g.end_halo, halo),
-            stop: g.stop,
-            stop_ring: Stroke::new(g.stop_ring, fill),
-            stop_halo: Stroke::new(h.halo, halo),
-            diamond: g.diamond,
+            line: Stroke::new(stroke.medium, fill),
+            halo: Stroke::new(stroke.thin, halo),
+            dash: (stroke.dash, stroke.dash_gap),
+            end_ring: size.handle.md,
+            end: Stroke::new(stroke.thick, fill),
+            end_halo: Stroke::new(stroke.thin, halo),
+            stop: size.handle.sm,
+            stop_ring: Stroke::new(stroke.medium, fill),
+            stop_halo: Stroke::new(stroke.thin, halo),
+            diamond: size.handle.sm,
             diamond_fill: fill,
-            diamond_halo: Stroke::new(h.halo, halo),
+            diamond_halo: Stroke::new(stroke.thin, halo),
             selected: o.handle_stroke.to_egui(),
             backing: fill,
-            hit: g.hit,
-            click_slop: g.click_slop,
-            tear_off: g.tear_off,
+            hit: size.hit.target,
+            click_slop: size.hit.slop,
+            tear_off: TEAR_OFF,
             focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * h.halo, halo),
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * stroke.thin, halo),
             focus_offset: ring.offset,
         }
     }
@@ -654,6 +654,8 @@ const CLAIMED: [ClaimedKey; 4] = [
     ClaimedKey::exact(Modifiers::COMMAND, Key::Enter),
 ];
 
+/// Distance in screen points at which a drag tears a stop off the line.
+const TEAR_OFF: f32 = 36.0;
 const SELECTED: &str = "craft_ui::canvas::GradientOverlay::selected";
 
 /// Strokes in the line's style: the halo under, then the line.

@@ -6,6 +6,7 @@ use kurbo::{Point, Vec2};
 
 use crate::ui::transform::transform_box::fixed;
 use craft_ui::behavior::nudge;
+use super::style::{CROP, CROP_INVALID};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::Homography;
 use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits};
@@ -25,6 +26,8 @@ pub type PerspectiveQuad = Option<[Point; 4]>;
 
 /// A grid line's alpha, of 255.
 const GRID_ALPHA: u8 = 150;
+/// The grid's target cell side, in screen points.
+const GRID_STEP: f32 = 48.0;
 /// Fewest and most grid steps along a side.
 const GRID_STEPS: (usize, usize) = (2, 12);
 
@@ -72,7 +75,7 @@ impl Default for PerspectiveCropNames {
 pub struct PerspectiveCropStyle {
     /// The outline of a valid quad: 1.5 pt of `overlay.line`.
     pub outline: Stroke,
-    /// The outline of a quad that cannot be committed: 1.5 pt of `overlay.crop_invalid`.
+    /// The outline of a quad that cannot be committed: the crop invalid colour.
     pub invalid: Stroke,
     /// Side of a corner square in points.
     pub corner: f32,
@@ -80,19 +83,17 @@ pub struct PerspectiveCropStyle {
     pub corner_fill: Color32,
     /// The corner square's edge width; its colour is the outline's.
     pub corner_edge: f32,
-    /// Under the corner square, outside it: `handle.halo` in high contrast, else no width.
+    /// Under the corner square, outside it: `stroke.thin` in high contrast, else no width.
     pub halo: Stroke,
-    /// A perspective grid line: `overlay.crop` at a part of its alpha.
+    /// A perspective grid line: the crop colour at a part of its alpha.
     pub grid: Stroke,
-    /// Reach of a corner in screen points (the default of [`PerspectiveCropQuad::tolerance`]):
-    /// `crop.perspective_reach`.
+    /// Reach of a corner in screen points (the default of [`PerspectiveCropQuad::tolerance`]).
     pub reach: f32,
-    /// Screen points of the longest side per grid step: `crop.perspective_grid_step`.
+    /// Screen points of the longest side per grid step.
     pub grid_step: f32,
-    /// Radius of a placed corner click: `crop.perspective_click_dot`.
+    /// Radius of a placed corner click.
     pub click_dot: f32,
-    /// A press that moves less than this (screen points) is a click: `crop.perspective_click_move`
-    /// scaled by `reach` over `crop.perspective_reach`.
+    /// A press that moves less than this (screen points) is a click, scaled by the corner's reach over the default reach.
     pub click_move: f32,
 }
 
@@ -196,7 +197,7 @@ struct Drag {
 /// - With a quad, the nearest corner within [`tolerance`](Self::tolerance) moves alone, keeping
 ///   the press offset; inside moves the quad; a press elsewhere does nothing.
 /// - A quad that is not convex or is wound differently from its box draws in
-///   `overlay.crop_invalid` without the grid and is not committable.
+///   the crop invalid colour without the grid and is not committable.
 /// - Keys, whenever no text field has focus and no popup is open: Enter applies; Esc cancels a
 ///   drag, ends a held press before its first move, drops the clicks, or with none discards; the
 ///   arrows move the picked corner (1 point, ⇧ 10), or the whole quad while the quad has no
@@ -263,19 +264,19 @@ impl<'a> PerspectiveCropQuad<'a> {
     pub fn style(tokens: &UiTokens) -> PerspectiveCropStyle {
         let o = &tokens.color.overlay;
         let handle = Handle::style(tokens, HandleShape::Square);
-        let c = &tokens.component.crop;
+        let stroke = &tokens.stroke;
         PerspectiveCropStyle {
-            outline: Stroke::new(c.perspective_outline, o.line.to_egui()),
-            invalid: Stroke::new(c.perspective_outline, o.crop_invalid.to_egui()),
-            corner: c.perspective_corner,
+            outline: Stroke::new(stroke.medium, o.line.to_egui()),
+            invalid: Stroke::new(stroke.medium, CROP_INVALID.to_egui()),
+            corner: tokens.size.handle.md,
             corner_fill: handle.fill,
-            corner_edge: c.perspective_corner_edge,
+            corner_edge: stroke.thin,
             halo: handle.halo,
-            grid: Stroke::new(c.perspective_grid_width, o.crop.to_egui().gamma_multiply(f32::from(GRID_ALPHA) / 255.0)),
-            reach: c.perspective_reach,
-            grid_step: c.perspective_grid_step,
-            click_dot: c.perspective_click_dot,
-            click_move: c.perspective_click_move,
+            grid: Stroke::new(stroke.thin, CROP.to_egui().gamma_multiply(f32::from(GRID_ALPHA) / 255.0)),
+            reach: tokens.size.hit.target,
+            grid_step: GRID_STEP,
+            click_dot: tokens.size.handle.sm,
+            click_move: tokens.size.hit.slop,
         }
     }
 

@@ -224,7 +224,7 @@ fn show_drag(ui: &mut Ui, args: &mut DragArgs) {
     }
 
     let tokens = Tokens::of(ui);
-    let stroke = Stroke::new(tokens.component.shape_drag.preview_line, tokens.color.accent.solid.to_egui());
+    let stroke = Stroke::new(tokens.stroke.medium, tokens.color.accent.solid.to_egui());
     let painter = ui.painter_at(canvas.view.rect);
     for geometry in &kept.shapes {
         outline(&painter, &canvas.view, geometry, stroke);

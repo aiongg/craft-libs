@@ -306,8 +306,8 @@ fn curvature_hover_cues_follow_sensing() {
     assert!(!h.state().closes);
 }
 
-/// The two ends of every dash of the preview: the dashed segments are `bezier.line` wide and no
-/// longer than `bezier.rubber_dash`.
+/// The two ends of every dash of the preview: the dashed segments are `line` wide and no
+/// longer than.
 fn dashes(h: &Harness<'_, Host>) -> Vec<Pos2> {
     fn flat(shape: &Shape, out: &mut Vec<Shape>) {
         match shape {
@@ -316,12 +316,11 @@ fn dashes(h: &Harness<'_, Host>) -> Vec<Pos2> {
         }
     }
     let tokens = current(&h.ctx);
-    let b = tokens.component.bezier;
     let mut all = Vec::new();
     h.output().shapes.iter().for_each(|c| flat(&c.shape, &mut all));
     all.iter()
         .filter_map(|s| match s {
-            Shape::LineSegment { points, stroke } if stroke.width == b.line && (points[1] - points[0]).length() <= b.rubber_dash + 0.01 => {
+            Shape::LineSegment { points, stroke } if stroke.width == tokens.stroke.thin && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 => {
                 Some(points.to_vec())
             }
             _ => None,

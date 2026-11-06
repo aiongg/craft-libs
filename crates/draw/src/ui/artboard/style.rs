@@ -12,9 +12,9 @@ use craft_ui::theme::{ToEgui, UiTokens};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ArtboardStyle {
-    /// The drag preview: `artboard.preview_line` (1.5) of `accent.solid`.
+    /// The drag preview, in `accent.solid`.
     pub preview: Stroke,
-    /// A drag shorter than this many screen points draws nothing: `artboard.click_slop` (3).
+    /// A drag shorter than this many screen points draws nothing.
     pub click_slop: f32,
     /// Handle size and reach from the `Handle` painter, `Handle::style(tokens, HandleShape::Square)`
     /// (7 and 14).
@@ -32,12 +32,11 @@ impl ArtboardTool {
     pub fn style(tokens: &UiTokens) -> ArtboardStyle {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:24 `CLICK_PX`, :266 (1.5 pt accent), :284-288
         // (handles 7 × 7 white, 1 pt accent edge).
-        let a = &tokens.component.artboard;
         let accent = tokens.color.accent.solid.to_egui();
         let handle = Handle::style(tokens, HandleShape::Square);
         ArtboardStyle {
-            preview: Stroke::new(a.preview_line, accent),
-            click_slop: a.click_slop,
+            preview: Stroke::new(tokens.stroke.medium, accent),
+            click_slop: tokens.size.hit.slop,
             handle: handle.size,
             handle_hit: handle.hit,
             handle_fill: handle.fill,

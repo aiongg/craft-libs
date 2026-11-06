@@ -140,31 +140,28 @@ craft_ui::words! {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GradientEditorStyle {
-    /// Height of the ramp and its inset at both ends of the bar: `gradient_editor.ramp_height`,
-    /// `gradient_editor.inset`.
+    /// Height of the ramp and its inset at both ends of the bar.
     pub ramp_height: f32,
     /// Inset of the ramp at both ends of the bar.
     pub inset: f32,
-    /// Side of a stop marker's square and height of its pointer: `gradient_editor.marker`,
-    /// `gradient_editor.pointer`.
+    /// Side of a stop marker's square and height of its pointer.
     pub marker: f32,
     /// Height of a stop marker's pointer.
     pub pointer: f32,
-    /// Radius of a midpoint diamond: `gradient_editor.diamond`.
+    /// Radius of a midpoint diamond.
     pub diamond: f32,
-    /// How far from a marker and a diamond a press takes it: `gradient_editor.hit`,
-    /// `gradient_editor.diamond_hit`.
+    /// How far from a marker and a diamond a press takes it.
     pub hit: f32,
     /// How far from a midpoint diamond a press takes it.
     pub diamond_hit: f32,
-    /// How far above or below the ramp a dragged stop is removed: `gradient_editor.tear_off`.
+    /// How far above or below the ramp a dragged stop is removed.
     pub tear_off: f32,
-    /// Width of the line that marks a drop place: `gradient_editor.drop_line`.
+    /// Width of the line that marks a drop place.
     pub drop_line: f32,
-    /// The ramp's checkerboard and its one-point edge (`gradient_editor.edge`).
+    /// The ramp's checkerboard and its one-point edge (`edge`).
     pub ramp: GradientRampStyle,
-    /// Marker outlines, pointers and diamonds: `gradient_editor.marker_edge`; hovered:
-    /// `text.normal`; selected, with the selected diamond's fill: `gradient_editor.selected`.
+    /// Marker outlines, pointers and diamonds: `marker_edge`; hovered:
+    /// `text.normal`; selected, with the selected diamond's fill.
     pub marker_edge: Color32,
     /// The outline of a hovered marker.
     pub hovered: Color32,
@@ -252,6 +249,8 @@ const CLAIMED: [ClaimedKey; 7] = [
 
 /// Stop locations as markers show them, closer than this, have no midpoint diamond between them.
 const MIN_GAP: f32 = 0.001;
+/// The tear-off distance as a multiple of the control height.
+const TEAR_OFF_SHARE: f32 = 1.17;
 
 type Edits = parts::Edits<GradientStops, GradientOp>;
 
@@ -318,7 +317,7 @@ pub struct GradientEditorResponse<T = ()> {
 ///
 /// Pointer: a press on a marker or diamond selects and captures it without a jump; a drag moves
 /// it (stops pass their neighbours and the selection follows) and is one gesture. A stop dragged
-/// more than `gradient_editor.tear_off` above or below the ramp is removed while its row is above
+/// more than `tear_off` above or below the ramp is removed while its row is above
 /// the minimum, and comes back on re-entry within the drag. Alt held at the press drags a copy,
 /// which can't be torn off. A click on empty space adds a stop there (under `Split`, above the
 /// ramp's centre an opacity stop) as one Set; a press and drag on empty space does nothing. A
@@ -435,21 +434,21 @@ impl<'a> GradientEditor<'a> {
 
     /// The stop bar's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GradientEditorStyle {
-        let g = &tokens.component.gradient_editor;
+        let (size, stroke) = (&tokens.size, &tokens.stroke);
         GradientEditorStyle {
-            ramp_height: g.ramp_height,
-            inset: g.inset,
-            marker: g.marker,
-            pointer: g.pointer,
-            diamond: g.diamond,
-            hit: g.hit,
-            diamond_hit: g.diamond_hit,
-            tear_off: g.tear_off,
-            drop_line: g.drop_line,
+            ramp_height: size.control.md,
+            inset: tokens.space.pad.control,
+            marker: size.handle.md,
+            pointer: size.handle.sm / 2.0 + stroke.thin,
+            diamond: size.handle.sm,
+            hit: size.hit.target,
+            diamond_hit: size.hit.target,
+            tear_off: size.control.md * TEAR_OFF_SHARE,
+            drop_line: stroke.thick,
             ramp: GradientRamp::style(tokens),
-            marker_edge: g.marker_edge.to_egui(),
+            marker_edge: tokens.color.text.muted.to_egui(),
             hovered: tokens.color.text.normal.to_egui(),
-            selected: g.selected.to_egui(),
+            selected: tokens.color.accent.solid.to_egui(),
             drop: tokens.color.accent.solid.to_egui(),
         }
     }
@@ -1125,9 +1124,9 @@ impl Geometry {
         ]
     }
 
-    /// The marker under `pos`: off the ramp, a stop within `gradient_editor.hit` across (away
+    /// The marker under `pos`: off the ramp, a stop within `hit` across (away
     /// from the ramp's edge by a diamond's radius), else a midpoint within
-    /// `gradient_editor.diamond_hit`; the nearest, the selected one among equals.
+    /// `diamond_hit`; the nearest, the selected one among equals.
     fn hit(&self, stops: &GradientStops, pos: Pos2, selected: Option<StopRef>) -> Option<StopRef> {
         let s = &self.style;
         let (row, beyond, midpoints) = if pos.y > self.ramp.bottom() {

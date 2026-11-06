@@ -124,7 +124,7 @@ fn status(ui: &mut Ui, text: String) {
 /// Paints `rect` (document units) through `view`: a fill and an outline in the accent.
 fn paint_rect(painter: &Painter, view: &CanvasView, tokens: &UiTokens, rect: Rect, strength: f32) {
     let accent = tokens.color.accent.solid.to_egui();
-    let stroke = Stroke::new(tokens.component.line_guide.width, accent);
+    let stroke = Stroke::new(tokens.stroke.thin, accent);
     painter.add(Shape::convex_polygon(view.quad(rect).to_vec(), accent.gamma_multiply(strength), stroke));
 }
 

@@ -30,6 +30,7 @@ use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::style::bezier::BezierStyle as BezierGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 pub use mode::{PathMode, PathTool, PenMode};
 pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings};
@@ -74,12 +75,11 @@ impl<'a> PenNames<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PenStyle {
-    /// The path so far: `bezier.draft_line` in `overlay.line`.
+    /// The path so far: its width, in `overlay.line`.
     pub draft_line: f32,
     /// The path so far: its colour.
     pub color: Color32,
-    /// The rubber band: `bezier.line` wide, dashes `bezier.rubber_dash` long with
-    /// `bezier.rubber_gap` between, in `overlay.line`.
+    /// The rubber band's width: dashed, in `overlay.line`.
     pub rubber_width: f32,
     /// Dash length of the rubber band.
     pub rubber_dash: f32,
@@ -93,19 +93,17 @@ pub struct PenStyle {
     pub control: HandleStyle,
     /// Width of the line from an anchor to its direction handle.
     pub control_line: f32,
-    /// The first anchor while a press there closes the path: filled, `bezier.close_anchor` wide.
+    /// The first anchor while a press there closes the path: filled, `close_anchor` wide.
     pub close_anchor: HandleStyle,
-    /// The close cue's ring beside the pointer: radius `bezier.close_ring`, `bezier.close_offset`
-    /// across and down from the pointer.
+    /// The close cue's ring beside the pointer: its radius.
     pub close_ring: f32,
     /// Offset of the close cue's ring from the pointer, across and down.
     pub close_offset: f32,
-    /// Distance within which a press takes an anchor, a handle or an open path's end:
-    /// `bezier.hit`.
+    /// Distance within which a press takes an anchor, a handle or an open path's end.
     pub hit: f32,
-    /// Farthest a press may move and still be a click: `bezier.click_slop`.
+    /// Farthest a press may move and still be a click.
     pub click_slop: f32,
-    /// Largest distance between a curve and the lines it is drawn with: `bezier.flatten`.
+    /// Largest distance between a curve and the lines it is drawn with.
     pub flatten: f32,
 }
 
@@ -223,7 +221,7 @@ struct Drag {
 /// - Order: the host shows the pen after its handles and guides, as it is a tool, and after the
 ///   [`BezierOverlay`] whose tool [`PathMode::resolve`] picked (it claims only presses on parts).
 /// - [`PenMode::Curvature`] ([`mode`](Self::mode)): a click adds a smooth anchor the curve flows
-///   through, which follows the pointer while the button is down (past `bezier.click_slop`); a
+///   through, which follows the pointer while the button is down (past `click_slop`); a
 ///   press on the first anchor of 3 or more closes at once; a press on another anchor grabs and
 ///   drags it; the second click of a double-click on an anchor toggles it between smooth and
 ///   corner. Every change reflows the handles ([`EditSubpath::reflow`]). ⇧ and ⌥ do nothing; the
@@ -326,21 +324,22 @@ impl<'a> PenDraft<'a> {
 
     /// The pen draft's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> PenStyle {
-        let b = &tokens.component.bezier;
-        let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));
-        let anchor = sized(Handle::style(tokens, HandleShape::Square), b.anchor);
-        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), b.anchor);
+        let (stroke, size) = (&tokens.stroke, &tokens.size);
+        let b = BezierGeometry::new(tokens);
+        let sized = |style: HandleStyle, side| adjusted(style, |h| (h.size, h.hit) = (side, 2.0 * size.hit.target));
+        let anchor = sized(Handle::style(tokens, HandleShape::Square), size.handle.sm);
+        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), size.handle.sm);
         PenStyle {
-            draft_line: b.draft_line,
+            draft_line: stroke.medium,
             color: tokens.color.overlay.line.to_egui(),
-            rubber_width: b.line,
-            rubber_dash: b.rubber_dash,
-            rubber_gap: b.rubber_gap,
+            rubber_width: stroke.thin,
+            rubber_dash: stroke.dash,
+            rubber_gap: stroke.dash_gap,
             anchor,
             selected_anchor,
-            control: sized(Handle::style(tokens, HandleShape::Rotate), b.control),
-            control_line: b.control_line,
-            close_anchor: adjusted(selected_anchor, |h| h.size = b.close_anchor),
+            control: sized(Handle::style(tokens, HandleShape::Rotate), size.handle.sm),
+            control_line: stroke.thin,
+            close_anchor: adjusted(selected_anchor, |h| h.size = size.handle.md),
             close_ring: b.close_ring,
             close_offset: b.close_offset,
             hit: b.hit,

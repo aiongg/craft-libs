@@ -9,6 +9,7 @@ use craft_ui::direction;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::presets::view::grid_room;
 use craft_ui::presets::{CellShape, PresetBrowser, PresetOutput, PresetReorder, PresetRow, PresetState, PresetView};
+use craft_ui::style::brush::BrushStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Painter, Rect, Ui, Vec2, pos2, vec2};
@@ -35,8 +36,8 @@ pub enum BrushCardPart {
 ///
 /// - Every part: tip top left with its size under it, stroke top right, the name across the
 ///   bottom (a 2 × 2 grid whose bottom row is merged).
-/// - Tip and name: the name moves into the stroke's cell; fixed `brush.card_tip_name` cells.
-/// - Tip alone: fixed `brush.card_tip_only` cells.
+/// - Tip and name: the name moves into the stroke's cell; fixed `card_tip_name` cells.
+/// - Tip alone: fixed `card_tip_only` cells.
 /// - Tip off: no tip cell; the stroke (or name) takes the width.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(default)]
@@ -223,7 +224,7 @@ impl BrushCardLayout {
 
     /// The size of one card's cell at `scale` for `parts`, the cards sharing a row `width` wide
     /// (the browser's grid room). Tip only: `brush.card_tip_only × scale` (height floored at 0.6);
-    /// tip and name: `brush.card_tip_name × scale` likewise; otherwise `brush.card_max` width ×
+    /// tip and name: `brush.card_tip_name × scale` likewise; otherwise `card_max` width ×
     /// scale (at most `width`) by the padding, the top row and the name row, where the top row
     /// is `card_max` height − 2 × pad − name height, and absent when neither tip nor stroke
     /// shows.
@@ -299,9 +300,9 @@ type DiameterOf<'a, K> = Box<dyn Fn(&K) -> Option<f64> + 'a>;
 /// draws its tile, the size number and the name.
 ///
 /// - **Cells.** Grid view only. The cell shape follows the parts ([`BrushCardLayout::cell_size`]);
-///   the width is `brush.card_max` width × [`BrushCardsState::scale`], with the browser's
+///   the width is `card_max` width × [`BrushCardsState::scale`], with the browser's
 ///   `preset.grid_gap` between cells.
-/// - **Look.** The tile on `brush.card_fill`, the hover fill `state.hover`, the selected fill
+/// - **Look.** The tile on `card_fill`, the hover fill `state.hover`, the selected fill
 ///   `state.selected`; the selected ring is the browser's (`preset.ring.*`). Name in `text.muted`
 ///   (`label` role), size number in `text.faint` (`caption` role); the text keeps its size at
 ///   every scale.
@@ -356,25 +357,24 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
 
     /// The sizes and colors of a card from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushCardStyle {
-        // pc: crates/ui-egui/src/panels/brushes_tab.rs:438-465.
-        let (b, c) = (&tokens.component.brush, &tokens.color);
+        let (b, c, size, space) = (BrushStyle::new(tokens), &tokens.color, &tokens.size, &tokens.space);
         BrushCardStyle {
-            pad: b.card_pad,
-            inset: b.card_inset,
-            tip_width: b.card_tip_width,
+            pad: space.gap.tight,
+            inset: space.gap.tight,
+            tip_width: size.thumb.lg,
             tip_base: b.card_tip_base,
-            name_height: b.card_name_height,
-            name_inset: b.card_name_inset,
-            tip_compact_inset: b.card_tip_compact_inset,
+            name_height: size.icon.lg,
+            name_inset: space.gap.inline,
+            tip_compact_inset: space.gap.tight,
             number_gap: b.card_number_gap,
-            tip_gap: b.card_tip_gap,
-            stroke_inset: b.card_stroke_inset,
+            tip_gap: space.gap.tight,
+            stroke_inset: space.gap.stack,
             stroke_width: [b.card_stroke_min, b.card_stroke_max],
-            stroke_height: b.card_stroke_height,
+            stroke_height: size.thumb.md,
             max: Vec2::from(b.card_max),
             tip_only: Vec2::from(b.card_tip_only),
             tip_name: Vec2::from(b.card_tip_name),
-            radius: CornerRadius::same(b.card_radius.round() as u8),
+            radius: CornerRadius::same(tokens.shape.radius.sm.round() as u8),
             fill: b.card_fill.to_egui(),
             hover: c.state.hover.to_egui(),
             selected: c.state.selected.to_egui(),
@@ -439,7 +439,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
     /// `Reorder` and the others, in order.
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         // pc: crates/ui-egui/src/panels/brushes_tab.rs:524-635 `preset_card` (fill = card colour × 0.90, current and hover fills, parts)
-        // pc: crates/ui-egui/src/panels/brushes_tab.rs:493 `darker` (in gamma space, opaque; now the `brush.card_fill` token)
+        // pc: crates/ui-egui/src/panels/brushes_tab.rs:493 `darker` (in gamma space, opaque; now the `card_fill` token)
         let Self { id_salt, state, rows, selected, height, reorder, start_rename, labels, mut tip, mut stroke, diameter_of } = self;
         let tokens = Tokens::of(ui);
         let style = Self::style(&tokens);

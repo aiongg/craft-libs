@@ -6,47 +6,55 @@ use egui::Color32;
 use super::StrokeEditor;
 use craft_ui::theme::{ToEgui, UiTokens};
 
+/// The popover is never narrower than this.
+const MIN_WIDTH: f32 = 160.0;
+/// The popover's scrolling height is never under this.
+const MIN_HEIGHT: f32 = 80.0;
+/// Widths of the choice select, the number field and the opener, in control heights.
+const CHOICE_WIDTH_CONTROLS: f32 = 5.0;
+const FIELD_WIDTH_CONTROLS: f32 = 2.5;
+const OPENER_WIDTH_CONTROLS: f32 = 4.5;
+
 /// What [`StrokeEditor`], [`StrokeButton`](super::StrokeButton) and
 /// [`StrokePreview`](super::StrokePreview) draw. Fields, selects, checks and buttons keep their
-/// own component tokens (`field.*`, `option_list.*`, `checkbox.*`, `popover.*`).
+/// own styles.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StrokeEditorStyle {
-    /// The popover body's width: `stroke_editor.width` (272), never wider than the window less
-    /// `stroke_editor.screen_margin` (24), never narrower than `stroke_editor.min_width` (160).
+    /// The popover body's width: a choice select beside a number field with their gaps and the
+    /// panel padding, never wider than the window less the screen margin, never narrower than
+    /// the least width.
     pub width: f32,
     #[allow(missing_docs)]
     pub screen_margin: f32,
     #[allow(missing_docs)]
     pub min_width: f32,
-    /// The popover's scrolling height: the window's less `stroke_editor.screen_margin_y` (40),
-    /// never under `stroke_editor.min_height` (80).
+    /// The popover's scrolling height: the window's less this margin, never under the least height.
     pub screen_margin_y: f32,
     #[allow(missing_docs)]
     pub min_height: f32,
-    /// The opener: `stroke_editor.opener_width` (138) by `stroke_editor.opener_height` (24).
+    /// The opener's width.
     pub opener_width: f32,
     #[allow(missing_docs)]
     pub opener_height: f32,
-    /// A preset row's height: `stroke_editor.preset_height` (32).
+    /// A preset row's height.
     pub preset_height: f32,
-    /// A choice select's width: `stroke_editor.choice_width` (152).
+    /// A choice select's width.
     pub choice_width: f32,
-    /// A number field's width: `stroke_editor.field_width` (74).
+    /// A number field's width.
     pub field_width: f32,
-    /// The tall sample's height: `stroke_editor.sample_height` (58).
+    /// The tall sample's height.
     pub sample_height: f32,
-    /// The samples' line width: `stroke_editor.sample_stroke` (2.5).
+    /// The samples' line width.
     pub sample_stroke: f32,
-    /// The tall sample's rectangle inset: `stroke_editor.sample_inset` (12).
+    /// The tall sample's rectangle inset.
     pub sample_inset: f32,
-    /// The open sample line's distance from the sample's ends: `stroke_editor.sample_margin` (4).
+    /// The open sample line's distance from the sample's ends.
     pub sample_margin: f32,
     /// The samples' colour: `text.normal` on `field.fill` (4.5:1 in High contrast).
     pub sample_color: Color32,
     /// The opener's sample while the stroke is off: a `text.faint` line crossed by a
-    /// `status.bad.fg` slash, `stroke_editor.off_stroke` (1) and `stroke_editor.off_slash_stroke`
-    /// (1.5) wide.
+    /// `status.bad.fg` slash, `stroke.thin` and `stroke.medium` wide.
     pub off_line: Color32,
     #[allow(missing_docs)]
     pub off_slash: Color32,
@@ -61,30 +69,29 @@ pub struct StrokeEditorStyle {
 impl StrokeEditor<'_> {
     /// The stroke editor's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> StrokeEditorStyle {
-        // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:130 (272, `- 24`, `max(160)`),
-        // :92 (138), :43 (24 and 32), :266 (152), :291 (74), :230 (58), :332 (2.5), :322 (12),
-        // :70-71 (the off sample: 1 pt faint line, 1.5 pt danger slash), :235 (danger).
-        let (s, c) = (&tokens.component.stroke_editor, &tokens.color);
+        let (c, size, space, stroke) = (&tokens.color, &tokens.size, &tokens.space, &tokens.stroke);
+        let choice_width = size.control.md * CHOICE_WIDTH_CONTROLS;
+        let field_width = size.control.md * FIELD_WIDTH_CONTROLS;
         StrokeEditorStyle {
-            width: s.width,
-            screen_margin: s.screen_margin,
-            min_width: s.min_width,
-            screen_margin_y: s.screen_margin_y,
-            min_height: s.min_height,
-            opener_width: s.opener_width,
-            opener_height: s.opener_height,
-            preset_height: s.preset_height,
-            choice_width: s.choice_width,
-            field_width: s.field_width,
-            sample_height: s.sample_height,
-            sample_stroke: s.sample_stroke,
-            sample_inset: s.sample_inset,
-            sample_margin: s.sample_margin,
+            width: choice_width + field_width + space.gap.stack + 2.0 * space.pad.panel,
+            screen_margin: space.pad.dialog,
+            min_width: MIN_WIDTH,
+            screen_margin_y: space.pad.dialog + size.bar.title,
+            min_height: MIN_HEIGHT,
+            opener_width: size.control.md * OPENER_WIDTH_CONTROLS,
+            opener_height: size.control.sm,
+            preset_height: size.control.md + 2.0 * space.gap.inline,
+            choice_width,
+            field_width,
+            sample_height: size.bar.options,
+            sample_stroke: stroke.thick,
+            sample_inset: space.pad.panel,
+            sample_margin: space.gap.tight,
             sample_color: c.text.normal.to_egui(),
             off_line: c.text.faint.to_egui(),
             off_slash: c.status.bad.fg.to_egui(),
-            off_stroke: s.off_stroke,
-            off_slash_stroke: s.off_slash_stroke,
+            off_stroke: stroke.thin,
+            off_slash_stroke: stroke.medium,
             error: c.status.bad.fg.to_egui(),
         }
     }
