@@ -11,14 +11,14 @@ use craft_theme::{ControlSize, Srgba, TypeRole};
 use egui::accesskit::{HasPopup, Role, Toggled};
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
-use egui::{Color32, Galley, Pos2, Rect, Response, Shape, Stroke, Ui, pos2, vec2};
+use egui::{Color32, CornerRadius, Galley, Pos2, Rect, Response, Shape, Stroke, Ui, pos2, vec2};
 
 use super::item::ItemKind;
 use super::mnemonic;
 use crate::controls::{Kbd, ListboxStyle, Swatch, icon_size};
 use crate::direction;
 use crate::icons::{self, Icon};
-use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
+use crate::theme::{ToEgui, UiTokens, role_format};
 
 /// A radio item's dot: its radius as a part of the glyph size, and the least radius (craft-menu's
 /// ● at the list box's icon size).
@@ -64,7 +64,7 @@ impl MenuStyle {
         let c = &tokens.color;
         Self {
             rows: ListboxStyle {
-                radius: corner_radius(tokens.shape.radius.panel),
+                radius: CornerRadius::ZERO,
                 active_fill: c.accent.solid.to_egui(),
                 active_text: c.text.on_accent.to_egui(),
                 ..crate::controls::Select::style(tokens, size).list

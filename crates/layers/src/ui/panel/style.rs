@@ -1,7 +1,12 @@
 //! `LayersStyle` from the semantic tokens.
 
+use craft_theme::ControlSize;
+use craft_theme::TypeRole;
+use craft_ui::controls::{IconButton, NumberField};
+use craft_ui::primitives::{Content, Text};
 use craft_ui::theme::{ToEgui as _, UiTokens};
-use egui::Color32;
+use egui::text::LayoutJob;
+use egui::{Color32, Ui};
 
 const INDICATOR_TRIANGLE: f32 = 10.0;
 const MASK_CROSS_INSET: f32 = 1.0;
@@ -41,12 +46,8 @@ pub struct LayersStyle {
     pub mask_disabled: Color32,
     /// The least width of the blend select before the "Opacity:" label hides.
     pub blend_min_width: f32,
-    /// The Opacity and Fill fields' text part, without the pop-up arrow. The box adds the number field's pop-up arrow.
-    pub percent_field_width: f32,
     /// Between the filter bar's controls.
     pub filter_gap: f32,
-    /// The filter type select's width.
-    pub filter_type_width: f32,
     /// The space after the filter type select, besides `filter_gap`.
     pub filter_type_gap: f32,
     /// The room kept free between the "Opacity:" label and its field.
@@ -70,6 +71,22 @@ pub struct LayersStyle {
 }
 
 impl LayersStyle {
+    /// The Opacity and Fill fields' text part, without the pop-up arrow: "100%" in the number
+    /// field's type role and padding. The box adds the number field's pop-up arrow.
+    pub(crate) fn percent_field_width(ui: &Ui, tokens: &UiTokens) -> f32 {
+        let field = NumberField::style(tokens, ControlSize::Sm).field;
+        text_width(ui, tokens, field.role, "100%") + 2.0 * field.pad_x
+    }
+
+    /// The filter type select's width: the widest of `labels` in the select's type role and
+    /// padding, and its arrow.
+    pub(crate) fn filter_type_width<'a>(ui: &Ui, tokens: &UiTokens, labels: impl IntoIterator<Item = &'a str>) -> f32 {
+        let field = NumberField::style(tokens, ControlSize::Sm).field;
+        let arrow = IconButton::style(tokens, ControlSize::Sm).side;
+        let widest = labels.into_iter().map(|label| text_width(ui, tokens, field.role, label)).fold(0.0, f32::max);
+        widest + 2.0 * field.pad_x + arrow
+    }
+
     /// The style of `tokens`: the `layers` family. [`LayersPanel::style`](super::LayersPanel::style)
     /// is the public form; the crate's own code, which has no tree type to name, calls this.
     pub(crate) fn of(tokens: &UiTokens) -> LayersStyle {
@@ -88,9 +105,7 @@ impl LayersStyle {
             mask_badge_glyph: color.text.normal.to_egui(),
             mask_disabled: color.status.bad.fg.to_egui(),
             blend_min_width: control * 3.0,
-            percent_field_width: control * 2.5,
             filter_gap: tokens.space.gap.inline,
-            filter_type_width: control * 2.5,
             filter_type_gap: tokens.space.gap.tight,
             blend_label_slack: BLEND_LABEL_SLACK,
             blend_floor_width: BLEND_FLOOR_WIDTH,
@@ -103,4 +118,10 @@ impl LayersStyle {
             sample_scale: OPTIONS_SAMPLE_SCALE,
         }
     }
+}
+
+/// The width of `text` in type role `role`.
+fn text_width(ui: &Ui, tokens: &UiTokens, role: TypeRole, text: &str) -> f32 {
+    let job = LayoutJob::single_section(text.to_owned(), Text::format(tokens, role, Content::Normal));
+    ui.fonts_mut(|fonts| fonts.layout_job(job)).size().x
 }

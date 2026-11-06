@@ -150,6 +150,7 @@ fn dividers_belong_to_the_layer_form_in_compact_and_a_dimmed_label_and_detail_ta
     assert_eq!(label(false, true), [s.selected_text, s.selected_detail]);
     // A hidden layer that is selected: its name and detail read on the selected fill.
     assert_eq!(label(true, true), [s.selected_dimmed, s.selected_detail]);
+    assert_ne!(s.selected_dimmed, s.selected_text, "the quiet selected text is quieter than the selected text");
     for text in [s.selected_dimmed, s.selected_detail] {
         let ratio = craft_theme::contrast::contrast_ratio(to_rgba(text), to_rgba(s.selected));
         assert!(ratio >= 4.5, "{text:?} on the selected fill is {ratio:.2}");
@@ -768,14 +769,19 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
     let ctx = context();
     for id in ["craft.artcraft", "craft.studio", "craft.classic"] {
         let theme = craft_theme::builtins().iter().find(|t| t.id.as_str() == id).expect("built-in theme").clone();
-        let drawn = |layer: bool, selected: bool, hovered: bool| {
+        let mut rounded = false;
+        let mut panel_color = craft_theme::Rgba::TRANSPARENT;
+        let mut drawn = |layer: bool, selected: bool, hovered: bool| {
             let mut style = None;
             let drawn = shapes(&ctx, |ui| {
                 scope(
                     ui,
                     |o| o.theme = Some(theme.clone()),
                     |ui| {
-                        style = Some(ListRow::<u8>::style(&Tokens::of(ui)));
+                        let tokens = Tokens::of(ui);
+                        rounded = tokens.shape.rows == craft_theme::RowStyle::Rounded;
+                        panel_color = tokens.color.surface.panel;
+                        style = Some(ListRow::<u8>::style(&tokens));
                         panel(ui, 240.0, |ui| {
                             let _ = ListRow::new(1u8, "Layer")
                                 .thumb(ThumbSize::Small, |_, _| {})
@@ -799,7 +805,16 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
         assert_eq!(fills(&plain).first().map(|r| r.fill), Some(s.selected), "{id}");
         let (_, selected) = drawn(true, true, true);
         assert_eq!(fills(&selected).first().map(|r| r.fill), Some(s.layer_selected), "{id}: no change under the pointer");
-        assert_eq!(shapes_radius(&selected), corner_radius(s.layer_radius), "{id}: the fill radius");
+        assert_eq!(shapes_radius(&selected), corner_radius(s.layer_radius), "{id}: the fill and outline radius");
+        let row_outline = |shapes: &[Shape]| {
+            shapes.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.layer_outline && r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Inside))
+        };
+        let shows = craft_theme::contrast_ratio(craft_theme::over(to_rgba(s.layer_selected), panel_color), panel_color) >= 3.0;
+        let outlined = s.layer_outline != egui::Color32::TRANSPARENT;
+        assert_eq!(outlined, !shows, "{id}: the selected layer is outlined where its fill alone doesn't show");
+        assert_eq!(row_outline(&selected), outlined, "{id}");
+        assert!(!row_outline(&plain), "{id}: a plain row has no outline");
+        assert_eq!(s.layer_radius == 0.0, !rounded, "{id}: square layer rows when the rows are divided");
         let frame = selected.iter().find_map(|s2| match s2 {
             Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside => Some(r.corner_radius),
             _ => None,

@@ -153,7 +153,7 @@ fn opacity_drag_is_one_gesture_and_cancel_restores() {
 
 // The "Opacity:" label hides below `label + field + 2 gaps + layers.blend.label_slack +
 // layers.blend.min_width`; the field stays (`opacity_row_layout` and the drawn rows). The field's
-// box is the text part (`layers.percent_field_width`) plus the pop-up arrow.
+// box is the text part ("100%" measured) plus the pop-up arrow.
 #[test]
 fn opacity_label_hides_on_a_narrow_panel() {
     let ctx = Context::default();
@@ -162,7 +162,11 @@ fn opacity_label_hides_on_a_narrow_panel() {
     let style = LayersStyle::of(&tokens);
     let arrow = IconButton::style(&tokens, ControlSize::Sm).side;
     let (slack, floor, min) = (style.blend_label_slack, style.blend_floor_width, style.blend_min_width);
-    let field = style.percent_field_width + arrow;
+    let field = {
+        let mut width = 0.0;
+        ctx.run_ui(egui::RawInput::default(), |ui| width = LayersStyle::percent_field_width(ui, &tokens)).drop_without_applying_deltas();
+        width + arrow
+    };
     assert!(arrow > 0.0 && (slack - 16.0).abs() < 1e-3 && (floor - 40.0).abs() < 1e-3);
 
     let (wide_blend, shown) = opacity_row_layout(300.0, 50.0, field, 8.0, &style);

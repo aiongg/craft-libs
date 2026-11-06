@@ -167,7 +167,7 @@ impl<'a> BlendRows<'a> {
         let gap = ui.spacing().item_spacing.x;
         let avail = ui.available_width();
         // The text part plus the number field's pop-up arrow, which is an icon button's side.
-        let field_width = style.percent_field_width + IconButton::style(&tokens, size).side;
+        let field_width = LayersStyle::percent_field_width(ui, &tokens) + IconButton::style(&tokens, size).side;
 
         let opacity_text = labels.opacity.as_str();
         let fill_text = labels.fill.as_str();
