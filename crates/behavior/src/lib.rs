@@ -29,7 +29,7 @@ pub use flow::{Flow, Insets};
 pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
 pub use label_column::{LabelColumn, LabelPlacement};
-pub use layout_memory::Tween;
+pub use layout_memory::SizeTween;
 pub use motion::MotionMode;
 pub use nav::NavShape;
 pub use part::{PartKey, PartRef};

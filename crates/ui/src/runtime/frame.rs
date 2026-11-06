@@ -4,7 +4,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
-use crate::runtime::memory;
+use crate::runtime::{layout_memory, memory};
 use craft_host::Host;
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
@@ -254,6 +254,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     }
     // Evict shown memory by id and queue the evicted slots (7.2).
     memory::evict(&ctx);
+    layout_memory::end_hook(&ctx);
     let live = pass::live_viewports(&ctx);
     let prunes: Vec<fn(&Context, &[ViewportId])> = store::with::<FrameState, _>(&ctx, |state| {
         state.passes_open = state.passes_open.saturating_sub(1);

@@ -20,7 +20,7 @@ pub fn measured_change_asks_for_discard(recorded: Option<Vec2>, real: Vec2, chan
 /// A size that moves from one value to another over a duration, evaluated at the reader's clock.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
-pub struct Tween {
+pub struct SizeTween {
     /// The size at `start`.
     pub from: Vec2,
     /// The size at `start + duration` and after.
@@ -31,10 +31,10 @@ pub struct Tween {
     pub duration: f64,
 }
 
-impl Tween {
+impl SizeTween {
     /// A tween from `from` to `to` that begins at `start` and runs for `duration`.
     pub const fn new(from: Vec2, to: Vec2, start: f64, duration: f64) -> Self {
-        Tween { from, to, start, duration }
+        SizeTween { from, to, start, duration }
     }
 
     /// The size at clock reading `now`, eased in and out.
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn a_tween_runs_from_start_to_end_and_stays() {
-        let tween = Tween::new(Vec2::ZERO, Vec2::new(100.0, 40.0), 1.0, 0.5);
+        let tween = SizeTween::new(Vec2::ZERO, Vec2::new(100.0, 40.0), 1.0, 0.5);
         assert_eq!(tween.at(0.0), Vec2::ZERO);
         assert_eq!(tween.at(1.25), Vec2::new(50.0, 20.0));
         assert_eq!(tween.at(9.0), Vec2::new(100.0, 40.0));
