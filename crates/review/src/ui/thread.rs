@@ -149,10 +149,10 @@ pub struct CommentPin<'a> {
     pub resolved: bool,
 }
 
-/// Comment pins over a canvas (Figma's, as FigCraft draws them): a `review.pin` pin per thread
+/// Comment pins over a canvas (Figma's, as FigCraft draws them): a `ReviewStyle::pin` pin per thread
 /// ([`ReviewStyle`]; the author's avatar in the author's colour in a
 /// speech-bubble shape with a square bottom-left corner, grey with a check once resolved, a dot
-/// while unread), pins within `review.cluster_radius` gathered into a cluster showing the count; a
+/// while unread), pins within `ReviewStyle::cluster_radius` gathered into a cluster showing the count; a
 /// click on a pin opens its thread, a click on the open pin closes it, a click on a cluster lists
 /// it. Your own pin can be dragged (past egui's drag threshold) to another spot, reported as a
 /// [`PinMove`] gesture (Esc cancels). Each pin is a Tab stop in reading order, Enter opens it;
@@ -240,7 +240,7 @@ pub struct CommentPinsOutput {
     pub moved: Option<EditEvent<PinMove>>,
 }
 
-/// The thread popover next to a pin (`review.popover_width` wide), on the kernel's
+/// The thread popover next to a pin (`ReviewStyle::popover_width` wide), on the kernel's
 /// [`Popover`](craft_ui::popover): messages with avatar, author, age and
 /// text (@mentions in the accent), reactions under each (click to toggle yours), your messages'
 /// Edit and Delete, the thread's Resolve / Reopen check button and a "…" menu (Mark as unread,

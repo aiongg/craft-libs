@@ -26,7 +26,7 @@ craft_ui::words! {
 
 /// A chat bubble with its corner at `tip` (beside the pointer): the name over the text when
 /// given, in `fill` (the person's colour) at `alpha`. It is as wide as its text, which wraps at
-/// `review.chat_width`; rounded `review.chat_radius` except the corner at the pointer, which is
+/// `ReviewStyle::chat_width`; rounded `ReviewStyle::chat_radius` except the corner at the pointer, which is
 /// square (FigCraft's bubble).
 // figcraft: crates/ui-egui/src/live.rs:232 `chat_bubble`.
 pub fn paint_chat_bubble(painter: &Painter, tokens: &UiTokens, tip: Pos2, name: Option<&str>, text: &str, fill: Color32, alpha: f32) {

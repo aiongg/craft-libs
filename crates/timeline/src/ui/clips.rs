@@ -108,10 +108,10 @@ pub type ClipPainter<'a> = Box<dyn FnMut(&Painter, Rect, &ClipInfo<'_>) + 'a>;
 ///   selected outline, dimmed when disabled; the app paints the content (thumbnails, waveform,
 ///   fades) through [`content`](Self::content) before the outline.
 /// - A press with the [`TimelineTool`] on an edge ([`edge_at`] with the
-///   `timeline.edge_zone` and `timeline.roll_zone` sizes of [`TimelineStyle`]) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
+///   `edge_zone` and `roll_zone` sizes of [`TimelineStyle`]) starts a trim of the kind the tool and modifiers give; on a body it moves (Selection),
 ///   slips or slides; the Razor cuts at the pointer (snapped to `rate`'s frames). The drag is
 ///   reported as an `EditEvent<ClipEdit>` gesture; moves snap to `snap` targets within
-///   `timeline.snap_distance` ([`snap_time`]). Esc during the
+///   `snap_distance` ([`snap_time`]). Esc during the
 ///   drag cancels it, and the release after an Esc is ignored (FilmCraft #580).
 /// - A press acts on what it pressed, worked out on the press frame, not when egui's drag
 ///   threshold passes (FilmCraft `Pressed`, #259).
