@@ -12,7 +12,34 @@ use super::{ColorArea, ColorPartsStyle, faded_stroke};
 use craft_ui::controls::slider::{KEY_FILTER, PressTurn, press_turn, tap};
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
 use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::theme::{Tokens, TokensOf};
+use craft_ui::theme::{Tokens, TokensOf, UiTokens};
+
+/// The ramp's least height, as a multiple of `size.control.md`.
+const HEIGHT_MIN_PER_CONTROL: f32 = 1.17;
+/// The side of each end box, as a multiple of `size.control.md`.
+const BOXES_PER_CONTROL: f32 = 0.667;
+/// Columns of the quantised ramp grid.
+const CELLS_X: u32 = 48;
+/// Rows of the quantised ramp grid.
+const CELLS_Y: u32 = 8;
+
+/// The ramp's sizes, from [`ColorRamp::style`].
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ColorRampStyle {
+    /// Default height: `size.thumb.lg`.
+    pub height: f32,
+    /// Least height.
+    pub height_min: f32,
+    /// Side of an end box.
+    pub boxes: f32,
+    /// Gap between the bar and the boxes: `space.gap.tight`.
+    pub boxes_gap: f32,
+    /// Columns of the quantised grid.
+    pub cells_x: u32,
+    /// Rows of the quantised grid.
+    pub cells_y: u32,
+}
 
 /// Which colours the ramp shows.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -175,7 +202,7 @@ impl<'a> ColorRamp<'a> {
         self
     }
 
-    /// The ramp's height, not below `color_ramp.height_min`; `color_ramp.height` without it.
+    /// The ramp's height, not below the style's `height_min`; its `height` without it.
     pub fn height(mut self, height: f32) -> Self {
         self.height = Some(height);
         self
@@ -213,6 +240,19 @@ impl<'a> ColorRamp<'a> {
         self
     }
 
+    /// The sizes the ramp draws with, read from the theme `tokens`.
+    pub fn style(tokens: &UiTokens) -> ColorRampStyle {
+        let control = tokens.size.control.md;
+        ColorRampStyle {
+            height: tokens.size.thumb.lg,
+            height_min: control * HEIGHT_MIN_PER_CONTROL,
+            boxes: control * BOXES_PER_CONTROL,
+            boxes_gap: tokens.space.gap.tight,
+            cells_x: CELLS_X,
+            cells_y: CELLS_Y,
+        }
+    }
+
     /// The colour at (`x`, `y`) as fractions of the bar, `y` down. A non-finite or outside fraction
     /// is clamped into the bar. Spectrum: hue `x` (below 360), white at the top through the full
     /// colour at the middle to black at the bottom, through `gamut` when given; grayscale: white
@@ -240,7 +280,7 @@ impl<'a> ColorRamp<'a> {
     /// Shows the ramp and returns this frame's pick. The bar's response covers the bar.
     pub fn show(self, ui: &mut Ui) -> ColorRampResponse {
         let tokens = Tokens::of(ui);
-        let t = tokens.component.color_ramp;
+        let t = ColorRamp::style(&tokens);
         let style = ColorArea::style(&tokens);
         let (nx, ny) = (t.cells_x.max(1) as usize, t.cells_y.max(1) as usize);
         let height = self.height.filter(|h| h.is_finite()).unwrap_or(t.height).max(t.height_min);

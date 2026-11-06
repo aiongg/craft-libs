@@ -16,6 +16,8 @@ use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 /// Segments round the disc and rings out from its centre (VectorCraft's 72 and 8).
 const SEGMENTS: u32 = 72;
 const RINGS: u32 = 8;
+/// The least brightness the disc draws, as a proportion.
+const DISC_FLOOR: f32 = 0.15;
 
 /// A marker's place on the disc: what a drag or a key changes.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -33,11 +35,11 @@ pub struct DiscMove {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ColorDiscStyle {
-    /// Default side of the area: `color_wheel.side`.
+    /// Default side of the area.
     pub side: f32,
-    /// Least side of the area: `color_wheel.side_min`.
+    /// Least side of the area.
     pub side_min: f32,
-    /// Distance from the area's edge to the disc: `color_wheel.disc_inset`.
+    /// Distance from the area's edge to the disc: `space.pad.panel`.
     pub inset: f32,
     /// A marker's radius, and a selected one's.
     pub marker: f32,
@@ -47,7 +49,7 @@ pub struct ColorDiscStyle {
     pub grab: f32,
     /// Least brightness the disc draws, as a proportion.
     pub floor: f32,
-    /// The line from the centre to a marker: `color_wheel.spoke`.
+    /// The line from the centre to a marker: `overlay.halo`.
     pub spoke: Stroke,
     /// The wheel's edge and marker strokes.
     pub wheel: ColorWheelStyle,
@@ -66,7 +68,7 @@ pub struct ColorDiscStyle {
 /// # });
 /// ```
 ///
-/// - Pointer (primary button): a press grabs the nearest marker within `color_wheel.disc_grab`
+/// - Pointer (primary button): a press grabs the nearest marker within twice `size.hit.target`
 ///   ([`pressed`](ColorDiscResponse::pressed) reports it, for the host to select it); a press
 ///   elsewhere grabs nothing. A drag moves the grabbed marker's hue (the pointer's angle, whole
 ///   degrees) and saturation (its distance over the radius, whole percents, at most 1), one
@@ -136,13 +138,13 @@ impl ColorDisc {
         self
     }
 
-    /// The brightness the disc is drawn at, 0 to 1; never below `color_wheel.disc_floor`. 1 without it.
+    /// The brightness the disc is drawn at, 0 to 1; never below the style's `floor`. 1 without it.
     pub fn brightness(mut self, brightness: f32) -> Self {
         self.brightness = brightness;
         self
     }
 
-    /// The area's side; `color_wheel.side` without it. Never below `color_wheel.side_min`.
+    /// The area's side; the style's default `side` without it. Never below its `side_min`.
     pub fn side(mut self, side: f32) -> Self {
         self.side = Some(side);
         self
@@ -174,17 +176,18 @@ impl ColorDisc {
 
     /// The style the control draws with, read from the theme `tokens`.
     pub fn style(tokens: &UiTokens) -> ColorDiscStyle {
-        let t = &tokens.component.color_wheel;
+        let wheel = ColorWheel::style(tokens);
+        let handle = tokens.size.handle.md;
         ColorDiscStyle {
-            side: t.side,
-            side_min: t.side_min,
-            inset: t.disc_inset,
-            marker: t.disc_marker,
-            marker_selected: t.disc_marker_selected,
-            grab: t.disc_grab,
-            floor: t.disc_floor,
-            spoke: Stroke::new(1.0, t.spoke.to_egui()),
-            wheel: ColorWheel::style(tokens),
+            side: wheel.side,
+            side_min: wheel.side_min,
+            inset: tokens.space.pad.panel,
+            marker: handle,
+            marker_selected: handle + 2.0 * tokens.stroke.thin,
+            grab: tokens.size.hit.target * 2.0,
+            floor: DISC_FLOOR,
+            spoke: Stroke::new(tokens.stroke.thin, tokens.color.overlay.halo.to_egui()),
+            wheel,
         }
     }
 

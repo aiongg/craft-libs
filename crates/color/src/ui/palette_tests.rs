@@ -130,7 +130,7 @@ fn a_double_click_and_enter_ask_to_open_the_index_and_space_selects_the_focused_
 fn the_cells_are_the_tokens_size_with_no_gap_and_wrap_at_the_columns() {
     let mut rig = Rig::new();
     let mut cell = 0.0;
-    rig.ctx.run_ui(RawInput::default(), |ui| cell = Tokens::of(ui).component.swatch_palette.table_cell).drop_without_applying_deltas();
+    rig.ctx.run_ui(RawInput::default(), |ui| cell = Tokens::of(ui).size.icon.md).drop_without_applying_deltas();
     assert!(cell > 0.0);
     let (a, b) = (rig.bounds("Index 0"), rig.bounds("Index 1"));
     assert_eq!(a.size(), vec2(cell, cell));

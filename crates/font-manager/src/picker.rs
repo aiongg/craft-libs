@@ -17,11 +17,11 @@ use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::list::{List, ListEvent, ListRow, RowEvent, ToggleColumn};
 use craft_ui::localized::Labels as _;
 use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_ui::theme::{Tokens, TokensOf as _, TypeRole, UiTokens};
 use egui::epaint::text::FontId;
 use egui::text::CCursorRange;
 use egui::text_edit::TextEditState;
-use egui::{Align2, AsIdSalt, Context, Event, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, pos2, vec2};
+use egui::{Align2, AsIdSalt, Color32, Context, Event, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, pos2, vec2};
 use serde::{Deserialize, Serialize};
 use skrifa::MetadataProvider as _;
 use skrifa::raw::{FontRef, TableProvider};
@@ -573,9 +573,9 @@ impl<'a> FontPicker<'a> {
         let hide_classes = ctx.data(|d| d.get_temp::<bool>(hide_id)).unwrap_or(false);
         let faces = FaceFonts::shared(&ctx);
         let reveal = (edit.reveal > 0).then(|| edit.row.or(current_row)).flatten();
-        let sizes = craft_ui::theme::current(&ctx).component.font_picker;
-        let list_width = rect.width().max(sizes.list_width);
-        let list_height = self.list_height.unwrap_or(sizes.list_height);
+        let tokens = craft_ui::theme::current(&ctx);
+        let list_width = rect.width().max(name_list_width(ui, &tokens));
+        let list_height = self.list_height.unwrap_or(FONT_LIST_ROWS * tokens.size.control.md);
         let catalog = self.catalog;
         let popup = Popover::new((self.salt, "popup"), PopoverAnchor::Control(field.response.clone()))
             .close(PopoverClose::default().focus_left(false))
@@ -593,7 +593,7 @@ impl<'a> FontPicker<'a> {
                 let favorites = filters.as_deref().is_some_and(|f| f.favorites);
                 ui.horizontal_top(|ui| {
                     if let (Some(f), false) = (filters.as_deref_mut(), hide) {
-                        class_column(ui, field_id, f, &labels, sizes.class_column);
+                        class_column(ui, field_id, f, &labels);
                     }
                     ui.vertical(|ui| {
                         ui.set_width(list_width);
@@ -622,7 +622,7 @@ impl<'a> FontPicker<'a> {
                             selected: edit.row.or(current_row),
                             reveal,
                             height: list_height,
-                            class_glyph: sizes.class_glyph,
+                            class_glyph: tokens.size.control.md,
                         };
                         lists.show(ui, &mut out);
                     });
@@ -820,9 +820,25 @@ fn filter_bar(ui: &mut Ui, f: &mut FontFilters, hide_classes: &mut bool, labels:
     });
 }
 
+/// Rows the popup list shows without scrolling.
+const FONT_LIST_ROWS: f32 = 14.0;
+
+/// A name as long as the longest family names in common use, to size the list by.
+const NAME_SAMPLE: &str = "Source Sans Pro Semibold Condensed";
+
+/// The popup list's width: the sample name, its toggle and class columns and the padding.
+fn name_list_width(ui: &Ui, tokens: &UiTokens) -> f32 {
+    let name = ui.painter().layout_no_wrap(NAME_SAMPLE.to_owned(), tokens.font(TypeRole::Body), Color32::PLACEHOLDER).size().x;
+    (name + tokens.size.icon.md + 2.0 * tokens.size.control.md + 2.0 * tokens.space.pad.control).ceil()
+}
+
 /// The class list at the left: All Classes and the eight classes, one selected.
-fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &FontPickerLabels, width: f32) {
+fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &FontPickerLabels) {
     let names: Vec<&str> = std::iter::once(labels.all_classes.as_str()).chain(FontClass::ALL.map(|c| class_label(c, labels))).collect();
+    let tokens = Tokens::of(ui);
+    let font = tokens.font(TypeRole::Body);
+    let widest = names.iter().map(|name| ui.painter().layout_no_wrap((*name).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x).fold(0.0, f32::max);
+    let width = (widest + 2.0 * tokens.space.pad.control).ceil();
     let order: Vec<RowInfo<usize>> = (0..names.len()).map(RowInfo::leaf).collect();
     let selected = filters.class.and_then(|c| FontClass::ALL.iter().position(|a| *a == c)).map_or(0, |i| i + 1);
     let mut selection = Selection::only(selected);

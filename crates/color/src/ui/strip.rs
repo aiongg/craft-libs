@@ -72,8 +72,8 @@ impl ColorStrip {
         }
     }
 
-    /// The strip's size, without its pointers' room; `color_picker.strip_full` by
-    /// `color_picker.area` without it (the Full picker's).
+    /// The strip's size, without its pointers' room; `size.icon.lg` by
+    /// five `size.thumb.lg` without it (the Full picker's).
     pub fn size(mut self, size: Vec2) -> Self {
         self.size = Some(size);
         self

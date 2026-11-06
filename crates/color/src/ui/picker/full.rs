@@ -161,7 +161,7 @@ impl ColorPicker<'_> {
             // get the grid's width.
             let trailing = if ui.available_width().is_finite() && !ui.is_sizing_pass() { ui.available_width().max(grid_width) } else { grid_width };
             ui.with_layout(direction::column(ui), |ui| {
-                ui.spacing_mut().item_spacing.y = tokens.component.color_picker.grid_gap;
+                ui.spacing_mut().item_spacing.y = tokens.space.gap.stack;
                 if self.compare.is_some() || !self.warnings.is_empty() || !self.side_actions.is_empty() {
                     top_row(ui, gap, |ui| {
                         if let Some(current) = self.compare {
@@ -232,7 +232,7 @@ impl ColorPicker<'_> {
         let radio = RadioGroup::style(&tokens, ControlSize::Md);
         let field = TextField::style(&tokens, ControlSize::Md);
         let gap = Gap::Inline.points(&tokens);
-        let (row_gap, group_gap) = (tokens.component.color_picker.grid_row_gap, tokens.component.color_picker.grid_group_gap);
+        let (row_gap, group_gap) = (tokens.space.gap.tight, tokens.space.gap.stack);
         let height = field.height.max(radio.height);
         let columns = self.grid_columns(ui, models, translate);
         let hex_width = self.hex_width(ui, &tokens);
@@ -384,13 +384,14 @@ fn channel_row<R>(ui: &mut Ui, cell: f32, width: f32, height: f32, gap: f32, lab
 /// The compare swatch: the colour being edited ("new") over `current`, with their captions; a
 /// click on `current` sets it.
 fn compare(ui: &mut Ui, tokens: &UiTokens, current: Srgba, enabled: bool, translate: &dyn Fn(&'static str) -> String, parts: &mut Parts<'_>) {
-    let t = &tokens.component.color_picker;
+    let compare_width = tokens.size.thumb.lg + tokens.space.pad.panel;
+    let compare_height = 2.0 * tokens.size.thumb.md;
     let new = parts.value().color;
     let swatch = Swatch::style(tokens, ControlSize::Md);
-    ui.allocate_ui_with_layout(vec2(t.compare_width, 0.0), Layout::top_down(Align::Center), |ui| {
+    ui.allocate_ui_with_layout(vec2(compare_width, 0.0), Layout::top_down(Align::Center), |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
         ui.add(Text::new(translate(texts::NEW)).role(TypeRole::Caption).content(Content::Muted));
-        let (rect, _) = ui.allocate_exact_size(vec2(t.compare_width, t.compare_height), Sense::hover());
+        let (rect, _) = ui.allocate_exact_size(vec2(compare_width, compare_height), Sense::hover());
         let (new_rect, current_rect) = (rect.split_top_bottom_at_fraction(0.5).0, rect.split_top_bottom_at_fraction(0.5).1);
         let _ = Interactive::new("compare-new", Role::Image, translate(texts::NEW_COLOUR))
             .sense(Sense::hover())
@@ -481,11 +482,12 @@ impl ColorWarningChip {
     /// Shows the chip; the response covers the icon and the chip.
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
-        let t = &tokens.component.color_picker;
+        let warning_icon = tokens.size.icon.sm;
+        let warning_chip = tokens.size.icon.sm;
         let warning = &self.warning;
         let enabled = self.enabled && ui.is_enabled();
         let gap = Gap::Inline.points(&tokens);
-        let size = vec2(t.warning_icon.max(t.warning_chip), t.warning_icon + gap + t.warning_chip);
+        let size = vec2(warning_icon.max(warning_chip), warning_icon + gap + warning_chip);
         let response = Interactive::salted(self.id_salt, Role::Button, warning.tip.as_str())
             .value(Swatch::hex(warning.nearest.to_rgba()))
             .state_layer(false)
@@ -493,11 +495,11 @@ impl ColorWarningChip {
             .show(ui, size);
         if ui.is_rect_visible(response.rect) {
             let rect = response.rect;
-            let icon = Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + t.warning_icon / 2.0), Vec2::splat(t.warning_icon));
+            let icon = Rect::from_center_size(egui::pos2(rect.center().x, rect.top() + warning_icon / 2.0), Vec2::splat(warning_icon));
             let color = Content::Normal.color(&tokens).to_egui();
             let color = if enabled { color } else { color.gamma_multiply(0.5) };
-            icons::paint_in(ui, icon, warning.icon, icons::active(ui.ctx()), t.warning_icon, IconSize::Sm.stroke(), color);
-            let chip = Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - t.warning_chip / 2.0), Vec2::splat(t.warning_chip));
+            icons::paint_in(ui, icon, warning.icon, icons::active(ui.ctx()), warning_icon, IconSize::Sm.stroke(), color);
+            let chip = Rect::from_center_size(egui::pos2(rect.center().x, rect.bottom() - warning_chip / 2.0), Vec2::splat(warning_chip));
             let swatch = Swatch::style(&tokens, ControlSize::Md);
             let mut shapes = Vec::new();
             fill(&mut shapes, &swatch, chip, warning.nearest);

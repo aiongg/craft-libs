@@ -63,17 +63,20 @@ impl PairWell {
     }
 }
 
+/// A ring well's band, as a multiple of `size.control.md`.
+const RING_PER_CONTROL: f32 = 0.3;
+
 /// Sizes and colours a pair draws itself, from [`SwatchPair::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SwatchPairStyle {
-    /// Side of a well: `color_picker.pair_well`.
+    /// Side of a well: `size.icon.lg`.
     pub well: f32,
-    /// Offset of the secondary well from the primary one on both axes: `color_picker.pair_step`.
+    /// Offset of the secondary well from the primary one on both axes: `size.icon.sm`.
     pub step: f32,
-    /// Width of the gap in the panel's colour around the front well: `color_picker.pair_gap`.
+    /// Width of the gap in the panel's colour around the front well: `space.gap.tight`.
     pub gap: f32,
-    /// Width of a ring well's band: `color_picker.pair_ring`.
+    /// Width of a ring well's band: 0.3 of `size.control.md`.
     pub ring: f32,
 }
 
@@ -258,8 +261,12 @@ impl<'a> SwatchPair<'a> {
 
     /// The style read from `tokens`.
     pub fn style(tokens: &UiTokens) -> SwatchPairStyle {
-        let t = &tokens.component.color_picker;
-        SwatchPairStyle { well: t.pair_well, step: t.pair_step, gap: t.pair_gap, ring: t.pair_ring }
+        SwatchPairStyle {
+            well: tokens.size.icon.lg,
+            step: tokens.size.icon.sm,
+            gap: tokens.space.gap.tight,
+            ring: tokens.size.control.md * RING_PER_CONTROL,
+        }
     }
 
     /// Draws the pair and returns its response.
@@ -269,10 +276,11 @@ impl<'a> SwatchPair<'a> {
         let id = ui.make_persistent_id(id_salt);
         let tokens = Tokens::of(ui);
         let style = SwatchPair::style(&tokens);
-        let pair = &tokens.component.color_picker;
+        let icon = tokens.size.icon.sm;
+        let icon_gap = tokens.space.gap.tight;
         let chips = Vec2::splat(style.well + style.step);
         // The icon row over the chips, when there is an icon.
-        let header = if swap.is_some() || defaults.is_some() { pair.pair_icon + pair.pair_icon_gap } else { 0.0 };
+        let header = if swap.is_some() || defaults.is_some() { icon + icon_gap } else { 0.0 };
         let block = vec2(chips.x, header + chips.y);
         let available = ui.available_rect_before_wrap();
         // In a column that centres its items (a tool rail's footer) the block is centred.
@@ -288,7 +296,7 @@ impl<'a> SwatchPair<'a> {
             let swatch = Swatch::style(&tokens, ControlSize::Md);
             let (area, _) = ui.allocate_exact_size(block, Sense::hover());
             let rects = well_rects(ui, &style, Rect::from_min_max(area.min + vec2(0.0, header), area.max));
-            let icon_rects = icon_rects(ui, area, pair.pair_icon);
+            let icon_rects = icon_rects(ui, area, icon);
             let ids = [Interactive::id_in(ui, (id, "primary")), Interactive::id_in(ui, (id, "secondary"))];
             let index = |w: Well| w as usize;
 
@@ -567,7 +575,7 @@ fn paint_well(
             Stroke::new(1.0, fade(tokens.color.text.normal.to_egui().gamma_multiply(0.9))),
             StrokeKind::Inside,
         ));
-        painter.add(RectShape::stroke(rect, radius, Stroke::new(1.0, fade(tokens.component.field.border.rest.to_egui())), StrokeKind::Outside));
+        painter.add(RectShape::stroke(rect, radius, Stroke::new(1.0, fade(tokens.color.line.control_edge.to_egui())), StrokeKind::Outside));
         return;
     }
     let fade = |c: egui::Color32| if enabled { c } else { c.gamma_multiply(0.5) };

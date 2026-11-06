@@ -2,7 +2,7 @@
 //! every built-in and mode, as text under `tests/dumps/components/`. Rewrite with
 //! `UPDATE_DUMPS=1 cargo test -p craft-color --features ui --test control_dumps`.
 
-use craft_color::ui::{ColorArea, ColorDisc, ColorWheel};
+use craft_color::ui::{ColorArea, ColorDisc, ColorRamp, ColorWheel};
 
 use craft_ui::testing::dump::{Dump, check_component};
 use craft_ui::theme::UiTokens;
@@ -56,7 +56,7 @@ fn color_wheel() {
 #[test]
 fn color_ramp() {
     check("color_ramp.txt", |d, t| {
-        let r = t.component.color_ramp;
+        let r = ColorRamp::style(t);
         d.line("height", r.height)
             .line("height_min", r.height_min)
             .line("boxes", r.boxes)

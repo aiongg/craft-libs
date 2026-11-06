@@ -22,6 +22,18 @@ const RING_STEPS: u32 = 96;
 
 /// Cells along each side of the triangle's mesh (PhotoCraft's 16).
 const TRIANGLE_CELLS: usize = 16;
+/// The wheel's default side, as a multiple of `size.control.md`.
+const SIDE_PER_CONTROL: f32 = 9.2;
+/// The wheel's least side, as a multiple of `size.control.md`.
+const SIDE_MIN_PER_CONTROL: f32 = 1.17;
+/// The least ring width, as a multiple of `size.control.md`.
+const RING_MIN_PER_CONTROL: f32 = 0.267;
+/// The largest ring width, as a multiple of `size.control.md`.
+const RING_MAX_PER_CONTROL: f32 = 0.933;
+/// The ring's width as a proportion of the outer radius.
+const RING_RATIO: f32 = 0.09;
+/// The gap between the ring's inner edge and the triangle's circle.
+const WHEEL_TRIANGLE_INSET: f32 = 1.0;
 
 /// The hue ring and the triangle: where a press began decides which one a drag edits.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -126,19 +138,19 @@ pub fn triangle_sv([hue, white, black]: [Pos2; 3], p: Pos2) -> Option<(f32, f32)
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ColorWheelStyle {
-    /// Default height of the area: `color_wheel.side`.
+    /// Default height of the area.
     pub side: f32,
-    /// Least height of the area: `color_wheel.side_min`.
+    /// Least height of the area.
     pub side_min: f32,
-    /// Least ring width: `color_wheel.ring_min`.
+    /// Least ring width.
     pub ring_min: f32,
-    /// Largest ring width: `color_wheel.ring_max`.
+    /// Largest ring width.
     pub ring_max: f32,
-    /// Ring width as a proportion of the outer radius: `color_wheel.ring_ratio`.
+    /// Ring width as a proportion of the outer radius.
     pub ring_ratio: f32,
-    /// Gap between the area's edge and the ring: `color_wheel.outer_inset`.
+    /// Gap between the area's edge and the ring: `space.gap.tight`.
     pub outer_inset: f32,
-    /// Gap between the ring's inner edge and the triangle's circle: `color_wheel.triangle_inset`.
+    /// Gap between the ring's inner edge and the triangle's circle.
     pub triangle_inset: f32,
     /// A press this far outside the ring still takes it, and this far inside its inner edge.
     pub grab_outer: f32,
@@ -178,7 +190,7 @@ pub struct ColorWheelStyle {
 ///
 /// - Pointer (primary button): the part under the press is kept for the whole drag, so a drag
 ///   that leaves the ring keeps turning the hue; a press further outside the ring than
-///   `color_wheel.grab_outer` starts nothing. The press sets the value under the pointer (whole
+///   `size.hit.target` starts nothing. The press sets the value under the pointer (whole
 ///   degrees, whole percents) and is the gesture's first value; the release commits. A press
 ///   and release in one frame is a [`Set`](craft_ui::edit::EditEvent::Set). A press focuses the
 ///   part.
@@ -245,7 +257,7 @@ impl ColorWheel {
         }
     }
 
-    /// The area's height; `color_wheel.side` without it. Never below `color_wheel.side_min`.
+    /// The area's height; the style's default `side` without it. Never below its `side_min`.
     pub fn side(mut self, side: f32) -> Self {
         self.side = Some(side);
         self
@@ -278,18 +290,18 @@ impl ColorWheel {
 
     /// The style read from `tokens`.
     pub fn style(tokens: &UiTokens) -> ColorWheelStyle {
-        let t = &tokens.component.color_wheel;
         let parts = parts_style(tokens);
+        let control = tokens.size.control.md;
         ColorWheelStyle {
-            side: t.side,
-            side_min: t.side_min,
-            ring_min: t.ring_min,
-            ring_max: t.ring_max,
-            ring_ratio: t.ring_ratio,
-            outer_inset: t.outer_inset,
-            triangle_inset: t.triangle_inset,
-            grab_outer: t.grab_outer,
-            grab_inner: t.grab_inner,
+            side: control * SIDE_PER_CONTROL,
+            side_min: control * SIDE_MIN_PER_CONTROL,
+            ring_min: control * RING_MIN_PER_CONTROL,
+            ring_max: control * RING_MAX_PER_CONTROL,
+            ring_ratio: RING_RATIO,
+            outer_inset: tokens.space.gap.tight,
+            triangle_inset: WHEEL_TRIANGLE_INSET,
+            grab_outer: tokens.size.hit.target,
+            grab_inner: tokens.size.hit.target,
             edge: parts.edge,
             marker_inner_radius: parts.marker_inner_radius,
             marker_inner: parts.marker_inner,

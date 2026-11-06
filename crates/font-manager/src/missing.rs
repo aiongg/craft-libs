@@ -219,9 +219,12 @@ fn replacement_field(ui: &mut Ui, catalog: &Arc<Catalog>, i: usize, chosen: &mut
     out.response
 }
 
+/// Rows the Document Fonts list shows without scrolling.
+const MISSING_LIST_ROWS: f32 = 6.0;
+
 /// The Document Fonts expander: every font with its status.
 fn document_fonts_list(ui: &mut Ui, rows: &[DocumentFontRow], labels: &MissingFontsLabels) {
-    let height = craft_ui::theme::current(ui.ctx()).component.font_picker.missing_list_height;
+    let height = MISSING_LIST_ROWS * craft_ui::theme::current(ui.ctx()).size.control.md;
     let id = ui.scope_id().with("document-fonts-open");
     let mut open = ui.data_mut(|d| d.get_persisted::<bool>(id)).unwrap_or(false);
     SectionHeader::new("missing-fonts-all", labels.used_fonts.clone()).collapsible(true).open(&mut open).show(ui, |ui| {
