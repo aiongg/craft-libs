@@ -22,7 +22,7 @@ pub const INNER_ALLOW: &str = "clippy/inner-allow";
 pub const PARSE: &str = "parse";
 
 /// Every rule id the checker emits, including the marker and exemption rules.
-pub const RULES: [&str; 15] = [
+pub const RULES: [&str; 33] = [
     VEC2,
     ADD_SPACE,
     CORNER_RADIUS,
@@ -38,6 +38,25 @@ pub const RULES: [&str; 15] = [
     crate::markers::INVALID,
     crate::markers::UNUSED,
     crate::UNUSED_EXEMPTION,
+    // The egui-ban and API-shape rules (`contract/*`, `test/*`, `api/*`); `check_with_scope` runs them.
+    crate::contract::IDS[0],
+    crate::contract::IDS[1],
+    crate::contract::IDS[2],
+    crate::contract::IDS[3],
+    crate::contract::IDS[4],
+    crate::contract::IDS[5],
+    crate::contract::IDS[6],
+    crate::contract::IDS[7],
+    crate::contract::IDS[8],
+    crate::contract::IDS[9],
+    crate::contract::IDS[10],
+    crate::contract::IDS[11],
+    crate::contract::IDS[12],
+    crate::contract::IDS[13],
+    crate::contract::IDS[14],
+    crate::contract::IDS[15],
+    crate::contract::IDS[16],
+    crate::contract::IDS[17],
 ];
 
 /// `selector` is the rule id itself or its family (`literal-size` matches `literal-size/vec2`).
@@ -262,7 +281,7 @@ impl<'ast> Visit<'ast> for ConstCollector {
 }
 
 /// The names a `use` tree brings in with their full paths; `None` is a glob import of the path.
-fn flatten_use(prefix: &mut Vec<String>, tree: &syn::UseTree, out: &mut Vec<(Option<String>, Vec<String>)>) {
+pub(crate) fn flatten_use(prefix: &mut Vec<String>, tree: &syn::UseTree, out: &mut Vec<(Option<String>, Vec<String>)>) {
     use syn::UseTree;
     match tree {
         UseTree::Path(p) => {
@@ -308,7 +327,7 @@ fn type_name(ty: &syn::Type) -> String {
 }
 
 /// The identifiers of a path expression without `<..>` arguments or a leading `<T as Trait>`.
-fn path_idents(e: &ExprPath) -> Option<Vec<String>> {
+pub(crate) fn path_idents(e: &ExprPath) -> Option<Vec<String>> {
     (e.qself.is_none() && e.path.segments.iter().all(|s| s.arguments.is_none()))
         .then(|| e.path.segments.iter().map(|s| s.ident.to_string()).collect())
 }
@@ -339,7 +358,7 @@ fn cfg_is_test(meta: &Meta) -> bool {
     }
 }
 
-fn is_test_attr(attr: &Attribute) -> bool {
+pub(crate) fn is_test_attr(attr: &Attribute) -> bool {
     if attr.path().is_ident("test") {
         return true;
     }

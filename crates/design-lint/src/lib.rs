@@ -12,6 +12,7 @@
 mod baseline;
 mod clippy;
 mod config;
+mod contract;
 mod markers;
 mod report;
 mod rules;
@@ -22,6 +23,7 @@ use std::path::{Path, PathBuf};
 pub use baseline::{Baseline, BaselineCheck, Increase};
 pub use clippy::{ClippyDrift, ClippyShadow, DriftKind, check_clippy, clippy_drift, clippy_shadows, merge_clippy, write_clippy};
 pub use config::{Config, Exemption};
+pub use contract::{RuleScope, StaticScope, analyze_contract};
 pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};
 pub use rules::{Analysis, RULES, analyze_source};
@@ -43,6 +45,16 @@ pub const UNUSED_EXEMPTION: &str = "exemption/unused";
 /// An exemption that matches no checked file or silences nothing is reported as `exemption/unused`
 /// (a warning, an error with `deny_unused`). Each file is parsed once.
 pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
+    check_with(config, root, None)
+}
+
+/// [`check`] plus the egui-ban and API-shape rules (`contract/*`, `test/*`, `api/non-exhaustive`),
+/// with their "allowed in" locations read from `scope`. Markers and exemptions apply to their findings.
+pub fn check_with_scope(config: &Config, root: &Path, scope: &dyn RuleScope) -> Result<Report, Error> {
+    check_with(config, root, Some(scope))
+}
+
+fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Result<Report, Error> {
     let mut report = Report::default();
     let hits = RefCell::new(vec![0_usize; config.exempt.len()]);
     let mut matched_files = vec![0_usize; config.exempt.len()];
@@ -71,7 +83,8 @@ pub fn check(config: &Config, root: &Path) -> Result<Report, Error> {
                 }
                 any
             };
-            let marked = analyze_with_markers(&src, config.include_tests, config.deny_unused, &exempt);
+            let extra = |parsed: &syn::File| scope.map_or_else(Vec::new, |s| contract::analyze_file(parsed, &shown, s, config.include_tests));
+            let marked = markers::analyze_with_extra(&src, config.include_tests, config.deny_unused, &exempt, &extra);
             report.markers += marked.markers;
             report.clippy_allows += marked.clippy_allows;
             for mut finding in marked.findings {
