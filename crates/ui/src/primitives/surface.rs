@@ -152,6 +152,11 @@ impl Surface {
         Self { kind }
     }
 
+    /// Whether the theme bevels its surfaces. The edge style is read here only.
+    pub(crate) fn is_bevelled(tokens: &craft_theme::Tokens) -> bool {
+        matches!(tokens.shape.edge, Edge::Bevel { .. })
+    }
+
     /// The look of `kind` in `tokens`.
     pub fn style(tokens: &UiTokens, kind: SurfaceKind) -> SurfaceStyle {
         use SurfaceKind as K;
