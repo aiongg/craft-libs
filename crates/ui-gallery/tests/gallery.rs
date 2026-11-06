@@ -16,7 +16,23 @@ fn frame(ctx: &Context, gallery: &mut Gallery) {
     ctx.run_ui(input(), |ui| gallery.show(ui)).drop_without_applying_deltas();
 }
 
+/// Quick smoke test: the gallery builds, its stories register with unique ids, and one frame
+/// renders. The full per-story sweeps are ignored by default.
 #[test]
+fn the_gallery_builds_registers_stories_and_renders_a_frame() {
+    let ctx = Context::default();
+    let mut gallery = Gallery::new(None);
+    let ids: Vec<&str> = gallery.stories().iter().map(|s| s.id).collect();
+    assert!(!ids.is_empty());
+    let mut unique = ids.clone();
+    unique.sort_unstable();
+    unique.dedup();
+    assert_eq!(unique.len(), ids.len(), "story ids are unique");
+    frame(&ctx, &mut gallery);
+}
+
+#[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn every_level_renders_in_the_overview() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
@@ -29,6 +45,7 @@ fn every_level_renders_in_the_overview() {
 }
 
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn every_story_renders_in_its_component_tab_and_in_variants_views() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
@@ -160,6 +177,7 @@ fn unnamed_beside(tree: &craft_ui::inspect::AccessTree, anchor: &str) -> Vec<Str
 
 /// The bar, the story tree and the args panel of every story: each control has a name.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn every_control_in_the_gallery_chrome_has_an_accessible_name() {
     let ctx = Context::default();
     ctx.enable_accesskit();
@@ -1789,6 +1807,7 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
 /// Templated words (`Close {tab}`, counts) are out of scope: their filled-in text never equals the
 /// template, so a bypass in one is not seen.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn built_in_strings_are_marked_in_the_pseudo_locale() {
     let ctx = Context::default();
     ctx.enable_accesskit();

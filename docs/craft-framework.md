@@ -512,6 +512,12 @@ These guide design where no rule exists. They are not acceptance criteria.
 
 Text dumps of every token and component style are the regression gate.
 
+The gallery story sweeps (every story in every tab and variants view, the accessible-name and pseudo-locale audits, and the overview size checks) take about ten minutes in a debug build. They are `#[ignore]`d in `craft-ui-gallery`, so `cargo test --workspace` skips them. A smoke test in `crates/ui-gallery/tests/gallery.rs` still checks that the gallery builds and its stories register. Run the full sweep with:
+
+```sh
+cargo test -p craft-ui-gallery --release -- --include-ignored
+```
+
 ### 8.2 Design lint
 
 - Rules: `literal-size/*`, `raw-colour/const`, `style-mutation`, `tooltip/stock`, `clippy/inner-allow`.

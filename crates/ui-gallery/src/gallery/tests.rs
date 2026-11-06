@@ -556,6 +556,7 @@ fn drawn_past_their_tile(width: f32) -> Tried {
 }
 
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn no_story_paints_past_its_overview_tile() {
     let Tried { painted, clipped, .. } = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH);
     let clipped: Vec<_> = clipped.into_iter().filter(|id| !FLOATING.contains(id)).collect();
@@ -567,6 +568,7 @@ fn no_story_paints_past_its_overview_tile() {
 /// The slack allowed above does not apply here: a story that takes even one point more than its
 /// column makes the tile wider than the column beside it.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn no_overview_tile_is_wider_than_its_column() {
     let wider: Vec<_> = drawn_past_their_tile(super::tiles::TILE_MIN_WIDTH).wider.into_iter().filter(|(id, _)| !FIXED_WIDTH.contains(id)).collect();
     assert!(wider.is_empty(), "stories whose tile outgrows a {} pt column: {wider:?}", super::tiles::TILE_MIN_WIDTH);

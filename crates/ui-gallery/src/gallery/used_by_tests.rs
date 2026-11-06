@@ -95,6 +95,7 @@ fn theme_workspace() -> Fixture {
 }
 
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn the_scan_lists_button_as_a_painter_of_accent_strong_and_its_link_opens_the_component() {
     let mut f = theme_workspace();
     f.frame(Vec::new());

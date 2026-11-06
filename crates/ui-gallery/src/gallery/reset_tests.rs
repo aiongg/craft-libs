@@ -91,6 +91,7 @@ impl Fixture {
 }
 
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn dragging_in_the_story_shows_reset_and_reset_restores_a_fresh_story() {
     let mut f = Fixture::new();
     assert!(!f.reset_shown());
@@ -108,6 +109,7 @@ fn dragging_in_the_story_shows_reset_and_reset_restores_a_fresh_story() {
 }
 
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn selecting_a_tile_by_its_empty_area_does_not_show_reset() {
     let mut f = Fixture::new();
     let graph = f.graph();
@@ -139,6 +141,7 @@ impl Fixture {
 /// showed: here the stroke width set in a popover is the first one again. The component's own tab
 /// keeps the full-window dialog story's modal layer from covering the tile.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn reset_restores_the_value_a_story_kept() {
     let mut f = Fixture::new();
     f.gallery.open_component("Popover");
@@ -173,6 +176,7 @@ impl Fixture {
 /// A wheel turn over a slider that does not take it (the gallery scrolls instead) is not using
 /// the story; a drag on the slider is.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn wheel_over_an_unfocused_slider_does_not_show_reset_and_a_drag_on_it_does() {
     let mut f = Fixture::new();
     f.gallery.open_component("Slider");
@@ -198,6 +202,7 @@ impl Fixture {
 /// A story that opens a modal layer must not block the rest of the Overview: a click on another
 /// tile's Open button has to take effect.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles() {
     for level in [craft_ui::story::Level::Patterns, craft_ui::story::Level::Controls, craft_ui::story::Level::Composites] {
         let mut f = Fixture::new();
@@ -218,6 +223,7 @@ fn a_dialog_story_in_the_overview_starts_closed_and_does_not_block_other_tiles()
 
 /// The opener of a closed tile opens the dialog; in the component's own tab the story opens by default.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn the_opener_in_an_overview_tile_opens_the_dialog_and_the_component_tab_opens_it_by_default() {
     let mut f = Fixture::new();
     f.show_level(craft_ui::story::Level::Patterns);
@@ -241,6 +247,7 @@ fn the_opener_in_an_overview_tile_opens_the_dialog_and_the_component_tab_opens_i
 
 /// A pointer click on a row of the page list selects the page, inside the gallery as in the library.
 #[test]
+#[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
 fn a_click_on_a_preferences_page_row_selects_the_page_in_the_gallery() {
     for tab in [false, true] {
         let mut f = Fixture::new();
