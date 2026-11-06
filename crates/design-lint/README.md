@@ -45,6 +45,28 @@ reason = "document-space drawing"
 | `tooltip/stock` | `on_hover_text`, `on_disabled_hover_text`, `on_hover_ui`, `on_disabled_hover_ui`, `on_hover_text_at_pointer`, `on_hover_ui_at_pointer`, `show_tooltip_text`, `show_tooltip_ui`, `egui::Tooltip::for_enabled/for_disabled/for_widget/always_open`; the message names the `craft_ui::controls::TooltipExt` method that replaces the call. craft-ui's own tooltip module is not in the paths an app lints |
 | `clippy/inner-allow` | `#![allow(clippy::disallowed_*)]` or `#![expect(..)]` in any scope; list the file in an `[[exempt]]` to accept it. Outer `#[allow]`/`#[expect]` of those lints are counted in the summary line. |
 
+## Egui-ban and API rules
+
+`check_with_scope` runs these beside the rules above; `check` does not. Each rule is a module under `src/contract/`, listed once in `contract/mod.rs` (`REGISTRY` and `IDS`). "Allowed in" locations come from a `RuleScope` (the per-crate layer map implements it; `StaticScope` is the in-memory form). A permission key is a rule id, or `rule:sub` for a sub-permission (`contract/platform:target`, `contract/motion:clock`); a rule id does not cover its sub-permissions.
+
+| Rule | Flags |
+|---|---|
+| `contract/egui-import` | egui paths into memory, layers, `Order`, AccessKit, options, input and pass control; `memory`, `options`, `input_mut` closures, `begin_pass`, `end_pass`, `add_plugin`, `move_focus` |
+| `contract/allocate` | `allocate_*`, `interact`, `interact_opt`, `put`, `add_sized`, `new_child` with `max_rect` |
+| `contract/egui-widget` | `button`, `checkbox`, `selectable_*`, `radio*`, `hyperlink*`, `separator`, `image`, egui `Button`, `TextEdit`, `DragValue`, `Slider`, `ComboBox` constructors, `add_space` with an argument that is neither a literal nor a token read |
+| `contract/access` | `widget_info`, `labelled_by`, `accesskit_*`, `accessibility_*`, live settings |
+| `contract/layers` | `Area`, `Popup`, `Modal` calls, `Order`, `move_to_top`, `set_sublayer`, `set_transform_layer`, `on_hover_text`, `menu_button`, `context_menu`; `swallow_outside_press` in every file |
+| `contract/memory` | `get_temp`, `insert_temp`, `remove_temp*`, `data_mut`, `data`/`scope` closures, `make_persistent_id`, `next_auto_id`, `push_id`, `Id::unique`, `UiBuilder::id_salt`, `scope_builder` with an id salt |
+| `contract/keys` | `key_pressed`, `key_down`, `key_released`, `consume_key`, `consume_shortcut`, egui `Event::Key`, `Event::Text`, `Event::Ime` |
+| `contract/pointer` | drag and click queries, `interact_pointer_pos`, `press_origin`, `dragged_id` |
+| `contract/motion` | `animate_*`, `request_repaint_after`, `animation_time`, reduced-motion reads; `Instant::now` and `SystemTime::now` (`contract/motion:clock`) |
+| `contract/containers` | egui panels, `Window`, `CollapsingHeader`, `Resize`, `TableBuilder`, `show_rows`, `show_viewport`; `ScrollArea` in every file |
+| `contract/platform` | `cfg(target_os ..)`, wasm `cfg` and `cfg!` (`contract/platform:target`); `copy_text`, `open_url` |
+| `test/layout`, `test/kit`, `test/harness`, `test/cfg-test`, `test/literal-size`, `test/ignored` | integration tests outside `tests/it/` in an egui-linked crate; `egui_kittest` outside the kit; `#[test]` in a `harness = false` target; `#[cfg(test)]` modules in an egui-linked crate; float literals asserted in a test that shows a component or reads tokens (not in layer 0 or 1); `#[ignore]`d tests. They read test code, so the config sets `include-tests` |
+| `api/non-exhaustive` | `pub` enums, struct-like variants and structs with named `pub` fields without `#[non_exhaustive]`, unless on the scope's closed list; private modules, `#[doc(hidden)]` items and test code are not public API |
+
+Egui paths are resolved through the file's `use` items (one table per file, grouped, renamed and glob imports), so a craft type that shares a name with an egui type is not flagged unless it is imported from egui.
+
 Names are resolved through the file's `use` items, per module scope: grouped imports, renames (`use egui::Margin as M`), module aliases (`use craft_ui::theme as t`) and glob imports (`use craft_ui::theme::*`) all reach the rule table, so `margin(4.0)` is flagged after `use craft_ui::theme::margin`. A bare name that a fn in the same module defines is not extended through globs. Imports in a module do not apply in sibling modules.
 
 A literal is a number, optionally negated, parenthesised, cast or in arithmetic; zero is never flagged. A name is flagged when a `const` or `static` in the same file with that name has such a value. Consts are keyed by module and impl scope: a bare name takes the innermost scope that defines it, `Self::X`, `self::X`, `super::X`, `crate::X`, `Type::X` and `module::X` (last two segments) the scope they name, and a name with several candidates is flagged when any is non-zero.
