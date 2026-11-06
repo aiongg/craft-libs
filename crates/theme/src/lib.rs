@@ -79,9 +79,8 @@ pub use explain::{ColorOrigin, Explained, PairReport, SizeLayer, SizeOrigin, exp
 pub use id::{APP_DEFAULT, AppId, IdError, RESERVED_PREFIX, SUITE_DEFAULT, ThemeId};
 pub use identify::{Identify, identifiable_outline, visible_hover};
 pub use parts::{
-    BadgeColors, BadgePart, BadgeStyle, BadgeTone, BorderColors, BorderState, ButtonColors, ButtonPart, ButtonVariant, BySize, CheckOffColors,
-    CheckOffPart, CheckOnColors, CheckOnPart, CheckSwitchColors, CheckSwitchPart, ControlSize, Dimmed, FieldPart, FormSpacing, ItemColors, ItemPart,
-    LabelColor, MenuHue, MenuTint, State, States, ThumbColors, ThumbPart, Tone,
+    BadgeColors, BadgeStyle, BadgeTone, BorderColors, ButtonColors, ButtonVariant, BySize, CheckOffColors, CheckOnColors, CheckSwitchColors,
+    ControlSize, Dimmed, FieldPart, ItemColors, LabelColor, MenuTint, State, States, ThumbColors, Tone,
 };
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve, resolve_sized};

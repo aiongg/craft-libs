@@ -24,7 +24,8 @@
       "panel": 9.0,
       "popup": 9.0,
       "window": 12.0
-    }
+    },
+    "rows": "rounded"
   },
   "light": {
     "accent.border": "#3584e482",
@@ -37,6 +38,8 @@
     "line.divider": "#dedee1",
     "state.hover": "#e2e2e5",
     "state.pressed": "#d4d4d8",
+    "state.selected": "{accent.soft}",
+    "state.selected_hover": "{accent.soft}",
     "surface.background": "#ebebed",
     "surface.canvas": "#dededf",
     "surface.panel": "#ffffff",
@@ -59,6 +62,8 @@
     "line.divider": "#18181b",
     "state.hover": "#48484c",
     "state.pressed": "#56565a",
+    "state.selected": "{accent.soft}",
+    "state.selected_hover": "{accent.soft}",
     "status.bad.fg": "#ff7b63",
     "status.warn.fg": "#f8e45c",
     "surface.background": "#222226",

@@ -16,7 +16,9 @@
       "warn": "#e8b046"
     }
   },
-  "shape": null,
+  "shape": {
+    "rows": "divided"
+  },
   "light": {
     "accent.soft": "#d6d6d6",
     "accent.solid": "#378ef0",

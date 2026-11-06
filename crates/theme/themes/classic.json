@@ -29,11 +29,15 @@
       "pill": 0.0,
       "popup": 0.0,
       "window": 0.0
-    }
+    },
+    "rows": "rounded"
   },
   "light": {
     "accent.soft": "{accent.solid}",
     "accent.solid": "#0a246a",
+    "accent.strong": "#d4d0c8",
+    "accent.strong_hover": "#d4d0c8",
+    "accent.strong_pressed": "#d4d0c8",
     "caption.close_hover": "#c42b1c",
     "caption.close_text": "#ffffff",
     "edge.dark": "#404040",
@@ -56,7 +60,8 @@
     "text.faint": "#808080",
     "text.muted": "#404040",
     "text.normal": "#000000",
-    "text.on_selected": "{text.on_accent}"
+    "text.on_selected": "{text.on_accent}",
+    "text.on_strong": "#000000"
   },
   "components": {
     "slider.thumb_height": 16.0,

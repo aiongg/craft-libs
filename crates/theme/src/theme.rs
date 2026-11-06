@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use super::color::Rgba;
 use super::components::{ComponentField, OverrideError};
 use super::ramp::Mode;
-use super::tokens::{ColorTokens, Edge, RadiusSet, Status, TokenRef};
+use super::tokens::{ColorTokens, Edge, RadiusSet, RowStyle, Status, TokenRef};
 use crate::{AppId, ThemeId};
 
 /// A theme: seeds to derive from, values that override the derivation, and an optional shape.
@@ -215,6 +215,8 @@ pub struct ShapeSeed {
     pub button_radius: Option<f32>,
     /// Replaces the preset's edge style.
     pub edge: Option<EdgeSeed>,
+    /// Replaces the preset's row style.
+    pub rows: Option<RowStyle>,
 }
 
 /// Per-tier additions to the corner radii, in logical pixels.

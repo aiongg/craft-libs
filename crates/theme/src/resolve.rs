@@ -205,7 +205,7 @@ fn resolve_concrete(theme: &ThemeDef, appearance: Appearance, app: Option<&AppId
     let motion_ms = |millis: u32, easing: Easing| Motion { millis: if appearance.reduced_motion { 0 } else { millis }, easing };
 
     let radius = RadiusSet { sm: (radius.control / 2.0).round(), ..radius };
-    let shape = ShapeTokens { radius, edge, rows: preset.rows };
+    let shape = ShapeTokens { radius, edge, rows: seed.and_then(|s| s.rows).unwrap_or(preset.rows) };
     let typography = preset.typography.scaled(sizes.text_steps.factor(appearance.text_size), values::TYPE_ROUNDING);
     let mut component = ComponentTokens::defaults(&preset);
     for (&field, &length) in theme.components.iter().chain(app.and_then(|a| theme.apps.get(a)).map(|a| &a.components).into_iter().flatten()) {

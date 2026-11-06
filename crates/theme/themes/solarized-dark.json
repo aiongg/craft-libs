@@ -16,7 +16,9 @@
       "warn": "#b58900"
     }
   },
-  "shape": null,
+  "shape": {
+    "rows": "rounded"
+  },
   "dark": {
     "accent.border": "#268bd278",
     "accent.soft": "#268bd22e",
@@ -29,6 +31,8 @@
     "line.divider": "#00252f",
     "state.hover": "#0e4a5a",
     "state.pressed": "#12596b",
+    "state.selected": "{accent.soft}",
+    "state.selected_hover": "{accent.soft}",
     "status.bad.fg": "#dc322f",
     "status.warn.fg": "#b58900",
     "surface.background": "#00252f",

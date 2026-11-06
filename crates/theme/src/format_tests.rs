@@ -123,7 +123,7 @@ fn defaults_and_exported_themes() {
 
     let mut def = grey_blue();
     def.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
-    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Flat) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Flat), rows: None });
     let file = format::to_file(&def).unwrap();
     let text = format::write(&file).unwrap();
     assert_eq!(format::parse(text.as_bytes()).unwrap().theme, def);
@@ -313,6 +313,7 @@ fn write_refuses_what_parse_rejects() {
         radius_offset: None,
         button_radius: None,
         edge: Some(EdgeSeed::Bevel { width: 0.0 }),
+        rows: None,
     });
     let got = paths(def.validate().unwrap_err());
     assert_eq!(
@@ -367,6 +368,7 @@ fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
         radius_offset: None,
         button_radius: None,
         edge: None,
+        rows: None,
     };
     let written = |def: &ThemeDef| -> Value { serde_json::from_str(&format::write(&format::to_file(def).unwrap()).unwrap()).unwrap() };
     def.shape = Some(radius(Radius::Full.px()));

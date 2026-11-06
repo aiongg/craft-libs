@@ -16,7 +16,9 @@
       "warn": "#ffc14d"
     }
   },
-  "shape": null,
+  "shape": {
+    "rows": "divided"
+  },
   "light": {
     "accent.solid": "#1b63e0",
     "line.border": "#dadade",
