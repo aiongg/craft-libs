@@ -102,6 +102,11 @@ impl ColorPanelMode {
         ColorPanelMode::WebColorSliders,
     ];
 
+    /// Hue Cube and Brightness Cube.
+    pub fn is_cube(self) -> bool {
+        matches!(self, ColorPanelMode::HueCube | ColorPanelMode::BrightnessCube)
+    }
+
     /// The slider modes, which show the ramp under their sliders.
     pub fn is_sliders(self) -> bool {
         !matches!(self, ColorPanelMode::HueCube | ColorPanelMode::BrightnessCube | ColorPanelMode::ColorWheel)
@@ -232,7 +237,7 @@ pub struct ColorPanelResponse {
 ///   converter, Web Color is RGB with hex-pair fields and sliders snapping to web colours).
 ///   Slider values show rounded to whole numbers, as Photoshop's fields.
 /// - Warnings: in the slider modes, the out-of-gamut and web-colour chips beside the wells, as the
-///   picker's; a click takes the nearest colour.
+///   picker's (the cubes show the out-of-gamut chip only); a click takes the nearest colour.
 /// - Ramp: in the slider modes, a [`ColorRamp`](super::ColorRamp) of the chosen kind with the
 ///   white and black boxes at its end; a press picks for the edited well, Alt picks for the
 ///   other; Shift-click cycles the kind. A drag keeps the Current Colors ends it began with.
@@ -456,7 +461,8 @@ impl Body<'_> {
             ui.allocate_ui_with_layout(vec2(left, 0.0), direction::column(ui), |ui| {
                 ui.spacing_mut().item_spacing.y = Gap::Stack.points(&tokens);
                 self.wells(ui, state);
-                if mode.is_sliders() {
+                // The cubes show the out-of-gamut chip only: the web-colour chip is for Web Color.
+                if mode.is_sliders() || mode.is_cube() {
                     self.warnings(ui, mode == ColorPanelMode::WebColorSliders);
                 }
             });

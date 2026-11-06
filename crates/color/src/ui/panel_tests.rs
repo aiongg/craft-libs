@@ -2,7 +2,7 @@
 
 use craft_theme::Srgba;
 use egui::accesskit::{Node, NodeId, Role};
-use egui::{Context, Event, Modifiers, OutputCommand, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
+use egui::{Context, Event, Key, Modifiers, OutputCommand, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
 
 use super::{ColorPanel, ColorPanelMode, ColorPanelRamp, ColorPanelState, PanelTarget};
 use craft_ui::dialog::ColorRequest;
@@ -82,6 +82,24 @@ impl Rig {
         self.time += 1.0;
         self.frame_with(modifiers, vec![Event::PointerMoved(at), button(at, true, modifiers)]);
         self.frame_with(modifiers, vec![button(at, false, modifiers)]);
+        self.settle();
+    }
+
+    /// The bounds of the node named `name`, whatever its role, if the panel shows one.
+    fn named(&self, name: &str) -> Option<Rect> {
+        let node = self.nodes.iter().map(|(_, n)| n).find(|n| n.label() == Some(name))?;
+        let b = node.bounds()?;
+        Some(Rect::from_min_max(pos2(b.x0 as f32, b.y0 as f32), pos2(b.x1 as f32, b.y1 as f32)))
+    }
+
+    /// Replaces the text of the field named `name` with `text` and commits it with Enter.
+    fn type_into(&mut self, name: &str, text: &str) {
+        let at = self.named(name).unwrap_or_else(|| panic!("no node named {name:?}")).center();
+        self.click(at, Modifiers::NONE);
+        let key = |key, modifiers| Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+        self.frame_with(Modifiers::COMMAND, vec![key(Key::A, Modifiers::COMMAND)]);
+        self.frame(vec![Event::Text(text.to_owned())]);
+        self.frame(vec![key(Key::Enter, Modifiers::NONE)]);
         self.settle();
     }
 
@@ -204,5 +222,57 @@ fn showing_the_panel_keeps_the_focus() {
         let mut rig = Rig::new(mode);
         rig.frame(vec![]);
         assert_eq!(rig.ctx.memory(|m| m.focused()), None, "{mode:?} takes no focus");
+    }
+}
+
+/// Under the cubes the R, G and B fields sit beside the hex field, and an edit of one sets that
+/// channel of the edited colour (PhotoCraft's colour readout).
+#[test]
+fn cube_modes_have_red_green_and_blue_fields() {
+    for mode in [ColorPanelMode::HueCube, ColorPanelMode::BrightnessCube] {
+        let mut rig = Rig::new(mode);
+        for name in ["Hex color", "Red", "Green", "Blue"] {
+            assert!(rig.named(name).is_some(), "{mode:?}: no field named {name:?}");
+        }
+        rig.type_into("Green", "128");
+        let picked = rig.edits.iter().rev().find_map(|(t, e)| e.value().map(|v| (*t, v.color))).expect("an edit of the colour");
+        assert_eq!(picked.0, PanelTarget::Foreground, "{mode:?}");
+        assert_eq!(picked.1.to_rgba().0[..3], [255, 128, 0], "{mode:?}: only green changes");
+    }
+}
+
+/// The cubes show the out-of-gamut chip, whose click takes the nearest printable colour for the
+/// edited well, and no web-colour chip (PhotoCraft #8672).
+#[test]
+fn cube_modes_warn_when_the_colour_cannot_print() {
+    const GAMUT: &str = "Out of gamut for printing: click for the nearest printable color";
+    const NOT_WEB: &str = "Not a web color: click for the nearest web color";
+    let green = Srgba::rgb(0.0, 1.0, 0.0);
+    for mode in [ColorPanelMode::HueCube, ColorPanelMode::BrightnessCube] {
+        let mut rig = Rig::new(mode);
+        rig.colors = [green, BLUE];
+        rig.settle();
+        assert!(rig.named(NOT_WEB).is_none(), "{mode:?}: the web-colour chip is for Web Color");
+        let chip = rig.named(GAMUT).unwrap_or_else(|| panic!("{mode:?}: pure green can't print")).center();
+        rig.click(chip, Modifiers::NONE);
+        let picked = rig.edits.iter().find_map(|(t, e)| e.value().map(|v| (*t, v.color))).expect("the nearest colour");
+        assert_eq!(picked.0, PanelTarget::Foreground, "{mode:?}");
+        assert_ne!(picked.1.to_rgba(), green.to_rgba(), "{mode:?}");
+
+        // A printable colour shows no chip.
+        let mut rig = Rig::new(mode);
+        rig.colors = [Srgba::rgb(0.5, 0.5, 0.5), BLUE];
+        rig.settle();
+        assert!(rig.named(GAMUT).is_none(), "{mode:?}");
+
+        // With the background well edited, the click edits the background.
+        let mut rig = Rig::new(mode);
+        rig.colors = [Srgba::rgb(0.5, 0.5, 0.5), green];
+        rig.state.background = true;
+        rig.settle();
+        let chip = rig.named(GAMUT).expect("the background can't print").center();
+        rig.click(chip, Modifiers::NONE);
+        assert!(rig.edits.iter().any(|(t, _)| *t == PanelTarget::Background), "{mode:?}: {:?}", rig.edits);
+        assert!(rig.edits.iter().all(|(t, _)| *t == PanelTarget::Background), "{mode:?}: the foreground is left alone");
     }
 }
