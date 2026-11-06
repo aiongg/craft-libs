@@ -8,8 +8,10 @@ rust-version.workspace = true
 repository.workspace = true
 
 [dependencies]
+bitflags = { workspace = true }
 ecolor = { workspace = true }
 serde = { workspace = true }
+smallvec = { workspace = true }
 log = "0.4"
 serde_json = { workspace = true }
 

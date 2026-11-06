@@ -1662,12 +1662,14 @@ dependencies = [
 name = "craft-theme"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.13.2",
  "craft-cms",
  "ecolor",
  "log",
  "proptest",
  "serde",
  "serde_json",
+ "smallvec",
 ]
 
 [[package]]

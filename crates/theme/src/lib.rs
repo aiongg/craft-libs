@@ -41,9 +41,12 @@ mod resolve;
 pub mod scale;
 pub mod selection;
 pub mod sizes;
+mod stateful;
 mod theme;
+mod token_group;
 mod tokens;
 mod values;
+pub mod variant;
 
 #[cfg(test)]
 mod app_sizes_tests;
@@ -84,6 +87,7 @@ pub use parts::{
 };
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve, resolve_sized};
+pub use stateful::{FlagMask, Flags, Mix, Resolve, StateMix, Stateful};
 pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
 pub use selection::{
     AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, MotionChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair,
@@ -93,6 +97,7 @@ pub use theme::{
     AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, RadiusOffset, SeedOverrides,
     Seeds, ShapeSeed, Size, TextSize, TextSizeSteps, ThemeDef, Variants,
 };
+pub use token_group::{GroupValues, TokenGroup};
 pub use tokens::{
     AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
     HandleSizes, HitSizes, IconSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, RadiusSet, RailSizes, RowStyle, ShapeTokens, SizeTokens,
@@ -100,3 +105,4 @@ pub use tokens::{
     TypeStyle, TypeTokens,
 };
 pub use values::ColorSource;
+pub use variant::{CustomVariant, Emphasis, RadiusStep, Variant, VariantLook};
