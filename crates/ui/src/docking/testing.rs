@@ -17,6 +17,11 @@ use super::{DockArea, DockConfig, DockContent, DockLook, DockOutput, DockStyle, 
 
 /// Runs `f` in a frame of a fresh context, so it sees the theme a default `Ui` carries.
 #[cfg(test)]
+/// Size a panel floats at without a size of its own, under `ctx`'s theme.
+pub(super) fn float_size(ctx: &Context) -> egui::Vec2 {
+    crate::style::float::FloatStyle::size(&ctx.layer_painter(egui::LayerId::background()), &crate::theme::current(ctx))
+}
+
 pub(super) fn themed<R>(f: impl FnOnce(&Ui) -> R) -> R {
     let mut out = None;
     let mut f = Some(f);

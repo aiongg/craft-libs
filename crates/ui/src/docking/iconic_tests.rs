@@ -257,7 +257,7 @@ fn icon_and_icon_group_grip_drags_move_a_panel_and_a_group() {
 
     let out = d.drag(icon, CANVAS);
     let Some(Action::Float { panel: 2, rect }) = out.actions.first() else { panic!("{:?}", out.actions) };
-    assert_eq!((rect[2], rect[3]), (240.0, 320.0), "a panel floated from its icon takes the column's expanded width");
+    assert_eq!((rect[2], rect[3]), (240.0, super::testing::float_size(&d.ctx).y), "a panel floated from its icon takes the column's expanded width");
     assert_eq!(groups(&d.layout), vec![vec![1], vec![3]]);
 
     let grip = hit(&d, Hit::IconGrip(3)).center();

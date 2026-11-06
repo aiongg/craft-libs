@@ -234,6 +234,10 @@ fn play(harness: &mut Harness<'_, Host>, frames: Vec<events::Frame>) {
     }
 }
 
+fn start_caption_width(ctx: &egui::Context) -> f32 {
+    TileStyle::start_caption_width(&ctx.layer_painter(egui::LayerId::background()), &current(ctx))
+}
+
 fn style(harness: &Harness<'_, Host>) -> TileStyle {
     TileStyle::style(&current(&harness.ctx))
 }
@@ -823,7 +827,7 @@ fn start_captions_widen_the_card_and_name_their_marks() {
         let harness = harness(host);
         let style = style(&harness);
         let cell = tile(&harness, 0).rect();
-        assert_eq!(cell.size(), vec2(100.0 + style.start_caption_width, 100.0), "{direction:?}");
+        assert_eq!(cell.size(), vec2(100.0 + start_caption_width(&harness.ctx), 100.0), "{direction:?}");
         let panel = harness.get_by_role(Role::ListBox).rect();
         // The vertical scroll bar sits on the right in both directions, and the arrangement
         // leaves its room out.
@@ -1015,7 +1019,7 @@ fn start_captions_work_with_justified_rows() {
     let first = tile(&harness, 0).rect();
     let second = tile(&harness, 1).rect();
     assert!((second.left() - first.right() - style.gap).abs() < 0.5, "cards of a row are one gap apart: {first:?} {second:?}");
-    assert!(first.width() > 80.0 + style.start_caption_width, "the card holds the column and the picture: {first:?}");
+    assert!(first.width() > 80.0 + start_caption_width(&harness.ctx), "the card holds the column and the picture: {first:?}");
 }
 
 // File-drop gap over unequal tiles: the pointer left of a wide card's middle is before it, right of it after.
@@ -1088,8 +1092,9 @@ fn start_tiles_paint_the_veil_slash_marks_and_current_ring() -> Result<(), crate
     let tokens = current(&geometry.ctx);
     let style = TileStyle::style(&tokens);
     let cell = tile(&geometry, 0).rect();
-    let column = Rect::from_min_size(cell.min, vec2(style.start_caption_width, cell.height()));
-    let picture = Rect::from_min_max(pos2(cell.left() + style.start_caption_width, cell.top()), cell.max);
+    let width = start_caption_width(&geometry.ctx);
+    let column = Rect::from_min_size(cell.min, vec2(width, cell.height()));
+    let picture = Rect::from_min_max(pos2(cell.left() + width, cell.top()), cell.max);
 
     let plain = paint_image(start_host(false, false, None))?;
     let hidden = paint_image(start_host(true, false, None))?;

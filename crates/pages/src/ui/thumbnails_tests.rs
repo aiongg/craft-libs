@@ -409,8 +409,9 @@ fn hidden_marked_and_current_pages_are_painted() {
     let tokens = current(&plain.ctx);
     let style = TileStyle::style(&tokens);
     let cell = tile(&plain, 0).rect();
-    let column = Rect::from_min_size(cell.min, vec2(style.start_caption_width, cell.height()));
-    let picture = Rect::from_min_max(pos2(cell.left() + style.start_caption_width, cell.top()), cell.max);
+    let width = TileStyle::start_caption_width(&plain.ctx.layer_painter(egui::LayerId::background()), &tokens);
+    let column = Rect::from_min_size(cell.min, vec2(width, cell.height()));
+    let picture = Rect::from_min_max(pos2(cell.left() + width, cell.top()), cell.max);
     let veils = |harness: &Harness<'_, App>| {
         shapes_in(harness, picture).iter().filter(|s| matches!(s, Shape::Rect(r) if r.fill == style.veil && !r.fill.is_additive())).count()
     };

@@ -107,11 +107,6 @@ pub struct DockLook {
     pub tab_fill: f32,
     /// Alpha factor of a handle's outline at hover and focus.
     pub grip_alpha: f32,
-    /// Width of a window floated without a size: `float.width`.
-    pub float_width: f32,
-    /// Height of a window floated without a size, and the tallest a docked panel floats at:
-    /// `float.height`.
-    pub float_height: f32,
     /// Least height of a floating window fitted to its content: `float.min_fitted_height`.
     pub min_fitted_height: f32,
     /// Offset of a floated window from the dock area's corner or the window it cascades from:
@@ -212,8 +207,6 @@ impl DockLook {
             ghost_stroke: dock.ghost_stroke,
             tab_fill: dock.tab_fill,
             grip_alpha: dock.grip_alpha,
-            float_width: float.width,
-            float_height: float.height,
             min_fitted_height: float.min_fitted_height,
             cascade_offset: size.control.sm,
             hint_offset: size.control.md,
@@ -251,8 +244,6 @@ impl DockLook {
             self.iconic_max_width,
             self.iconic_label_width,
             self.flyout_height,
-            self.float_width,
-            self.float_height,
             self.min_fitted_height,
             self.cascade_offset,
             self.hint_offset,

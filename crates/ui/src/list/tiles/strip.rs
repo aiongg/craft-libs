@@ -61,9 +61,11 @@ impl<K> Default for Strip<'_, K> {
 impl<K> Strip<'_, K> {
     /// The width the `Start` caption column adds to each tile; 0 for any other place, and for
     /// `Cards` without captions.
-    pub fn start_width(&self, style: &TileStyle, layout: TileLayout) -> f32 {
+    pub fn start_width(&self, painter: &Painter, tokens: &UiTokens, layout: TileLayout) -> f32 {
         match (self.caption_place, layout) {
-            (CaptionPlace::Start, TileLayout::Cards { caption: true, .. } | TileLayout::Justified { .. }) => style.start_caption_width,
+            (CaptionPlace::Start, TileLayout::Cards { caption: true, .. } | TileLayout::Justified { .. }) => {
+                TileStyle::start_caption_width(painter, tokens)
+            }
             _ => 0.0,
         }
     }

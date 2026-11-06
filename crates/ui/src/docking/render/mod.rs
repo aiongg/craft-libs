@@ -95,6 +95,8 @@ pub(super) struct Renderer<'a, P> {
     pub(super) id: Id,
     pub(super) config: &'a DockConfig,
     pub(super) look: &'a DockLook,
+    /// Size of a window floated without a size, and the tallest a docked panel floats at.
+    pub(super) float: egui::Vec2,
     pub(super) content: &'a mut dyn DockContent<P>,
     pub(super) activation: Option<P>,
     pub(super) blockers: Vec<Rect>,

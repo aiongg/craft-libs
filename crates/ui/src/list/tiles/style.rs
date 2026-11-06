@@ -1,8 +1,13 @@
 //! `TileStyle` from the semantic tokens.
 
 use crate::style::tile::TileStyle as TileSizes;
-use crate::theme::{ToEgui as _, UiTokens};
-use egui::Color32;
+use crate::theme::{ToEgui as _, UiTokens, role_format};
+use craft_theme::TypeRole;
+use egui::text::LayoutJob;
+use egui::{Color32, Painter};
+
+/// Widest sample of a caption's figures: sizes the column of a start-placed caption.
+const START_CAPTION_SAMPLE: &str = "000";
 
 /// Share of the scrim's opacity that veils a tile.
 const VEIL_OPACITY: f32 = 0.45;
@@ -43,8 +48,6 @@ pub struct TileStyle {
     pub ring_halo_width: f32,
     /// Width of the current tile's ring.
     pub ring_current_width: f32,
-    /// Width of the caption column of `CaptionPlace::Start`.
-    pub start_caption_width: f32,
     /// Share of the grid's height that one wheel notch scrolls.
     pub wheel_share: f32,
     /// Ring of a selected tile.
@@ -84,6 +87,13 @@ pub struct TileStyle {
 }
 
 impl TileStyle {
+    /// Width of the caption column of `CaptionPlace::Start`: a sample of figures in the caption's
+    /// type role.
+    pub fn start_caption_width(painter: &Painter, tokens: &UiTokens) -> f32 {
+        let job = LayoutJob::single_section(START_CAPTION_SAMPLE.to_owned(), role_format(tokens, TypeRole::Caption, Color32::PLACEHOLDER));
+        painter.layout_job(job).size().x
+    }
+
     /// The style of `tokens`.
     pub fn style(tokens: &UiTokens) -> TileStyle {
         let (color, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
@@ -105,7 +115,6 @@ impl TileStyle {
             ring_hover_width: stroke.thin,
             ring_halo_width: stroke.thin,
             ring_current_width: stroke.thick,
-            start_caption_width: tile.start_caption_width,
             wheel_share: tile.wheel_share,
             ring_selected: color.accent.solid.to_egui(),
             ring_halo: color.overlay.halo.to_egui(),

@@ -771,12 +771,12 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         if let Some(size) = self.content.floating_size(panel).filter(|s| s.is_finite() && s.x > 0.0 && s.y > 0.0) {
             return vec2(size.x, self.fitted_height(panel, chrome, size.y).unwrap_or(size.y));
         }
-        let mut size = self.iconic.float_width(panel).map_or(source, |width| vec2(width, self.look.float_height));
+        let mut size = self.iconic.float_width(panel).map_or(source, |width| vec2(width, self.float.y));
         if matches!(self.place(panel), Some(Place::Dock { .. } | Place::Node(_))) {
-            size.y = match self.fitted_height(panel, chrome, self.look.float_height) {
+            size.y = match self.fitted_height(panel, chrome, self.float.y) {
                 Some(height) => height,
-                None if self.content_height(panel) == Some(None) => self.look.float_height,
-                None => size.y.min(self.look.float_height),
+                None if self.content_height(panel) == Some(None) => self.float.y,
+                None => size.y.min(self.float.y),
             };
         }
         let limits = self.limits(panel);
@@ -822,9 +822,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
         let host = members.iter().filter_map(|panel| self.content.floating_size(panel).filter(valid)).map(|s| s.y).reduce(f32::max);
         let docked = matches!(place, Place::Dock { .. });
         let chrome = self.look.title_height + self.look.tab_height;
-        let max = host.or(docked.then_some(self.look.float_height));
+        let max = host.or(docked.then_some(self.float.y));
         let fitted = max.and_then(|max| self.group_active(members, place).and_then(|active| self.fitted_height(active, chrome, max)));
-        vec2(source.x, fitted.or(host).unwrap_or(if docked { source.y.min(self.look.float_height) } else { source.y }))
+        vec2(source.x, fitted.or(host).unwrap_or(if docked { source.y.min(self.float.y) } else { source.y }))
     }
 
     /// The active panel of the group at `place` when `members` are that whole group.
