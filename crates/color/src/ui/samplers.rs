@@ -134,16 +134,16 @@ impl ColorSamplers {
     // pc: crates/ui-egui/src/tools/analysis_ui.rs:468 (the marker loop).
     pub fn paint(&self, painter: &Painter, view: &CanvasView) {
         let tokens = craft_ui::theme::current(painter.ctx());
-        let sampler = &tokens.component.sampler;
+        let marker_radius = tokens.size.handle.md * MARKER_RADIUS_PER_HANDLE;
         let font = tokens.font(TypeRole::Caption);
         for (index, point) in self.points.iter().enumerate() {
             let at = view.to_screen(Point::new(point[0], point[1]));
             // Double-stroked so the reticle reads on any pixel.
             for (width, color) in [(RETICLE_OUTLINE_WIDTH, Color32::from_black_alpha(RETICLE_OUTLINE_ALPHA)), (RETICLE_WIDTH, Color32::WHITE)] {
                 let stroke = Stroke::new(width, color);
-                painter.circle_stroke(at, sampler.marker_radius, stroke);
+                painter.circle_stroke(at, marker_radius, stroke);
                 for direction in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
-                    painter.line_segment([at + direction * sampler.tick_start, at + direction * sampler.tick_end], stroke);
+                    painter.line_segment([at + direction * TICK_START, at + direction * TICK_END], stroke);
                 }
             }
             // Upper right, so several points stay readable when they overlap.
@@ -154,6 +154,13 @@ impl ColorSamplers {
         }
     }
 }
+
+/// The reticle's radius, as a fraction of `size.handle.md`.
+const MARKER_RADIUS_PER_HANDLE: f32 = 0.625;
+/// Distance from the reticle's centre to the inner end of its ticks.
+const TICK_START: f32 = 6.0;
+/// Distance from the reticle's centre to the outer end of its ticks.
+const TICK_END: f32 = 8.0;
 
 /// The reticle's dark outline: 3 points, black at alpha 170, under the 1 point white stroke
 /// (PhotoCraft's, so it reads on any pixel).

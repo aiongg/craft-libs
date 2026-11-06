@@ -53,8 +53,8 @@ const MESH: usize = 32;
 ///
 /// The area is not a field: a dialog's [`FieldTab`](craft_ui::behavior::FieldTab) skips it, and
 /// Ctrl+Tab reaches it. The edge (one point of `line.control_edge`) and the focus ring lie
-/// outside its rect; the marker is two rings, `color_picker.marker` (white) inside
-/// `color_picker.marker_halo` (dark), so one shows on any colour and neither tints it.
+/// outside its rect; the marker is two rings, `overlay.handle_fill` inside
+/// `overlay.halo`, so one shows on any colour and neither tints it.
 #[derive(Clone, Debug)]
 #[must_use = "show the area with `show`"]
 pub struct ColorArea {
@@ -97,7 +97,7 @@ impl ColorArea {
         self
     }
 
-    /// The area's size; `color_picker.area` square without it (the Full picker's).
+    /// The area's size; five `size.thumb.lg` square without it (the Full picker's).
     pub fn size(mut self, size: Vec2) -> Self {
         self.size = Some(size);
         self

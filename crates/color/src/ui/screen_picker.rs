@@ -68,6 +68,9 @@ pub const LOUPE_PIXELS: usize = 11;
 /// between 4 and 24.
 pub const LOUPE_ZOOM: (usize, usize, usize) = (4, 12, 24);
 
+/// How far a wheel notch changes the loupe's zoom.
+const ZOOM_STEP: u32 = 2;
+
 /// The screen colour picker: app-wide state in egui memory, driven by associated functions.
 ///
 /// - [`button`](Self::button) or [`open`](Self::open) asks for a pick for an owner; the next
@@ -309,7 +312,7 @@ impl ScreenColorPicker {
             s.source = Some(start());
             s.owner = Some(owner);
             s.target = Some(target);
-            s.zoom = current(ctx).component.screen_picker.zoom;
+            s.zoom = LOUPE_ZOOM.1 as u32;
             s.generation = s.generation.wrapping_add(1);
         }
         if s.owner.is_none() {
@@ -597,7 +600,7 @@ pub(super) fn frame(ui: &mut Ui, shared: &Shared, snapshot: &Snapshot) {
             return;
         };
         let zoom = {
-            let steps = current(ui.ctx()).component.screen_picker;
+            let (zoom_min, zoom_max) = (LOUPE_ZOOM.0 as u32, LOUPE_ZOOM.2 as u32);
             let wheel: f32 = ui.input(|i| {
                 i.raw
                     .events
@@ -610,9 +613,9 @@ pub(super) fn frame(ui: &mut Ui, shared: &Shared, snapshot: &Snapshot) {
             });
             let mut s = lock(shared);
             if wheel > 0.0 {
-                s.zoom = (s.zoom + steps.zoom_step).min(steps.zoom_max);
+                s.zoom = (s.zoom + ZOOM_STEP).min(zoom_max);
             } else if wheel < 0.0 {
-                s.zoom = s.zoom.saturating_sub(steps.zoom_step).max(steps.zoom_min);
+                s.zoom = s.zoom.saturating_sub(ZOOM_STEP).max(zoom_min);
             }
             s.zoom
         };
@@ -628,7 +631,7 @@ pub(super) fn frame(ui: &mut Ui, shared: &Shared, snapshot: &Snapshot) {
 /// to each, then the hex with the zoom and the two hints.
 fn loupe(ui: &Ui, snapshot: &Snapshot, screen: Rect, pos: Pos2, pixel: (usize, usize), zoom: u32, picked: Option<Srgba>) {
     let tokens = current(ui.ctx());
-    let cells = tokens.component.screen_picker.loupe_cells as usize;
+    let cells = LOUPE_PIXELS;
     let labels = ScreenPickerLabels::shared(ui);
     let cell = zoom as f32 / ui.ctx().pixels_per_point();
     let pad = Gap::Inline.points(&tokens);

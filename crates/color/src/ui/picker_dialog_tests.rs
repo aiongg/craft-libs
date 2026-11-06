@@ -378,7 +378,7 @@ fn a_given_title_fills_its_arg_after_translation() {
 fn the_picker_dialog_is_as_wide_as_its_content_with_equal_margins() {
     let rig = Rig::open(ColorPickerDialog::foreground(BLUE));
     let frame = rig.window();
-    let pad = craft_ui::theme::current(&rig.ctx).component.dialog.pad_roomy;
+    let pad = craft_ui::theme::current(&rig.ctx).space.pad.dialog;
     let (ok, web) = (rig.rect(Role::Button, "OK"), rig.rect(Role::CheckBox, "Only Web Colors"));
     let (left, right) = (web.left() - frame.left(), frame.right() - ok.right());
     assert!((left - pad).abs() < 1.0, "left margin {left} is the roomy margin {pad}");

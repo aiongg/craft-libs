@@ -159,7 +159,7 @@ impl SwatchPalette {
 /// # });
 /// ```
 ///
-/// - Cells are `swatch_palette.table_cell` points square and touch; each is a [`Swatch`] whose
+/// - Cells are `size.icon.md` points square and touch; each is a [`Swatch`] whose
 ///   colour is the entry's (a translucent entry shows over the checkerboard), and the name is the
 ///   tooltip. The cells wrap to the width, or to [`columns`](SwatchTable::columns).
 /// - The host passes the selected index; the selected cell draws the selection ring inside its
@@ -207,7 +207,7 @@ impl SwatchTable {
         let layout = if direction::is_rtl(ui) { Layout::right_to_left(Align::Min) } else { Layout::left_to_right(Align::Min) }.with_main_wrap(true);
         let builder = UiBuilder::new().scope_id(id).layout(layout).accessibility_role(Role::ListBox).accessibility_label(self.label.clone());
         let enabled = self.enabled && ui.is_enabled();
-        let cell = Tokens::of(ui).component.swatch_palette.table_cell;
+        let cell = Tokens::of(ui).size.icon.md;
         let selected = self.selected.filter(|&i| i < self.swatches.len());
         let inner = ui.scope_builder(builder, |ui| {
             ui.spacing_mut().item_spacing = Vec2::ZERO;

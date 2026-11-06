@@ -384,9 +384,9 @@ fn the_front_well_has_a_light_inner_line_a_dark_outer_line_and_a_backdrop_gap() 
     let fill = all.iter().find(|r| r.fill == Color32::RED).expect("the front well");
     let on = |kind| all.iter().find(|r| r.rect == fill.rect && r.stroke.width == 1.0 && r.stroke_kind == kind).map(|r| r.stroke.color);
     assert_eq!(on(StrokeKind::Inside), Some(craft_ui::theme::ToEgui::to_egui(tokens.color.text.normal).gamma_multiply(0.9)));
-    assert_eq!(on(StrokeKind::Outside), Some(craft_ui::theme::ToEgui::to_egui(tokens.component.field.border.rest)));
+    assert_eq!(on(StrokeKind::Outside), Some(craft_ui::theme::ToEgui::to_egui(tokens.color.line.control_edge)));
     let gap = all.iter().find(|r| r.fill == toolbar).expect("the gap");
-    assert_eq!(gap.rect, fill.rect.expand(tokens.component.color_picker.pair_gap));
+    assert_eq!(gap.rect, fill.rect.expand(tokens.space.gap.tight));
 }
 
 fn host_rig() -> Rig {

@@ -97,7 +97,7 @@ pub struct HarmonyWheel<'a> {
 }
 
 impl<'a> HarmonyWheel<'a> {
-    /// A wheel over `colors`; its side is the `color_picker.area` token unless set.
+    /// A wheel over `colors`; its side is five `size.thumb.lg` unless set.
     pub fn new(id_salt: impl AsIdSalt, label: impl Into<String>, colors: &'a [Srgba]) -> HarmonyWheel<'a> {
         HarmonyWheel { id_salt: IdSalt::new(id_salt), label: label.into(), colors, selected: None, size: 0.0 }
     }
@@ -121,7 +121,7 @@ impl<'a> HarmonyWheel<'a> {
         let Self { id_salt, label, colors, selected, size } = self;
         let labels = HarmonyLabels::of(ui);
         let tokens = Tokens::of(ui);
-        let side = if size > 0.0 { size } else { tokens.component.color_picker.area };
+        let side = if size > 0.0 { size } else { tokens.size.thumb.lg * 5.0 };
         let selected = selected.filter(|&i| i < colors.len());
         let hsb = selected.map(|i| colors[i].to_hsb());
         let names: Vec<String> = colors.iter().map(|c| c.to_hex()).collect();
@@ -221,13 +221,13 @@ impl<'a> HarmonyPanel<'a> {
         let labels = HarmonyLabels::of(ui);
         let words = Words::of(ui);
         let tokens = Tokens::of(ui);
-        let sizes = tokens.component.harmony;
+        let base_side = tokens.size.control.md - 2.0 * tokens.space.gap.tight;
         let ctx = ui.ctx().clone();
         let salt = IdSalt::new(id_salt);
         let mut response = HarmonyPanelResponse::default();
 
         ui.horizontal(|ui| {
-            let chip = Swatch::new((salt, "base"), labels.set_base.as_str(), base.to_rgba()).dimensions(sizes.base, sizes.base);
+            let chip = Swatch::new((salt, "base"), labels.set_base.as_str(), base.to_rgba()).dimensions(base_side, base_side);
             let chip = ui.add(chip).on_hover_text(labels.set_base.as_str());
             response.set_base = chip.clicked();
             let mut rule = state.rule;
@@ -248,7 +248,7 @@ impl<'a> HarmonyPanel<'a> {
         ui.add_space(ui.spacing().item_spacing.y);
         let swatch = Swatch::style(&tokens, craft_theme::ControlSize::Md);
         // The harmony strip: one cell per colour.
-        let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width(), sizes.strip), egui::Sense::hover());
+        let (strip, _) = ui.allocate_exact_size(vec2(ui.available_width(), tokens.size.control.md), egui::Sense::hover());
         let width = strip.width() / guide.colors.len().max(1) as f32;
         for (i, color) in guide.colors.iter().enumerate() {
             let rect = Rect::from_min_size(strip.min + vec2(i as f32 * width, 0.0), vec2(width, strip.height()));
@@ -269,9 +269,9 @@ impl<'a> HarmonyPanel<'a> {
         let edge = |i: usize| (i as f32 * cell_width).round();
         let multi = ui.input(|i| i.modifiers.shift || i.modifiers.command);
         for (r, row) in guide.grid.iter().enumerate() {
-            let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), sizes.row), egui::Sense::hover());
+            let (line, _) = ui.allocate_exact_size(vec2(ui.available_width(), tokens.size.control.md), egui::Sense::hover());
             for (c, color) in row.iter().enumerate() {
-                let rect = Rect::from_min_size(line.min + vec2(edge(c), 0.0), vec2(edge(c + 1) - edge(c) - gap, sizes.cell));
+                let rect = Rect::from_min_size(line.min + vec2(edge(c), 0.0), vec2(edge(c + 1) - edge(c) - gap, tokens.size.control.sm));
                 let hex = color.to_hex();
                 let on = picked.cells.contains(&(r, c));
                 let cell = Interactive::new((salt, "cell", r, c), Role::Button, hex.as_str()).selected(on).interact_at(ui, rect).finish(ui);

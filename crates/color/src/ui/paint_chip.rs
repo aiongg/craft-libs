@@ -261,7 +261,7 @@ impl<'a> PaintChip<'a> {
         let labels = PaintLabels::of(ui);
         let tokens = Tokens::of(ui);
         let enabled = enabled && ui.is_enabled();
-        let chip = tokens.component.paint_chip;
+        let chip = chip_size(&tokens);
         let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
 
         let solid = match paint {
@@ -272,7 +272,7 @@ impl<'a> PaintChip<'a> {
             Paint::Solid(color) => Swatch::new((&id_salt, "chip"), label.as_str(), color.to_rgba()),
             _ => Swatch::new((&id_salt, "chip"), label.as_str(), solid.to_rgba()).mixed(true),
         };
-        let response = ui.add(well.dimensions(chip.size[0], chip.size[1]).enabled(enabled));
+        let response = ui.add(well.dimensions(chip.x, chip.y).enabled(enabled));
         if !matches!(paint, Paint::Solid(_)) {
             let mut painter = ui.painter().clone();
             painter.set_clip_rect(painter.clip_rect().intersect(response.rect.expand(1.0)));
@@ -461,6 +461,16 @@ fn focus_free_or_inside(ctx: &egui::Context, popup: Id) -> bool {
     ctx.read_response(focused).is_none_or(|r| r.layer_id == LayerId::new(Order::Foreground, popup))
 }
 
+/// The chip's size: a control high and two inline gaps wider.
+fn chip_size(tokens: &UiTokens) -> Vec2 {
+    vec2(tokens.size.control.md + 2.0 * tokens.space.gap.inline, tokens.size.control.md)
+}
+
+/// The fill of an empty chip: the field's.
+fn field_fill(tokens: &UiTokens, enabled: bool) -> Color32 {
+    if enabled { tokens.color.surface.sunken } else { tokens.color.state.disabled_fill }.to_egui()
+}
+
 /// Draws `paint` in `rect` as a chip: a solid paint over the checkerboard where it has alpha, a
 /// gradient as a left-to-right ramp through its stops over the checkerboard, No Color as the
 /// field fill with a diagonal in `status.bad.fg` from bottom left to top right; then the edge.
@@ -476,8 +486,8 @@ fn paint_paint(painter: &Painter, rect: Rect, paint: &Paint, style: &SwatchStyle
             outline(painter);
         }
         Paint::None => {
-            painter.rect_filled(rect, style.radius, tokens.component.field.fill.get(enabled).to_egui());
-            let (inset, line) = (tokens.component.paint_chip.none_inset, tokens.component.paint_chip.none_line);
+            painter.rect_filled(rect, style.radius, field_fill(tokens, enabled));
+            let (inset, line) = (tokens.space.gap.tight, tokens.stroke.medium);
             let inner = rect.shrink(inset);
             painter.line_segment([inner.left_bottom(), inner.right_top()], Stroke::new(line, tokens.color.status.bad.fg.to_egui()));
             outline(painter);
@@ -525,7 +535,7 @@ fn paint_image(
             painter.add(mesh);
         }
         None => {
-            painter.rect_filled(rect, style.radius, tokens.component.field.fill.get(enabled).to_egui());
+            painter.rect_filled(rect, style.radius, field_fill(tokens, enabled));
         }
     }
     painter.extend(Swatch::outline(style, rect, false, enabled, ppp));
@@ -770,7 +780,7 @@ impl<'a> PaintList<'a> {
         }
         let Self { id_salt, label, paints, selected, .. } = self;
         let tokens = Tokens::of(ui);
-        let chip = tokens.component.paint_chip;
+        let chip = chip_size(&tokens);
         let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
         let ppp = ui.pixels_per_point();
         let enabled = ui.is_enabled();
@@ -779,7 +789,7 @@ impl<'a> PaintList<'a> {
         let output = List::new((&id_salt, "list"), label, rows.as_slice()).selection(&mut selection).renamable(true).show(ui, |_, &index| {
             let (name, paint) = &paints[index];
             let (style, tokens) = (&style, &tokens);
-            ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.size[0], chip.size[1]), move |painter, rect| {
+            ListRow::new(index, name.as_str()).thumb_sized(egui::vec2(chip.x, chip.y), move |painter, rect| {
                 paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
             })
         });
@@ -815,7 +825,7 @@ impl<'a> PaintList<'a> {
         let labels = PaintListLabels::of(ui);
         let ctx = ui.ctx().clone();
         let numbers = LocaleNumbers::of_ctx(&ctx);
-        let chip = tokens.component.paint_chip;
+        let chip = chip_size(&tokens);
         let style = Swatch::style(&tokens, craft_theme::ControlSize::Md);
         let ppp = ui.pixels_per_point();
         let enabled = ui.is_enabled();
@@ -848,7 +858,7 @@ impl<'a> PaintList<'a> {
                         item = item.accessible_name(format!("{name}, {}", Swatch::hex(color.to_rgba())));
                     }
                     if !options.edit {
-                        item = item.thumb_sized(vec2(chip.size[0], chip.size[1]), move |painter, rect| {
+                        item = item.thumb_sized(vec2(chip.x, chip.y), move |painter, rect| {
                             paint_paint(painter, rect, paint, style, tokens, enabled, ppp);
                         });
                     }
@@ -919,7 +929,7 @@ impl<'a> PaintList<'a> {
                         });
                     }
                     if options.edit {
-                        item = item.trailing_item(chip.size[0], move |ui| {
+                        item = item.trailing_item(chip.x, move |ui| {
                             let fallback = solid.unwrap_or(fallback);
                             let shown =
                                 PaintChip::new((&id_salt, "chip", row), labels.edit.as_str(), paint, fallback, numbers).enabled(enabled).show(ui);

@@ -2,7 +2,8 @@
 //! panel readout).
 
 use craft_theme::{Rgba, TypeRole};
-use egui::{Align, AsIdSalt, IdSalt, Layout, Ui, vec2};
+use egui::text::LayoutJob;
+use egui::{Align, AsIdSalt, Color32, IdSalt, Layout, Ui, vec2};
 
 use super::HexField;
 use craft_ui::controls::NumberField;
@@ -10,9 +11,14 @@ use craft_ui::direction;
 use craft_ui::edit::{EditEvent, EditPolicy, EditResponse};
 use craft_ui::localized::LocaleNumbers;
 use craft_ui::primitives::{Content, Gap, Text};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_ui::theme::{Tokens, TokensOf as _, UiTokens, role_format};
 
-/// The readout: a muted `#` and the hex field (six digits, the widths in `color_picker.readout_*`), then "R", "G" and "B" each before a number field of 0 to 255. An
+/// The width of `text` in `role`.
+fn text_width(ui: &Ui, tokens: &UiTokens, role: TypeRole, text: &str) -> f32 {
+    ui.painter().layout_job(LayoutJob::single_section(text.to_owned(), role_format(tokens, role, Color32::PLACEHOLDER))).size().x
+}
+
+/// The readout: a muted `#` and the hex field (six digits, each as wide as its widest text and the control padding), then "R", "G" and "B" each before a number field of 0 to 255. An
 /// edit in any field reports the whole colour, with the other channels and the alpha as given.
 /// Each field is its own gesture, so the events of a typing run in one field are that run's.
 ///
@@ -82,8 +88,10 @@ impl<'a> ColorReadout<'a> {
         let value = self.value;
         let mut event = None;
         let tokens = Tokens::of(ui);
-        let t = &tokens.component.color_picker;
-        let (hex_width, channel_width, gap) = (t.readout_hex_width, t.readout_channel_width, Gap::Inline.points(&tokens));
+        let pad = 2.0 * tokens.space.pad.control;
+        let hex_width = (text_width(ui, &tokens, TypeRole::Mono, "#RRGGBB") + pad).ceil();
+        let channel_width = (text_width(ui, &tokens, TypeRole::Body, "255") + pad).ceil();
+        let gap = Gap::Inline.points(&tokens);
         // Wrapped, so the fields fold onto a second line only in a dock narrower than the row.
         let layout = direction::row(ui).with_main_wrap(true);
         let inner = ui.scope_builder(egui::UiBuilder::new().id_salt(self.id_salt).layout(layout), |ui| {

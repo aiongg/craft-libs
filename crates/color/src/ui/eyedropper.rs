@@ -17,7 +17,7 @@ use craft_ui::edit::CancelReason;
 use craft_ui::icons::Icon;
 use craft_ui::localized::SharedLabels;
 use craft_ui::patterns::{CellWidth, OptionsBar, OptionsBarSlots};
-use craft_ui::theme::{ToEgui, UiTokens};
+use craft_ui::theme::UiTokens;
 
 craft_ui::words! {
     /// The Eyedropper's options words, English by default.
@@ -223,10 +223,9 @@ pub struct SamplingRingStyle {
 }
 
 impl SamplingRingStyle {
-    /// The ring from the theme's `eyedropper` tokens; the hairlines are fixed.
+    /// The ring with a band of `size.icon.md` plus `space.gap.tight`; the radius, grey and hairlines are fixed.
     pub fn of(tokens: &UiTokens) -> SamplingRingStyle {
-        let ring = &tokens.component.eyedropper;
-        SamplingRingStyle { outer_radius: ring.ring_radius, band: ring.ring_band, grey: ring.ring_grey.to_egui(), ..SamplingRingStyle::default() }
+        SamplingRingStyle { band: tokens.size.icon.md + tokens.space.gap.tight, ..SamplingRingStyle::default() }
     }
 }
 

@@ -102,7 +102,7 @@ pub use pair::{PairWell, SwatchPair, SwatchPairResponse, SwatchPairStyle, Well};
 pub use palette::{SwatchPalette, SwatchTable, SwatchTableResponse};
 pub use picker::{ColorPicker, ColorPickerLayout, ColorPickerResponse, ColorWarning, ColorWarningChip, PickedColor};
 pub use popover::{ColorPopover, ColorPopoverResponse};
-pub use ramp::{ColorRamp, ColorRampResponse, RampKind, RampPick};
+pub use ramp::{ColorRamp, ColorRampResponse, ColorRampStyle, RampKind, RampPick};
 pub use readout::ColorReadout;
 pub use strip::ColorStrip;
 pub use wheel::{ColorWheel, ColorWheelResponse, ColorWheelStyle, WheelGeometry, WheelPart};
@@ -141,51 +141,58 @@ use craft_ui::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ColorPartsStyle {
-    /// Side of the Full picker's area, and the strip's default height: `color_picker.area`.
+    /// Side of the Full picker's area, and the strip's default height: five `size.thumb.lg`.
     pub area: f32,
-    /// Height of the Compact picker's area: `color_picker.area_height`.
+    /// Height of the Compact picker's area: three `size.thumb.lg`.
     pub area_height: f32,
-    /// Width of the strip in the Full picker, its default: `color_picker.strip_full`.
+    /// Width of the strip in the Full picker, its default: `size.icon.lg`.
     pub strip_full: f32,
-    /// Width of the strip in the Compact picker: `color_picker.strip`.
+    /// Width of the strip in the Compact picker: `size.icon.md`.
     pub strip: f32,
-    /// The edge round the area and the strip, outside them: one point of `line.control_edge`.
+    /// The edge round the area and the strip, outside them: one `stroke.thin` of `line.control_edge`.
     pub edge: Stroke,
-    /// The area marker's inner circle: `color_picker.marker_inner_radius`, a
-    /// `color_picker.marker_inner_width` stroke of `color_picker.marker` (white).
+    /// The area marker's inner circle: a fifth of `size.control.md`, a `stroke.thick` stroke of
+    /// `overlay.handle_fill`.
     pub marker_inner_radius: f32,
     /// The inner ring's stroke: width and colour.
     pub marker_inner: Stroke,
-    /// The marker's outer ring: `color_picker.marker_outer_radius`, a
-    /// `color_picker.marker_outer_width` stroke of `color_picker.marker_halo` (black at alpha
-    /// 160). One of the two rings reads on any colour, and neither tints it.
+    /// The marker's outer ring: the inner radius plus `stroke.medium`, a `stroke.medium` stroke
+    /// of `overlay.halo`. One of the two rings reads on any colour, and neither tints it.
     pub marker_outer_radius: f32,
     /// The outer ring's stroke: width and colour.
     pub marker_outer: Stroke,
-    /// A strip pointer triangle, its depth across and its height: `color_picker.pointer_width`
-    /// and `color_picker.pointer_height`.
+    /// A strip pointer triangle, its depth across and its height: 0.3 and 0.417 of
+    /// `size.control.md`.
     pub pointer: Vec2,
     /// The pointers' fill: `text.normal`, outlined in the strip's edge.
     pub pointer_color: Color32,
 }
 
 fn parts_style(tokens: &UiTokens) -> ColorPartsStyle {
-    let t = &tokens.component.color_picker;
     let c = &tokens.color;
+    let control = tokens.size.control.md;
+    let marker_inner_radius = control * MARKER_INNER_RADIUS_PER_CONTROL;
     ColorPartsStyle {
-        area: t.area,
-        area_height: t.area_height,
-        strip_full: t.strip_full,
-        strip: t.strip,
-        edge: Stroke::new(1.0, c.line.control_edge.to_egui()),
-        marker_inner_radius: t.marker_inner_radius,
-        marker_inner: Stroke::new(t.marker_inner_width, t.marker.to_egui()),
-        marker_outer_radius: t.marker_outer_radius,
-        marker_outer: Stroke::new(t.marker_outer_width, t.marker_halo.to_egui()),
-        pointer: vec2(t.pointer_width, t.pointer_height),
+        area: tokens.size.thumb.lg * 5.0,
+        area_height: tokens.size.thumb.lg * 3.0,
+        strip_full: tokens.size.icon.lg,
+        strip: tokens.size.icon.md,
+        edge: Stroke::new(tokens.stroke.thin, c.line.control_edge.to_egui()),
+        marker_inner_radius,
+        marker_inner: Stroke::new(tokens.stroke.thick, c.overlay.handle_fill.to_egui()),
+        marker_outer_radius: marker_inner_radius + tokens.stroke.medium,
+        marker_outer: Stroke::new(tokens.stroke.medium, c.overlay.halo.to_egui()),
+        pointer: vec2(control * POINTER_WIDTH_PER_CONTROL, control * POINTER_HEIGHT_PER_CONTROL),
         pointer_color: c.text.normal.to_egui(),
     }
 }
+
+/// The area marker's inner radius, as a fraction of `size.control.md`.
+const MARKER_INNER_RADIUS_PER_CONTROL: f32 = 0.217;
+/// A strip pointer's depth across the strip, as a fraction of `size.control.md`.
+const POINTER_WIDTH_PER_CONTROL: f32 = 0.3;
+/// A strip pointer's height along the strip, as a fraction of `size.control.md`.
+const POINTER_HEIGHT_PER_CONTROL: f32 = 0.417;
 
 /// A disabled part's edge, marker and pointers are faded; its colours are not.
 fn faded(color: Color32, enabled: bool) -> Color32 {
