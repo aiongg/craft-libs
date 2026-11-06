@@ -292,6 +292,15 @@ impl Default for PressState {
 /// The longest gap between presses that still count as one multi-click, in seconds.
 pub const MULTI_CLICK_TIME: f64 = 0.3;
 
+/// The click count of a press at `pos` and `time`, given the previous press `(pos, time, clicks)`: one more when
+/// it follows within [`MULTI_CLICK_TIME`] and `slop` of the previous one, else 1.
+pub fn count_clicks(previous: Option<(Pos2, f64, u32)>, pos: Pos2, time: f64, slop: f32) -> u32 {
+    match previous {
+        Some((place, when, count)) if time - when <= MULTI_CLICK_TIME && place.distance(pos) <= slop => count + 1,
+        _ => 1,
+    }
+}
+
 /// A primary-button event of one pass, in the order it arrived.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -304,6 +313,8 @@ pub enum PointerEvent {
         pos: Pos2,
         /// The pass time.
         time: f64,
+        /// 1 for a single press, 2 for a double press, and so on; see [`count_clicks`].
+        clicks: u32,
     },
     /// The primary button went up.
     Released {
@@ -385,19 +396,18 @@ pub struct PressMachine<T> {
     open: Option<Open<T>>,
     /// The last press ended in a cancel: its later events belong to nobody.
     dead: bool,
-    last_press: Option<(Pos2, f64, u32)>,
 }
 
 impl<T> Default for PressMachine<T> {
     fn default() -> Self {
-        PressMachine { open: None, dead: false, last_press: None }
+        PressMachine { open: None, dead: false }
     }
 }
 
 impl<T: Copy> PressMachine<T> {
     /// A machine with no press.
     pub const fn new() -> Self {
-        PressMachine { open: None, dead: false, last_press: None }
+        PressMachine { open: None, dead: false }
     }
 
     /// The target of the open press.
@@ -441,14 +451,9 @@ impl<T: Copy> PressMachine<T> {
                         }
                     }
                 }
-                PointerEvent::Pressed { pos: at, time } => {
+                PointerEvent::Pressed { pos: at, time, clicks } => {
                     pos = at;
                     self.dead = false;
-                    let clicks = match self.last_press {
-                        Some((place, when, count)) if time - when <= MULTI_CLICK_TIME && place.distance(at) <= input.slop => count + 1,
-                        _ => 1,
-                    };
-                    self.last_press = Some((at, time, clicks));
                     self.open = pick(at).map(|(target, sense)| Open {
                         target,
                         sense,
@@ -505,7 +510,7 @@ mod tests {
     }
 
     fn press(x: f32, time: f64) -> PointerEvent {
-        PointerEvent::Pressed { pos: pos2(x, 0.0), time }
+        PointerEvent::Pressed { pos: pos2(x, 0.0), time, clicks: 1 }
     }
 
     #[test]
@@ -565,13 +570,11 @@ mod tests {
 
     #[test]
     fn presses_in_quick_succession_at_one_place_count_up() {
-        let mut machine = PressMachine::new();
-        let clicks = |step: PressStep<u8>| step.phase.and_then(|phase| phase.start()).map(|start| start.clicks);
-        assert_eq!(clicks(pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK)), Some(1));
-        pass(&mut machine, &[PointerEvent::Released { pos: pos2(0.0, 0.0) }], Sense::CLICK);
-        assert_eq!(clicks(pass(&mut machine, &[press(1.0, 1.2)], Sense::CLICK)), Some(2));
-        pass(&mut machine, &[PointerEvent::Released { pos: pos2(0.0, 0.0) }], Sense::CLICK);
-        assert_eq!(clicks(pass(&mut machine, &[press(1.0, 2.0)], Sense::CLICK)), Some(1));
+        let first = count_clicks(None, pos2(0.0, 0.0), 1.0, SLOP);
+        let second = count_clicks(Some((pos2(0.0, 0.0), 1.0, first)), pos2(1.0, 0.0), 1.2, SLOP);
+        let late = count_clicks(Some((pos2(0.0, 0.0), 1.2, second)), pos2(1.0, 0.0), 2.0, SLOP);
+        let far = count_clicks(Some((pos2(0.0, 0.0), 1.2, second)), pos2(50.0, 0.0), 1.3, SLOP);
+        assert_eq!((first, second, late, far), (1, 2, 1, 1));
     }
 
     #[test]

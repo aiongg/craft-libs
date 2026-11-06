@@ -64,6 +64,11 @@ impl Frames {
         self.run(events, ui)
     }
 
+    /// Moves the clock on by `seconds` before the next frame.
+    pub fn advance(&mut self, seconds: f64) {
+        self.time += seconds;
+    }
+
     /// `n` frames with no events.
     pub fn idle(&mut self, n: usize, mut ui: impl FnMut(&mut Ui)) {
         for _ in 0..n {

@@ -31,3 +31,48 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
 pub(crate) fn bare_context() -> Context {
     Context::default()
 }
+
+/// An allocating widget over `size` on `ui`: what app code may add over a canvas body.
+pub(crate) fn allocate_blocker(ui: &mut Ui, size: egui::Vec2) {
+    ui.allocate_response(size, egui::Sense::hover());
+}
+
+/// Whether the `Response` reports a click.
+pub(crate) fn clicked(response: &egui::Response) -> bool {
+    response.clicked()
+}
+
+/// The widget id egui's hit test chose as the click target at the latest pointer position.
+pub(crate) fn click_target(ctx: &Context) -> Option<egui::Id> {
+    crate::runtime::egui::input::hit_targets(ctx).0
+}
+
+/// A wheel event at the pointer, `dy` points of vertical scroll.
+pub(crate) fn wheel_event(dy: f32) -> Event {
+    Event::MouseWheel { unit: egui::MouseWheelUnit::Point, delta: egui::Vec2::new(0.0, dy), phase: egui::TouchPhase::Move, modifiers: Modifiers::NONE, source: egui::MouseWheelSource::Wheel }
+}
+
+/// The primary button going down or up at `pos`.
+pub(crate) fn button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+}
+
+/// The pointer moving to `pos`.
+pub(crate) fn pointer_moved(pos: Pos2) -> Event {
+    Event::PointerMoved(pos)
+}
+
+/// The pointer leaving the window.
+pub(crate) fn pointer_gone() -> Event {
+    Event::PointerGone
+}
+
+/// The window losing focus.
+pub(crate) fn window_blurred() -> Event {
+    Event::WindowFocused(false)
+}
+
+/// Gives key focus to the widget `id`.
+pub(crate) fn focus(ctx: &Context, id: egui::Id) {
+    ctx.memory_mut(|memory| memory.request_focus(id));
+}

@@ -15,6 +15,7 @@ pub mod install;
 pub mod memory;
 pub mod pointer;
 pub mod toast;
+pub mod wheel;
 pub mod windows;
 
 pub use install::{InstallError, InstallSpec, install};

@@ -5,6 +5,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::memory;
+use crate::runtime::{cursor, pointer, wheel};
 use craft_host::Host;
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
@@ -195,7 +196,6 @@ pub(crate) fn clock(ctx: &Context) -> f64 {
 
 /// Records that the runtime cancelled the captured press of the running viewport; the next begin hook ends
 /// egui's drag so hover reaches other widgets again.
-#[expect(dead_code, reason = "used by F2 pointer")]
 pub(crate) fn note_cancelled_press(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.press_cancelled = true);
@@ -237,6 +237,9 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     if cancelled {
         raw_input::stop_dragging(&ctx);
     }
+    // H5, H7: the pointer snapshot and the wheel split, before any component runs.
+    pointer::begin(&ctx);
+    wheel::begin(&ctx);
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
     let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
@@ -252,6 +255,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);
     }
+    cursor::end_pass(&ctx);
     // Evict shown memory by id and queue the evicted slots (7.2).
     memory::evict(&ctx);
     let live = pass::live_viewports(&ctx);
