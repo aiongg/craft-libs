@@ -152,9 +152,9 @@ fn paint_preview(ui: &Ui, painter: &Painter, rect: Rect, preview: &StylePreview)
 /// The picker's measures.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct StylePickerStyle {
-    /// The side of a style tile in the grid view (`text_styles.tile_side`).
+    /// The side of a style tile in the grid view (`size.control.sm`).
     pub tile_side: f32,
-    /// The side of a style's preview square in the chip (`text_styles.preview_side`).
+    /// The side of a style's preview square in the chip (`size.icon.sm`).
     pub preview_side: f32,
     /// The type role of a folder's caption in the grid view (FigCraft's 10 pt dim caption).
     pub folder_caption: TypeRole,
@@ -163,8 +163,7 @@ pub struct StylePickerStyle {
 impl<'a> StyleChip<'a> {
     /// The picker's measures, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> StylePickerStyle {
-        let t = &tokens.component.text_styles;
-        StylePickerStyle { tile_side: t.tile_side, preview_side: t.preview_side, folder_caption: TypeRole::Caption }
+        StylePickerStyle { tile_side: tokens.size.control.sm, preview_side: tokens.size.icon.sm, folder_caption: TypeRole::Caption }
     }
 
     /// `applied`: `Some(Some(id))` one style, `Some(None)` mixed, `None` no style.

@@ -10,7 +10,7 @@ use kurbo::{Point, Rect};
 use craft_ui::canvas::CanvasView;
 use craft_ui::theme::{StrokeExt as _, scale};
 
-use super::style::FrameMarksStyle;
+use super::style::{DEFAULT_PAPER, FrameMarksStyle};
 
 /// A hidden-character mark's size as a share of the font's ascent (DesignCraft): a proportion
 /// (lead call 38).
@@ -18,6 +18,12 @@ pub const MARK_SHARE: f32 = 0.75;
 
 /// The threaded triangle's corners as shares of the port's side from its centre: the two back
 /// corners and the tip (DesignCraft draws -2, +2.5 and -2 on a 8.5 port).
+/// The overset mark's arm length.
+const OVERSET_ARM: f32 = 5.0;
+/// The least and largest hidden-character mark size.
+const MARK_MIN: f32 = 6.0;
+const MARK_MAX: f32 = 40.0;
+
 const TRIANGLE: [(f32, f32); 3] = [(-0.235, -0.295), (0.295, 0.0), (-0.235, 0.295)];
 
 /// A hidden-character mark.
@@ -134,16 +140,15 @@ impl<'a> TextFrameMarks<'a> {
     /// The marks' sizes and colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> FrameMarksStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
         FrameMarksStyle {
-            port: t.frame_marks_port,
-            port_inset: t.frame_marks_port_inset,
-            overset: t.frame_marks_overset.to_egui(),
-            overset_arm: t.frame_marks_overset_arm,
-            overset_stroke: t.frame_marks_overset_stroke,
-            mark_min: t.frame_marks_mark_min,
-            mark_max: t.frame_marks_mark_max,
-            paper: t.paper.to_egui(),
+            port: tokens.size.handle.md,
+            port_inset: tokens.space.pad.control,
+            overset: tokens.color.status.bad.solid.to_egui(),
+            overset_arm: OVERSET_ARM,
+            overset_stroke: tokens.stroke.medium,
+            mark_min: MARK_MIN,
+            mark_max: MARK_MAX,
+            paper: DEFAULT_PAPER,
         }
     }
 

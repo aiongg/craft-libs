@@ -13,6 +13,14 @@ use egui::{CursorIcon, EventFilter, Key, Modifiers, PointerButton, Rect, Respons
 
 use super::style::ColumnBarStyle;
 
+/// The width of a divider that is hovered, dragged or focused.
+const DIVIDER_ACTIVE_WIDTH: f32 = 3.0;
+/// The alpha of the even and the odd columns' tint.
+const FILL_ALPHA: u8 = 0x1C;
+const FILL_ALT_ALPHA: u8 = 0x0E;
+/// The narrowest column that paints its percentage.
+const LABEL_MIN: f32 = 32.0;
+
 craft_ui::words! {
     /// The bar's words.
     #[non_exhaustive]
@@ -99,19 +107,18 @@ impl<'a> ColumnBar<'a> {
     /// The bar's sizes and colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> ColumnBarStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
         let c = &tokens.color;
         ColumnBarStyle {
             height: tokens.size.control.md,
-            outline: egui::Stroke::new(t.column_bar_outline, c.line.control_edge.to_egui()),
+            outline: egui::Stroke::new(tokens.stroke.thin, c.line.control_edge.to_egui()),
             radius: tokens.shape.radius.control,
-            divider: egui::Stroke::new(t.column_bar_divider, c.line.control_edge.to_egui()),
-            divider_active: egui::Stroke::new(t.column_bar_divider_active, c.accent.solid.to_egui()),
-            grab: t.column_bar_grab,
-            fill: t.column_bar_fill.to_egui(),
-            fill_alt: t.column_bar_fill_alt.to_egui(),
+            divider: egui::Stroke::new(tokens.stroke.medium, c.line.control_edge.to_egui()),
+            divider_active: egui::Stroke::new(DIVIDER_ACTIVE_WIDTH, c.accent.solid.to_egui()),
+            grab: tokens.size.hit.slop,
+            fill: c.accent.solid.with_alpha(FILL_ALPHA).to_egui(),
+            fill_alt: c.accent.solid.with_alpha(FILL_ALT_ALPHA).to_egui(),
             label: craft_theme::TypeRole::Caption,
-            label_min: t.column_bar_label_min,
+            label_min: LABEL_MIN,
         }
     }
 

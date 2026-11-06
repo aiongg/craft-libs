@@ -262,7 +262,7 @@ impl ChipRow<'_> {
                 .accessibility_role(Role::RadioGroup)
                 .accessibility_label(self.title);
             let group = ui.scope_builder(builder, |group| {
-                group.spacing_mut().item_spacing.x = Tokens::of(group).component.theme_chip.gap;
+                group.spacing_mut().item_spacing.x = Tokens::of(group).space.gap.inline;
                 let ids: Vec<Id> = themes.iter().map(|t| group.scope_id().with(t.id.as_str())).collect();
                 let mut selected = themes.iter().position(|t| Some(&t.id) == self.chosen);
                 // Arrows pick the chip the focus moves to.
@@ -373,8 +373,10 @@ impl<'a> ThemeChip<'a> {
 
     fn show_in(self, ui: &mut Ui, labels: &AppearanceLabels) -> ThemeChipResponse {
         let tokens = Tokens::of(ui);
-        let chip_tokens = tokens.component.theme_chip;
-        let outline_radius = CornerRadius::same(chip_tokens.outline_radius.round() as u8);
+        let (size, space, radius) = (&tokens.size, &tokens.space, tokens.shape.radius.sm);
+        let size_of_chip = Vec2::new(size.control.md + 2.0 * space.pad.control, size.control.sm + 2.0 * space.pad.control);
+        let badge_radius = size.handle.md - 1.0;
+        let outline_radius = CornerRadius::same(radius.round() as u8);
         let slot = self.slot.unwrap_or_else(|| Slot {
             id: ui.make_persistent_id(("theme_chip", self.id_salt, self.theme.id.as_str(), self.dark)),
             position: None,
@@ -382,7 +384,7 @@ impl<'a> ThemeChip<'a> {
         });
         let name = self.theme.name.as_str();
         let colors = sample(ui.ctx(), self.theme, self.dark);
-        let (_, rect) = ui.allocate_space(Vec2::from(chip_tokens.size));
+        let (_, rect) = ui.allocate_space(size_of_chip);
         // Only the group's Tab stop takes keyboard focus; the arrow keys move it.
         let sense = if slot.tab_stop { Sense::click() } else { Sense::CLICK };
         let mut chip = Interactive::with_id(slot.id, Role::RadioButton, name)
@@ -399,11 +401,11 @@ impl<'a> ThemeChip<'a> {
         let response = chip.interact_at(ui, rect).finish(ui).on_hover_text(name);
         if ui.is_rect_visible(rect) {
             let painter = ui.painter();
-            let inner = rect.shrink(chip_tokens.inset);
-            painter.rect_filled(inner, chip_tokens.fill_radius, colors.panel);
-            painter.rect_filled(Rect::from_min_size(inner.min, vec2(inner.width(), chip_tokens.strip)), 0.0, colors.chrome);
-            let dot = pos2(direction::end_x(ui, inner) - direction::forward(ui) * chip_tokens.dot_offset, inner.bottom() - chip_tokens.dot_offset);
-            painter.circle_filled(dot, chip_tokens.dot_radius, colors.accent);
+            let inner = rect.shrink(space.gap.tight);
+            painter.rect_filled(inner, radius, colors.panel);
+            painter.rect_filled(Rect::from_min_size(inner.min, vec2(inner.width(), space.gap.inline)), 0.0, colors.chrome);
+            let dot = pos2(direction::end_x(ui, inner) - direction::forward(ui) * space.gap.inline, inner.bottom() - space.gap.inline);
+            painter.circle_filled(dot, radius, colors.accent);
             let stroke = if self.selected {
                 Stroke::new(2.0, tokens.color.accent.solid.to_egui())
             } else if response.hovered() {
@@ -416,12 +418,12 @@ impl<'a> ThemeChip<'a> {
         let action = if self.favorite { &labels.remove_favorite } else { &labels.add_favorite };
         let mut favorite_clicked = false;
         let center: Pos2 =
-            pos2(direction::end_x(ui, rect) - direction::forward(ui) * chip_tokens.badge_inset[0], rect.top() + chip_tokens.badge_inset[1]);
-        let badge = Rect::from_center_size(center, Vec2::splat(chip_tokens.badge_radius * 2.0));
+            pos2(direction::end_x(ui, rect) - direction::forward(ui) * space.gap.tight, rect.top() + space.gap.tight);
+        let badge = Rect::from_center_size(center, Vec2::splat(badge_radius * 2.0));
         if self.favorite || ui.rect_contains_pointer(rect.union(badge)) {
             ui.painter().circle(
                 center,
-                chip_tokens.badge_radius,
+                badge_radius,
                 tokens.color.surface.raised.to_egui(),
                 Stroke::new(1.0, tokens.color.line.border.to_egui()),
             );

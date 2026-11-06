@@ -18,7 +18,7 @@ use egui::accesskit::Role;
 use egui::{Align2, FontId, Rect, Response, Sense, Shape, Ui, pos2};
 use kurbo::Point;
 
-use super::style::HeaderFooterStyle;
+use super::style::{DEFAULT_INK, DEFAULT_PAPER, HeaderFooterStyle};
 use super::view::PlacedPage;
 
 /// The dash and gap of the hint outline, screen points.
@@ -150,15 +150,15 @@ impl<'a> HeaderFooterZones<'a> {
     /// The zones' sizes and strokes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> HeaderFooterStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
         let c = &tokens.color;
+        let outline = tokens.stroke.thin;
         HeaderFooterStyle {
-            inset: t.header_footer_inset,
-            hint: egui::Stroke::new(t.header_footer_hint_outline, c.line.control_edge.to_egui()),
-            editing: egui::Stroke::new(t.header_footer_edit_outline, c.accent.solid.to_egui()),
-            neighbour: egui::Stroke::new(t.header_footer_edit_outline, c.line.control_edge.to_egui()),
-            paper: t.paper.to_egui(),
-            ink: t.ink.to_egui(),
+            inset: tokens.space.gap.tight,
+            hint: egui::Stroke::new(outline, c.line.control_edge.to_egui()),
+            editing: egui::Stroke::new(outline, c.accent.solid.to_egui()),
+            neighbour: egui::Stroke::new(outline, c.line.control_edge.to_egui()),
+            paper: DEFAULT_PAPER,
+            ink: DEFAULT_INK,
         }
     }
 

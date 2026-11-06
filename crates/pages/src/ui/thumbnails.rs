@@ -251,8 +251,7 @@ impl<'a> PageThumbnails<'a> {
 
     /// The panel's sizes, from the tokens.
     pub fn style(tokens: &UiTokens) -> PageThumbnailsStyle {
-        let t = &tokens.component.pages;
-        PageThumbnailsStyle { usual_width: t.thumbnail_usual_width, panel_inset: t.thumbnail_panel_inset }
+        PageThumbnailsStyle { usual_width: tokens.size.thumb.lg, panel_inset: tokens.space.pad.dialog + tokens.space.gap.section }
     }
 
     /// Off: no drag, no stacking keys, no Delete, no file drops (a read-only document).

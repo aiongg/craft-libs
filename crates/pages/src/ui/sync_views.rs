@@ -62,7 +62,7 @@ impl<'a> SyncedViews<'a> {
         mut half: impl FnMut(&mut Ui, &mut PageViewState, Lead) -> PageViewResponse,
     ) -> (PageViewResponse, PageViewResponse) {
         let rect = ui.available_rect_before_wrap();
-        let rects = SplitLayout::Two.rects(Tokens::of(ui).component.split.gap, rect);
+        let rects = SplitLayout::Two.rects(Tokens::of(ui).space.gap.tight, rect);
         // `SplitLayout::Two` puts pane 0 (the main view) on the right.
         // The lead stays with the half a drag started in: it changes on a press, or on hover with
         // no button held.

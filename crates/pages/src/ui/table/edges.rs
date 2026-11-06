@@ -11,6 +11,9 @@ use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _};
 use egui::accesskit::Role;
 use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
+/// The width of the line under the pointer.
+const LINE_HOVER_WIDTH: f32 = 3.0;
+
 craft_ui::words! {
     /// The edges' and presets' names (Word's border menu, InDesign's proxy tooltips).
     #[non_exhaustive]
@@ -176,15 +179,14 @@ impl<'a> EdgePicker<'a> {
     /// The picker's sizes and colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::EdgePickerStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
         crate::ui::EdgePickerStyle {
-            side: t.edge_picker_side,
-            inset: t.edge_picker_inset,
-            fill: t.edge_picker_fill.to_egui(),
-            line_on: t.edge_picker_line_on,
-            line_off: t.edge_picker_line_off,
-            line_off_color: t.edge_picker_line_off_color.to_egui(),
-            line_hover: t.edge_picker_line_hover,
+            side: 3.0 * tokens.size.control.md + 2.0 * tokens.space.gap.inline,
+            inset: tokens.space.pad.control,
+            fill: tokens.color.surface.sunken.to_egui(),
+            line_on: tokens.stroke.thick,
+            line_off: tokens.stroke.thin,
+            line_off_color: tokens.color.text.faint.to_egui(),
+            line_hover: LINE_HOVER_WIDTH,
         }
     }
 

@@ -91,6 +91,8 @@ const CMD_NEW: &str = "textStyles.new";
 const CMD_DUPLICATE: &str = "textStyles.duplicate";
 const CMD_DELETE: &str = "textStyles.delete";
 const CMD_OPTIONS: &str = "textStyles.options";
+/// The style list shows this many rows of `size.control.md`.
+const LIST_ROWS: f32 = 8.0;
 
 impl MenuFacts {
     fn of(ctx: &Context, id_salt: IdSalt) -> Option<MenuFacts> {
@@ -180,7 +182,7 @@ pub struct TextStylesPanelOutput {
 /// for action in r.actions { run_style_command(action) }
 /// ```
 ///
-/// - Dense rows (`list.row_height_dense`) in a scrolling list up to 220 pt tall. The style at the type target has the
+/// - Dense rows (text height plus `2 * space.gap.tight`) in a scrolling list up to 220 pt tall. The style at the type target has the
 ///   selected-row fill; the row selected in the panel (for the footer buttons) the hover fill; "+"
 ///   follows the current name while the text overrides it.
 /// - Click: [`TextStyleAction::Apply`] (Alt-click clears overrides); the clicked row becomes the
@@ -298,8 +300,8 @@ impl<'a> TextStylesPanel<'a> {
         let list_label = if paragraph { &labels.paragraph_styles } else { &labels.character_styles };
         let mut list = List::new((id_salt, kind), list_label.as_str(), infos.as_slice())
             .selection(selection)
-            .row_height(tokens.component.list.row_height_dense)
-            .max_height(tokens.component.text_styles.list_height);
+            .row_height(ui.text_style_height(&egui::TextStyle::Body) + 2.0 * tokens.space.gap.tight)
+            .max_height(LIST_ROWS * tokens.size.control.md);
         if many {
             list = list.can_drag(|_| true).reorder(Reorder::new(Axis::Vertical).accepts(|_, _| false));
         }

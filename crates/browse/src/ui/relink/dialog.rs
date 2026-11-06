@@ -168,7 +168,7 @@ craft_ui::words! {
 /// The Link Media dialog (N5.05) for a document's missing links; a `StackDialog` returning
 /// [`RelinkOutcome`] (Done) or `Cancel` (Cancel, Esc).
 ///
-/// - **Layout.** A `Dialog` `min(window − 40, link.dialog_max_width 760)` wide: the message; the
+/// - **Layout.** A `Dialog` `min(window − 40, 760)` wide: the message; the
 ///   missing `Table` (owner, file name, path, status; height `link.table_share` 30 % of the window
 ///   clamped `link.table_min`–`link.table_max`, 90–320); the match checks (library, then the
 ///   app's [`RelinkCriterion`]s) and Relink others; "Search in:" a `TextField` with Browse… (a

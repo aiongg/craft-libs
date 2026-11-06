@@ -52,6 +52,8 @@ use crate::quotes::{QuoteStyle, smart_quotes};
 const MAX_CLICKS: u32 = 5;
 /// The caret's half period (Photoshop's rhythm).
 const BLINK_SECONDS: f64 = 0.530;
+/// The alpha of the selection fill.
+const SELECTION_ALPHA: f32 = 0.43;
 
 /// The selection: `anchor` stays where it started, `caret` moves. Equal: a caret with nothing
 /// selected. Char offsets.
@@ -613,10 +615,10 @@ impl TextEditor {
         let ctx = painter.ctx();
         let tokens = craft_ui::theme::current(ctx);
         let accent = tokens.color.accent.solid.to_egui();
-        let sizes = tokens.component.text_editor;
+        let stroke = &tokens.stroke;
         // The caret as PhotoCraft draws it: a white halo, then a black line inside it, so it shows
         // on any image.
-        let caret = [Stroke::new(sizes.caret_halo, Color32::WHITE), Stroke::new(sizes.caret_line, Color32::BLACK)];
+        let caret = [Stroke::new(stroke.medium + 2.0 * stroke.thin, Color32::WHITE), Stroke::new(stroke.thin, Color32::BLACK)];
         let screen = |p: Point| view.to_screen(p);
         let chars = host.text().chars().count();
         if let Some(range) = self.preedit.clone().filter(|r| r.end <= chars && !r.is_empty() && self.preedit_is_current(&*host)) {
@@ -625,14 +627,14 @@ impl TextEditor {
                     painter.line_segment([screen(a), screen(b)], Stroke::new(width, accent));
                 }
             };
-            underline(range.clone(), sizes.preedit_underline);
+            underline(range.clone(), stroke.medium);
             if let Some(active) = self.preedit_active.clone().filter(|a| !a.is_empty() && a.end <= range.len()) {
-                underline(range.start + active.start..range.start + active.end, sizes.active_underline);
+                underline(range.start + active.start..range.start + active.end, stroke.thick);
             }
         }
         let selected = self.clamped(chars);
         if !selected.is_empty() {
-            let fill = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), (sizes.selection_alpha * 255.0).round() as u8);
+            let fill = Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), (SELECTION_ALPHA * 255.0).round() as u8);
             for quad in host.selection_quads(selected) {
                 painter.add(Shape::convex_polygon(quad.iter().map(|&p| screen(p)).collect(), fill, Stroke::NONE));
             }

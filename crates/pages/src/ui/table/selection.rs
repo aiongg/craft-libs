@@ -30,6 +30,9 @@ use egui::{Painter, Rect, StrokeKind, pos2};
 
 use crate::ui::CellSelectionStyle;
 
+/// The alpha of the selected cells' tint.
+const FILL_ALPHA: u8 = 0x6E;
+
 /// Where the table's rows and columns are on screen: the edges, top to bottom and left to right
 /// (n + 1 values for n rows).
 #[derive(Clone, Debug, PartialEq)]
@@ -95,10 +98,10 @@ impl<'a> CellSelectionOverlay<'a> {
     /// The overlay's colours, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> CellSelectionStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
+        let accent = tokens.color.accent.solid;
         CellSelectionStyle {
-            fill: t.table_selection_fill.to_egui(),
-            outline: egui::Stroke::new(t.table_selection_outline, tokens.color.accent.solid.to_egui()),
+            fill: accent.with_alpha(FILL_ALPHA).to_egui(),
+            outline: egui::Stroke::new(tokens.stroke.thin, accent.to_egui()),
         }
     }
 

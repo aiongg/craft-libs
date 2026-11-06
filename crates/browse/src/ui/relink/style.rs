@@ -3,23 +3,32 @@
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::{Color32, Vec2};
 
-/// The Links panel's and Link Media dialog's look. The sizes are the `link` family's.
+/// The height of the candidate list in the Link Media dialog.
+const CANDIDATES_HEIGHT: f32 = 108.0;
+/// The least and greatest width of the Links panel's table, and its share of the window.
+const TABLE_MIN: f32 = 90.0;
+const TABLE_MAX: f32 = 320.0;
+const TABLE_SHARE: f32 = 0.3;
+/// The widest the Link Media dialog gets.
+const DIALOG_MAX_WIDTH: f32 = 760.0;
+
+/// The Links panel's and Link Media dialog's look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RelinkStyle {
-    /// `link.badge` (16).
+    /// `size.icon.md`.
     pub badge: f32,
-    /// `link.preview` (192 × 108).
+    /// `size.thumb.lg` wide, 16:9.
     pub preview: Vec2,
-    /// `link.candidates_height` (108).
+    /// The candidate list's height.
     pub candidates_height: f32,
-    /// `link.table_min` (90).
+    /// The table's least width.
     pub table_min: f32,
-    /// `link.table_max` (320).
+    /// The table's greatest width.
     pub table_max: f32,
-    /// `link.table_share` (0.3 of the window).
+    /// The table's share of the window.
     pub table_share: f32,
-    /// `link.dialog_max_width` (760).
+    /// The dialog's greatest width.
     pub dialog_max_width: f32,
     /// Missing, Unreadable, Refused discs (`status.bad.solid`).
     pub bad: Color32,
@@ -45,15 +54,15 @@ impl RelinkStyle {
     /// The style of `tokens`.
     pub fn style(tokens: &UiTokens) -> RelinkStyle {
         let c = &tokens.color;
-        let l = &tokens.component.link;
+        let preview_width = tokens.size.thumb.lg;
         RelinkStyle {
-            badge: l.badge,
-            preview: Vec2::new(l.preview[0], l.preview[1]),
-            candidates_height: l.candidates_height,
-            table_min: l.table_min,
-            table_max: l.table_max,
-            table_share: l.table_share,
-            dialog_max_width: l.dialog_max_width,
+            badge: tokens.size.icon.md,
+            preview: Vec2::new(preview_width, preview_width * 9.0 / 16.0),
+            candidates_height: CANDIDATES_HEIGHT,
+            table_min: TABLE_MIN,
+            table_max: TABLE_MAX,
+            table_share: TABLE_SHARE,
+            dialog_max_width: DIALOG_MAX_WIDTH,
             bad: c.status.bad.solid.to_egui(),
             warn: c.status.warn.solid.to_egui(),
             on_status: c.text.on_status.to_egui(),

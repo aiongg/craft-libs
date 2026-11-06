@@ -119,7 +119,7 @@ impl DisplayOrder<ActionSelection> for ActionRows {
 /// - an action: `Icon::Play` glyph, its name, the include cell unless it has no steps, the trailing text ([`ActionsLabels::shortcut_steps`] or the step count,
 ///   [`ActionsLabels::partial_steps`] when partial), the recording dot (a
 ///   `status.bad.solid` circle) as a trailing item while recording into it, the accessible name
-///   with [`ActionsLabels::recording_suffix`] then (the dot's radius is `actions.recording_dot_radius`);
+///   with [`ActionsLabels::recording_suffix`] then (the dot is [`ActionsPanelStyle::recording_dot_radius`] in radius);
 /// - a step: the host's label, dimmed when switched off.
 ///
 /// The include and dialog cells are the row's [toggle columns](ToggleColumn), at the reading start
@@ -238,7 +238,7 @@ fn counted(ctx: &Context, count: Counted, n: usize) -> String {
 }
 
 /// `row` with `text` at the trailing end in `text.faint`, dropped before the label gets narrower
-/// than `list.min_label`.
+/// than `3 * size.control.md`.
 fn trailing_text<'r>(
     row: ListRow<'r, ActionSelection>,
     ctx: &Context,

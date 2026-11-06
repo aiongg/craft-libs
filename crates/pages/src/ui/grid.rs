@@ -15,6 +15,13 @@ use super::view::PageViewState;
 /// proportion, not a size.
 const BASELINE_SHARE: f32 = 0.8;
 
+/// The default colour of the margin rectangle.
+pub const DEFAULT_MARGINS: Color32 = Color32::from_rgb(0xFF, 0x38, 0xFF);
+/// The default colour of the column rectangles.
+pub const DEFAULT_COLUMNS: Color32 = Color32::from_rgb(0xA6, 0x28, 0xFF);
+/// The default colour of the baseline grid.
+pub const DEFAULT_BASELINE: Color32 = Color32::from_rgb(0x8C, 0xCD, 0xE6);
+
 /// The most baseline grid lines drawn on a page: one per point of the tallest page (216 in),
 /// DesignCraft's `MAX_BASELINES`.
 pub const MAX_BASELINES: usize = 216 * 72;
@@ -69,11 +76,9 @@ pub struct PageGrids<'a> {
 }
 
 impl<'a> PageGrids<'a> {
-    /// The guide colours, from the tokens.
-    pub fn style(tokens: &craft_ui::theme::UiTokens) -> PageGridColors {
-        use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.grid;
-        PageGridColors { margins: t.page_margins.to_egui(), columns: t.page_columns.to_egui(), baseline: t.page_baseline.to_egui() }
+    /// The default guide colours; the app's own colours replace them in [`PageGridColors`].
+    pub fn style(_tokens: &craft_ui::theme::UiTokens) -> PageGridColors {
+        PageGridColors { margins: DEFAULT_MARGINS, columns: DEFAULT_COLUMNS, baseline: DEFAULT_BASELINE }
     }
 
     /// The grids of `pages` through `view` (page points to screen), at the zoom of the page

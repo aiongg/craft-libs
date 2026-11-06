@@ -17,6 +17,11 @@ use egui::accesskit::Role;
 use egui::{Event, EventFilter, Key, Modifiers, MouseWheelUnit, PointerButton, Pos2, Rect, Sense, Ui, Vec2, pos2, vec2};
 
 use super::style::ReadingStyle;
+
+/// One column per this much width, screen points.
+const COLUMN_TARGET: f32 = 295.0;
+/// The least column width, screen points.
+const COLUMN_MIN: f32 = 192.0;
 use super::view::PageSource;
 use crate::layout::SCREEN_POINTS_PER_POINT;
 
@@ -215,12 +220,11 @@ pub struct ReadingViewResponse {
 impl<'a> ReadingView<'a> {
     /// The view's sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> ReadingStyle {
-        let t = &tokens.component.pages;
         ReadingStyle {
-            column_gap: t.reading_column_gap,
-            nav_bar: t.reading_nav_bar,
-            column_target: t.reading_column_target,
-            column_min: t.reading_column_min,
+            column_gap: tokens.space.gap.section,
+            nav_bar: tokens.size.control.md + 2.0 * tokens.space.pad.control,
+            column_target: COLUMN_TARGET,
+            column_min: COLUMN_MIN,
         }
     }
 

@@ -39,6 +39,8 @@ const DEFAULT_SPACING: f32 = 0.5 * 72.0;
 /// The Left and Right presets' narrow column is this share of the text width less one spacing,
 /// the wide one the rest (wordcraft: `columns.rs:187-188`).
 const NARROW_SHARE: f32 = 1.0 / 3.0;
+/// The preview pane's width and height.
+const PREVIEW_PANE: [f32; 2] = [140.0, 150.0];
 
 craft_ui::words! {
     /// The dialog's and menu's words (DeckCraft's and WordCraft's strings).
@@ -447,7 +449,7 @@ impl TextColumnsDialog {
         });
         if self.word.is_some() {
             ui.add_space(gap);
-            let pane = Tokens::of(ui).component.dialog.preview_pane[0];
+            let pane = PREVIEW_PANE[0];
             ui.horizontal_top(|ui| {
                 let room = (ui.available_width() - pane - ui.spacing().item_spacing.x).max(0.0);
                 ui.scope(|ui| {
@@ -505,7 +507,7 @@ impl TextColumnsDialog {
     /// (WordCraft `columns_preview`).
     fn preview(&self, ui: &mut Ui, labels: &TextColumnsLabels) {
         let tokens = Tokens::of(ui);
-        let [pane_width, pane_height] = tokens.component.dialog.preview_pane;
+        let [pane_width, pane_height] = PREVIEW_PANE;
         let (pane, response) = ui.allocate_exact_size(vec2(pane_width, pane_height), Sense::hover());
         response.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Image, true, labels.preview.as_str()));
         if !ui.is_rect_visible(pane) {
@@ -517,7 +519,7 @@ impl TextColumnsDialog {
         let height = pane.height().min(pane.width() / PAGE_ASPECT);
         let page = Rect::from_center_size(pane.center(), vec2(height * PAGE_ASPECT, height));
         let painter = ui.painter();
-        painter.rect_filled(pane, 0.0, tokens.component.dialog.preview_fill.to_egui());
+        painter.rect_filled(pane, 0.0, colors.surface.sunken.to_egui());
         painter.rect(page, 0.0, colors.surface.raised.to_egui(), stroke(colors.line.border.to_egui()), egui::StrokeKind::Inside);
         let plan = preview_plan(&self.rows(), self.word.unwrap_or(0.0), self.edited.line_between == Some(true), page);
         let pitch = ui.text_style_height(&egui::TextStyle::Body) * LINE_PITCH;
