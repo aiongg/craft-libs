@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 
 use craft_theme::{AppSizes, ControlSize, SizeLayer, SizeMap, SizeOrigin, SizeValue, Tone};
 use craft_ui::composites::Notice;
-use craft_ui::controls::{Button, Checkbox, NumberField, Segmented, TextField};
+use craft_ui::controls::{Button, NumberField, Segmented, TextField};
 use craft_ui::localized::LocaleNumbers;
 
 use egui::{Context, Grid, Ui};
@@ -167,11 +167,9 @@ impl AppLayer {
             ui.label("Set by");
             ui.label(layer_words(origin.layer));
             ui.end_row();
-            if let SizeValue::Number(_) = origin.value {
-                ui.label("Range");
-                ui.monospace(format!("{} to {}", origin.range.0, origin.range.1));
-                ui.end_row();
-            }
+            ui.label("Range");
+            ui.monospace(format!("{} to {}", origin.range.0, origin.range.1));
+            ui.end_row();
         });
         let mut section = self.section;
         Segmented::new("gallery.app_layer.section", "Part of sizes.json", &mut section)

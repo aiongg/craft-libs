@@ -18,7 +18,7 @@ use super::tiles::TileEvents;
 use super::{Gallery, stories, variants};
 use crate::browser;
 use crate::layout::{GalleryWorkspace, PanelId, PreviewView, VariantAxis, default_for, reconciled};
-use crate::probe::{Key, Pass, Probe};
+use crate::probe::{Key, Probe};
 use crate::usage::{Highlight, TilePick};
 
 /// The panel menu's commands.
@@ -126,7 +126,7 @@ impl Gallery {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         let token = self.browser.selected();
         let tiles = self.workspace == GalleryWorkspace::Theme && self.preview == PreviewView::Components && self.pick.on;
-        let pick = tiles.then(|| TilePick { pass: pass_of_pick(Picker::field_requested(ui.ctx())), tiles: &mut self.pick.tiles });
+        let pick = tiles.then(|| TilePick { tiles: &mut self.pick.tiles });
         let highlight =
             (token.is_some() || pick.is_some()).then(|| Highlight::new(&mut self.scan, token, pick, self.applied.base.inputs.theme(mode), mode));
         TabEnv {
@@ -201,12 +201,11 @@ impl Gallery {
         let rect = ui.max_rect().intersect(ui.clip_rect());
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         let theme = self.applied.base.inputs.theme(mode);
-        let pass = pass_of_pick(Picker::field_requested(ui.ctx()));
         let (app, appearance, generation) = (&self.app, &self.appearance, self.pick.generation);
-        let key = Key::new(theme, "preview:app", format!("{generation}"), appearance, mode, pass, rect.size());
+        let key = Key::new(theme, "preview:app", format!("{generation}"), appearance, mode, rect.size());
         let usage = self.scan.usage(key, || {
             let mut copy = app.for_probe();
-            Probe::run(theme, appearance, mode, pass, rect.size(), |_| {}, |ui| copy.show(ui))
+            Probe::run(theme, appearance, mode, rect.size(), |_| {}, |ui| copy.show(ui))
         });
         let origin = rect.min.to_vec2();
         let find = |_: &Picker, pos: egui::Pos2| {
@@ -263,12 +262,6 @@ impl Gallery {
             self.activate(PanelId::Theme);
         }
     }
-}
-
-/// The pass that picks a semantic token, or with Alt the component field.
-fn pass_of_pick(field: bool) -> Pass {
-    let _ = field;
-    Pass::Semantic
 }
 
 /// Draws `add` inside the panel's padding.

@@ -21,6 +21,7 @@ use craft_ui::menu::MenuEntry;
 use craft_ui::patterns::OptionsBar;
 use craft_ui::primitives::{Content, Gap, Row, Stack, Text};
 use craft_ui::story::{Level, NoArgs, Story, StoryArgs, StoryChoice, StoryLabels, Surface, dialog_closed, dialog_shown};
+use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Color32, Context, Id, Rect, Sense, TextureHandle, TextureOptions, Ui, pos2, vec2};
 
@@ -276,9 +277,12 @@ fn muted(ui: &mut Ui, text: impl Into<String>) {
     ui.add(Text::new(text).content(Content::Muted));
 }
 
-/// The width of a panel beside its menu button: 260 points, less in a narrow tile.
+/// The width of a panel beside its menu button: 260 points, less in a narrow tile. The button's
+/// room is two controls and the gap.
 fn panel_width(ui: &Ui) -> f32 {
-    (ui.available_width() - 40.0).clamp(160.0, 260.0)
+    let tokens = Tokens::of(ui);
+    let room = 2.0 * tokens.size.control.md + Gap::Inline.points(&tokens);
+    (ui.available_width() - room).clamp(160.0, 260.0)
 }
 
 /// A panel's `entries` under a "≡" button; the chosen command, if any.

@@ -458,8 +458,9 @@ fn a_press_on_an_open_paths_end_resumes_it_only_without_a_draft() {
 }
 
 #[test]
-fn the_first_anchor_takes_the_press_within_6_points_in_a_rotated_flipped_view() {
-    for (offset, closes) in [(5.9, true), (6.1, false)] {
+fn the_first_anchor_takes_the_press_within_the_hit_reach_in_a_rotated_flipped_view() {
+    let reach = PenDraft::style(&craft_ui::theme::current(&harness(Vec::new()).ctx)).hit;
+    for (offset, closes) in [(reach - 0.1, true), (reach + 0.1, false)] {
         let mut h = harness(Vec::new());
         (h.state_mut().rotation, h.state_mut().flip) = (30.0, true);
         h.run();

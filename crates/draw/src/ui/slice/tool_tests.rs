@@ -12,7 +12,7 @@ use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 use craft_ui::testing::canvas;
-use craft_ui::theme::{Base, Tokens, TokensOf as _, install};
+use craft_ui::theme::{Base, Tokens, TokensOf as _, current, install};
 
 struct Host {
     tool: SliceTool,
@@ -330,10 +330,16 @@ fn badge_texts(items: &[SliceItem]) -> (Vec<String>, usize) {
     (out, marks)
 }
 
-// The overlay draws no badge on a 17 × 30 slice, "03" on a user slice and "04" and a mark on a layer slice.
+// The overlay draws no badge on a slice narrower than the badge's least width, "03" on a user slice
+// and "04" and a mark on a layer slice.
 #[test]
 fn slice_badge_hides_on_small_slices_and_marks_layer_slices() {
-    let items = [user(1, [0.0, 0.0, 17.0, 30.0]), user(3, [50.0, 0.0, 100.0, 50.0]), item(4, [120.0, 0.0, 180.0, 50.0], SliceOrigin::Layer)];
+    let narrow = {
+        let ctx = egui::Context::default();
+        install(&ctx, &Base::suite_default());
+        f64::from(SliceTool::style(&current(&ctx)).badge_min.x) - 1.0
+    };
+    let items = [user(1, [0.0, 0.0, narrow, 30.0]), user(3, [50.0, 0.0, 100.0, 50.0]), item(4, [120.0, 0.0, 180.0, 50.0], SliceOrigin::Layer)];
     let (texts, marks) = badge_texts(&items);
     assert_eq!(texts, ["03", "04"]);
     assert_eq!(marks, 1, "only the layer slice has a mark");
@@ -401,8 +407,13 @@ fn slice_cancels_on_escape_and_on_tool_switch() {
     }
 }
 
+/// A distance from a handle's centre that is inside its reach and not at the centre.
+fn grab_offset(h: &Harness<'_, Host>) -> f32 {
+    SliceTool::style(&current(&h.ctx)).handle_hit / 2.0 - 1.0
+}
+
 // A snapped resize ends the edge on the guide, whatever the press's offset from the handle: the
-// press is 5 pt right of the handle point, the guide at x = 230.
+// press is off the handle point but within its reach, the guide at x = 230.
 #[cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 #[test]
 fn a_snapped_resize_lands_the_edge_on_the_guide() {
@@ -411,7 +422,8 @@ fn a_snapped_resize_lands_the_edge_on_the_guide() {
     targets.add(SnapTarget { vertical: true, position: 230.0, kind: SnapKind::Guide, span: None });
     h.state_mut().targets = Some(targets);
     h.step();
-    canvas::drag(&mut h, pos2(205.0, 150.0), pos2(228.0, 150.0), Modifiers::NONE);
+    let off = grab_offset(&h);
+    canvas::drag(&mut h, pos2(200.0 + off, 150.0), pos2(223.0 + off, 150.0), Modifiers::NONE);
     assert_eq!(committed(&resizes(&h)), Some(Rect::new(100.0, 100.0, 230.0, 200.0)), "{:?}", h.state().events);
 }
 
@@ -420,7 +432,8 @@ fn a_snapped_resize_lands_the_edge_on_the_guide() {
 #[test]
 fn a_click_on_a_handle_resizes_nothing() {
     let mut h = harness(SliceMode::Select, vec![user(1, [100.0, 100.0, 200.0, 200.0])], Some(1));
-    canvas::press(&mut h, pos2(205.0, 150.0), Modifiers::NONE);
-    canvas::release(&mut h, pos2(205.0, 150.0), Modifiers::NONE);
+    let off = grab_offset(&h);
+    canvas::press(&mut h, pos2(200.0 + off, 150.0), Modifiers::NONE);
+    canvas::release(&mut h, pos2(200.0 + off, 150.0), Modifiers::NONE);
     assert!(resizes(&h).is_empty(), "{:?}", h.state().events);
 }

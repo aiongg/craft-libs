@@ -240,8 +240,9 @@ fn a_shown_handle_beats_an_anchor_which_beats_a_segment_at_equal_distance() {
 }
 
 #[test]
-fn a_segment_takes_the_pointer_within_6_points_in_a_rotated_flipped_view() {
-    for (offset, takes) in [(5.9, true), (-5.9, true), (6.1, false)] {
+fn a_segment_takes_the_pointer_within_the_hit_reach_in_a_rotated_flipped_view() {
+    let reach = BezierOverlay::style(&current(&harness(vec![path_a()]).ctx)).hit;
+    for (offset, takes) in [(reach - 0.1, true), (-(reach - 0.1), true), (reach + 0.1, false)] {
         let mut h = harness(vec![path_a()]);
         (h.state_mut().rotation, h.state_mut().flip) = (30.0, true);
         h.run();
@@ -317,13 +318,14 @@ fn a_straight_segment_moves_its_anchors_and_a_curved_one_bends() {
 }
 
 #[test]
-fn a_release_within_1_point_is_a_click_with_no_event() {
+fn a_release_within_the_click_slop_is_a_click_with_no_event() {
     let mut h = two_paths();
+    let slop = BezierOverlay::style(&current(&h.ctx)).click_slop;
     let a2 = screen(&h, anchor(&h, 0, 0, 1));
-    drag(&mut h, a2, a2 + vec2(0.9, 0.0), Modifiers::NONE);
+    drag(&mut h, a2, a2 + vec2(slop - 0.1, 0.0), Modifiers::NONE);
     assert!(h.state().events.is_empty(), "{:?}", kinds(&h));
     assert_eq!(selection(&h), sel(1, &[(0, 1)]), "the click selects");
-    drag(&mut h, a2, a2 + vec2(1.1, 0.0), Modifiers::NONE);
+    drag(&mut h, a2, a2 + vec2(slop + 0.1, 0.0), Modifiers::NONE);
     assert_eq!(kinds(&h).last(), Some(&"commit"));
 }
 

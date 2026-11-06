@@ -94,7 +94,7 @@ fn token_browser_renders_in_both_modes_with_a_row_selected() {
     let ctx = Context::default();
     let mut gallery = Gallery::new(None);
     gallery.activate(PanelId::Tokens);
-    let field = ComponentField::from_path("button.primary.text.rest").unwrap();
+    let field = ComponentField::from_path("slider.thumb_width").unwrap();
     for (dark, selected) in [(false, TokenRef::Color(ColorToken::TextFaint)), (true, TokenRef::Component(field))] {
         let a = gallery.appearance_mut();
         a.mode = if dark { ModeChoice::Dark } else { ModeChoice::Light };

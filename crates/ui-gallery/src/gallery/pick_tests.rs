@@ -124,13 +124,9 @@ fn a_computed_colour_names_no_token_and_a_click_on_it_selects_nothing() {
 }
 
 /// The box of the checked "Snap to grid" checkbox in the Components preview, once every tile has
-/// been probed in the pass that `alt` asks for.
-fn checked_box(f: &mut Fixture, alt: bool) -> Pos2 {
+/// been probed.
+fn checked_box(f: &mut Fixture) -> Pos2 {
     f.gallery.set_picking(true);
-    if alt {
-        f.time += 1.0;
-        f.frame_with(vec![Event::ModifiersChanged(Modifiers::ALT)]);
-    }
     // Probing is one tile per frame.
     f.frames(45);
     f.bounds_of("Snap to grid (checked)", Role::CheckBox).min + vec2(10.0, 12.0)
@@ -139,20 +135,12 @@ fn checked_box(f: &mut Fixture, alt: bool) -> Pos2 {
 #[test]
 fn in_the_components_preview_a_click_picks_the_tile_shape_and_does_not_press_the_tile() {
     let mut f = Fixture::new(PreviewView::Components);
-    let pos = checked_box(&mut f, false);
+    let pos = checked_box(&mut f);
     f.hover(pos);
     assert!(matches!(f.gallery.picked_hover(), Some(Some(TokenRef::Color(_)))), "{:?}", f.gallery.picked_hover());
     f.click(pos, Modifiers::NONE);
     assert!(matches!(f.gallery.selected_token(), Some(TokenRef::Color(_))), "{:?}", f.gallery.selected_token());
     f.bounds_of("Snap to grid (checked)", Role::CheckBox);
-}
-
-#[test]
-fn an_alt_click_picks_the_component_field() {
-    let mut f = Fixture::new(PreviewView::Components);
-    let pos = checked_box(&mut f, true);
-    f.click(pos, Modifiers::ALT);
-    assert!(matches!(f.gallery.selected_token(), Some(TokenRef::Component(_))), "{:?}", f.gallery.selected_token());
 }
 
 #[test]

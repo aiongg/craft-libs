@@ -1,7 +1,7 @@
 //! The paint probe: which theme tokens a drawing paints with, and where.
 //!
 //! The drawing runs headless in its own context under a probe theme in which every colour token
-//! (pass [`Pass::Semantic`]) has a distinct opaque colour. Reading the painted shapes back, each
+//! has a distinct opaque colour. Reading the painted shapes back, each
 //! colour that is a probe colour names the token the drawing painted it with, and the rect it
 //! painted. Colours that are not probe colours (blends, scaled colours, constants) count as
 //! computed. States a drawing does not show, and closed popups, are not painted and so not found.
@@ -20,13 +20,6 @@ use egui::epaint::{ColorMode, Shape, TextShape};
 use egui::{Color32, Context, Pos2, RawInput, Rect, Ui, Vec2};
 
 use crate::appearance::Appearance;
-
-/// Which colours the probe theme pins.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum Pass {
-    /// Every colour token pinned: a button fill is found as `accent.solid`.
-    Semantic,
-}
 
 /// One painted colour.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -105,7 +98,6 @@ impl Probe {
         theme: &ThemeDef,
         appearance: &Appearance,
         mode: Mode,
-        pass: Pass,
         size: Vec2,
         setup: impl FnOnce(&Context),
         mut draw: impl FnMut(&mut Ui),
@@ -145,8 +137,8 @@ impl Probe {
 
     /// A story with `args` in its surface's margin, where the gallery's tiles draw it. The surface's
     /// fill and edge are not drawn: the tiles paint them, and they would be recorded as uses.
-    pub fn story(theme: &ThemeDef, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2, story: &Story, args: &mut Args) -> Usage {
-        Self::run(theme, appearance, mode, pass, size, |_| {}, |ui| crate::gallery::bare(ui, story, args))
+    pub fn story(theme: &ThemeDef, appearance: &Appearance, mode: Mode, size: Vec2, story: &Story, args: &mut Args) -> Usage {
+        Self::run(theme, appearance, mode, size, |_| {}, |ui| crate::gallery::bare(ui, story, args))
     }
 }
 
@@ -165,7 +157,6 @@ pub struct Key {
     pub args: String,
     pub look: Look,
     pub mode: Mode,
-    pub pass: Pass,
     /// The size drawn at, in whole points.
     pub size: [u32; 2],
 }
@@ -199,15 +190,7 @@ impl Look {
 
 impl Key {
     /// The key of `what` drawn with `args` under `theme` and `appearance`.
-    pub fn new(
-        theme: &ThemeDef,
-        what: impl Into<String>,
-        args: impl Into<String>,
-        appearance: &Appearance,
-        mode: Mode,
-        pass: Pass,
-        size: Vec2,
-    ) -> Self {
+    pub fn new(theme: &ThemeDef, what: impl Into<String>, args: impl Into<String>, appearance: &Appearance, mode: Mode, size: Vec2) -> Self {
         let mut hasher = DefaultHasher::new();
         format!("{:?}", theme.components).hash(&mut hasher);
         Self {
@@ -217,7 +200,6 @@ impl Key {
             args: args.into(),
             look: Look::of(appearance),
             mode,
-            pass,
             size: [size.x as u32, size.y as u32],
         }
     }

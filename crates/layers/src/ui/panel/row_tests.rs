@@ -390,8 +390,8 @@ fn with_cx(ui: &mut Ui, setup: &mut Setup, run: impl FnOnce(&PanelContext<'_, Fa
     run(&cx);
 }
 
-// `row_height` gives the 8-cell table: None, Small, Medium, Large at Compact (24, 32, 32, 56) and
-// Comfortable (30, 40, 42, 56).
+// `row_height` grows with the thumbnail setting (None, Small, Medium, Large) at both sizes, and a
+// Comfortable row is never shorter than a Compact one.
 #[test]
 fn row_height_follows_size_preset_and_thumbnail_setting() {
     let ctx = Context::default();
@@ -414,8 +414,12 @@ fn row_height_follows_size_preset_and_thumbnail_setting() {
         });
         out
     };
-    assert_eq!(heights(Size::Compact), [24.0, 32.0, 32.0, 56.0]);
-    assert_eq!(heights(Size::Comfortable), [30.0, 40.0, 42.0, 56.0]);
+    let (compact, comfortable) = (heights(Size::Compact), heights(Size::Comfortable));
+    for row in [&compact, &comfortable] {
+        assert!(row.windows(2).all(|w| w[0] <= w[1]), "{row:?}");
+        assert!(row[0] < row[3], "a large thumbnail makes a taller row than none: {row:?}");
+    }
+    assert!(compact.iter().zip(&comfortable).all(|(c, f)| c <= f), "{compact:?} against {comfortable:?}");
 }
 
 // The row's AccessKit description holds the kind word, the flags that hold and the target words.

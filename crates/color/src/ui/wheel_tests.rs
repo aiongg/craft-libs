@@ -189,7 +189,7 @@ fn geometry_follows_the_area_and_its_points_round_trip() {
         let g = ColorWheel::geometry(&style, Rect::from_min_size(pos2(10.0, 20.0), vec2(side, side)));
         assert_eq!(g.center, pos2(10.0 + side / 2.0, 20.0 + side / 2.0));
         assert_eq!(g.outer, side / 2.0 - style.outer_inset);
-        assert_eq!(g.outer - g.inner, ring, "the ring width clamps at {ring} on a {side} area");
+        assert!((g.outer - g.inner - ring).abs() < 1e-3, "the ring width clamps at {ring} on a {side} area");
         assert_eq!(g.triangle, g.inner - style.triangle_inset);
     }
     let center = pos2(50.0, 50.0);

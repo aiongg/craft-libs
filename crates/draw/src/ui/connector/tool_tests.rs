@@ -178,12 +178,14 @@ fn connector_hover_shows_attach_points_and_active_one_is_larger() {
     assert_eq!(h.state().hovered, None);
 }
 
-// A 3-point drag makes nothing; a drag from a box back onto it commits `changed: false`; a drag to
+// A drag under the click slop makes nothing; a drag from a box back onto it commits `changed: false`; a drag to
 // another box commits a `ConnectorDraft` glued at both ends.
 #[test]
 fn connector_drag_under_four_points_or_onto_start_makes_nothing() {
     let mut h = harness(boxes(), None);
-    drag(&mut h, (60.0, 150.0), (63.0, 150.0));
+    let ctx = h.ctx.clone();
+    let slop = ConnectorTool::style(&current(&ctx)).click_slop;
+    drag(&mut h, (60.0, 150.0), (60.0 + f64::from(slop) - 1.0, 150.0));
     assert!(drained(&mut h).is_empty(), "a drag under the click slop reports nothing");
 
     drag(&mut h, (60.0, 150.0), (50.0, 140.0));

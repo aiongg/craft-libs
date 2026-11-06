@@ -2,13 +2,19 @@
 #![cfg(all(feature = "screen-testing", not(target_arch = "wasm32")))]
 
 use craft_ui::direction::{self, Direction};
-use craft_ui::theme::{Base, install};
+use craft_ui::theme::{Base, current, install};
 use egui::accesskit::Role;
 use egui::{Context, Key};
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable as _;
 
 use super::BrushPresetChip;
+
+fn style() -> super::BrushPresetChipStyle {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    BrushPresetChip::style(&current(&ctx))
+}
 
 fn harness() -> Harness<'static, u32> {
     let mut harness =
@@ -24,13 +30,14 @@ fn harness() -> Harness<'static, u32> {
 }
 
 // A click, Space and Enter each report `clicked`; the chip is a Button named "Brush Preset picker"
-// showing the rounded size (four digits fit inside 44 pt).
+// showing the rounded size (four digits fit inside the chip).
 #[test]
 fn chip_click_and_keys_report_clicked() {
     let mut harness = harness();
     let chip = harness.get_by_role_and_label(Role::Button, "Brush Preset picker");
     let rect = chip.rect();
-    assert!(rect.width() >= 44.0 && rect.height() >= 30.0, "the chip is 44 x 30: {rect:?}");
+    let size = style().size;
+    assert!(rect.width() >= size.x && rect.height() >= size.y, "the chip is at least {size:?}: {rect:?}");
 
     harness.get_by_role_and_label(Role::Button, "Brush Preset picker").click();
     harness.run();
@@ -73,5 +80,6 @@ fn chip_mirrors_in_right_to_left() {
         }
     };
     let (ltr, rtl) = (lead(Direction::Ltr), lead(Direction::Rtl));
-    assert!((ltr - 14.0).abs() < 0.5 && (rtl - 14.0).abs() < 0.5, "tip 14 pt from the leading edge: {ltr} / {rtl}");
+    let at = style().tip_at.x;
+    assert!((ltr - at).abs() < 0.5 && (rtl - at).abs() < 0.5, "tip {at} pt from the leading edge: {ltr} / {rtl}");
 }

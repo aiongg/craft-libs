@@ -46,9 +46,9 @@ mod widget {
     use egui::{Context, Event, Id, Key, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 
     use super::tip;
-    use crate::ui::brush_settings::{TipAngle, TipEllipse};
+    use crate::ui::brush_settings::{TipAngle, TipEllipse, ellipse_handles};
     use craft_ui::edit::{CancelReason, EditEvent};
-    use craft_ui::theme::{Base, install};
+    use craft_ui::theme::{Base, current, install};
 
     struct Rig {
         ctx: Context,
@@ -168,7 +168,8 @@ mod widget {
     fn ellipse_grab_follows_the_press_origin() {
         let mut rig = Rig::new(tip(0.0, 0.5));
         let centre = rig.rect.center();
-        let dot = centre + vec2(0.0, -17.0);
+        let [handle, _] = ellipse_handles(tip(0.0, 0.5), TipEllipse::style(&current(&rig.ctx)).radius);
+        let dot = centre + handle;
         rig.frame(vec![Event::PointerMoved(dot), Rig::button(dot, true)]);
         let moved = dot + vec2(8.0, 0.0);
         rig.frame(vec![Event::PointerMoved(moved)]);
