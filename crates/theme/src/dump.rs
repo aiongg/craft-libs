@@ -7,8 +7,8 @@ use std::fmt::Write as _;
 
 use crate::{
     BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FontSlot, Gaps, HandleSizes, HitSizes,
-    IconSizes, Motion, MotionTokens, Pads, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens,
-    StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    IconSizes, Motion, MotionTokens, Pads, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens,
+    ThumbSizes, Tokens, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.

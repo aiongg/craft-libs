@@ -6,9 +6,9 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::{Point, Rect, Vec2};
 
+use super::super::style::{CROP, CROP_GUIDE};
 use super::geometry::{Hit, drawn, handle_part, hit, resized, resized_turned, turn, turned_angle, within};
 use super::{CropBox, CropFrame, CropKeyAction, CropLabels, CropNames, CropReadout, turn_toward};
-use super::super::style::{CROP, CROP_GUIDE};
 use crate::ui::CropGuide;
 use craft_ui::canvas::quad::BoxPart;
 use craft_ui::canvas::{CanvasView, RulerUnits, ToolKey};

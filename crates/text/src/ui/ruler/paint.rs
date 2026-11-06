@@ -85,7 +85,15 @@ const MARKER_SELECTOR: f32 = 14.0;
 
 impl Shapes {
     pub(super) fn of() -> Self {
-        Shapes { half: MARKER_HALF, column: MARKER_COLUMN, tip: MARKER_TIP, bar: MARKER_BAR, stem: MARKER_STEM, foot: MARKER_FOOT, selector: MARKER_SELECTOR }
+        Shapes {
+            half: MARKER_HALF,
+            column: MARKER_COLUMN,
+            tip: MARKER_TIP,
+            bar: MARKER_BAR,
+            stem: MARKER_STEM,
+            foot: MARKER_FOOT,
+            selector: MARKER_SELECTOR,
+        }
     }
 
     fn triangle(&self, a: Pos2, b: Pos2, c: Pos2, fill: Color32, stroke: Stroke) -> Shape {

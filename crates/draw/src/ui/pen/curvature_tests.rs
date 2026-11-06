@@ -320,7 +320,9 @@ fn dashes(h: &Harness<'_, Host>) -> Vec<Pos2> {
     h.output().shapes.iter().for_each(|c| flat(&c.shape, &mut all));
     all.iter()
         .filter_map(|s| match s {
-            Shape::LineSegment { points, stroke } if stroke.width == tokens.stroke.thin && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 => {
+            Shape::LineSegment { points, stroke }
+                if stroke.width == tokens.stroke.thin && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 =>
+            {
                 Some(points.to_vec())
             }
             _ => None,

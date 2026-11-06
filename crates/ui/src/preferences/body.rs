@@ -213,11 +213,7 @@ impl PreferencesBody {
         };
 
         let rect = ui.available_rect_before_wrap();
-        let rect = if rect.height().is_finite() {
-            rect
-        } else {
-            Rect::from_min_size(rect.min, egui::vec2(rect.width(), BODY_FALLBACK_HEIGHT))
-        };
+        let rect = if rect.height().is_finite() { rect } else { Rect::from_min_size(rect.min, egui::vec2(rect.width(), BODY_FALLBACK_HEIGHT)) };
         let button_height = tokens.size.control.md;
         let notice_height = if state.error.is_some() { state.notice_height + gap } else { 0.0 };
         let footer_height = button_height + gap + notice_height;

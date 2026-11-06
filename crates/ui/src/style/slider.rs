@@ -64,10 +64,7 @@ impl SliderStyle {
             range_thumb_height: scaled(RANGE_THUMB_HEIGHT),
             track_height: TRACK_HEIGHT,
             gradient_height: GRADIENT_HEIGHT,
-            thumb_colors: ThumbColors {
-                fill: States::new(face, face, face, disabled),
-                border: States::new(edge, edge, edge, c.line.divider),
-            },
+            thumb_colors: ThumbColors { fill: States::new(face, face, face, disabled), border: States::new(edge, edge, edge, c.line.divider) },
             ring_offset: RING_OFFSET,
             mark: scaled(MARK),
             snap: SNAP,

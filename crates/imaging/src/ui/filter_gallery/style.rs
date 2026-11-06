@@ -23,10 +23,6 @@ impl FilterGalleryStyle {
     /// The gallery's sizes from the theme `tokens`.
     pub fn of(tokens: &UiTokens) -> FilterGalleryStyle {
         let thumb_width = tokens.size.thumb.lg;
-        FilterGalleryStyle {
-            thumb_width,
-            thumb_height: thumb_width * THUMB_HEIGHT_SHARE,
-            stack_height: tokens.size.control.md * STACK_ROWS,
-        }
+        FilterGalleryStyle { thumb_width, thumb_height: thumb_width * THUMB_HEIGHT_SHARE, stack_height: tokens.size.control.md * STACK_ROWS }
     }
 }

@@ -620,7 +620,11 @@ fn about_tab(ui: &mut Ui, labels: &AboutLabels, info: &AboutInfo, clicked: &mut 
     ui.vertical_centered(|ui| {
         if let Some(community) = &info.community
             && ui
-                .add(Button::new(community.label.as_str()).variant(ButtonVariant::Primary).min_width(crate::style::dialog::DialogStyle::new(&Tokens::of(ui)).width_wide / 3.0))
+                .add(
+                    Button::new(community.label.as_str())
+                        .variant(ButtonVariant::Primary)
+                        .min_width(crate::style::dialog::DialogStyle::new(&Tokens::of(ui)).width_wide / 3.0),
+                )
                 .clicked()
         {
             *clicked = Some(community.url.clone());
@@ -727,12 +731,9 @@ fn contributors_tab(
     if view.table {
         contributors_table(ui, labels, list, order, view, layout, clicked);
     } else {
-        egui::ScrollArea::vertical()
-            .id_salt("about-bag")
-            .auto_shrink([false, false])
-            .min_scrolled_height(list_height)
-            .max_height(list_height)
-            .show(ui, |ui| {
+        egui::ScrollArea::vertical().id_salt("about-bag").auto_shrink([false, false]).min_scrolled_height(list_height).max_height(list_height).show(
+            ui,
+            |ui| {
                 ui.spacing_mut().item_spacing = {
                     let gap = Tokens::of(ui).space.gap;
                     egui::vec2(gap.section, gap.stack)
@@ -744,7 +745,8 @@ fn contributors_tab(
                         contributor_link(ui, &list[at], view.names, ("bag", at), clicked);
                     }
                 });
-            });
+            },
+        );
     }
 }
 

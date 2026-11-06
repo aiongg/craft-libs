@@ -114,11 +114,7 @@ pub(crate) fn on_colors(tokens: &UiTokens) -> OnColors {
         let (on, disabled) = (on.to_egui(), disabled.to_egui());
         States::new(on, on, on, disabled)
     };
-    OnColors {
-        fill: held(c.accent.soft, c.accent.soft),
-        border: held(c.accent.border, c.line.divider),
-        text: held(c.accent.text, c.text.disabled),
-    }
+    OnColors { fill: held(c.accent.soft, c.accent.soft), border: held(c.accent.border, c.line.divider), text: held(c.accent.text, c.text.disabled) }
 }
 
 impl Widget for ToggleButton<'_> {

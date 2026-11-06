@@ -6,11 +6,11 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::*;
-use crate::style::list::ListStyle;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
 use crate::controls::Button;
 use crate::direction::{self, Direction};
 use crate::edit::{CancelReason, EditEvent};
+use crate::style::list::ListStyle;
 use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, install};
 
 type Col = &'static str;

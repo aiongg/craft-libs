@@ -315,8 +315,7 @@ fn artboard_edge(painter: &egui::Painter, quad: &[Pos2; 4], bounds: egui::Rect, 
     // pc: crates/ui-egui/src/canvas/artboard_ui.rs:98-101 `draw_frames` (accent for the active board,
     // black at alpha 90 outside otherwise; the name in `text` or `text_dim`).
     let tokens = Tokens::of(ui);
-    let (edge, name) =
-        if active { (tokens.color.accent.solid, tokens.color.text.normal) } else { (INACTIVE_ARTBOARD_EDGE, tokens.color.text.muted) };
+    let (edge, name) = if active { (tokens.color.accent.solid, tokens.color.text.normal) } else { (INACTIVE_ARTBOARD_EDGE, tokens.color.text.muted) };
     let stroke = Stroke::new(tokens.stroke.thin, edge.to_egui());
     if aligned {
         painter.rect_stroke(bounds, 0.0, stroke, StrokeKind::Outside);

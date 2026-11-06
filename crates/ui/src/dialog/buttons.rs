@@ -171,8 +171,7 @@ impl FooterButtons {
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
         let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.size.control.md));
-        let (shown, _) =
-            measure::trailing_row(ui, id.with("row"), rect, Sense::hover(), tokens.space.gap.inline, 0.0, |row| self.place(row, id));
+        let (shown, _) = measure::trailing_row(ui, id.with("row"), rect, Sense::hover(), tokens.space.gap.inline, 0.0, |row| self.place(row, id));
         shown
     }
 

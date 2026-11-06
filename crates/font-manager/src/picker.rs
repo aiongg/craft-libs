@@ -837,7 +837,8 @@ fn class_column(ui: &mut Ui, field_id: Id, filters: &mut FontFilters, labels: &F
     let names: Vec<&str> = std::iter::once(labels.all_classes.as_str()).chain(FontClass::ALL.map(|c| class_label(c, labels))).collect();
     let tokens = Tokens::of(ui);
     let font = tokens.font(TypeRole::Body);
-    let widest = names.iter().map(|name| ui.painter().layout_no_wrap((*name).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x).fold(0.0, f32::max);
+    let widest =
+        names.iter().map(|name| ui.painter().layout_no_wrap((*name).to_owned(), font.clone(), Color32::PLACEHOLDER).size().x).fold(0.0, f32::max);
     let width = (widest + 2.0 * tokens.space.pad.control).ceil();
     let order: Vec<RowInfo<usize>> = (0..names.len()).map(RowInfo::leaf).collect();
     let selected = filters.class.and_then(|c| FontClass::ALL.iter().position(|a| *a == c)).map_or(0, |i| i + 1);

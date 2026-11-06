@@ -241,7 +241,8 @@ impl<'a> SliderRow<'a> {
     pub fn style(tokens: &UiTokens) -> SliderRowStyle {
         SliderRowStyle {
             field_width: tokens.size.control.md * FIELD_WIDTH_CONTROLS,
-            gap: tokens.space.gap.inline, caption_role: TypeRole::Label,
+            gap: tokens.space.gap.inline,
+            caption_role: TypeRole::Label,
             caption: Content::Muted.color(tokens).to_egui(),
         }
     }

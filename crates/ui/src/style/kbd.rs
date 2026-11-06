@@ -19,9 +19,6 @@ pub struct KbdStyle {
 impl KbdStyle {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
-        KbdStyle {
-            height: tokens.typography.get(TypeRole::Caption).line_height + 2.0 * PAD_Y,
-            radius: tokens.shape.radius.control.min(RADIUS_MAX),
-        }
+        KbdStyle { height: tokens.typography.get(TypeRole::Caption).line_height + 2.0 * PAD_Y, radius: tokens.shape.radius.control.min(RADIUS_MAX) }
     }
 }

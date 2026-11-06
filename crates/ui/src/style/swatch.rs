@@ -17,9 +17,6 @@ pub struct SwatchStyle {
 impl SwatchStyle {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
-        SwatchStyle {
-            size: BySize { sm: tokens.size.control.sm, md: tokens.size.control.md },
-            radius: tokens.shape.radius.control.min(RADIUS_MAX),
-        }
+        SwatchStyle { size: BySize { sm: tokens.size.control.sm, md: tokens.size.control.md }, radius: tokens.shape.radius.control.min(RADIUS_MAX) }
     }
 }

@@ -132,7 +132,12 @@ impl RowPainter<'_> {
     /// The colours of a row with label colour `tint`, derived over the popup card.
     pub fn tint_colors(&self, tint: Srgba) -> craft_theme::MenuTint {
         let tint = craft_theme::Rgba::from(tint);
-        craft_theme::MenuTint::derive(tint, self.tokens.color.surface.panel, &self.tokens.color, self.tokens.appearance.contrast == craft_theme::Contrast::High)
+        craft_theme::MenuTint::derive(
+            tint,
+            self.tokens.color.surface.panel,
+            &self.tokens.color,
+            self.tokens.appearance.contrast == craft_theme::Contrast::High,
+        )
     }
 
     fn label_galley(&self, ui: &Ui, row: &RowContent<'_>, color: Color32) -> Arc<Galley> {

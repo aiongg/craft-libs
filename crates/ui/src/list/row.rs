@@ -18,8 +18,8 @@ use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::menu::{ContextMenu, MenuEntry, OpenAt};
 use crate::primitives::{FocusRing, Interactive};
-use crate::style::list::ListStyle;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
+use crate::style::list::ListStyle;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
 

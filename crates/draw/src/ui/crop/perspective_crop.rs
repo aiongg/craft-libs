@@ -4,9 +4,9 @@
 use egui::{Color32, Context, CursorIcon, Id, IdSalt, Key, Modifiers, Pos2, Response, Shape, Stroke, StrokeKind, Ui};
 use kurbo::{Point, Vec2};
 
+use super::style::{CROP, CROP_INVALID};
 use crate::ui::transform::transform_box::fixed;
 use craft_ui::behavior::nudge;
-use super::style::{CROP, CROP_INVALID};
 use craft_ui::canvas::claim::PrimaryPress;
 use craft_ui::canvas::quad::Homography;
 use craft_ui::canvas::{CanvasView, Claim, Part, PartFocus, RulerUnits};

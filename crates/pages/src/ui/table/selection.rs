@@ -99,10 +99,7 @@ impl<'a> CellSelectionOverlay<'a> {
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> CellSelectionStyle {
         use craft_ui::theme::ToEgui as _;
         let accent = tokens.color.accent.solid;
-        CellSelectionStyle {
-            fill: accent.with_alpha(FILL_ALPHA).to_egui(),
-            outline: egui::Stroke::new(tokens.stroke.thin, accent.to_egui()),
-        }
+        CellSelectionStyle { fill: accent.with_alpha(FILL_ALPHA).to_egui(), outline: egui::Stroke::new(tokens.stroke.thin, accent.to_egui()) }
     }
 
     // designcraft: crates/ui-egui/src/canvas/text_overlay.rs:16 `draw_text_selection` (the tint of every selected cell; `:126` `draw_cell_selection` is the in-cell caret).

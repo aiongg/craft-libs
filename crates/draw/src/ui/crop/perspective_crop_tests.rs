@@ -5,11 +5,11 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 use kurbo::Point;
 
+use super::super::style::{CROP, CROP_INVALID};
 use super::{PerspectiveCropQuad, PerspectiveHit, PerspectiveQuad, english_names, grid_lines, grid_steps, hit, is_valid, ordered};
 use craft_ui::canvas::{CanvasView, RulerUnits};
 use craft_ui::edit::EditEvent;
 use craft_ui::localized::LocaleNumbers;
-use super::super::style::{CROP, CROP_INVALID};
 use craft_ui::theme::{Base, ToEgui, install};
 
 /// A valid quad: a skewed page.

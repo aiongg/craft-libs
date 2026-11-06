@@ -373,9 +373,7 @@ fn rubber_end(h: &Harness<'_, Host>) -> Option<Pos2> {
     shapes(h)
         .iter()
         .filter_map(|s| match s {
-            Shape::LineSegment { points, stroke }
-                if stroke.width == width && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 =>
-            {
+            Shape::LineSegment { points, stroke } if stroke.width == width && (points[1] - points[0]).length() <= tokens.stroke.dash + 0.01 => {
                 Some(points[1])
             }
             _ => None,

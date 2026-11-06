@@ -25,7 +25,7 @@ pub struct NavigatorStyle {
     /// The least height of the preview box.
     pub min_preview: f32,
     /// The proxy rectangle's colour when [`ProxyColor::Default`](super::ProxyColor::Default):
-        pub proxy: Color32,
+    pub proxy: Color32,
     /// The proxy's stroke width, centred on its edge.
     pub proxy_width: f32,
     /// The proxy's corner radius on an upright view: `shape.radius.sm`.

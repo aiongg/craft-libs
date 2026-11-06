@@ -12,7 +12,8 @@ use std::cell::RefCell;
 use craft_theme::{ControlSize, Srgba};
 use egui::accesskit::HasPopup;
 use egui::{
-    Align, AsIdSalt, Color32, Id, IdSalt, Key, LayerId, Layout, Mesh, Modifiers, Order, Painter, PopupCloseBehavior, Rect, Stroke, Ui, Vec2, pos2, vec2,
+    Align, AsIdSalt, Color32, Id, IdSalt, Key, LayerId, Layout, Mesh, Modifiers, Order, Painter, PopupCloseBehavior, Rect, Stroke, Ui, Vec2, pos2,
+    vec2,
 };
 
 use super::{ColorPicker, ColorPickerLayout, HexField, ScreenColorPicker, ScreenPickerLabels};

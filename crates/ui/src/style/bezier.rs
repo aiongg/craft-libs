@@ -21,10 +21,6 @@ pub struct BezierStyle {
 impl BezierStyle {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
-        Self {
-            flatten: FLATTEN_TOLERANCE,
-            close_ring: CLOSE_RING_WIDTH,
-            close_offset: tokens.size.handle.md + tokens.space.gap.inline,
-        }
+        Self { flatten: FLATTEN_TOLERANCE, close_ring: CLOSE_RING_WIDTH, close_offset: tokens.size.handle.md + tokens.space.gap.inline }
     }
 }

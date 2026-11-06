@@ -9,8 +9,8 @@ use super::cursor::{
     CURSOR_BADGE_BESIDE_X, CURSOR_BADGE_BESIDE_Y, CURSOR_BADGE_HALF, CURSOR_BADGE_OFFSET, CURSOR_CROSSHAIR_GAP, CURSOR_DART_HALF_WIDTH,
     CURSOR_DART_LENGTH, CURSOR_SKEW_BACK, CURSOR_SKEW_GAP, CURSOR_SKEW_HALF_LENGTH, CURSOR_SKEW_HEAD,
 };
-use crate::theme::{ToEgui, current};
 use crate::style::transform::TransformStyle;
+use crate::theme::{ToEgui, current};
 
 /// Who draws the pointer: the system or the canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -118,7 +118,15 @@ impl Ink {
         let halo = o.halo.to_egui();
         let thin = tokens.stroke.thin;
         let halo_line = thin + 2.0 * thin;
-        Ink { color: o.stroke.to_egui(), halo, line: thin, halo_line, outline: thin, thick_outline: tokens.stroke.medium, crosshair_reach: tokens.size.hit.target }
+        Ink {
+            color: o.stroke.to_egui(),
+            halo,
+            line: thin,
+            halo_line,
+            outline: thin,
+            thick_outline: tokens.stroke.medium,
+            crosshair_reach: tokens.size.hit.target,
+        }
     }
 
     /// A segment: the halo line, then the ink line.

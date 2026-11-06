@@ -6,12 +6,12 @@ use egui::accesskit::Role;
 use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
-use crate::style::labels::label_colors;
 use crate::controls::checkbox;
 use crate::controls::{CheckState, Checkbox, TooltipExt as _};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
 use crate::icons::{self, Icon, IconSize};
 use crate::primitives::Interactive;
+use crate::style::labels::label_colors;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
 /// One toggle column of a row: an icon when on, nothing when off (the off icon shows under the

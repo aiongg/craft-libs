@@ -149,7 +149,6 @@ impl ItemColors {
             ItemPart::Text => &self.text,
         }
     }
-
 }
 
 /// One coloured part of a knob that rides on a track: a slider or switch thumb.
@@ -191,7 +190,6 @@ impl ThumbColors {
             ThumbPart::Border => &self.border,
         }
     }
-
 }
 
 /// A button's emphasis.
@@ -267,7 +265,6 @@ impl ButtonColors {
             ButtonPart::Text => &self.text,
         }
     }
-
 }
 
 /// What a badge says about its subject.
@@ -383,7 +380,6 @@ impl BadgeColors {
             BadgePart::Border => self.border,
         }
     }
-
 }
 
 /// One coloured part of a check box, radio button or switch indicator while off.
@@ -451,7 +447,6 @@ impl CheckOffColors {
             CheckOffPart::Border => &self.border,
         }
     }
-
 }
 
 /// The colours of the indicator and its mark while on, per state.
@@ -474,7 +469,6 @@ impl CheckOnColors {
             CheckOnPart::Mark => &self.mark,
         }
     }
-
 }
 
 /// One coloured part of a switch track while on.
@@ -556,7 +550,6 @@ impl Dimmed {
     pub fn get(&self, enabled: bool) -> Rgba {
         if enabled { self.rest } else { self.disabled }
     }
-
 }
 
 /// The colours of a field's edge, per [`BorderState`].
@@ -582,7 +575,6 @@ impl BorderColors {
             BorderState::Disabled => self.disabled,
         }
     }
-
 }
 
 /// The gaps and label column of one density of form grid, in points.
@@ -656,7 +648,6 @@ impl LabelColor {
             LabelColor::Gray => "gray",
         }
     }
-
 }
 
 /// PhotoCraft's label colours (`menu_tint`).
@@ -712,7 +703,6 @@ impl MenuHue {
     pub fn of(color: Rgba) -> Option<MenuHue> {
         Self::ALL.into_iter().find(|h| h.color().0[..3] == color.0[..3])
     }
-
 }
 
 /// The colours of a row with a label colour.
@@ -796,6 +786,4 @@ impl Tone {
             Tone::Bad => Some(StatusKind::Bad),
         }
     }
-
 }
-

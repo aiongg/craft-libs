@@ -417,16 +417,10 @@ impl<'a> ThemeChip<'a> {
         }
         let action = if self.favorite { &labels.remove_favorite } else { &labels.add_favorite };
         let mut favorite_clicked = false;
-        let center: Pos2 =
-            pos2(direction::end_x(ui, rect) - direction::forward(ui) * space.gap.tight, rect.top() + space.gap.tight);
+        let center: Pos2 = pos2(direction::end_x(ui, rect) - direction::forward(ui) * space.gap.tight, rect.top() + space.gap.tight);
         let badge = Rect::from_center_size(center, Vec2::splat(badge_radius * 2.0));
         if self.favorite || ui.rect_contains_pointer(rect.union(badge)) {
-            ui.painter().circle(
-                center,
-                badge_radius,
-                tokens.color.surface.raised.to_egui(),
-                Stroke::new(1.0, tokens.color.line.border.to_egui()),
-            );
+            ui.painter().circle(center, badge_radius, tokens.color.surface.raised.to_egui(), Stroke::new(1.0, tokens.color.line.border.to_egui()));
             let (icon, tint) = if self.favorite { (Icon::StarFilled, tokens.color.accent.solid) } else { (Icon::Star, tokens.color.text.muted) };
             icons::paint(ui, badge, icon, IconSize::Sm, tint.to_egui());
             // Sensed without allocating: a widget placed at the badge would grow the row by the

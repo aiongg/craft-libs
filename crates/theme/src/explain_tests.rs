@@ -210,7 +210,8 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
 
 #[test]
 fn explained_sizes_name_the_layer_that_set_each_value() {
-    let sizes = AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "space.pad.panel": 10 } }"#).unwrap();
+    let sizes =
+        AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "space.pad.panel": 10 } }"#).unwrap();
     let theme = unpinned();
     let origin = |e: &Explained, path: &str| e.sizes.iter().find(|o| o.path == path).cloned().unwrap_or_else(|| panic!("no size {path}"));
 

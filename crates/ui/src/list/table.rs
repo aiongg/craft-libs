@@ -34,8 +34,8 @@ use crate::localized::SharedLabels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
-use crate::style::list::ListStyle;
 use crate::primitives::{Content, FocusRing, Text};
+use crate::style::list::ListStyle;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, tabular};
 use craft_theme::TypeRole;
 

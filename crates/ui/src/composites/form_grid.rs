@@ -114,14 +114,7 @@ impl FormGrid {
         } else {
             (gap.section, gap.stack, 0.0)
         };
-        FormStyle {
-            column_gap,
-            row_gap,
-            label_min,
-            label_band: control,
-            label_role: TypeRole::Label,
-            label: Content::Muted.color(tokens).to_egui(),
-        }
+        FormStyle { column_gap, row_gap, label_min, label_band: control, label_role: TypeRole::Label, label: Content::Muted.color(tokens).to_egui() }
     }
 
     /// Shows the grid; `add_rows` adds its rows to the [`Form`] it is given.

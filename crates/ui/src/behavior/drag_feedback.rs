@@ -105,11 +105,8 @@ impl<'a> DragBadge<'a> {
         let offset = vec2(tokens.space.pad.panel, tokens.space.gap.stack);
         let font = tokens.font(TypeRole::BodyStrong);
         let rtl = direction::is_rtl(ctx);
-        let (pivot, at) = if rtl {
-            (egui::Align2::RIGHT_TOP, pointer + vec2(-offset.x, offset.y))
-        } else {
-            (egui::Align2::LEFT_TOP, pointer + offset)
-        };
+        let (pivot, at) =
+            if rtl { (egui::Align2::RIGHT_TOP, pointer + vec2(-offset.x, offset.y)) } else { (egui::Align2::LEFT_TOP, pointer + offset) };
         ctx.set_cursor_icon(CursorIcon::Grabbing);
         Area::new(layer_id("badge", id_salt)).order(Order::Tooltip).interactable(false).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
             let galley = ui.painter().layout_no_wrap(text.clone(), font, ink);
@@ -210,12 +207,7 @@ impl<'a> DropVeil<'a> {
         let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, id));
         painter.rect_filled(screen, 0.0, c.surface.scrim.to_egui());
         let space = &tokens.space;
-        painter.rect_stroke(
-            screen.shrink(space.gap.stack),
-            tokens.shape.radius.window,
-            Stroke::new(tokens.stroke.thick, accent),
-            StrokeKind::Inside,
-        );
+        painter.rect_stroke(screen.shrink(space.gap.stack), tokens.shape.radius.window, Stroke::new(tokens.stroke.thick, accent), StrokeKind::Inside);
         let wrap = (screen.width() - 2.0 * space.pad.dialog).max(MIN_VEIL_WRAP);
         let font = tokens.font(TypeRole::Title);
         // A line that wraps keeps its rows centred under each other, not only the block.
@@ -236,16 +228,19 @@ impl<'a> DropVeil<'a> {
                 for line in lines {
                     labels.add(line.clone());
                 }
-                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(tokens.shape.radius.popup).inner_margin(margin).show(ui, |ui| {
-                    let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
-                    let mut y = rect.top();
-                    for galley in galleys {
-                        let size = galley.size();
-                        // The galley's rect is where its rows are, whichever side of its origin.
-                        ui.painter().galley(pos2(rect.center().x - galley.rect.center().x, y - galley.rect.min.y), galley, ink);
-                        y += size.y + space.gap.stack;
-                    }
-                });
+                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(tokens.shape.radius.popup).inner_margin(margin).show(
+                    ui,
+                    |ui| {
+                        let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
+                        let mut y = rect.top();
+                        for galley in galleys {
+                            let size = galley.size();
+                            // The galley's rect is where its rows are, whichever side of its origin.
+                            ui.painter().galley(pos2(rect.center().x - galley.rect.center().x, y - galley.rect.min.y), galley, ink);
+                            y += size.y + space.gap.stack;
+                        }
+                    },
+                );
             });
         });
     }

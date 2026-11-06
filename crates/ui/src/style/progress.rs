@@ -17,9 +17,6 @@ pub struct ProgressStyle {
 impl ProgressStyle {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
-        ProgressStyle {
-            width: tokens.size.control.md * WIDTH_IN_CONTROLS,
-            track_height: 2.0 * tokens.stroke.thick + tokens.stroke.thin,
-        }
+        ProgressStyle { width: tokens.size.control.md * WIDTH_IN_CONTROLS, track_height: 2.0 * tokens.stroke.thick + tokens.stroke.thin }
     }
 }

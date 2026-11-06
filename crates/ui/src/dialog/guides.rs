@@ -1293,8 +1293,8 @@ impl GuideLayoutDialog {
             ui.horizontal(|ui| {
                 let current = GuideColor::from_rgb(self.color);
                 let mut choice = current;
-                let mut select =
-                    Select::new("guide-layout-color", labels.color.as_str(), &mut choice).width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).layout_color_width);
+                let mut select = Select::new("guide-layout-color", labels.color.as_str(), &mut choice)
+                    .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).layout_color_width);
                 if let GuideColor::Custom(rgb) = current {
                     select = select.option(GuideColor::Custom(rgb), labels.custom_color.as_str());
                 }
@@ -1325,7 +1325,9 @@ fn length_cell(ui: &mut Ui, salt: impl egui::AsIdSalt, caption: &str, length: &m
     let ruler = units.ruler;
     let shown = units.context(extent).convert(*length, ruler).unwrap_or(length.value);
     let typed_percent = Cell::new(None);
-    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent).width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).margin_width).show(ui);
+    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent)
+        .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).margin_width)
+        .show(ui);
     if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
         *length = edited;
     }

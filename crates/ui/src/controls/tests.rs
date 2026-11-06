@@ -1,8 +1,7 @@
 use std::cell::Cell;
 
 use craft_theme::{
-    Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, TextSize, ThemeDef, TypeRole, builtins,
-    contrast_ratio, resolve,
+    Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, TextSize, ThemeDef, TypeRole, builtins, contrast_ratio, resolve,
 };
 use egui::epaint::Vertex;
 use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Shape, Ui, Vec2, vec2};
@@ -74,10 +73,7 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
                 ],
                 "on, the icon button holds the accent colours"
             );
-            assert_eq!(
-                (i.badge, i.badge_edge),
-                (icon * 0.4, egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui()))
-            );
+            assert_eq!((i.badge, i.badge_edge), (icon * 0.4, egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui())));
 
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));

@@ -694,8 +694,7 @@ impl<'a> AnchorGrid<'a> {
             .enumerate()
             .map(|(i, cell)| {
                 let (column, row) = cell.cell();
-                let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side))
-                    .shrink(tokens.stroke.thin);
+                let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side)).shrink(tokens.stroke.thin);
                 Interactive::new(("anchor", i), Role::RadioButton, labels.anchor_cell(*cell))
                     .position_in_set(i)
                     .surface(SurfaceKind::Sunken)

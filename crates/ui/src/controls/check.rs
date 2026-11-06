@@ -5,7 +5,9 @@
 
 use std::sync::Arc;
 
-use craft_theme::{CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline};
+use craft_theme::{
+    CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline,
+};
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, StrokeKind, TextWrapMode, Ui, Vec2, pos2, vec2};
@@ -126,10 +128,7 @@ impl CheckColors {
                 mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
             },
             switch: CheckSwitchColors { fill: switch, border: switch },
-            thumb: ThumbColors {
-                fill: States::new(face, face, face, disabled_face),
-                border: States::new(edge, edge, edge, c.line.divider),
-            },
+            thumb: ThumbColors { fill: States::new(face, face, face, disabled_face), border: States::new(edge, edge, edge, c.line.divider) },
         }
     }
 }

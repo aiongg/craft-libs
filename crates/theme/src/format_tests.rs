@@ -164,7 +164,11 @@ fn every_field_error_has_its_path() {
         ("/components/slider.edge", json!("flat"), "components.\"slider.edge\": unknown token"),
         ("/components/slider.nope", json!(4), "components.\"slider.nope\": unknown token"),
         ("/components/slider.thumb_height", json!(-1), "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\""),
-        ("/components/slider.thumb_height", json!({ "x": 1 }), "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\""),
+        (
+            "/components/slider.thumb_height",
+            json!({ "x": 1 }),
+            "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
+        ),
         ("/id", json!("Bad Id"), "id: a theme id starts with a-z or 0-9"),
         ("/id", json!(4), "id: expected a string"),
         ("/seeds", json!(4), "seeds: expected an object"),

@@ -134,7 +134,11 @@ impl<'a> Panel<'a> {
 
     /// The panel's padding, fill and footer height.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelStyle {
-        PanelStyle { pad: tokens.space.pad.panel, fill: tokens.color.surface.panel.to_egui(), footer_height: Panel::footer_height(tokens, pixels_per_point) }
+        PanelStyle {
+            pad: tokens.space.pad.panel,
+            fill: tokens.color.surface.panel.to_egui(),
+            footer_height: Panel::footer_height(tokens, pixels_per_point),
+        }
     }
 
     /// The height a footer takes: the rule and the bar. A host adds it to a dock group's minimum
