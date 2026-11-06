@@ -156,7 +156,7 @@ impl FrameRate {
     #[cfg(feature = "ui")]
     pub fn label(self, numbers: &craft_ui::localized::LocaleNumbers) -> String {
         if self.den == 1 {
-            return numbers.format(f64::from(self.num), 0..=0);
+            return numbers.format(self.num as f64, 0..=0);
         }
         numbers.format(self.as_f64(), 0..=3)
     }
