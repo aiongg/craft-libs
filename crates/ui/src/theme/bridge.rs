@@ -119,6 +119,7 @@ fn suite_default_theme() -> &'static ThemeDef {
 pub fn install(ctx: &Context, base: &Base) {
     crate::primitives::focus_ring::track_modality(ctx);
     crate::controls::field_wheel::install(ctx);
+    crate::focus::key_owner::install(ctx);
     crate::inspect::track(ctx);
     let env = Env::of(ctx);
     let unchanged = with_state(ctx, |s| s.installed.as_ref().is_some_and(|i| i.env == env && i.base == *base));

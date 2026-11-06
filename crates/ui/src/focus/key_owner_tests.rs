@@ -2,7 +2,7 @@
 
 use egui::{Context, Id, LayerId, RawInput, Sense, pos2, vec2};
 
-use super::key_owner::{KeyOwner, OwnerGate, canvas_keys_free_for, keys_free, owner, register_canvas};
+use super::key_owner::{KeyOwner, OwnerGate, canvas_keys_free_for, install, keys_free, owner, register_canvas};
 
 pub(crate) fn pass(ctx: &Context, f: impl FnMut(&mut egui::Ui)) {
     ctx.run_ui(RawInput::default(), f).drop_without_applying_deltas();
@@ -80,6 +80,7 @@ fn layer_keys_are_free_over_a_focused_control_and_not_under_a_popover_or_a_text_
 #[test]
 fn a_text_field_owns_the_keys_in_the_pass_egui_drops_its_focus_on_escape() {
     let ctx = Context::default();
+    install(&ctx);
     let mut text = String::new();
     for _ in 0..2 {
         pass(&ctx, |ui| {
@@ -117,4 +118,63 @@ fn a_chord_the_focused_control_claimed_is_not_free_for_the_canvas() {
     assert!(canvas_keys_free_for(&ctx, &cut), "an unclaimed chord stays free");
     let ctx = Context::default();
     assert!(canvas_keys_free_for(&ctx, &delete), "nothing focused");
+}
+
+fn key(key: egui::Key) -> RawInput {
+    RawInput {
+        events: vec![egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE }],
+        ..RawInput::default()
+    }
+}
+
+/// A context with a focused text field after two passes, nobody asking [`owner`].
+fn focused_field(text: &mut String) -> Context {
+    let ctx = Context::default();
+    install(&ctx);
+    for _ in 0..2 {
+        pass(&ctx, |ui| {
+            ui.text_edit_singleline(text).request_focus();
+        });
+    }
+    ctx
+}
+
+#[test]
+fn a_tab_between_passes_after_escape_in_a_field_toggles_the_chrome() {
+    let mut text = String::new();
+    let ctx = focused_field(&mut text);
+    ctx.run_ui(key(egui::Key::Escape), |ui| {
+        ui.text_edit_singleline(&mut text);
+    })
+    .drop_without_applying_deltas();
+    let mut raw = key(egui::Key::Tab);
+    assert!(crate::shell::take_tab_toggle(&ctx, &mut raw), "the field gave up the keyboard with the Escape");
+    assert!(raw.events.is_empty());
+}
+
+#[test]
+fn a_reader_after_the_field_in_the_tab_pass_still_sees_the_field_as_owner() {
+    let mut text = String::new();
+    let ctx = focused_field(&mut text);
+    let mut owners = Vec::new();
+    ctx.run_ui(key(egui::Key::Tab), |ui| {
+        owners.push(owner(ui.ctx(), &OwnerGate::default()));
+        ui.text_edit_singleline(&mut text);
+        owners.push(owner(ui.ctx(), &OwnerGate::default()));
+    })
+    .drop_without_applying_deltas();
+    assert_eq!(owners, [KeyOwner::Text, KeyOwner::Text]);
+}
+
+#[test]
+fn escape_after_idle_passes_nobody_read_still_gives_the_field_the_keys() {
+    let mut text = String::new();
+    let ctx = focused_field(&mut text);
+    let mut owners = Vec::new();
+    ctx.run_ui(key(egui::Key::Escape), |ui| {
+        ui.text_edit_singleline(&mut text);
+        owners.push(owner(ui.ctx(), &OwnerGate::default()));
+    })
+    .drop_without_applying_deltas();
+    assert_eq!(owners, [KeyOwner::Text]);
 }

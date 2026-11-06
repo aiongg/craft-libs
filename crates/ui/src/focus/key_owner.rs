@@ -147,24 +147,51 @@ pub fn owner(ctx: &Context, gate: &OwnerGate) -> KeyOwner {
     }
 }
 
+/// Adds the plugin that records, at the end of every pass, which text field had the focus, once
+/// per context. [`theme::install`](crate::theme::install) calls it, so apps need no call of their
+/// own.
+pub(crate) fn install(ctx: &Context) {
+    if ctx.plugin_opt::<TextFocusRecord>().is_none() {
+        ctx.add_plugin(TextFocusRecord);
+    }
+}
+
+/// Records the focused text edit and the pass number at the end of each pass, whoever asks
+/// [`owner`] and in whatever order, so the rule in [`text_has_keys`] never depends on the readers.
+struct TextFocusRecord;
+
+/// The slot of one viewport: pass counters are per viewport.
+fn record_id(ctx: &Context) -> Id {
+    Id::new(("craft_ui::focus::key_owner::text_focus", ctx.viewport_id()))
+}
+
+impl egui::plugin::Plugin for TextFocusRecord {
+    fn debug_name(&self) -> &'static str {
+        "craft_ui::focus::key_owner"
+    }
+
+    fn on_end_pass(&mut self, ui: &mut egui::Ui) {
+        let ctx = ui.ctx();
+        let focused = if ctx.text_edit_focused() { ctx.memory(|m| m.focused()) } else { None };
+        let record = (focused, ctx.cumulative_pass_nr());
+        ctx.data_mut(|d| d.insert_temp(record_id(ctx), record));
+    }
+}
+
 /// Whether a text field has the keys this pass: one has the focus, or egui took the focus off it
 /// at the start of this pass because Esc or Tab was pressed in it. The field has read that key
 /// (Esc cancels its edit, Tab leaves it), so for the rest of the pass the key is not the app's.
 /// The next pass the field is no longer the owner.
 fn text_has_keys(ctx: &Context) -> bool {
-    let last = Id::unique("craft_ui::focus::key_owner::last_text");
     if ctx.text_edit_focused() {
-        let id = ctx.memory(|m| m.focused());
-        let pass = ctx.cumulative_pass_nr();
-        ctx.data_mut(|d| d.insert_temp(last, (id, pass)));
         return true;
     }
-    let Some((Some(id), seen)) = ctx.data(|d| d.get_temp::<(Option<Id>, u64)>(last)) else {
+    let Some((Some(id), pass)) = ctx.data(|d| d.get_temp::<(Option<Id>, u64)>(record_id(ctx))) else {
         return false;
     };
-    // Only the pass right after the one that saw the focus: between passes (a host asking before
-    // the next pass) the dropped focus and the stale Esc are no longer this pass's.
-    if ctx.cumulative_pass_nr() != seen + 1 {
+    // Only the pass right after the one that ended with the focus: between passes the record is
+    // the pass that just ended, which holds no focus after an Esc or Tab.
+    if pass + 1 != ctx.cumulative_pass_nr() {
         return false;
     }
     ctx.memory(|m| m.had_focus_last_frame(id)) && ctx.input(|i| i.key_pressed(egui::Key::Escape) || i.key_pressed(egui::Key::Tab))
