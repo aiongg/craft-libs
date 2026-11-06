@@ -110,28 +110,6 @@ impl<T: Copy> States<T> {
     }
 }
 
-/// One coloured part of an item without an outline: a segment, a toggled icon button.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ItemPart {
-    /// The background.
-    Fill,
-    /// Label and icon.
-    Text,
-}
-
-impl ItemPart {
-    /// Every part, in path order.
-    pub const ALL: [ItemPart; 2] = [ItemPart::Fill, ItemPart::Text];
-
-    /// The path segment, e.g. `"fill"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            ItemPart::Fill => "fill",
-            ItemPart::Text => "text",
-        }
-    }
-}
-
 /// The colours of an item without an outline, per state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ItemColors {
@@ -141,38 +119,6 @@ pub struct ItemColors {
     pub text: States<Rgba>,
 }
 
-impl ItemColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: ItemPart) -> &States<Rgba> {
-        match part {
-            ItemPart::Fill => &self.fill,
-            ItemPart::Text => &self.text,
-        }
-    }
-}
-
-/// One coloured part of a knob that rides on a track: a slider or switch thumb.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ThumbPart {
-    /// The face.
-    Fill,
-    /// The outline; a bevel keeps its own colours.
-    Border,
-}
-
-impl ThumbPart {
-    /// Every part, in path order.
-    pub const ALL: [ThumbPart; 2] = [ThumbPart::Fill, ThumbPart::Border];
-
-    /// The path segment, e.g. `"fill"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            ThumbPart::Fill => "fill",
-            ThumbPart::Border => "border",
-        }
-    }
-}
-
 /// The colours of a knob that rides on a track, per state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ThumbColors {
@@ -180,16 +126,6 @@ pub struct ThumbColors {
     pub fill: States<Rgba>,
     /// Outline.
     pub border: States<Rgba>,
-}
-
-impl ThumbColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: ThumbPart) -> &States<Rgba> {
-        match part {
-            ThumbPart::Fill => &self.fill,
-            ThumbPart::Border => &self.border,
-        }
-    }
 }
 
 /// A button's emphasis.
@@ -220,31 +156,6 @@ impl ButtonVariant {
     }
 }
 
-/// One coloured part of a button.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum ButtonPart {
-    /// The background.
-    Fill,
-    /// The outline.
-    Border,
-    /// Label, icon and spinner.
-    Text,
-}
-
-impl ButtonPart {
-    /// Every part, in path order.
-    pub const ALL: [ButtonPart; 3] = [ButtonPart::Fill, ButtonPart::Border, ButtonPart::Text];
-
-    /// The path segment, e.g. `"fill"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            ButtonPart::Fill => "fill",
-            ButtonPart::Border => "border",
-            ButtonPart::Text => "text",
-        }
-    }
-}
-
 /// The colours of one variant.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct ButtonColors {
@@ -254,17 +165,6 @@ pub struct ButtonColors {
     pub border: States<Rgba>,
     /// Label, icon and spinner.
     pub text: States<Rgba>,
-}
-
-impl ButtonColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: ButtonPart) -> &States<Rgba> {
-        match part {
-            ButtonPart::Fill => &self.fill,
-            ButtonPart::Border => &self.border,
-            ButtonPart::Text => &self.text,
-        }
-    }
 }
 
 /// What a badge says about its subject.
@@ -335,31 +235,6 @@ impl BadgeStyle {
     }
 }
 
-/// One coloured part of a badge.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum BadgePart {
-    /// The background.
-    Fill,
-    /// The label.
-    Text,
-    /// The outline; a solid badge's is its fill.
-    Border,
-}
-
-impl BadgePart {
-    /// Every part, in path order.
-    pub const ALL: [BadgePart; 3] = [BadgePart::Fill, BadgePart::Text, BadgePart::Border];
-
-    /// The path segment, e.g. `"fill"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            BadgePart::Fill => "fill",
-            BadgePart::Text => "text",
-            BadgePart::Border => "border",
-        }
-    }
-}
-
 /// The colours of one tone in one style.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct BadgeColors {
@@ -371,65 +246,6 @@ pub struct BadgeColors {
     pub border: Rgba,
 }
 
-impl BadgeColors {
-    /// The colour of `part`.
-    pub fn part(&self, part: BadgePart) -> Rgba {
-        match part {
-            BadgePart::Fill => self.fill,
-            BadgePart::Text => self.text,
-            BadgePart::Border => self.border,
-        }
-    }
-}
-
-/// One coloured part of a check box, radio button or switch indicator while off.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CheckOffPart {
-    /// The inside of the box, circle or track.
-    Fill,
-    /// The outline of the box, circle or track, over a flat surface's border.
-    Border,
-}
-
-impl CheckOffPart {
-    /// Every part, in path order.
-    pub const ALL: [CheckOffPart; 2] = [CheckOffPart::Fill, CheckOffPart::Border];
-
-    /// The path segment, e.g. `"border"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            CheckOffPart::Fill => "fill",
-            CheckOffPart::Border => "border",
-        }
-    }
-}
-
-/// One coloured part of a check box, radio button or switch indicator while on (checked, mixed
-/// or selected).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum CheckOnPart {
-    /// The inside of the box, circle or track.
-    Fill,
-    /// The outline of the box, circle or track, over a flat surface's border.
-    Border,
-    /// The check or dash, the radio dot. A switch draws none.
-    Mark,
-}
-
-impl CheckOnPart {
-    /// Every part, in path order.
-    pub const ALL: [CheckOnPart; 3] = [CheckOnPart::Fill, CheckOnPart::Border, CheckOnPart::Mark];
-
-    /// The path segment, e.g. `"mark"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            CheckOnPart::Fill => "fill",
-            CheckOnPart::Border => "border",
-            CheckOnPart::Mark => "mark",
-        }
-    }
-}
-
 /// The colours of the indicator while off, per state. Off has no mark.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct CheckOffColors {
@@ -437,16 +253,6 @@ pub struct CheckOffColors {
     pub fill: States<Rgba>,
     /// Outline of the box, circle or track.
     pub border: States<Rgba>,
-}
-
-impl CheckOffColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: CheckOffPart) -> &States<Rgba> {
-        match part {
-            CheckOffPart::Fill => &self.fill,
-            CheckOffPart::Border => &self.border,
-        }
-    }
 }
 
 /// The colours of the indicator and its mark while on, per state.
@@ -459,20 +265,6 @@ pub struct CheckOnColors {
     /// Check, dash or dot.
     pub mark: States<Rgba>,
 }
-
-impl CheckOnColors {
-    /// The colours of `part`.
-    pub fn part(&self, part: CheckOnPart) -> &States<Rgba> {
-        match part {
-            CheckOnPart::Fill => &self.fill,
-            CheckOnPart::Border => &self.border,
-            CheckOnPart::Mark => &self.mark,
-        }
-    }
-}
-
-/// One coloured part of a switch track while on.
-pub type CheckSwitchPart = CheckOffPart;
 
 /// The colours of a switch track while on, per state. A switch draws no mark.
 pub type CheckSwitchColors = CheckOffColors;
@@ -508,34 +300,6 @@ impl FieldPart {
     }
 }
 
-/// The state of a field's edge.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum BorderState {
-    /// Idle.
-    Rest,
-    /// Under the pointer.
-    Hover,
-    /// With keyboard focus, however it got there.
-    Focused,
-    /// Not interactive.
-    Disabled,
-}
-
-impl BorderState {
-    /// Every state, in path order.
-    pub const ALL: [BorderState; 4] = [BorderState::Rest, BorderState::Hover, BorderState::Focused, BorderState::Disabled];
-
-    /// The path segment, e.g. `"focused"`.
-    pub const fn name(self) -> &'static str {
-        match self {
-            BorderState::Rest => "rest",
-            BorderState::Hover => "hover",
-            BorderState::Focused => "focused",
-            BorderState::Disabled => "disabled",
-        }
-    }
-}
-
 /// A colour while enabled and while disabled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub struct Dimmed {
@@ -563,30 +327,6 @@ pub struct BorderColors {
     pub focused: Rgba,
     /// Not interactive.
     pub disabled: Rgba,
-}
-
-impl BorderColors {
-    /// The colour in `state`.
-    pub fn get(&self, state: BorderState) -> Rgba {
-        match state {
-            BorderState::Rest => self.rest,
-            BorderState::Hover => self.hover,
-            BorderState::Focused => self.focused,
-            BorderState::Disabled => self.disabled,
-        }
-    }
-}
-
-/// The gaps and label column of one density of form grid, in points.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct FormSpacing {
-    /// Between the label column and the control column: `form.column_gap`.
-    pub column_gap: f32,
-    /// Between two rows: `form.row_gap`.
-    pub row_gap: f32,
-    /// The least width of the label column; a wider label widens it: `form.label_min`.
-    pub label_min: f32,
 }
 
 /// PhotoCraft's layer label colours (`LabelColor`).
@@ -647,61 +387,6 @@ impl LabelColor {
             LabelColor::Violet => "violet",
             LabelColor::Gray => "gray",
         }
-    }
-}
-
-/// PhotoCraft's label colours (`menu_tint`).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub enum MenuHue {
-    #[allow(missing_docs)]
-    Red,
-    #[allow(missing_docs)]
-    Orange,
-    #[allow(missing_docs)]
-    Yellow,
-    #[allow(missing_docs)]
-    Green,
-    #[allow(missing_docs)]
-    Blue,
-    #[allow(missing_docs)]
-    Violet,
-    #[allow(missing_docs)]
-    Gray,
-}
-
-impl MenuHue {
-    /// Every hue, in path order.
-    pub const ALL: [MenuHue; 7] = [MenuHue::Red, MenuHue::Orange, MenuHue::Yellow, MenuHue::Green, MenuHue::Blue, MenuHue::Violet, MenuHue::Gray];
-
-    /// The path segment.
-    pub const fn name(self) -> &'static str {
-        match self {
-            MenuHue::Red => "red",
-            MenuHue::Orange => "orange",
-            MenuHue::Yellow => "yellow",
-            MenuHue::Green => "green",
-            MenuHue::Blue => "blue",
-            MenuHue::Violet => "violet",
-            MenuHue::Gray => "gray",
-        }
-    }
-
-    /// The label colour a row's tint is derived from.
-    pub const fn color(self) -> Rgba {
-        match self {
-            MenuHue::Red => Rgba::rgb(190, 60, 60),
-            MenuHue::Orange => Rgba::rgb(200, 120, 40),
-            MenuHue::Yellow => Rgba::rgb(190, 170, 40),
-            MenuHue::Green => Rgba::rgb(60, 150, 70),
-            MenuHue::Blue => Rgba::rgb(50, 110, 200),
-            MenuHue::Violet => Rgba::rgb(130, 80, 190),
-            MenuHue::Gray => Rgba::rgb(120, 120, 120),
-        }
-    }
-
-    /// The hue whose [`color`](Self::color) is `color`'s red, green and blue.
-    pub fn of(color: Rgba) -> Option<MenuHue> {
-        Self::ALL.into_iter().find(|h| h.color().0[..3] == color.0[..3])
     }
 }
 

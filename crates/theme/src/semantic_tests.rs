@@ -406,7 +406,7 @@ fn anchored_greys_take_a_pinned_panels_tint() {
 fn a_bevel_lights_and_shades_a_pinned_panel() {
     let mut def = grey_blue();
     def.id = ThemeId::parse("test.bevel-panel").unwrap();
-    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }), rows: None });
     def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c0c0c0"))]);
     def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#404040"))]);
     for mode in [Mode::Light, Mode::Dark] {
@@ -645,6 +645,7 @@ fn size_presets_text_size_shape_and_motion() {
         radius_offset: None,
         button_radius: None,
         edge: Some(EdgeSeed::Bevel { width: 1.0 }),
+        rows: None,
     });
     classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);
     let t = resolve(&classic, Appearance { size: Size::Comfortable, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
@@ -750,9 +751,13 @@ fn accent_strong_variants_are_distinct_and_carry_text_on_strong() {
                 let ratio = contrast_ratio(t.color(T::TextOnStrong), c);
                 assert!(ratio >= min, "{} {a:?}: {name} is {ratio:.2}, needs {min}", def.id);
             }
+            let pins = if def.variants.mode_for(a.mode) == Mode::Dark { &def.pins.dark } else { &def.pins.light };
+            if pins.get(T::AccentStrongHover).is_some() || pins.get(T::AccentStrongPressed).is_some() {
+                continue;
+            }
             assert!(strong != hover && hover != pressed && strong != pressed, "{} {a:?}: {strong:?} {hover:?} {pressed:?}", def.id);
-            let l = |c: Rgba| c.to_oklch().l;
-            assert!(l(pressed) < l(hover) && l(hover) < l(strong), "{} {a:?}", def.id);
+            let ratio = |c: Rgba| contrast_ratio(t.color(T::TextOnStrong), c);
+            assert!(ratio(pressed) > ratio(hover) && ratio(hover) > ratio(strong), "{} {a:?}", def.id);
         }
     }
     let t = resolve(&light, app(Mode::Light, Contrast::Standard), None).tokens;

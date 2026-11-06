@@ -24,12 +24,14 @@
       "panel": 5.0,
       "popup": 5.0,
       "window": 5.0
-    }
+    },
+    "rows": "rounded"
   },
   "light": {
     "accent.border": "#3aace8aa",
     "accent.soft": "#3aace830",
     "accent.solid": "#3aace8",
+    "accent.strong": "#237ab4",
     "accent.text": "#1e5e88",
     "caption.close_hover": "#d5333c",
     "caption.close_text": "#ffffff",
@@ -39,6 +41,8 @@
     "line.divider": "#d6dade",
     "state.hover": "#e2e6eb",
     "state.pressed": "#d0d6dd",
+    "state.selected": "{accent.soft}",
+    "state.selected_hover": "{accent.soft}",
     "surface.background": "#e0e3e7",
     "surface.canvas": "#dbdee2",
     "surface.chrome": "#dbdee2",
@@ -54,6 +58,7 @@
     "accent.border": "#3aace8a0",
     "accent.soft": "#3aace828",
     "accent.solid": "#3aace8",
+    "accent.strong": "#1e76b0",
     "accent.text": "#50b8ee",
     "caption.close_hover": "#d5333c",
     "caption.close_text": "#ffffff",
@@ -63,6 +68,8 @@
     "line.divider": "#2e3236",
     "state.hover": "#32363b",
     "state.pressed": "#3a3f45",
+    "state.selected": "{accent.soft}",
+    "state.selected_hover": "{accent.soft}",
     "status.bad.fg": "#e36f7b",
     "status.warn.fg": "#f47806",
     "surface.background": "#1a1d22",

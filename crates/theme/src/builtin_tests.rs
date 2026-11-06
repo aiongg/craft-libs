@@ -91,9 +91,10 @@ fn soft_offsets_the_size_preset_radii_and_others_keep_them() {
     assert_eq!(radii(pro, Size::Compact), (3.0, 4.0, 6.0, 0.0, full, full));
 }
 
-/// `text.on_strong` is white and reads on `accent.strong` in every built-in and appearance;
-/// `accent.strong` is `accent.solid` where white already reads on it, and otherwise `accent.solid`
-/// with only its lightness moved (Pro's dark #378EF0 deepens, Graphite's light accent stays).
+/// `text.on_strong` reads on `accent.strong` in every built-in and appearance and is white unless
+/// the theme pins it; `accent.strong` is `accent.solid` where white already reads on it, and
+/// otherwise `accent.solid` with only its lightness moved (Pro's dark #378EF0 deepens, Graphite's
+/// light accent stays), unless the theme pins it.
 #[test]
 fn builtin_accent_strong_carries_white_text() {
     for theme in builtins() {
@@ -102,8 +103,14 @@ fn builtin_accent_strong_carries_white_text() {
             let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
             let (solid, strong, text) = (t.color(ColorToken::AccentSolid), t.color(ColorToken::AccentStrong), t.color(ColorToken::TextOnStrong));
             let at = format!("{} {a:?}", theme.id);
-            assert_eq!(text, Rgba::WHITE, "{at}");
+            let pins = if theme.variants.mode_for(a.mode) == Mode::Dark { &theme.pins.dark } else { &theme.pins.light };
+            if pins.get(ColorToken::TextOnStrong).is_none() {
+                assert_eq!(text, Rgba::WHITE, "{at}");
+            }
             assert!(contrast_ratio(text, strong) >= min, "{at}: {:.2}", contrast_ratio(text, strong));
+            if pins.get(ColorToken::AccentStrong).is_some() {
+                continue;
+            }
             if contrast_ratio(text, solid) >= min {
                 assert_eq!(strong, solid, "{at}");
             } else {
@@ -316,6 +323,38 @@ fn slider_thumbs_are_round_except_in_classic() {
                 assert_eq!(s.thumb_height, s.thumb_width, "{} {size:?}", theme.id);
                 assert_eq!((s.thumb_height.sm, s.thumb_height.md), (t.size.icon.sm - 2.0, t.size.icon.md - 4.0), "{} {size:?}", theme.id);
             }
+        }
+    }
+}
+
+/// Pro, Pro Light Gray, Graphite and ArtCraft take their row style from the Size (rounded at
+/// Comfortable, divided at Compact); the other themes draw rounded rows at every Size.
+#[test]
+fn builtin_themes_set_their_row_style() {
+    let by_size = ["craft.pro", "craft.pro-light-gray", "craft.graphite", "craft.artcraft"];
+    for theme in builtins() {
+        for a in appearances() {
+            let want = if by_size.contains(&theme.id.as_str()) && a.size == Size::Compact { RowStyle::Divided } else { RowStyle::Rounded };
+            assert_eq!(resolve(theme, a, None).tokens.shape.rows, want, "{} {a:?}", theme.id);
+        }
+    }
+}
+
+/// Adwaita, Breeze, Soft, Solarized and Studio select list rows with the accent tint, and the
+/// selected text reads on it in every appearance.
+#[test]
+fn accent_tinted_themes_select_with_accent_soft() {
+    for id in ["craft.adwaita", "craft.breeze", "craft.soft", "craft.solarized-dark", "craft.studio"] {
+        let theme = builtins().iter().find(|t| t.id.as_str() == id).unwrap();
+        for a in appearances() {
+            let t = resolve(theme, a, None).tokens;
+            let min = if a.contrast == Contrast::High { 7.0 } else { 4.5 };
+            let soft = t.color(ColorToken::AccentSoft);
+            if a.contrast != Contrast::High {
+                assert_eq!(t.color(ColorToken::StateSelected), soft, "{id} {a:?}");
+            }
+            let fill = crate::derive::over(t.color(ColorToken::StateSelected), t.color(ColorToken::SurfacePanel));
+            assert!(contrast_ratio(t.color(ColorToken::TextOnSelected), fill) >= min, "{id} {a:?}");
         }
     }
 }
