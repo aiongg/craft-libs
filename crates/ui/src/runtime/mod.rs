@@ -11,7 +11,10 @@ pub mod focus;
 pub mod frame;
 pub mod ime;
 pub mod inspect;
+pub mod install;
 pub mod memory;
 pub mod pointer;
 pub mod toast;
 pub mod windows;
+
+pub use install::{InstallError, InstallSpec, install};
