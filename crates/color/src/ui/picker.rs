@@ -809,7 +809,7 @@ impl RowRule {
 
 /// The number field of a channel row.
 #[allow(clippy::too_many_arguments)]
-fn row_number<'a>(
+pub(super) fn row_number<'a>(
     salt: impl AsIdSalt + Copy,
     name: &str,
     value: f64,

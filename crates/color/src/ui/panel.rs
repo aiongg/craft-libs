@@ -7,11 +7,12 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use std::sync::Arc;
 
 use craft_cms::convert::CmykConverter;
-use craft_theme::{ColorModel, ControlSize, HsbModel, LabModel, ModelValues, RgbModel, Srgba};
+use craft_theme::{ColorModel, ControlSize, HsbModel, LabModel, ModelValues, RgbModel, Srgba, TypeRole};
 use egui::accesskit::Role;
-use egui::{Align, AsIdSalt, Id, IdSalt, Layout, Modifiers, Rect, Ui, UiBuilder, vec2};
+use egui::text::LayoutJob;
+use egui::{Align, AsIdSalt, Color32, Id, IdSalt, Layout, Modifiers, Rect, Ui, UiBuilder, vec2};
 
-use super::picker::{Inner, RowRule, row_line, texts as picker_texts};
+use super::picker::{Inner, RowRule, row_line, row_number, texts as picker_texts};
 use super::{
     AreaMode, ColorArea, ColorPickerLabels, ColorRamp, ColorStrip, ColorWarning, ColorWarningChip, ColorWheel, HexField, PairWell, PickedColor,
     RampKind, SwatchPair, Well,
@@ -25,7 +26,7 @@ use craft_ui::edit::{EditEvent, EditPolicy};
 use craft_ui::icons::Icon;
 use craft_ui::localized::{LocaleNumbers, SharedLabels, Unit, Word, Words};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use craft_ui::primitives::{Gap, Row};
+use craft_ui::primitives::{Content, Gap, Row, Text};
 use craft_ui::theme::{Tokens, TokensOf};
 
 craft_ui::words! {
@@ -472,7 +473,7 @@ impl Body<'_> {
             });
         });
         match mode {
-            ColorPanelMode::HueCube | ColorPanelMode::BrightnessCube => self.hex(ui),
+            ColorPanelMode::HueCube | ColorPanelMode::BrightnessCube => self.readout(ui),
             ColorPanelMode::ColorWheel => self.wheel(ui),
             _ => self.ramp(ui, state),
         }
@@ -669,12 +670,48 @@ impl Body<'_> {
         }
     }
 
-    /// The hex field under the cubes.
-    fn hex(&mut self, ui: &mut Ui) {
+    /// The readout under the cubes: the hex field, then the R, G and B number fields (0 to 255,
+    /// as the RGB sliders') with their short labels, in one row. Any of them sets the colour.
+    // pc: crates/ui-egui/src/panels/color.rs:228 `color_readout`.
+    fn readout(&mut self, ui: &mut Ui) {
         let color = self.color();
-        let edit = HexField::new("hex", self.word(picker_texts::HEX_COLOUR), color.to_rgba()).enabled(self.enabled).show(ui);
-        if let Some(event) = edit.event {
+        let tokens = Tokens::of(ui);
+        let gap = Gap::Inline.points(&tokens);
+        let model = RgbModel;
+        let current = self.values(&model);
+        let rules = model.channels().iter().map(RowRule::of).collect::<Vec<_>>();
+        let font = tokens.font(TypeRole::Mono);
+        let label_width = |label: &str| {
+            let job = LayoutJob::simple_singleline(label.to_owned(), font.clone(), Color32::PLACEHOLDER);
+            ui.fonts_mut(|f| f.layout_job(job)).size().x
+        };
+        let labels: Vec<String> = model.channels().iter().map(|ch| self.word(ch.label)).collect();
+        let field_width = NumberField::fit_width(ui, ControlSize::Md, self.numbers, 0.0..=255.0, 0, &Unit::default());
+        let fields: f32 = labels.iter().map(|l| label_width(l) + field_width + 2.0 * gap).sum();
+        let hex_width = (ui.available_width() - fields).max(0.0);
+        let (enabled, numbers) = (self.enabled, self.numbers);
+        let hex_name = self.word(picker_texts::HEX_COLOUR);
+        let (hex, edits) = Row::new(Gap::Inline)
+            .show(ui, |ui| {
+                let hex = HexField::new("hex", hex_name, color.to_rgba()).width(hex_width).enabled(enabled).show(ui);
+                let mut edits = Vec::new();
+                for (i, ch) in model.channels().iter().enumerate() {
+                    ui.add(Text::new(labels[i].as_str()).role(TypeRole::Mono).content(Content::Muted));
+                    let name = self.word(ch.name);
+                    let inner = Inner { policy: EditPolicy::default(), enabled, width: field_width, part: false };
+                    let field = row_number((model.id(), i), &name, f64::from(current.values[i]), &rules[i], Unit::default(), numbers, inner);
+                    edits.push(ui.allocate_ui_with_layout(vec2(field_width, 0.0), Layout::top_down_justified(Align::Min), |ui| field.show(ui)).inner);
+                }
+                (hex, edits)
+            })
+            .inner;
+        if let Some(event) = hex.event {
             self.push(self.target, event.map(|rgba| PickedColor { color: Srgba::from(rgba).with_alpha(color.a), model: None }));
+        }
+        for (i, edit) in edits.into_iter().enumerate() {
+            if let Some(event) = edit.event {
+                self.channel_event(&model, current, i, event);
+            }
         }
     }
 
