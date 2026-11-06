@@ -785,3 +785,18 @@ fn the_plot_has_an_edge_only_when_bordered_and_a_selection_is_the_accent() {
     })
     .drop_without_applying_deltas();
 }
+
+#[test]
+fn the_backdrop_shows_against_the_plot_in_both_modes() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    for mode in [Mode::Dark, Mode::Light] {
+        let tokens = tokens_in_mode(&ctx, mode);
+        let backdrop = Histogram::style(&tokens).backdrop;
+        let plot = tokens.color.surface.sunken.to_egui();
+        let channel = |c: Color32| [c.r(), c.g(), c.b()].map(i32::from);
+        let blended: Vec<i32> = channel(backdrop).iter().zip(channel(plot)).map(|(b, p)| b + p * (255 - i32::from(backdrop.a())) / 255).collect();
+        let gap: i32 = blended.iter().zip(channel(plot)).map(|(b, p)| (b - p).abs()).sum();
+        assert!(gap > 60, "{mode:?}: the backdrop barely differs from the plot ({gap})");
+    }
+}

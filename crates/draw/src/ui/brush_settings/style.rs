@@ -47,8 +47,8 @@ impl BrushSettingsStyle {
         BrushSettingsStyle {
             panel_width: b.panel_width,
             section_list_width: b.section_list_width,
-            section_row: tokens.size.control.md,
-            section_switch_gap: tokens.space.gap.inline,
+            section_row: tokens.size.control.md - tokens.stroke.thin,
+            section_switch_gap: tokens.space.gap.stack,
             strip_height: b.strip_height,
             strip_radius: tokens.radius.control,
             strip_fill: b.strip_fill.to_egui(),

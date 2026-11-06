@@ -21,7 +21,7 @@ const DOT: f32 = 3.5;
 /// The size of a [`ReferencePoint`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RefSize {
-    /// `size.icon.sm` points square, for an options bar.
+    /// `size.icon.md` points square, for an options bar.
     #[default]
     Compact,
     /// `3 * size.control.md` points square, for a dialog; with [`growth`](ReferencePoint::growth) arrows.
@@ -32,7 +32,7 @@ pub enum RefSize {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ReferencePointStyle {
-    /// Side of the whole picker: `size.icon.sm` or `3 * size.control.md`.
+    /// Side of the whole picker: `size.icon.md` or `3 * size.control.md`.
     pub side: f32,
     /// Side of an unpicked point's dot: the dot constant (the large picker draws it twice as wide).
     pub dot: f32,
@@ -133,7 +133,7 @@ impl ReferencePoint {
     pub fn style(tokens: &UiTokens, size: RefSize) -> ReferencePointStyle {
         let c = &tokens.color;
         let (side, scale) = match size {
-            RefSize::Compact => (tokens.size.icon.sm, 1.0),
+            RefSize::Compact => (tokens.size.icon.md, 1.0),
             RefSize::Large => (tokens.size.control.md * 3.0, 2.0),
         };
         ReferencePointStyle {

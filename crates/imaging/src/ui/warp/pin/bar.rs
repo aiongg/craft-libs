@@ -141,6 +141,7 @@ fn body(ui: &mut egui::Ui, session: &PinWarpSession, labels: &PinWarpBarLabels, 
             .option(PinMode::Normal, labels.normal.as_str())
             .option(PinMode::Distort, labels.distort.as_str())
             .size(sm)
+            .fit(true)
             .show(ui);
         if let Some(&mode) = pick.event.as_ref().and_then(EditEvent::value).filter(|&&m| m != options.mode) {
             edits.push(PinEdit::Options(PinWarpOptions { mode, ..options }));
@@ -153,6 +154,7 @@ fn body(ui: &mut egui::Ui, session: &PinWarpSession, labels: &PinWarpBarLabels, 
             .option(PinDensity::Normal, labels.normal.as_str())
             .option(PinDensity::More, labels.more_points.as_str())
             .size(sm)
+            .fit(true)
             .show(ui);
         if let Some(&density) = pick.event.as_ref().and_then(EditEvent::value).filter(|&&d| d != options.density) {
             edits.push(PinEdit::Options(PinWarpOptions { density, ..options }));

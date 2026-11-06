@@ -15,6 +15,10 @@ const PAGE_ROWS: f32 = 13.75;
 const PRESETS_ROWS: f32 = 14.0;
 /// The Contour Editor's graph side, as a share of the page width.
 const GRAPH_SHARE: f32 = 2.0 / 3.0;
+/// The contour thumbnail's side, in control heights.
+const CONTOUR_THUMB_ROWS: f32 = 1.5;
+/// A contour picker cell's side, in control heights.
+const CONTOUR_CELL_ROWS: f32 = 5.0 / 3.0;
 /// The narrowest Blend If bar.
 const BLEND_IF_WIDTH_MIN: f32 = 120.0;
 /// The widest Blend If bar.
@@ -85,11 +89,11 @@ pub struct BlendIfBarStyle {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ContourFieldStyle {
-    /// The thumbnail: `size.thumb.md`; the picker arrow beside it `size.icon.md` wide.
+    /// The thumbnail: 1.5 control heights; the picker arrow beside it `size.icon.md` wide.
     pub thumb: f32,
     #[allow(missing_docs)]
     pub arrow: f32,
-    /// A cell of the preset picker: `size.thumb.md`.
+    /// A cell of the preset picker: 5/3 control heights.
     pub cell: f32,
     /// The Contour Editor's graph: two thirds of the page width.
     pub graph: f32,
@@ -139,9 +143,9 @@ impl ContourField<'_> {
     /// The field's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> ContourFieldStyle {
         ContourFieldStyle {
-            thumb: tokens.size.thumb.md,
+            thumb: tokens.size.control.md * CONTOUR_THUMB_ROWS,
             arrow: tokens.size.icon.md,
-            cell: tokens.size.thumb.md,
+            cell: tokens.size.control.md * CONTOUR_CELL_ROWS,
             graph: tokens.size.control.md * PAGE_ROWS * GRAPH_SHARE,
         }
     }

@@ -229,7 +229,7 @@ impl<'a> LevelsPanel<'a> {
                         for (i, entry) in self.channels.as_slice().iter().enumerate() {
                             select = select.option(i, entry.label(&labels));
                         }
-                        let _ = select.enabled(enabled).show(ui);
+                        let _ = select.fit(true).enabled(enabled).show(ui);
                         ui.with_layout(direction::trailing(ui), |ui| {
                             auto = ui
                                 .add(Button::new(labels.auto.as_str()).enabled(enabled && counts.is_some()).id_salt((self.id_salt, "auto")))
