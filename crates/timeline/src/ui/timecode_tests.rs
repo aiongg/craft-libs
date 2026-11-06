@@ -99,7 +99,8 @@ fn type_into(harness: &mut Harness<'_, Field>, text: &str) {
     harness.type_text(text);
 }
 
-// typing +15 and Enter commits 15 frames later; Esc cancels.
+// typing +15 and Enter commits 15 frames later, as one typing run that reports no draft on the way;
+// Esc cancels.
 #[test]
 fn typing_commits_relative_and_absolute_times() {
     let enter = KeyboardShortcut::new(Modifiers::NONE, Key::Enter);
@@ -107,13 +108,14 @@ fn typing_commits_relative_and_absolute_times() {
     type_into(&mut harness, "+15");
     harness.press(enter);
     let events = &harness.state().events;
-    assert!(matches!(events.as_slice(), [EditEvent::Set { value, .. }] if *value == rate().tick_of(255)), "{events:?}");
+    assert!(matches!(events.last(), Some(EditEvent::Commit { value, .. }) if *value == rate().tick_of(255)), "{events:?}");
+    assert!(events.iter().all(|event| !matches!(event, EditEvent::Update { .. })), "{events:?}");
     assert!(harness.state().submitted);
 
     let mut harness = field();
     type_into(&mut harness, "00:00:20:00");
     harness.press(enter);
-    assert!(matches!(harness.state().events.as_slice(), [EditEvent::Set { value, .. }] if *value == secs(20.0)));
+    assert!(matches!(harness.state().events.last(), Some(EditEvent::Commit { value, .. }) if *value == secs(20.0)));
 
     let mut harness = field();
     type_into(&mut harness, "+15");
@@ -123,7 +125,7 @@ fn typing_commits_relative_and_absolute_times() {
     assert_eq!(harness.get_by_role(Role::SpinButton).value().as_deref(), Some("00:00:10:00"));
 }
 
-// invalid text keeps the field open and reports no commit.
+// invalid text commits nothing and stays in the field, marked invalid.
 #[test]
 fn a_time_that_does_not_parse_commits_nothing() {
     let mut harness = field();
@@ -133,18 +135,19 @@ fn a_time_that_does_not_parse_commits_nothing() {
     assert!(harness.state().events.is_empty());
     let input = harness.get_by_role(Role::TextInput);
     assert_eq!(input.accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
-    assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())], "Enter reports the error and keeps the field open");
+    assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())], "Enter reports the error and keeps the text");
 }
 
-// a click away from text that doesn't parse closes the field and reports the error (FilmCraft
-// `widgets.rs:178-184`); the focus is not pulled back.
+// a click away from text that doesn't parse commits nothing, reports the error and leaves the text
+// marked invalid, as every craft-ui text field does; the focus is not pulled back.
 #[test]
-fn clicking_away_from_bad_text_closes_the_field() {
+fn clicking_away_from_bad_text_keeps_it_marked_invalid() {
     let mut harness = field();
     type_into(&mut harness, "xyz");
     let away = harness.state().rect.center() + vec2(0.0, 80.0);
     play(&mut harness, events::click(away, PointerButton::Primary, 1, Modifiers::NONE));
-    assert!(harness.query_by_role(Role::TextInput).is_none(), "the field closed");
+    let input = harness.get_by_role(Role::TextInput);
+    assert_eq!(input.accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
     assert!(harness.state().events.is_empty());
     assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())]);
 }

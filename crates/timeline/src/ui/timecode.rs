@@ -2,18 +2,18 @@
 
 use craft_theme::ControlSize;
 use craft_ui::behavior::scrub::travel;
-use craft_ui::behavior::{ClaimedKey, KeyClaim, Scrub};
+use craft_ui::behavior::{ClaimedKey, Codec, KeyClaim, NotAValue, Scrub, Typing, TypingLook};
 use craft_ui::controls::text_field::{BoxState, field_box};
 use craft_ui::controls::{IconButton, TextField};
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::icons::Icon;
 use craft_ui::localized::{Labels as _, fmt};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, role_format, tabular};
-use egui::accesskit::{Invalid, Role};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, margin_x, role_format, tabular};
+use egui::accesskit::Role;
 use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
-use egui::{Align, AsIdSalt, CursorIcon, EventFilter, IdSalt, Key, Layout, Modifiers, Response, Sense, TextEdit, Ui, WidgetInfo, pos2, vec2};
+use egui::{Align, Align2, AsIdSalt, CursorIcon, EventFilter, IdSalt, Key, Layout, Modifiers, Response, Sense, Shape, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 
 use super::style::TimelineStyle;
 use crate::time::Tick;
@@ -41,14 +41,52 @@ struct Scrubbing {
     warp: Option<f32>,
 }
 
-/// The text of a field being typed in.
-#[derive(Clone, Debug, Default)]
-struct Typing {
+/// A field being typed in: the text the box showed last pass, and whether the field still has to
+/// take the focus and select its text.
+#[derive(Clone, Debug)]
+struct Editing {
+    value: Shown,
     text: String,
-    /// The text has not been selected yet (the field takes the focus first).
-    select: bool,
-    /// The last Enter or click-away held text that doesn't parse.
-    invalid: bool,
+    fresh: bool,
+}
+
+/// The value a typing run edits: a time, and the text the box shows for it when that isn't the
+/// time formatted (the text a story opens the field with).
+#[derive(Clone, Debug, PartialEq)]
+struct Shown {
+    time: Tick,
+    text: Option<String>,
+}
+
+/// Writes a time in the field's display and reads typed text back with [`parse_time`], never
+/// before `min`.
+struct TimecodeCodec<'a> {
+    format: &'a TimeFormat,
+    min: Tick,
+    labels: &'a TimecodeFieldLabels,
+}
+
+impl Codec for TimecodeCodec<'_> {
+    type Value = Shown;
+
+    fn format(&self, value: &Shown) -> String {
+        value.text.clone().unwrap_or_else(|| format_time(value.time, self.format))
+    }
+
+    fn parse(&self, text: &str, start: &Shown) -> Result<Shown, NotAValue> {
+        // Text as shown stands for the time itself, not the first tick of its frame.
+        if text == self.format(start) {
+            return Ok(Shown { time: start.time, text: None });
+        }
+        match parse_time(text, self.format, start.time) {
+            Ok(time) => Ok(Shown { time: time.max(self.min), text: None }),
+            Err(error) => {
+                // Text made only of what a time is made of may still become one as the user types on.
+                let partial = matches!(error, TimecodeError::Empty) || text.trim().chars().all(|c| c.is_ascii_digit() || ":;.,+-".contains(c));
+                Err(NotAValue { reason: self.labels.message(&error), partial })
+            }
+        }
+    }
 }
 
 craft_ui::words! {
@@ -105,8 +143,8 @@ pub struct TimecodeFieldOutput {
     /// The edit: a changed time as an edit event.
     pub edit: EditResponse<Tick>,
     /// Typed text that didn't parse, from an Enter or a click away; word it with
-    /// [`TimecodeFieldLabels::message`]. Enter keeps the field open on the bad text, a click away
-    /// closes it (FilmCraft `widgets.rs:178-184`); nothing is committed either way.
+    /// [`TimecodeFieldLabels::message`]. Nothing is committed; the bad text stays in the field,
+    /// marked invalid, until it is fixed or Esc restores the time.
     pub error: Option<TimecodeError>,
 }
 
@@ -119,9 +157,10 @@ pub struct TimecodeFieldOutput {
 ///   click without a drag edits (decisions §4.2, NumberField).
 /// - Click (or Enter when focused) to type: the text is selected; Enter or a click away commits
 ///   through [`parse_time`] relative to the current value; Esc cancels. Left
-///   and Right on the whole selected text go to its last digit. A time that doesn't parse commits
-///   nothing and is reported on [`TimecodeFieldOutput::error`] (the app shows a notice): Enter
-///   keeps the field open on it, a click away closes the field.
+///   and Right on the whole selected text go to its last digit. The text is a
+///   [`Typing`](craft_ui::behavior::Typing) run: one gesture that commits the time once. A time
+///   that doesn't parse commits nothing and is reported on [`TimecodeFieldOutput::error`] (the app
+///   shows a notice); the text stays, marked invalid, until it is fixed or Esc restores the time.
 /// - Never before `min` (the sequence start).
 /// - One Tab stop; Up and Down step one frame (Shift: ten) as `Set`s.
 /// - Text in the mono type role with tabular figures (FilmCraft's timecode face); `large` is the
@@ -222,81 +261,63 @@ impl<'a> TimecodeField<'a> {
             if ui.data(|d| d.get_temp::<bool>(preset_key)).is_none() {
                 ui.data_mut(|d| {
                     d.insert_temp(preset_key, true);
-                    d.insert_temp(typing_key, Typing { text, select: true, invalid: false });
+                    d.insert_temp(typing_key, Editing { value: Shown { time, text: Some(text.clone()) }, text, fresh: true });
                 });
             }
         }
-        let typing = ui.data(|d| d.get_temp::<Typing>(typing_key));
+        let typing = ui.data(|d| d.get_temp::<Editing>(typing_key));
 
         let shown_text = |t: Tick| format_time(t, format);
         let natural = layout(&shown_text(time)).size();
         let size = vec2(width.unwrap_or(natural.x + 2.0 * field.pad_x), field.height.max(natural.y));
         let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
 
-        if let Some(mut typed) = typing {
-            // Typing: Enter or a click away commits, Esc cancels.
+        if let Some(mut editing) = typing {
             let edit_id = id.with("edit");
-            let mut gesture = Gesture::load(ui, id, &time, EditPolicy::default()).enabled(enabled);
-            let state = BoxState { enabled, focused: true, hovered: false, invalid: typed.invalid };
-            ui.painter().extend(field_box(ui, &field, rect, state));
-            let inner = rect.shrink2(vec2(field.pad_x, 0.0));
-            arrow_to_last_digit(ui, edit_id, &typed.text);
-            let edit = TextEdit::singleline(&mut typed.text)
-                .id(edit_id)
-                .font(text_format.font_id.clone())
-                .text_color(color)
-                .frame(egui::Frame::NONE)
-                .desired_width(inner.width())
-                .align(egui::Align2::LEFT_CENTER);
-            let response = ui.put(inner, edit);
-            ui.ctx().accesskit_node_builder(response.id, |node| {
-                node.set_role(Role::TextInput);
-                node.set_label(display_name);
-            });
-            if typed.select {
+            let codec = TimecodeCodec { format, min, labels: &labels };
+            let host = Shown { time, text: editing.value.text.clone() };
+            arrow_to_last_digit(ui, edit_id, &editing.text);
+            let look = TypingLook {
+                size: rect.size(),
+                margin: margin_x(field.pad_x, field.pad_x),
+                align: Align2::LEFT_CENTER,
+                font: text_format.font_id.clone(),
+                text: color,
+                placeholder: field.placeholder,
+                selection: field.selection,
+                selected_text: field.selected_text,
+                caret: field.caret,
+            };
+            // The box goes under the text, which `TextEdit` paints as it runs.
+            let under = ui.painter().add(Shape::Noop);
+            let typed = ui
+                .scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                    Typing::with_codec(edit_id, display_name, host, codec).enabled(enabled).tabular(true).show(ui, &look)
+                })
+                .inner;
+            let focused = typed.response().has_focus();
+            let rejected = typed.rejected().is_some();
+            ui.painter().set(under, Shape::Vec(field_box(ui, &field, rect, BoxState { enabled, focused: true, hovered: false, invalid: rejected })));
+            editing.text = typed.text().to_owned();
+            let escaped = typed.escaped();
+            // The run's end: Enter, or the focus leaving a run under way. Esc ends it without a time.
+            let ended = !editing.fresh && !escaped && (typed.submitted() || (!focused && typed.is_typing()));
+            let error = if ended { parse_time(typed.text(), format, time).err() } else { None };
+            let waiting = !focused && !typed.is_typing() && !rejected;
+            let done = !editing.fresh && (escaped || (ended && error.is_none()) || waiting);
+            if editing.fresh {
+                typed.response().request_focus();
                 let mut state = TextEditState::load(ui.ctx(), edit_id).unwrap_or_default();
-                state.cursor.set_char_range(Some(CCursorRange::select_all_str(&typed.text)));
+                state.cursor.set_char_range(Some(CCursorRange::select_all_str(&editing.text)));
                 state.store(ui.ctx(), edit_id);
-                typed.select = false;
+                editing.fresh = false;
             }
-            let escaped = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Escape));
-            let entered = response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            let mut done = escaped;
-            let mut error = None;
-            if response.lost_focus() && !escaped {
-                match parse_time(&typed.text, format, time) {
-                    Ok(t) => {
-                        gesture.set(t.max(min));
-                        done = true;
-                    }
-                    Err(e) if entered => {
-                        typed.invalid = true;
-                        response.request_focus();
-                        error = Some(e);
-                    }
-                    Err(e) => {
-                        done = true;
-                        error = Some(e);
-                    }
-                }
-            } else if !response.has_focus() && !typed.select {
-                response.request_focus();
-            }
-            if typed.invalid {
-                let notice = error.as_ref().map(|e| labels.message(e));
-                ui.ctx().accesskit_node_builder(response.id, |node| {
-                    node.set_invalid(Invalid::True);
-                    if let Some(notice) = &notice {
-                        node.set_description(notice.as_str());
-                    }
-                });
-            }
+            let edit = typed.end_as(ui, |shown| shown.time);
             if done {
-                ui.data_mut(|d| d.remove::<Typing>(typing_key));
+                ui.data_mut(|d| d.remove::<Editing>(typing_key));
             } else {
-                ui.data_mut(|d| d.insert_temp(typing_key, typed));
+                ui.data_mut(|d| d.insert_temp(typing_key, editing));
             }
-            let edit = EditResponse::new(response, gesture.finish()).submitted(entered).escaped(escaped);
             return TimecodeFieldOutput { edit, error };
         }
 
@@ -346,8 +367,9 @@ impl<'a> TimecodeField<'a> {
             }
             let enter = response.has_focus() && ui.input_mut(|i| ClaimedKey::exact(Modifiers::NONE, Key::Enter).consume(i));
             if response.clicked() || enter {
-                let current = shown_text(*gesture.shown());
-                ui.data_mut(|d| d.insert_temp(typing_key, Typing { text: current, select: true, invalid: false }));
+                let shown = *gesture.shown();
+                let text = shown_text(shown);
+                ui.data_mut(|d| d.insert_temp(typing_key, Editing { value: Shown { time: shown, text: None }, text, fresh: true }));
                 ui.ctx().request_repaint();
             }
             if response.has_focus() && !gesture.is_active() {
