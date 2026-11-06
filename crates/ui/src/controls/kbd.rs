@@ -20,17 +20,17 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct KbdStyle {
-    /// Height of a keycap: `kbd.height`.
+    /// Height of a keycap.
     pub height: f32,
-    /// At the start and end of a keycap's text: `kbd.pad_x`.
+    /// At the start and end of a keycap's text: `space.gap.inline`.
     pub pad_x: f32,
-    /// Between keycaps: half of `kbd.pad_x`.
+    /// Between keycaps: half of `space.gap.inline`.
     pub gap: f32,
-    /// `kbd.label`.
+    /// Type role of the keys.
     pub label: TypeRole,
-    /// `kbd.text`: the keys on keycaps. Plain keys take the caller's [`Content`] colour.
+    /// `text.muted`: the keys on keycaps. Plain keys take the caller's [`Content`] colour.
     pub text: Color32,
-    /// A keycap: a raised surface with `kbd.fill` and `kbd.radius`.
+    /// A keycap: a raised surface with `surface.raised` fill and a capped `shape.radius.control`.
     pub keycap: SurfaceStyle,
 }
 
@@ -72,7 +72,7 @@ impl Kbd {
     }
 
     /// The colour of plain keys, e.g. a highlighted menu row's content colour. Keycaps draw their
-    /// keys in `kbd.text`.
+    /// keys in `text.muted`.
     pub fn content(mut self, content: Content) -> Self {
         self.content = content;
         self
@@ -93,11 +93,12 @@ impl Kbd {
 
     /// The chord's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> KbdStyle {
-        let k = &tokens.component.kbd;
+        let k = crate::style::kbd::KbdStyle::new(tokens);
+        let pad_x = tokens.space.gap.inline;
         let mut keycap = Surface::style(tokens, SurfaceKind::Raised);
-        keycap.fill = k.fill.to_egui();
+        keycap.fill = tokens.color.surface.raised.to_egui();
         keycap.radius = corner_radius(k.radius);
-        KbdStyle { height: k.height, pad_x: k.pad_x, gap: k.pad_x / 2.0, label: k.label, text: k.text.to_egui(), keycap }
+        KbdStyle { height: k.height, pad_x, gap: pad_x / 2.0, label: TypeRole::Caption, text: tokens.color.text.muted.to_egui(), keycap }
     }
 
     /// The keys of `shortcut` for `os`, modifiers first in the platform's order: Apple's ⌃⌥⇧⌘ on

@@ -1,6 +1,6 @@
 //! [`ToggleButton`]: a button that stays pressed while on.
 
-use craft_theme::{ButtonPart, ButtonVariant, ControlSize, States, TypeRole};
+use craft_theme::{ButtonVariant, ControlSize, Rgba, States, TypeRole};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Ui, Widget};
 
@@ -20,8 +20,8 @@ use crate::typed_story;
 pub struct ToggleButtonStyle {
     /// Off: a secondary button.
     pub off: ButtonStyle,
-    /// On: `toggle_button.on.*`, held in every state but disabled, and
-    /// `toggle_button.on_disabled.*` when disabled.
+    /// On: the accent colours, held in every state but disabled, and
+    /// the disabled colours when disabled.
     pub on_fill: States<Color32>,
     #[allow(missing_docs)]
     pub on_border: States<Color32>,
@@ -32,9 +32,9 @@ pub struct ToggleButtonStyle {
 /// A secondary-looking button that stays pressed while on:
 /// `ui.add(ToggleButton::new("Snap", &mut snap))`.
 ///
-/// On, it draws `toggle_button.on.*` (the `state.selected` fill) and its raised surface draws
+/// On, it draws the accent colours and its raised surface draws
 /// pressed in, so a bevel theme shows it sunk. Disabled while on, it draws
-/// `toggle_button.on_disabled.*`, which still looks on. A click flips the value; AccessKit reports
+/// its disabled colours, which still looks on. A click flips the value; AccessKit reports
 /// the button toggled, after the click, in the same frame.
 #[derive(Debug)]
 pub struct ToggleButton<'a> {
@@ -94,12 +94,30 @@ impl<'a> ToggleButton<'a> {
     /// The button's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> ToggleButtonStyle {
         let off = super::Button::style(tokens, ButtonVariant::Secondary, size);
-        let on = &tokens.component.toggle_button;
-        let held = |part| {
-            let on_color = on.on(part).to_egui();
-            States::new(on_color, on_color, on_color, on.on_disabled(part).to_egui())
-        };
-        ToggleButtonStyle { off, on_fill: held(ButtonPart::Fill), on_border: held(ButtonPart::Border), on_text: held(ButtonPart::Text) }
+        let on = on_colors(tokens);
+        ToggleButtonStyle { off, on_fill: on.fill, on_border: on.border, on_text: on.text }
+    }
+}
+
+/// The colours of a button that is on, per state: shared with the icon button.
+pub(crate) struct OnColors {
+    pub fill: States<Color32>,
+    pub border: States<Color32>,
+    pub text: States<Color32>,
+}
+
+/// `accent.soft` inside an `accent.border` outline with `accent.text`, the same in every state
+/// but disabled, which keeps the fill and drops the outline and text to the disabled colours.
+pub(crate) fn on_colors(tokens: &UiTokens) -> OnColors {
+    let c = &tokens.color;
+    let held = |on: Rgba, disabled: Rgba| {
+        let (on, disabled) = (on.to_egui(), disabled.to_egui());
+        States::new(on, on, on, disabled)
+    };
+    OnColors {
+        fill: held(c.accent.soft, c.accent.soft),
+        border: held(c.accent.border, c.line.divider),
+        text: held(c.accent.text, c.text.disabled),
     }
 }
 

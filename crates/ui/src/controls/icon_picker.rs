@@ -17,6 +17,9 @@ use crate::localized::Labels as _;
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
+/// Rows of cells the grid shows before it scrolls.
+const MAX_ROWS: f32 = 11.5;
+
 crate::words! {
     /// The picker's words, English by default.
     #[non_exhaustive]
@@ -68,13 +71,13 @@ type PaintCell<'a, K> = Box<dyn Fn(&Painter, Rect, &K, Color32) + 'a>;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IconPickerStyle {
-    /// Side of a cell: `icon_picker.cell`.
+    /// Side of a cell.
     pub cell: f32,
-    /// Between cells: `icon_picker.gap`.
+    /// Between cells: `space.gap.tight`.
     pub gap: f32,
-    /// Between a cell's edge and its icon: `icon_picker.inset`.
+    /// Between a cell's edge and its icon: `space.gap.inline`.
     pub inset: f32,
-    /// Most the grid takes before it scrolls: `icon_picker.max_height`.
+    /// Most the grid takes before it scrolls.
     pub max_height: f32,
     /// The group names' text role.
     pub group: TypeRole,
@@ -89,12 +92,12 @@ pub struct IconPickerStyle {
 impl IconPicker<'static, ()> {
     /// The grid's sizes and colours.
     pub fn style(tokens: &UiTokens) -> IconPickerStyle {
-        let picker = &tokens.component.icon_picker;
+        let cell = tokens.size.icon.md + 2.0 * tokens.space.pad.control;
         IconPickerStyle {
-            cell: picker.cell,
-            gap: picker.gap,
-            inset: picker.inset,
-            max_height: picker.max_height,
+            cell,
+            gap: tokens.space.gap.tight,
+            inset: tokens.space.gap.inline,
+            max_height: MAX_ROWS * cell,
             group: TypeRole::Caption,
             group_text: tokens.color.text.muted.to_egui(),
             icon: tokens.color.text.normal.to_egui(),
@@ -118,10 +121,10 @@ impl IconPicker<'static, ()> {
 ///   keyword holds the typed text, ignoring case ([`icon_matches`]); with nothing typed every
 ///   group shows. The query lives in egui memory under the picker's id.
 /// - **Grid.** Each group's name in the `Caption` role and `text.muted`, then its cells in rows
-///   that wrap: 36-point squares 3 points apart (DeckCraft's `icon_cell`; `icon_picker.cell`,
-///   `icon_picker.gap`), the item painted 6 points in by the host's `paint` in `text.normal`
+///   that wrap: 36-point squares 3 points apart (DeckCraft's `icon_cell`; cell `size.icon.md` plus padding,
+///   `space.gap.tight`), the item painted 6 points in by the host's `paint` in `text.normal`
 ///   (`text.disabled` in a disabled picker). The cells take the state layer at `radius.control`
-///   corners and show their label as the tooltip. The body scrolls past `icon_picker.max_height`
+///   corners and show their label as the tooltip. The body scrolls past its maximum height
 ///   (DeckCraft's 420 points).
 /// - **Keys.** ↓ from the search field moves into the grid; the arrows move the active cell
 ///   over every shown cell ([`GridNav`](crate::behavior::GridNav)); Enter
@@ -153,7 +156,7 @@ impl<'a, K: Clone + PartialEq + Send + Sync + 'static> IconPicker<'a, K> {
         Self { id_salt: IdSalt::new(id_salt), label: label.into(), groups, paint: Box::new(paint), max_height: None, labels: None }
     }
 
-    /// The most the grid takes before it scrolls (`icon_picker.max_height` by default).
+    /// The most the grid takes before it scrolls (11.5 rows by default).
     pub fn max_height(mut self, height: f32) -> Self {
         self.max_height = Some(height);
         self

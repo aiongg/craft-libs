@@ -46,9 +46,7 @@
 //! - [`ResetDot`]: a dot beside a changed dialog field that resets it.
 //!
 //! Controls take semantic properties only (variant, [`ControlSize`], icon, state), never sizes or
-//! colours. Colours come from their component tokens (`button.*`, `icon_button.*`,
-//! `segmented.*`, `check.*`, `slider.*`, `angle_dial.*`, `swatch.*`, `badge.*`, `kbd.*`, `progress.*`, `field.*`, `listbox.*`), so a theme's component
-//! overrides reach them; shape and edge come from the
+//! colours. Colours come from the semantic tokens; each control computes its own style from them. Shape and edge come from the
 //! [`Surface`](crate::primitives::Surface) primitive through
 //! [`Interactive`](crate::primitives::Interactive). Each has a pure `style` function of
 //! [`UiTokens`](crate::theme::UiTokens) and its properties, dumped under

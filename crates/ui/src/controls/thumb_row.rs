@@ -3,7 +3,7 @@
 
 use std::ops::{Deref, DerefMut, RangeInclusive};
 
-use craft_theme::States;
+use craft_theme::{Rgba, States};
 use egui::accesskit::Role;
 use egui::{
     AsIdSalt, Color32, CornerRadius, Id, IdSalt, InteractOptions, Key, Modifiers, PointerButton, Pos2, Rect, Response, Sense, Shape, Stroke, Ui,
@@ -51,19 +51,19 @@ impl<const N: usize> DerefMut for Row<N> {
 /// A thumb row's sizes and colours, built from the levels editor's style.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ThumbRowStyle {
-    /// Height of the row: `levels.row`.
+    /// Height of the row: `size.control.sm`.
     pub height: f32,
-    /// A triangle's width and height: `levels.thumb_width`, `levels.thumb_height`.
+    /// A triangle's width and height.
     pub thumb: Vec2,
-    /// Distance from a thumb's centre within which a press grabs it: `levels.hit`.
+    /// Distance from a thumb's centre within which a press grabs it: `size.hit.target`.
     pub hit: f32,
-    /// A thumb's edge: `levels.thumb_edge`.
+    /// A thumb's edge: `text.muted`.
     pub edge: Color32,
-    /// A disabled thumb's edge: `levels.disabled_edge`.
+    /// A disabled thumb's edge: `text.disabled`.
     pub disabled_edge: Color32,
-    /// The ring round a thumb, outside its edge: `levels.ring`.
+    /// The ring round a thumb, outside its edge: `accent.soft`.
     pub ring: States<Color32>,
-    /// `slider.ring_width`.
+    /// Width of the ring: `stroke.thick`.
     pub ring_width: f32,
     /// The accessible name of the low half of a split thumb; `{name}` is the thumb's label.
     /// English default "{name} low".
@@ -218,7 +218,7 @@ impl Thumb {
 ///
 /// - Each thumb is a Tab stop and an AccessKit `Slider` named by its label, with its value and
 ///   bounds; a value that isn't finite (an unset gamma) is reported as mixed, with no value.
-/// - Pointer (primary button): a press within `levels.hit` of a thumb grabs it, so it moves with
+/// - Pointer (primary button): a press within `size.hit.target` of a thumb grabs it, so it moves with
 ///   the pointer and doesn't jump; a press elsewhere moves the nearest thumb there. Where thumbs
 ///   overlap under the press, the drag's direction picks: left the first of them in row order,
 ///   right the last; a still press moves none. A press focuses the thumb it moves (the nearest
@@ -667,18 +667,19 @@ impl<const N: usize> ThumbRow<N> {
         RowRules { thumbs: self.thumbs.clone(), scale: self.scale, wrap: self.wrap, anchored: self.anchored }
     }
 
-    /// A thumb row's sizes and colours from the theme's `levels.*` tokens, which the rows of a
+    /// A thumb row's sizes and colours from the semantic tokens, which the rows of a
     /// levels editor use: the look of every row of triangle thumbs.
     pub fn style(tokens: &UiTokens) -> ThumbRowStyle {
-        let l = &tokens.component.levels;
+        let (c, size) = (&tokens.color, &tokens.size);
+        let (clear, soft) = (Rgba::TRANSPARENT, c.accent.soft);
         ThumbRowStyle {
-            height: l.row,
-            thumb: vec2(l.thumb_width, l.thumb_height),
-            hit: l.hit,
-            edge: l.thumb_edge.to_egui(),
-            disabled_edge: l.disabled_edge.to_egui(),
-            ring: l.ring.to_egui(),
-            ring_width: tokens.component.slider.ring_width,
+            height: size.control.sm,
+            thumb: vec2(crate::style::levels::LevelsStyle::new(tokens).thumb_width, size.handle.md),
+            hit: size.hit.target,
+            edge: c.text.muted.to_egui(),
+            disabled_edge: c.text.disabled.to_egui(),
+            ring: States::new(clear, soft, soft, clear).to_egui(),
+            ring_width: tokens.stroke.thick,
             low_label: ThumbRowStyle::half_labels().0,
             high_label: ThumbRowStyle::half_labels().1,
         }

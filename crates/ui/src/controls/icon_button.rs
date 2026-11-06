@@ -1,6 +1,6 @@
 //! [`IconButton`]: a square ghost button that shows only an icon.
 
-use craft_theme::{ButtonPart, ButtonVariant, ControlSize, Srgba, States, Tone};
+use craft_theme::{ButtonVariant, ControlSize, Srgba, States, Tone};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{AsIdSalt, Color32, CornerRadius, Id, IdSalt, Image, ImageSource, Rect, Response, Sense, Stroke, Ui, Widget, pos2, vec2};
@@ -17,29 +17,34 @@ use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, ToneArg};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
+/// How much smaller than the icon size the glyph in a button is, small and standard.
+const GLYPH_LESS: (f32, f32) = (2.0, 4.0);
+/// The badge dot's diameter in icon sides.
+const BADGE_RATIO: f32 = 0.4;
+
 /// An icon button's sizes and colours, from [`IconButton::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IconButtonStyle {
-    /// Side of the square: `icon_button.size`.
+    /// Side of the square.
     pub side: f32,
-    /// Side of the icon: `icon_button.icon`.
+    /// Side of the icon.
     pub icon: f32,
     /// `Corner::Control`: `radius.control`.
     pub radius: CornerRadius,
-    /// Off: a ghost button's fill, `button.ghost.fill`.
+    /// Off: a ghost button's fill.
     pub fill: States<Color32>,
-    /// Off: `button.ghost.text`.
+    /// Off: a ghost button's text.
     pub text: States<Color32>,
-    /// Toggled on: `icon_button.selected.fill`, held in every state but disabled.
+    /// Toggled on: the accent fill, held in every state but disabled.
     pub selected_fill: States<Color32>,
-    /// Toggled on: the 1 pt outline inside the edge, `icon_button.selected.border`.
+    /// Toggled on: the 1 pt outline inside the edge.
     pub selected_border: States<Color32>,
-    /// Toggled on: `icon_button.selected.text`.
+    /// Toggled on: the accent text.
     pub selected_text: States<Color32>,
     /// Width of the toggled-on outline in points; `None`: the surface's, one point.
     pub selected_border_width: Option<f32>,
-    /// Diameter of the badge dot: `icon_button.badge`.
+    /// Diameter of the badge dot.
     pub badge: f32,
     /// The ring around the badge dot: `line.mark`.
     pub badge_edge: Stroke,
@@ -227,24 +232,27 @@ impl<'a> IconButton<'a> {
 
     /// The button's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
-        let c = &tokens.component;
-        let ghost = c.button.colors(ButtonVariant::Ghost);
-        let selected = &c.icon_button.selected;
-        let held = |part| {
-            let on = selected.on(part).to_egui();
-            States::new(on, on, on, selected.on_disabled(part).to_egui())
+        let ghost = *crate::style::button::ButtonStyle::new(tokens).colors(ButtonVariant::Ghost);
+        let on = super::toggle_button::on_colors(tokens);
+        let (side, icon_side) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.icon.md),
+        };
+        let glyph_less = match size {
+            ControlSize::Sm => GLYPH_LESS.0,
+            ControlSize::Md => GLYPH_LESS.1,
         };
         IconButtonStyle {
-            side: c.icon_button.size.get(size),
-            icon: c.icon_button.icon.get(size),
+            side,
+            icon: icon_side - glyph_less,
             radius: Corner::Control.radius(tokens),
             fill: ghost.fill.to_egui(),
             text: ghost.text.to_egui(),
-            selected_fill: held(ButtonPart::Fill),
-            selected_border: held(ButtonPart::Border),
-            selected_text: held(ButtonPart::Text),
+            selected_fill: on.fill,
+            selected_border: on.border,
+            selected_text: on.text,
             selected_border_width: None,
-            badge: c.icon_button.badge.get(size),
+            badge: icon_side * BADGE_RATIO,
             badge_edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), tokens.color.line.mark.to_egui()),
         }
     }
@@ -263,7 +271,7 @@ impl IconButton<'_> {
         style.side = self.side.unwrap_or(style.side);
         style.icon = self.icon_size.unwrap_or(style.icon);
         if self.tone != Tone::Neutral {
-            let fg = tokens.component.notice.fg(self.tone).to_egui();
+            let fg = crate::style::notice::NoticeStyle::new(&tokens).fg(self.tone).to_egui();
             style.text = States::new(fg, fg, fg, style.text.disabled);
             style.selected_text = States::new(fg, fg, fg, style.selected_text.disabled);
         }

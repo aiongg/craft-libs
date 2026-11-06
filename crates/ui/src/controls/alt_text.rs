@@ -10,6 +10,8 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
 /// The box's height in lines (DeckCraft's `desired_rows(4)`).
 const BOX_ROWS: usize = 4;
+/// The box's width when the layout doesn't justify it.
+const BOX_WIDTH: f32 = 340.0;
 
 crate::words! {
     /// The field's words, English by default (PowerPoint's and DeckCraft's).
@@ -29,9 +31,9 @@ crate::words! {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AltTextStyle {
-    /// Between the prompt, the box and the checkbox: `alt_text.row_gap`.
+    /// Between the prompt, the box and the checkbox: `space.gap.inline`.
     pub row_gap: f32,
-    /// The box's width when the layout doesn't justify it: `alt_text.box_width`.
+    /// The box's width when the layout doesn't justify it.
     pub box_width: f32,
     /// The prompt's colour: `color.text.normal`.
     pub prompt: Color32,
@@ -105,8 +107,7 @@ impl<'a> AltTextField<'a> {
 
     /// The field's sizes and colours.
     pub fn style(tokens: &UiTokens) -> AltTextStyle {
-        let alt_text = &tokens.component.alt_text;
-        AltTextStyle { row_gap: alt_text.row_gap, box_width: alt_text.box_width, prompt: tokens.color.text.normal.to_egui() }
+        AltTextStyle { row_gap: tokens.space.gap.inline, box_width: BOX_WIDTH, prompt: tokens.color.text.normal.to_egui() }
     }
 
     // deckcraft: crates/ui-egui/src/dialogs/body.rs:596 dlg_alt_text

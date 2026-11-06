@@ -30,27 +30,27 @@ pub enum ButtonTone {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ButtonStyle {
-    /// `button.height`.
+    /// The control height.
     pub height: f32,
-    /// At the start and end: `button.pad_x`.
+    /// At the start and end.
     pub pad_x: f32,
-    /// Between icon and label: `button.gap`.
+    /// Between icon and label.
     pub gap: f32,
-    /// Side of the icon: `button.icon`.
+    /// Side of the icon.
     pub icon: f32,
-    /// `button.label`.
+    /// Type role of the label.
     pub label: TypeRole,
-    /// `Corner::Button`: `button.radius`.
+    /// `Corner::Button`.
     pub radius: CornerRadius,
-    /// `button.border_width`: the border's width, drawn inside the button.
+    /// The border's width, drawn inside the button.
     pub border_width: f32,
     /// Raised, or none for a ghost button, which rests transparent with no edge.
     pub surface: Option<SurfaceKind>,
-    /// `button.<variant>.fill`.
+    /// The fill of the variant.
     pub fill: States<Color32>,
-    /// `button.<variant>.border`, over a flat surface's border; a bevel keeps its colours.
+    /// The border of the variant, over a flat surface's border; a bevel keeps its colours.
     pub border: States<Color32>,
-    /// `button.<variant>.text`: label, icon and spinner.
+    /// The text of the variant: label, icon and spinner.
     pub text: States<Color32>,
 }
 
@@ -63,7 +63,7 @@ impl ButtonStyle {
 
 /// A push button: `ui.add(Button::new("Export").variant(ButtonVariant::Primary))`.
 ///
-/// Colours come from `button.<variant>.*`; primary, secondary and danger buttons sit on a raised
+/// Primary, secondary and danger buttons sit on a raised
 /// [`Surface`](crate::primitives::Surface), so a bevel theme bevels them and they press in, and
 /// ghost buttons rest transparent. A leading [`icon`](Button::icon) sits at the reading start and
 /// mirrors in a right-to-left interface when directional. A label wider than the room left is
@@ -140,7 +140,7 @@ impl Button {
         self
     }
 
-    /// Whether it takes input; a disabled button draws `button.<variant>.*.disabled`.
+    /// Whether it takes input; a disabled button draws its disabled colours.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -179,16 +179,19 @@ impl Button {
 
     /// The sizes and colours for `variant` and `size` from `tokens`.
     pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> ButtonStyle {
-        let b = &tokens.component.button;
-        let colors = b.colors(variant);
+        let colors = *crate::style::button::ButtonStyle::new(tokens).colors(variant);
+        let (height, pad_x, icon) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.space.pad.control, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.space.pad.dialog, tokens.size.icon.md),
+        };
         ButtonStyle {
-            height: b.height.get(size),
-            pad_x: b.pad_x.get(size),
-            gap: b.gap,
-            icon: b.icon.get(size),
-            label: b.label,
+            height,
+            pad_x,
+            gap: tokens.space.gap.inline,
+            icon,
+            label: TypeRole::Label,
             radius: Corner::Button.radius(tokens),
-            border_width: b.border_width,
+            border_width: tokens.stroke.thin,
             surface: (variant != ButtonVariant::Ghost).then_some(SurfaceKind::Raised),
             fill: colors.fill.to_egui(),
             border: colors.border.to_egui(),

@@ -30,45 +30,45 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TextFieldStyle {
-    /// Height of the box: `field.height`.
+    /// Height of the box: the control height.
     pub height: f32,
-    /// Default width: `field.width`. A justified layout stretches it.
+    /// Default width. A justified layout stretches it.
     pub width: f32,
-    /// Between the box's edge and its text or icon: `field.pad_x`.
+    /// Between the box's edge and its text or icon: `space.pad.control`.
     pub pad_x: f32,
-    /// Side of an icon: `field.icon`.
+    /// Side of an icon.
     pub icon: f32,
-    /// Between an icon and the text: `field.gap`.
+    /// Between an icon and the text: `space.gap.inline`.
     pub gap: f32,
-    /// Type role of the text and the placeholder: `field.role`.
+    /// Type role of the text and the placeholder.
     pub role: TypeRole,
-    /// The box: a sunken [`Surface`] (its border, or bevel) filled with `field.fill.rest`, with
-    /// `field.radius` corners and a `field.border.rest` border.
+    /// The box: a sunken [`Surface`] (its border, or bevel) filled with `surface.sunken`, with
+    /// `shape.radius.control` corners and a `line.control_edge` border.
     pub surface: SurfaceStyle,
-    /// `field.fill.disabled`.
+    /// The fill while disabled.
     pub fill_disabled: Color32,
-    /// `field.border.hover`, `field.border.focused` and `field.border.disabled`; a bevel keeps
+    /// The border while hovered, focused and disabled; a bevel keeps
     /// its own colours.
     pub border_hover: Color32,
     #[allow(missing_docs)]
     pub border_focused: Color32,
     #[allow(missing_docs)]
     pub border_disabled: Color32,
-    /// `field.text.rest` and `field.text.disabled`.
+    /// `text.normal` and `text.disabled`.
     pub text: Color32,
     #[allow(missing_docs)]
     pub text_disabled: Color32,
-    /// `field.placeholder.rest` and `field.placeholder.disabled`; icons in the box take them too.
+    /// `text.faint` and `text.disabled`; icons in the box take them too.
     pub placeholder: Color32,
     #[allow(missing_docs)]
     pub placeholder_disabled: Color32,
-    /// `field.selection.fill` and `field.selection.text`.
+    /// The selection fill and the selected text.
     pub selection: Color32,
     #[allow(missing_docs)]
     pub selected_text: Color32,
-    /// `field.caret`.
+    /// The text cursor.
     pub caret: Color32,
-    /// The edge of an invalid field: `field.invalid`.
+    /// The edge of an invalid field.
     pub invalid: Color32,
 }
 
@@ -104,10 +104,10 @@ pub struct TextFieldStyle {
 ///
 /// - `label` is the accessible name; the field draws no label (a form row or the
 ///   [`Field`](crate::composites::Field) composite shows it).
-/// - The placeholder shows while the field is empty, in `field.placeholder`.
-/// - [`invalid`](TextField::invalid) draws the edge in `field.invalid` and reports the value
+/// - The placeholder shows while the field is empty, in the placeholder colour.
+/// - [`invalid`](TextField::invalid) draws the edge in the invalid colour and reports the value
 ///   invalid to AccessKit; the message is the form's.
-/// - The edge turns `field.border.focused` while the field has focus, from the keyboard or the
+/// - The edge turns the focus colour while the field has focus, from the keyboard or the
 ///   pointer; a focused invalid field draws the invalid colour as a line inside that edge. A
 ///   bevelled box (Classic) keeps its bevel and draws these lines inside it.
 /// - A secondary click, or the Menu key or Shift+F10 in the focused field, opens the
@@ -194,7 +194,7 @@ impl<'a> TextField<'a> {
         self
     }
 
-    /// The type role of the text and the placeholder instead of `field.role`, for a prominent
+    /// The type role of the text and the placeholder instead of the body role, for a prominent
     /// field such as [`TypeRole::BodyLarge`]. The box grows to the role's line height when the
     /// size's height is less.
     pub fn role(mut self, role: TypeRole) -> Self {
@@ -261,7 +261,7 @@ impl<'a> TextField<'a> {
     }
 
     /// A field `rows` lines tall that wraps its text, for a note or a description: the first line
-    /// is `field.height` tall and every further row adds a line of text. Enter inserts a line break
+    /// is one control height tall and every further row adds a line of text. Enter inserts a line break
     /// and Cmd/Ctrl+Enter submits ([`submitted`](EditResponse::submitted)), commits and leaves the
     /// field as Enter does in a line; Tab leaves it. Esc and the typing run are the line's.
     /// AccessKit: a `MultilineTextInput`.
@@ -346,20 +346,24 @@ impl<'a> TextField<'a> {
 
     /// The field's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> TextFieldStyle {
-        let f = &tokens.component.field;
+        let f = crate::style::field::FieldStyle::new(tokens);
+        let (height, icon) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.icon.md),
+        };
         let mut surface = Surface::style(tokens, SurfaceKind::Sunken);
         surface.fill = f.fill.rest.to_egui();
-        surface.radius = corner_radius(f.radius);
+        surface.radius = corner_radius(tokens.shape.radius.control);
         if let SurfaceEdge::Border(stroke) = surface.edge {
             surface.edge = SurfaceEdge::Border(Stroke::new(stroke.width, f.border.rest.to_egui()));
         }
         TextFieldStyle {
-            height: f.height.get(size),
+            height,
             width: f.width.get(size),
-            pad_x: f.pad_x,
-            icon: f.icon.get(size),
-            gap: f.gap,
-            role: f.role,
+            pad_x: tokens.space.pad.control,
+            icon,
+            gap: tokens.space.gap.inline,
+            role: TypeRole::Body,
             surface,
             fill_disabled: f.fill.disabled.to_egui(),
             border_hover: f.border.hover.to_egui(),

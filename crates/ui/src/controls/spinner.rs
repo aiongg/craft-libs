@@ -90,8 +90,8 @@ impl Spinner {
             return;
         }
         let tokens = Tokens::of(ui);
-        let (still, spinner) = (tokens.appearance.reduced_motion, &tokens.component.spinner);
-        let radius = rect.width().min(rect.height()) * 0.5 - spinner.inset;
+        let still = tokens.appearance.reduced_motion;
+        let radius = rect.width().min(rect.height()) * 0.5 - tokens.space.gap.tight;
         let (start, end) = if still {
             (0.0, SWEEP.to_radians())
         } else {
@@ -99,7 +99,7 @@ impl Spinner {
             let start = time * f64::from(TAU);
             (start as f32, (start + f64::from(SWEEP.to_radians()) * time.sin()) as f32)
         };
-        ui.painter().add(Shape::line(Spinner::points(rect, radius, start, end), Stroke::new(spinner.stroke, color)));
+        ui.painter().add(Shape::line(Spinner::points(rect, radius, start, end), Stroke::new(tokens.stroke.thick + tokens.stroke.thin, color)));
         if !still {
             ui.ctx().request_repaint();
         }

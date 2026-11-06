@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{ControlSize, States, TypeRole};
+use craft_theme::{ControlSize, Rgba, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
@@ -26,27 +26,27 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SegmentedStyle {
-    /// Height of a pill: `segmented.height`.
+    /// Height of a pill.
     pub height: f32,
-    /// At the start and end of each pill: `segmented.pad_x`.
+    /// At the start and end of each pill.
     pub pad_x: f32,
-    /// Side of an icon: `segmented.icon`.
+    /// Side of an icon.
     pub icon: f32,
-    /// Between pills: `segmented.gap`.
+    /// Between pills.
     pub gap: f32,
-    /// `segmented.label`.
+    /// Type role of the label.
     pub label: TypeRole,
     /// Pills' corners: `Corner::Control`.
     pub radius: CornerRadius,
-    /// `segmented.segment.fill`.
+    /// The fill of a pill: clear, with the hover fill under the pointer.
     pub fill: States<Color32>,
-    /// `segmented.segment.text`.
+    /// The text of a pill: `text.muted`.
     pub text: States<Color32>,
-    /// `segmented.selected.fill`.
+    /// The fill of the selected pill: `state.selected`.
     pub selected_fill: States<Color32>,
-    /// The 1 pt outline inside the selected pill: `segmented.selected.border`.
+    /// The 1 pt outline inside the selected pill: `line.control_edge`.
     pub selected_border: States<Color32>,
-    /// `segmented.selected.text`.
+    /// The text of the selected pill: `text.on_selected`.
     pub selected_text: States<Color32>,
 }
 
@@ -65,7 +65,7 @@ pub struct SegmentedStyle {
 /// ```
 ///
 /// Pills sit side by side, each as wide as its label plus padding; the selected one shows
-/// `segmented.selected.*`. It is a radio group: AccessKit `RadioGroup` named `label`, with the number of segments, and a
+/// the selected colours. It is a radio group: AccessKit `RadioGroup` named `label`, with the number of segments, and a
 /// `RadioButton` per segment, the selected one checked, each at its position in the set. Keys and
 /// focus are [`RadioSelection`](crate::behavior::RadioSelection)'s, as PhotoCraft's and
 /// DesignCraft's segments: each enabled segment a Tab stop, the arrows move the focus without
@@ -218,19 +218,26 @@ impl<'a, T: PartialEq + Clone> Segmented<'a, T> {
 impl Segmented<'static, ()> {
     /// The control's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SegmentedStyle {
-        let s = &tokens.component.segmented;
+        let (c, look) = (&tokens.color, crate::style::segmented::SegmentedStyle::new(tokens));
+        let (height, icon) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.icon.md),
+        };
+        let clear = Rgba::TRANSPARENT;
+        let (hover, muted) = (look.hover_fill, c.text.muted);
+        let (selected, on_selected, edge) = (c.state.selected, c.text.on_selected, c.line.control_edge);
         SegmentedStyle {
-            height: s.height.get(size),
-            pad_x: s.pad_x.get(size),
-            icon: s.icon.get(size),
-            gap: s.gap,
-            label: s.label,
+            height,
+            pad_x: look.pad_x.get(size),
+            icon,
+            gap: look.gap,
+            label: TypeRole::Label,
             radius: Corner::Control.radius(tokens),
-            fill: s.segment.fill.to_egui(),
-            text: s.segment.text.to_egui(),
-            selected_fill: s.selected.fill.to_egui(),
-            selected_border: s.selected_border.to_egui(),
-            selected_text: s.selected.text.to_egui(),
+            fill: States::new(clear, hover, hover, clear).to_egui(),
+            text: States::new(muted, muted, muted, c.text.disabled).to_egui(),
+            selected_fill: States::new(selected, selected, selected, c.state.disabled_fill).to_egui(),
+            selected_border: States::new(edge, edge, edge, c.line.divider).to_egui(),
+            selected_text: States::new(on_selected, on_selected, on_selected, c.text.disabled).to_egui(),
         }
     }
 }

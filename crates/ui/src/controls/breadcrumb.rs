@@ -15,6 +15,8 @@ use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, role_format};
 
 /// The most segments shown before the rest go behind the ellipsis.
 const MOST_SEGMENTS: usize = 4;
+/// The narrowest a shown segment may get.
+const MIN_SEGMENT: f32 = 80.0;
 
 crate::words! {
     /// The bar's words, English by default.
@@ -52,13 +54,13 @@ pub struct BreadcrumbBarResponse<K> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BreadcrumbStyle {
-    /// The strip's height: `breadcrumb.height`.
+    /// The strip's height: `size.control.md`.
     pub height: f32,
-    /// The narrowest a shown segment may get: `breadcrumb.min_segment`.
+    /// The narrowest a shown segment may get.
     pub min_segment: f32,
-    /// Around each separator and the "…" button: `breadcrumb.gap`.
+    /// Around each separator and the "…" button: `space.gap.tight`.
     pub gap: f32,
-    /// A separator chevron's side: `breadcrumb.separator`.
+    /// A separator chevron's side: `size.icon.sm`.
     pub separator: f32,
     /// Separators and "…": `color.text.muted`.
     pub muted: Color32,
@@ -73,12 +75,11 @@ pub struct BreadcrumbStyle {
 impl BreadcrumbBar<'static, ()> {
     /// The bar's sizes and colours.
     pub fn style(tokens: &UiTokens) -> BreadcrumbStyle {
-        let bread = &tokens.component.breadcrumb;
         BreadcrumbStyle {
-            height: bread.height,
-            min_segment: bread.min_segment,
-            gap: bread.gap,
-            separator: bread.separator,
+            height: tokens.size.control.md,
+            min_segment: MIN_SEGMENT,
+            gap: tokens.space.gap.tight,
+            separator: tokens.size.icon.sm,
             muted: tokens.color.text.muted.to_egui(),
             text: tokens.color.text.normal.to_egui(),
             ancestor: TypeRole::Body,
@@ -94,11 +95,11 @@ impl BreadcrumbBar<'static, ()> {
 /// if let Some(path) = BreadcrumbBar::new("folder", &crumbs).show(ui).opened { app.browse(path) }
 /// ```
 ///
-/// - **Look.** Segments in the `Body` role, `breadcrumb.height` high, the ancestors and the last
+/// - **Look.** Segments in the `Body` role, `size.control.md` high, the ancestors and the last
 ///   one in `text.normal` (LightCraft's label colour; the last in `BodyStrong`), with a chevron
-///   right of `breadcrumb.separator` points
+///   right of `size.icon.sm` points
 ///   ([`Icon::ChevronRight`](crate::icons::Icon::ChevronRight), mirrored in right-to-left) in
-///   `text.muted` between them, `breadcrumb.gap` either side, and the "…" in `text.muted`.
+///   `text.muted` between them, `space.gap.tight` either side, and the "…" in `text.muted`.
 ///   Ancestors show the pointing-hand cursor and the state layer's hover fill (no underline).
 /// - **Room.** The bar shows the last `clamp(width / 80, 1, 4)` segments (LightCraft's); the
 ///   ones before them collapse into a "…" button whose tooltip is the whole path and which opens

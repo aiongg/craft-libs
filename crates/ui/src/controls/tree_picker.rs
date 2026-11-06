@@ -23,6 +23,11 @@ use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::Interactive;
 use crate::theme::{Tokens, TokensOf as _, UiTokens};
 
+/// Height of the open list before it scrolls.
+const LIST_HEIGHT: f32 = 320.0;
+/// Narrowest the open list is.
+const MIN_POPUP_WIDTH: f32 = 220.0;
+
 crate::words! {
     /// The picker's words, English by default.
     #[non_exhaustive]
@@ -62,9 +67,9 @@ pub struct TreePickerStyle {
     pub select: SelectStyle,
     /// The popup's rows: the list row's look.
     pub rows: ListRowStyle,
-    /// The list's tallest height before it scrolls: `tree_picker.list_height`.
+    /// The list's tallest height before it scrolls.
     pub list_height: f32,
-    /// The popup's narrowest width: `tree_picker.min_popup_width`.
+    /// The popup's narrowest width.
     pub min_popup_width: f32,
 }
 
@@ -148,12 +153,11 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> TreePicker<'a, K>
 
     /// The picker's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> TreePickerStyle {
-        let picker = &tokens.component.tree_picker;
         TreePickerStyle {
             select: Select::style(tokens, size),
             rows: ListRow::<usize>::style(tokens),
-            list_height: picker.list_height,
-            min_popup_width: picker.min_popup_width,
+            list_height: LIST_HEIGHT,
+            min_popup_width: MIN_POPUP_WIDTH,
         }
     }
 

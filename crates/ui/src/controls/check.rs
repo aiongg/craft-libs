@@ -1,11 +1,11 @@
 //! What [`Checkbox`](super::Checkbox), the radio buttons of [`RadioGroup`](super::RadioGroup) and
 //! [`RadioSet`](super::RadioSet), and [`Switch`](super::Switch) share: an indicator at the reading
 //! start with the label after it, the indicator drawn on the sunken
-//! [`Surface`](crate::primitives::Surface) in the `check.*` colours.
+//! [`Surface`](crate::primitives::Surface) in the check colours.
 
 use std::sync::Arc;
 
-use craft_theme::{CheckOffColors, CheckOnColors, Rgba, States, TypeRole};
+use craft_theme::{CheckOffColors, CheckOnColors, ControlSize, CheckSwitchColors, Rgba, States, ThumbColors, Tokens, TypeRole};
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, StrokeKind, TextWrapMode, Ui, Vec2, pos2, vec2};
@@ -15,8 +15,128 @@ use crate::direction;
 use crate::primitives::{StateLayer, SurfaceEdge, SurfaceStyle};
 use crate::theme::{ToEgui, UiTokens, role_format};
 
-/// The colours of an indicator and its mark while off or while on, per state: `check.off.*` or
-/// `check.on.*`.
+/// Share of the sunken fill an off indicator keeps while pressed.
+const OFF_PRESSED_SHARE: f32 = 0.82;
+/// How much of the accent fill an on indicator shows while pressed.
+const ON_PRESSED_OPACITY: f32 = 0.75;
+/// How far a disabled thumb's face moves from `surface.knob` toward `surface.panel`.
+const KNOB_DISABLED: f64 = 0.5;
+
+/// How much smaller than the standard icon a standard-size box or circle is.
+const BOX_INSET: f32 = 2.0;
+/// Stroke width of a check mark in box sides.
+const MARK_RATIO: f32 = 0.125;
+/// Diameter of a radio dot in box sides.
+const DOT_RATIO: f32 = 0.4;
+/// Width of a switch track in track heights.
+const SWITCH_ASPECT: f32 = 2.0;
+
+/// The sizes check boxes, radio buttons and switches share, at one control size.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CheckSizes {
+    /// Height of one line.
+    pub height: f32,
+    /// Side of the box or circle.
+    pub box_size: f32,
+    /// Between the box or circle and the label.
+    pub box_gap: f32,
+    /// Outline width, drawn inside.
+    pub outline: f32,
+    /// Corner radius of a check box.
+    pub radius: f32,
+    /// Stroke width of a check or dash.
+    pub mark: f32,
+    /// Diameter of a radio dot.
+    pub dot: f32,
+    /// Height of a switch track.
+    pub track_height: f32,
+    /// Width of a switch track.
+    pub track_width: f32,
+    /// Between a switch track's edge and its thumb.
+    pub thumb_inset: f32,
+    /// Between a switch track and its label.
+    pub gap: f32,
+}
+
+impl CheckSizes {
+    pub(crate) fn new(tokens: &Tokens, size: ControlSize) -> Self {
+        let (control, icon) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.icon.md),
+        };
+        let box_size = match size {
+            ControlSize::Sm => icon,
+            ControlSize::Md => icon - BOX_INSET,
+        };
+        CheckSizes {
+            height: control,
+            box_size,
+            box_gap: tokens.space.gap.stack,
+            outline: tokens.stroke.medium,
+            radius: tokens.shape.radius.sm,
+            mark: box_size * MARK_RATIO,
+            dot: box_size * DOT_RATIO,
+            track_height: icon,
+            track_width: icon * SWITCH_ASPECT,
+            thumb_inset: tokens.space.gap.tight,
+            gap: tokens.space.gap.inline,
+        }
+    }
+}
+
+/// The colours of check boxes, radio buttons and switches, per state.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct CheckColors {
+    /// An indicator while off.
+    pub off: CheckOffColors,
+    /// A check box or radio button while on.
+    pub on: CheckOnColors,
+    /// A switch track while on.
+    pub switch: CheckSwitchColors,
+    /// A switch thumb.
+    pub thumb: ThumbColors,
+}
+
+impl CheckColors {
+    pub(crate) fn new(tokens: &Tokens) -> Self {
+        let c = &tokens.color;
+        let sunken = c.surface.sunken;
+        let outline = States::new(c.text.faint, c.text.muted, c.text.muted, c.text.disabled);
+        let solid = c.accent.solid;
+        let switch = States::new(solid, solid, solid, c.text.disabled);
+        let clear = Rgba::TRANSPARENT;
+        let on_accent = c.text.on_accent;
+        let [r, g, b, a] = sunken.0;
+        let darker = |v: u8| (f32::from(v) * OFF_PRESSED_SHARE).round() as u8;
+        let (face, edge) = (c.surface.knob, c.line.knob_edge);
+        let disabled_face = mix(face, c.surface.panel, KNOB_DISABLED);
+        CheckColors {
+            off: CheckOffColors {
+                fill: States::new(sunken, sunken, Rgba([darker(r), darker(g), darker(b), a]), c.state.disabled_fill),
+                border: outline,
+            },
+            on: CheckOnColors {
+                fill: States::new(solid, solid, solid.faded(ON_PRESSED_OPACITY), c.text.disabled),
+                border: States::new(clear, clear, clear, c.text.disabled),
+                mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
+            },
+            switch: CheckSwitchColors { fill: switch, border: switch },
+            thumb: ThumbColors {
+                fill: States::new(face, face, face, disabled_face),
+                border: States::new(edge, edge, edge, c.line.divider),
+            },
+        }
+    }
+}
+
+/// Linear interpolation in OKLab, opaque.
+fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
+    let (a, b) = (a.to_oklab(), b.to_oklab());
+    let lerp = |x: f64, y: f64| x + (y - x) * t;
+    craft_theme::Oklab { l: lerp(a.l, b.l), a: lerp(a.a, b.a), b: lerp(a.b, b.b) }.to_oklch().to_rgba()
+}
+
+/// The colours of an indicator and its mark while off or while on, per state.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IndicatorColors {

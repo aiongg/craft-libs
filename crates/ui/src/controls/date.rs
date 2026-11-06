@@ -219,15 +219,15 @@ fn weeks(first_day: Weekday, days: u8, first_weekday: Weekday) -> Vec<Option<u8>
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DatePickerStyle {
-    /// The popup's width: `date.popup_width`.
+    /// The popup's width: seven cells, six gaps and the padding.
     pub popup_width: f32,
-    /// The Previous and Next buttons' side: `date.page_button`.
+    /// The Previous and Next buttons' side: `size.control.md`.
     pub page_button: f32,
-    /// A cell's least width: `date.cell`.
+    /// A cell's least width: `size.control.sm`.
     pub cell: f32,
-    /// At each side of a cell's text, for the widest cell: `date.cell_pad`.
+    /// At each side of a cell's text, for the widest cell: `space.gap.inline`.
     pub cell_pad: f32,
-    /// Between cells and rows: `date.gap`.
+    /// Between cells and rows: `space.gap.tight`.
     pub gap: f32,
     /// A cell's look: the select list's row.
     pub list: ListboxStyle,
@@ -246,13 +246,13 @@ pub struct DatePickerStyle {
 impl DatePicker<'static> {
     /// The popup's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> DatePickerStyle {
-        let date = &tokens.component.date;
+        let (cell, gap) = (tokens.size.control.sm, tokens.space.gap.tight);
         DatePickerStyle {
-            popup_width: date.popup_width,
-            page_button: date.page_button,
-            cell: date.cell,
-            cell_pad: date.cell_pad,
-            gap: date.gap,
+            popup_width: 7.0 * cell + 6.0 * gap + 2.0 * tokens.space.pad.control,
+            page_button: tokens.size.control.md,
+            cell,
+            cell_pad: tokens.space.gap.inline,
+            gap,
             list: Select::style(tokens, size).list,
             title: TypeRole::BodyStrong,
             title_text: tokens.color.text.normal.to_egui(),

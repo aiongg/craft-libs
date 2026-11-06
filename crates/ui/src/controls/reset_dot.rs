@@ -9,6 +9,9 @@ use crate::localized::Labels as _;
 use crate::primitives::Interactive;
 use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius};
 
+/// Radius of the dot.
+const DOT_RADIUS: f32 = 3.0;
+
 crate::words! {
     /// The dot's words, English by default (VectorCraft's).
     #[non_exhaustive]
@@ -24,11 +27,11 @@ crate::words! {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ResetDotStyle {
-    /// The target's side: `reset_dot.size`.
+    /// The target's side: `size.control.md`.
     pub size: f32,
-    /// The dot's radius: `reset_dot.dot`.
+    /// The dot's radius.
     pub dot: f32,
-    /// The target's corner radius: `reset_dot.radius`.
+    /// The target's corner radius: `shape.radius.sm`.
     pub radius: CornerRadius,
     /// The filled dot of a changed value: `color.accent.solid`.
     pub changed: Color32,
@@ -45,10 +48,10 @@ pub struct ResetDotStyle {
 /// });
 /// ```
 ///
-/// - **Look.** A square of `reset_dot.size`; while the field differs from its default, a filled
-///   dot of radius `reset_dot.dot` in `accent.solid` (`text.disabled` in a disabled `Ui`), else a
+/// - **Look.** A square of one control height; while the field differs from its default, a filled
+///   dot of a small radius in `accent.solid` (`text.disabled` in a disabled `Ui`), else a
 ///   1-point ring of that radius in `text.disabled`. The state layer fills the square (hover and
-///   press, under the focus ring) with `reset_dot.radius` corners.
+///   press, under the focus ring) with `shape.radius.sm` corners.
 /// - **Use.** A click (or Space and Enter with the focus) on a changed dot reports
 ///   `clicked()`; the host puts the default back. A dot at its default does nothing.
 /// - **Keys.** A changed dot is a Tab stop after its field; a dot at its default isn't.
@@ -76,11 +79,10 @@ impl ResetDot {
 
     /// The dot's sizes and colours.
     pub fn style(tokens: &UiTokens) -> ResetDotStyle {
-        let dot = &tokens.component.reset_dot;
         ResetDotStyle {
-            size: dot.size,
-            dot: dot.dot,
-            radius: corner_radius(dot.radius),
+            size: tokens.size.control.md,
+            dot: DOT_RADIUS,
+            radius: corner_radius(tokens.shape.radius.sm),
             changed: tokens.color.accent.solid.to_egui(),
             disabled: tokens.color.text.disabled.to_egui(),
         }

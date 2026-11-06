@@ -20,6 +20,9 @@ use crate::primitives::Interactive;
 use crate::text::{ElideAt, elided_galley};
 use crate::theme::{ToEgui, Tokens, TokensOf as _, UiTokens, corner_radius, role_format};
 
+/// Reach of the × arms from its centre.
+const CROSS_ARM: f32 = 3.5;
+
 crate::words! {
     /// The chips' words, English by default.
     #[non_exhaustive]
@@ -99,14 +102,14 @@ pub struct ChipFieldResponse {
 /// if let Some(i) = out.removed { app.run("keywords.remove", &keywords[i]) }
 /// ```
 ///
-/// - **Look.** Each chip is a pill 22 points high (`chip.height`, the `shape.pill` radius) with a
-///   1-point `field.border.rest` edge, the label in the `Label` role 8 points in, and for a
-///   removable chip a × target 22 points wide at its end (`chip.remove_width`; arms 3.5, 1.5
+/// - **Look.** Each chip is a pill 22 points high (the pill radius) with a
+///   1-point `line.control_edge` edge, the label in the `Label` role 8 points in, and for a
+///   removable chip a × target 22 points wide at its end (arms 3.5, 1.5
 ///   wide, `text.muted`, `text.normal` under the pointer). Hovering the name fills the chip with
 ///   the state layer; hovering the × lights only the × end (with the state layer's pressed fill
 ///   too), so the user sees which part a click hits. A label too long for a line is cut short at its end with "…" to fit
 ///   (services' `text::elided_galley` with `ElideAt::End`), its full name as the tooltip.
-/// - **Lines.** Chips flow in lines 6 points apart (`chip.gap`), each moved whole to the next
+/// - **Lines.** Chips flow in lines 6 points apart, each moved whole to the next
 ///   line when it doesn't fit ([`chip_lines`]). With [`max_lines`](Self::max_lines), the chips
 ///   past the last line are counted on a "+N more" button there, which opens a
 ///   [`Menu`](crate::menu::Menu) with a row per hidden chip (its full name; choosing it removes
@@ -351,21 +354,21 @@ struct Outcome {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ChipStyle {
-    /// `chip.height` at the size.
+    /// Height at the size.
     pub height: f32,
-    /// Width of the × target: `chip.remove_width`, at most the height.
+    /// Width of the × target, at most the height.
     pub cross: f32,
-    /// Between a chip's edge and its label: `chip.pad_x`.
+    /// Between a chip's edge and its label.
     pub pad_x: f32,
-    /// Between chips and between lines: `chip.gap`.
+    /// Between chips and between lines.
     pub gap: f32,
-    /// Reach of the × arms: `chip.cross_arm`.
+    /// Reach of the × arms.
     pub cross_arm: f32,
-    /// Stroke width of the × arms: `chip.cross_stroke`.
+    /// Stroke width of the × arms: `stroke.medium`.
     pub cross_stroke: f32,
     /// The chip's corners: the pill radius, at most half the height.
     pub radius: CornerRadius,
-    /// The chip's edge: one point in `field.border.rest`.
+    /// The chip's edge: one point in `line.control_edge`.
     pub edge: Stroke,
     /// Labels: `color.text.normal`.
     pub normal: Color32,
@@ -380,17 +383,19 @@ pub struct ChipStyle {
 impl ChipField<'static> {
     /// The chips' sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> ChipStyle {
-        let chip = &tokens.component.chip;
-        let height = chip.height.get(size);
+        let height = match size {
+            ControlSize::Sm => tokens.size.icon.md,
+            ControlSize::Md => tokens.size.icon.lg,
+        };
         ChipStyle {
             height,
-            cross: chip.remove_width.min(height),
-            pad_x: chip.pad_x,
-            gap: chip.gap,
-            cross_arm: chip.cross_arm,
-            cross_stroke: chip.cross_stroke,
+            cross: tokens.size.icon.lg.min(height),
+            pad_x: tokens.space.gap.stack,
+            gap: tokens.space.gap.inline,
+            cross_arm: CROSS_ARM,
+            cross_stroke: tokens.stroke.medium,
             radius: corner_radius(tokens.shape.radius.pill.min(height / 2.0)),
-            edge: Stroke::new(1.0, tokens.component.field.border.rest.to_egui()),
+            edge: Stroke::new(1.0, tokens.color.line.control_edge.to_egui()),
             normal: tokens.color.text.normal.to_egui(),
             muted: tokens.color.text.muted.to_egui(),
             disabled: tokens.color.text.disabled.to_egui(),

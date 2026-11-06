@@ -1,6 +1,6 @@
 //! [`Swatch`]: a colour well.
 
-use craft_theme::{ControlSize, Rgba, SwatchTokens};
+use craft_theme::{ControlSize, Rgba};
 use egui::accesskit::{Action, Color, Role};
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
@@ -12,39 +12,55 @@ use crate::localized::Labels as _;
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
 use crate::story::{Level, Story};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+
+/// Opacity of the black or white ring that stands out from a well's colour.
+const INNER_EDGE_ALPHA: u8 = 0x80;
 use crate::typed_story;
 
 /// A swatch's size and the colours it draws itself, from [`Swatch::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SwatchStyle {
-    /// Side of the swatch: `swatch.size`.
+    /// Side of the swatch.
     pub side: f32,
-    /// The well's corners: `swatch.radius`.
+    /// The well's corners: `shape.radius.control`, capped.
     pub radius: CornerRadius,
-    /// The ring on the well's outline, one point wide: `swatch.edge`.
+    /// The ring on the well's outline, one point wide: `line.control_edge`.
     pub edge: Color32,
-    /// The checkerboard behind a translucent colour: `swatch.checker.a` holds the corners,
-    /// `swatch.checker.b` the other cells.
+    /// The checkerboard behind a translucent colour: `overlay.checker_light` holds the corners,
+    /// `overlay.checker_dark` the other cells.
     pub checker: [Color32; 2],
-    /// Side of a checkerboard cell: `swatch.checker_cell`.
+    /// Side of a checkerboard cell: `size.checker`.
     pub checker_cell: f32,
-    /// The ring inside the well's outline while selected: `swatch.selected`,
-    /// `swatch.selected_width` wide.
+    /// The ring inside the well's outline while selected: `accent.solid`,
+    /// `stroke.thick` wide.
     pub selected: Stroke,
-    /// The well of a mixed value: `swatch.mixed.fill`.
+    /// The well of a mixed value: `surface.sunken`.
     pub mixed_fill: Color32,
-    /// The dash on a mixed well: `swatch.mixed.mark`.
+    /// The dash on a mixed well: `text.muted`.
     pub mixed_mark: Color32,
-    tokens: SwatchTokens,
+    checker_rgba: [Rgba; 2],
+    mixed_fill_rgba: Rgba,
 }
 
 impl SwatchStyle {
     /// A ring of black or white at partial alpha that stands out from `color`, or from the mixed
     /// well for `None`: for compositions that draw a well apart from its colours.
     pub fn inner_edge(&self, color: Option<Rgba>) -> Color32 {
-        self.tokens.inner_edge(color.unwrap_or(self.tokens.mixed_fill)).to_egui()
+        let color = color.unwrap_or(self.mixed_fill_rgba);
+        let shown = [over(color, self.checker_rgba[0]), over(color, self.checker_rgba[1])];
+        let ring = |base: Rgba| base.with_alpha(INNER_EDGE_ALPHA);
+        let least = |base: Rgba| shown.iter().map(|&s| craft_theme::contrast_ratio(over(ring(base), s), s)).fold(f64::INFINITY, f64::min);
+        let base = if least(Rgba::BLACK) >= least(Rgba::WHITE) { Rgba::BLACK } else { Rgba::WHITE };
+        ring(base).to_egui()
     }
+}
+
+/// `fg` composited over `bg`, in sRGB channels; opaque when `bg` is.
+fn over(fg: Rgba, bg: Rgba) -> Rgba {
+    let a = f64::from(fg.a()) / 255.0;
+    let channel = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
+    Rgba([channel(0), channel(1), channel(2), bg.a()])
 }
 
 /// A colour well: `if ui.add(Swatch::new("fill", "Fill colour", colour)).clicked() { open_picker }`.
@@ -170,17 +186,19 @@ impl Swatch {
 
     /// The swatch's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SwatchStyle {
-        let s = &tokens.component.swatch;
+        let (c, look) = (&tokens.color, crate::style::swatch::SwatchStyle::new(tokens));
+        let (checker_a, checker_b) = (c.overlay.checker_light, c.overlay.checker_dark);
         SwatchStyle {
-            side: s.size.get(size),
-            radius: corner_radius(s.radius),
-            edge: s.edge.to_egui(),
-            checker: [s.checker_a.to_egui(), s.checker_b.to_egui()],
-            checker_cell: s.checker_cell,
-            selected: Stroke::new(s.selected_width, s.selected.to_egui()),
-            mixed_fill: s.mixed_fill.to_egui(),
-            mixed_mark: s.mixed_mark.to_egui(),
-            tokens: *s,
+            side: look.size.get(size),
+            radius: corner_radius(look.radius),
+            edge: c.line.control_edge.to_egui(),
+            checker: [checker_a.to_egui(), checker_b.to_egui()],
+            checker_cell: tokens.size.checker,
+            selected: Stroke::new(tokens.stroke.thick, c.accent.solid.to_egui()),
+            mixed_fill: c.surface.sunken.to_egui(),
+            mixed_mark: c.text.muted.to_egui(),
+            checker_rgba: [checker_a, checker_b],
+            mixed_fill_rgba: c.surface.sunken,
         }
     }
 
