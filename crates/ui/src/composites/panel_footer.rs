@@ -67,13 +67,13 @@ impl FooterAction {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PanelFooterStyle {
-    /// Height of the bar under the rule: `panel_footer.height`.
+    /// Height of the bar under the rule: `size.control.md` plus twice `space.pad.control`.
     pub height: f32,
-    /// Between the buttons: `panel_footer.gap`.
+    /// Between the buttons: `space.gap.tight`.
     pub gap: f32,
-    /// Side of a footer button: `panel_footer.button`.
+    /// Side of a footer button: `size.control.md`.
     pub button: f32,
-    /// The rule over the bar: `panel.footer.line`, one physical pixel.
+    /// The rule over the bar: `line.divider`, one physical pixel.
     pub rule: Stroke,
     /// The panel body's margin, which the rule runs across and the bar runs over:
     /// `space.pad.panel`.
@@ -100,7 +100,7 @@ pub struct PanelFooterStyle {
 ///   panel's edges and the bar runs on over the bottom margin, so it ends at the panel's bottom
 ///   edge. The clip is widened to the bar, so hover boxes are not cut.
 /// - The first widget added is at the reading end; later ones follow towards the start. Buttons are
-///   `panel_footer.button` squares ([`PanelFooter::button`]) `panel_footer.gap` apart.
+///   `size.control.md` squares ([`PanelFooter::button`]) `space.gap.tight` apart.
 /// - **Drops.** A button takes things dragged onto it with
 ///   [`drop_target`](PanelFooter::drop_target): a layer row onto New Layer, a channel onto New.
 ///   The button shows the list's drop outline while it accepts. A disabled button takes no drop.
@@ -114,14 +114,14 @@ pub struct PanelFooterStyle {
 pub struct PanelFooter;
 
 impl PanelFooter {
-    /// The footer's look from the theme's `panel_footer` tokens, scaled to `pixels_per_point`.
+    /// The footer's look from the semantic tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelFooterStyle {
-        let f = &tokens.component.panel_footer;
+        let button = tokens.size.control.md;
         PanelFooterStyle {
-            height: f.height,
-            gap: f.gap,
-            button: f.button,
-            rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.component.panel.footer_line.to_egui()),
+            height: button + 2.0 * tokens.space.pad.control,
+            gap: tokens.space.gap.tight,
+            button,
+            rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
             margin: tokens.space.pad.panel,
         }
     }
@@ -162,7 +162,7 @@ impl PanelFooter {
     /// recording).
     pub fn pressed_button(ui: &mut Ui, icon: Icon, label: &str, pressed: bool, tone: Tone) -> Response {
         // pc: crates/ui-egui/src/panels/actions.rs:1110-1117 (Record: red dot while recording, still hovers).
-        let side = Tokens::of(ui).component.panel_footer.button;
+        let side = Tokens::of(ui).size.control.md;
         let (_, square) = ui.allocate_space(vec2(side, side));
         let response = IconButton::new(icon, label).size(ControlSize::Md).selected(pressed).tone(tone).show_at(ui, square);
         ui.data_mut(|d| d.insert_temp(response.id, ButtonLabel(label.to_owned())));
@@ -198,7 +198,7 @@ impl PanelFooter {
     ) -> (Response, Option<Arc<P>>) {
         // pc: crates/ui-egui/src/panels/history.rs:118-143 (the trash is enabled for an acceptable drag);
         // lead call 17: enabled only while the accepted drag is over it.
-        let side = Tokens::of(ui).component.panel_footer.button;
+        let side = Tokens::of(ui).size.control.md;
         let (_, square) = ui.allocate_space(vec2(side, side));
         let accepted = DragAndDrop::payload::<P>(ui.ctx()).filter(|_| ui.rect_contains_pointer(square)).filter(|payload| accepts(payload));
         let response = IconButton::new(icon, label).size(ControlSize::Md).enabled(enabled || accepted.is_some()).show_at(ui, square);
@@ -208,7 +208,7 @@ impl PanelFooter {
     }
 
     /// A footer button that opens a menu (New Fill or Adjustment Layer, layer styles): the
-    /// [`button`](PanelFooter::button) with a `rail.indicator` triangle at its bottom-end corner,
+    /// [`button`](PanelFooter::button) with a `text.faint` triangle at its bottom-end corner,
     /// as the rail's flyout buttons have, and a `Menu` popup in AccessKit. The host opens the menu
     /// from the response and passes in `open` whether its menu is open (the last pass's
     /// [`MenuResponse::open`](crate::menu::MenuResponse::open)), which AccessKit reports as the
@@ -275,14 +275,14 @@ impl PanelFooter {
 
     fn button_in(ui: &mut Ui, icon: Icon, label: &str, menu: Option<bool>) -> Response {
         let tokens = Tokens::of(ui);
-        let side = tokens.component.panel_footer.button;
+        let side = tokens.size.control.md;
         let (_, square) = ui.allocate_space(vec2(side, side));
         let response = IconButton::new(icon, label).size(ControlSize::Md).show_at(ui, square);
         ui.data_mut(|d| d.insert_temp(response.id, ButtonLabel(label.to_owned())));
         if let Some(open) = menu {
-            let rail = &tokens.component.rail;
             if ui.is_rect_visible(response.rect) {
-                paint_corner_triangle(ui, response.rect, rail.indicator_inset, rail.indicator_size, rail.indicator_color.to_egui());
+                let tight = tokens.space.gap.tight;
+                paint_corner_triangle(ui, response.rect, tight, tight, tokens.color.text.faint.to_egui());
             }
             response.ctx.accesskit_node_builder(response.id, |node| {
                 node.set_has_popup(HasPopup::Menu);

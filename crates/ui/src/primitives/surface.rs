@@ -27,10 +27,10 @@ pub enum SurfaceKind {
     /// A raised surface while pressed: `state.pressed`, outlined with `line.control_edge` or
     /// bevelled in.
     Pressed,
-    /// Popups and menus: `popup.fill` and `popup.border` (outlined in every edge style) with the
+    /// Popups and menus: `surface.panel` and `line.border` (outlined in every edge style) with the
     /// popup shadow.
     Popup,
-    /// Dialogs, which are popup frames in PhotoCraft: the popup look (`popup.fill`, `popup.border`
+    /// Dialogs, which are popup frames in PhotoCraft: the popup look (`surface.panel`, `line.border`
     /// in every edge style, the popup shadow and radius).
     Dialog,
     /// A knob that rides on a track (slider and switch thumbs): `surface.knob` with the knob
@@ -160,7 +160,7 @@ impl Surface {
             K::Background => c.surface.background,
             K::Panel => c.surface.panel,
             K::Raised => c.surface.raised,
-            K::Popup | K::Dialog => tokens.component.popup.fill,
+            K::Popup | K::Dialog => c.surface.panel,
             K::Sunken => c.surface.sunken,
             K::Pressed => c.state.pressed,
             K::Knob => c.surface.knob,
@@ -176,7 +176,7 @@ impl Surface {
         let width = craft_theme::Stroke::W1.width(1.0);
         let edge = match (tokens.shape.edge, kind) {
             (_, K::Background | K::Panel) => SurfaceEdge::None,
-            (_, K::Popup | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, tokens.component.popup.border.to_egui())),
+            (_, K::Popup | K::Dialog) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Raised) => SurfaceEdge::Border(Stroke::new(width, c.line.border.to_egui())),
             (Edge::Flat, K::Sunken | K::Pressed) => SurfaceEdge::Border(Stroke::new(width, c.line.control_edge.to_egui())),
             (Edge::Flat, K::Knob) => SurfaceEdge::Border(Stroke::new(width, c.line.knob_edge.to_egui())),

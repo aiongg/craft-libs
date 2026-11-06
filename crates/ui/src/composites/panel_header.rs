@@ -20,13 +20,13 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PanelHeaderStyle {
-    /// Height of the header: `panel_header.height`, the size preset's `panel_header`.
+    /// Height of the header: `size.panel_header`.
     pub height: f32,
-    /// Between the header's ends and its content: `panel_header.pad`.
+    /// Between the header's ends and its content: `space.pad.control`.
     pub pad: f32,
-    /// Between the buttons and the actions: `panel_header.gap`.
+    /// Between the buttons and the actions: `space.gap.inline`.
     pub gap: f32,
-    /// Side of the menu, float and close buttons: `panel_header.button`.
+    /// Side of the menu, float and close buttons: `size.control.sm`.
     pub button: f32,
     /// Space between the row and the rule under it: `space.gap.row`.
     pub rule_gap: f32,
@@ -56,7 +56,7 @@ pub struct PanelHeaderResponse {
 
 /// The title row of a flyout or a floating panel (DesignCraft's flyout header): the title at the
 /// reading start, and at the other end the actions, a panel menu button, a float button and a close
-/// button. It is `panel_header.height` high, with a hairline under it (PhotoCraft's flyout and
+/// button. It is `size.panel_header` high, with a hairline under it (PhotoCraft's flyout and
 /// dialog title row: `space.gap.row` above the rule, `space.pad.panel` below).
 ///
 /// ```
@@ -69,7 +69,7 @@ pub struct PanelHeaderResponse {
 ///
 /// - The title is cut with an ellipsis and shows its full text as a tooltip when it does not fit;
 ///   when the trailing content reaches the title's start, no title is drawn.
-/// - The buttons are `panel_header.button` squares holding icon buttons named "Panel menu",
+/// - The buttons are `size.control.sm` squares holding icon buttons named "Panel menu",
 ///   "Float panel" and "Close panel" (the host passes translated names with the `*_label`
 ///   methods). The menu button is on by default; the float and close buttons are off until asked
 ///   for.
@@ -155,14 +155,13 @@ impl PanelHeader {
         self
     }
 
-    /// The header's look from the theme's `panel_header` tokens, scaled to `pixels_per_point`.
+    /// The header's look from the semantic tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelHeaderStyle {
-        let p = &tokens.component.panel_header;
         PanelHeaderStyle {
-            height: p.height,
-            pad: p.pad,
-            gap: p.gap,
-            button: p.button,
+            height: tokens.size.panel_header,
+            pad: tokens.space.pad.control,
+            gap: tokens.space.gap.inline,
+            button: tokens.size.control.sm,
             rule_gap: tokens.space.gap.row,
             rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
             body_gap: tokens.space.pad.panel,
@@ -172,7 +171,7 @@ impl PanelHeader {
     }
 
     /// Shows the header across the available width. `add_actions` adds widgets in a row in
-    /// reading order, ending `panel_header.gap` before the menu button.
+    /// reading order, ending `space.gap.inline` before the menu button.
     pub fn show(self, ui: &mut Ui, add_actions: impl FnOnce(&mut Ui)) -> PanelHeaderResponse {
         let tokens = Tokens::of(ui);
         let style = PanelHeader::style(&tokens, ui.pixels_per_point());

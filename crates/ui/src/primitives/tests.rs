@@ -57,8 +57,8 @@ fn surface_style_per_kind_flat_and_bevelled() {
         (K::Raised, c.surface.raised, t.radius.control, border(c.line.border), None),
         (K::Sunken, c.surface.sunken, t.radius.control, border(c.line.control_edge), None),
         (K::Pressed, c.state.pressed, t.radius.control, border(c.line.control_edge), None),
-        (K::Popup, t.component.popup.fill, t.radius.popup, border(t.component.popup.border), Some(t.shadow.popup)),
-        (K::Dialog, t.component.popup.fill, t.radius.popup, border(t.component.popup.border), Some(t.shadow.popup)),
+        (K::Popup, c.surface.panel, t.radius.popup, border(c.line.border), Some(t.shadow.popup)),
+        (K::Dialog, c.surface.panel, t.radius.popup, border(c.line.border), Some(t.shadow.popup)),
         (K::Knob, c.surface.knob, t.radius.control, border(c.line.knob_edge), Some(t.shadow.knob)),
     ];
     for (kind, fill, radius, edge, shadow) in expected {
@@ -74,7 +74,7 @@ fn surface_style_per_kind_flat_and_bevelled() {
         let want = match kind {
             K::Background | K::Panel => SurfaceEdge::None,
             K::Raised | K::Knob => SurfaceEdge::Bevel { top_left: light, bottom_right: dark, width },
-            K::Popup | K::Dialog => SurfaceEdge::Border(Stroke::new(1.0, classic.component.popup.border.to_egui())),
+            K::Popup | K::Dialog => SurfaceEdge::Border(Stroke::new(1.0, classic.color.line.border.to_egui())),
             K::Sunken | K::Pressed => SurfaceEdge::Bevel { top_left: dark, bottom_right: light, width },
         };
         assert_eq!(Surface::style(&classic, kind).edge, want, "{kind:?}");
@@ -250,21 +250,21 @@ fn content_colours_are_their_tokens() {
 #[test]
 fn handles_are_the_token_size_with_a_halo_outside_in_high_contrast_only() {
     let t = tokens("craft.artcraft", Mode::Dark);
-    let (h, o) = (t.component.handle, &t.color.overlay);
+    let (size, thin, hit, o) = (t.size.handle.md, t.stroke.thin, t.size.hit.target, &t.color.overlay);
     let drawn = Handle::shapes(&t, HandleShape::Square, pos2(20.3, 20.6), 1.0);
     let [Shape::Rect(body), Shape::Rect(outline)] = &drawn[..] else { panic!("{drawn:?}") };
-    assert_eq!(body.rect.size(), vec2(h.size, h.size));
+    assert_eq!(body.rect.size(), vec2(size, size));
     assert_eq!(body.rect.min, body.rect.min.round(), "on the pixel grid");
     assert_eq!(body.fill, o.handle_fill.to_egui());
-    assert_eq!(outline.stroke, Stroke::new(h.stroke, o.handle_stroke.to_egui()));
+    assert_eq!(outline.stroke, Stroke::new(thin, o.handle_stroke.to_egui()));
     assert_eq!(Handle::style(&t, HandleShape::Rotate).fill, o.handle_stroke.to_egui());
     assert_ne!(Handle::style(&t, HandleShape::Rotate).cursor, Handle::style(&t, HandleShape::Round).cursor);
-    assert_eq!(Handle::style(&t, HandleShape::Square).hit, h.hit);
+    assert_eq!(Handle::style(&t, HandleShape::Square).hit, hit);
 
     let high = high_contrast_tokens("craft.artcraft", Mode::Dark);
     let drawn = Handle::shapes(&high, HandleShape::Square, pos2(20.3, 20.6), 1.0);
     let [Shape::Rect(halo), Shape::Rect(body), Shape::Rect(_)] = &drawn[..] else { panic!("{drawn:?}") };
-    assert_eq!(halo.rect, body.rect.expand(h.halo));
+    assert_eq!(halo.rect, body.rect.expand(thin));
     assert_eq!(halo.fill, high.color.overlay.halo.to_egui());
 }
 

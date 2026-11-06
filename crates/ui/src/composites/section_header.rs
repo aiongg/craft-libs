@@ -23,13 +23,13 @@ type Controls<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SectionStyle {
-    /// Height of the row under the hairline: `section.row_height`.
+    /// Height of the row under the hairline: `size.panel_header`.
     pub row_height: f32,
-    /// Side of the chevron icon: `section.chevron`.
+    /// Side of the chevron icon: `size.icon.sm`.
     pub chevron: f32,
-    /// Side of the box the chevron is centred in: `section.chevron_box`.
+    /// Side of the box the chevron is centred in: `size.icon.sm`.
     pub chevron_box: f32,
-    /// From the row's start to the title: `section.title_offset`.
+    /// From the row's start to the title: `size.icon.sm` plus `space.gap.inline`.
     pub title_offset: f32,
     /// Space above the hairline, and half of it under the row of an open section (PhotoCraft's
     /// `ROW_GAP`): `space.gap.row`.
@@ -132,14 +132,13 @@ impl<'a> SectionHeader<'a> {
         self
     }
 
-    /// The header's look from the theme's `section` tokens, scaled to `pixels_per_point`.
+    /// The header's look from the semantic tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> SectionStyle {
-        let s = &tokens.component.section;
         SectionStyle {
-            row_height: s.row_height,
-            chevron: s.chevron,
-            chevron_box: s.chevron_box,
-            title_offset: s.title_offset,
+            row_height: tokens.size.panel_header,
+            chevron: tokens.size.icon.sm,
+            chevron_box: tokens.size.icon.sm,
+            title_offset: tokens.size.icon.sm + tokens.space.gap.inline,
             gap: tokens.space.gap.row,
             hairline: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
             chevron_color: Content::Muted.color(tokens).to_egui(),
@@ -214,7 +213,7 @@ impl<'a> SectionHeader<'a> {
         }
 
         // The chevron's box starts a point in from the row's start; the title is
-        // `section.title_offset` from it.
+        // `size.icon.sm` plus `space.gap.inline` from it.
         let x = |offset: f32| if rtl { row.right() - offset } else { row.left() + offset };
         let mut title_end = direction::end_x(ui, row);
         let mut title_start = x(0.0);

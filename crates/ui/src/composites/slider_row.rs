@@ -16,13 +16,16 @@ use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
+/// Width of the number field, in `size.control.md` steps.
+const FIELD_WIDTH_CONTROLS: f32 = 3.0;
+
 /// A slider row's sizes, type role and colour, from [`SliderRow::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SliderRowStyle {
-    /// Width of the number field: `slider_row.field_width`.
+    /// Width of the number field: three `size.control.md`.
     pub field_width: f32,
-    /// Space after the row: `slider_row.gap`.
+    /// Space after the row: `space.gap.inline`.
     pub gap: f32,
     /// The caption's type role: `label`.
     pub caption_role: TypeRole,
@@ -60,7 +63,7 @@ impl SliderRowResponse {
 /// A labelled slider row as in PhotoCraft's `slider_row` and `slider_row_prec`: on the first line
 /// the caption at the reading start in `text.muted` and a [`NumberField`] at the reading end; on
 /// the second the [`Slider`], the row's full width, optionally with a gradient track. The row
-/// is followed by `slider_row.gap`.
+/// is followed by `space.gap.inline`.
 ///
 /// ```
 /// use craft_ui::composites::SliderRow;
@@ -172,7 +175,7 @@ impl<'a> SliderRow<'a> {
         self
     }
 
-    /// The width of the number field in points, in place of `slider_row.field_width`, so that a
+    /// The width of the number field in points, in place of three `size.control.md`, so that a
     /// group of rows with different ranges lines its fields up in one column (PhotoCraft's
     /// `slider_row_prec` uses 74 for every row).
     pub fn field_width(mut self, width: f32) -> Self {
@@ -236,8 +239,11 @@ impl<'a> SliderRow<'a> {
 
     /// The style of a slider row in `tokens`.
     pub fn style(tokens: &UiTokens) -> SliderRowStyle {
-        let t = &tokens.component.slider_row;
-        SliderRowStyle { field_width: t.field_width, gap: t.gap, caption_role: TypeRole::Label, caption: Content::Muted.color(tokens).to_egui() }
+        SliderRowStyle {
+            field_width: tokens.size.control.md * FIELD_WIDTH_CONTROLS,
+            gap: tokens.space.gap.inline, caption_role: TypeRole::Label,
+            caption: Content::Muted.color(tokens).to_egui(),
+        }
     }
 
     /// Shows the row across the available width.

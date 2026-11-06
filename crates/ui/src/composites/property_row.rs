@@ -21,24 +21,29 @@ use crate::story::{Level, Story, StoryArgs, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
+/// Width of a word label's column, in `size.control.md` steps.
+const WORD_WIDTH_CONTROLS: f32 = 3.0;
+/// The least width of a control, in `size.control.md` steps.
+const MIN_CONTROL_CONTROLS: f32 = 1.5;
+
 /// A property row's widths, gap and label look, from [`PropertyRow::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PropertyStyle {
-    /// Width of a glyph label's column: `property.glyph_width`.
+    /// Width of a glyph label's column: `size.control.md`.
     pub glyph_width: f32,
-    /// Width of a word label's column: `property.word_width`.
+    /// Width of a word label's column: three `size.control.md`.
     pub word_width: f32,
-    /// The least width a control is drawn at: `property.min_control`.
+    /// The least width a control is drawn at: one and a half `size.control.md`.
     pub min_control: f32,
-    /// Between the two columns of a pair: `property.column_gap`.
+    /// Between the two columns of a pair: `space.gap.stack`.
     pub column_gap: f32,
-    /// Width of the slot between a pair's columns: `property.link_width`.
+    /// Width of the slot between a pair's columns: `size.control.sm`.
     pub link_width: f32,
-    /// Between a label and its control: `field.label_gap`.
+    /// Between a label and its control: `space.gap.inline`.
     pub label_gap: f32,
     /// A label is centred on a band this high from the row's top: the control height of the
-    /// row's size (`field.height`).
+    /// row's size (`size.control`).
     pub label_band: f32,
     /// The label's type role: `label`.
     pub label_role: TypeRole,
@@ -149,11 +154,11 @@ impl<'a> RowLabel<'a> {
 /// ```
 ///
 /// - **Labels** are glyph ([`PropertyLabel::glyph`]: W, H, X, Y) or word ([`PropertyLabel::word`]:
-///   Opacity, Angle). A glyph column is `property.glyph_width` wide, or as wide as the widest
+///   Opacity, Angle). A glyph column is `size.control.md` wide, or as wide as the widest
 ///   glyph label of the [`PropertyGroup`] when that is wider; a word column is
-///   `property.word_width`. The label is centred on the first `field.height` of the row and
-///   `field.label_gap` from the control. The text is the app's string as given.
-/// - **The control** fills the rest of the row, never under `property.min_control`: the closure
+///   three `size.control.md`. The label is centred on the first `size.control` height of the row and
+///   `space.gap.inline` from the control. The text is the app's string as given.
+/// - **The control** fills the rest of the row, never under one and a half `size.control.md`: the closure
 ///   gets a `Ui` whose width is the control's, so a `NumberField`, `TextField` or `Select` fills
 ///   it.
 /// - **Narrow rows.** An essential label gives up width first: it is cut with an ellipsis and
@@ -218,15 +223,18 @@ impl PropertyRow {
 
     /// The style of a row of `size` in `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> PropertyStyle {
-        let (p, f) = (&tokens.component.property, &tokens.component.field);
+        let control = tokens.size.control.md;
         PropertyStyle {
-            glyph_width: p.glyph_width,
-            word_width: p.word_width,
-            min_control: p.min_control,
-            column_gap: p.column_gap,
-            link_width: p.link_width,
-            label_gap: f.label_gap,
-            label_band: f.height.get(size),
+            glyph_width: control,
+            word_width: control * WORD_WIDTH_CONTROLS,
+            min_control: control * MIN_CONTROL_CONTROLS,
+            column_gap: tokens.space.gap.stack,
+            link_width: tokens.size.control.sm,
+            label_gap: tokens.space.gap.inline,
+            label_band: match size {
+                ControlSize::Sm => tokens.size.control.sm,
+                ControlSize::Md => control,
+            },
             label_role: TypeRole::Label,
             label: Content::Muted.color(tokens).to_egui(),
         }
@@ -270,7 +278,7 @@ impl PropertyPair {
         self
     }
 
-    /// Shows the two columns, `property.column_gap` apart (or around an empty link slot with
+    /// Shows the two columns, `space.gap.stack` apart (or around an empty link slot with
     /// [`reserve_link_slot`](PropertyPair::reserve_link_slot)). Each has the width the other has, less
     /// what its label takes (equal for labels of one kind). The response covers the row.
     pub fn show<A: FieldControl, B: FieldControl>(
@@ -289,9 +297,9 @@ impl PropertyPair {
         InnerResponse::new((a, b), pair.finish(ui, a_bottom.max(b_bottom)))
     }
 
-    /// As [`show`](PropertyPair::show) with a slot of `property.link_width` between the columns,
-    /// `property.column_gap` from each, for a toggle that links the two values (W and H). `link`
-    /// draws in it, centred on the first `field.height` of the row.
+    /// As [`show`](PropertyPair::show) with a slot of `size.control.sm` between the columns,
+    /// `space.gap.stack` from each, for a toggle that links the two values (W and H). `link`
+    /// draws in it, centred on the first `size.control` height of the row.
     pub fn show_linked<A: FieldControl, L, B: FieldControl>(
         self,
         ui: &mut Ui,
@@ -506,14 +514,14 @@ impl PropertyGroup {
         Self { id_salt: IdSalt::new(id_salt), glyph: None, word: None }
     }
 
-    /// The glyph column's width in this section, in place of `property.glyph_width`. A wider
+    /// The glyph column's width in this section, in place of `size.control.md`. A wider
     /// glyph label still widens it.
     pub fn glyph_width(mut self, width: f32) -> Self {
         self.glyph = Some(width);
         self
     }
 
-    /// The word column's width in this section, in place of `property.word_width`.
+    /// The word column's width in this section, in place of three `size.control.md`.
     pub fn word_width(mut self, width: f32) -> Self {
         self.word = Some(width);
         self

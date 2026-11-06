@@ -15,11 +15,19 @@ use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format, style_format};
 use crate::typed_story;
 
+/// Widest the centred column grows.
+const MAX_WIDTH: f32 = 460.0;
+/// Least width of each action.
+const ACTION_MIN_WIDTH: f32 = 190.0;
+/// Size and line height of the brand title.
+const BRAND_TITLE_SIZE: f32 = 38.0;
+const BRAND_TITLE_LINE_HEIGHT: f32 = 46.0;
+
 /// An empty state's sizes, type roles and colours, from [`EmptyState::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct EmptyStateStyle {
-    /// Widest the centred column grows: `empty_state.max_width`.
+    /// Widest the centred column grows: 460 points.
     pub max_width: f32,
     /// Above and below the inline message, and between a centred title and description:
     /// `gap.stack`.
@@ -28,23 +36,23 @@ pub struct EmptyStateStyle {
     pub section_gap: f32,
     /// The inline message's type role: `body`.
     pub message_role: TypeRole,
-    /// The inline message: `empty_state.text`.
+    /// The inline message: `text.faint`.
     pub message: Color32,
     /// The centred title's type role: `heading`.
     pub title_role: TypeRole,
     /// The centred description's type role: `body`.
     pub description_role: TypeRole,
-    /// Least width of each action: `empty_state.action_min_width`.
+    /// Least width of each action: 190 points.
     pub action_min_width: f32,
-    /// The brand title's size, weight and line height: `empty_state.brand_title`.
+    /// The brand title's size, weight and line height: 38 points on 46, in the `title` font.
     pub brand_title: TypeStyle,
-    /// The brand byline's size, weight and line height: `empty_state.brand_byline`.
+    /// The brand byline's size, weight and line height: the `label` role.
     pub brand_byline: TypeStyle,
-    /// The brand byline: `empty_state.text`.
+    /// The brand byline: `text.faint`.
     pub brand_byline_color: Color32,
-    /// Between the brand title and its byline: `empty_state.brand_gap`.
+    /// Between the brand title and its byline: `space.gap.stack`.
     pub brand_gap: f32,
-    /// How far the byline's bottom edge sits above the brand title's: `empty_state.brand_byline_lift`.
+    /// How far the byline's bottom edge sits above the brand title's: `space.gap.stack`.
     pub brand_byline_lift: f32,
 }
 
@@ -84,15 +92,15 @@ struct Centred<'a> {
 /// ```
 ///
 /// - **Inline** ([`new`](EmptyState::new)): a panel's or list's message, one wrapping text at the
-///   reading start with a `gap.stack` above and below, in `empty_state.text`. The wording is the
+///   reading start with a `gap.stack` above and below, in `text.faint`. The wording is the
 ///   host's: a short fact ("No document"), or the fact and what to do. [`status`](EmptyState::status)
 ///   is for a list that empties as the user types (a palette, a search): the text is a polite
 ///   `Status` live region, so "No matching commands" is announced when it appears.
 /// - **Centred** ([`centred`](EmptyState::centred)): no document in a canvas or workspace. A column
-///   centred in the available rect, at most `empty_state.max_width` wide: an optional icon, the
+///   centred in the available rect, at most 460 points wide: an optional icon, the
 ///   title, a description, actions, a slot under the actions and a footer for the host's own
 ///   content. The actions are laid side by side, `gap.section` apart, when they fit at the width of
-///   the widest one (at least `empty_state.action_min_width`), and stacked otherwise; the first is
+///   the widest one (at least 190 points), and stacked otherwise; the first is
 ///   primary. [`brand`](EmptyState::brand) draws the title as the app's name with a byline. The
 ///   background stays with the host.
 ///   No live region: the state appears with its screen, not after an action.
@@ -145,9 +153,9 @@ impl<'a> EmptyState<'a> {
         self
     }
 
-    /// Draws the title of a centred state as the app's brand: `empty_state.brand_title` (semibold)
-    /// with this byline in `empty_state.brand_byline` after it, `empty_state.brand_gap` away and
-    /// raised by `empty_state.brand_byline_lift`; under the title when both don't fit the column.
+    /// Draws the title of a centred state as the app's brand: the brand title (semibold)
+    /// with this byline in the `label` role after it, `space.gap.stack` away and
+    /// raised by `space.gap.stack`; under the title when both don't fit the column.
     /// The title stays the heading; the byline is plain text.
     pub fn brand(mut self, byline: impl Into<String>) -> Self {
         if let Kind::Centred(c) = &mut self.kind {
@@ -188,23 +196,23 @@ impl<'a> EmptyState<'a> {
         self
     }
 
-    /// The empty state's look from the theme's `empty_state` tokens.
+    /// The empty state's look from the semantic tokens.
     pub fn style(tokens: &UiTokens) -> EmptyStateStyle {
-        let e = &tokens.component.empty_state;
+        let faint = tokens.color.text.faint.to_egui();
         EmptyStateStyle {
-            max_width: e.max_width,
+            max_width: MAX_WIDTH,
             gap: tokens.space.gap.stack,
             section_gap: tokens.space.gap.section,
             message_role: TypeRole::Body,
-            message: e.text.to_egui(),
+            message: faint,
             title_role: TypeRole::Heading,
             description_role: TypeRole::Body,
-            action_min_width: e.action_min_width,
-            brand_title: e.brand_title,
-            brand_byline: e.brand_byline,
-            brand_byline_color: e.text.to_egui(),
-            brand_gap: e.brand_gap,
-            brand_byline_lift: e.brand_byline_lift,
+            action_min_width: ACTION_MIN_WIDTH,
+            brand_title: TypeStyle { size: BRAND_TITLE_SIZE, line_height: BRAND_TITLE_LINE_HEIGHT, font: tokens.typography.title.font },
+            brand_byline: tokens.typography.label,
+            brand_byline_color: faint,
+            brand_gap: tokens.space.gap.stack,
+            brand_byline_lift: tokens.space.gap.stack,
         }
     }
 

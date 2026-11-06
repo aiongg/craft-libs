@@ -41,16 +41,16 @@ impl HandleShape {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct HandleStyle {
-    /// Side or diameter in points: `handle.size`.
+    /// Side or diameter in points: `size.handle.md`.
     pub size: f32,
     /// The inside: `overlay.handle_fill` (`overlay.handle_stroke` for a rotate dot).
     pub fill: Color32,
-    /// The outline inside `size`: `handle.stroke` of `overlay.handle_stroke`; none on a rotate dot.
+    /// The outline inside `size`: `stroke.thin` of `overlay.handle_stroke`; none on a rotate dot.
     pub stroke: Stroke,
-    /// The outline outside `size`: `handle.halo` of `overlay.halo` in high contrast, so the handle
+    /// The outline outside `size`: `stroke.thin` of `overlay.halo` in high contrast, so the handle
     /// reads on any image; none otherwise.
     pub halo: Stroke,
-    /// Side of the square that takes the pointer, centred on the handle: `handle.hit`. A test by
+    /// Side of the square that takes the pointer, centred on the handle: `size.hit.target`. A test by
     /// distance from the centre (a box's grips) reads half of it.
     pub hit: f32,
     /// The pointer over the handle.
@@ -121,21 +121,21 @@ impl Handle {
         self
     }
 
-    /// The resolved handle style for `shape`, from `tokens.component.handle` and the overlay
-    /// colours.
+    /// The resolved handle style for `shape`, from the `size.handle`, `stroke` and `size.hit`
+    /// tokens and the overlay colours.
     pub fn style(tokens: &UiTokens, shape: HandleShape) -> HandleStyle {
-        let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
+        let (size, thin, o) = (tokens.size.handle.md, tokens.stroke.thin, &tokens.color.overlay);
         let (fill, stroke) = match shape {
-            HandleShape::Square | HandleShape::Round => (o.handle_fill, Stroke::new(h.stroke, o.handle_stroke.to_egui())),
+            HandleShape::Square | HandleShape::Round => (o.handle_fill, Stroke::new(thin, o.handle_stroke.to_egui())),
             HandleShape::Rotate => (o.handle_stroke, Stroke::NONE),
         };
         // PhotoCraft's handles have no halo; high contrast keeps it.
-        let halo = if tokens.appearance.contrast == Contrast::High { h.halo } else { 0.0 };
+        let halo = if tokens.appearance.contrast == Contrast::High { thin } else { 0.0 };
         let cursor = match shape {
             HandleShape::Square | HandleShape::Round => CursorIcon::Move,
             HandleShape::Rotate => CursorIcon::Alias,
         };
-        HandleStyle { size: h.size, fill: fill.to_egui(), stroke, halo: Stroke::new(halo, o.halo.to_egui()), hit: h.hit, cursor }
+        HandleStyle { size, fill: fill.to_egui(), stroke, halo: Stroke::new(halo, o.halo.to_egui()), hit: tokens.size.hit.target, cursor }
     }
 
     /// A selected handle's look: a `Square` or `Round` filled with `overlay.handle_stroke`, as a
@@ -182,7 +182,7 @@ impl Handle {
         }
     }
 
-    /// Draws the handle at `center` and senses the pointer on the `handle.hit` square around it.
+    /// Draws the handle at `center` and senses the pointer on the `size.hit.target` square around it.
     pub fn show(self, ui: &mut Ui, center: Pos2) -> Response {
         let tokens = Tokens::of(ui);
         let style = self.look.unwrap_or_else(|| Handle::style(&tokens, self.shape));

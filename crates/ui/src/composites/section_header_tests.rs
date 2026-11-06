@@ -267,7 +267,7 @@ fn a_header_too_narrow_for_its_title_draws_none_and_keeps_its_name() {
 
 #[test]
 fn the_title_starts_after_the_chevron_and_mirrors() {
-    let offset = tokens().component.section.title_offset;
+    let offset = SectionHeader::style(&tokens(), 1.0).title_offset;
     for dir in [Direction::Ltr, Direction::Rtl] {
         let harness = harness(dir).build_ui(section());
         let row = header(&harness, "Transform").rect();

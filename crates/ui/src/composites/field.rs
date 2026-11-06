@@ -23,12 +23,12 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FieldStyle {
-    /// Between the label column and the control: `field.label_gap`.
+    /// Between the label column and the control: `space.gap.inline`.
     pub label_gap: f32,
     /// Between the control and the help or error text, and between a label above and the
-    /// control: `field.help_gap`.
+    /// control: half of `space.gap.inline`.
     pub help_gap: f32,
-    /// A label beside the control is centred on the control's first `field.height.md`, so it
+    /// A label beside the control is centred on the control's first `size.control.md`, so it
     /// lines up with the first line of a taller control.
     pub label_band: f32,
     /// The label's type role: `label`.
@@ -39,7 +39,7 @@ pub struct FieldStyle {
     pub label: Color32,
     /// The help text: `text.muted`.
     pub help: Color32,
-    /// The error text: `field.invalid`, the colour of the invalid field's edge (`status.bad.fg`).
+    /// The error text: `status.bad.fg`, the colour of the invalid field's edge.
     pub error: Color32,
 }
 
@@ -173,7 +173,7 @@ impl<T> FieldControl for EditResponse<T> {
 ///   itself) starts at the group's control column; a [`spanning`](Field::spanning) one starts at
 ///   the group's left edge.
 /// - **Help text** goes under the control in `caption`, `text.muted`. **Error text** takes its
-///   place while there is one, in `caption` and `field.invalid` (`status.bad.fg`); the help text
+///   place while there is one, in `caption` and `status.bad.fg`; the help text
 ///   comes back when the error clears. The control draws its invalid state: `show` passes it
 ///   `invalid`, for the control's own `invalid(..)`.
 /// - **AccessKit:** the control is `labelled_by` the label (whose text becomes its name, in
@@ -249,17 +249,16 @@ impl Field {
 
     /// The style of a field in `tokens`.
     pub fn style(tokens: &UiTokens) -> FieldStyle {
-        let f = &tokens.component.field;
         let muted = Content::Muted.color(tokens).to_egui();
         FieldStyle {
-            label_gap: f.label_gap,
-            help_gap: f.help_gap,
-            label_band: f.height.md,
+            label_gap: tokens.space.gap.inline,
+            help_gap: tokens.space.gap.inline / 2.0,
+            label_band: tokens.size.control.md,
             label_role: TypeRole::Label,
             message_role: TypeRole::Caption,
             label: muted,
             help: muted,
-            error: f.invalid.to_egui(),
+            error: tokens.color.status.bad.fg.to_egui(),
         }
     }
 

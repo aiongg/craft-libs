@@ -99,7 +99,7 @@ fn the_story_names_every_button() {
 /// The filled three-point polygons in the rail's indicator colour.
 fn triangles(harness: &Harness<'_, ()>) -> Vec<Vec<egui::Pos2>> {
     let ctx = &harness.ctx;
-    let color = crate::theme::current(ctx).component.rail.indicator_color.to_egui();
+    let color = crate::theme::current(ctx).color.text.faint.to_egui();
     harness
         .output()
         .shapes

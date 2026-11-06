@@ -144,14 +144,14 @@ fn bound_states_report_the_state_after_a_click_in_the_same_frame() {
     }
 }
 
-/// A handle is a labelled graphics object with its value, takes clicks on its `handle.hit`
+/// A handle is a labelled graphics object with its value, takes clicks on its `size.hit.target`
 /// square, and is not a Tab stop.
 #[test]
 fn handles_are_in_the_accessibility_tree_but_not_the_tab_order() {
     let centre = egui::pos2(200.0, 100.0);
     let mut harness = harness().build_ui_state(
         move |ui, (clicks, hit): &mut (u32, f32)| {
-            *hit = Tokens::of(ui).component.handle.hit;
+            *hit = Tokens::of(ui).size.hit.target;
             let _ = Interactive::new("save", Role::Button, "Save").show(ui, vec2(80.0, 24.0));
             let response = Handle::new(HandleShape::Square, "Top left corner").value("10, 20 px").show(ui, centre);
             *clicks += u32::from(response.clicked());
