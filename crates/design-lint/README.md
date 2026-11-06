@@ -70,3 +70,67 @@ craft-design-lint check --baseline design-lint-baseline.toml
 ```
 
 The baseline stores error-finding counts per file and rule. The check fails when a count rises (a new file or rule counts from zero) and prints the findings of the rising files and rules. A file that does not parse always fails, and no baseline is written while one exists.
+
+## Structure checks
+
+`craft-design-lint structure [--root DIR] [--config design-lint.toml]` runs the repository-wide checks of spec chapter 24 from `cargo metadata --no-deps` and the files under `design/`. Every file starts with `config_version = 1`. Findings are rustc-style lines; exit code 1 on any error.
+
+| Rule | Reports |
+|---|---|
+| `layer/map` | a malformed layer file: module outside the crate's range, duplicate path, bad internal range, `row` misuse, a map for a crate that does not exist |
+| `layer/unmapped` | a module of a multi-layer crate with no entry |
+| `layer/import` | a `use` or qualified path whose defining module (through `pub use` re-exports and globs, across crates) is in a higher layer |
+| `layer/internal` | a use from a layer above an internal module's range |
+| `exception/unlisted`, `exception/stale`, `exception/expired`, `exception/invalid` | sites without an entry or beyond its count; entries listing more than exist (the ratchet: counts fall, never rise); entries whose `expires` milestone landed; malformed entries |
+| `graph/layer`, `graph/tokens-services`, `graph/egui` | normal dependencies against the layer ranges; `graph/egui` covers layers 0 and 1 (egui family, winit, wgpu; `accesskit` in layer 0) |
+| `features/gate` | a Cargo feature that gates no optional dependency, directly or through a workspace crate's feature |
+| `clone/baseline`, `clone/slack` | a family's duplicated tokens above or below its baseline |
+
+`graph/*` and `features/gate` breaches are excused by exception entries with the same rule and the subject as `path` (`craft-window->egui`, `craft-ui/fast`).
+
+### Layer map: `design/layers/<crate>/`
+
+```toml
+# crate.toml
+config_version = 1
+lowest = 2          # with highest; or `outside = true` for a crate outside the layers
+highest = 7
+# row = "tokens"    # layer-0 crates only: "tokens" or "services"
+```
+
+```toml
+# <family>.toml (any file name but crate.toml)
+config_version = 1
+
+[[module]]
+path = "primitives::sense"   # relative to the crate root; `crate` is the root file only
+layer = 3                    # or `outside = true`
+internal = [2, 4]            # optional: layers above 4 may not use it
+```
+
+The longest matching path wins; a crate with `lowest == highest` needs no entries. The root file takes the highest layer unless `crate` is mapped.
+
+### Exceptions: `design/exceptions/<crate>/<family>.toml`, `design/exceptions/milestones.toml`
+
+```toml
+config_version = 1
+
+[[exception]]
+name = "window-egui-dependency"   # unique across all files
+kind = "dependency"               # marker, exempt, expect, probe, bridge, shim, pointer-only, canvas-tool, menu-entry, dependency, feature
+rule = "graph/egui"               # rule id, family or `*`
+path = "craft-window->egui"       # file, directory or subject; omit for the whole crate
+reason = "native window code calls egui until the cut-over"
+count = 1                         # default 1
+expires = "cutover-3"             # required for bridge and shim
+```
+
+`milestones.toml` holds `config_version = 1` and `done = ["cutover-1"]`. Sites come from `// design: allow[rule](reason)` markers, `#[expect]`/`#[allow]` of `clippy::disallowed_*` lints, `[[exempt]]` entries of the `--config` file, and the graph and features checks.
+
+### Clone baselines: `design/clones/<crate>/<family>.toml`
+
+```toml
+config_version = 1
+paths = ["crates/ui/src/buttons"]
+duplicated-tokens = 0   # default 0
+```
