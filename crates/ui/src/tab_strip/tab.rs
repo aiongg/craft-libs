@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use craft_theme::{RowStyle, Stroke as Hairline, TypeRole, TypeStyle};
+use craft_theme::{Contrast, RowStyle, Stroke as Hairline, TypeRole, TypeStyle};
 use egui::accesskit::{Node, Role};
 use egui::emath::GuiRounding as _;
 use egui::os::OperatingSystem;
@@ -272,7 +272,7 @@ pub struct TabStyle {
     pub close_fill: Color32,
     /// The drop marker: `accent.solid`.
     pub drop: Color32,
-    /// The bar along the selected tab's top edge, transparent unless a style sets it.
+    /// The bar along the selected tab's top edge: `accent.solid` in high contrast, transparent otherwise.
     pub indicator: Color32,
     /// `text.normal`: under the selected text tab's label.
     pub underline: Color32,
@@ -607,7 +607,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             close_hover: c.text.normal.to_egui(),
             close_fill: c.state.hover.to_egui(),
             drop: c.accent.solid.to_egui(),
-            indicator: Color32::TRANSPARENT,
+            indicator: if tokens.appearance.contrast == Contrast::High { c.accent.solid.to_egui() } else { Color32::TRANSPARENT },
             underline: c.text.normal.to_egui(),
             track: c.surface.sunken.to_egui(),
             fill: c.accent.solid.to_egui(),
