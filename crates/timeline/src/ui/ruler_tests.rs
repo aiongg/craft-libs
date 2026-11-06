@@ -290,3 +290,10 @@ fn the_slider_and_the_scroll_bar_have_numeric_ranges() {
     assert_eq!(data.min_numeric_value(), Some(0.0));
     assert!(data.max_numeric_value().is_some_and(|max| max > 5.0));
 }
+
+#[test]
+fn top_strip_holds_the_whole_ruler_and_a_marker_name_row() {
+    let style = style();
+    assert!(style.top_height >= style.ruler_height + style.marker_height);
+    assert!(style.marker_height <= style.ruler_marker_band);
+}
