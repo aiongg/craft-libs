@@ -274,7 +274,7 @@ impl StackDialog for PasswordDialog {
         let mut eye_pressed = false;
         let response = Dialog::with_id(id, title)
             .stack(stack)
-            .width(Width::Fixed(crate::theme::current(ctx).component.password.width))
+            .width(Width::Fixed(crate::style::dialog::DialogStyle::new(&crate::theme::current(ctx)).width_standard))
             .footer(footer)
             .initial_focus(InitialFocus::FirstField)
             .show(ctx, state, &mut (), |ui, ()| {

@@ -36,6 +36,14 @@
 //! the popup family's. Each part has a pure `style` function, dumped under
 //! `crates/ui/tests/dumps/components/`.
 
+/// The share of the window's width that the big export dialogs open at.
+const LARGE_DIALOG_SHARE: f32 = 0.85;
+
+/// The width a big dialog opens at: [`LARGE_DIALOG_SHARE`] of the window, at least the wide class.
+fn large_dialog_width(ctx: &egui::Context, tokens: &craft_theme::Tokens) -> f32 {
+    (ctx.content_rect().width() * LARGE_DIALOG_SHARE).max(crate::style::dialog::DialogStyle::new(tokens).width_wide)
+}
+
 mod about;
 mod about_stories;
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]

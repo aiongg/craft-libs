@@ -29,6 +29,28 @@ use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 use craft_theme::Rgba;
 
 /// The engine's greatest document side, in pixels.
+const CARD: [f32; 2] = [164.0, 112.0];
+const CARD_COLUMNS: usize = 3;
+const CARD_ROWS: usize = 3;
+const PAGE_ICON: f32 = 30.0;
+const PAGE_BOX: f32 = 40.0;
+const CARD_ICON_CENTER: f32 = 34.0;
+const CARD_TITLE_CENTER: f32 = 70.0;
+const CARD_LINE_CENTER: f32 = 97.0;
+const SCROLL_ROOM: f32 = 16.0;
+const SAVED_ROWS: f32 = 11.0;
+/// The card grid's width: its columns, the gaps between them and room for the scroll bar.
+fn grid_width(tokens: &craft_theme::Tokens) -> f32 {
+    CARD_COLUMNS as f32 * CARD[0] + (CARD_COLUMNS - 1) as f32 * Gap::Row.points(tokens) + SCROLL_ROOM
+}
+
+/// The dialog's content width: the card grid, a details pane half a standard dialog wide, the gap
+/// between them and the dialog margin on both sides.
+fn dialog_width(tokens: &craft_theme::Tokens) -> f32 {
+    let details = crate::style::dialog::DialogStyle::new(tokens).width_standard / 2.0;
+    grid_width(tokens) + Gap::Section.points(tokens) + details + 2.0 * tokens.space.pad.dialog
+}
+
 const MAX_PIXELS: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
 const PPI_RANGE: (f64, f64) = (1.0, 30_000.0);
@@ -611,7 +633,7 @@ impl StackDialog for NewDocumentDialog {
         let footer = Footer::standard().ok(labels.create.as_str()).cancel(labels.close.as_str());
         let shown = Dialog::new("new-document", labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(crate::theme::current(ctx).component.new_document.width))
+            .width(Width::Fixed(dialog_width(&crate::theme::current(ctx))))
             .footer(footer)
             .show(ctx, &mut state, &mut (), |ui, ()| self.body(ui, &env));
         self.state = state;
@@ -690,10 +712,8 @@ impl NewDocumentDialog {
     fn body(&mut self, ui: &mut Ui, env: &Env<'_>) {
         let tokens = Tokens::of(ui);
         let gap = Gap::Section.points(&tokens);
-        let nd = tokens.component.new_document;
-        let card = Vec2::from(nd.card);
         ui.horizontal_top(|ui| {
-            let grid_width = nd.card_columns as f32 * card.x + (nd.card_columns - 1) as f32 * Gap::Row.points(&tokens) + nd.scroll_room;
+            let grid_width = grid_width(&tokens);
             ui.vertical(|ui| {
                 ui.set_width(grid_width);
                 self.tab_strip(ui, env);
@@ -861,8 +881,7 @@ impl NewDocumentDialog {
         let line_format = Text::format(&tokens, TypeRole::Caption, Content::Faint);
         let outline = Content::Muted.color(&tokens).to_egui();
         let accent = Content::Accent.color(&tokens).to_egui();
-        let nd = tokens.component.new_document;
-        let (card_size, columns, max_rows) = (Vec2::from(nd.card), nd.card_columns, nd.card_rows);
+        let (card_size, columns, max_rows) = (Vec2::from(CARD), CARD_COLUMNS, CARD_ROWS);
         let rows = cards.len().div_ceil(columns);
         let ids: Vec<Id> = (0..cards.len()).map(|i| Interactive::id_in(ui, ("new-document-card", self.tab.clone(), i))).collect();
         let mut clicked = None;
@@ -904,22 +923,22 @@ impl NewDocumentDialog {
                         if on {
                             ui.painter().rect_stroke(rect, Corner::Control.radius(&tokens), Stroke::new(1.5, accent), StrokeKind::Inside);
                         }
-                        let center = pos2(rect.center().x, rect.top() + nd.card_icon_center);
-                        paint_page(ui, Rect::from_center_size(center, Vec2::splat(nd.page_box)), card.aspect, nd.page_icon, outline);
+                        let center = pos2(rect.center().x, rect.top() + CARD_ICON_CENTER);
+                        paint_page(ui, Rect::from_center_size(center, Vec2::splat(PAGE_BOX)), card.aspect, PAGE_ICON, outline);
                         let mut job = LayoutJob::single_section(card.title.clone(), title_format.clone());
                         job.wrap.max_width = card_size.x - 2.0 * inset;
                         job.wrap.max_rows = 2;
                         job.halign = Align::Center;
                         let title = ui.painter().layout_job(job);
                         elided = title.elided;
-                        let top = rect.top() + nd.card_title_center - title.size().y / 2.0;
+                        let top = rect.top() + CARD_TITLE_CENTER - title.size().y / 2.0;
                         ui.painter().galley(pos2(rect.center().x, top), title, title_format.color);
                         let mut job = LayoutJob::single_section(line, line_format.clone());
                         job.wrap.max_width = card_size.x - 2.0 * inset;
                         job.wrap.max_rows = 1;
                         job.halign = Align::Center;
                         let galley = ui.painter().layout_job(job);
-                        let top = rect.top() + nd.card_line_center - galley.size().y / 2.0;
+                        let top = rect.top() + CARD_LINE_CENTER - galley.size().y / 2.0;
                         ui.painter().galley(pos2(rect.center().x, top), galley, line_format.color);
                     }
                     let response = match (&card.detail, elided) {
@@ -951,7 +970,7 @@ impl NewDocumentDialog {
             return;
         }
         let tokens = Tokens::of(ui);
-        let (saved_height, saved_row) = (tokens.component.new_document.saved_height, tokens.component.new_document.saved_row);
+        let (saved_height, saved_row) = (SAVED_ROWS * tokens.size.control.md, tokens.size.control.md);
         let mut apply = None;
         let mut delete = None;
         let mut double = false;

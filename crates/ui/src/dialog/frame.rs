@@ -11,6 +11,8 @@ use crate::icons::Icon;
 use crate::primitives::{Content, Divider, Surface, SurfaceKind, SurfaceStyle};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 
+const TITLE_ROLE: TypeRole = TypeRole::Heading;
+
 /// The parts of a shown frame: band, close box, title height, content size, chrome and first field.
 type Parts = (Response, Option<Response>, f32, Vec2, f32, Option<egui::Id>);
 
@@ -20,21 +22,21 @@ type Parts = (Response, Option<Response>, f32, Vec2, f32, Option<egui::Id>);
 pub struct DialogFrameStyle {
     /// The surface: [`SurfaceKind::Dialog`], the popup family's look.
     pub surface: SurfaceStyle,
-    /// Frame inner margin: `dialog.pad`.
+    /// Frame inner margin.
     pub pad: f32,
-    /// Frame inner margin of a roomy dialog: `dialog.pad_roomy`.
+    /// Frame inner margin of a roomy dialog.
     pub pad_roomy: f32,
-    /// Between the title and the rule: `dialog.title_gap`.
+    /// Between the title and the rule.
     pub title_gap: f32,
-    /// Between the rule and the body: `dialog.body_gap`.
+    /// Between the rule and the body.
     pub body_gap: f32,
-    /// Between the body and the footer: `dialog.footer_gap`.
+    /// Between the body and the footer.
     pub footer_gap: f32,
-    /// Side of the close box: `dialog.close_box`.
+    /// Side of the close box.
     pub close_box: f32,
-    /// How far the title band reaches past the title, as `[side, up, down]`: `dialog.drag_pad`.
+    /// How far the title band reaches past the title, as `[side, up, down]`.
     pub drag_pad: [f32; 3],
-    /// The title's type role: `dialog.title_role`.
+    /// The title's type role.
     pub title_role: TypeRole,
     /// The title's line height, from the role.
     pub title_line: f32,
@@ -110,7 +112,7 @@ impl DialogFrame {
         self
     }
 
-    /// The larger inner margin, `dialog.pad_roomy` (the colour picker dialog).
+    /// The larger inner margin (the colour picker dialog).
     pub fn roomy(mut self, roomy: bool) -> Self {
         self.roomy = roomy;
         self
@@ -144,18 +146,17 @@ impl DialogFrame {
 
     /// Resolves the frame's surface, padding and metrics from `tokens`; `pixels_per_point` snaps them to physical pixels.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> DialogFrameStyle {
-        let d = &tokens.component.dialog;
         DialogFrameStyle {
             surface: Surface::style(tokens, SurfaceKind::Dialog),
-            pad: d.pad,
-            pad_roomy: d.pad_roomy,
-            title_gap: d.title_gap,
-            body_gap: d.body_gap,
-            footer_gap: d.footer_gap,
-            close_box: d.close_box,
-            drag_pad: d.drag_pad,
-            title_role: d.title_role,
-            title_line: tokens.typography.get(d.title_role).line_height,
+            pad: tokens.space.pad.dialog,
+            pad_roomy: tokens.space.pad.dialog,
+            title_gap: tokens.space.gap.inline,
+            body_gap: tokens.space.gap.stack,
+            footer_gap: tokens.space.gap.stack,
+            close_box: tokens.size.control.sm,
+            drag_pad: [tokens.space.gap.inline; 3],
+            title_role: TITLE_ROLE,
+            title_line: tokens.typography.get(TITLE_ROLE).line_height,
             title: Content::Normal.color(tokens).to_egui(),
             rule: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
         }
@@ -166,7 +167,7 @@ impl DialogFrame {
         self.show_inner(ui, body, None::<fn(&mut Ui)>)
     }
 
-    /// Shows the frame with `body` and, `dialog.footer_gap` under it, `footer`.
+    /// Shows the frame with `body` and, `space.gap.stack` under it, `footer`.
     pub fn show_footer(self, ui: &mut Ui, body: impl FnOnce(&mut Ui), footer: impl FnOnce(&mut Ui)) -> DialogFrameResponse {
         self.show_inner(ui, body, Some(footer))
     }

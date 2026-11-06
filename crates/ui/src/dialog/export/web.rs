@@ -530,8 +530,8 @@ impl StackDialog for SaveForWebDialog {
         let before = (self.settings.clone(), self.fields.current, self.view, self.frame);
         let saving = self.picking.is_some();
         let tokens = crate::theme::current(ctx);
-        let height = tokens.component.dialog.preview_pane[1] * 2.0;
-        let (width, settings_width) = (tokens.component.export.web_width, tokens.component.export.settings_width);
+        let height = crate::style::dialog::DialogStyle::new(&tokens).preview_pane[1] * 2.0;
+        let (width, settings_width) = (super::super::large_dialog_width(ctx, &tokens), super::settings_column_width(&tokens));
         let Self { name, fields, settings, presets, view, frames, frame, playing, variants, original, nav, state, color_request, .. } = self;
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
@@ -1012,7 +1012,7 @@ fn settings_column(
                         *ask = Some(ColorRequest::new(MATTE_COLOR_KEY, Srgba::from(Rgba([r, g, b, 255]))).title(labels.matte.as_str()));
                     }
                     let edit = TextField::new("web-matte", labels.matte.as_str(), &hex)
-                        .width(crate::theme::current(ui.ctx()).component.export.web_field_width)
+                        .width(crate::theme::current(ui.ctx()).size.control.md * 3.0)
                         .show(ui);
                     if let Some(matte) = edit.committed().and_then(|text| Srgba::from_hex(text)) {
                         let Rgba([r, g, b, _]) = Rgba::from(matte);

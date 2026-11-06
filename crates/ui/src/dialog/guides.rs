@@ -548,7 +548,7 @@ impl NewGuideDialog {
                 let units = ExprUnits { unit: Some(ruler), suffix: ruler.suffix(), context };
                 let edit = unit_number_field("new-guide-position", labels.position.as_str(), shown, numbers, &units)
                     .with_id(self.position_id())
-                    .width(Tokens::of(ui).component.guide.position_width)
+                    .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).position_width)
                     .range(-high..=high)
                     .show(ui);
                 if let Some(value) = edited(edit.event.as_ref(), shown, ruler)
@@ -565,7 +565,7 @@ impl NewGuideDialog {
     fn color_row(&mut self, ui: &mut Ui, labels: &GuidesLabels) -> egui::Response {
         let mut choice = self.color;
         let mut select = Select::new("new-guide-color", labels.color.as_str(), &mut choice)
-            .width(Tokens::of(ui).component.guide.color_width)
+            .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).color_width)
             .option(GuideColor::Custom(self.custom), labels.custom_color.as_str());
         for named in GuideColor::NAMED {
             select = select.option(named, named.label(labels));
@@ -1261,7 +1261,7 @@ impl GuideLayoutDialog {
         FormGrid::new("guide-layout-header").show(ui, |form| {
             form.row(labels.preset.as_str(), |ui, _| {
                 let mut preset = layout.preset;
-                let width = Tokens::of(ui).component.guide.layout_list_width;
+                let width = crate::style::guide::GuideStyle::new(&Tokens::of(ui)).layout_list_width;
                 let mut select = Select::new("guide-layout-preset", labels.preset.as_str(), &mut preset).width(width);
                 for option in GuideLayoutPreset::ALL {
                     select = select.option(option, option.label(labels));
@@ -1274,7 +1274,7 @@ impl GuideLayoutDialog {
                 response
             });
             form.row(labels.target.as_str(), |ui, _| {
-                let width = Tokens::of(ui).component.guide.layout_list_width;
+                let width = crate::style::guide::GuideStyle::new(&Tokens::of(ui)).layout_list_width;
                 let mut select = Select::new("guide-layout-target", labels.target.as_str(), &mut layout.target)
                     .width(width)
                     .option(GuideTarget::Document, labels.document.as_str());
@@ -1294,7 +1294,7 @@ impl GuideLayoutDialog {
                 let current = GuideColor::from_rgb(self.color);
                 let mut choice = current;
                 let mut select =
-                    Select::new("guide-layout-color", labels.color.as_str(), &mut choice).width(Tokens::of(ui).component.guide.layout_color_width);
+                    Select::new("guide-layout-color", labels.color.as_str(), &mut choice).width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).layout_color_width);
                 if let GuideColor::Custom(rgb) = current {
                     select = select.option(GuideColor::Custom(rgb), labels.custom_color.as_str());
                 }
@@ -1325,7 +1325,7 @@ fn length_cell(ui: &mut Ui, salt: impl egui::AsIdSalt, caption: &str, length: &m
     let ruler = units.ruler;
     let shown = units.context(extent).convert(*length, ruler).unwrap_or(length.value);
     let typed_percent = Cell::new(None);
-    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent).width(Tokens::of(ui).component.guide.margin_width).show(ui);
+    let edit = length_field(salt, caption, shown, numbers, units, extent, &typed_percent).width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).margin_width).show(ui);
     if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
         *length = edited;
     }
@@ -1345,7 +1345,7 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             form.row(labels.number.as_str(), |ui, _| {
                 let edit = NumberField::new((salt, "number"), labels.number.as_str(), axis.number, numbers)
                     .range(1.0..=f64::from(MAX_COUNT))
-                    .width(Tokens::of(ui).component.guide.number_width)
+                    .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).number_width)
                     .decimals(0..=0)
                     .show(ui);
                 if let Some(value) =
@@ -1358,7 +1358,7 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
             form.row(size_caption.as_str(), |ui, _| {
                 let shown = axis.size.and_then(|size| units.context(extent).convert(size, ruler));
                 let typed_percent = Cell::new(None);
-                let width = Tokens::of(ui).component.guide.size_width;
+                let width = crate::style::guide::GuideStyle::new(&Tokens::of(ui)).size_width;
                 let edit = length_field((salt, "size"), size_caption, shown.unwrap_or(f64::NAN), numbers, units, extent, &typed_percent)
                     .width(width)
                     .show_optional(ui);
@@ -1376,7 +1376,7 @@ fn axis_group(ui: &mut Ui, labels: &GuidesLabels, numbers: &LocaleNumbers, units
                 let shown = units.context(extent).convert(axis.gutter, ruler).unwrap_or(axis.gutter.value);
                 let typed_percent = Cell::new(None);
                 let edit = length_field((salt, "gutter"), labels.gutter.as_str(), shown, numbers, units, extent, &typed_percent)
-                    .width(Tokens::of(ui).component.guide.number_width)
+                    .width(crate::style::guide::GuideStyle::new(&Tokens::of(ui)).number_width)
                     .show(ui);
                 if let Some(edited) = edited_length(edit.event.as_ref(), shown, ruler, &typed_percent) {
                     axis.gutter = edited;

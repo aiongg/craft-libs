@@ -336,7 +336,7 @@ impl<'a> Dialog<'a> {
         self
     }
 
-    /// The larger frame margin, `dialog.pad_roomy`.
+    /// The larger frame margin.
     pub fn roomy(mut self, roomy: bool) -> Self {
         self.roomy = roomy;
         self
@@ -400,7 +400,7 @@ impl<'a> Dialog<'a> {
             answers,
         } = self;
         let tokens = current(ctx);
-        let t = tokens.component.dialog;
+        let t = crate::style::dialog::DialogStyle::new(&tokens);
         let window = ctx.content_rect();
         let place = place.unwrap_or(PlaceKey(id));
         let opened = !state.is_open();
@@ -424,7 +424,7 @@ impl<'a> Dialog<'a> {
         let pinned = ctx.data(|d| d.get_temp::<Vec2>(pin_id));
         let measured = ctx.data(|d| d.get_temp::<Vec2>(measured_id));
         let laid_out_size = ctx.data(|d| d.get_temp::<Vec2>(size_id)).or(measured).unwrap_or(Vec2::ZERO);
-        let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(t.close_box);
+        let title_height = ctx.data(|d| d.get_temp::<f32>(title_id)).unwrap_or(tokens.size.control.sm);
         let chrome = ctx.data(|d| d.get_temp::<f32>(chrome_id)).unwrap_or(0.0);
         // The measured size places the dialog; one laid out with another chrome is the wrong size.
         let measured_stale = ctx.data(|d| d.get_temp::<f32>(measured_chrome_id)).is_some_and(|c| (c - chrome).abs() > 0.5);
@@ -445,9 +445,9 @@ impl<'a> Dialog<'a> {
             area = area.order(Order::Middle).kind(UiKind::Window);
         }
 
-        let pad = if roomy { t.pad_roomy } else { t.pad };
+        let pad = tokens.space.pad.dialog;
         let remembered = resize.and_then(|_| place.remembered_size(ctx));
-        let resize_sizes = resize.map(|r| (r, r.max_size(&t, window.size())));
+        let resize_sizes = resize.map(|r| (r, r.max_size(&tokens, window.size())));
         let footer_close = footer.host_close_label().map(str::to_owned);
         let (has_footer, enter_rule, ok_stays_open) = (!footer.is_none(), footer.enter_rule(), footer.keeps_ok_open());
         let run_out = std::cell::RefCell::new(FooterRun::default());
@@ -473,13 +473,13 @@ impl<'a> Dialog<'a> {
                         .max_size(max),
                 ),
                 None => {
-                    let (min, max) = width.range(&t, window.width() - 2.0 * pad);
+                    let (min, max) = width.range(&tokens, window.width() - 2.0 * pad);
                     if width == Width::Content { frame.fit_content(max) } else { frame.width(min, max) }
                 }
             };
             let draw_body = |ui: &mut Ui| {
                 let scoped = |ui: &mut Ui| {
-                    let mut height = scroll_height(&t, window.height(), chrome, below_used);
+                    let mut height = scroll_height(&tokens, window.height(), chrome, below_used);
                     if let Some((_, max)) = resize_sizes {
                         height = height.min((max.y - (chrome - 2.0 * pad) - below_used).max(t.scroll_min));
                     }

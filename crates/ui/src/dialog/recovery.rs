@@ -104,7 +104,7 @@ impl StackDialog for RecoveryDialog {
         });
         let shown = Dialog::with_id(self.id, labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(crate::theme::current(ctx).component.dialog.width_alert))
+            .width(Width::Fixed(crate::style::dialog::DialogStyle::new(&crate::theme::current(ctx)).width_alert))
             .footer(footer)
             .initial_focus(InitialFocus::DefaultButton)
             .answers()

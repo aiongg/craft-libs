@@ -21,7 +21,7 @@ const SAME: f64 = 1e-9;
 /// [`zoom_percent`](Self::zoom_percent) is the zoom on screen either way and the
 /// [`FullWindowZoomBar`](super::FullWindowZoomBar) steps from it.
 ///
-/// - Fitted: the whole image shows centred, with `full_window.canvas.margin` on each side, at no
+/// - Fitted: the whole image shows centred, with `space.pad.dialog` on each side, at no
 ///   more than 400 %.
 /// - A zoom (wheel, pinch, keys, the Zoom tool, the zoom bar) or a pan (Space, the middle button,
 ///   the Hand tool) by the user ends the fit; [`reset_fit`](Self::reset_fit) (⌘0, the zoom bar's

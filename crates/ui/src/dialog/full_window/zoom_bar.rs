@@ -38,16 +38,16 @@ pub struct FullWindowZoomBarResponse {
 /// ```
 ///
 /// - **Place.** An `egui::Panel` at the bottom of what is left of the dialog's body (or of a side
-///   column's body), `full_window.zoom_bar.height` tall on the side fill (`full_window.side.fill`), padded by
-///   `full_window.zoom_bar.pad`. Call it after the side columns and before the canvas it serves.
+///   column's body), `size.control.md` tall on the panel surface, padded by
+///   `space.gap.stack` and `space.gap.tight`. Call it after the side columns and before the canvas it serves.
 /// - **Buttons.** Zoom Out and Zoom In [`IconButton`](crate::controls::IconButton)s step the
 ///   view's ladder ([`FullWindowView::step`]); each is disabled at its end of the range.
 /// - **Select.** A [`Select`](crate::controls::Select) "Zoom" of Fit in View, 12.5 %, 25 %, 50 %,
 ///   100 %, 200 % and 400 %; a zoom off the menu (stepped to 300 %) is listed as itself in its
 ///   place among them, as PhotoCraft lists it. The fitted view shows Fit in View.
 /// - **Progress or note.** While [`progress`](Self::progress) is set, a
-///   [`Progress`](crate::controls::Progress) bar `full_window.progress.width` ×
-///   `full_window.progress.height` (indeterminate for `Some(None)`); otherwise the
+///   [`Progress`](crate::controls::Progress) bar of the zoom bar's progress width and the
+///   library `Progress` height (indeterminate for `Some(None)`); otherwise the
 ///   [`note`](Self::note) in `text.faint`, `caption` role, cut with an ellipsis.
 /// - **Keyboard and AccessKit.** The buttons and the select are Tab stops in reading order; the
 ///   strip mirrors in a right-to-left interface.

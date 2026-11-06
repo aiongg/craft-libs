@@ -49,6 +49,11 @@ use crate::localized::{LocaleNumbers, SharedLabels as _, Unit};
 use crate::primitives::Content;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
+/// Width of the settings column beside a preview: half a standard dialog.
+fn settings_column_width(tokens: &craft_theme::Tokens) -> f32 {
+    crate::style::dialog::DialogStyle::new(tokens).width_standard / 2.0
+}
+
 pub use options::{
     DdsCompression, DdsOptions, DdsOptionsDialog, FormatOptionsLabels, JpegFormat, JpegOptions, JpegOptionsDialog, TargaOptions, TargaOptionsDialog,
     TiffOptions, TiffOptionsDialog, jpeg_quality_label, jpeg_quality_percent,
@@ -513,8 +518,8 @@ impl StackDialog for ExportAsDialog {
         let before = self.settings.clone();
         let saving = self.picking.is_some();
         let tokens = crate::theme::current(ctx);
-        let side = tokens.component.dialog.preview_pane[1] * 2.0;
-        let (settings_width, pane_gap) = (tokens.component.export.settings_width, tokens.component.export.pane_gap);
+        let side = crate::style::dialog::DialogStyle::new(&tokens).preview_pane[1] * 2.0;
+        let (settings_width, pane_gap) = (settings_column_width(&tokens), tokens.space.pad.panel);
         let line = self.size_line(&labels);
         let size = self.output_size();
         let Self { formats, source, settings, preview, size_error, defaults, state, .. } = self;

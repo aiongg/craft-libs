@@ -1,17 +1,18 @@
 //! Dialog widths, resizable sizes and scrolling bodies: the rules, as pure functions.
 
-use craft_theme::DialogTokens;
+use crate::style::dialog::DialogStyle;
+use craft_theme::Tokens;
 use egui::Vec2;
 
 /// How wide a dialog's content may be.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum Width {
-    /// A few short fields (Fit Image): at most `dialog.width_compact`, no least width.
+    /// A few short fields (Fit Image): at most `DialogStyle::width_compact`, no least width.
     Compact,
-    /// At least `dialog.width_min`, at most `dialog.width_standard`.
+    /// At least `DialogStyle::width_min`, at most `DialogStyle::width_standard`.
     #[default]
     Standard,
-    /// At least `dialog.width_min`, at most `dialog.width_wide`.
+    /// At least `DialogStyle::width_min`, at most `DialogStyle::width_wide`.
     Wide,
     /// Exactly this wide (New Document 800, About 700), within the window.
     Fixed(f32),
@@ -29,14 +30,15 @@ pub enum Width {
 
 impl Width {
     /// The least and greatest content width in a window `window_width` wide, in points. Every
-    /// width is capped at the window minus `dialog.window_margin` on each side; the least is at
+    /// width is capped at the window minus `space.pad.dialog` on each side; the least is at
     /// most the greatest.
-    pub fn range(self, tokens: &DialogTokens, window_width: f32) -> (f32, f32) {
-        let cap = (window_width - 2.0 * tokens.window_margin).max(0.0);
+    pub fn range(self, tokens: &Tokens, window_width: f32) -> (f32, f32) {
+        let style = DialogStyle::new(tokens);
+        let cap = (window_width - 2.0 * tokens.space.pad.dialog).max(0.0);
         let (min, max) = match self {
-            Width::Compact => (0.0, tokens.width_compact),
-            Width::Standard => (tokens.width_min, tokens.width_standard),
-            Width::Wide => (tokens.width_min, tokens.width_wide),
+            Width::Compact => (0.0, style.width_compact),
+            Width::Standard => (style.width_min, style.width_standard),
+            Width::Wide => (style.width_min, style.width_wide),
             Width::Fixed(width) => (width, width),
             Width::Content => (0.0, cap),
             Width::Range { min, max } => (min, max.max(min)),
@@ -49,7 +51,7 @@ impl Width {
 /// The greatest size of a resizable dialog.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub enum ResizeMax {
-    /// The window less `dialog.resize_margin` on each side, never below the least size.
+    /// The window less `DialogStyle::resize_margin` on each side, never below the least size.
     #[default]
     Window,
     /// This size, within the window rule above.
@@ -69,8 +71,8 @@ pub struct Resize {
 
 impl Resize {
     /// The greatest size in a window of `window` size.
-    pub fn max_size(&self, tokens: &DialogTokens, window: Vec2) -> Vec2 {
-        let room = (window - Vec2::splat(2.0 * tokens.resize_margin)).max(self.min);
+    pub fn max_size(&self, tokens: &Tokens, window: Vec2) -> Vec2 {
+        let room = (window - Vec2::splat(2.0 * DialogStyle::new(tokens).resize_margin)).max(self.min);
         match self.max {
             ResizeMax::Window => room,
             ResizeMax::Fixed(max) => max.min(room).max(self.min),
@@ -100,12 +102,13 @@ pub enum Body {
 /// The greatest height of a scrolling body: the window height less the dialog's margins, the
 /// measured `chrome` (everything but the body) and the measured `below` region, and at least `dialog.scroll_min`
 /// where the window has room for that beside the chrome and the region below.
-pub fn scroll_height(tokens: &DialogTokens, window_height: f32, chrome: f32, below: f32) -> f32 {
+pub fn scroll_height(tokens: &Tokens, window_height: f32, chrome: f32, below: f32) -> f32 {
+    let scroll_min = DialogStyle::new(tokens).scroll_min;
     let room = window_height - chrome - below;
     if room <= 0.0 {
-        return tokens.scroll_min;
+        return scroll_min;
     }
     // The margin is given up before the footer goes off screen: the body keeps `scroll_min` while
     // the window has that much room, and all the room it has when it has less.
-    (room - 2.0 * tokens.window_margin).max(tokens.scroll_min.min(room))
+    (room - 2.0 * tokens.space.pad.dialog).max(scroll_min.min(room))
 }

@@ -326,7 +326,7 @@ fn show_embedded(
     if opened {
         state.close();
     }
-    let dialog = current(ctx).component.dialog;
+    let dialog = crate::style::dialog::DialogStyle::new(&current(ctx));
     let min = builder.min_inner_size.unwrap_or(Vec2::from(dialog.viewport_min));
     let default = builder.inner_size.unwrap_or(Vec2::from(dialog.viewport_size)).max(min);
     let mut dialog = Dialog::new(("craft-ui-viewport", id), title)
