@@ -126,7 +126,15 @@ pub struct Layout {
 
 impl Default for Layout {
     fn default() -> Layout {
-        Layout { reported_latin: None, seen_latin: None, chars: BTreeMap::new(), letters: BTreeMap::new(), position_fallback: true, brackets: false, table_layout: false }
+        Layout {
+            reported_latin: None,
+            seen_latin: None,
+            chars: BTreeMap::new(),
+            letters: BTreeMap::new(),
+            position_fallback: true,
+            brackets: false,
+            table_layout: false,
+        }
     }
 }
 

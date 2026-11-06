@@ -141,8 +141,6 @@ mod commands;
 pub mod editor;
 #[cfg(feature = "ui")]
 pub mod egui;
-#[cfg(feature = "ui")]
-mod raw_clipboard;
 pub mod import;
 pub mod keymap;
 pub mod layout;
@@ -150,6 +148,8 @@ mod parity;
 #[cfg(test)]
 mod parity_tests;
 pub mod profiles;
+#[cfg(feature = "ui")]
+mod raw_clipboard;
 pub mod reserved;
 pub mod scope;
 #[cfg(feature = "ui")]

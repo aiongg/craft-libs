@@ -321,8 +321,10 @@ impl Dispatcher {
         let mut kept = Vec::with_capacity(input.events.len());
         let events = std::mem::take(&mut input.events);
         let text_of = text_of_press(&events, self.text_first && !active.typing);
-        let texts: Vec<String> =
-            text_of.iter().map(|j| j.and_then(|j| if let Event::Text(t) = &events[j] { Some(t.clone()) } else { None }).unwrap_or_default()).collect();
+        let texts: Vec<String> = text_of
+            .iter()
+            .map(|j| j.and_then(|j| if let Event::Text(t) = &events[j] { Some(t.clone()) } else { None }).unwrap_or_default())
+            .collect();
         self.report_latin(input.keyboard_layout_is_latin());
         self.learn(&events, &text_of, platform);
         let mut drop = vec![false; events.len()];
@@ -455,9 +457,14 @@ impl Dispatcher {
                 }
                 let plain = Chord::new(Mods { alt: false, ..chord.mods }, chord.key);
                 match keymap.lookup(&plain, false, &Active { typing: false, ..*active }) {
-                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => {
-                        Some(Hit { command, cycle: Vec::new(), trigger: Trigger { chord, double: false }, exact: chord == first, alt_variant: true, pasted: None })
-                    }
+                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => Some(Hit {
+                        command,
+                        cycle: Vec::new(),
+                        trigger: Trigger { chord, double: false },
+                        exact: chord == first,
+                        alt_variant: true,
+                        pasted: None,
+                    }),
                     _ => None,
                 }
             })

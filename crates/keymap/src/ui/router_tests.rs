@@ -288,6 +288,11 @@ fn alt_on_an_opted_in_chord_hits_the_variant_in_press_order() {
     // pressed before: egui reports a second press of a key still down as a repeat.
     assert_eq!(
         ran,
-        [("adjust.levels".to_string(), true), ("file.save".to_string(), false), ("adjust.curvesOwn".to_string(), false), ("adjust.balance".to_string(), false)]
+        [
+            ("adjust.levels".to_string(), true),
+            ("file.save".to_string(), false),
+            ("adjust.curvesOwn".to_string(), false),
+            ("adjust.balance".to_string(), false)
+        ]
     );
 }

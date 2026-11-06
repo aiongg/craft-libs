@@ -688,6 +688,22 @@ fn the_bracket_positions_are_brackets_on_layouts_without_a_table_row() {
 }
 
 #[test]
+fn altgr_presses_teach_the_layout_nothing() {
+    let km = layout_keymap();
+    let mut d = Dispatcher::new();
+    let alt_gr =
+        |pressed| Event::Key { key: EguiKey::AltRight, physical_key: Some(EguiKey::AltRight), pressed, repeat: false, modifiers: Modifiers::NONE };
+    // Spanish: AltGr+` types `[` and egui-winit reports the press without modifiers. It is no
+    // real bracket key, so the `+` key at the US `]` position stays `]`.
+    let mut events = vec![alt_gr(true)];
+    events.extend(typed(EguiKey::OpenBracket, EguiKey::Backtick, Modifiers::NONE, "["));
+    assert_eq!(ran(&mut d, &km, 1.0, Modifiers::NONE, events), ["brush.smaller"]);
+    let mut events = vec![alt_gr(false)];
+    events.extend(typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+"));
+    assert_eq!(ran(&mut d, &km, 2.0, Modifiers::NONE, events), ["brush.bigger"]);
+}
+
+#[test]
 fn cmd_chords_on_period_follow_the_key_position() {
     let km = layout_keymap();
     // Nordic: ⇧⌘. types `:`, which egui reports as the logical key.
@@ -784,7 +800,9 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
     assert!(is_press(&after(EguiKey::Insert, Modifiers::CTRL, false), EguiKey::C));
     assert!(is_press(&after(EguiKey::Insert, Modifiers::SHIFT, false), EguiKey::V));
     // Outside text fields Shift+Delete stays itself (Fill in Photoshop).
-    assert!(matches!(after(EguiKey::Delete, Modifiers::SHIFT, false).as_slice(), [Event::Key { key: EguiKey::Delete, modifiers, .. }] if modifiers.shift));
+    assert!(
+        matches!(after(EguiKey::Delete, Modifiers::SHIFT, false).as_slice(), [Event::Key { key: EguiKey::Delete, modifiers, .. }] if modifiers.shift)
+    );
     // In a text field Ctrl+Insert and Shift+Delete are egui's events; Shift+Insert asks for the text.
     assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
     assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
