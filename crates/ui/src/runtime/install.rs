@@ -2,6 +2,7 @@
 
 use crate::runtime::egui::{focus, input, plugin};
 use crate::runtime::frame;
+use crate::style::{DuplicateStyle, StyleReplacements};
 use egui::Context;
 
 /// What `install` takes.
@@ -10,13 +11,21 @@ pub struct InstallSpec {
     /// The end hook's ghost-layer painter, called once per pass. The runtime names no contract type, so it
     /// holds an erased function; `craft_ui::install` fills it with the overlay host's painter.
     pub frame_layers: Option<fn(&Context)>,
+    /// The app's style replacements, frozen at install.
+    pub looks: StyleReplacements,
 }
 
 impl InstallSpec {
     /// A spec with no ghost-layer painter.
     #[expect(clippy::new_without_default, reason = "`new` takes the shell info and window system once they exist, so the spec has no default")]
     pub fn new() -> Self {
-        InstallSpec { frame_layers: None }
+        InstallSpec { frame_layers: None, looks: StyleReplacements::new() }
+    }
+
+    /// Sets the app's style replacements.
+    pub fn looks(mut self, looks: impl Into<StyleReplacements>) -> Self {
+        self.looks = looks.into();
+        self
     }
 
     /// Sets the end hook's ghost-layer painter.
@@ -32,12 +41,15 @@ impl InstallSpec {
 pub enum InstallError {
     /// The context already has the runtime plugin.
     AlreadyInstalled,
+    /// Two style replacements name one style key.
+    DuplicateStyle(DuplicateStyle),
 }
 
 impl std::fmt::Display for InstallError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             InstallError::AlreadyInstalled => f.write_str("the runtime is already installed on this context"),
+            InstallError::DuplicateStyle(DuplicateStyle(key)) => write!(f, "two style replacements for the style key {key}"),
         }
     }
 }
@@ -51,6 +63,8 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     if plugin::is_registered(ctx) {
         return Err(InstallError::AlreadyInstalled);
     }
+    let looks = spec.looks.freeze().map_err(InstallError::DuplicateStyle)?;
+    looks.store(ctx);
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);
     frame::set_frame_layers(ctx, spec.frame_layers);

@@ -2,7 +2,9 @@
 
 mod egui_surface;
 mod layout;
+mod paint;
 mod runtime;
+mod style;
 
 use craft_ui::testing::TRIALS;
 use libtest_mimic::{Arguments, Trial};

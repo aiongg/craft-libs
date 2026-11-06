@@ -1,6 +1,6 @@
 //! The egui calls `craft_ui::testing` needs: frames, raw input and options that apps reach only through the runtime.
 
-use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, Ui, ViewportCommand};
+use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportCommand};
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes. Returns whether the
 /// frame sent a close command.
@@ -52,4 +52,24 @@ pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
 /// Senses `rect` under `id`, as a placed child's one widget does.
 pub(crate) fn placeholder(ui: &mut Ui, id: egui::Id, rect: Rect) -> egui::Response {
     ui.interact(rect, id, egui::Sense::hover())
+}
+
+/// Runs one frame like `run_frame` and returns the shapes it painted, nested shapes flattened.
+pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
+    let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
+    let input = RawInput { screen_rect: Some(screen), time: Some(time), ..RawInput::default() };
+    let mut output = ctx.run_ui(input, ui);
+    output.textures_delta.clear();
+    let mut flat = Vec::new();
+    for clipped in output.shapes {
+        flatten(clipped.shape, &mut flat);
+    }
+    flat
+}
+
+fn flatten(shape: Shape, out: &mut Vec<Shape>) {
+    match shape {
+        Shape::Vec(shapes) => shapes.into_iter().for_each(|shape| flatten(shape, out)),
+        other => out.push(other),
+    }
 }
