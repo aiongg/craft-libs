@@ -2,6 +2,7 @@
 //! ink text and icons read on a surface.
 
 use crate::runtime::env::Scale;
+use craft_host::target::Os;
 use craft_i18n::Direction;
 use std::hash::{Hash, Hasher};
 
@@ -20,20 +21,6 @@ pub enum Ink {
     OnPanel,
     /// On strong fills and scrims: the colour that reads on them.
     OnDark,
-}
-
-/// The operating system a style reads.
-// F2-MERGE: F2d
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
-#[non_exhaustive]
-pub enum Os {
-    /// macOS.
-    Mac,
-    /// Windows.
-    Windows,
-    /// Linux and others.
-    #[default]
-    Linux,
 }
 
 /// The key of everything a style depends on besides its own key: tokens, direction, scale, the OS, the window's

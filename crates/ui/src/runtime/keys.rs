@@ -7,7 +7,8 @@ use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEven
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
-use craft_behavior::keys::{self, Os};
+use craft_behavior::keys;
+use craft_host::target::Os;
 use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Context, Id, Vec2, ViewportId};

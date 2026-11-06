@@ -1,10 +1,11 @@
 //! The style cache, the env key and app style replacements.
 
+use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::runtime::env::Scale;
 use craft_ui::runtime::{InstallError, InstallSpec, install};
-use craft_ui::style::{ComponentStyle, EnvKey, Metrics, Os, StyleCx, StyleKey, StyleReplacements};
+use craft_ui::style::{ComponentStyle, EnvKey, Metrics, StyleCx, StyleKey, StyleReplacements};
 use craft_ui::testing::style::{style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};

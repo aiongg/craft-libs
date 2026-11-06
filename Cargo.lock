@@ -1122,6 +1122,7 @@ version = "0.1.0"
 dependencies = [
  "accesskit",
  "bitflags 2.13.2",
+ "craft-host",
  "craft-keymap",
  "emath",
  "smallvec",

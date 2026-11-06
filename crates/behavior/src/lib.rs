@@ -47,7 +47,7 @@ pub use hit::{HitLevel, HitPriority, HitShape, PressFocus, ResolveFor, Shape, Wi
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
-pub use keys::{DropOperation, KeyRole, Os};
+pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
 pub use marquee::{MarqueeMode, MarqueeSelect};

@@ -3,21 +3,8 @@
 //! macOS and `ctrl` is the Control key on macOS only.
 
 use crate::intent::{Granularity, Intent, MoveMods, NavMove};
+use craft_host::target::Os;
 use craft_keymap::{Key, Mods};
-
-/// The operating system whose key rows apply.
-// F2-MERGE: craft-host `target` (`craft-host::target::Os`), which no F2 track owns.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Os {
-    /// macOS.
-    Mac,
-    /// Windows.
-    Windows,
-    /// Linux and every other system.
-    #[default]
-    Linux,
-}
 
 /// What the focused stop is, as far as the table's rows differ.
 #[derive(Clone, Copy, Debug, Default)]
@@ -94,10 +81,7 @@ pub enum DropOperation {
 
 /// The drop operation the held modifiers pick.
 pub fn drop_operation(os: Os, mods: Mods) -> DropOperation {
-    let link = match os {
-        Os::Mac => mods.cmd && mods.alt,
-        Os::Windows | Os::Linux => mods.cmd && mods.shift,
-    };
+    let link = if os == Os::Mac { mods.cmd && mods.alt } else { mods.cmd && mods.shift };
     if link {
         DropOperation::Link
     } else if mods.alt {

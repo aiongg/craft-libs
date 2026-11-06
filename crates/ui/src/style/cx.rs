@@ -1,6 +1,7 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
-use super::key::{EnvKey, Ink, Os};
+use super::key::{EnvKey, Ink};
+use craft_host::target::Os;
 use super::look::{StyleColor, SurfaceKind};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};

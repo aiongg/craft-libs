@@ -3,7 +3,8 @@
 use super::Frames;
 use crate::primitives::{Draw, DrawEnv, PaintRecord};
 use crate::runtime::env::{AppValues, Scale};
-use crate::style::{ComponentStyle, EnvKey, Ink, Os, StyleCx, StyleKey, UiTokens, resolve_style};
+use craft_host::target::Os;
+use crate::style::{ComponentStyle, EnvKey, Ink, StyleCx, StyleKey, UiTokens, resolve_style};
 use craft_i18n::Direction;
 use craft_theme::{Appearance, Contrast, ControlSize, Mode, Size, TextSize, Variant, builtins, resolve};
 use egui::{Context, Shape};

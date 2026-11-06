@@ -5,6 +5,7 @@ pub mod queue;
 #[cfg(test)]
 mod queue_tests;
 mod services;
+pub mod target;
 
 use std::sync::Arc;
 

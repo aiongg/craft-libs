@@ -6,6 +6,7 @@ use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::{cursor, focus, keys, layout_memory, memory, pointer, wheel};
 use craft_host::Host;
+use craft_host::target::Os;
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -247,7 +248,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
     // H7: focus moves and the pass's intents.
-    focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != craft_behavior::Os::Mac);
+    focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
     keys::begin(&ctx);
 }
 

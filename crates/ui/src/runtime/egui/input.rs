@@ -2,6 +2,7 @@
 
 use craft_behavior::one_press::split_after_first_press;
 use craft_behavior::{PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
+use craft_host::target::Os;
 use craft_keymap::Mods;
 use egui::{Context, Event, Id, MouseWheelUnit, Pos2, TouchPhase, Vec2, ViewportId};
 
@@ -57,18 +58,18 @@ pub(crate) fn stop_dragging(ctx: &Context) {
 }
 
 /// The operating system the key table picks rows for.
-pub(crate) fn os(ctx: &Context) -> craft_behavior::Os {
+pub(crate) fn os(ctx: &Context) -> Os {
     use egui::os::OperatingSystem;
     match ctx.os() {
-        OperatingSystem::Mac | OperatingSystem::IOS => craft_behavior::Os::Mac,
-        OperatingSystem::Windows => craft_behavior::Os::Windows,
-        OperatingSystem::Nix | OperatingSystem::Android | OperatingSystem::Unknown => craft_behavior::Os::Linux,
+        OperatingSystem::Mac | OperatingSystem::IOS => Os::Mac,
+        OperatingSystem::Windows => Os::Windows,
+        OperatingSystem::Nix | OperatingSystem::Android | OperatingSystem::Unknown => Os::Linux,
     }
 }
 
 /// The modifiers egui reports, read for `os`: off macOS, Ctrl is the command key.
-pub(crate) fn mods(modifiers: &egui::Modifiers, os: craft_behavior::Os) -> craft_keymap::Mods {
-    if os == craft_behavior::Os::Mac {
+pub(crate) fn mods(modifiers: &egui::Modifiers, os: Os) -> craft_keymap::Mods {
+    if os == Os::Mac {
         craft_keymap::Mods { cmd: modifiers.mac_cmd || modifiers.command, ctrl: modifiers.ctrl, alt: modifiers.alt, shift: modifiers.shift }
     } else {
         craft_keymap::Mods { cmd: modifiers.ctrl || modifiers.command, ctrl: false, alt: modifiers.alt, shift: modifiers.shift }
@@ -118,7 +119,7 @@ pub(crate) enum KeyEvent {
 }
 
 /// The key stage's reading of `event`.
-pub(crate) fn key_event(event: &Event, os: craft_behavior::Os) -> KeyEvent {
+pub(crate) fn key_event(event: &Event, os: Os) -> KeyEvent {
     match event {
         Event::Key { key, pressed: true, modifiers, .. } => match key_of(*key) {
             Some(typed) => KeyEvent::Press { key: typed, mods: mods(modifiers, os) },
