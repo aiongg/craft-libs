@@ -232,7 +232,7 @@ impl<'a> IconButton<'a> {
 
     /// The button's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> IconButtonStyle {
-        let ghost = *crate::style::button::ButtonStyle::new(tokens).colors(ButtonVariant::Ghost);
+        let ghost = *crate::style::button::ButtonLook::new(tokens).colors(ButtonVariant::Ghost);
         let on = super::toggle_button::on_colors(tokens);
         let (side, icon_side) = match size {
             ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),

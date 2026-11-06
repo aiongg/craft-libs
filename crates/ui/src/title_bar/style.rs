@@ -24,7 +24,7 @@ pub struct TitleBarStyle {
     pub title_role: TypeRole,
     /// Width of the resize zones along the window edges: `title_bar.edge`.
     pub edge: f32,
-    /// Side of the resize zones at the window corners: `title_bar.corner`.
+    /// Side of the resize zones at the window corners: [`CORNER_RESIZE`].
     pub corner: f32,
     /// The bar's background, and Breeze's glyph on its hovered or pressed disc: `title_bar.bar`.
     pub bar: Color32,
@@ -65,6 +65,8 @@ const BREEZE_PRESSED_MIX: f32 = 0.7;
 const ADWAITA_HEIGHT: f32 = 47.0;
 /// The room kept between the title and the buttons before the title is cut.
 const TITLE_MIN_GAP: f32 = 80.0;
+/// Side of the resize zones at the window corners, larger than any corner radius.
+pub const CORNER_RESIZE: f32 = 12.0;
 /// The Windows Close button's hover fill.
 const WINDOWS_CLOSE: Rgba = Rgba::rgb(0xC4, 0x2B, 0x1C);
 /// The glyph on the Windows Close button's hover fill.
@@ -98,7 +100,7 @@ impl TitleBarStyle {
             title_min_gap: TITLE_MIN_GAP,
             title_role: TypeRole::Title,
             edge: space.gap.stack,
-            corner: tokens.shape.radius.window,
+            corner: CORNER_RESIZE,
             bar: bar.to_egui(),
             title: c.text.muted.to_egui(),
             glyph: c.text.normal.to_egui(),

@@ -27,7 +27,7 @@ pub(super) fn every_builtin() -> Vec<UiTokens> {
 #[test]
 fn button_styles_are_their_semantic_tokens() {
     for t in every_builtin() {
-        let looks = crate::style::button::ButtonStyle::new(&t);
+        let looks = crate::style::button::ButtonLook::new(&t);
         for variant in ButtonVariant::ALL {
             let colors = looks.colors(variant);
             for size in SIZES {
@@ -38,8 +38,8 @@ fn button_styles_are_their_semantic_tokens() {
                     assert_eq!(s.text.get(state), colors.text.get(state).to_egui(), "{variant:?} text {state:?}");
                 }
                 let (height, pad_x, icon) = match size {
-                    ControlSize::Sm => (t.size.control.sm, t.space.pad.control, t.size.icon.sm),
-                    ControlSize::Md => (t.size.control.md, t.space.pad.dialog, t.size.icon.md),
+                    ControlSize::Sm => (t.size.control.sm, t.size.control.sm / 2.0 + t.space.gap.inline, t.size.icon.sm),
+                    ControlSize::Md => (t.size.control.md, t.size.control.md / 2.0 + t.space.gap.inline, t.size.icon.md),
                 };
                 assert_eq!((s.height, s.pad_x, s.icon, s.gap, s.label), (height, pad_x, icon, t.space.gap.inline, TypeRole::Label));
                 assert_eq!(s.border_width, t.stroke.thin);
@@ -47,6 +47,45 @@ fn button_styles_are_their_semantic_tokens() {
                 let surface = if variant == ButtonVariant::Ghost { None } else { Some(SurfaceKind::Raised) };
                 assert_eq!(s.surface, surface);
             }
+        }
+    }
+}
+
+#[test]
+fn primary_button_uses_the_strong_accent_pair() {
+    for t in every_builtin() {
+        let primary = crate::style::button::ButtonLook::new(&t).primary;
+        assert_eq!(primary.fill.rest, t.color.accent.strong);
+        assert_eq!(primary.fill.hover, t.color.accent.strong_hover);
+        assert_eq!(primary.text.rest, t.color.text.on_strong);
+    }
+}
+
+#[test]
+fn on_toggle_text_reads_on_its_fill_in_high_contrast() {
+    for theme in builtins() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let high = Appearance { mode, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
+            let t = UiTokens::new(resolve(&theme, high, None).tokens, high, mode, FontFamilies::default());
+            let on = super::toggle_button::on_colors(&t);
+            let fill = t.color.surface.panel.to_egui().blend(on.fill.rest);
+            let fill = craft_theme::Srgba::from(fill).into();
+            let ratio = contrast_ratio(craft_theme::Srgba::from(on.text.rest).into(), fill);
+            assert!(ratio >= 4.5, "{} {mode:?}: {ratio}", theme.id);
+        }
+    }
+}
+
+#[test]
+fn bevel_check_keeps_its_face_and_outline_while_on() {
+    for t in every_builtin() {
+        let colors = super::check::CheckColors::new(&t);
+        if matches!(t.shape.edge, craft_theme::Edge::Bevel { .. }) {
+            assert_eq!(colors.on.fill, colors.off.fill, "{}", t.color.surface.sunken.to_hex());
+            assert_eq!(colors.on.border, colors.off.border);
+            assert_eq!(colors.on.mark.rest, t.color.line.mark);
+        } else {
+            assert_eq!(colors.on.border.rest, craft_theme::Rgba::TRANSPARENT);
         }
     }
 }
@@ -60,16 +99,17 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
                 ControlSize::Sm => (t.size.control.sm, t.size.icon.sm, 2.0),
                 ControlSize::Md => (t.size.control.md, t.size.icon.md, 4.0),
             };
+            let on = super::toggle_button::on_colors(&t);
             let i = IconButton::style(&t, size);
             assert_eq!((i.side, i.icon, i.radius), (side, icon - glyph_less, Corner::Control.radius(&t)));
-            let ghost = crate::style::button::ButtonStyle::new(&t).ghost;
+            let ghost = crate::style::button::ButtonLook::new(&t).ghost;
             assert_eq!((i.fill, i.text), (ghost.fill.to_egui(), ghost.text.to_egui()));
             assert_eq!(
                 [i.selected_fill, i.selected_border, i.selected_text].map(|s| (s.rest, s.pressed, s.disabled)),
                 [
                     (c.accent.soft.to_egui(), c.accent.soft.to_egui(), c.accent.soft.to_egui()),
                     (c.accent.border.to_egui(), c.accent.border.to_egui(), c.line.divider.to_egui()),
-                    (c.accent.text.to_egui(), c.accent.text.to_egui(), c.text.disabled.to_egui()),
+                    (on.text.rest, on.text.pressed, c.text.disabled.to_egui()),
                 ],
                 "on, the icon button holds the accent colours"
             );
@@ -78,10 +118,11 @@ fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));
             let on = c.accent.soft.to_egui();
+            let on_text = super::toggle_button::on_colors(&t).text.rest;
             assert_eq!(toggle.on_fill.get(State::Rest), on, "on, the toggle holds the accent colours");
             assert_eq!(toggle.on_fill.get(State::Pressed), on);
             assert_eq!(toggle.on_border.get(State::Hover), c.accent.border.to_egui());
-            assert_eq!(toggle.on_text.get(State::Rest), c.accent.text.to_egui());
+            assert_eq!(toggle.on_text.get(State::Rest), on_text);
             let on_disabled = [&toggle.on_fill, &toggle.on_border, &toggle.on_text].map(|s| s.get(State::Disabled));
             assert_eq!(on_disabled, [c.accent.soft.to_egui(), c.line.divider.to_egui(), c.text.disabled.to_egui()], "on and disabled");
             assert_ne!(toggle.on_fill.get(State::Disabled), toggle.off.fill.get(State::Disabled), "on and disabled still looks on");

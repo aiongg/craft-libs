@@ -179,15 +179,16 @@ impl Button {
 
     /// The sizes and colours for `variant` and `size` from `tokens`.
     pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> ButtonStyle {
-        let colors = *crate::style::button::ButtonStyle::new(tokens).colors(variant);
+        let colors = *crate::style::button::ButtonLook::new(tokens).colors(variant);
+        let gap = tokens.space.gap.inline;
         let (height, pad_x, icon) = match size {
-            ControlSize::Sm => (tokens.size.control.sm, tokens.space.pad.control, tokens.size.icon.sm),
-            ControlSize::Md => (tokens.size.control.md, tokens.space.pad.dialog, tokens.size.icon.md),
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.control.sm / 2.0 + gap, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.control.md / 2.0 + gap, tokens.size.icon.md),
         };
         ButtonStyle {
             height,
             pad_x,
-            gap: tokens.space.gap.inline,
+            gap,
             icon,
             label: TypeRole::Label,
             radius: Corner::Button.radius(tokens),

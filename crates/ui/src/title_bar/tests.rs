@@ -729,7 +729,7 @@ fn the_style_follows_the_semantic_tokens_in_every_built_in() {
             for size in [Size::Compact, Size::Comfortable] {
                 let t = tokens(size, mode, theme);
                 let (s, c, space) = (TitleBar::style(&t), &t.color, &t.space);
-                let want = (t.size.bar.title, space.pad.panel, space.gap.stack, t.shape.radius.window);
+                let want = (t.size.bar.title, space.pad.panel, space.gap.stack, super::style::CORNER_RESIZE);
                 assert_eq!((s.height, s.pad, s.edge, s.corner), want, "{}", theme.id.as_str());
                 let colours = [s.bar, s.title, s.glyph, s.glyph_inactive, s.separator];
                 let family = [c.surface.chrome, c.text.muted, c.text.normal, c.text.muted, c.line.divider].map(|c| c.to_egui());

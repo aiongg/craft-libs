@@ -247,7 +247,7 @@ impl RangeSlider {
 /// `text.normal` with a 1 point `text.muted` outline and 1 point corners, flat (`text.disabled`
 /// when disabled).
 pub(super) fn range_style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
-    let (s, c) = (crate::style::slider::SliderStyle::new(tokens), &tokens.color);
+    let (s, c) = (crate::style::slider::SliderLook::new(tokens), &tokens.color);
     let mut style = Slider::style(tokens, size);
     style.thumb_width = s.range_thumb_width.get(size);
     style.thumb = s.range_thumb_height.get(size);

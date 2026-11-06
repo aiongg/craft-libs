@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use craft_theme::{
-    CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline,
+    CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Edge, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline,
 };
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
@@ -117,15 +117,21 @@ impl CheckColors {
         let darker = |v: u8| (f32::from(v) * OFF_PRESSED_SHARE).round() as u8;
         let (face, edge) = (c.surface.knob, c.line.knob_edge);
         let disabled_face = mix(face, c.surface.panel, KNOB_DISABLED);
+        let bevel = matches!(tokens.shape.edge, Edge::Bevel { .. });
+        let off_fill = States::new(sunken, sunken, Rgba([darker(r), darker(g), darker(b), a]), c.state.disabled_fill);
+        let off = CheckOffColors { fill: off_fill, border: outline };
         CheckColors {
-            off: CheckOffColors {
-                fill: States::new(sunken, sunken, Rgba([darker(r), darker(g), darker(b), a]), c.state.disabled_fill),
-                border: outline,
-            },
-            on: CheckOnColors {
-                fill: States::new(solid, solid, solid.faded(ON_PRESSED_OPACITY), c.text.disabled),
-                border: States::new(clear, clear, clear, c.text.disabled),
-                mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
+            off,
+            on: if bevel {
+                // The sunken face stays and the mark does the work of the accent fill.
+                let mark = c.line.mark;
+                CheckOnColors { fill: off_fill, border: outline, mark: States::new(mark, mark, mark, c.text.disabled) }
+            } else {
+                CheckOnColors {
+                    fill: States::new(solid, solid, solid.faded(ON_PRESSED_OPACITY), c.text.disabled),
+                    border: States::new(clear, clear, clear, c.text.disabled),
+                    mark: States::new(on_accent, on_accent, on_accent, c.state.disabled_fill),
+                }
             },
             switch: CheckSwitchColors { fill: switch, border: switch },
             thumb: ThumbColors { fill: States::new(face, face, face, disabled_face), border: States::new(edge, edge, edge, c.line.divider) },
