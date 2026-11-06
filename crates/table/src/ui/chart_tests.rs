@@ -23,7 +23,7 @@ fn bounds(shapes: &[Shape]) -> Rect {
 fn every_primitive_paints() {
     let origin = pos2(10.0, 20.0);
     let zoom = 2.0;
-    let rect = ChartPrimitive::Rect { x: 5.0, y: 6.0, w: 30.0, h: 10.0, fill: Some(RED), stroke: None, radius: 0.0 };
+    let rect = ChartPrimitive::Rect { x: 5.0, y: 6.0, width: 30.0, height: 10.0, fill: Some(RED), stroke: None, radius: 0.0 };
     let shapes = painted(&[rect], origin, zoom);
     assert_eq!(bounds(&shapes), Rect::from_min_size(pos2(20.0, 32.0), vec2(60.0, 20.0)));
 
@@ -41,10 +41,10 @@ fn every_primitive_paints() {
         ChartPrimitive::Polygon { points: vec![[0.0, 2.0], [3.0, 0.0], [6.0, 6.0], [10.0, 1.0], [10.0, 10.0], [0.0, 10.0]], fill: RED, stroke: None };
     assert!(matches!(painted(&[mountain], origin, zoom)[0], Shape::Mesh(_)), "a concave polygon is a mesh");
 
-    let wedge = ChartPrimitive::Wedge { cx: 50.0, cy: 50.0, r_outer: 20.0, r_inner: 0.0, a0: 0.0, a1: 1.5, fill: RED, stroke: Some((RED, 1.0)) };
+    let wedge = ChartPrimitive::Wedge { center_x: 50.0, center_y: 50.0, outer_radius: 20.0, inner_radius: 0.0, start_angle: 0.0, end_angle: 1.5, fill: RED, stroke: Some((RED, 1.0)) };
     let shapes = painted(&[wedge], origin, zoom);
     assert!(shapes.len() >= 2, "a wedge is a mesh and its outline");
-    let circle = ChartPrimitive::Circle { cx: 50.0, cy: 50.0, r: 5.0, fill: Some(RED), stroke: None };
+    let circle = ChartPrimitive::Circle { center_x: 50.0, center_y: 50.0, radius: 5.0, fill: Some(RED), stroke: None };
     let shapes = painted(&[circle], origin, zoom);
     assert_eq!(bounds(&shapes).center(), pos2(110.0, 120.0));
 

@@ -114,13 +114,13 @@ fn dragging_keys_reports_time_and_value() {
     let mut harness = graph(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::new());
     harness.drag(point(2.0, 50.0), point(2.5, 70.0), Modifiers::NONE);
     let Some(EditEvent::Commit { value, changed: true, .. }) = harness.state().moved.last().cloned() else { panic!("{:?}", harness.state().moved) };
-    assert!((value.dt.seconds() - 0.5).abs() < 0.02 && (value.dv - 20.0).abs() < 1.0, "{value:?}");
+    assert!((value.delta_time.seconds() - 0.5).abs() < 0.02 && (value.delta_value - 20.0).abs() < 1.0, "{value:?}");
     assert!(harness.state().selection.contains(&KeyframeId(1)), "grabbing a key selects it");
 
     let mut harness = graph(vec![curve(vec![key(1, 2.0, 50.0)])], Selection::new());
     harness.drag(point(2.0, 50.0), point(2.5, 55.0), Modifiers::SHIFT);
     let Some(EditEvent::Commit { value, .. }) = harness.state().moved.last().cloned() else { panic!("{:?}", harness.state().moved) };
-    assert!(value.dt.seconds() > 0.4 && value.dv == 0.0, "Shift keeps the time axis: {value:?}");
+    assert!(value.delta_time.seconds() > 0.4 && value.delta_value == 0.0, "Shift keeps the time axis: {value:?}");
 }
 
 // a handle drag reports HandleMove; Alt breaks it.

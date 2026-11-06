@@ -887,8 +887,8 @@ fn graph_editor(ui: &mut Ui, _: &mut NoArgs) {
             let selection = &demo.selection;
             for curve in &mut demo.curves {
                 for key in curve.keys.iter_mut().filter(|k| selection.contains(&k.id)) {
-                    key.time = (key.time + delta.dt).max(Tick::ZERO);
-                    key.value += delta.dv;
+                    key.time = (key.time + delta.delta_time).max(Tick::ZERO);
+                    key.value += delta.delta_value;
                     flatten_handles(key);
                 }
                 resample(curve);

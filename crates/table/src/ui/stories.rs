@@ -617,7 +617,7 @@ fn column_chart(tokens: &UiTokens, ppp: f32, size: Vec2, title: &str, categories
         color: ink,
         bold: true,
         align: HAlign::Center,
-        valign: VAlign::Middle,
+        valign: VAlign::Center,
         rotation: 0.0,
     }];
     for step in 1..=3 {
@@ -631,7 +631,7 @@ fn column_chart(tokens: &UiTokens, ppp: f32, size: Vec2, title: &str, categories
         let w = slot * 0.6;
         let h = (bottom - top) * value / max;
         let x = left + slot * i as f32 + (slot - w) / 2.0;
-        prims.push(ChartPrimitive::Rect { x, y: bottom - h, w, h, fill: Some(bar), stroke: None, radius: 0.0 });
+        prims.push(ChartPrimitive::Rect { x, y: bottom - h, width: w, height: h, fill: Some(bar), stroke: None, radius: 0.0 });
         prims.push(ChartPrimitive::Text {
             x: x + w / 2.0,
             y: bottom + text_size / 2.0,
@@ -665,13 +665,13 @@ fn doughnut_chart(tokens: &UiTokens, ppp: f32, size: Vec2, title: &str, shares: 
         color: ink,
         bold: true,
         align: HAlign::Center,
-        valign: VAlign::Middle,
+        valign: VAlign::Center,
         rotation: 0.0,
     }];
     let mut from = 0.0;
     for (i, share) in shares.iter().enumerate() {
         let to = from + std::f32::consts::TAU * share / total;
-        prims.push(ChartPrimitive::Wedge { cx, cy, r_outer, r_inner: r_outer * 0.55, a0: from, a1: to, fill: colors[i % colors.len()], stroke: gap });
+        prims.push(ChartPrimitive::Wedge { center_x: cx, center_y: cy, outer_radius: r_outer, inner_radius: r_outer * 0.55, start_angle: from, end_angle: to, fill: colors[i % colors.len()], stroke: gap });
         from = to;
     }
     prims

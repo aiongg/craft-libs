@@ -130,9 +130,9 @@ impl Default for GraphRange {
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct GraphKeyMove {
     /// The shift in time.
-    pub dt: Tick,
+    pub delta_time: Tick,
     /// The shift in value, in the curve's own units.
-    pub dv: f64,
+    pub delta_value: f64,
 }
 
 /// Which handle of a key.
@@ -324,14 +324,14 @@ impl<'a> GraphEditor<'a> {
         let (moved, pulled) = (*moving.shown(), *pulling.shown());
         let key_at = |key: &GraphKey| {
             let shifted = key_drag.as_ref().is_some_and(|drag| drag.group.contains(&key.id));
-            let (dt, dv) = if shifted { (moved.dt, moved.dv) } else { (Tick::ZERO, 0.0) };
+            let (dt, dv) = if shifted { (moved.delta_time, moved.delta_value) } else { (Tick::ZERO, 0.0) };
             pos2(x_of(key.time + dt), y_of(key.value + dv))
         };
         let handle_at = |key: &GraphKey, side: HandleSide, at: (Tick, f64)| match handle_drag {
             Some(grab) if grab.key == key.id && grab.side == side => pos2(x_of(grab.time + pulled.0), y_of(grab.value + pulled.1)),
             _ => {
                 let shifted = key_drag.as_ref().is_some_and(|drag| drag.group.contains(&key.id));
-                let (dt, dv) = if shifted { (moved.dt, moved.dv) } else { (Tick::ZERO, 0.0) };
+                let (dt, dv) = if shifted { (moved.delta_time, moved.delta_value) } else { (Tick::ZERO, 0.0) };
                 pos2(x_of(at.0 + dt), y_of(at.1 + dv))
             }
         };
@@ -399,7 +399,7 @@ impl<'a> GraphEditor<'a> {
                         let (time_ok, value_ok) = axes(modifiers.shift, pos.x - grab.press.x, pos.y - grab.press.y);
                         let dt = if time_ok { time_at(pos.x) - time_at(grab.press.x) } else { Tick::ZERO };
                         let dv = if value_ok { value_at(pos.y) - value_at(grab.press.y) } else { 0.0 };
-                        moving.update(GraphKeyMove { dt, dv }, modifiers);
+                        moving.update(GraphKeyMove { delta_time: dt, delta_value: dv }, modifiers);
                     }
                     if key_response.drag_stopped() {
                         moving.commit();
@@ -555,16 +555,16 @@ fn keyboard(
         KeyClaim::claim(ui.ctx(), id, &[ClaimedKey::exact(Modifiers::NONE, Key::Delete), ClaimedKey::exact(Modifiers::NONE, Key::Backspace)]);
         let mut nudge = GraphKeyMove::default();
         if pressed(ui, Key::ArrowLeft) {
-            nudge.dt = Tick(-frame.0);
+            nudge.delta_time = Tick(-frame.0);
         }
         if pressed(ui, Key::ArrowRight) {
-            nudge.dt = frame;
+            nudge.delta_time = frame;
         }
         if pressed(ui, Key::ArrowUp) {
-            nudge.dv = step;
+            nudge.delta_value = step;
         }
         if pressed(ui, Key::ArrowDown) {
-            nudge.dv = -step;
+            nudge.delta_value = -step;
         }
         if nudge != GraphKeyMove::default() && !selection.is_empty() {
             moving.set(nudge);

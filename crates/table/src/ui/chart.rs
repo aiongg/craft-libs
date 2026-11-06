@@ -37,7 +37,7 @@ pub enum VAlign {
     #[allow(missing_docs)]
     Top,
     #[allow(missing_docs)]
-    Middle,
+    Center,
     #[allow(missing_docs)]
     Bottom,
 }
@@ -54,9 +54,9 @@ pub enum ChartPrimitive {
         /// Top edge.
         y: f32,
         /// Width.
-        w: f32,
+        width: f32,
         /// Height.
-        h: f32,
+        height: f32,
         /// Fill colour; `None` for no fill.
         fill: Option<[u8; 4]>,
         /// Stroke colour and width; `None` for no stroke.
@@ -87,17 +87,17 @@ pub enum ChartPrimitive {
     /// A pie or doughnut sector: centre, radii, angles in radians (0 at 12 o'clock, clockwise).
     Wedge {
         /// Centre x.
-        cx: f32,
+        center_x: f32,
         /// Centre y.
-        cy: f32,
+        center_y: f32,
         /// Outer radius.
-        r_outer: f32,
+        outer_radius: f32,
         /// Inner radius; 0 for a pie sector, above 0 for a doughnut.
-        r_inner: f32,
+        inner_radius: f32,
         /// Start angle.
-        a0: f32,
+        start_angle: f32,
         /// End angle.
-        a1: f32,
+        end_angle: f32,
         /// Fill colour.
         fill: [u8; 4],
         /// Stroke colour and width; `None` for no stroke.
@@ -106,11 +106,11 @@ pub enum ChartPrimitive {
     /// A circle.
     Circle {
         /// Centre x.
-        cx: f32,
+        center_x: f32,
         /// Centre y.
-        cy: f32,
+        center_y: f32,
         /// Radius.
-        r: f32,
+        radius: f32,
         /// Fill colour; `None` for no fill.
         fill: Option<[u8; 4]>,
         /// Stroke colour and width; `None` for no stroke.
@@ -157,8 +157,8 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
     let stroke_zoom = zoom.max(MIN_STROKE_ZOOM);
     for primitive in primitives {
         match primitive {
-            ChartPrimitive::Rect { x, y, w, h, fill, stroke, radius } => {
-                let rect = Rect::from_min_size(at(*x, *y), vec2(w * zoom, h * zoom));
+            ChartPrimitive::Rect { x, y, width, height, fill, stroke, radius } => {
+                let rect = Rect::from_min_size(at(*x, *y), vec2(width * zoom, height * zoom));
                 if let Some(fill) = fill {
                     painter.rect_filled(rect, radius * zoom, rgba(*fill));
                 }
@@ -192,16 +192,16 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                     painter.add(PathShape::closed_line(points, PathStroke::new(width * stroke_zoom, rgba(*color))));
                 }
             }
-            ChartPrimitive::Wedge { cx, cy, r_outer, r_inner, a0, a1, fill, stroke } => {
-                let centre = at(*cx, *cy);
-                let steps = (((a1 - a0).abs() / WEDGE_STEP).ceil() as usize).clamp(WEDGE_STEPS.0, WEDGE_STEPS.1);
+            ChartPrimitive::Wedge { center_x, center_y, outer_radius, inner_radius, start_angle, end_angle, fill, stroke } => {
+                let centre = at(*center_x, *center_y);
+                let steps = (((end_angle - start_angle).abs() / WEDGE_STEP).ceil() as usize).clamp(WEDGE_STEPS.0, WEDGE_STEPS.1);
                 let on = |angle: f32, radius: f32| pos2(centre.x + radius * zoom * angle.sin(), centre.y - radius * zoom * angle.cos());
-                let angle = |i: usize| a0 + (a1 - a0) * i as f32 / steps as f32;
+                let angle = |i: usize| start_angle + (end_angle - start_angle) * i as f32 / steps as f32;
                 let color = rgba(*fill);
                 let mut mesh = Mesh::default();
                 for i in 0..=steps {
-                    mesh.colored_vertex(on(angle(i), *r_outer), color);
-                    mesh.colored_vertex(if *r_inner > 0.0 { on(angle(i), *r_inner) } else { centre }, color);
+                    mesh.colored_vertex(on(angle(i), *outer_radius), color);
+                    mesh.colored_vertex(if *inner_radius > 0.0 { on(angle(i), *inner_radius) } else { centre }, color);
                 }
                 for i in 0..steps as u32 {
                     let b = i * 2;
@@ -210,21 +210,21 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                 }
                 painter.add(Shape::mesh(mesh));
                 if let Some((color, width)) = stroke {
-                    let mut outline: Vec<Pos2> = (0..=steps).map(|i| on(angle(i), *r_outer)).collect();
-                    if *r_inner > 0.0 {
-                        outline.extend((0..=steps).rev().map(|i| on(angle(i), *r_inner)));
+                    let mut outline: Vec<Pos2> = (0..=steps).map(|i| on(angle(i), *outer_radius)).collect();
+                    if *inner_radius > 0.0 {
+                        outline.extend((0..=steps).rev().map(|i| on(angle(i), *inner_radius)));
                     } else {
                         outline.push(centre);
                     }
                     painter.add(PathShape::closed_line(outline, PathStroke::new(width * stroke_zoom, rgba(*color))));
                 }
             }
-            ChartPrimitive::Circle { cx, cy, r, fill, stroke } => {
+            ChartPrimitive::Circle { center_x, center_y, radius, fill, stroke } => {
                 if let Some(fill) = fill {
-                    painter.circle_filled(at(*cx, *cy), r * zoom, rgba(*fill));
+                    painter.circle_filled(at(*center_x, *center_y), radius * zoom, rgba(*fill));
                 }
                 if let Some((color, width)) = stroke {
-                    painter.circle_stroke(at(*cx, *cy), r * zoom, Stroke::new(width * stroke_zoom, rgba(*color)));
+                    painter.circle_stroke(at(*center_x, *center_y), radius * zoom, Stroke::new(width * stroke_zoom, rgba(*color)));
                 }
             }
             ChartPrimitive::Text { x, y, text, size, color, bold, align, valign, rotation } => {
@@ -240,7 +240,7 @@ pub fn paint_chart(painter: &Painter, origin: Pos2, primitives: &[ChartPrimitive
                 };
                 let ay = match valign {
                     VAlign::Top => 0.0,
-                    VAlign::Middle => 0.5,
+                    VAlign::Center => 0.5,
                     VAlign::Bottom => 1.0,
                 };
                 let anchor = at(*x, *y);
