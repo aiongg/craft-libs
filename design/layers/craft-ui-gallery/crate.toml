@@ -1,3 +1,3 @@
 config_version = 1
-lowest_layer = 8
-highest_layer = 8
+lowest = 8
+highest = 8

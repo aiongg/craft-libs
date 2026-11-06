@@ -43,6 +43,8 @@ pub struct Metadata {
 pub struct Package {
     /// Package name.
     pub name: String,
+    /// The directory of the crate's `Cargo.toml`, when the metadata names the manifest.
+    pub dir: Option<PathBuf>,
     /// The library target's root file, when the crate has one.
     pub lib_root: Option<PathBuf>,
     /// Declared features and what each enables.
@@ -70,6 +72,7 @@ struct RawMetadata {
 #[derive(Deserialize)]
 struct RawPackage {
     name: String,
+    manifest_path: Option<PathBuf>,
     #[serde(default)]
     features: BTreeMap<String, Vec<String>>,
     #[serde(default)]
@@ -114,7 +117,7 @@ impl Metadata {
         Ok(Self { packages })
     }
 
-    fn package(&self, name: &str) -> Option<&Package> {
+    pub(crate) fn package(&self, name: &str) -> Option<&Package> {
         self.packages.iter().find(|p| p.name == name)
     }
 }
@@ -122,7 +125,8 @@ impl Metadata {
 fn package(root: &Path, raw: RawPackage) -> Package {
     let lib_root = raw.targets.iter().find(|t| t.kind.iter().any(|k| k == "lib" || k == "rlib")).map(|t| root.join(&t.src_path));
     let dependencies = raw.dependencies.into_iter().map(|d| Dependency { name: d.name, normal: d.kind.is_none(), optional: d.optional }).collect();
-    Package { name: raw.name, lib_root, features: raw.features, dependencies }
+    let dir = raw.manifest_path.and_then(|m| m.parent().map(|d| root.join(d)));
+    Package { name: raw.name, dir, lib_root, features: raw.features, dependencies }
 }
 
 fn denied_egui(name: &str) -> bool {

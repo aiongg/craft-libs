@@ -24,12 +24,14 @@ mod graph;
 mod layers;
 mod resolve;
 mod structure;
+mod workspace;
 
 pub use clones::{Family, check_clones, load_families};
 pub use exceptions::{Entry, Exceptions, Origin, Site, scan_sites};
 pub use graph::{Metadata, check_features, check_graph};
 pub use layers::{CrateLayers, LayerInfo, LayerMaps, ModuleLayer, Placement};
 pub use structure::{check_structure, exempt_sites, run_structure};
+pub use workspace::{WorkspaceScope, check_workspace};
 // --- end of structure checks ---
 
 use std::cell::RefCell;

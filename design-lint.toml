@@ -1,0 +1,4 @@
+[lint]
+paths = ["crates/behavior", "crates/ui", "crates/ui-macros", "crates/ui-gallery"]
+include-tests = true
+deny-unused = true

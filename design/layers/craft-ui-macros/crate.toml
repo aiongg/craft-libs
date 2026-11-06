@@ -1,3 +1,2 @@
 config_version = 1
-lowest_layer = "outside"
-highest_layer = "outside"
+outside = true

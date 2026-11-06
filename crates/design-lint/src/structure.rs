@@ -49,7 +49,7 @@ pub fn check_structure(root: &Path, meta: &Metadata, extra_sites: &[Site]) -> Re
     let mut sites = extra_sites.to_vec();
     sites.extend(source_sites(root, &index)?);
     sites.extend(check_graph(meta, &maps));
-    sites.extend(check_features(meta));
+    sites.extend(check_features(meta).into_iter().filter(|s| maps.get(s.subject.split('/').next().unwrap_or_default()).is_some()));
     findings.extend(exceptions.apply(&sites));
 
     findings.extend(check_clones(root, &load_families(root, &root.join(CLONES_DIR))?)?);
@@ -96,7 +96,8 @@ pub fn exempt_sites(config: &crate::Config) -> Vec<Site> {
 }
 
 const USAGE: &str = "usage: craft-design-lint structure [--root <dir>] [--config <design-lint.toml>]
-  runs the layer-map, import, exception, crate-graph, features and clone checks of the repository at <dir> (default .)";
+  runs the layer-map, import, exception, crate-graph, features and clone checks of the repository at <dir> (default .);
+  with --config it also runs the egui-ban and API rules over the config's paths (relative to <dir>)";
 
 /// The `structure` command: arguments after the command name.
 pub fn run_structure(args: &[String]) -> Result<ExitCode, Error> {
@@ -114,11 +115,11 @@ pub fn run_structure(args: &[String]) -> Result<ExitCode, Error> {
             }
         }
     }
-    let extra = match config {
-        Some(path) => exempt_sites(&crate::Config::load(&path)?),
-        None => Vec::new(),
+    let meta = Metadata::run(&root)?;
+    let findings = match config {
+        Some(path) => crate::check_workspace(&root, &crate::Config::load(&path)?, &meta)?,
+        None => check_structure(&root, &meta, &[])?,
     };
-    let findings = check_structure(&root, &Metadata::run(&root)?, &extra)?;
     for f in &findings {
         println!("{f}");
     }

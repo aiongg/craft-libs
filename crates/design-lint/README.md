@@ -93,6 +93,10 @@ craft-design-lint check --baseline design-lint-baseline.toml
 
 The baseline stores error-finding counts per file and rule. The check fails when a count rises (a new file or rule counts from zero) and prints the findings of the rising files and rules. A file that does not parse always fails, and no baseline is written while one exists.
 
+## Workspace check
+
+`craft-design-lint structure --config design-lint.toml` from the repository root runs the structure checks and, over the config's paths, every rule of the egui-ban and API tables. The layer map is the rules' scope: a file's layer comes from the map, "allowed in" locations from spec 24.1 (`runtime::egui` and its submodules), egui linkage from `cargo metadata` dependencies, and `harness = false` targets from the `[[test]]` tables. Exit code 1 on any error. `cargo test -p craft-design-lint --test workspace` runs the same check.
+
 ## Structure checks
 
 `craft-design-lint structure [--root DIR] [--config design-lint.toml]` runs the repository-wide checks of spec chapter 24 from `cargo metadata --no-deps` and the files under `design/`. Every file starts with `config_version = 1`. Findings are rustc-style lines; exit code 1 on any error.
@@ -105,7 +109,7 @@ The baseline stores error-finding counts per file and rule. The check fails when
 | `layer/internal` | a use from a layer above an internal module's range |
 | `exception/unlisted`, `exception/stale`, `exception/expired`, `exception/invalid` | sites without an entry or beyond its count; entries listing more than exist (the ratchet: counts fall, never rise); entries whose `expires` milestone landed; malformed entries |
 | `graph/layer`, `graph/tokens-services`, `graph/egui` | normal dependencies against the layer ranges; `graph/egui` covers layers 0 and 1 (egui family, winit, wgpu; `accesskit` in layer 0) |
-| `features/gate` | a Cargo feature that gates no optional dependency, directly or through a workspace crate's feature |
+| `features/gate` | a Cargo feature of a mapped crate that gates no optional dependency, directly or through a workspace crate's feature |
 | `clone/baseline`, `clone/slack` | a family's duplicated tokens above or below its baseline |
 
 `graph/*` and `features/gate` breaches are excused by exception entries with the same rule and the subject as `path` (`craft-window->egui`, `craft-ui/fast`).
