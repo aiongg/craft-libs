@@ -52,16 +52,37 @@ pub struct FocusPolicy {
 
 impl FocusPolicy {
     /// A scope that changes nothing.
-    pub const NONE: FocusPolicy =
-        FocusPolicy { kind: ScopeKind::Group, trap: false, restore: false, initial: Initial::Keep, enter: EnterRule::Pass, cancel: CancelRule::Ignore, pages: false };
+    pub const NONE: FocusPolicy = FocusPolicy {
+        kind: ScopeKind::Group,
+        trap: false,
+        restore: false,
+        initial: Initial::Keep,
+        enter: EnterRule::Pass,
+        cancel: CancelRule::Ignore,
+        pages: false,
+    };
     /// A pane: an F6 stop.
     pub const PANE: FocusPolicy = FocusPolicy { kind: ScopeKind::Pane, ..FocusPolicy::NONE };
     /// A dialog: Tab stays inside, Enter submits, Escape closes.
-    pub const DIALOG: FocusPolicy =
-        FocusPolicy { kind: ScopeKind::Dialog, trap: true, restore: true, initial: Initial::First, enter: EnterRule::Submit, cancel: CancelRule::Close, pages: false };
+    pub const DIALOG: FocusPolicy = FocusPolicy {
+        kind: ScopeKind::Dialog,
+        trap: true,
+        restore: true,
+        initial: Initial::First,
+        enter: EnterRule::Submit,
+        cancel: CancelRule::Close,
+        pages: false,
+    };
     /// A popup: focus moves in, Escape closes and focus returns to the opener.
-    pub const POPUP: FocusPolicy =
-        FocusPolicy { kind: ScopeKind::Popup, trap: true, restore: true, initial: Initial::First, enter: EnterRule::Pass, cancel: CancelRule::Close, pages: false };
+    pub const POPUP: FocusPolicy = FocusPolicy {
+        kind: ScopeKind::Popup,
+        trap: true,
+        restore: true,
+        initial: Initial::First,
+        enter: EnterRule::Pass,
+        cancel: CancelRule::Close,
+        pages: false,
+    };
     /// A menu: like a popup.
     pub const MENU: FocusPolicy = FocusPolicy { kind: ScopeKind::Menu, ..FocusPolicy::POPUP };
 
@@ -116,6 +137,7 @@ pub enum FocusTarget {
 
 /// The keys a focused component keeps from the key stage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum KeepKeys {
     /// None.
     None,
@@ -129,6 +151,7 @@ pub enum KeepKeys {
 
 /// The keys that activate a component.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum ActivateKeys {
     /// Neither.
     Neither,

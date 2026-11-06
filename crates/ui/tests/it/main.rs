@@ -1,6 +1,7 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
 mod egui_surface;
+mod focus;
 mod runtime;
 
 use craft_ui::testing::TRIALS;

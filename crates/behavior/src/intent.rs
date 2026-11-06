@@ -91,11 +91,19 @@ pub enum EditCommand {
 
 /// A position in a text document.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TextPos {
     /// The line.
     pub line: usize,
     /// The byte offset in the line.
     pub byte: usize,
+}
+
+impl TextPos {
+    /// The position `byte` bytes into `line`.
+    pub const fn new(line: usize, byte: usize) -> TextPos {
+        TextPos { line, byte }
+    }
 }
 
 /// An AccessKit action with no intent of its own, or any action on a non-focusable sub-node.

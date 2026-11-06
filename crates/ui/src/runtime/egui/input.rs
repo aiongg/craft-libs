@@ -108,7 +108,7 @@ pub(crate) enum KeyEvent {
     /// A pointer press, which ends keyboard modality.
     PointerPress,
     /// An AccessKit action request.
-    Access(accesskit::ActionRequest),
+    Access(Action),
     /// The held modifiers changed.
     Modifiers(craft_keymap::Mods),
     /// Anything else.
@@ -128,7 +128,45 @@ pub(crate) fn key_event(event: &Event, os: craft_behavior::Os) -> KeyEvent {
         Event::Cut => KeyEvent::Clip(craft_behavior::EditCommand::Cut),
         Event::Paste(_) => KeyEvent::Clip(craft_behavior::EditCommand::Paste),
         Event::PointerButton { pressed: true, .. } => KeyEvent::PointerPress,
-        Event::AccessKitActionRequest(request) => KeyEvent::Access(request.clone()),
+        Event::AccessKitActionRequest(request) => KeyEvent::Access(Action(request.clone())),
         _ => KeyEvent::Other,
+    }
+}
+
+/// An AccessKit action request, read without naming AccessKit.
+pub(crate) struct Action(accesskit::ActionRequest);
+
+/// What an action request asks for.
+pub(crate) enum ActionKind {
+    Focus,
+    Click,
+    Increment,
+    Decrement,
+    ShowContextMenu,
+    SetValue(f64),
+    Other,
+}
+
+impl Action {
+    /// The node the request targets, as `node_key` numbers nodes.
+    pub(crate) fn node(&self) -> u64 {
+        self.0.target_node.0
+    }
+
+    pub(crate) fn kind(&self) -> ActionKind {
+        match (self.0.action, &self.0.data) {
+            (accesskit::Action::Focus, _) => ActionKind::Focus,
+            (accesskit::Action::Click, _) => ActionKind::Click,
+            (accesskit::Action::Increment, _) => ActionKind::Increment,
+            (accesskit::Action::Decrement, _) => ActionKind::Decrement,
+            (accesskit::Action::ShowContextMenu, _) => ActionKind::ShowContextMenu,
+            (accesskit::Action::SetValue, Some(accesskit::ActionData::NumericValue(value))) => ActionKind::SetValue(*value),
+            _ => ActionKind::Other,
+        }
+    }
+
+    /// The request as an `Intent::Access` payload for the sub-node `part`.
+    pub(crate) fn request(&self, part: Option<craft_behavior::PartRef>) -> craft_behavior::AccessRequest {
+        craft_behavior::AccessRequest::new(self.0.action, part, self.0.data.clone())
     }
 }

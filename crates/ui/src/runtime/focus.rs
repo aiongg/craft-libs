@@ -357,12 +357,8 @@ pub fn take_reveal(ctx: &Context) -> Option<StopKey> {
 
 /// The begin hook: applies a pending request and this pass's Tab and F6 moves, then classifies the press.
 pub(crate) fn begin(ctx: &Context, tab_all_controls: bool) {
-    let input = BeginIn {
-        focused: egui_focus::focused(ctx),
-        press: press::press_at(ctx),
-        nav: crate::runtime::keys::take_nav(ctx),
-        tab_all_controls,
-    };
+    let input =
+        BeginIn { focused: egui_focus::focused(ctx), press: press::press_at(ctx), nav: crate::runtime::keys::take_nav(ctx), tab_all_controls };
     egui_focus::clear_directional_focus(ctx);
     let (acts, announcements) = with(ctx, |state| nav::begin(state, input));
     apply(ctx, acts);

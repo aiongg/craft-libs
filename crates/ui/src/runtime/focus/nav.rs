@@ -156,7 +156,12 @@ impl State {
 
     /// F6: the first stop of the next pane, with its label as the announcement.
     pub(super) fn pane(&mut self, forward: bool, all_controls: bool) -> (Vec<Act>, Vec<String>) {
-        let panes: Vec<Id> = self.last_scope_order.iter().copied().filter(|id| self.last_scopes.get(id).is_some_and(|scope| scope.policy.kind == ScopeKind::Pane)).collect();
+        let panes: Vec<Id> = self
+            .last_scope_order
+            .iter()
+            .copied()
+            .filter(|id| self.last_scopes.get(id).is_some_and(|scope| scope.policy.kind == ScopeKind::Pane))
+            .collect();
         let current = self.stop_of_focus();
         let here = current.as_ref().and_then(|rec| self.pane_of(rec));
         let at = here.and_then(|pane| panes.iter().position(|id| *id == pane));
@@ -193,9 +198,7 @@ impl State {
                 None => return Vec::new(),
             },
         };
-        let found = self
-            .find_stop(key)
-            .or_else(|| self.stops.iter().chain(&self.last_stops).find(|rec| rec.stop.id == key.0).cloned());
+        let found = self.find_stop(key).or_else(|| self.stops.iter().chain(&self.last_stops).find(|rec| rec.stop.id == key.0).cloned());
         match found {
             Some(rec) => self.focus_stop(rec),
             None => {
@@ -322,10 +325,18 @@ pub(super) fn end(state: &mut State, focused: Option<Id>) -> Vec<Act> {
             acts = state.focus_stop(rec);
         }
     }
-    state.focus_now = focused;
-    state.focused.retain(|root, _| Some(*root) == focused);
+    let now = acts.last().map_or(focused, |act| match act {
+        Act::Focus(id, _) => Some(*id),
+        Act::Surrender(_) => None,
+    });
+    state.focus_now = now;
+    state.focused.retain(|root, _| Some(*root) == now);
     let keys = state.stop_of_focus().map(|rec| rec.stop.keys);
-    state.record = super::FocusedRecord { claims: keys.map(|keys| keys.claims.to_vec()).unwrap_or_default(), keys, menu_bar: std::mem::take(&mut state.menu_bar) };
+    state.record = super::FocusedRecord {
+        claims: keys.map(|keys| keys.claims.to_vec()).unwrap_or_default(),
+        keys,
+        menu_bar: std::mem::take(&mut state.menu_bar),
+    };
     acts
 }
 

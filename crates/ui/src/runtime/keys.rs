@@ -2,7 +2,8 @@
 //! every key event of the pass, the begin hook turns them into the `Intents` of the focused component,
 //! and claims, menu-bar keys and AccessKit action requests are routed from the same record.
 
-use crate::runtime::egui::input::{self as raw_input, KeyEvent, RawInput};
+use crate::runtime::egui::access::node_key;
+use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
@@ -41,7 +42,7 @@ struct Batch {
     presses: Vec<Press>,
     texts: Vec<String>,
     clips: Vec<EditCommand>,
-    access: Vec<accesskit::ActionRequest>,
+    access: Vec<Action>,
     escapes: usize,
     claimed: Vec<Chord>,
     nav: NavKeys,
@@ -82,8 +83,8 @@ struct Stage {
     claimed: Vec<(Id, Chord)>,
     claims: Vec<Chord>,
     menu: Vec<MenuKey>,
-    nodes: HashMap<accesskit::NodeId, Node>,
-    last_nodes: HashMap<accesskit::NodeId, Node>,
+    nodes: HashMap<u64, Node>,
+    last_nodes: HashMap<u64, Node>,
     activated: HashMap<Id, Id>,
     alt: AltTrack,
 }
@@ -316,40 +317,31 @@ fn route_activate(rec: &StopRec, routed: &mut HashMap<Option<Id>, Routed>, activ
 /// An arrow key as a unit direction with the modifiers held.
 fn nudge_of(key: Key, mods: Mods) -> Option<(Vec2, Mods)> {
     let direction = match key {
-        Key::Left => Vec2::new(-1.0, 0.0),
-        Key::Right => Vec2::new(1.0, 0.0),
-        Key::Up => Vec2::new(0.0, -1.0),
-        Key::Down => Vec2::new(0.0, 1.0),
+        Key::Left => -Vec2::X,
+        Key::Right => Vec2::X,
+        Key::Up => -Vec2::Y,
+        Key::Down => Vec2::Y,
         _ => return None,
     };
     Some((direction, mods))
 }
 
 /// Routes an AccessKit action request to the owner of its target node, whatever the focus (9.2 rule 2).
-fn route_access(ctx: &Context, request: &accesskit::ActionRequest, nodes: &HashMap<accesskit::NodeId, Node>, routed: &mut HashMap<Option<Id>, Routed>) {
-    use accesskit::Action;
-    let Some(node) = nodes.get(&request.target_node).copied() else { return };
+fn route_access(ctx: &Context, request: &Action, nodes: &HashMap<u64, Node>, routed: &mut HashMap<Option<Id>, Routed>) {
+    let Some(node) = nodes.get(&request.node()).copied() else { return };
     let owner = Some(node.owner);
     if node.focusable {
         let target = node.part.map_or(focus::FocusTarget::Id(node.owner), |part| focus::FocusTarget::Part(node.owner, part));
         focus::request_now(ctx, target);
     }
-    match request.action {
-        Action::Focus => {
-            if !node.focusable {
-                push(routed, owner, Intent::Access(AccessRequest::new(Action::Focus, node.part, request.data.clone())), false);
-            }
-        }
-        Action::Click => push(routed, owner, Intent::Activate, false),
-        Action::Increment => push(routed, owner, Intent::Move(NavMove::Forward, MoveMods::PLAIN), false),
-        Action::Decrement => push(routed, owner, Intent::Move(NavMove::Back, MoveMods::PLAIN), false),
-        Action::ShowContextMenu => push(routed, owner, Intent::ContextMenu, false),
-        Action::SetValue => {
-            if let Some(accesskit::ActionData::NumericValue(value)) = request.data {
-                routed.entry(owner).or_default().set_value = Some(value);
-            }
-        }
-        action => push(routed, owner, Intent::Access(AccessRequest::new(action, node.part, request.data.clone())), false),
+    match request.kind() {
+        ActionKind::Focus if node.focusable => {}
+        ActionKind::Click => push(routed, owner, Intent::Activate, false),
+        ActionKind::Increment => push(routed, owner, Intent::Move(NavMove::Forward, MoveMods::PLAIN), false),
+        ActionKind::Decrement => push(routed, owner, Intent::Move(NavMove::Back, MoveMods::PLAIN), false),
+        ActionKind::ShowContextMenu => push(routed, owner, Intent::ContextMenu, false),
+        ActionKind::SetValue(value) => routed.entry(owner).or_default().set_value = Some(value),
+        ActionKind::Focus | ActionKind::Other => push(routed, owner, Intent::Access(request.request(node.part)), false),
     }
 }
 
@@ -516,6 +508,6 @@ pub fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
 #[doc(hidden)]
 pub fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
     current(ctx, |stage| {
-        stage.nodes.insert(node.accesskit_id(), Node { owner, part, focusable });
+        stage.nodes.insert(node_key(node), Node { owner, part, focusable });
     });
 }

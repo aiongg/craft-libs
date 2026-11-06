@@ -2,15 +2,16 @@
 //! classified focus move applies at the end hook.
 
 use super::{Act, State, StopKey};
+use crate::runtime::egui::areas::LayerKey;
 use crate::runtime::egui::focus as egui_focus;
-use craft_behavior::focus::{PressFocus, PressShape, classify_press};
 use craft_behavior::PartRef;
-use egui::{Context, Id, LayerId, Pos2, Rect};
+use craft_behavior::focus::{PressFocus, PressShape, classify_press};
+use egui::{Context, Id, Pos2, Rect};
 
 /// Where a primary press began and the egui layer on top there.
 pub(crate) struct PressAt {
     pos: Pos2,
-    layer: Option<LayerId>,
+    layer: Option<LayerKey>,
 }
 
 pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
@@ -24,7 +25,7 @@ pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
 #[non_exhaustive]
 pub struct PressShapeRecord {
     /// The egui layer the shape is on.
-    pub layer: LayerId,
+    pub layer: LayerKey,
     /// The shape's rect in screen points.
     pub rect: Rect,
     /// What the shape's sense says about focus.
@@ -39,7 +40,7 @@ pub struct PressShapeRecord {
 
 impl PressShapeRecord {
     /// A shape of `owner` on `layer` at `rect`.
-    pub fn new(layer: LayerId, rect: Rect, shape: PressShape, owner: Id) -> Self {
+    pub fn new(layer: LayerKey, rect: Rect, shape: PressShape, owner: Id) -> Self {
         PressShapeRecord { layer, rect, shape, owner, part: None, pane: None }
     }
 
