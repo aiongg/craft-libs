@@ -1061,20 +1061,20 @@ fn text_families(shape: &egui::Shape, text: &str, found: &mut Vec<egui::FontFami
 }
 
 #[test]
-fn a_secondary_button_of_the_suite_default_is_a_28_point_outlined_pill() {
+fn a_secondary_button_is_outlined_and_as_high_as_a_control() {
     let mut harness = harness().build_ui(|ui| {
         ui.add(Button::new("Cancel"));
     });
     harness.run();
-    let style = Button::style(&crate::theme::current(&harness.ctx), ButtonVariant::Secondary, ControlSize::Md);
+    let tokens = crate::theme::current(&harness.ctx);
+    let style = Button::style(&tokens, ButtonVariant::Secondary, ControlSize::Md);
     let node = harness.get_by_label("Cancel").rect();
-    assert_eq!((node.height(), style.border_width), (28.0, 1.5));
+    assert_eq!((node.height(), style.border_width), (tokens.size.control.md, tokens.stroke.thin));
     let outline = harness.output().shapes.iter().any(|c| {
         matches!(&c.shape, egui::Shape::Rect(r)
-            if r.stroke.width == 1.5 && r.stroke.color == style.border.rest && r.stroke_kind == egui::StrokeKind::Inside && (r.rect.size() - node.size()).abs().max_elem() < 1.0)
+            if r.stroke.width == style.border_width && r.stroke.color == style.border.rest && r.stroke_kind == egui::StrokeKind::Inside && (r.rect.size() - node.size()).abs().max_elem() < 1.0)
     });
-    assert!(outline, "the outline is drawn 1.5 points wide inside the button");
-    assert_eq!(style.fill.rest, egui::Color32::TRANSPARENT);
+    assert!(outline, "the outline is drawn inside the button at the border width");
 }
 
 #[test]

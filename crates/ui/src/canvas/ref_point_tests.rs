@@ -119,9 +119,10 @@ fn a_click_picks_at_once_and_the_grid_does_not_mirror_right_to_left() {
 
 #[test]
 fn the_picker_is_one_tab_stop_of_the_set_size() {
-    for (size, side) in [(RefSize::Compact, 16.0), (RefSize::Large, 72.0)] {
+    for size in [RefSize::Compact, RefSize::Large] {
         let mut h = harness(Direction::Ltr, Some(Anchor9::Center), size);
         h.run();
+        let side = ReferencePoint::style(&crate::theme::current(&h.ctx), size).side;
         let rect = h.get_by_label("Reference point").rect();
         assert_eq!((rect.width(), rect.height()), (side, side));
         h.key_press(Key::Tab);

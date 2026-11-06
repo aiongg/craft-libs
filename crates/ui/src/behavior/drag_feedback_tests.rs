@@ -37,18 +37,20 @@ fn the_badge_shows_the_hint_of_this_frame_only() {
     assert!(harness.query_by_label("3 items").is_some());
 }
 
-// The badge's rect starts 14 right of and 10 below the pointer, on the tooltip layer, and takes no input.
+// The badge's rect starts at the panel padding right of and a stack gap below the pointer, on the tooltip layer, and takes no input.
 #[test]
 fn the_badge_follows_the_pointer() {
     let mut harness = builder().build_ui(|ui| DragBadge::new("badge", "Paris.jpg").show(ui.ctx()));
+    let tokens = crate::theme::current(&harness.ctx);
+    let offset = vec2(tokens.space.pad.panel, tokens.space.gap.stack);
     for at in [pos2(100.0, 100.0), pos2(150.0, 120.0)] {
         harness.hover_at(at);
         harness.step();
         harness.step();
         let id = layer_id("badge", IdSalt::new("badge"));
         let rect = harness.ctx.memory(|m| m.area_rect(id)).expect("the badge's area");
-        assert_eq!(rect.min, at + vec2(14.0, 10.0));
-        let layer = harness.ctx.layer_id_at(at + vec2(20.0, 15.0));
+        assert_eq!(rect.min, at + offset);
+        let layer = harness.ctx.layer_id_at(at + offset + vec2(6.0, 5.0));
         assert!(layer.is_none_or(|l| l.order != Order::Tooltip), "the badge takes no pointer input: {layer:?}");
     }
 }

@@ -453,12 +453,13 @@ mod tests {
             };
             Base::resolve(&sel, SystemAppearance::default(), &defaults, None, &mut |i| builtins().iter().find(|t| t.id == *i).cloned())
         };
-        for (id, soft, radius) in [("craft.pro", false, 3), ("craft.studio", true, 6)] {
+        for id in ["craft.pro", "craft.studio"] {
             let ctx = Context::default();
             install(&ctx, &base(id));
             let mut style = None;
             let mut out = ctx.run_ui(RawInput::default(), |ui| {
-                let s = Select::style(&crate::theme::Tokens::of(ui), ControlSize::Md);
+                let tokens = crate::theme::Tokens::of(ui);
+                let s = Select::style(&tokens, ControlSize::Md);
                 let rect = Rect::from_min_size(pos2(10.0, 10.0), vec2(120.0, s.list.height));
                 let row = |chosen, lit| RowLook {
                     text: "Normal",
@@ -474,13 +475,15 @@ mod tests {
                 paint_row(ui, &s.list, ControlSize::Md, rect, &row(true, false));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 40.0)), &row(true, true));
                 paint_row(ui, &s.list, ControlSize::Md, rect.translate(vec2(0.0, 80.0)), &row(false, true));
-                style = Some(s);
+                style = Some((s, tokens));
             });
             out.textures_delta.clear();
-            let s = style.unwrap_or_else(|| panic!("no style"));
-            assert_eq!(rect_fills(&out.shapes), [s.list.chosen_fill, s.list.chosen_fill, s.list.active_fill], "{id}");
-            assert_ne!(s.list.chosen_fill, s.list.active_fill, "{id}");
-            assert_eq!((s.list.chosen_text == s.list.text, s.list.radius), (soft, egui::CornerRadius::same(radius)), "{id}");
+            let (s, tokens) = style.unwrap_or_else(|| panic!("no style"));
+            use crate::theme::ToEgui as _;
+            let accent = tokens.color.accent.solid.to_egui();
+            assert_eq!(rect_fills(&out.shapes), [accent, accent, tokens.color.state.hover.to_egui()], "{id}");
+            assert_eq!(s.list.chosen_text, tokens.color.text.on_accent.to_egui(), "{id}");
+            assert_eq!(s.list.radius, crate::theme::corner_radius(tokens.shape.radius.control), "{id}");
         }
     }
 }

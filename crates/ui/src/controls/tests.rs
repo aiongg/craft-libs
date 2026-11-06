@@ -299,7 +299,14 @@ fn check_box_radio_and_switch_styles_come_from_the_semantic_tokens() {
         let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
         let (off, on) = (IndicatorColors::from(&colors.off), IndicatorColors::from(&colors.on));
         assert_eq!((off.mark, on.mark), (None, Some(colors.on.mark.to_egui())), "off has no mark");
-        assert_eq!(colors.off.border.rest, c.text.faint, "an off outline is text.faint at rest");
+        let min = if t.appearance.contrast == Contrast::High { 4.5 } else { 3.0 };
+        let shows = |colour: craft_theme::Rgba| [c.surface.panel, c.surface.raised].iter().all(|&bg| contrast_ratio(colour, bg) >= min);
+        assert!(
+            shows(c.surface.sunken) || shows(colors.off.border.rest),
+            "{:?} {:?}: an off indicator is identifiable on the panel and raised surfaces",
+            t.mode,
+            t.appearance.contrast
+        );
         let text = |s: State, normal: craft_theme::Rgba| if s == State::Disabled { t.color.text.disabled.to_egui() } else { normal.to_egui() };
         for size in SIZES {
             let (control, icon) = match size {

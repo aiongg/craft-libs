@@ -13,13 +13,6 @@ use egui::{
 };
 use kurbo::{Point, Rect, Vec2};
 
-use craft_theme::{Rgba, TypeRole, contrast_ratio};
-
-/// The colour of the selected guide.
-const SELECTED_GUIDE: Rgba = Rgba::rgb(0, 0, 255);
-/// The colour of smart guides and their distances.
-const SMART_GUIDE: Rgba = Rgba::rgb(255, 0, 255);
-
 use super::claim::PrimaryPress;
 use super::units::tick_snap;
 use super::{CanvasView, Claim, Readout, RulerUnits, crisp_shape, hit, resize_cursor};
@@ -28,6 +21,8 @@ use crate::edit::order::Turn;
 use crate::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use crate::primitives::FocusRing;
 use crate::story::{Level, Story, StoryChoice, Surface};
+pub use crate::style::guide::GuideStyle;
+use crate::style::guide::readable_on;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
@@ -180,47 +175,6 @@ pub struct GuidesResponse {
     /// another control), or is dragging one: the guides set the resize cursor, so the host
     /// leaves its tool cursor off.
     pub hovered: bool,
-}
-
-/// The guides' look, from [`Guides::style`]; smart guides share it.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct GuideStyle {
-    /// Line width: `stroke.thin`.
-    pub width: f32,
-    /// Distance from a guide within which the pointer takes it: `size.hit.slop`.
-    pub hit: f32,
-    /// A dashed guide's dashes and gaps: `stroke.dash`, `stroke.dash_gap`.
-    pub dash: f32,
-    /// A dashed guide's gap length, in screen points.
-    pub gap: f32,
-    /// A dotted guide's dot spacing: `stroke.dash_gap`.
-    pub dot_gap: f32,
-    /// A dotted guide's dot radius, in screen points.
-    pub dot_radius: f32,
-    /// `overlay.guide`.
-    pub color: Color32,
-    /// The selected guide: blue.
-    pub selected: Color32,
-    /// Smart guides and distances: magenta.
-    pub smart: Color32,
-    /// A distance's end caps.
-    pub measure_cap: f32,
-    /// Around a distance's label: `space.pad.control` and `space.gap.tight`.
-    pub measure_pad: ScreenVec,
-    /// A distance label's corners: `shape.radius.control`.
-    pub measure_radius: CornerRadius,
-    /// A distance label's type role: `caption`.
-    pub measure_role: TypeRole,
-    /// A distance label's text: black or white, whichever contrasts more with `smart`.
-    pub measure_text: Color32,
-    /// The lines beside the focused guide: the focus ring's stroke.
-    pub focus: Stroke,
-    /// Under each focus line, so it reads on any image: `overlay.halo`, `stroke.thin` wider than
-    /// the line on each side.
-    pub focus_halo: Stroke,
-    /// From the guide's edge to the focus lines: the focus ring's offset.
-    pub focus_offset: f32,
 }
 
 crate::words! {
@@ -443,31 +397,7 @@ impl<'a> Guides<'a> {
 
     /// The guide look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GuideStyle {
-        let o = &tokens.color.overlay;
-        let g = crate::style::guide::GuideStyle::new(tokens);
-        let halo = tokens.stroke.thin;
-        let ring = FocusRing::style(tokens);
-        let smart: Rgba = SMART_GUIDE;
-        let text = readable_on(smart.to_egui());
-        GuideStyle {
-            width: tokens.stroke.thin,
-            hit: tokens.size.hit.slop,
-            dash: tokens.stroke.dash,
-            gap: tokens.stroke.dash_gap,
-            dot_gap: tokens.stroke.dash_gap,
-            dot_radius: g.dot_radius,
-            color: o.guide.to_egui(),
-            selected: SELECTED_GUIDE.to_egui(),
-            smart: smart.to_egui(),
-            measure_cap: g.measure_cap,
-            measure_pad: vec2(tokens.space.pad.control, tokens.space.gap.tight),
-            measure_radius: tokens.radius.control,
-            measure_role: TypeRole::Caption,
-            measure_text: text,
-            focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * halo, o.halo.to_egui()),
-            focus_offset: ring.offset,
-        }
+        GuideStyle::new(tokens)
     }
 
     /// Starts dragging a new guide of `orientation` out of a ruler: the top ruler makes a
@@ -1061,12 +991,6 @@ pub(super) fn dashes(a: Pos2, b: Pos2, dash: f32, gap: f32) -> impl Iterator<Ite
         let start = i as f32 * period;
         (a + dir * start, a + dir * (start + dash).min(length))
     })
-}
-
-/// Black or white text, whichever contrasts more with `fill`.
-fn readable_on(fill: Color32) -> Color32 {
-    let fill = Rgba::from(fill);
-    if contrast_ratio(Rgba::BLACK, fill) >= contrast_ratio(Rgba::WHITE, fill) { Color32::BLACK } else { Color32::WHITE }
 }
 
 /// An alignment line of [`SmartGuides`], in document coordinates.

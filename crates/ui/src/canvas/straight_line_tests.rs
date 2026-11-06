@@ -20,7 +20,7 @@ fn paint(from: Point, to: Point) -> (Vec<Shape>, LineGuideStyle) {
     let style = std::cell::Cell::new(None);
     let harness =
         Harness::builder().with_size([200.0, 200.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui(|ui| {
-            let s = LineGuideStyle::of(&current(ui.ctx()));
+            let s = LineGuideStyle::new(&current(ui.ctx()));
             style.set(Some(s));
             let view = CanvasView::new(Rect::from_min_size(pos2(0.0, 0.0), vec2(200.0, 200.0)), Point::new(100.0, 100.0), 1.0);
             StraightLinePreview::new(from, to).paint(ui.painter(), &view, &s);

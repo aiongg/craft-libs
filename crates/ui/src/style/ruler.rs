@@ -1,5 +1,9 @@
 //! Style of the `ruler` family.
 
+use egui::{Color32, FontId, Stroke};
+
+use crate::theme::{ToEgui as _, UiTokens};
+
 const LABEL_PITCH: f32 = 8.5;
 const STEP_MIN: f32 = 60.0;
 const TICK_MID: f32 = 6.0;
@@ -12,9 +16,26 @@ const MARKER_STEM: f32 = 5.0;
 const MARKER_FOOT: f32 = 4.0;
 const MARKER_SELECTOR: f32 = 14.0;
 
-/// Ruler values that are not semantic tokens.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// The rulers' look, from [`Rulers::style`](crate::canvas::Rulers::style).
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct RulerStyle {
+    /// Thickness of a strip and side of the corner: `size.icon.sm`.
+    pub size: f32,
+    /// The labels' font: the UI face at `typography.caption.size`.
+    pub font: FontId,
+    /// Between a tick and its label: `space.gap.tight`.
+    pub label_pad: f32,
+    /// The strips and the corner: `surface.chrome`.
+    pub fill: Color32,
+    /// `stroke.thin` of `text.faint`.
+    pub tick: Stroke,
+    /// Labels: `text.muted`.
+    pub label: Color32,
+    /// The pointer's marker and the cross hairs of a zero point drag: `stroke.thin` of `text.normal`.
+    pub marker: Stroke,
+    /// The margin part of a strip, where the text part keeps `fill`: `surface.sunken`.
+    pub margin_shade: Color32,
     /// Between the characters of the left ruler's stacked labels.
     pub label_pitch: f32,
     /// Least distance between labelled ticks.
@@ -41,8 +62,18 @@ pub struct RulerStyle {
 
 impl RulerStyle {
     /// The ruler style for `tokens`.
-    pub fn new(_tokens: &craft_theme::Tokens) -> Self {
+    pub fn new(tokens: &UiTokens) -> Self {
+        let c = &tokens.color;
+        let family = tokens.families().family(craft_theme::FontSlot::Ui).clone();
         Self {
+            size: tokens.size.icon.sm,
+            font: FontId::new(tokens.typography.caption.size, family),
+            label_pad: tokens.space.gap.tight,
+            fill: c.surface.chrome.to_egui(),
+            tick: Stroke::new(tokens.stroke.thin, c.text.faint.to_egui()),
+            label: c.text.muted.to_egui(),
+            marker: Stroke::new(tokens.stroke.thin, c.text.normal.to_egui()),
+            margin_shade: c.surface.sunken.to_egui(),
             label_pitch: LABEL_PITCH,
             step_min: STEP_MIN,
             tick_mid: TICK_MID,

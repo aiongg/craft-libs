@@ -1,7 +1,5 @@
 //! Style of the `scroll` family.
 
-use craft_theme::Edge;
-
 const FLOATING_WIDTH: f32 = 4.0;
 const HANDLE_OPACITY: f32 = 1.0;
 const TRACK_OPACITY: f32 = 0.4;
@@ -29,7 +27,7 @@ impl ScrollStyle {
     /// The scroll bar style for `tokens`.
     pub fn new(tokens: &craft_theme::Tokens) -> Self {
         Self {
-            solid: matches!(tokens.shape.edge, Edge::Bevel { .. }),
+            solid: crate::primitives::Surface::is_bevelled(tokens),
             floating_width: FLOATING_WIDTH,
             handle_opacity: HANDLE_OPACITY,
             track_opacity: TRACK_OPACITY,

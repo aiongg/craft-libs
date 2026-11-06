@@ -452,7 +452,7 @@ impl CanvasTool for StrokeDemo {
                 painter.add(Shape::line(points, Stroke::new(width, color)));
             }
         }
-        let guide = LineGuideStyle::of(cx.tokens);
+        let guide = LineGuideStyle::new(cx.tokens);
         if let Some((from, to)) = self.gradient {
             StraightLinePreview::new(from, to).paint(painter, cx.view, &guide);
         }

@@ -159,8 +159,9 @@ fn near(a: f64, b: f64) -> bool {
 }
 
 #[test]
-fn a_guide_takes_the_pointer_within_4_points_in_a_rotated_view() {
-    for (offset, takes) in [(3.9, true), (-3.9, true), (4.1, false)] {
+fn a_guide_takes_the_pointer_within_the_hit_slop_in_a_rotated_view() {
+    let slop = current(&egui::Context::default()).size.hit.slop;
+    for (offset, takes) in [(slop - 0.1, true), (0.1 - slop, true), (slop + 0.1, false)] {
         let mut h = harness(vec![Guide::new(1, Orientation::Vertical, 200.0)], 30.0);
         h.run();
         let v = view(&h);

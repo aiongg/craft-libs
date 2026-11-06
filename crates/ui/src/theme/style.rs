@@ -1,7 +1,7 @@
 //! The egui [`Style`] of a set of tokens, so stock egui widgets look as close to the design
 //! system as they can.
 
-use craft_theme::{ButtonColors, Edge, Tokens, relative_luminance};
+use craft_theme::{ButtonColors, Tokens, relative_luminance};
 use egui::style::{Selection, TextCursorStyle, WidgetVisuals, Widgets};
 use egui::{Color32, Stroke, Style, TextStyle, Visuals, vec2};
 
@@ -11,12 +11,6 @@ use crate::style::field::FieldStyle;
 
 /// The widest a tooltip's text grows before it wraps.
 const TOOLTIP_MAX_WIDTH: f32 = 280.0;
-/// The width of a floating scroll bar when it is not under the pointer.
-const FLOATING_SCROLLBAR_WIDTH: f32 = 4.0;
-/// The opacity of a floating scroll bar's handle.
-const SCROLL_HANDLE_OPACITY: f32 = 1.0;
-/// The opacity of a floating scroll bar's track under the pointer.
-const SCROLL_TRACK_OPACITY: f32 = 0.4;
 
 /// The egui style for `tokens`. Pure: the same tokens and families give the same style.
 ///
@@ -77,13 +71,14 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
 /// and its handle in `widgets.{inactive,hovered,active}.bg_fill`: the field fill, `state.hover`
 /// and `state.pressed`.
 fn scroll_style(tokens: &Tokens) -> egui::style::ScrollStyle {
-    if matches!(tokens.shape.edge, Edge::Bevel { .. }) {
+    let look = crate::style::scroll::ScrollStyle::new(tokens);
+    if look.solid {
         return egui::style::ScrollStyle::solid();
     }
     egui::style::ScrollStyle {
-        floating_width: FLOATING_SCROLLBAR_WIDTH,
-        interact_handle_opacity: SCROLL_HANDLE_OPACITY,
-        interact_background_opacity: SCROLL_TRACK_OPACITY,
+        floating_width: look.floating_width,
+        interact_handle_opacity: look.handle_opacity,
+        interact_background_opacity: look.track_opacity,
         ..egui::style::ScrollStyle::thin()
     }
 }

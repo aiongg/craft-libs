@@ -98,7 +98,8 @@ fn the_focused_row_claims_the_digits() {
     assert!(KeyClaim::claimed(&harness.ctx, &digit));
 }
 
-// `paint_rating` returns 3 × the badge step for three Md stars and 0 for none.
+// `paint_rating` returns the width of the stars it painted: three Md stars are three steps, none is 0, and
+// a count over five is five.
 #[test]
 fn painted_stars_report_their_width() {
     let ctx = egui::Context::default();
@@ -112,10 +113,17 @@ fn painted_stars_report_their_width() {
             paint_rating(&painter, &tokens, at, 3, ControlSize::Md, Color32::WHITE),
             paint_rating(&painter, &tokens, at, 0, ControlSize::Md, Color32::WHITE),
             paint_rating(&painter, &tokens, at, 9, ControlSize::Sm, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 5, ControlSize::Sm, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 1, ControlSize::Sm, Color32::WHITE),
+            paint_rating(&painter, &tokens, at, 1, ControlSize::Md, Color32::WHITE),
         ];
     });
     output.drop_without_applying_deltas();
-    assert_eq!(widths, [39.0, 0.0, 45.0], "a rating over five is five stars");
+    let [three, none, over, five, small_step, md_step] = widths[..] else { panic!("six widths") };
+    assert_eq!((three, none), (3.0 * md_step, 0.0));
+    assert_eq!(over, five, "a rating over five is five stars");
+    assert_eq!(five, 5.0 * small_step);
+    assert!(md_step >= small_step && small_step > 0.0, "Md stars are at least as wide as Sm stars");
 }
 
 // A rating changed from outside while a star has the focus moves the focus to the new Tab stop,

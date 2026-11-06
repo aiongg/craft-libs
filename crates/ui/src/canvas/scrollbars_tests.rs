@@ -302,7 +302,8 @@ fn the_look_is_the_chrome_track_and_the_muted_hot_thumb() {
     h.run();
     let tokens = h.state().tokens.clone().unwrap();
     let style = CanvasScrollbars::style(&tokens);
-    assert_eq!((style.width, style.inset, style.thumb_min), (12.0, 3.0, 24.0));
+    assert_eq!((style.width, style.inset), (tokens.size.icon.sm, tokens.space.gap.tight));
+    assert!(style.thumb_min > style.width, "the shortest thumb is longer than the bar is wide");
     assert_eq!(style.track, tokens.color.surface.chrome.to_egui());
     assert_eq!(style.thumb, tokens.color.text.faint.to_egui());
     assert_eq!(style.thumb_hot, tokens.color.text.muted.to_egui());

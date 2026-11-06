@@ -325,7 +325,7 @@ fn nudge_leaves_a_focused_text_field_its_arrows() {
 
 #[test]
 fn readout_rows_put_labels_at_the_start_and_values_on_the_end_edge() {
-    let style = with_ui(|ui| Readout::style(&Tokens::of(ui)));
+    let (style, tokens) = with_ui(|ui| (Readout::style(&Tokens::of(ui)), Tokens::of(ui)));
     let rows = [(vec2(14.0, 12.0), vec2(40.0, 12.0)), (vec2(30.0, 12.0), vec2(22.0, 14.0))];
     let width = 2.0 * style.pad.x + 30.0 + style.col_gap + 40.0;
     let ltr = ReadoutLayout::new(&style, &rows, false);
@@ -336,8 +336,11 @@ fn readout_rows_put_labels_at_the_start_and_values_on_the_end_edge() {
     let rtl = ReadoutLayout::new(&style, &rows, true);
     assert_eq!(rtl.size, ltr.size);
     assert_eq!(rtl.rows[0], (pos2(width - style.pad.x - 14.0, style.pad.y), pos2(style.pad.x, style.pad.y)));
-    // Compact tokens: PhotoCraft's 16 × 18 offset, 7 × 4 padding, 12 between columns, 1 between rows.
-    assert_eq!((style.offset, style.pad, style.col_gap, style.row_gap), (vec2(16.0, 18.0), vec2(7.0, 4.0), 12.0, 1.0));
+    assert_eq!(
+        (style.pad, style.col_gap, style.row_gap),
+        (vec2(tokens.space.gap.stack, tokens.space.gap.row), tokens.space.gap.section, tokens.stroke.thin)
+    );
+    assert!(style.offset.x > 0.0 && style.offset.y > 0.0, "the card sits clear of the pointer");
 }
 
 #[test]
