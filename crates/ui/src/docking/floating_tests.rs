@@ -347,7 +347,7 @@ fn a_floating_window_is_a_tree_whose_groups_split_and_resize_like_frames() {
 
 #[test]
 /// Double-clicking the window title toggles minimization of the whole window; the close box sits
-/// 10 pt in from the trailing edge and emits `CloseWindow`, removing every panel in the window.
+/// in from the trailing edge and emits `CloseWindow`, removing every panel in the window.
 fn title_bar_double_click_minimizes_every_group_and_close_box_closes_the_window() {
     let mut d = Driver::new(workspace(), false);
     let title = d.title(5).center();
@@ -360,7 +360,10 @@ fn title_bar_double_click_minimizes_every_group_and_close_box_closes_the_window(
     assert!(!window_of(&d.layout, 5).unwrap().minimized);
 
     let close = d.response(Id::unique(AREA).with(("move-group", Some(&5u32))).with("close")).unwrap();
-    assert_eq!(close.center().x, 530.0, "× sits 10 pt in from the right edge");
+    let look = crate::docking::testing::default_look();
+    let inset = look.pad * 0.5 + look.title_height * 0.5;
+    let [x, _, width, _] = window_of(&d.layout, 5).unwrap().rect;
+    assert_eq!(close.center().x, x + width - inset, "× sits one half-pad plus half its width in from the right edge");
     let before = d.layout.clone();
     d.wait();
     let out = d.click(close.center());

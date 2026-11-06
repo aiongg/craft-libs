@@ -1106,7 +1106,8 @@ fn custom_chrome_shaped_labels_and_programmatic_raise_are_available() {
     assert!(out.actions.is_empty());
     assert!(content.headers >= 3 && content.bodies >= 3);
     assert!(content.labels.iter().any(|s| s == "Logical 5"));
-    let at = pos2(130.0, 96.0);
+    // On the tab row of the floating window at (80, 70).
+    let at = pos2(130.0, 70.0 + crate::docking::testing::default_look().title_height + crate::docking::testing::STRIP * 0.5);
     custom_frame(
         &ctx,
         &layout,
@@ -1675,7 +1676,7 @@ fn collapsed_floating_height_cap_does_not_disable_keyboard_width_resizing() {
     }
     ctx.memory_mut(|memory| memory.request_focus(id));
     frame(vec![Event::Key { key: egui::Key::ArrowRight, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::NONE }]);
-    assert_eq!(layout.floating[0].rect, [80.0, 70.0, 308.0, 14.0 + crate::docking::testing::STRIP]);
+    assert_eq!(layout.floating[0].rect, [80.0, 70.0, 308.0, crate::docking::testing::default_look().title_height + crate::docking::testing::STRIP]);
 }
 
 #[test]

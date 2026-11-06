@@ -6,7 +6,16 @@ use egui::{Context, Event, Id, Modifiers, PointerButton, Pos2, RawInput, Rect, U
 
 const AREA: &str = "dock-area";
 /// The width of a column bar's »/« button in the test look: the column bar's height.
-const COLUMN_BAR_HEIGHT: f32 = 14.0;
+fn bar_height() -> f32 {
+    testing::default_look().column_bar_height
+}
+
+/// Where the seam between the two open groups of `docked(Start, ..)` lies in the 600 pt window: they
+/// share the room below the column bar equally.
+fn seam_y() -> f32 {
+    let bar = bar_height();
+    bar + (600.0 - bar) / 2.0
+}
 
 fn group(panels: &[u32]) -> Group<u32> {
     Group::new(panels.to_vec(), 0)
@@ -255,15 +264,15 @@ fn bar(d: &Driver, panel: u32) -> Pos2 {
     d.rect("drag-bar", panel).center()
 }
 
-// Geometry of `docked(Start, ..)`: the dock is 0..240 wide, its column bar 14 high, and two open
-// groups share 14..600, meeting at y = 307.
+// Geometry of `docked(Start, ..)`: the dock is 0..240 wide and two open groups share the room below
+// its column bar, meeting at `seam_y()`.
 
 #[test]
 fn group_dropped_on_a_seam_inserts_between_and_previews_the_rect_it_takes() {
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &[(5, [400.0, 300.0, 150.0, 150.0])]);
     let mut d = Driver::new(layout);
-    assert_eq!(d.tab(3).top(), 307.0);
-    let seam = pos2(120.0, 309.0);
+    assert_eq!(d.tab(3).top(), seam_y());
+    let seam = pos2(120.0, seam_y() + 2.0);
     d.hold(bar(&d, 5), seam);
     let held = d.shapes.clone();
     let out = d.step(vec![button(seam, false)]);
@@ -279,7 +288,7 @@ fn group_dropped_on_a_seam_inserts_between_and_previews_the_rect_it_takes() {
 #[test]
 fn a_tab_dropped_on_a_seam_or_column_edge_moves_only_that_panel() {
     let mut d = Driver::new(docked(Side::Start, &[&[&[2, 3], &[4]]]));
-    let out = d.drag(d.tab(3).center(), pos2(120.0, 309.0));
+    let out = d.drag(d.tab(3).center(), pos2(120.0, seam_y() + 2.0));
     assert_eq!(out.actions, vec![Action::Move { panel: 3, anchor: 2, placement: Placement::Group { below: true, height: None } }]);
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![3], vec![4]]]);
     d.settle();
@@ -291,7 +300,7 @@ fn a_tab_dropped_on_a_seam_or_column_edge_moves_only_that_panel() {
 fn group_dropped_on_a_top_or_bottom_band_stacks_above_or_below() {
     for (at, expected) in [
         // The top quarter of group 2's body, and the bottom quarter of group 3's.
-        (pos2(120.0, 14.0 + crate::docking::testing::STRIP + 20.0), vec![vec![5], vec![2], vec![3]]),
+        (pos2(120.0, bar_height() + crate::docking::testing::STRIP + 20.0), vec![vec![5], vec![2], vec![3]]),
         (pos2(120.0, 590.0), vec![vec![2], vec![3], vec![5]]),
         // The middle of a body joins as tabs.
         (pos2(120.0, 450.0), vec![vec![2], vec![3, 5]]),
@@ -439,8 +448,11 @@ fn dock_bands_are_28_pt_wide() {
         }
         layout
     };
-    assert_eq!(target(wide(), pos2(16.0, 294.0)), Some(Target::At { anchor: 2, placement: Placement::Group { below: true, height: None } }));
-    assert_eq!(target(wide(), pos2(16.0, 292.0)), Some(Target::At { anchor: 2, placement: Placement::Column { after: false } }));
+    assert_eq!(
+        target(wide(), pos2(16.0, seam_y() - 13.0)),
+        Some(Target::At { anchor: 2, placement: Placement::Group { below: true, height: None } })
+    );
+    assert_eq!(target(wide(), pos2(16.0, seam_y() - 15.0)), Some(Target::At { anchor: 2, placement: Placement::Column { after: false } }));
 }
 
 #[test]
@@ -565,7 +577,7 @@ fn column_bar_drag_moves_the_column_and_away_from_a_dock_floats_its_groups() {
     d.settle();
     // Away from the dock: a floating window holding the column's groups.
     let source = Rect::from_min_max(pos2(240.0, 0.0), pos2(480.0, 600.0));
-    assert_eq!(d.rect("column-bar", 2).left(), 240.0 + COLUMN_BAR_HEIGHT);
+    assert_eq!(d.rect("column-bar", 2).left(), 240.0 + bar_height());
     let grab = d.rect("column-bar", 2).center();
     d.hold(grab, pos2(560.0, 300.0));
     // The column's width; a docked column floats at most 320 pt tall.
@@ -624,15 +636,17 @@ fn column_and_group_dividers_resize_and_minimized_groups_keep_their_height() {
     assert_eq!(d.rect("column-bar", 2).right(), 280.0);
     // The divider between the groups saves both heights.
     d.wait();
-    d.drag(pos2(120.0, 307.0), pos2(120.0, 357.0));
+    let moved_to = seam_y() + 50.0;
+    d.drag(pos2(120.0, seam_y()), pos2(120.0, moved_to));
     let groups = column(&d.layout, 0).groups;
-    assert_eq!((groups[0].height, groups[1].height), (Some(343.0), Some(243.0)));
+    let (upper, lower) = (moved_to - bar_height(), 600.0 - moved_to);
+    assert_eq!((groups[0].height, groups[1].height), (Some(upper), Some(lower)));
     d.settle();
-    assert_eq!(d.tab(4).top(), 357.0);
+    assert_eq!(d.tab(4).top(), moved_to);
     // Minimized, the lower group keeps its saved height and the upper one takes the room.
     d.layout.apply(Action::SetMinimized { panel: 4, minimized: true }).unwrap();
     d.settle();
-    assert_eq!(column(&d.layout, 0).groups[1].height, Some(243.0));
+    assert_eq!(column(&d.layout, 0).groups[1].height, Some(lower));
     assert_eq!(d.tab(4).top(), 600.0 - crate::docking::testing::STRIP);
 }
 
@@ -656,7 +670,7 @@ fn double_click_on_a_docked_tab_minimizes_and_clicking_another_tab_expands() {
     d.click(tab);
     assert!(minimized(&d));
     d.settle();
-    assert_eq!(d.tab(4).top(), 14.0 + crate::docking::testing::STRIP, "the minimized group takes its strip");
+    assert_eq!(d.tab(4).top(), bar_height() + crate::docking::testing::STRIP, "the minimized group takes its strip");
     d.wait();
     d.click(d.tab(3).center());
     assert!(!minimized(&d));
@@ -687,12 +701,12 @@ fn dock_targets_respect_occlusion_by_floating_windows() {
     let windows = [(5, [150.0, 250.0, 200.0, 150.0]), (6, [400.0, 450.0, 150.0, 120.0])];
     let layout = with_floating(docked(Side::Start, &[&[&[2], &[3]]]), &windows);
     let mut d = Driver::new(layout.clone());
-    let out = d.drag(bar(&d, 6), pos2(200.0, 309.0));
+    let out = d.drag(bar(&d, 6), pos2(200.0, seam_y() + 2.0));
     assert!(matches!(moved(&out.actions), Some((6, Target::At { anchor: 5, .. }))), "joins the window in front: {:?}", out.actions);
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![3]]]);
     // Left of the window, the seam takes it.
     let mut d = Driver::new(layout);
-    d.drag(bar(&d, 6), pos2(100.0, 309.0));
+    d.drag(bar(&d, 6), pos2(100.0, seam_y() + 2.0));
     assert_eq!(columns(&d.layout, Side::Start), vec![vec![vec![2], vec![6], vec![3]]]);
 }
 
@@ -702,7 +716,7 @@ fn right_to_left_mirrors_docks_their_edges_and_new_docks() {
     let mut d = Driver::with(layout.clone(), TestContent::default(), true);
     // The start dock is on the right, its »/« button at the window edge.
     let column_bar = d.rect("column-bar", 2);
-    assert_eq!((column_bar.left(), column_bar.right()), (360.0, 600.0 - COLUMN_BAR_HEIGHT));
+    assert_eq!((column_bar.left(), column_bar.right()), (360.0, 600.0 - bar_height()));
     // Its inner edge is on the left: dragging it left widens the column.
     d.drag(pos2(360.0, 300.0), pos2(320.0, 300.0));
     assert_eq!(column(&d.layout, 0).width, 280.0);
@@ -970,7 +984,7 @@ fn defaults_give_way_to_the_filler_but_user_heights_stay() {
     assert_eq!(render::group_heights(&mine, 26.0, 838.0), vec![200.0, 156.0, 482.0]);
     // In a drawn column too: Layers gets less than it asks for rather than the user's heights.
     let d = sized_column(900.0, [Some(200.0), Some(340.0), None]);
-    assert_eq!(drawn_heights(&d), [200.0, 340.0, 900.0 - 14.0 - 540.0]);
+    assert_eq!(drawn_heights(&d), [200.0, 340.0, 900.0 - bar_height() - 540.0]);
 }
 
 /// Dock columns left and right of protected canvas 0, as in a creative app: group [1, 7] above
