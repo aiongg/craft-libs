@@ -1164,7 +1164,7 @@ where
             group_header: style.group_header,
             caption: 2.0 * caption_line + 2.0 * style.caption_gap,
         };
-        let start_width = strip.start_width(&style, layout);
+        let start_width = strip.start_width(ui.painter(), &tokens, layout);
         let closed = strip.closed(groups);
         let signature = Signature { len, revision: source.aspects_revision(), width, layout, spacing, groups: groups.to_vec(), start_width, closed };
         if state.arrangement.as_ref().is_none_or(|(old, _)| *old != signature) {

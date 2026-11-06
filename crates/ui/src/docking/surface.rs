@@ -417,8 +417,8 @@ pub struct FloatSpace<P> {
     pub area: Rect,
     /// Room between the area's top-left corner and a unit a command floats: `float.cascade_offset`.
     pub inset: f32,
-    /// Size a command floats a panel at when the area never drew it: `float.width` by
-    /// `float.height`.
+    /// Size a command floats a panel at when the area never drew it: sample body text wide
+    /// and a number of body lines tall.
     pub default_size: Vec2,
     /// What a drag floats from each drawn panel: the panel alone, its group and its dock column.
     pub(super) panels: Vec<(P, Vec2)>,
@@ -1431,10 +1431,12 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
             .map(|space| space.contents.into_iter().filter(|(panel, _)| places.contains_key(panel)).collect())
             .unwrap_or_default();
         let content_index = contents.iter().enumerate().map(|(i, (panel, _))| (panel.clone(), i)).collect();
+        let float = crate::style::float::FloatStyle::size(ui.painter(), &crate::theme::current(ui.ctx()));
         let mut renderer = Renderer {
             id: self.id,
             config,
             look,
+            float,
             content,
             activation: self.activation,
             blockers: self.blockers,
@@ -1454,7 +1456,7 @@ impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> DockArea<'a, P> {
                 contents,
                 side_edge_zones: config.side_edge_zones,
                 inset: look.cascade_offset,
-                default_size: Vec2::new(look.float_width, look.float_height),
+                default_size: float,
                 ..FloatSpace::new(rect)
             },
             places,

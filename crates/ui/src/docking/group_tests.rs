@@ -852,7 +852,11 @@ fn a_short_docked_panel_floats_at_its_content_height_up_to_its_floating_size() {
     let (strip, size) = float(150.0, None);
     assert_eq!(size.y, title + strip + 150.0);
     assert_eq!(float(0.0, None).1.y, 120.0, "an empty panel floats at the least fitted height");
-    assert_eq!(float(600.0, None).1.y, 320.0, "a tall docked panel keeps the docked cap");
+    assert_eq!(
+        float(600.0, None).1.y,
+        super::testing::themed(|ui| super::testing::float_size(ui.ctx()).y),
+        "a tall docked panel keeps the docked cap"
+    );
     // The host's floating size gives the width and the most height.
     assert_eq!(float(150.0, Some(vec2(300.0, 360.0))).1, vec2(300.0, title + strip + 150.0));
     assert_eq!(float(150.0, Some(vec2(300.0, 160.0))).1, vec2(300.0, 160.0));
@@ -887,7 +891,7 @@ fn a_panel_that_fills_its_frame_floats_at_its_floating_size_or_320() {
             })
             .unwrap_or_else(|| panic!("{:?}", out.actions))
     };
-    assert_eq!(float(None), 320.0);
+    assert_eq!(float(None), super::testing::themed(|ui| super::testing::float_size(ui.ctx()).y));
     assert_eq!(float(Some(vec2(300.0, 400.0))), 400.0);
 }
 

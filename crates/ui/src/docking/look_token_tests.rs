@@ -54,8 +54,6 @@ fn sizes_come_from_the_semantic_tokens_and_the_dock_style() {
             ("iconic_max_width", look.iconic_max_width, style.iconic_max_width),
             ("iconic_label_width", look.iconic_label_width, style.iconic_label_width),
             ("flyout_height", look.flyout_height, style.flyout_height),
-            ("float_width", look.float_width, float.width),
-            ("float_height", look.float_height, float.height),
             ("min_fitted_height", look.min_fitted_height, float.min_fitted_height),
             ("cascade_offset", look.cascade_offset, size.control.sm),
             ("hint_offset", look.hint_offset, size.control.md),

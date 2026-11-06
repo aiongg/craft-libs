@@ -57,7 +57,7 @@ fn a_full_height_docked_group_floats_at_the_host_or_capped_height_inside_the_win
         let Some(Target::Float { rect: Some([x, y, width, height]) }) = moved_group(&out.actions) else { panic!("{:?}", out.actions) };
         match size {
             Some(size) => assert_eq!(*height, size.y),
-            None => assert_eq!(*height, 320.0),
+            None => assert_eq!(*height, super::testing::float_size(&d.ctx).y),
         }
         assert!(*width > 100.0 && *width <= 240.0, "{width}");
         let window = Rect::from_min_size(pos2(0.0, 0.0), vec2(800.0, 600.0));

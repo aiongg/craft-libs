@@ -260,7 +260,8 @@ fn before_of<D: Clone + PartialEq>(tabs: &[DocumentTab<D>], document: &D, target
 /// The outline of the window a torn-off tab becomes, under the pointer.
 fn paint_torn_off(ui: &Ui, pointer: Pos2) {
     let look = DockLook::of(ui);
-    let rect = Rect::from_min_size(pointer - GRAB, egui::vec2(look.float_width, look.float_height));
+    let size = crate::style::float::FloatStyle::size(ui.painter(), &crate::theme::current(ui.ctx()));
+    let rect = Rect::from_min_size(pointer - GRAB, size);
     let painter = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, ui.scope_id().with("tab-tear-off")));
     painter.rect_filled(rect, 0.0, look.drop.gamma_multiply(look.ghost_fill));
     let stroke = craft_theme::scale::Stroke::W1.egui(ui.ctx(), look.drop.gamma_multiply(look.ghost_stroke));
