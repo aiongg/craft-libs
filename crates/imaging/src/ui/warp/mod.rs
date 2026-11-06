@@ -32,6 +32,8 @@ use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::style::bezier::BezierStyle;
+use craft_ui::style::transform::TransformStyle;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 /// A warp's control mesh: bicubic Bézier patches sharing their edges, as
@@ -525,28 +527,28 @@ impl<'a> WarpNames<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct WarpStyle {
-    /// Patch boundaries: `transform.line` of `overlay.line`, bare.
+    /// Patch boundaries: `stroke.thin` of `overlay.line`, bare.
     pub line: Stroke,
-    /// A one-patch mesh's rule-of-thirds lines: `transform.warp_minor` of `overlay.line` at 0.7
+    /// A one-patch mesh's rule-of-thirds lines: a hairline of `overlay.line` at 0.7
     /// alpha.
     pub minor: Stroke,
-    /// Anchors: [`Handle::style`] `Square` at `transform.warp_anchor`.
+    /// Anchors: [`Handle::style`] `Square` at a fixed size.
     pub anchor: HandleStyle,
-    /// Handle ends: [`Handle::style`] `Round` at `transform.warp_control`.
+    /// Handle ends: [`Handle::style`] `Round` at a fixed size.
     pub control: HandleStyle,
-    /// The arm from an anchor to a shown handle: `transform.warp_minor` of `overlay.handle_stroke`.
+    /// The arm from an anchor to a shown handle: a hairline of `overlay.handle_stroke`.
     pub arm: Stroke,
-    /// The preview of a split line: `transform.line` of `overlay.stroke`.
+    /// The preview of a split line: `stroke.thin` of `overlay.stroke`.
     pub split: Stroke,
-    /// Under the split preview, so it reads on any image: `overlay.halo`, `handle.halo` wider on
+    /// Under the split preview, so it reads on any image: `overlay.halo`, `stroke.thin` wider on
     /// each side.
     pub split_halo: Stroke,
-    /// Distance from an anchor or a handle within which a press takes it: `transform.hit`.
+    /// Distance from an anchor or a handle within which a press takes it.
     pub hit: f32,
     /// Distance from the pointer within which a handle and its arm show, measured to the handle
-    /// or its anchor: `transform.warp_reveal`.
+    /// or its anchor: a fixed distance.
     pub reveal: f32,
-    /// Largest distance between a curve and the lines it is drawn with: `bezier.flatten`.
+    /// Largest distance between a curve and the lines it is drawn with: a fixed tolerance.
     pub flatten: f32,
 }
 
@@ -661,11 +663,11 @@ struct Drag {
 /// # });
 /// ```
 ///
-/// - Look: patch boundaries a bare `transform.line`; a one-patch mesh also its rule-of-thirds
-///   lines. Anchors always show; a handle and its arm only within `transform.warp_reveal` of the
+/// - Look: patch boundaries a bare `stroke.thin` line; a one-patch mesh also its rule-of-thirds
+///   lines. Anchors always show; a handle and its arm only within a fixed distance of the
 ///   pointer (from the handle or its anchor), while its anchor or one of its handles is dragged,
 ///   or while one of its anchor's parts is picked and the grid has the keyboard.
-/// - Pointer (screen points): the nearest anchor or handle within `transform.hit` drags that
+/// - Pointer (screen points): the nearest anchor or handle within 12 points drags that
 ///   point ([`WarpEdit::Point`]); elsewhere on the surface ([`surface`](Self::surface)) the press
 ///   pulls it ([`WarpEdit::Surface`]). A drag begins on the first move; Esc cancels it and the
 ///   rest of the press does nothing. The host shows the grid before its guides and tool input and
@@ -788,19 +790,19 @@ impl<'a> WarpGrid<'a> {
             style.size = size;
             style
         };
-        let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
+        let (t, o) = (TransformStyle::new(tokens), &tokens.color.overlay);
         let stroke = o.line.to_egui();
         WarpStyle {
-            line: Stroke::new(t.line, stroke),
+            line: Stroke::new(tokens.stroke.thin, stroke),
             minor: Stroke::new(t.warp_minor, stroke.gamma_multiply(0.7)),
             anchor: sized(Handle::style(tokens, HandleShape::Square), t.warp_anchor),
             control: sized(Handle::style(tokens, HandleShape::Round), t.warp_control),
             arm: Stroke::new(t.warp_minor, o.handle_stroke.to_egui()),
-            split: Stroke::new(t.line, o.stroke.to_egui()),
-            split_halo: Stroke::new(t.line + 2.0 * tokens.component.handle.halo, o.halo.to_egui()),
+            split: Stroke::new(tokens.stroke.thin, o.stroke.to_egui()),
+            split_halo: Stroke::new(tokens.stroke.thin * 3.0, o.halo.to_egui()),
             hit: t.hit,
             reveal: t.warp_reveal,
-            flatten: tokens.component.bezier.flatten,
+            flatten: BezierStyle::new(tokens).flatten,
         }
     }
 

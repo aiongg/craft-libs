@@ -37,9 +37,9 @@ pub struct BlurPinsResponse {
 /// - Keyboard: the pins are parts of one `PartFocus` group ("Pin 3, Blur 15 px"); Page picks
 ///   (and selects), arrows move the pin one document pixel (Shift ten), Delete and Backspace
 ///   remove the selected pin unless a text field has focus.
-/// - Drawing: each pin's dot (`blur_pins.dot` 5) and ring (`.ring` 24, the amount as an arc of
+/// - Drawing: each pin's dot (`size.handle.sm / 2`) and ring (`size.control.sm`, the amount as an arc of
 ///   it); the selected pin's outline (Iris's superellipse, Spin's ellipse) with its handles
-///   (`.handle` 4.5), the rounding square and the feather dots; Tilt-Shift's solid focus lines,
+///   (`size.handle.sm / 2`), the rounding square and the feather dots; Tilt-Shift's solid focus lines,
 ///   dashed transition lines and turn dots; all over the halo.
 ///
 /// A click that only adds a pin or selects one reports a `Set`; a press that moves reports one

@@ -450,7 +450,7 @@ fn channels_thumbnail_size_override_sets_the_row_height() {
     assert!(height(Some(ThumbSize::None)) < default, "None");
 }
 
-// The thumbnail side is 28 at Compact and 30 at Comfortable; `.thumbnail_size` overrides it
+// The thumbnail side is `size.thumb.md`: 24 at Compact and 34 at Comfortable; `.thumbnail_size` overrides it
 // (the `.thumbnail_size` override is checked with the rows).
 #[test]
 fn channels_thumbnail_side_follows_the_size_preset() {
@@ -468,7 +468,7 @@ fn channels_thumbnail_side_follows_the_size_preset() {
         };
         ChannelsPanel::<u32>::style(&UiTokens::new(resolve(&theme, appearance, None).tokens, appearance, Mode::Light, families)).thumb
     };
-    assert_eq!((side(Size::Compact), side(Size::Comfortable)), (28.0, 30.0));
+    assert_eq!((side(Size::Compact), side(Size::Comfortable)), (24.0, 34.0));
 }
 
 // The chords read Cmd+2 for the composite, Cmd+3.. for colours, then alphas while at most 9; Quick

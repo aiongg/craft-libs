@@ -2,23 +2,31 @@
 
 use craft_ui::theme::UiTokens;
 
-/// The thumbnails and the effect-layer stack: the `filter_gallery` family, the same at every Size.
+/// A filter thumbnail's height, as a share of its width.
+const THUMB_HEIGHT_SHARE: f32 = 0.7;
+/// The effect-layer stack's height, in control heights.
+const STACK_ROWS: f32 = 8.0;
+
+/// The thumbnails and the effect-layer stack.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FilterGalleryStyle {
-    /// A filter thumbnail's width: `filter_gallery.thumb_width` (80; PhotoCraft's).
+    /// A filter thumbnail's width: `size.thumb.lg`.
     pub thumb_width: f32,
-    /// A filter thumbnail's height: `filter_gallery.thumb_height` (56).
+    /// A filter thumbnail's height: 0.7 of its width.
     pub thumb_height: f32,
-    /// The effect-layer stack's height: `filter_gallery.stack_height` (190).
+    /// The effect-layer stack's height: 8 control heights.
     pub stack_height: f32,
 }
 
 impl FilterGalleryStyle {
     /// The gallery's sizes from the theme `tokens`.
     pub fn of(tokens: &UiTokens) -> FilterGalleryStyle {
-        // pc: crates/ui-egui/src/dialogs/gallery_ui.rs:702-754 (thumbnails 80 x 56), :832 (list 190).
-        let f = &tokens.component.filter_gallery;
-        FilterGalleryStyle { thumb_width: f.thumb_width, thumb_height: f.thumb_height, stack_height: f.stack_height }
+        let thumb_width = tokens.size.thumb.lg;
+        FilterGalleryStyle {
+            thumb_width,
+            thumb_height: thumb_width * THUMB_HEIGHT_SHARE,
+            stack_height: tokens.size.control.md * STACK_ROWS,
+        }
     }
 }

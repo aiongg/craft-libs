@@ -32,10 +32,10 @@ words! {
 /// An open Perspective Warp's planes over the picture (the warped picture is drawn by the
 /// transform preview through the app's map).
 ///
-/// Pointer (strict `<` on `transform.hit`):
+/// Pointer (strict `<` on the hit reach):
 /// - Layout: a drag on the picture away from corners draws a plane (a rubber band), added on
 ///   release when at least [`PLANE_MINIMUM`](super::PLANE_MINIMUM) each way, its corners snapped
-///   to other planes' corners within `transform.hit`; a drag on a corner moves it and every corner
+///   to other planes' corners within the hit reach; a drag on a corner moves it and every corner
 ///   linked to it, snapping to another plane's corner, which links them.
 /// - Warp: a drag on a corner moves its target and the linked corners'; the picture follows; the
 ///   layout is kept.

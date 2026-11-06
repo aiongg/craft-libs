@@ -79,7 +79,7 @@ pub struct ContourFieldResponse {
 /// Editor), the preset picker's arrow and, for effects that have one, the Anti-aliased check.
 ///
 /// - Picker (the arrow; a popover): the built-in presets ([`Contour::presets`], Photoshop's
-///   order) then the host's contours, as `layer_style.contour_cell` cells with the curve drawn in
+///   order) then the host's contours, as `size.thumb.md` cells with the curve drawn in
 ///   each and the name as tooltip; arrows move, Enter or a click picks (one `Set`) and closes. A
 ///   menu at its end offers Load Contours…, Replace Contours…, Save Contours… (disabled with no
 ///   host contours); a host contour's context menu offers Delete Contour.
@@ -383,7 +383,7 @@ type SharedSampler = dyn Fn(&[[f32; 2]]) -> Vec<f32> + Send + Sync;
 /// The Contour Editor: a modal on the host's dialog stack, opened for a [`ContourRequest`] as a
 /// child of the Layer Style dialog.
 ///
-/// - Body: the Preset select (the built-in names), a `layer_style.contour_graph` square
+/// - Body: the Preset select (the built-in names), a square of two thirds of the page width
 ///   [`CurveEditor`] with corner points (levels 0..=255, at most [`Contour::MAX_POINTS`] points),
 ///   Input and Output fields in percent and a Corner check for the selected point.
 /// - Footer: OK and Cancel, Load… and Save… (as the picker's menu), New… (asks a name, then
