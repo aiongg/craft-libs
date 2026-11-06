@@ -23,6 +23,7 @@ use crate::theme::UiTokens;
 /// What a thumbnail is asked at: the side in pixels, the screen's density and the part of the
 /// frame wanted.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ThumbRequest {
     /// The longest side of the picture, in pixels: a multiple of 16.
     pub side: u32,

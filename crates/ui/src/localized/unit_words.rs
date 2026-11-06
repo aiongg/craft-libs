@@ -14,6 +14,7 @@ use super::{LocaleNumbers, Unit, Word, Words};
 
 /// What a number counts.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum UnitKind {
     /// `{n} px`.
     Pixels,
