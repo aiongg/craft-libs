@@ -83,6 +83,7 @@ pub struct DialogFrame {
     close_label: Option<String>,
     roomy: bool,
     width: Option<(f32, f32)>,
+    fit_content: bool,
     resize: Option<Resize>,
     field_tab: bool,
 }
@@ -91,7 +92,16 @@ impl DialogFrame {
     /// A frame titled `title`. `id_salt` keeps the band's and close box's state when the title is
     /// translated.
     pub fn new(id_salt: impl egui::AsIdSalt, title: impl Into<String>) -> Self {
-        Self { id_salt: IdSalt::new(id_salt), title: title.into(), close_label: None, roomy: false, width: None, resize: None, field_tab: false }
+        Self {
+            id_salt: IdSalt::new(id_salt),
+            title: title.into(),
+            close_label: None,
+            roomy: false,
+            width: None,
+            fit_content: false,
+            resize: None,
+            field_tab: false,
+        }
     }
 
     /// Shows a close box with this accessible name.
@@ -103,6 +113,14 @@ impl DialogFrame {
     /// The larger inner margin, `dialog.pad_roomy` (the colour picker dialog).
     pub fn roomy(mut self, roomy: bool) -> Self {
         self.roomy = roomy;
+        self
+    }
+
+    /// The content's width follows the body: in egui's sizing pass the title row takes the title's
+    /// own width and the rule none, so the area is as wide as the body (at most `max`).
+    pub fn fit_content(mut self, max: f32) -> Self {
+        self.width = Some((0.0, max));
+        self.fit_content = true;
         self
     }
 
@@ -158,7 +176,7 @@ impl DialogFrame {
         let style = DialogFrame::style(&tokens, ui.pixels_per_point());
         let id = ui.make_persistent_id(self.id_salt);
         let pad = if self.roomy { style.pad_roomy } else { style.pad };
-        let Self { title, close_label, width, resize, field_tab, .. } = self;
+        let Self { title, close_label, width, fit_content, resize, field_tab, .. } = self;
 
         let mut parts: Option<Parts> = None;
         let framed = Surface::new(SurfaceKind::Dialog).show(ui, |ui| {
@@ -166,13 +184,18 @@ impl DialogFrame {
                 let content = |ui: &mut Ui| {
                     if let Some((min, max)) = width {
                         ui.set_min_width(min);
-                        ui.set_max_width(max);
+                        // A content-sized area keeps the width its sizing pass gave it: raising the
+                        // maximum again would hand the title row and rule the whole window.
+                        if !fit_content || ui.is_sizing_pass() {
+                            ui.set_max_width(max);
+                        }
                     }
                     let content_size = ui.available_size();
                     let top = ui.min_rect().top();
-                    let (drag, close, title_height) = title_row(ui, &style, id, &title, close_label.as_deref());
+                    let (drag, close, title_height) = title_row(ui, &style, id, &title, close_label.as_deref(), fit_content);
                     ui.add_space(style.title_gap);
-                    Divider::horizontal().show(ui);
+                    let rule = Divider::horizontal();
+                    if fit_content { rule.follow_content() } else { rule }.show(ui);
                     ui.add_space(style.body_gap);
                     let mut body_height = 0.0;
                     let inside = |ui: &mut Ui| {
@@ -209,14 +232,27 @@ impl DialogFrame {
 
 /// The title, its draggable band and the close box. The band is made before the close box so the
 /// box lies over it.
-fn title_row(ui: &mut Ui, style: &DialogFrameStyle, id: egui::Id, title: &str, close_label: Option<&str>) -> (Response, Option<Response>, f32) {
+fn title_row(
+    ui: &mut Ui,
+    style: &DialogFrameStyle,
+    id: egui::Id,
+    title: &str,
+    close_label: Option<&str>,
+    fit_content: bool,
+) -> (Response, Option<Response>, f32) {
     let tokens = Tokens::of(ui);
     // pc: crates/ui-egui/src/dialogs.rs:630 the title is a bare label, so the row is the font's own
     // height, not the role's line height.
     let mut format = role_format(&tokens, style.title_role, style.title);
     format.line_height = None;
     let row_height = ui.fonts_mut(|f| f.layout_job(egui::text::LayoutJob::single_section(title.to_owned(), format.clone()))).size().y;
-    let (_, row) = ui.allocate_space(vec2(ui.available_width(), row_height));
+    let row_width = if fit_content && ui.is_sizing_pass() {
+        let text = ui.fonts_mut(|f| f.layout_job(egui::text::LayoutJob::single_section(title.to_owned(), format.clone()))).size().x;
+        text + if close_label.is_some() { style.close_box } else { 0.0 }
+    } else {
+        ui.available_width()
+    };
+    let (_, row) = ui.allocate_space(vec2(row_width, row_height));
     let forward = direction::forward(ui);
     let (start, end) = (direction::start_x(ui, row), direction::end_x(ui, row));
     let near = if close_label.is_some() { end - forward * style.close_box } else { end };

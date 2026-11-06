@@ -15,6 +15,9 @@ pub enum Width {
     Wide,
     /// Exactly this wide (New Document 800, About 700), within the window.
     Fixed(f32),
+    /// As wide as the body and the title need, within the window. The title row and rule follow
+    /// the body's width instead of filling the room there is.
+    Content,
     /// At least `min`, at most `max` (Shortcuts 460 to 720), within the window.
     Range {
         /// The least content width, in points.
@@ -35,6 +38,7 @@ impl Width {
             Width::Standard => (tokens.width_min, tokens.width_standard),
             Width::Wide => (tokens.width_min, tokens.width_wide),
             Width::Fixed(width) => (width, width),
+            Width::Content => (0.0, cap),
             Width::Range { min, max } => (min, max.max(min)),
         };
         let max = max.min(cap);

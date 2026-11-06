@@ -19,7 +19,7 @@ use craft_settings::Remembered;
 use craft_theme::{ColorModel, Srgba, builtin_models};
 use craft_ui::dialog::{
     ButtonRole, ColorRequest, Dialog, DialogId, DialogLabels, DialogResult, DialogStack, DialogState, Footer, FooterButton, InitialFocus, Outcome,
-    StackDialog, dialog_id,
+    StackDialog, Width, dialog_id,
 };
 use craft_ui::localized::{Labels, LocaleNumbers};
 use egui::{Context, Id, IdSalt};
@@ -371,6 +371,8 @@ impl StackDialog for ColorPickerDialog {
         let color = current.color;
         let shown = Dialog::new(("color-picker", key.as_str()), title.as_str())
             .stack(stack)
+            .width(Width::Content)
+            .roomy(true)
             .footer(Footer::none())
             .initial_focus(InitialFocus::None)
             .show(ctx, state, &mut (), |ui, ()| {

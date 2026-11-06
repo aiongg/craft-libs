@@ -95,6 +95,16 @@ impl Rig {
         self.frames(2);
     }
 
+    fn rect(&self, role: Role, name: &str) -> Rect {
+        let b = self.node(role, name).1.bounds().expect("bounds");
+        Rect::from_min_max(Pos2::new(b.x0 as f32, b.y0 as f32), Pos2::new(b.x1 as f32, b.y1 as f32))
+    }
+
+    /// The dialog window's rectangle.
+    fn window(&self) -> Rect {
+        self.ctx.memory(|m| m.area_rect(self.dialog().id)).expect("the dialog's area")
+    }
+
     fn dialog(&self) -> &ColorPickerDialog {
         self.host.get::<ColorPickerDialog>().expect("the dialog is open")
     }
@@ -360,4 +370,18 @@ fn a_given_title_fills_its_arg_after_translation() {
         .install(&rig.ctx);
     rig.frames(3);
     assert!(titled(&rig, "Farbwähler (") && titled(&rig, "Tint"), "and follows the language");
+}
+
+/// The dialog is as wide as its content plus the roomy margins: the margin at the right equals the
+/// margin at the left, and nothing is a constant.
+#[test]
+fn the_picker_dialog_is_as_wide_as_its_content_with_equal_margins() {
+    let rig = Rig::open(ColorPickerDialog::foreground(BLUE));
+    let frame = rig.window();
+    let pad = craft_ui::theme::current(&rig.ctx).component.dialog.pad_roomy;
+    let (ok, web) = (rig.rect(Role::Button, "OK"), rig.rect(Role::CheckBox, "Only Web Colors"));
+    let (left, right) = (web.left() - frame.left(), frame.right() - ok.right());
+    assert!((left - pad).abs() < 1.0, "left margin {left} is the roomy margin {pad}");
+    assert!((right - left).abs() < 1.0, "right margin {right} equals left margin {left}: {ok:?} in {frame:?}");
+    assert!((frame.width() - (ok.right() - web.left()) - 2.0 * pad).abs() < 1.0, "width is content plus margins: {frame:?}");
 }
