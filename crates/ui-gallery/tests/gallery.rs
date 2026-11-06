@@ -1808,6 +1808,7 @@ fn gallery_chrome(tree: &craft_ui::inspect::AccessTree, node: egui::accesskit::N
 /// template, so a bypass in one is not seen.
 #[test]
 #[ignore = "gallery sweep: run with `cargo test -p craft-ui-gallery --release -- --include-ignored`"]
+#[cfg(debug_assertions)] // the pseudo locale exists in debug builds only
 fn built_in_strings_are_marked_in_the_pseudo_locale() {
     let ctx = Context::default();
     ctx.enable_accesskit();
@@ -1856,6 +1857,7 @@ fn built_in_strings_are_marked_in_the_pseudo_locale() {
 }
 
 #[test]
+#[cfg(debug_assertions)] // the pseudo locale exists in debug builds only
 fn the_language_picker_installs_the_pseudo_words() {
     use egui::accesskit::Role;
     let ctx = Context::default();

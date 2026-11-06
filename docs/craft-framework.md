@@ -518,6 +518,8 @@ The gallery story sweeps (every story in every tab and variants view, the access
 cargo test -p craft-ui-gallery --release -- --include-ignored
 ```
 
+The release run takes about 3 minutes against about 10 in debug. The pseudo-locale checks exist in debug builds only, so run them with `cargo test -p craft-ui-gallery --test gallery -- --include-ignored pseudo`.
+
 ### 8.2 Design lint
 
 - Rules: `literal-size/*`, `raw-colour/const`, `style-mutation`, `tooltip/stock`, `clippy/inner-allow`.
