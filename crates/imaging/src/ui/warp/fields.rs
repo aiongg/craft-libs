@@ -256,6 +256,7 @@ impl<'a> WarpFields<'a> {
                         .option(WarpGridChoice::Four, labels.four.as_str())
                         .option(WarpGridChoice::Five, labels.five.as_str())
                         .size(sm)
+                        .fit(true)
                         .show(ui);
                     if let Some(&picked) = pick.event.as_ref().and_then(EditEvent::value)
                         && picked != values.grid
@@ -274,7 +275,7 @@ impl<'a> WarpFields<'a> {
                     .fold(Select::new("style", labels.warp_name.as_str(), &mut style), |select, entry| {
                         select.option(entry.key.clone(), entry.label.as_str())
                     });
-                let pick = select.size(sm).show(ui);
+                let pick = select.size(sm).fit(true).show(ui);
                 if let Some(picked) = pick.event.as_ref().and_then(EditEvent::value)
                     && *picked != values.style
                 {

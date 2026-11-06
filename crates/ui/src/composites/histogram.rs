@@ -117,7 +117,7 @@ pub enum HistogramScale {
 pub enum HistogramLook {
     /// One channel as a filled area in its colour.
     Tone,
-    /// One grey, `surface.sunken` at three quarters opacity, in every channel, to sit behind a curve.
+    /// One grey, `text.muted` at half opacity, in every channel, to sit behind a curve.
     Backdrop,
     /// Overlapping ribbons: filled bands with exact overlap colours and an outline each.
     Rgb,
@@ -215,7 +215,7 @@ pub struct HistogramStyle {
     /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
     /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
     pub inks: [Color32; 7],
-    /// The tone look behind a curve, in every channel: `surface.sunken` at three quarters opacity.
+    /// The tone look behind a curve, in every channel: `text.muted` at half opacity.
     pub backdrop: Color32,
     /// The selected range's band: `accent.solid` at 35 % opacity.
     pub selection: Color32,
@@ -333,7 +333,7 @@ const MAX_CHANNELS: usize = 32;
 /// Height of the plot, in `size.control.md` steps.
 const PLOT_HEIGHT_CONTROLS: f32 = 4.0;
 /// Opacity of the tone backdrop behind a curve.
-const BACKDROP_ALPHA: f32 = 0.75;
+const BACKDROP_ALPHA: f32 = 0.5;
 /// Opacity of the selected range's band.
 const SELECTION_ALPHA: f32 = 0.35;
 
@@ -499,7 +499,7 @@ impl Histogram {
             outline_neutral: c.text.normal.to_egui(),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
             inks: ChannelColor::ALL.map(|ch| ch.color(tokens)),
-            backdrop: c.surface.sunken.to_egui().gamma_multiply(BACKDROP_ALPHA),
+            backdrop: c.text.muted.to_egui().gamma_multiply(BACKDROP_ALPHA),
             selection: c.accent.solid.to_egui().gamma_multiply(SELECTION_ALPHA),
             line: tokens.stroke.thin,
             marker_width: tokens.stroke.medium,

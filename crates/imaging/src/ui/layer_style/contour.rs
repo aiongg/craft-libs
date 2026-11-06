@@ -79,7 +79,7 @@ pub struct ContourFieldResponse {
 /// Editor), the preset picker's arrow and, for effects that have one, the Anti-aliased check.
 ///
 /// - Picker (the arrow; a popover): the built-in presets ([`Contour::presets`], Photoshop's
-///   order) then the host's contours, as `size.thumb.md` cells with the curve drawn in
+///   order) then the host's contours, as cells of 5/3 control heights with the curve drawn in
 ///   each and the name as tooltip; arrows move, Enter or a click picks (one `Set`) and closes. A
 ///   menu at its end offers Load Contours…, Replace Contours…, Save Contours… (disabled with no
 ///   host contours); a host contour's context menu offers Delete Contour.

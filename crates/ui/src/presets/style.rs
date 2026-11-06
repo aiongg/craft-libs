@@ -92,7 +92,7 @@ impl PresetStyle {
     pub fn from_tokens(tokens: &UiTokens) -> Self {
         let (c, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
         Self {
-            header_height: size.panel_header,
+            header_height: size.control.md,
             grid_gap: space.gap.inline,
             grid_inset: space.pad.panel,
             cell_radius: corner_radius(tokens.shape.radius.control),

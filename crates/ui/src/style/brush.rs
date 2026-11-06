@@ -142,7 +142,7 @@ impl BrushPanelStyle {
             chip_number_at: size.control.sm - 1.0,
             panel_width: SETTINGS_CONTENT_WIDTH + SECTION_LABEL_WIDTH + space.pad.control * 2.0 + space.pad.panel * 3.0,
             section_list_width: SECTION_LABEL_WIDTH + space.pad.control * 2.0,
-            strip_height: thumb + space.pad.panel * 2.0,
+            strip_height: thumb + size.panel_header,
             control_select: CONTROL_SELECT_LABEL_WIDTH + CONTROL_SELECT_CHEVRON + space.pad.control * 2.0,
             ellipse_size: thumb + space.pad.dialog * 2.0,
             ellipse_disc: thumb - space.gap.stack,
