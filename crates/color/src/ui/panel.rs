@@ -435,6 +435,17 @@ struct Body<'a> {
     add_to_swatches: Option<PanelTarget>,
 }
 
+/// `values` with every non-finite channel set to 0, as PhotoCraft's model wrapper did: a NaN or
+/// infinity from automation or a field must not reach the colour or the remembered values.
+pub(super) fn finite_values(mut values: ModelValues) -> ModelValues {
+    for v in &mut values.values {
+        if !v.is_finite() {
+            *v = 0.0;
+        }
+    }
+    values
+}
+
 impl Body<'_> {
     fn color(&self) -> Srgba {
         self.colors[self.target.index()]
@@ -568,6 +579,7 @@ impl Body<'_> {
 
     /// An edit of `model`'s values for the edited colour.
     fn model_event(&mut self, model: &dyn ColorModel, event: EditEvent<ModelValues>) {
+        let event = event.map(finite_values);
         if let Some(values) = event.value() {
             self.remember(model, *values);
         }

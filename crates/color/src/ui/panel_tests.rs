@@ -276,3 +276,80 @@ fn cube_modes_warn_when_the_colour_cannot_print() {
         assert!(rig.edits.iter().all(|(t, _)| *t == PanelTarget::Background), "{mode:?}: the foreground is left alone");
     }
 }
+
+/// A saturated colour dragged to the cube's bottom right (black) keeps the remembered hue and
+/// saturation: the knob stays in the corner and the strip keeps its hue.
+#[test]
+fn dragging_to_the_bottom_right_keeps_the_knob_there() {
+    let mut rig = Rig::new(ColorPanelMode::HueCube);
+    rig.colors[0] = Srgba::rgb(0.2, 0.4, 0.6);
+    rig.settle();
+    let value = |rig: &Rig, role: Role, name: &str| {
+        rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == role && n.label() == Some(name)).and_then(|n| n.value()).unwrap_or_default().to_owned()
+    };
+    let hue_before = value(&rig, Role::Slider, "Hue");
+    assert!(hue_before.starts_with("Hue 210"), "{hue_before}");
+
+    let area = rig.bounds(Role::Slider, "Saturation and brightness");
+    let start = area.center();
+    let corner = area.right_bottom() + vec2(20.0, 20.0);
+    rig.frame(vec![Event::PointerMoved(start), button(start, true, Modifiers::NONE)]);
+    rig.frame(vec![Event::PointerMoved(corner)]);
+    rig.frame(vec![button(corner, false, Modifiers::NONE)]);
+    let picked = rig.edits.iter().rev().find_map(|(_, e)| e.value()).expect("a picked colour").color;
+    assert!(picked.r < 0.01 && picked.g < 0.01 && picked.b < 0.01, "the corner is black: {picked:?}");
+
+    rig.colors[0] = picked;
+    rig.settle();
+    let area_text = value(&rig, Role::Slider, "Saturation and brightness");
+    assert!(area_text.starts_with("Saturation 100") && area_text.contains("Brightness 0"), "the knob stays at the corner: {area_text}");
+    assert_eq!(value(&rig, Role::Slider, "Hue"), hue_before, "the hue stays");
+}
+
+/// Non-finite channel values become 0, as PhotoCraft's model wrapper did; finite ones stay.
+#[test]
+fn non_finite_channels_become_zero() {
+    use craft_theme::ModelValues;
+    let cleaned = super::panel::finite_values(ModelValues::new("hsb", &[f32::NAN, f32::INFINITY, 40.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 0.0, 40.0]);
+    let cleaned = super::panel::finite_values(ModelValues::new("rgb", &[f32::NEG_INFINITY, 12.0, 255.0]));
+    assert_eq!(cleaned.values[..3], [0.0, 12.0, 255.0]);
+}
+
+/// Every model the panel offers returns its colours: whole-number fields within a step, and a
+/// colour CMYK can print comes back as itself once converted.
+#[test]
+fn every_panel_model_round_trips_its_colours() {
+    use crate::{cmyk::CmykModel, gray::GrayModel};
+    use craft_cms::convert::CmykConverter;
+    use craft_theme::{ColorModel, HsbModel, LabModel, RgbModel};
+
+    let colours = [Srgba::rgb(0.2, 0.6, 0.8), Srgba::rgb(1.0, 0.0, 0.0), Srgba::rgb(0.0, 0.0, 0.0), Srgba::rgb(1.0, 1.0, 1.0), Srgba::rgb(0.5, 0.25, 0.75)];
+    let worst = |a: Srgba, b: Srgba| (a.r - b.r).abs().max((a.g - b.g).abs()).max((a.b - b.b).abs());
+    let rounded = |model: &dyn ColorModel, c: Srgba| {
+        let mut v = model.from_srgb(c);
+        for (slot, ch) in v.values.iter_mut().zip(model.channels()) {
+            let scale = 10f32.powi(i32::from(ch.decimals));
+            *slot = (*slot * scale).round() / scale;
+        }
+        v
+    };
+    for (model, tolerance) in [(&RgbModel as &dyn ColorModel, 0.6 / 255.0), (&HsbModel, 2.5 / 255.0), (&LabModel, 0.03)] {
+        for c in colours {
+            let back = model.to_srgb(&rounded(model, c).values);
+            assert!(worst(back, c) <= tolerance, "{} {c:?} -> {back:?}", model.id());
+        }
+    }
+    for g in [0.0, 0.25, 0.5, 1.0] {
+        let c = Srgba::rgb(g, g, g);
+        let back = GrayModel.to_srgb(&rounded(&GrayModel, c).values);
+        assert!(worst(back, c) < 0.01, "gray {g} -> {back:?}");
+    }
+    // Pure red can't print, so CMYK returns the nearest printable colour, which then is stable.
+    let cmyk = CmykModel::new(CmykConverter::coated().clone());
+    for c in colours {
+        let once = cmyk.to_srgb(&rounded(&cmyk, c).values);
+        let twice = cmyk.to_srgb(&rounded(&cmyk, once).values);
+        assert!(worst(once, twice) <= 0.03, "cmyk {c:?} -> {once:?} -> {twice:?}");
+    }
+}
