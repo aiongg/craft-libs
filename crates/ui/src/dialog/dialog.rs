@@ -474,7 +474,7 @@ impl<'a> Dialog<'a> {
                 ),
                 None => {
                     let (min, max) = width.range(&t, window.width() - 2.0 * pad);
-                    frame.width(min, max)
+                    if width == Width::Content { frame.fit_content(max) } else { frame.width(min, max) }
                 }
             };
             let draw_body = |ui: &mut Ui| {

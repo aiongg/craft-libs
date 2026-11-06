@@ -157,8 +157,9 @@ impl ColorPicker<'_> {
             });
             let grid_width = self.grid_width(ui, models, inner, translate);
             // The side actions end at the content's trailing edge, whatever width the host gives;
-            // an unbounded host gets the grid's width.
-            let trailing = if ui.available_width().is_finite() { ui.available_width().max(grid_width) } else { grid_width };
+            // an unbounded host, and a sizing pass (which a content-sized host takes its width from),
+            // get the grid's width.
+            let trailing = if ui.available_width().is_finite() && !ui.is_sizing_pass() { ui.available_width().max(grid_width) } else { grid_width };
             ui.with_layout(direction::column(ui), |ui| {
                 ui.spacing_mut().item_spacing.y = tokens.component.color_picker.grid_gap;
                 if self.compare.is_some() || !self.warnings.is_empty() || !self.side_actions.is_empty() {
@@ -269,6 +270,7 @@ impl ColorPicker<'_> {
                                         .step(f64::from(ch.step))
                                         .decimals(0..=usize::from(ch.decimals))
                                         .unit(unit_of(ch.unit, translate))
+                                        .width(inner.width)
                                         .policy(inner.policy)
                                         .part(true)
                                         .enabled(inner.enabled)

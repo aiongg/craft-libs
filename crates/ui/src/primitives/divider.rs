@@ -21,17 +21,25 @@ pub struct DividerStyle {
 #[derive(Clone, Copy, Debug)]
 pub struct Divider {
     vertical: bool,
+    follow_content: bool,
 }
 
 impl Divider {
     /// A line across the available width.
     pub fn horizontal() -> Self {
-        Self { vertical: false }
+        Self { vertical: false, follow_content: false }
     }
 
     /// A line down the available height, for rows.
     pub fn vertical() -> Self {
-        Self { vertical: true }
+        Self { vertical: true, follow_content: false }
+    }
+
+    /// Takes no width in egui's sizing pass, so a container sized by its content is not widened by
+    /// the line (as egui's `Separator` does).
+    pub fn follow_content(mut self) -> Self {
+        self.follow_content = true;
+        self
     }
 
     /// The resolved divider style: the `line.divider` colour at a hairline width, which is one
@@ -44,7 +52,7 @@ impl Divider {
     pub fn show(self, ui: &mut Ui) -> Response {
         let ppp = ui.pixels_per_point();
         let width = craft_theme::Stroke::Hairline.width(ppp);
-        let available = ui.available_size_before_wrap();
+        let available = if self.follow_content && ui.is_sizing_pass() { vec2(0.0, 0.0) } else { ui.available_size_before_wrap() };
         let size = if self.vertical { vec2(width, available.y) } else { vec2(available.x, width) };
         let (rect, response) = ui.allocate_exact_size(size, Sense::hover());
         let (from, to) = if self.vertical { (rect.center_top(), rect.center_bottom()) } else { (rect.left_center(), rect.right_center()) };

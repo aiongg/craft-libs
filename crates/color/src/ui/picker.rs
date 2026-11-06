@@ -732,7 +732,7 @@ impl<'a> ColorPicker<'a> {
                     &label,
                     color,
                     codec,
-                    hex::Options::picker(EditPolicy::default().cancellable(self.policy.cancellable), enabled),
+                    hex::Options { width: Some(width), ..hex::Options::picker(EditPolicy::default().cancellable(self.policy.cancellable), enabled) },
                 )
             })
             .inner;
