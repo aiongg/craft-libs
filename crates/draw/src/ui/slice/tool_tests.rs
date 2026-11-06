@@ -219,9 +219,10 @@ fn slice_select_moves_whole_slice_when_press_hits_a_covered_piece() {
     assert_eq!(committed(&moves(&h)), Some(Rect::new(10.0, 0.0, 110.0, 100.0)));
     assert!(matches!(h.state().events.last(), Some(SliceEvent::Move { number: 1, .. })));
 
-    // Where both cover the point, the later slice is on top.
+    // Where both cover the point, the later slice is on top. The point sits away from the
+    // selected slice's handles, which would otherwise take the press.
     h.state_mut().events.clear();
-    drag(&mut h, pos2(100.0, 100.0), pos2(100.0, 110.0));
+    drag(&mut h, pos2(75.0, 75.0), pos2(75.0, 85.0));
     assert_eq!(selects(&h), [Some(2)]);
     assert_eq!(committed(&moves(&h)), Some(Rect::new(50.0, 60.0, 150.0, 160.0)));
 }

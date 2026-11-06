@@ -770,6 +770,7 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
     for id in ["craft.artcraft", "craft.studio", "craft.classic"] {
         let theme = craft_theme::builtins().iter().find(|t| t.id.as_str() == id).expect("built-in theme").clone();
         let mut rounded = false;
+        let mut control = 0.0;
         let mut tint = false;
         let mut drawn = |layer: bool, selected: bool, hovered: bool| {
             let mut style = None;
@@ -780,6 +781,7 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
                     |ui| {
                         let tokens = Tokens::of(ui);
                         rounded = tokens.shape.rows == craft_theme::RowStyle::Rounded;
+                        control = tokens.shape.radius.control;
                         tint = tokens.color.state.selected.0[3] < 255;
                         style = Some(ListRow::<u8>::style(&tokens));
                         panel(ui, 240.0, |ui| {
@@ -813,7 +815,7 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
         assert_eq!(outlined, tint, "{id}: the selected layer is outlined when its fill is a tint");
         assert_eq!(row_outline(&selected), outlined, "{id}");
         assert!(!row_outline(&plain), "{id}: a plain row has no outline");
-        assert_eq!(s.layer_radius == 0.0, !rounded, "{id}: square layer rows when the rows are divided");
+        assert_eq!(s.layer_radius, if rounded { control } else { 0.0 }, "{id}: square layer rows when the rows are divided");
         let frame = selected.iter().find_map(|s2| match s2 {
             Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside => Some(r.corner_radius),
             _ => None,

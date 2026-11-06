@@ -90,7 +90,7 @@ fn on_toggle_text_reads_on_its_fill_in_high_contrast() {
 fn bevel_check_keeps_its_face_and_outline_while_on() {
     for t in every_builtin() {
         let colors = super::check::CheckColors::new(&t);
-        if matches!(t.shape.edge, craft_theme::Edge::Bevel { .. }) {
+        if crate::primitives::Surface::is_bevelled(&t) {
             assert_eq!(colors.on.fill, colors.off.fill, "{}", t.color.surface.sunken.to_hex());
             assert_eq!(colors.on.border, colors.off.border);
             assert_eq!(colors.on.mark.rest, t.color.line.mark);
