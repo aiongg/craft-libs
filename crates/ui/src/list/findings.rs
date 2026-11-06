@@ -13,6 +13,9 @@ use craft_theme::TypeRole;
 
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 
+/// Radius of the status dot as a share of `size.handle.sm`.
+const STATUS_DOT_SHARE: f32 = 0.75;
+
 crate::words! {
     /// The list's words, English by default.
     #[non_exhaustive]
@@ -66,7 +69,7 @@ pub struct FindingsListResponse {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FindingsStyle {
-    /// The status dot's radius: `findings.status_dot`.
+    /// The status dot's radius.
     pub status_dot: f32,
     /// The status dot with no errors: `color.status.good.fg`.
     pub good: Color32,
@@ -108,7 +111,7 @@ impl<'a> FindingsList<'a> {
     /// The summary line's sizes and colours.
     pub fn style(tokens: &UiTokens) -> FindingsStyle {
         FindingsStyle {
-            status_dot: tokens.component.findings.status_dot,
+            status_dot: tokens.size.handle.sm * STATUS_DOT_SHARE,
             good: tokens.color.status.good.fg.to_egui(),
             bad: tokens.color.status.bad.fg.to_egui(),
             line_height: tokens.typography.get(TypeRole::Body).line_height,

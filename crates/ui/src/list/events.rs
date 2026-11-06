@@ -16,6 +16,7 @@ use crate::icons::IconSize;
 use crate::localized::words::counts;
 use crate::localized::{AgeStyle, LocaleNumbers, SharedLabels as _, Words, relative_age};
 use crate::primitives::{Content, Text};
+use crate::style::list::ListStyle;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use craft_theme::{Tone, TypeRole};
 
@@ -118,17 +119,17 @@ pub struct EventLogOutput {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct EventLogStyle {
-    /// The details box's height: `event_log.details_height`.
+    /// The details box's height: a fixed line count.
     pub details_height: f32,
-    /// Above and below the details text: `event_log.details_pad_y`.
+    /// Above and below the details text: `space.gap.tight`.
     pub details_pad_y: f32,
-    /// At the sides of the details text: `field.pad_x`.
+    /// At the sides of the details text: `space.pad.control`.
     pub details_pad_x: f32,
-    /// The details box's fill: `field.fill.rest`.
+    /// The details box's fill: `surface.sunken`.
     pub details_fill: Color32,
-    /// The details box's corners: `field.radius`.
+    /// The details box's corners: `shape.radius.control`.
     pub details_radius: CornerRadius,
-    /// The shortest the list gets while the details box takes room: `list.row_height_dense`.
+    /// The shortest the list gets while the details box takes room: `ListStyle::row_height_dense`.
     pub min_list_height: f32,
     /// The age's text role.
     pub age: TypeRole,
@@ -151,6 +152,9 @@ impl EventLogStyle {
     }
 }
 
+/// Lines of detail text the log shows before it scrolls.
+const DETAIL_LINES: f32 = 5.0;
+
 /// FilmCraft's Events panel as a component.
 ///
 /// ```ignore
@@ -170,7 +174,7 @@ impl EventLogStyle {
 ///   ([`relative_age`](crate::localized::relative_age) of `now_ms - time_ms` in whole seconds; a
 ///   time after `now_ms` is 0). Striped.
 ///   A click selects a row, a click on the selected one deselects it.
-/// - **Details.** With a row selected, a 70-point box under the rows in `field.fill.rest`:
+/// - **Details.** With a row selected, a 70-point box under the rows in `surface.sunken`:
 ///   [`EventLogLabels::details`] then the whole message, wrapping, selectable. A click shows or
 ///   hides the box in the pass of the click.
 /// - **Empty.** [`EventLogLabels::none`] in `text.faint`.
@@ -203,15 +207,15 @@ impl<'a> EventLog<'a> {
 
     /// The log's sizes and colours.
     pub fn style(tokens: &UiTokens) -> EventLogStyle {
-        let (log, field) = (&tokens.component.event_log, &tokens.component.field);
+        let (color, space) = (&tokens.color, &tokens.space);
         let level = |level: EventLevel| Notice::style(tokens, level.tone()).fg;
         EventLogStyle {
-            details_height: log.details_height,
-            details_pad_y: log.details_pad_y,
-            details_pad_x: field.pad_x,
-            details_fill: field.fill.rest.to_egui(),
-            details_radius: CornerRadius::from(field.radius),
-            min_list_height: tokens.component.list.row_height_dense,
+            details_height: DETAIL_LINES * tokens.typography.body.line_height + 2.0 * space.gap.tight,
+            details_pad_y: space.gap.tight,
+            details_pad_x: space.pad.control,
+            details_fill: color.surface.sunken.to_egui(),
+            details_radius: CornerRadius::from(tokens.shape.radius.control),
+            min_list_height: ListStyle::new(tokens).row_height_dense,
             age: TypeRole::Caption,
             info: level(EventLevel::Info),
             warning: level(EventLevel::Warning),

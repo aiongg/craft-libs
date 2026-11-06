@@ -17,6 +17,8 @@ use craft_theme::{ControlSize, TypeRole};
 
 /// The most of the table the name column takes.
 const NAME_SHARE: f32 = 1.0 / 3.0;
+/// Rows shown before the table scrolls.
+const MAX_ROWS: f32 = 18.0;
 
 crate::words! {
     /// The table's words, English by default.
@@ -101,15 +103,15 @@ pub struct MetadataTableOutput {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct MetadataStyle {
-    /// Between the name and value columns: `metadata.column_gap`.
+    /// Between the name and value columns: `space.gap.section`.
     pub column_gap: f32,
-    /// Between rows: `metadata.row_gap`.
+    /// Between rows: `space.gap.tight`.
     pub row_gap: f32,
-    /// Above a group's name, after the first group: `metadata.group_gap`.
+    /// Above a group's name, after the first group: `space.gap.row`.
     pub group_gap: f32,
-    /// The rows' tallest height before they scroll: `metadata.max_height`.
+    /// The rows' tallest height before they scroll: a fixed row count.
     pub max_height: f32,
-    /// The fill of every other row: `list.stripe`.
+    /// The fill of every other row: `ListStyle::stripe`.
     pub stripe: Color32,
     /// The names' text role, and the line height a row takes from it.
     pub name: TypeRole,
@@ -132,9 +134,9 @@ pub struct MetadataStyle {
 ///
 /// - **Rows.** Each group's name on a line of its own in the `BodyStrong` role, its fields under
 ///   it in two columns: the name in the `Label` role and `text.muted`, the value in the `Body`
-///   role, wrapping; striped rows (`list.stripe`), 16 points between the columns and 3 between
+///   role, wrapping; striped rows (`ListStyle::stripe`), 16 points between the columns and 3 between
 ///   rows (LightCraft's grid spacing). The name column is as wide as the widest name, at most a
-///   third of the table. A group's title has `metadata.group_gap` above it, except the first.
+///   third of the table. A group's title has `space.gap.row` above it, except the first.
 ///   Values are selectable text, so the user copies part of one with the
 ///   platform's keys.
 /// - **Filter** ([`filter`](Self::filter)): a [`SearchField`](crate::controls::SearchField) over
@@ -199,12 +201,12 @@ impl<'a> MetadataTable<'a> {
     // lightcraft: crates/ui-egui/src/dialogs.rs:662 all_metadata_body
     /// The table's sizes and colours.
     pub fn style(tokens: &UiTokens) -> MetadataStyle {
-        let metadata = &tokens.component.metadata;
+        let space = &tokens.space;
         MetadataStyle {
-            column_gap: metadata.column_gap,
-            row_gap: metadata.row_gap,
-            group_gap: metadata.group_gap,
-            max_height: metadata.max_height,
+            column_gap: space.gap.section,
+            row_gap: space.gap.tight,
+            group_gap: space.gap.row,
+            max_height: MAX_ROWS * tokens.size.control.md,
             stripe: crate::list::ListRow::<()>::style(tokens).stripe,
             name: TypeRole::Label,
             name_line: tokens.typography.get(TypeRole::Label).line_height,

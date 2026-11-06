@@ -6,6 +6,7 @@ use egui::accesskit::Role;
 use egui::{Id, KeyboardShortcut, Rect, Response, Sense, Ui};
 
 use super::row::{ListRowStyle, RowEvent};
+use crate::style::labels::label_colors;
 use crate::controls::checkbox;
 use crate::controls::{CheckState, Checkbox, TooltipExt as _};
 use crate::edit::{self, CancelReason, EditEvent, EditPolicy, Gesture, GestureId};
@@ -104,7 +105,7 @@ impl ToggleColumn {
     /// for is on and some off, as an action with some of its steps switched off. It takes the
     /// place of `on` for the look and for AccessKit (toggled mixed). A [check box](Self::check_box)
     /// cell shows the dash; an icon cell shows its on icon in the row's dimmed text colour
-    /// (`list.text.dimmed`, `list.text.selected.dimmed` on a selected row). A press, a sweep that
+    /// (`text.faint`, `text.on_selected` on a selected row). A press, a sweep that
     /// starts on it and a screen reader's click set it on (`ToggleEdit { on: true }`), as a mixed
     /// [`Checkbox`](crate::controls::Checkbox) becomes checked; a sweep it crosses sets it to
     /// the sweep's state.
@@ -132,8 +133,8 @@ impl ToggleColumn {
 
     /// The column sits at the row's trailing end instead of its reading start (default false):
     /// Brush Settings' lock column. End columns follow the trailing items, in the order they were
-    /// added, from the reading start towards the edge; each is `list.toggle_column` wide, before
-    /// `list.trailing_pad`. The label and the trailing items give them their room first, and
+    /// added, from the reading start towards the edge; each is `ListStyle::toggle_column` wide, before
+    /// `space.pad.panel`. The label and the trailing items give them their room first, and
     /// [`min_width`](super::ListRow::min_width) counts them. They mirror with the row, take no
     /// divider (the layer form's dividers follow the leading columns), and are not indented by
     /// [`indented_toggles`](super::ListRow::indented_toggles). A sweep runs down the column as
@@ -147,7 +148,7 @@ impl ToggleColumn {
     }
 
     /// The off icon shows in every row, not only under the pointer (default false), in the row's
-    /// dimmed text colour (`list.text.dimmed`, `list.text.selected.dimmed` on a selected row);
+    /// dimmed text colour (`text.faint`, `text.on_selected` on a selected row);
     /// the on icon and the hovered off icon are drawn as before. Photoshop shows the open lock on
     /// every lockable Brush Settings row. Has no effect on a [check box](Self::check_box) cell,
     /// which always shows.
@@ -366,7 +367,7 @@ fn paint(ui: &Ui, rect: Rect, column: &ToggleColumn, (hovered, selected): (bool,
     if !ui.is_rect_visible(rect) {
         return;
     }
-    let tint = column.label.map(|color| Tokens::of(ui).component.list.label(color));
+    let tint = column.label.map(label_colors);
     if let Some(tint) = tint {
         ui.painter().rect_filled(rect, 0.0, tint.fill.to_egui());
     }
@@ -408,7 +409,7 @@ fn paint_check_or_mixed(ui: &Ui, response: &Response, column: &ToggleColumn, sel
         return;
     }
     if let Some(color) = column.label {
-        ui.painter().rect_filled(rect, 0.0, Tokens::of(ui).component.list.label(color).fill.to_egui());
+        ui.painter().rect_filled(rect, 0.0, label_colors(color).fill.to_egui());
     }
     if column.boxed {
         let box_style = Checkbox::style(&Tokens::of(ui), ControlSize::Sm);

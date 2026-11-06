@@ -1,12 +1,11 @@
-//! `Panel`: the body of a docked panel and the floating panel over the canvas, drawn with the
-//! `panel.*` tokens. This module holds the embedded panel; the floating panel shares its body
+//! `Panel`: the body of a docked panel and the floating panel over the canvas, drawn from the
+//! semantic tokens. This module holds the embedded panel; the floating panel shares its body
 //! ([`Panel::show_body`]).
 
 use egui::accesskit::{Orientation, Role};
 use egui::{AsIdSalt, Frame, IdSalt, Margin, Rect, ScrollArea, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::composites::PanelFooter;
-use crate::docking::DockLook;
 use crate::icons::Icon;
 use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
@@ -19,9 +18,9 @@ type FooterContent<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PanelStyle {
-    /// Padding round the body inside the scroll area: `panel.pad`.
+    /// Padding round the body inside the scroll area: `space.pad.panel`.
     pub pad: f32,
-    /// Fill of the panel when [`Panel::fill`] is on: `panel.fill`.
+    /// Fill of the panel when [`Panel::fill`] is on: `surface.panel`.
     pub fill: egui::Color32,
     /// Height of the footer, rule and bar, for a one-pixel-wide rule of `pixels_per_point`.
     pub footer_height: f32,
@@ -67,10 +66,10 @@ impl ScrollBarLabels {
 /// # });
 /// ```
 ///
-/// - The panel takes the whole rect `ui` has left. Top to bottom: the scroll body, with `panel.pad`
+/// - The panel takes the whole rect `ui` has left. Top to bottom: the scroll body, with `space.pad.panel`
 ///   on every side inside the scroll area (the scroll bar sits at the panel's edge), then the
 ///   footer. The body shrinks by the footer's height; the host reserves nothing.
-/// - The footer is a [`PanelFooter`]: a rule in `panel.footer.line` from edge to edge and a bar of
+/// - The footer is a [`PanelFooter`]: a rule in `line.divider` from edge to edge and a bar of
 ///   `panel_footer.height` with `panel_footer.button` squares, the first at the reading end.
 /// - **Keyboard and AccessKit:** the host's widgets are the Tab stops. With a title the panel is a
 ///   `Group` of that name; the footer is a horizontal `Toolbar` named by `footer_label`.
@@ -105,7 +104,7 @@ impl<'a> Panel<'a> {
         self
     }
 
-    /// Paints `panel.fill` behind the panel (default off: a dock group paints its own fill).
+    /// Paints `surface.panel` behind the panel (default off: a dock group paints its own fill).
     #[must_use]
     pub fn fill(mut self, fill: bool) -> Self {
         self.fill = fill;
@@ -135,8 +134,7 @@ impl<'a> Panel<'a> {
 
     /// The panel's padding, fill and footer height.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> PanelStyle {
-        let panel = &tokens.component.panel;
-        PanelStyle { pad: panel.pad, fill: panel.fill.to_egui(), footer_height: Panel::footer_height(tokens, pixels_per_point) }
+        PanelStyle { pad: tokens.space.pad.panel, fill: tokens.color.surface.panel.to_egui(), footer_height: Panel::footer_height(tokens, pixels_per_point) }
     }
 
     /// The height a footer takes: the rule and the bar. A host adds it to a dock group's minimum
@@ -179,7 +177,7 @@ impl<'a> Panel<'a> {
     pub(crate) fn show_body<R>(parent: &mut Ui, body: Rect, style: &PanelStyle, scroll_bar_label: Option<&str>, add: impl FnOnce(&mut Ui) -> R) -> R {
         let mut ui = parent.new_child(UiBuilder::new().id_salt("body").max_rect(body));
         ui.set_clip_rect(body.intersect(parent.clip_rect()));
-        let body_gap = DockLook::of(&ui).body_gap;
+        let body_gap = Tokens::of(&ui).space.gap.stack;
         let content = move |ui: &mut Ui| {
             Frame::new()
                 .inner_margin(Margin::same(style.pad.round() as i8))

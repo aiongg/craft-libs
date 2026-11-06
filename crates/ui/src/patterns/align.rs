@@ -150,9 +150,9 @@ pub enum DistributeButtons {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AlignStyle {
-    /// A button's side: `align.button`.
+    /// A button's side: `size.control.md`.
     pub button: f32,
-    /// A button's icon: `align.icon`.
+    /// A button's icon: `size.icon.md`.
     pub icon: f32,
     /// Between the buttons and the "more" menu button: `align.menu_gap`.
     pub menu_gap: f32,
@@ -216,8 +216,7 @@ impl<'a> AlignBar<'a> {
 
     /// The bar's sizes.
     pub fn style(tokens: &UiTokens) -> AlignStyle {
-        let align = &tokens.component.align;
-        AlignStyle { button: align.button, icon: align.icon, menu_gap: align.menu_gap }
+        AlignStyle { button: tokens.size.control.md, icon: tokens.size.icon.md, menu_gap: tokens.space.gap.stack }
     }
 
     // pc: crates/ui-egui/src/tools/align_bar.rs:32 options

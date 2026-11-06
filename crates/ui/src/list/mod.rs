@@ -32,8 +32,8 @@
 //! - [`MetadataTable`]: name and value rows in groups, with a filter field and a column picker.
 //! - [`EventLog`]: warnings and errors newest first, with a level filter, counts and details.
 //!
-//! Rows draw with the `list.*` component tokens; [`ListRow::style`] is a pure function of
-//! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
+//! Rows draw from the semantic tokens; [`ListRow::style`] is a pure function of
+//! [`UiTokens`](crate::theme::UiTokens).
 
 #[cfg(all(test, feature = "screen-testing", not(target_arch = "wasm32")))]
 mod context_menu_tests;

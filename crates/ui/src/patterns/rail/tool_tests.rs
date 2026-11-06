@@ -317,8 +317,8 @@ fn two_columns_widen_the_rail_by_a_button_and_a_gap_and_fill_rows_of_two() {
             metrics = Some((
                 ToolRail::<Tool>::metrics(&tokens, 1),
                 ToolRail::<Tool>::metrics(&tokens, 2),
-                tokens.component.rail.button,
-                tokens.component.rail.gap,
+                tokens.size.rail.button,
+                tokens.space.gap.inline / 2.0,
             ));
         })
         .drop_without_applying_deltas();
@@ -352,7 +352,7 @@ fn in_a_tall_window_the_footer_lies_right_under_the_last_button() {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
         let mut gap = 0.0;
-        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).component.rail.row_gap).drop_without_applying_deltas();
+        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).space.gap.inline).drop_without_applying_deltas();
         gap
     };
     assert_eq!(foot.top() - edit.bottom(), gap, "{edit:?} {foot:?}");
@@ -726,7 +726,7 @@ fn step_keys<S>(h: &mut Harness<'_, S>, key: Key, modifiers: Modifiers) {
     }
 }
 
-// `ToolSlot::group_end` leaves `rail.group_gap` after the slot in one column, and after its row
+// `ToolSlot::group_end` leaves `space.gap.inline` after the slot in one column, and after its row
 // in two; arrow keys still move between neighbouring buttons.
 #[test]
 fn tool_rail_group_gap_adds_space_after_the_slot() {
@@ -734,7 +734,7 @@ fn tool_rail_group_gap_adds_space_after_the_slot() {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
         let mut gap = 0.0;
-        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).component.rail.group_gap).drop_without_applying_deltas();
+        ctx.run_ui(egui::RawInput::default(), |ui| gap = Tokens::of(ui).space.gap.inline).drop_without_applying_deltas();
         gap
     };
     assert!(gap > 0.0);

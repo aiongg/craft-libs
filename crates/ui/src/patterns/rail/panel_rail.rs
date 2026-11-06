@@ -1,5 +1,4 @@
-//! `PanelRail`: the rail of icons that open panels, drawn with the `rail.panel_*`,
-//! `rail.icon.panel`, `rail.selected*` and `rail.marker*` tokens.
+//! `PanelRail`: the rail of icons that open panels, drawn from the semantic tokens.
 
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -18,6 +17,7 @@ use crate::localized::{Word, Words};
 use crate::panes::Edge;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, Surface};
+use crate::style::rail::RailStyle;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use craft_theme::{ControlSize, States};
@@ -26,24 +26,24 @@ use craft_theme::{ControlSize, States};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PanelRailStyle {
-    /// Width of the rail: `rail.panel_width`.
+    /// Width of the rail: `size.control.md` plus `2 * space.gap.tight`.
     pub width: f32,
-    /// Side of a button: `rail.panel_button`.
+    /// Side of a button: `size.control.md`.
     pub button: f32,
-    /// Between buttons: `rail.panel_gap`.
+    /// Between buttons: `space.gap.inline`.
     pub gap: f32,
-    /// Above and below the buttons: `rail.pad_y`.
+    /// Above and below the buttons: `space.pad.panel`.
     pub pad_y: f32,
-    /// Radius of the marker dot: `rail.marker_radius`.
+    /// Radius of the marker dot: `shape.radius.sm`.
     pub marker_radius: f32,
-    /// Behind the rail: `rail.fill`.
+    /// Behind the rail: `surface.chrome`.
     pub fill: Color32,
-    /// The marker dot: `rail.marker`.
+    /// The marker dot: `accent.solid`.
     pub marker: Color32,
-    /// The line on the canvas side: `rail.edge`.
+    /// The line on the canvas side: `line.divider`.
     pub edge: Color32,
-    /// What each button is drawn with: glyph `rail.panel_icon` in `rail.icon.panel`, `rail.icon.hover`
-    /// on `rail.hover`; open: `rail.selected` inside `rail.selected.border`, glyph `rail.selected.text`.
+    /// What each button is drawn with: glyph in `text.faint`, `text.normal` on `state.hover`; open:
+    /// `state.selected` inside `accent.border`, glyph `text.on_selected`.
     pub icon_button: IconButtonStyle,
 }
 
@@ -131,11 +131,11 @@ pub struct PanelRailOutput<P> {
 /// # });
 /// ```
 ///
-/// - **Look:** `rail.panel_width` wide in `rail.fill`, `rail.panel_button` squares with
-///   `rail.panel_icon` glyphs, `rail.pad_y` above and below, one hairline in `rail.edge` along the
-///   canvas side. A button whose panel is open has the `rail.selected` fill inside a
-///   `rail.selected.border` outline; one under the pointer has `rail.hover`.
-/// - **Marker:** a `rail.marker` dot at the button's corner away from the canvas, only while the
+/// - **Look:** `surface.chrome`, `size.control.md` squares, `space.pad.panel` above and below, one
+///   hairline in `line.divider` along the canvas side. A button whose panel is open has the
+///   `state.selected` fill inside an `accent.border` outline; one under the pointer has
+///   `state.hover`.
+/// - **Marker:** an `accent.solid` dot at the button's corner away from the canvas, only while the
 ///   panel is not open.
 /// - **Requests:** a click on a closed panel's icon asks to open it, on an open one to close it.
 ///   The host changes its layout; the rail stores nothing.
@@ -185,43 +185,37 @@ impl PanelRail {
         self
     }
 
-    /// The resolved rail style, read from `tokens.component.rail`.
+    /// The resolved rail style.
     pub fn style(tokens: &UiTokens) -> PanelRailStyle {
-        let r = &tokens.component.rail;
+        let (c, space) = (&tokens.color, &tokens.space);
+        let rail = RailStyle::new(tokens);
         let clear = Color32::TRANSPARENT;
-        let hover = r.hover.to_egui();
-        let icon_hover = r.icon_hover.to_egui();
-        let icon = r.panel_icon_color.to_egui();
+        let hover = c.state.hover.to_egui();
+        let icon_hover = c.text.normal.to_egui();
+        let icon = c.text.faint.to_egui();
+        let selected = c.state.selected.to_egui();
+        let selected_border = c.accent.border.to_egui();
+        let selected_text = c.text.on_selected.to_egui();
         let disabled = IconButton::style(tokens, ControlSize::Md);
         PanelRailStyle {
-            width: r.panel_width,
-            button: r.panel_button,
-            gap: r.panel_gap,
-            pad_y: r.pad_y,
-            marker_radius: r.marker_radius,
-            fill: r.fill.to_egui(),
-            marker: r.marker.to_egui(),
-            edge: r.edge.to_egui(),
+            width: rail.panel_width,
+            button: tokens.size.control.md,
+            gap: space.gap.inline,
+            pad_y: space.pad.panel,
+            marker_radius: tokens.shape.radius.sm,
+            fill: c.surface.chrome.to_egui(),
+            marker: c.accent.solid.to_egui(),
+            edge: c.line.divider.to_egui(),
             icon_button: IconButtonStyle {
-                side: r.panel_button,
-                icon: r.panel_icon,
-                radius: CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8),
+                side: tokens.size.control.md,
+                icon: rail.panel_icon,
+                radius: CornerRadius::same(tokens.shape.radius.control.round().clamp(0.0, 255.0) as u8),
                 fill: States::new(clear, hover, hover, clear),
                 text: States::new(icon, icon_hover, icon_hover, disabled.text.disabled),
-                selected_fill: States::new(r.selected.to_egui(), r.selected.to_egui(), r.selected.to_egui(), disabled.selected_fill.disabled),
-                selected_border: States::new(
-                    r.selected_border.to_egui(),
-                    r.selected_border.to_egui(),
-                    r.selected_border.to_egui(),
-                    disabled.selected_border.disabled,
-                ),
-                selected_text: States::new(
-                    r.selected_text.to_egui(),
-                    r.selected_text.to_egui(),
-                    r.selected_text.to_egui(),
-                    disabled.selected_text.disabled,
-                ),
-                selected_border_width: Some(r.selected_border_width),
+                selected_fill: States::new(selected, selected, selected, disabled.selected_fill.disabled),
+                selected_border: States::new(selected_border, selected_border, selected_border, disabled.selected_border.disabled),
+                selected_text: States::new(selected_text, selected_text, selected_text, disabled.selected_text.disabled),
+                selected_border_width: Some(tokens.stroke.thin),
                 ..disabled
             },
         }

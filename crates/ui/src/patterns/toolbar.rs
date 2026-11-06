@@ -19,22 +19,22 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToolbarStyle {
-    /// Side of a horizontal toolbar's button: `toolbar.button`.
+    /// Side of a horizontal toolbar's button: `size.control.md`.
     pub button: f32,
-    /// Side of a vertical strip's button: `toolbar.button_large`.
+    /// Side of a vertical strip's button: `size.control.md` plus `2 * space.pad.control`.
     pub button_large: f32,
-    /// Between the buttons of a group: `toolbar.gap`.
+    /// Between the buttons of a group: `space.gap.inline`.
     pub gap: f32,
-    /// Added between the groups of a vertical strip: `toolbar.group_gap`.
+    /// Added between the groups of a vertical strip: `space.gap.stack`.
     pub group_gap: f32,
-    /// Inset of a vertical strip, across and along: `toolbar.pad`.
+    /// Inset of a vertical strip, across and along: `space.pad.control`.
     pub pad: [f32; 2],
-    /// Width of a vertical strip: `toolbar.width`.
+    /// Width of a vertical strip: `size.control.md` plus `2 * space.pad.control`.
     pub width: f32,
-    /// Width of the overflow button: `toolbar.overflow`.
+    /// Width of the overflow button: `size.control.md`.
     pub overflow: f32,
-    /// Space between the groups of a horizontal toolbar, which holds a divider: the button side
-    /// less two points (24 at Compact, 30 at Comfortable).
+    /// Space between the groups of a horizontal toolbar, which holds a divider: `size.control.md`
+    /// less `2 * space.gap.tight`.
     pub spacing: f32,
     /// Fill of a vertical strip: `surface.panel`.
     pub fill: egui::Color32,
@@ -103,10 +103,10 @@ pub struct ToolbarResponse {
 /// # });
 /// ```
 ///
-/// - **Vertical:** a strip `toolbar.width` wide and as tall as the space left, in `surface.panel`
-///   with a hairline on its inner edge; buttons are `toolbar.button_large` squares. The strip sits
+/// - **Vertical:** a strip `size.control.md` plus `2 * space.pad.control` wide and as tall as the space left, in `surface.panel`
+///   with a hairline on its inner edge; buttons are `size.control.md` plus `2 * space.pad.control` squares. The strip sits
 ///   at the reading start of its container, which the host arranges. If it is too short it scrolls.
-/// - **Horizontal:** a row of `toolbar.button` squares with a divider between groups. With
+/// - **Horizontal:** a row of `size.control.md` squares with a divider between groups. With
 ///   [`overflow`](Toolbar::overflow) the groups that do not fit move to a menu behind a "More"
 ///   button at the end ([`fit_toolbar`]); without it, or when even the button does not fit, the row
 ///   scrolls. Every item stays reachable.
@@ -181,25 +181,25 @@ impl<'a> Toolbar<'a> {
     }
 
     /// Horizontal only: the side of the buttons, and so the bar's height, where the toolbar's own
-    /// `toolbar.button` is not the family's size (the timeline's transport bar passes
-    /// `timeline.transport_button`). Default: `toolbar.button`.
+    /// `size.control.md` is not the family's size (the timeline's transport bar passes
+    /// `timeline.transport_button`). Default: `size.control.md`.
     pub fn button_size(mut self, side: f32) -> Self {
         self.button = Some(side);
         self
     }
 
-    /// The resolved toolbar style, read from `tokens.component.toolbar`.
+    /// The resolved toolbar style.
     pub fn style(tokens: &UiTokens) -> ToolbarStyle {
-        let t = &tokens.component.toolbar;
+        let (space, size) = (&tokens.space, &tokens.size);
         ToolbarStyle {
-            button: t.button,
-            button_large: t.button_large,
-            gap: t.gap,
-            group_gap: t.group_gap,
-            pad: t.pad,
-            width: t.width,
-            overflow: t.overflow,
-            spacing: t.spacing,
+            button: size.control.md,
+            button_large: size.control.md + 2.0 * space.pad.control,
+            gap: space.gap.inline,
+            group_gap: space.gap.stack,
+            pad: [space.pad.control; 2],
+            width: size.control.md + 2.0 * space.pad.control,
+            overflow: size.control.md,
+            spacing: size.control.md - 2.0 * space.gap.tight,
             fill: tokens.color.surface.panel.to_egui(),
         }
     }
@@ -243,7 +243,7 @@ struct Pass<'p> {
 
 impl<'a> Toolbar<'a> {
     /// Shows the toolbar. A horizontal one spans the available width; a vertical one is
-    /// `toolbar.width` wide and spans the available height.
+    /// `size.control.md` plus `2 * space.pad.control` wide and spans the available height.
     pub fn show(mut self, ui: &mut Ui) -> ToolbarResponse {
         let tokens = Tokens::of(ui);
         let mut style = Toolbar::style(&tokens);
