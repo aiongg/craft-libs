@@ -29,6 +29,10 @@
 //! 6. **Labels** show letters and digits by name, and a punctuation key as the character the
 //!    layout types at its position when that character has no key of its own: Ctrl+[ is `Ctrl+Ü`
 //!    on German and `Ctrl+Х` on Russian.
+//! 7. **Symbol table and bracket fallback** ([`Layout::adjust`]): German Ö and # stand for `[` and
+//!    `]`, and the keys at the US bracket positions are `[` and `]` on other layouts until a real
+//!    bracket or a table symbol shows otherwise. Cmd chords on Period and Comma follow the key's
+//!    position. No other position falls back.
 //!
 //! [`KeyInput`] carries what the toolkit reports for one press; toolkits that learn more from the
 //! platform fill more of it. [`Layout`] holds what is known about the layout itself, reported by
@@ -113,11 +117,24 @@ pub struct Layout {
     letters: BTreeMap<Key, char>,
     /// See [`Layout::with_position_fallback`].
     pub(crate) position_fallback: bool,
+    /// A real bracket was typed ([`Layout::adjust`]): the bracket fallback would only steal keys.
+    brackets: bool,
+    /// A [`SYMBOL_TABLE`] layout's own symbol was seen: its keys are the brush keys, not the
+    /// bracket fallback's.
+    table_layout: bool,
 }
 
 impl Default for Layout {
     fn default() -> Layout {
-        Layout { reported_latin: None, seen_latin: None, chars: BTreeMap::new(), letters: BTreeMap::new(), position_fallback: true }
+        Layout {
+            reported_latin: None,
+            seen_latin: None,
+            chars: BTreeMap::new(),
+            letters: BTreeMap::new(),
+            position_fallback: true,
+            brackets: false,
+            table_layout: false,
+        }
     }
 }
 
@@ -132,20 +149,29 @@ const SHIFTED: &[(Key, Key)] = &[
     (Key::Num1, Key::Exclamationmark),
 ];
 
-/// Punctuation positions whose US key a binding on them also matches ([`Layout::with_position_fallback`]).
-pub(crate) const POSITION_FALLBACK: [Key; 11] = [
-    Key::OpenBracket,
-    Key::CloseBracket,
-    Key::Semicolon,
-    Key::Quote,
-    Key::Backslash,
-    Key::Comma,
-    Key::Period,
-    Key::Slash,
-    Key::Backtick,
-    Key::Minus,
-    Key::Equals,
-];
+/// One keyboard layout's symbol keys, for [`Layout::adjust`].
+#[derive(Clone, Copy, Debug)]
+pub struct SymbolLayout {
+    /// `(text typed, Shift held, key the press stands for)`.
+    pub keys: &'static [(&'static str, bool, Key)],
+}
+
+/// Rows valid on every layout: on layouts with a key of its own for `+` (German, Italian,
+/// Spanish...) Shift+`+` types `*` and Shift+`-` types `_`, which egui has no keys for, so they
+/// arrive as the physical `]` and `/`. They become `+` and `-`, as Shift+`=` arrives as `+` on a
+/// US layout. A US Shift+`]` still arrives as `}` and Shift+8 (`*` too) as a digit.
+pub const COMMON_SYMBOLS: SymbolLayout = SymbolLayout { keys: &[("*", true, Key::Plus), ("_", true, Key::Minus)] };
+
+/// Layouts with application-specific bracket keys. German: Ö and # are `[` and `]`, and Shift+Ö
+/// and Shift+# the same keys with Shift; `ö` and `#` arrive as the physical `;` and `\`, and
+/// Shift+# types `'`. Other layouts work through the bracket fallback.
+pub const SYMBOL_TABLE: &[SymbolLayout] = &[SymbolLayout {
+    keys: &[("ö", false, Key::OpenBracket), ("Ö", true, Key::OpenBracket), ("#", false, Key::CloseBracket), ("'", true, Key::CloseBracket)],
+}];
+
+fn lookup_symbol(layout: &SymbolLayout, text: &str, shift: bool) -> Option<Key> {
+    layout.keys.iter().find(|(t, s, _)| *t == text && *s == shift).map(|r| r.2)
+}
 
 fn us_base(shifted: Key) -> Option<Key> {
     SHIFTED.iter().find(|&&(_, s)| s == shifted).map(|&(b, _)| b)
@@ -306,14 +332,78 @@ impl Layout {
         {
             push(Chord::new(input.mods, digit));
         }
-        // Shift that typed the character (German ⇧ß is `?`) says nothing about the US key.
-        if self.position_fallback
+        // Shift that typed the character (German ⇧ß is `?`) says nothing about the US key. Only
+        // the bracket positions fall back, and not once brackets or a table layout were seen.
+        if self.bracket_fallback()
             && first.mods.shift == input.mods.shift
-            && let Some(position) = input.physical.filter(|k| POSITION_FALLBACK.contains(k))
+            && let Some(position @ (Key::OpenBracket | Key::CloseBracket)) = input.physical
         {
             push(Chord::new(input.mods, position));
         }
         out
+    }
+
+    /// Whether the keys at the US bracket positions stand for the brackets when they type
+    /// something else: no real bracket was typed and no [`SYMBOL_TABLE`] layout was seen.
+    fn bracket_fallback(&self) -> bool {
+        self.position_fallback && !self.brackets && !self.table_layout
+    }
+
+    /// Gives a press the key the layout's symbol table and the bracket fallback assign, before
+    /// it is matched. `text` is what the press typed (empty when unknown). Learns from the press:
+    /// a typed bracket or a [`SYMBOL_TABLE`] symbol switches the bracket fallback off.
+    ///
+    /// - Cmd chords on the Period and Comma keys follow the key's position, as in Photoshop:
+    ///   Shift+Cmd+. is Shift+Cmd+> on a US layout, but types `:` on Nordic and German ones.
+    /// - [`COMMON_SYMBOLS`] and [`SYMBOL_TABLE`] rows apply to a press whose typed key egui took
+    ///   from the physical key (it had no name for the symbol) or from that very text, and never
+    ///   to a digit. A table row also sets the physical key, so Shift stays in the chord
+    ///   (Shift+# is Shift+`]`).
+    /// - Otherwise the keys at the US `[` and `]` positions are `[` and `]` while the fallback is
+    ///   on (see [`with_position_fallback`](Self::with_position_fallback)).
+    ///
+    /// Presses with Ctrl or Alt held, and Cmd presses other than those on Period and Comma, are
+    /// returned unchanged.
+    pub fn adjust(&mut self, input: KeyInput, text: &str) -> KeyInput {
+        let mut input = input;
+        if input.mods.cmd
+            && let Some(p @ (Key::Period | Key::Comma)) = input.physical
+        {
+            input.typed = Some(p);
+            return input;
+        }
+        if input.mods.cmd || input.mods.ctrl || input.mods.alt {
+            return input;
+        }
+        if matches!(text, "[" | "]" | "{" | "}") {
+            self.brackets = true;
+            return input;
+        }
+        let mut chars = text.chars();
+        let typed_key = match (chars.next(), chars.next()) {
+            (Some(c), None) => Key::from_char(c),
+            _ => None,
+        };
+        let from_physical = input.typed.is_some() && (input.typed == input.physical || typed_key == input.typed);
+        if !text.is_empty() && from_physical && input.physical.is_some() && !input.typed.is_some_and(Key::is_digit) {
+            let shift = input.mods.shift;
+            if let Some(k) = lookup_symbol(&COMMON_SYMBOLS, text, shift) {
+                input.typed = Some(k);
+                return input;
+            }
+            if let Some(k) = SYMBOL_TABLE.iter().find_map(|l| lookup_symbol(l, text, shift)) {
+                self.table_layout = true;
+                input.typed = Some(k);
+                input.physical = Some(k);
+                return input;
+            }
+        }
+        if self.bracket_fallback()
+            && let Some(p @ (Key::OpenBracket | Key::CloseBracket)) = input.physical
+        {
+            input.typed = Some(p);
+        }
+        input
     }
 
     /// Whether a press runs `binding` on `platform`: one of its [`candidates`](Self::candidates)

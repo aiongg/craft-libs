@@ -139,6 +139,10 @@ pub struct Hit {
     /// US base key (`Shift+;` for `:`), `+` and `=` standing for each other, or a digit-row
     /// position's digit.
     pub exact: bool,
+    /// The press is a bound chord of `command` with Alt added, and `command` opted in
+    /// ([`Bindable::has_alt_variant`](crate::Bindable::has_alt_variant)). `trigger` is the chord
+    /// pressed, Alt included.
+    pub alt_variant: bool,
     /// The text of the Paste event that ran the command, or on the web of the Paste event that
     /// came with the press that ran it.
     pub pasted: Option<String>,
@@ -151,7 +155,7 @@ impl Hit {
             Lookup::Run(command) => (command, Vec::new()),
             Lookup::Cycle(cycle) => (cycle.first()?.clone(), cycle),
         };
-        Some(Hit { command, cycle, trigger, exact, pasted: None })
+        Some(Hit { command, cycle, trigger, exact, alt_variant: false, pasted: None })
     }
 }
 
@@ -252,6 +256,31 @@ impl Dispatcher {
         self
     }
 
+    /// Reads the clipboard keys egui's integrations drop, from the frame's raw input; call it
+    /// from `eframe::App::raw_input_hook` or before `Context::run`. It does nothing unless
+    /// [`with_clipboard_events`](Self::with_clipboard_events) is on. `typing` is whether a text
+    /// field has the keyboard this frame ([`Active::typing`]).
+    ///
+    /// Outside text fields, a V release whose ⌘V press egui-winit swallowed (egui issue #6329:
+    /// an image on the clipboard) and `PasteImage` become the ⌘V press, which the dispatcher
+    /// then runs as the Paste chord. It lives in the raw input because the press must exist
+    /// before egui reads the frame, and the dispatcher sees only the frame's `InputState`.
+    ///
+    /// On Linux and Windows, Ctrl+Insert, Shift+Insert and Shift+Delete are Copy, Paste and Cut.
+    /// egui-winit turns them into clipboard events only on Windows, so a native Linux build
+    /// gets them here: in a text field as egui's `Copy` and `Cut` events and a paste request,
+    /// outside text fields as the Cmd+C, Cmd+V and Cmd+X presses, which run those chords'
+    /// bindings. macOS has no such keys and the web browser handles them itself.
+    pub fn raw_input(&self, ctx: &Context, raw: &mut ::egui::RawInput, typing: bool) {
+        if !self.clipboard {
+            return;
+        }
+        if !typing {
+            crate::raw_clipboard::swallowed_paste(ctx, raw);
+        }
+        crate::raw_clipboard::insert_chords(ctx, raw, typing);
+    }
+
     /// Starts from what the platform reports about the keyboard layout. The dispatcher also
     /// learns from what plain presses type ([`Layout::observe`]), and takes whether the layout
     /// is Latin from egui when the integration reports it (egui-winit on Linux, with the suite's
@@ -292,6 +321,10 @@ impl Dispatcher {
         let mut kept = Vec::with_capacity(input.events.len());
         let events = std::mem::take(&mut input.events);
         let text_of = text_of_press(&events, self.text_first && !active.typing);
+        let texts: Vec<String> = text_of
+            .iter()
+            .map(|j| j.and_then(|j| if let Event::Text(t) = &events[j] { Some(t.clone()) } else { None }).unwrap_or_default())
+            .collect();
         self.report_latin(input.keyboard_layout_is_latin());
         self.learn(&events, &text_of, platform);
         let mut drop = vec![false; events.len()];
@@ -302,7 +335,11 @@ impl Dispatcher {
         for (i, event) in events.into_iter().enumerate() {
             match &event {
                 Event::Key { pressed: true, repeat, .. } if !*repeat || self.repeat => {
-                    let input = key_input(&event, platform, input);
+                    let mut input = key_input(&event, platform, input);
+                    // AltGr presses report no modifiers; their text is no plain typing.
+                    if !self.right_alt {
+                        input = self.layout.adjust(input, &texts[i]);
+                    }
                     let held = input.mods;
                     if let Some(chord) = self.layout.resolve(&input) {
                         let plain_clip = is_plain_clipboard(chord.key, chord.mods);
@@ -411,8 +448,29 @@ impl Dispatcher {
         let find = |double: bool| {
             chords.iter().find_map(|&chord| Hit::from_lookup(keymap.lookup(&chord, double, active), Trigger { chord, double }, chord == first))
         };
+        // Only when no binding owns the Alt chord itself, so a bound Alt chord runs its own command.
+        let alt_variant = |chords: &[Chord]| {
+            let platform = keymap.platform();
+            chords.iter().filter(|c| c.mods.alt).find_map(|&chord| {
+                if active.typing && !keymap.typing_rule().fires(&chord, platform) {
+                    return None;
+                }
+                let plain = Chord::new(Mods { alt: false, ..chord.mods }, chord.key);
+                match keymap.lookup(&plain, false, &Active { typing: false, ..*active }) {
+                    Lookup::Run(command) if keymap.bindable(&command).is_some_and(|b| b.has_alt_variant) => Some(Hit {
+                        command,
+                        cycle: Vec::new(),
+                        trigger: Trigger { chord, double: false },
+                        exact: chord == first,
+                        alt_variant: true,
+                        pasted: None,
+                    }),
+                    _ => None,
+                }
+            })
+        };
         if repeat {
-            return find(false);
+            return find(false).or_else(|| alt_variant(&chords));
         }
         let again = self
             .last
@@ -420,7 +478,7 @@ impl Dispatcher {
             .is_some_and(|l| l.chord == first && !l.ran_double && l.panel.as_deref() == active.panel && now >= l.at && now - l.at < DOUBLE_PRESS);
         let double = if again { find(true) } else { None };
         self.last = Some(LastPress { chord: first, at: now, ran_double: double.is_some(), panel: active.panel.map(str::to_owned) });
-        double.or_else(|| find(false))
+        double.or_else(|| find(false)).or_else(|| alt_variant(&chords))
     }
 }
 
