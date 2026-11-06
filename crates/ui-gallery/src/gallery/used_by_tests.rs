@@ -85,7 +85,7 @@ impl Fixture {
     }
 }
 
-const ACCENT: TokenRef = TokenRef::Color(ColorToken::AccentSolid);
+const ACCENT: TokenRef = TokenRef::Color(ColorToken::AccentStrong);
 
 fn theme_workspace() -> Fixture {
     let mut f = Fixture::new();
@@ -95,7 +95,7 @@ fn theme_workspace() -> Fixture {
 }
 
 #[test]
-fn the_scan_lists_button_as_a_painter_of_accent_solid_and_its_link_opens_the_component() {
+fn the_scan_lists_button_as_a_painter_of_accent_strong_and_its_link_opens_the_component() {
     let mut f = theme_workspace();
     f.frame(Vec::new());
     let (done, total) = f.gallery.scan_progress().expect("selecting a token starts the scan");

@@ -87,7 +87,7 @@ fn style_follows_the_tokens() {
     let (a, b) = (style_for(&studio, &fonts), style_for(&solarized, &fonts));
     assert_ne!(studio.color.surface.panel, solarized.color.surface.panel);
     assert_ne!(a.visuals.panel_fill, b.visuals.panel_fill);
-    assert_ne!(a.visuals.widgets.inactive.weak_bg_fill, b.visuals.widgets.inactive.weak_bg_fill);
+    assert_ne!(a.visuals.widgets.inactive.bg_fill, b.visuals.widgets.inactive.bg_fill);
 }
 
 #[test]

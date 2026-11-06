@@ -29,8 +29,8 @@ fn path(p: &str) -> TokenRef {
 fn the_primary_button_fill_is_a_semantic_token() {
     let size = vec2(480.0, 320.0);
     let a = button_primary(size);
-    let fill = a.rects(path("accent.solid"));
-    assert!(!fill.is_empty(), "accent.solid paints the primary fill: {:?}", a.tokens());
+    let fill = a.rects(path("accent.strong"));
+    assert!(!fill.is_empty(), "accent.strong paints the primary fill: {:?}", a.tokens());
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn a_story_is_probed_without_its_surface_frame() {
         "no shape of the frame is recorded"
     );
     let button = button_primary(size);
-    let fill = button.rects(path("accent.solid"));
+    let fill = button.rects(path("accent.strong"));
     assert!(fill.iter().all(|r| r.min.x > 0.0 && r.min.y > 0.0), "the surface margin offsets the story as in a tile: {fill:?}");
 }
 

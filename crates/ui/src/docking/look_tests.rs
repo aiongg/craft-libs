@@ -112,7 +112,7 @@ fn the_themed_look_differs_between_modes() {
     }
 }
 
-/// The config as a `DockSpec` reads the look of the ui's theme, so a scope that pins `surface.panel`
+/// The config as a `DockSpec` reads the look of the ui's theme, so a scope that pins `surface.background`
 /// recolors the strip and leaves the config alone.
 #[test]
 fn the_config_spec_follows_a_scope_override_of_the_tab_strip() {
@@ -120,7 +120,7 @@ fn the_config_spec_follows_a_scope_override_of_the_tab_strip() {
     let config = DockConfig::default();
     let (outside, inside) = in_ui(|ui| {
         let outside = config.parts(ui).1.tab_strip;
-        let colors: Pins = [(ColorToken::SurfacePanel, pinned)].into_iter().collect();
+        let colors: Pins = [(ColorToken::SurfaceBackground, pinned)].into_iter().collect();
         let inside = scope(ui, |o| o.colors = colors, |ui| config.parts(ui).1.into_owned());
         (outside, inside)
     });

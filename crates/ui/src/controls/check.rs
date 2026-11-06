@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use craft_theme::{
-    CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Edge, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline,
+    CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline,
 };
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
@@ -14,7 +14,7 @@ use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, S
 
 use super::TooltipExt as _;
 use crate::direction;
-use crate::primitives::{StateLayer, SurfaceEdge, SurfaceStyle};
+use crate::primitives::{StateLayer, Surface, SurfaceEdge, SurfaceStyle};
 use crate::theme::{ToEgui, UiTokens, role_format};
 
 /// Share of the sunken fill an off indicator keeps while pressed.
@@ -117,7 +117,7 @@ impl CheckColors {
         let darker = |v: u8| (f32::from(v) * OFF_PRESSED_SHARE).round() as u8;
         let (face, edge) = (c.surface.knob, c.line.knob_edge);
         let disabled_face = mix(face, c.surface.panel, KNOB_DISABLED);
-        let bevel = matches!(tokens.shape.edge, Edge::Bevel { .. });
+        let bevel = Surface::is_bevelled(tokens);
         let off_fill = States::new(sunken, sunken, Rgba([darker(r), darker(g), darker(b), a]), c.state.disabled_fill);
         let off = CheckOffColors { fill: off_fill, border: outline };
         CheckColors {
