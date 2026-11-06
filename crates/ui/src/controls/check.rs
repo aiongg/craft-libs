@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{CheckOffColors, CheckOnColors, ControlSize, CheckSwitchColors, Rgba, States, ThumbColors, Tokens, TypeRole};
+use craft_theme::{CheckOffColors, CheckOnColors, CheckSwitchColors, Contrast, ControlSize, Rgba, States, ThumbColors, Tokens, TypeRole, identifiable_outline};
 use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, Color32, CornerRadius, Galley, Pos2, Rect, Response, Stroke, StrokeKind, TextWrapMode, Ui, Vec2, pos2, vec2};
@@ -98,10 +98,15 @@ pub(crate) struct CheckColors {
 }
 
 impl CheckColors {
-    pub(crate) fn new(tokens: &Tokens) -> Self {
+    pub(crate) fn new(tokens: &UiTokens) -> Self {
         let c = &tokens.color;
         let sunken = c.surface.sunken;
-        let outline = States::new(c.text.faint, c.text.muted, c.text.muted, c.text.disabled);
+        // `text.faint` meets the text minimum on every surface and state fill, so the outline
+        // meets the non-text minimum wherever the control sits; where a pinned `text.faint`
+        // doesn't, and the fill doesn't either, the outline moves and `text.faint` stays.
+        let high = tokens.appearance.contrast == Contrast::High;
+        let rest_outline = identifiable_outline(c.text.faint, sunken, &[c.surface.panel, c.surface.raised], high);
+        let outline = States::new(rest_outline, c.text.muted, c.text.muted, c.text.disabled);
         let solid = c.accent.solid;
         let switch = States::new(solid, solid, solid, c.text.disabled);
         let clear = Rgba::TRANSPARENT;

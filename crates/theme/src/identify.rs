@@ -193,3 +193,45 @@ pub fn identifiable_outline(outline: Rgba, fill: Rgba, on: &[Rgba], high: bool) 
     // the outline; a second round settles that case.
     (0..2).fold(outline, |c, _| on.iter().fold(c, |c, &bg| ensure_contrast(c, bg, min)))
 }
+
+/// The hover fill of a list row: `hover`, moved along OKLCH lightness to the nearest step that is
+/// at least `values::LIST_HOVER_MIN` (WCAG ratio) away from `rest` and from every fill in `beside`
+/// (translucent fills over `rest`), and that `text` still reads on. When no step satisfies all of
+/// them, the nearest step that keeps its distance from the others wins.
+pub fn visible_hover(hover: Rgba, rest: Rgba, beside: &[Rgba], text: Rgba, high: bool) -> Rgba {
+    let min = if high { values::LIST_HOVER_MIN.1 } else { values::LIST_HOVER_MIN.0 };
+    let text_min = if high { values::TEXT_MIN.1 } else { values::TEXT_MIN.0 };
+    let fills: Vec<Rgba> = std::iter::once(rest).chain(beside.iter().map(|&f| over(f, rest))).collect();
+    let distinct = |c: Rgba| fills.iter().all(|&f| contrast_ratio(over(c, rest), f) >= min);
+    if distinct(hover) {
+        return hover;
+    }
+    let start = hover.to_oklch();
+    let alpha = hover.a();
+    let at = |l: f64| Oklch { l, ..start }.to_rgba().with_alpha(alpha);
+    // For each fill and direction, the step nearest that fill that clears `min` against it.
+    let mut candidates: Vec<Rgba> = Vec::new();
+    for &fill in &fills {
+        let l0 = over(fill, rest).to_oklch().l;
+        for target in [0.0, 1.0] {
+            let (mut lo, mut hi) = (l0, target);
+            if contrast_ratio(over(at(hi), rest), fill) < min {
+                continue;
+            }
+            for _ in 0..BISECT_STEPS {
+                let mid = 0.5 * (lo + hi);
+                if contrast_ratio(over(at(mid), rest), fill) >= min {
+                    hi = mid;
+                } else {
+                    lo = mid;
+                }
+            }
+            candidates.push(at(hi));
+        }
+    }
+    candidates.retain(|&c| distinct(c));
+    let nearest =
+        |pool: &mut dyn Iterator<Item = Rgba>| pool.min_by(|a, b| (a.to_oklch().l - start.l).abs().total_cmp(&(b.to_oklch().l - start.l).abs()));
+    let readable = |c: &Rgba| contrast_ratio(text, over(*c, rest)) >= text_min;
+    nearest(&mut candidates.iter().copied().filter(readable)).or_else(|| nearest(&mut candidates.iter().copied())).unwrap_or(hover)
+}

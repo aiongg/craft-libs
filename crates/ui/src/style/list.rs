@@ -1,6 +1,8 @@
 //! Style of the `list` family.
 
-use craft_theme::{Rgba, Tokens};
+use craft_theme::{Contrast, Rgba, visible_hover};
+
+use crate::theme::UiTokens;
 
 /// Offset of the drag ghost from the pointer.
 const GHOST_OFFSET: [f32; 2] = [12.0, -10.0];
@@ -33,10 +35,19 @@ pub struct ListStyle {
 }
 
 impl ListStyle {
-    /// The style for `tokens`.
-    pub fn new(tokens: &Tokens) -> Self {
+    /// The style for `tokens`. In high contrast the hover fills move until they set a row off from
+    /// the panel and the selected fill, and the text still reads on them.
+    pub fn new(tokens: &UiTokens) -> Self {
         let (space, size, color) = (&tokens.space, &tokens.size, &tokens.color);
-        let hover = half(color.state.hover);
+        let high = tokens.appearance.contrast == Contrast::High;
+        let mut hover = half(color.state.hover);
+        let mut layer_hover = stack(color.accent.solid.faded(LAYER_TINT_OPACITY), hover);
+        if high {
+            hover = visible_hover(hover, color.surface.panel, &[color.state.selected], color.text.normal, true);
+            let moved = visible_hover(layer_hover, color.surface.panel, &[], color.text.normal, true);
+            let readable = craft_theme::contrast_ratio(color.text.normal, craft_theme::over(moved, color.surface.panel)) >= 7.0;
+            layer_hover = if readable { moved } else { hover };
+        }
         Self {
             row_height_dense: tokens.typography.body.line_height + 2.0 * space.gap.tight,
             thumb_row_min: size.thumb.md + 2.0 * space.gap.tight,
@@ -45,7 +56,7 @@ impl ListStyle {
             ghost_offset: GHOST_OFFSET,
             hover,
             stripe: color.state.hover.faded(STRIPE_OPACITY),
-            layer_hover: stack(color.accent.solid.faded(LAYER_TINT_OPACITY), hover),
+            layer_hover,
         }
     }
 }

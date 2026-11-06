@@ -23,7 +23,7 @@ fn baselines_follow_the_page_zoom() {
     use super::view::PageViewState;
 
     let ctx = Context::default();
-    let colors = PageGrids::style(&current(&ctx));
+    let colors = PageGrids::style();
     let page = Rect::new(0.0, 0.0, 100.0, 100.0);
     let grid = [PageGrid { page, margins: Rect::new(10.0, 10.0, 90.0, 90.0), columns: Vec::new(), baseline: Some((0.0, 50.0)) }];
     let view = CanvasView::new(egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(200.0, 200.0)), Point::new(50.0, 50.0), 2.0);

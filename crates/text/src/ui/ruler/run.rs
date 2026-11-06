@@ -122,7 +122,7 @@ pub(super) fn show(ruler: TextRuler<'_>, ui: &mut Ui, strip: Rect) -> TextRulerR
         g: Geometry { strip, scale, right_to_left, width },
         step: snap_step(&units, tick_rule(unit), &style, scale),
         rule: tick_rule(unit),
-        shapes: Shapes::of(&tokens),
+        shapes: Shapes::of(),
         kind: kind.as_deref().copied().unwrap_or_default(),
         labels: labels.unwrap_or_else(|| TextRulerLabels::of(ui)),
         units,

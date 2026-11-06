@@ -460,7 +460,7 @@ pub(crate) fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
 
 /// `fg` alpha-composited over `bg` (sRGB channel blend, as renderers draw it); the result is
 /// opaque when `bg` is.
-pub(crate) fn over(fg: Rgba, bg: Rgba) -> Rgba {
+pub fn over(fg: Rgba, bg: Rgba) -> Rgba {
     let a = f64::from(fg.a()) / 255.0;
     let ch = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
     Rgba([ch(0), ch(1), ch(2), bg.a()])

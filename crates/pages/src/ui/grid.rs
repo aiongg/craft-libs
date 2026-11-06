@@ -77,7 +77,7 @@ pub struct PageGrids<'a> {
 
 impl<'a> PageGrids<'a> {
     /// The default guide colours; the app's own colours replace them in [`PageGridColors`].
-    pub fn style(_tokens: &craft_ui::theme::UiTokens) -> PageGridColors {
+    pub fn style() -> PageGridColors {
         PageGridColors { margins: DEFAULT_MARGINS, columns: DEFAULT_COLUMNS, baseline: DEFAULT_BASELINE }
     }
 

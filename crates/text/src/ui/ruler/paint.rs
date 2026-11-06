@@ -84,7 +84,7 @@ const MARKER_FOOT: f32 = 4.0;
 const MARKER_SELECTOR: f32 = 14.0;
 
 impl Shapes {
-    pub(super) fn of(_tokens: &UiTokens) -> Self {
+    pub(super) fn of() -> Self {
         Shapes { half: MARKER_HALF, column: MARKER_COLUMN, tip: MARKER_TIP, bar: MARKER_BAR, stem: MARKER_STEM, foot: MARKER_FOOT, selector: MARKER_SELECTOR }
     }
 
