@@ -44,6 +44,7 @@ impl StyleReplacements {
 
 /// Two replacements named one style key.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct DuplicateStyle(pub &'static str);
 
 /// The frozen replacements of a context.

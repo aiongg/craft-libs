@@ -64,6 +64,13 @@ impl Frames {
         self.run(events, ui)
     }
 
+    /// One frame with no events; returns the shapes it painted, nested shapes flattened.
+    pub fn frame_shapes(&mut self, mut ui: impl FnMut(&mut Ui)) -> Vec<egui::Shape> {
+        set_input(&self.ctx, FrameInput::new(self.root.clone()));
+        self.time += DT;
+        fixture::run_frame_shapes(&self.ctx, self.time, &mut ui)
+    }
+
     /// `n` frames with no events.
     pub fn idle(&mut self, n: usize, mut ui: impl FnMut(&mut Ui)) {
         for _ in 0..n {

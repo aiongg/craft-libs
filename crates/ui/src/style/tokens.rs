@@ -1,6 +1,6 @@
 //! `UiTokens`: the runtime's egui-ready view of one resolved token set.
 
-use craft_theme::{GroupValues, TypeRole, Tokens};
+use craft_theme::{GroupValues, Tokens, TypeRole};
 use egui::{CornerRadius, FontFamily, FontId};
 use std::ops::Deref;
 use std::sync::Arc;

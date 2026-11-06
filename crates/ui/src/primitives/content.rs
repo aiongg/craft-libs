@@ -22,6 +22,7 @@ pub struct ContentPainterCx {
 
 impl ContentPainterCx {
     /// A raw painter for a content painter.
+    #[expect(dead_code, reason = "built by `PaintUi::content_painter` (F3)")]
     pub(crate) fn new(painter: Painter) -> Self {
         ContentPainterCx { painter }
     }

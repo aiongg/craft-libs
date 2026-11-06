@@ -15,6 +15,7 @@ pub enum SurfaceEdge {
     Border(Stroke),
     /// A two-tone bevel: `top_left` on the top and left sides, `bottom_right` on the bottom and right. Lighting
     /// does not mirror under right-to-left.
+    #[non_exhaustive]
     Bevel {
         /// The top and left sides.
         top_left: Color32,

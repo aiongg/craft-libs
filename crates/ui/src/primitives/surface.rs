@@ -12,7 +12,14 @@ pub struct Surface;
 impl Surface {
     /// The shapes of `style` over `rect`, snapped to the pixel grid: shadow, fill, edge. `fill` replaces the
     /// kind's fill (the state fill), so washes never stack. A bevel is whole physical pixels wide.
-    pub fn shapes(style: &SurfaceStyle, fill: Option<Color32>, rect: Rect, corners: Corners, direction: Direction, pixels_per_point: f32) -> Vec<Shape> {
+    pub fn shapes(
+        style: &SurfaceStyle,
+        fill: Option<Color32>,
+        rect: Rect,
+        corners: Corners,
+        direction: Direction,
+        pixels_per_point: f32,
+    ) -> Vec<Shape> {
         let rect = rect.round_to_pixels(pixels_per_point);
         let radius = corners.apply(style.radius, direction);
         let mut out = Vec::with_capacity(3);
@@ -48,10 +55,10 @@ fn bevel(rect: Rect, radius: CornerRadius, width: f32, top_left: Color32, bottom
         (point + into * outer_r, outer_r, inner_point + into * inner_r, inner_r, start)
     };
     let corners = [
-        corner(rect.left_top(), inner.left_top(), vec2(1.0, 1.0), radius.nw, 180.0),
-        corner(rect.right_top(), inner.right_top(), vec2(-1.0, 1.0), radius.ne, 270.0),
-        corner(rect.right_bottom(), inner.right_bottom(), vec2(-1.0, -1.0), radius.se, 0.0),
-        corner(rect.left_bottom(), inner.left_bottom(), vec2(1.0, -1.0), radius.sw, 90.0),
+        corner(rect.left_top(), inner.left_top(), Vec2::RIGHT + Vec2::DOWN, radius.nw, 180.0),
+        corner(rect.right_top(), inner.right_top(), Vec2::LEFT + Vec2::DOWN, radius.ne, 270.0),
+        corner(rect.right_bottom(), inner.right_bottom(), Vec2::LEFT + Vec2::UP, radius.se, 0.0),
+        corner(rect.left_bottom(), inner.left_bottom(), Vec2::RIGHT + Vec2::UP, radius.sw, 90.0),
     ];
     let at = |centre: Pos2, r: f32, degrees: f32| centre + r * vec2(degrees.to_radians().cos(), degrees.to_radians().sin());
     let arc = |i: usize, from: f32, to: f32, out: &mut Vec<(Pos2, Pos2)>| {

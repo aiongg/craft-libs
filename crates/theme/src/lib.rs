@@ -67,6 +67,8 @@ mod semantic_tests;
 #[cfg(test)]
 mod sizes_tests;
 #[cfg(test)]
+mod stateful_tests;
+#[cfg(test)]
 mod tests;
 
 pub use app_sizes::{AppSizes, SizeMap, SizeValue};
@@ -87,12 +89,12 @@ pub use parts::{
 };
 pub use ramp::{Mode, Ramp, RampKind};
 pub use resolve::{Resolved, resolve, resolve_sized};
-pub use stateful::{FlagMask, Flags, Mix, Resolve, StateMix, Stateful};
 pub use scale::{Duration, Easing, Elevation, Opacity, Radius, Space, Stroke};
 pub use selection::{
     AppChoice, AppDefaults, ContrastChoice, Fallback, ModeChoice, MotionChoice, Selection, Shown, SuiteChoice, SystemAppearance, ThemePair,
     resolve_selection,
 };
+pub use stateful::{FlagMask, Flags, Mix, Resolve, StateMix, Stateful};
 pub use theme::{
     AppOverrides, Appearance, Contrast, ContrastIntent, EdgeSeed, InterfaceFont, ModePins, ModeSeeds, PinLayer, Pins, RadiusOffset, SeedOverrides,
     Seeds, ShapeSeed, Size, TextSize, TextSizeSteps, ThemeDef, Variants,

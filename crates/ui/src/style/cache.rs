@@ -14,6 +14,7 @@ use std::sync::Arc;
 
 /// The variant a component takes for a requested one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Accepted {
     /// The variant the style is built for.
     pub variant: Variant,
@@ -27,24 +28,18 @@ pub fn accepted_variant<K: StyleKey, S: ComponentStyle>(requested: Variant) -> A
     let Some(default) = S::VARIANTS.first().copied() else {
         return Accepted { variant: Variant::SECONDARY, fell_back: false };
     };
-    let accepted = S::VARIANTS.contains(&requested)
-        || matches!(requested, Variant::Custom(custom) if custom.key_type() == TypeId::of::<K>());
+    let accepted = S::VARIANTS.contains(&requested) || matches!(requested, Variant::Custom(custom) if custom.key_type() == TypeId::of::<K>());
     if accepted { Accepted { variant: requested, fell_back: false } } else { Accepted { variant: default, fell_back: true } }
 }
 
 /// `StyleKey` erased: equality and hashing through `Any`, so one map serves every component.
 trait ErasedKey: Send + Sync {
     fn eq_dyn(&self, other: &dyn Any) -> bool;
-    fn hash_dyn(&self, state: &mut dyn Hasher);
 }
 
 impl<K: StyleKey> ErasedKey for K {
     fn eq_dyn(&self, other: &dyn Any) -> bool {
         other.downcast_ref::<K>().is_some_and(|other| other == self)
-    }
-
-    fn hash_dyn(&self, mut state: &mut dyn Hasher) {
-        self.hash(&mut state);
     }
 }
 
@@ -76,7 +71,11 @@ struct StyleCache {
 
 impl StyleCache {
     fn get<K: StyleKey, S: ComponentStyle>(&self, hash: u64, key: &K, env: EnvKey, variant: Variant, size: ControlSize) -> Option<Arc<S>> {
-        let entry = self.buckets.get(&hash)?.iter().find(|e| e.ty == TypeId::of::<K>() && e.env == env && e.variant == variant && e.size == size && e.key.eq_dyn(key))?;
+        let entry = self
+            .buckets
+            .get(&hash)?
+            .iter()
+            .find(|e| e.ty == TypeId::of::<K>() && e.env == env && e.variant == variant && e.size == size && e.key.eq_dyn(key))?;
         entry.style.clone().downcast::<S>().ok()
     }
 }
@@ -84,7 +83,12 @@ impl StyleCache {
 /// The style of a component: the cached one for `(TypeId::of::<K>(), key, EnvKey, variant, size)`, else the app's
 /// replacement or `default` run on a miss. A hit costs one lock, one hash lookup and one `Arc` clone; the style
 /// function runs outside the lock and its result is inserted after it returns.
-pub(crate) fn resolve_style<K: StyleKey, S: ComponentStyle>(cx: &StyleCx<'_>, key: K, ctx: &egui::Context, default: for<'a> fn(&StyleCx<'a>, K) -> S) -> Arc<S> {
+pub(crate) fn resolve_style<K: StyleKey, S: ComponentStyle>(
+    cx: &StyleCx<'_>,
+    key: K,
+    ctx: &egui::Context,
+    default: for<'a> fn(&StyleCx<'a>, K) -> S,
+) -> Arc<S> {
     let accepted = accepted_variant::<K, S>(cx.variant);
     let (env, size) = (cx.key, cx.size);
     let hash = hash_of(&key, env, accepted.variant, size);

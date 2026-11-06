@@ -1,7 +1,9 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink, Os};
-use super::look::StyleColor;
+use super::look::{StyleColor, SurfaceKind};
+use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
+use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
@@ -115,6 +117,31 @@ impl<'a> StyleCx<'a> {
             Ink::OnPanel => c.normal,
             Ink::OnDark => c.on_strong,
         })
+    }
+
+    /// What a surface of `kind` draws.
+    pub fn surface(&self, kind: SurfaceKind) -> SurfaceStyle {
+        surface_style(self.tokens, kind)
+    }
+
+    /// The line a rule of `kind` draws.
+    pub fn rule(&self, kind: RuleKind) -> RuleLook {
+        rule_look(self.tokens, kind)
+    }
+
+    /// The look of a canvas handle.
+    pub fn handle(&self) -> HandleLook {
+        handle_look(self.tokens)
+    }
+
+    /// The look of a scroll bar.
+    pub fn scroll_bar(&self) -> ScrollBarLook {
+        scroll_bar_look(self.tokens)
+    }
+
+    /// The look of the reset mark.
+    pub fn reset_mark(&self) -> ResetMarkLook {
+        reset_mark_look(self.tokens)
     }
 
     /// The look of the instance's variant as style parts.

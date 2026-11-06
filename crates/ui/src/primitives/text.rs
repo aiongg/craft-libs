@@ -4,7 +4,7 @@ use crate::runtime::egui::text_layout;
 use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
 use egui::epaint::text::{FontId, TextDirection};
-use egui::text::{LayoutJob, TextFormat};
+use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Color32, Context, Galley};
 use std::borrow::Cow;
 use std::ops::Range;
@@ -167,25 +167,32 @@ impl TextRun<'_> {
     }
 
     fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
-        let mut job = LayoutJob::default();
-        job.direction = match (self.ltr, env.direction) {
-            (false, Direction::Rtl) => TextDirection::RightToLeft,
-            _ => TextDirection::LeftToRight,
+        let elide = matches!(self.wrap, Wrap::Elide | Wrap::ElidePath);
+        let mut job = LayoutJob {
+            direction: match (self.ltr, env.direction) {
+                (false, Direction::Rtl) => TextDirection::RightToLeft,
+                _ => TextDirection::LeftToRight,
+            },
+            wrap: TextWrapping {
+                max_width: if self.wrap == Wrap::Line { f32::INFINITY } else { max_width },
+                max_rows: if elide { 1 } else { usize::MAX },
+                break_anywhere: elide,
+                ..TextWrapping::default()
+            },
+            ..LayoutJob::default()
         };
-        job.wrap.max_width = match self.wrap {
-            Wrap::Line => f32::INFINITY,
-            Wrap::Wrap | Wrap::Elide | Wrap::ElidePath => max_width,
-        };
-        if matches!(self.wrap, Wrap::Elide | Wrap::ElidePath) {
-            job.wrap.max_rows = 1;
-            job.wrap.break_anywhere = true;
-        }
         let base = self.color.map_or(env.ink, StyleColor::egui);
         let text = &env.tokens.color.text;
         let to_color = |c: craft_theme::Rgba| Color32::from_rgba_unmultiplied(c.0[0], c.0[1], c.0[2], c.0[3]);
         for (span, text_part) in parts {
             let font_id: FontId = env.tokens.font(self.role, span.mono);
-            let color = if span.muted { to_color(text.muted) } else if span.shortcut { to_color(text.faint) } else { base };
+            let color = if span.muted {
+                to_color(text.muted)
+            } else if span.shortcut {
+                to_color(text.faint)
+            } else {
+                base
+            };
             let background = if span.highlight { to_color(env.tokens.color.state.r#match) } else { Color32::TRANSPARENT };
             job.append(text_part, 0.0, TextFormat { font_id, color, italics: span.italic, background, ..TextFormat::default() });
         }
@@ -299,7 +306,9 @@ impl TextLayout {
                     run.positions.push(glyph.pos.x);
                     run.widths.push(glyph.advance_width);
                 }
-                _ => runs.push(LayoutRun { bytes: at..at + len, rtl: glyph.is_rtl(), positions: vec![glyph.pos.x], widths: vec![glyph.advance_width] }),
+                _ => {
+                    runs.push(LayoutRun { bytes: at..at + len, rtl: glyph.is_rtl(), positions: vec![glyph.pos.x], widths: vec![glyph.advance_width] })
+                }
             }
             at += len;
         }

@@ -95,7 +95,9 @@ impl VariantLook {
         let status = |s: &StatusColors| (s.bg, s.fg, s.border, s.solid, s.solid_hover, s.solid_pressed, c.text.on_status);
         let (soft_fill, fg, edge, solid, solid_hover, solid_pressed, on_solid) = match tone {
             Tone::Neutral => (c.surface.sunken, c.text.normal, c.text.muted, c.text.muted, c.text.muted, c.text.normal, c.surface.panel),
-            Tone::Accent => (c.accent.soft, c.accent.text, c.accent.border, c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.text.on_strong),
+            Tone::Accent => {
+                (c.accent.soft, c.accent.text, c.accent.border, c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.text.on_strong)
+            }
             Tone::Info => status(&c.status.info),
             Tone::Good => status(&c.status.good),
             Tone::Warn => status(&c.status.warn),

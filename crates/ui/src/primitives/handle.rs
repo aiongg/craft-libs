@@ -26,7 +26,10 @@ impl Handle {
         let stroke = Stroke::new(look.stroke_width, look.stroke.egui());
         let half = look.side / 2.0;
         match shape {
-            HandleShape::Square => vec![Shape::rect_filled(Rect::from_center_size(center, vec2(look.side, look.side)), 0.0, fill), Shape::rect_stroke(Rect::from_center_size(center, vec2(look.side, look.side)), 0.0, stroke, egui::StrokeKind::Inside)],
+            HandleShape::Square => vec![
+                Shape::rect_filled(Rect::from_center_size(center, vec2(look.side, look.side)), 0.0, fill),
+                Shape::rect_stroke(Rect::from_center_size(center, vec2(look.side, look.side)), 0.0, stroke, egui::StrokeKind::Inside),
+            ],
             HandleShape::Circle => vec![Shape::circle_filled(center, half, fill), Shape::circle_stroke(center, half, stroke)],
             HandleShape::Diamond => {
                 let points = vec![center + vec2(0.0, -half), center + vec2(half, 0.0), center + vec2(0.0, half), center + vec2(-half, 0.0)];

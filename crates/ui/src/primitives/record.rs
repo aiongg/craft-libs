@@ -14,6 +14,7 @@ pub(crate) struct PaintRecord {
     /// The first text's baseline, which `LabelColumn` aligns a row label to next frame.
     pub baseline: Option<f32>,
     /// The faces painted this frame.
+    #[expect(dead_code, reason = "written by `PaintUi::face` (F3)")]
     pub faces: Vec<FaceRecord>,
 }
 
