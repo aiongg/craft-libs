@@ -2,14 +2,22 @@
 
 use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportCommand};
 
-/// Runs one frame at `time` seconds with `events` and drops its texture changes. Returns whether the
-/// frame sent a close command.
-pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> bool {
+/// What a frame sent out that trials read.
+pub(crate) struct FrameResult {
+    /// The frame sent a close command.
+    pub closed: bool,
+    /// The cursor the frame's output asked for.
+    pub cursor: egui::CursorIcon,
+}
+
+/// Runs one frame at `time` seconds with `events` and drops its texture changes.
+pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
-    output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)))
+    let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
+    FrameResult { closed, cursor: output.platform_output.cursor_icon }
 }
 
 /// A key press event with `modifiers`.
@@ -134,4 +142,55 @@ pub(crate) fn access_request(kind: AccessActionKind, target: egui::Id) -> Event 
 /// A globally unique id named by `name`.
 pub(crate) fn named_id(name: &str) -> egui::Id {
     crate::runtime::egui::memory::unique(("focus-trial", name))
+}
+
+/// An allocating widget over `size` on `ui`: what app code may add over a canvas body.
+pub(crate) fn allocate_blocker(ui: &mut Ui, size: egui::Vec2) {
+    ui.allocate_response(size, egui::Sense::hover());
+}
+
+/// Whether the `Response` reports a click.
+pub(crate) fn clicked(response: &egui::Response) -> bool {
+    response.clicked()
+}
+
+/// The widget id egui's hit test chose as the click target at the latest pointer position.
+pub(crate) fn click_target(ctx: &Context) -> Option<egui::Id> {
+    crate::runtime::egui::input::hit_targets(ctx).0
+}
+
+/// A wheel event at the pointer, `dy` points of vertical scroll.
+pub(crate) fn wheel_event(dy: f32) -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::NONE,
+        source: egui::MouseWheelSource::Wheel,
+    }
+}
+
+/// The primary button going down or up at `pos`.
+pub(crate) fn button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+}
+
+/// The pointer moving to `pos`.
+pub(crate) fn pointer_moved(pos: Pos2) -> Event {
+    Event::PointerMoved(pos)
+}
+
+/// The pointer leaving the window.
+pub(crate) fn pointer_gone() -> Event {
+    Event::PointerGone
+}
+
+/// The window losing focus.
+pub(crate) fn window_blurred() -> Event {
+    Event::WindowFocused(false)
+}
+
+/// Gives key focus to the widget `id`.
+pub(crate) fn focus(ctx: &Context, id: egui::Id) {
+    ctx.memory_mut(|memory| memory.request_focus(id));
 }

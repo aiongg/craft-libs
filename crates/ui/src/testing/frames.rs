@@ -15,6 +15,7 @@ pub struct Frames {
     pub ctx: Context,
     time: f64,
     root: RootEnv,
+    cursor: egui::CursorIcon,
 }
 
 impl Default for Frames {
@@ -33,7 +34,7 @@ impl Frames {
 
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
-        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default() }
+        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default }
     }
 
     /// Installs the runtime on the context.
@@ -71,6 +72,11 @@ impl Frames {
         fixture::run_frame_shapes(&self.ctx, self.time, &mut ui)
     }
 
+    /// Moves the clock on by `seconds` before the next frame.
+    pub fn advance(&mut self, seconds: f64) {
+        self.time += seconds;
+    }
+
     /// `n` frames with no events.
     pub fn idle(&mut self, n: usize, mut ui: impl FnMut(&mut Ui)) {
         for _ in 0..n {
@@ -80,7 +86,14 @@ impl Frames {
 
     fn run(&mut self, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> bool {
         self.time += DT;
-        fixture::run_frame(&self.ctx, self.time, events, ui)
+        let result = fixture::run_frame(&self.ctx, self.time, events, ui);
+        self.cursor = result.cursor;
+        result.closed
+    }
+
+    /// The system cursor the last frame's output asked for.
+    pub fn cursor_icon(&self) -> egui::CursorIcon {
+        self.cursor
     }
 }
 

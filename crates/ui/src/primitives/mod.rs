@@ -12,6 +12,7 @@ mod scroll_bar;
 mod state_layer;
 mod surface;
 mod text;
+pub(crate) mod sensing;
 pub mod textures;
 
 pub use content::{ContentPainter, ContentPainterCx, DocRun, DocText};
@@ -23,6 +24,7 @@ pub use reset_mark::ResetMark;
 pub use rule::{Rule, RuleKind};
 pub use scroll_bar::{BarAxis, ScrollBar};
 pub use state_layer::{StateLayer, StateLayerKind};
+pub use sensing::{Flags, PartResult, TextOutcome};
 pub use surface::Surface;
 pub use text::{ChordText, LayoutRun, Span, TextLayout, TextRun, Wrap};
 

@@ -9,7 +9,10 @@ pub mod frames;
 pub mod input;
 pub mod layout;
 pub mod memory;
+pub mod pointer;
+pub mod sensing;
 pub mod style;
+pub mod wheel;
 
 pub use craft_ui_macros::trial;
 pub use frames::Frames;
