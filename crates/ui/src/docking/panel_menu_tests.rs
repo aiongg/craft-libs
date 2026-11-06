@@ -129,3 +129,30 @@ fn dock_rows_use_the_hosts_action_text() {
     assert_eq!(h.query_all_by_label("«Float»").count(), 1);
     assert_eq!(h.query_all_by_label("Float").count(), 0);
 }
+
+#[test]
+// `show_customized` wraps the content in `Overrides`, which must still pass the host's own menu rows through.
+fn show_customized_keeps_the_panels_own_menu_rows() {
+    let mut h = Harness::builder().with_size(vec2(800.0, 600.0)).build_ui_state(
+        |ui, state: &mut State| {
+            let mut style = DockStyle::from_ui(ui);
+            style.panel_menu_button = true;
+            let out = DockArea::new(Id::unique("panel-menu-customized")).show_customized(
+                ui,
+                &docked(),
+                &style,
+                |panel| format!("Panel {panel}"),
+                |_| Permissions::default(),
+                |_| PanelLimits::default(),
+                &mut state.host,
+            );
+            state.events.extend(out.events);
+        },
+        State { host: Host::default(), events: Vec::new() },
+    );
+    h.run_steps(2);
+    open_first_menu(&mut h);
+    h.get_by_label("Host Row 3").click();
+    h.run_steps(3);
+    assert_eq!(h.state().events, vec![DockEvent::PanelCommand { panel: 3, command: "host.cmd".to_owned() }]);
+}
