@@ -13,11 +13,11 @@ fn press(key: Key, modifiers: Modifiers) -> Event {
 /// `PasteImage` when the clipboard holds only an image. Both become the ⌘V press. A V pressed
 /// and released on its own (a tool key) is no paste. The state between frames lives in `ctx`.
 pub(crate) fn swallowed_paste(ctx: &Context, raw: &mut RawInput) {
-    let seen = Id::new("craft-keymap-paste-key-seen");
+    let seen = Id::unique("craft-keymap-paste-key-seen");
     // A V press without ⌘ that reached us: its release is not a paste.
-    let plain_v = Id::new("craft-keymap-plain-v-down");
+    let plain_v = Id::unique("craft-keymap-plain-v-down");
     // ⌘ was held since the last key press without it: a swallowed ⌘V can be under way.
-    let command_lately = Id::new("craft-keymap-paste-command-lately");
+    let command_lately = Id::unique("craft-keymap-paste-command-lately");
     // The modifiers held at each event: last frame's, updated as the events report changes.
     let mut mods = ctx.input(|i| i.modifiers);
     if mods.command {

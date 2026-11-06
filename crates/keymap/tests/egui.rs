@@ -666,8 +666,9 @@ fn german_keys_are_brackets_and_plus_is_not_a_brush_key() {
     // ⇧# keeps its Shift: it is ⇧], not ].
     let shift = Modifiers::SHIFT;
     assert_eq!(ran(&mut d, &km, 3.0, shift, typed(EguiKey::Quote, EguiKey::Backslash, shift, "'")), ["brush.harder"]);
-    // The + key sits at the US `]` position and is no bracket on a German layout.
-    assert!(ran(&mut d, &km, 4.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")).is_empty());
+    // The + key sits at the US `]` position and is no bracket on a German layout (`+` and `=`
+    // stand for each other, so it zooms in).
+    assert_eq!(ran(&mut d, &km, 4.0, Modifiers::NONE, typed(EguiKey::Plus, EguiKey::CloseBracket, Modifiers::NONE, "+")), ["view.zoomIn"]);
     // ⇧+ types `*` and arrives as the physical `]`: it zooms in, and ⇧- zooms out.
     assert_eq!(ran(&mut d, &km, 5.0, shift, typed(EguiKey::CloseBracket, EguiKey::CloseBracket, shift, "*")), ["view.zoomIn"]);
     assert_eq!(ran(&mut d, &km, 6.0, shift, typed(EguiKey::Slash, EguiKey::Slash, shift, "_")), ["view.zoomOut"]);
@@ -788,10 +789,11 @@ fn insert_and_delete_chords_copy_paste_and_cut_on_linux() {
     assert_eq!(after(EguiKey::Insert, Modifiers::CTRL, true), [Event::Copy]);
     assert_eq!(after(EguiKey::Delete, Modifiers::SHIFT, true), [Event::Cut]);
     assert!(after(EguiKey::Insert, Modifiers::SHIFT, true).is_empty());
-    let out = ctx.run_ui(egui::RawInput::default(), |ui| {
+    let mut out = ctx.run_ui(egui::RawInput::default(), |ui| {
         let mut raw = egui::RawInput { events: vec![raw_key(EguiKey::Insert, true, Modifiers::SHIFT)], ..Default::default() };
         d.raw_input(ui.ctx(), &mut raw, true);
     });
+    out.textures_delta.clear();
     let asked = out.viewport_output.values().flat_map(|v| &v.commands).any(|c| matches!(c, egui::ViewportCommand::RequestPaste));
     assert!(asked, "the window is asked for the clipboard text");
     // Plain Insert, other modifiers, and the other platforms are left alone.
