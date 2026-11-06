@@ -2,7 +2,8 @@
 
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::frames::announce_text;
-use craft_ui::testing::input::{allow_zoom_keys, key_press, set_max_click_duration};
+use craft_ui::runtime::env::RootEnv;
+use craft_ui::testing::input::{allow_zoom_keys, key_press, max_click_dist, set_max_click_duration};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
 
@@ -50,13 +51,17 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
     assert_ne!(frames.ctx.zoom_factor(), zoom, "control: egui zooms on Cmd+= when its option is on");
 }
 
-/// Replaces the skeleton's slop test (`runtime_writes_the_slop_stand_in_to_max_click_dist_every_pass`): the
-/// runtime owns the click duration option every pass.
+/// H2: the runtime owns the click options every pass: the slop token is the click distance and a click has no
+/// time limit.
 #[trial]
-fn clicks_have_no_time_limit_in_every_pass() {
+fn the_slop_token_is_the_click_distance_and_clicks_have_no_time_limit_in_every_pass() {
     let mut frames = Frames::new();
+    let mut root = RootEnv::default();
+    root.hit.slop = 5.0;
+    frames.root(root);
     set_max_click_duration(&frames.ctx, 0.5);
     frames.idle(1, |_| {});
+    assert_eq!(max_click_dist(&frames.ctx), 5.0);
     assert_eq!(frames.ctx.options(|o| o.input_options.max_click_duration), f64::INFINITY);
     set_max_click_duration(&frames.ctx, 0.5);
     frames.idle(1, |_| {});

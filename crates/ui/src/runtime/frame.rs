@@ -214,7 +214,8 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
         raw_input::request_repaint_of(ctx, viewport);
     }
     // H2: click options.
-    raw_input::set_click_options(ctx);
+    let slop = store::with::<FrameState, _>(ctx, |state| state.input.as_ref().map_or_else(|| RootEnv::default().hit.slop, |input| input.root.hit.slop));
+    raw_input::set_click_options(ctx, slop);
 }
 
 /// The begin hook, where the viewport is current.
@@ -239,10 +240,10 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         raw_input::stop_dragging(&ctx);
     }
     // H5, H7: the pointer snapshot and the wheel split, before any component runs.
-    pointer::begin(&ctx);
+    let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
+    pointer::begin(&ctx, input.root.hit);
     wheel::begin(&ctx);
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
-    let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
     let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
     Env::set_root(&ctx, viewport, env.clone());

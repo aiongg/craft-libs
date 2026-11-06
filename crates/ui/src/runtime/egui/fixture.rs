@@ -30,6 +30,11 @@ pub(crate) fn allow_zoom_keys(ctx: &Context) {
     ctx.options_mut(|options| options.zoom_with_keyboard = true);
 }
 
+/// egui's longest movement that still counts as a click.
+pub(crate) fn max_click_dist(ctx: &Context) -> f32 {
+    ctx.options(|options| options.input_options.max_click_dist)
+}
+
 /// Sets egui's longest press that still counts as a click.
 pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
     ctx.options_mut(|options| options.input_options.max_click_duration = seconds);

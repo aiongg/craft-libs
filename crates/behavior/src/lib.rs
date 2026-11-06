@@ -4,7 +4,6 @@
 //! The crate depends on no egui crate: it uses `emath` and the `accesskit` data crate only.
 
 pub mod arrangement;
-pub mod axis;
 pub mod canvas;
 pub mod columns;
 pub mod cursor;
@@ -35,12 +34,11 @@ pub mod value_drag;
 pub mod wheel;
 
 pub use arrangement::Arrangement;
-pub use axis::Axis;
 pub use canvas::CanvasTransform;
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
-pub use flow::{Flow, Insets};
+pub use flow::{Axis, Flow, Insets};
 pub use focus::{CancelRule, KeyOwner, OwnerClass, PressFocus, ScopeKind};
 pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolve, resolve_mapped};

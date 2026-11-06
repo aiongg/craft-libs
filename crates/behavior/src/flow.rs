@@ -1,4 +1,4 @@
-//! `Insets` and `Flow`: start and end geometry resolved once for the layout direction.
+//! `Insets`, `Flow` and `Axis`: start and end geometry resolved once for the layout direction.
 
 use emath::{Align, Pos2, Rect, Vec2};
 
@@ -36,6 +36,16 @@ impl Insets {
     pub const fn uniform(all: f32) -> Self {
         Insets::new(all, all, all, all)
     }
+}
+
+/// A screen axis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Axis {
+    /// Left to right.
+    X,
+    /// Top to bottom.
+    Y,
 }
 
 /// The geometry of one rect in one direction. Components place by start and end and never test direction.

@@ -11,19 +11,16 @@ use craft_behavior::{
     count_clicks, resolve,
 };
 use craft_keymap::Mods;
+use craft_theme::HitSizes;
 use egui::{Context, Id, Pos2, Vec2};
 use std::collections::HashMap;
 
-/// The least hit size across, in points.
-// F2-MERGE: F2b (`tokens.size.hit.target`)
-pub const HIT_TARGET: f32 = 24.0;
-
 /// Points one wheel line scrolls.
-// F2-MERGE: F5 (`Scroll.notch`)
+// F5: `Scroll.notch`
 pub(crate) const WHEEL_LINE_POINTS: f32 = 40.0;
 
 /// Points one wheel page scrolls.
-// F2-MERGE: F5 (`Scroll.notch`)
+// F5: `Scroll.notch`
 pub(crate) const WHEEL_PAGE_POINTS: f32 = 400.0;
 
 /// The pointer input of one pass of one viewport, egui-converted.
@@ -94,7 +91,7 @@ struct Shapes {
 }
 
 /// The begin hook (H5): converts the pass's pointer input.
-pub(crate) fn begin(ctx: &Context) {
+pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
     let read = input::pointer_read(ctx);
@@ -133,7 +130,7 @@ pub(crate) fn begin(ctx: &Context) {
         scroll,
         zoom: wheel_zoom,
         slop: read.slop,
-        target: HIT_TARGET,
+        target: hit.target,
     };
     let pass_pointer = PassPointer {
         frame: Some(frame),
@@ -170,7 +167,7 @@ pub fn frame(ctx: &Context) -> PointerFrame {
         scroll: Vec2::ZERO,
         zoom: 1.0,
         slop: 0.0,
-        target: HIT_TARGET,
+        target: 0.0,
     })
 }
 

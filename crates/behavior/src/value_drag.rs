@@ -1,6 +1,6 @@
 //! `ValueDrag`: the drag maths of sliders, dials, scrubbing number fields and rulers, written once (8.7).
 
-use crate::axis::Axis;
+use crate::flow::Axis;
 use crate::press::{PressPhase, PressState};
 use emath::Pos2;
 use std::ops::{Range, RangeInclusive};

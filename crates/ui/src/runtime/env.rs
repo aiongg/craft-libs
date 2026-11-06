@@ -5,7 +5,8 @@ use crate::runtime::frame::PerViewport;
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 pub use craft_i18n::Direction;
-use craft_theme::{AppSizes, ControlSize, TextSize};
+use craft_theme::sizes::builtin;
+use craft_theme::{AppSizes, ControlSize, HitSizes, Size, TextSize};
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -113,6 +114,9 @@ pub struct RootEnv {
     pub scale: Scale,
     /// Whether Tab reaches every control.
     pub tab_all_controls: bool,
+    /// The pointer tolerances of the app's resolved tokens (`tokens.size.hit`): the input hook writes the slop
+    /// before any `Env` exists, and the press lifecycle reads the hit target.
+    pub hit: HitSizes,
     /// Root app values.
     pub values: AppValues,
 }
@@ -126,6 +130,7 @@ impl Default for RootEnv {
             motion: MotionMode::default(),
             scale: Scale::default(),
             tab_all_controls: true,
+            hit: builtin(Size::default()).base.size.hit,
             values: AppValues::default(),
         }
     }

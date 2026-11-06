@@ -37,10 +37,14 @@ pub(crate) fn request_repaint_of(ctx: &Context, viewport: ViewportId) {
     ctx.request_repaint_of(viewport);
 }
 
-/// H2: a click is a release within slop, whatever its duration, so egui's click and the press lifecycle agree.
-pub(crate) fn set_click_options(ctx: &Context) {
-    if ctx.options(|options| options.input_options.max_click_duration) != f64::INFINITY {
-        ctx.options_mut(|options| options.input_options.max_click_duration = f64::INFINITY);
+/// H2: a click is a release within `slop`, whatever its duration, so egui's click and the press lifecycle agree.
+pub(crate) fn set_click_options(ctx: &Context, slop: f32) {
+    let (dist, duration) = ctx.options(|options| (options.input_options.max_click_dist, options.input_options.max_click_duration));
+    if dist != slop || duration != f64::INFINITY {
+        ctx.options_mut(|options| {
+            options.input_options.max_click_dist = slop;
+            options.input_options.max_click_duration = f64::INFINITY;
+        });
     }
 }
 
