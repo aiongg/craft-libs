@@ -297,7 +297,8 @@ fn labels_start_at_the_page_edge_the_search_fills_the_width_and_the_page_keeps_i
     let (short, long) = (h.get_by_role_and_label(Role::Label, "Workspace name:").rect(), h.get_by_role_and_label(Role::Label, "Language:").rect());
     assert!((short.left() - long.left()).abs() < 0.5, "{short:?} {long:?}");
     let list = h.get_by_role(Role::ListBox).rect();
-    assert!(short.left() - list.right() >= 13.0, "{short:?} {list:?}");
+    let style = PreferencesBody::style(&crate::theme::current(&h.ctx));
+    assert!(short.left() - list.right() >= style.page_gap - 0.5, "{short:?} {list:?}");
     let search = h.get_by_role(Role::SearchInput).rect();
     assert!(search.width() > 700.0, "{search:?}");
 }

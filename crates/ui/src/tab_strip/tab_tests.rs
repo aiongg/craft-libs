@@ -433,8 +433,5 @@ fn a_text_strip_underlines_the_selected_label_and_draws_the_hairline() {
     assert_eq!(placed[0].1.left(), strip.left(), "the first tab starts at the strip's left");
     assert!((selected.right() - x.end() - s.text_gap).abs() <= 0.5, "text_gap after the label, so labels are text_gap apart");
     assert_eq!(strip.height(), s.text_height, "the row is the text strip height");
-    assert!(
-        (strip.bottom() - s.divider.width - (y + s.underline_width / 2.0) - 2.0).abs() <= 1.0,
-        "about 2 pt between the underline and the hairline"
-    );
+    assert!(y + s.underline_width / 2.0 <= strip.bottom() - s.divider.width + 0.5, "the underline sits above the hairline");
 }

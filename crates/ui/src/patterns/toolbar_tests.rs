@@ -66,6 +66,12 @@ fn tokens() -> super::toolbar::ToolbarStyle {
     t.expect("tokens")
 }
 
+/// A row width that holds the first group and the overflow button but not the second group (it has room for one more button).
+fn narrow_width() -> f32 {
+    let t = tokens();
+    3.0 * t.button + t.gap + t.spacing + t.overflow
+}
+
 fn run(dir: Direction, size: [f32; 2], orientation: Orientation, overflow: bool) -> Harness<'static, Host> {
     let mut h = harness(dir, size).build_ui_state(app(orientation, overflow), Host::default());
     h.run();
@@ -188,7 +194,7 @@ fn button_size_sets_the_buttons_and_the_bars_height() {
 
 #[test]
 fn a_narrow_row_moves_the_groups_that_do_not_fit_into_a_menu_that_runs_them() {
-    let mut h = run(Direction::Ltr, [190.0, 200.0], Orientation::Horizontal, true);
+    let mut h = run(Direction::Ltr, [narrow_width(), 200.0], Orientation::Horizontal, true);
     let shown = h.state().rects.len();
     assert!((1..5).contains(&shown), "{shown}");
     assert!(h.query_by_label("Show Grid").is_none());
@@ -206,7 +212,7 @@ fn a_narrow_row_moves_the_groups_that_do_not_fit_into_a_menu_that_runs_them() {
 
 #[test]
 fn the_overflow_menu_checks_the_selected_item() {
-    let mut h = harness(Direction::Ltr, [190.0, 200.0])
+    let mut h = harness(Direction::Ltr, [narrow_width(), 200.0])
         .build_ui_state(app(Orientation::Horizontal, true), Host { selected: Some((1, 1)), ..Host::default() });
     h.run();
     h.get_by_label("More").click();
@@ -250,7 +256,7 @@ fn a_scrolling_row_opens_at_the_reading_start_in_a_right_to_left_ui() {
 
 #[test]
 fn tab_visits_the_buttons_in_reading_order_and_the_overflow_button_last() {
-    let mut h = run(Direction::Ltr, [190.0, 200.0], Orientation::Horizontal, true);
+    let mut h = run(Direction::Ltr, [narrow_width(), 200.0], Orientation::Horizontal, true);
     let shown = h.state().rects.len();
     let order: Vec<String> = a11y::tab_order(&mut h).into_iter().map(|s| s.label).collect();
     let all = ["Forward Warp", "Reconstruct", "Pucker", "Bloat", "Show Grid"];

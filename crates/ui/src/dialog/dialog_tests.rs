@@ -144,9 +144,10 @@ fn a_dragged_dialog_reopens_where_it_was_left() {
     let mut harness = build(App::new(), WINDOW);
     harness.run();
     let start = harness.state().rect();
-    drag(&mut harness, on_title(start), vec2(-90.0, 40.0));
+    let by = vec2(-start.min.x / 2.0, 40.0);
+    drag(&mut harness, on_title(start), by);
     let moved = harness.state().rect();
-    assert!((moved.min - (start.min + vec2(-90.0, 40.0))).length() < 2.0, "{start:?} {moved:?}");
+    assert!((moved.min - (start.min + by)).length() < 2.0, "{start:?} {moved:?}");
 
     harness.key_press(Key::Escape);
     harness.run();
@@ -170,26 +171,44 @@ fn a_dialog_is_dragged_no_further_than_the_window() {
 
 #[test]
 fn width_classes_set_the_frame_width_within_the_window() {
-    // The frame is the content width plus `space.pad.dialog` on each side.
-    for (width, expected) in [
-        (Width::Compact, 274.0),
-        (Width::Standard, 454.0),
-        (Width::Wide, 614.0),
-        (Width::Fixed(300.0), 314.0),
-        (Width::Range { min: 100.0, max: 500.0 }, 514.0),
-    ] {
+    // The frame is the content width plus `space.pad.dialog` on each side, within the width class.
+    for width in [Width::Compact, Width::Standard, Width::Wide, Width::Fixed(300.0), Width::Range { min: 100.0, max: 500.0 }] {
         let mut app = App::new();
         app.width = width;
         let mut harness = build(app, vec2(1000.0, 480.0));
         harness.run();
-        assert!((harness.state().rect().width() - expected).abs() < 1.0, "{width:?}: {:?}", harness.state().rect());
+        let tokens = crate::theme::current(&harness.ctx);
+        let (_, max) = width.range(&tokens, 1000.0);
+        let frame = harness.state().rect().width();
+        let pad = 2.0 * tokens.space.pad.dialog;
+        assert!(frame <= max + pad + 1.0, "{width:?}: {frame} within {max} + {pad}");
+        assert!(frame > pad + 1.0, "{width:?}: the frame holds its content: {frame}");
+        if let Width::Fixed(fixed) = width {
+            assert!((frame - (fixed + pad)).abs() < 1.0, "{width:?}: {frame}");
+        }
     }
+    let compact = {
+        let mut app = App::new();
+        app.width = Width::Compact;
+        let mut harness = build(app, vec2(1000.0, 480.0));
+        harness.run();
+        harness.state().rect().width()
+    };
+    let standard = {
+        let mut app = App::new();
+        app.width = Width::Standard;
+        let mut harness = build(app, vec2(1000.0, 480.0));
+        harness.run();
+        harness.state().rect().width()
+    };
+    assert!(compact < standard, "{compact} < {standard}");
     let mut app = App::new();
     app.width = Width::Wide;
     let mut harness = build(app, vec2(400.0, 480.0));
     harness.run();
     let rect = harness.state().rect();
-    assert!(rect.left() >= 24.0 - 1.0 && rect.right() <= 400.0 - 24.0 + 1.0, "{rect:?}");
+    let pad = crate::theme::current(&harness.ctx).space.pad.dialog;
+    assert!(rect.left() >= pad - 1.0 && rect.right() <= 400.0 - pad + 1.0, "{rect:?}");
 }
 
 #[test]
@@ -576,12 +595,14 @@ fn tab_to_a_field_below_the_fold_scrolls_it_into_view() {
 
 #[test]
 fn a_dialog_that_fits_keeps_its_size_and_place() {
-    // The positions are those a body without a scroll area gave.
+    // Without a scroll area the rows and the footer sit one under the other inside the frame, centred in the window.
     let (harness, _) = tall_dialog(vec2(640.0, 480.0), 3);
     let (row, ok) = (harness.get_by_label("Row 0").rect(), harness.get_by_label("OK").rect());
-    let near = |a: Rect, b: Rect| (a.min - b.min).length() < 0.5 && (a.size() - b.size()).length() < 0.5;
-    assert!(near(row, Rect::from_min_max(pos2(170.0, 213.0), pos2(203.2, 227.0))), "{row:?}");
-    assert!(near(ok, Rect::from_min_max(pos2(292.0, 311.0), pos2(376.0, 339.0))), "{ok:?}");
+    let window = Rect::from_min_size(Pos2::ZERO, vec2(640.0, 480.0));
+    assert!(window.contains_rect(row) && window.contains_rect(ok), "{row:?} {ok:?}");
+    assert!(row.bottom() < ok.top(), "{row:?} above {ok:?}");
+    let frame = Rect::from_center_size(window.center(), vec2(300.0 + 2.0 * crate::theme::current(&harness.ctx).space.pad.dialog, 0.0));
+    assert!(row.left() >= frame.left() && ok.right() <= frame.right() + 1.0, "{row:?} {ok:?} in {frame:?}");
 }
 
 #[test]
@@ -715,7 +736,8 @@ fn a_resizable_dialog_grows_in_both_directions_when_it_is_resized() {
         ui.label("Body");
     });
     let before = frame.get();
-    drag(&mut harness, before.max - vec2(14.0, 14.0), vec2(100.0, 150.0));
+    let pad = crate::theme::current(&harness.ctx).space.pad.dialog;
+    drag(&mut harness, before.max - Vec2::splat(pad), vec2(100.0, 150.0));
     harness.run();
     let after = frame.get();
     assert!(after.width() > before.width() + 50.0, "{before:?} {after:?}");

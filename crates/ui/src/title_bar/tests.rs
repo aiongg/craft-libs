@@ -267,11 +267,12 @@ fn edge_zones_resize_unless_maximized() {
     }
     // The first motion after those shows the default cursor for a frame.
     w.frame(vec![Event::PointerMoved(pos2(500.0, 300.0))]);
+    let inside = TitleBar::style(&crate::theme::current(&w.ctx)).edge - 1.0;
     for (p, cursor) in [
-        (pos2(7.0, 300.0), CursorIcon::ResizeWest),
-        (pos2(993.0, 300.0), CursorIcon::ResizeEast),
-        (pos2(500.0, 7.0), CursorIcon::ResizeNorth),
-        (pos2(500.0, 393.0), CursorIcon::ResizeSouth),
+        (pos2(inside, 300.0), CursorIcon::ResizeWest),
+        (pos2(1000.0 - inside, 300.0), CursorIcon::ResizeEast),
+        (pos2(500.0, inside), CursorIcon::ResizeNorth),
+        (pos2(500.0, 400.0 - inside), CursorIcon::ResizeSouth),
         (pos2(3.0, 397.0), CursorIcon::ResizeNeSw),
         (pos2(998.0, 398.0), CursorIcon::ResizeNwSe),
     ] {
@@ -878,7 +879,7 @@ fn the_title_centres_between_the_groups_and_the_gap_is_reported() {
 
 #[test]
 fn a_title_that_does_not_fit_is_elided_at_the_menus_and_a_small_gap_hides_it() {
-    // Gap 108..262: 154 pt, more than the 80 pt minimum, less than the title needs.
+    // The gap is more than the least room for a title and less than the title needs.
     let mut w = titled(windows(), 500.0, 100.0, 100.0);
     w.titled = Some((Title::new(LONG).unsaved(true), 100.0, 100.0));
     w.frame(vec![]);
@@ -893,12 +894,13 @@ fn a_title_that_does_not_fit_is_elided_at_the_menus_and_a_small_gap_hides_it() {
         })
         .expect("an elided title");
     let rect = Rect::from_min_size(shown.pos, shown.galley.size());
-    assert_eq!(rect.left(), gap.left() + 16.0, "starts beside the menus");
-    assert!(rect.right() <= gap.right() - 16.0 + 0.01, "{rect:?} in {gap:?}");
+    let title_gap = TitleBar::style(&crate::theme::current(&w.ctx)).title_gap;
+    assert_eq!(rect.left(), gap.left() + title_gap, "starts beside the menus");
+    assert!(rect.right() <= gap.right() - title_gap + 0.01, "{rect:?} in {gap:?}");
     let drawn: String = shown.galley.rows.iter().map(|r| r.text()).collect();
     assert!(drawn.ends_with('\u{2026}'), "{drawn:?}");
 
-    // 54 pt is under the minimum.
+    // A gap under the least room hides the title.
     let mut w = titled(windows(), 400.0, 100.0, 100.0);
     w.frame(vec![]);
     w.frame(vec![]);
@@ -933,7 +935,8 @@ fn the_title_mirrors_in_a_right_to_left_ui() {
             _ => None,
         })
         .expect("an elided title");
-    assert!((rect.right() - (gap.right() - 16.0)).abs() < 0.01, "{rect:?} in {gap:?}");
+    let title_gap = TitleBar::style(&crate::theme::current(&w.ctx)).title_gap;
+    assert!((rect.right() - (gap.right() - title_gap)).abs() < 0.01, "{rect:?} in {gap:?}");
 }
 
 #[test]

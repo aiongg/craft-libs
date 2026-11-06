@@ -360,18 +360,19 @@ fn invalid_layout_shows_its_reason() {
     assert!(harness.query_by_label(GuidesLabels::default().does_not_fit.as_str()).is_some());
 }
 
-// The fields and lists have PhotoCraft's widths (the `guide` tokens).
+// The fields and lists take the widths of the guide style, which follow the control height.
 #[test]
-fn guide_fields_have_photocraft_widths() {
+fn guide_fields_follow_the_guide_style_widths() {
     let harness = open(NewGuideDialog::new(units()));
+    let style = |harness: &Harness<'_, App>| crate::style::guide::GuideStyle::new(&crate::theme::current(&harness.ctx));
     let width = |harness: &Harness<'_, App>, role, label| harness.get_all_by_role_and_label(role, label).next().expect("shown").rect().width();
-    assert!((width(&harness, Role::SpinButton, "Position") - 120.0).abs() < 1.0);
-    assert!((width(&harness, Role::ComboBox, "Color") - 140.0).abs() < 1.0);
+    assert!((width(&harness, Role::SpinButton, "Position") - style(&harness).position_width).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Color") - style(&harness).color_width).abs() < 1.0);
 
     let dialog = GuideLayoutDialog::new(document(), GuideLines::default(), pixel_units(), GuideColor::Cyan.rgb());
     let harness = open(dialog);
-    assert!((width(&harness, Role::ComboBox, "Preset") - 222.0).abs() < 1.0);
-    assert!((width(&harness, Role::ComboBox, "Color") - 174.0).abs() < 1.0);
-    assert!((width(&harness, Role::SpinButton, "Number") - 68.0).abs() < 1.0);
-    assert!((width(&harness, Role::SpinButton, "Top:") - 64.0).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Preset") - style(&harness).layout_list_width).abs() < 1.0);
+    assert!((width(&harness, Role::ComboBox, "Color") - style(&harness).layout_color_width).abs() < 1.0);
+    assert!((width(&harness, Role::SpinButton, "Number") - style(&harness).number_width).abs() < 1.0);
+    assert!((width(&harness, Role::SpinButton, "Top:") - style(&harness).margin_width).abs() < 1.0);
 }

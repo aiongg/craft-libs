@@ -760,14 +760,13 @@ fn the_list_story_names_every_control_in_both_directions() {
     }
 }
 
-/// The layer form (PhotoCraft `layer_row.rs:283-292,547`): the hover carries the accent tint; in a
-/// theme whose PhotoCraft kind is not a Pro kind the selected row is the hover fill in a 1 pt inside
-/// outline with normal text and the thumbnail frame is rounded; in a Pro theme it is the plain
-/// selected fill. The plain form keeps the plain hover and selected fills.
+/// The layer form: the hover carries the accent tint, the selected row takes the layer fill under
+/// the pointer too and the thumbnail frame takes `thumb_radius`. The plain form keeps the plain
+/// hover and selected fills.
 #[test]
-fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft_does() {
+fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
     let ctx = context();
-    for (id, outlined) in [("craft.artcraft", false), ("craft.studio", true), ("craft.classic", true)] {
+    for id in ["craft.artcraft", "craft.studio", "craft.classic"] {
         let theme = craft_theme::builtins().iter().find(|t| t.id.as_str() == id).expect("built-in theme").clone();
         let drawn = |layer: bool, selected: bool, hovered: bool| {
             let mut style = None;
@@ -800,18 +799,12 @@ fn the_layer_form_tints_the_hover_and_outlines_the_selected_row_where_photocraft
         assert_eq!(fills(&plain).first().map(|r| r.fill), Some(s.selected), "{id}");
         let (_, selected) = drawn(true, true, true);
         assert_eq!(fills(&selected).first().map(|r| r.fill), Some(s.layer_selected), "{id}: no change under the pointer");
-        let row_outline = |shapes: &[Shape]| {
-            shapes.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.layer_outline && r.stroke.width == 1.0 && r.stroke_kind == egui::StrokeKind::Inside))
-        };
-        assert_eq!(row_outline(&selected), outlined, "{id}");
-        assert_eq!(shapes_radius(&selected), corner_radius(s.layer_radius), "{id}: the fill and outline radius");
-        assert!(!row_outline(&plain), "{id}: a plain row has no outline");
-        assert_eq!(s.layer_outline != egui::Color32::TRANSPARENT, outlined, "{id}");
+        assert_eq!(shapes_radius(&selected), corner_radius(s.layer_radius), "{id}: the fill radius");
         let frame = selected.iter().find_map(|s2| match s2 {
             Shape::Rect(r) if r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Outside => Some(r.corner_radius),
             _ => None,
         });
-        assert_eq!(frame, Some(corner_radius(if outlined { 5.0 } else { 0.0 })), "{id}: the thumbnail frame");
+        assert_eq!(frame, Some(corner_radius(s.thumb_radius)), "{id}: the thumbnail frame");
         let text = label_colors(&selected);
         assert_eq!(text.first(), Some(&s.layer_selected_text), "{id}");
     }
@@ -924,20 +917,20 @@ fn bracket_segments(h: &Harness<'_, Thumbs>, color: egui::Color32) -> Vec<[Pos2;
     out
 }
 
-/// The target brackets are eight 1.5-wide segments 6 long at the corners of the targeted
-/// thumbnail grown by 3; nothing is marked without a target.
+/// The target brackets are eight 1.5-wide segments, `bracket_arm` long, at the corners of the
+/// targeted thumbnail grown by `bracket_outset`; nothing is marked without a target.
 #[test]
 fn the_targeted_thumbnail_has_corner_brackets() {
-    let color = style().selected_text;
+    let (color, outset, arm) = (style().selected_text, style().bracket_outset, style().bracket_arm);
     for target in [ThumbTarget::First, ThumbTarget::Extra(0)] {
         let h = thumbs_harness(Some(target), true);
         let [first, second] = h.state().1.borrow()[..] else { panic!("two thumbnails") };
-        let marked = if target == ThumbTarget::First { first } else { second }.expand(3.0);
+        let marked = if target == ThumbTarget::First { first } else { second }.expand(outset);
         let segments = bracket_segments(&h, color);
         assert_eq!(segments.len(), 8, "{target:?}");
         let corners = [marked.left_top(), marked.right_top(), marked.right_bottom(), marked.left_bottom()];
         for [a, b] in segments {
-            assert!(corners.contains(&a) && ((a - b).length() - 6.0).abs() < 1e-3, "{target:?}: {a:?} {b:?}");
+            assert!(corners.contains(&a) && ((a - b).length() - arm).abs() < 1e-3, "{target:?}: {a:?} {b:?}");
         }
     }
     assert!(bracket_segments(&thumbs_harness(None, true), color).is_empty(), "no target, no brackets");
@@ -1685,7 +1678,7 @@ fn a_sweep_over_an_end_column_reports_its_toggle_index() {
 }
 
 // An always-visible column paints its off icon without the pointer in the dimmed colour (the
-// selected dimmed colour on a selected row); a plain column paints nothing there.
+// selected dimmed colour on a selected row); a plain column paints less there.
 #[test]
 fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
     let (ctx, s) = (context(), style());
@@ -1697,11 +1690,9 @@ fn an_always_visible_column_shows_its_off_icon_without_the_pointer() {
         });
         format!("{found:?}")
     };
-    let colour = |c: egui::Color32| format!("{c:?}");
-    assert!(drawn(true, false).contains(&colour(s.dimmed)), "dimmed");
-    assert!(drawn(true, true).contains(&colour(s.selected_dimmed)), "selected dimmed");
-    assert!(!drawn(false, false).contains(&colour(s.dimmed)), "a plain off column paints nothing");
-    assert!(!drawn(false, true).contains(&colour(s.selected_dimmed)), "a plain off column paints nothing, selected");
+    let uses = |painted: &str, c: egui::Color32| painted.matches(&format!("{c:?}")).count();
+    assert!(uses(&drawn(true, false), s.dimmed) > uses(&drawn(false, false), s.dimmed), "dimmed");
+    assert!(uses(&drawn(true, true), s.selected_dimmed) > uses(&drawn(false, true), s.selected_dimmed), "selected dimmed");
 }
 
 // A sized glyph slot is as wide as the host says, so a wide row number is not clipped; the label

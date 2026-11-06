@@ -120,8 +120,10 @@ fn the_row_follows_the_platform_order_at_the_trailing_edge() {
         let apply = rect_of(&harness, "Apply");
         let frame = harness.state().last.as_ref().expect("shown").rect;
         let last = if os == OperatingSystem::Mac { rect_of(&harness, "OK") } else { apply };
-        assert!((frame.right() - 7.0 - last.right()).abs() < 1.5, "{os:?}: the row ends at the frame's padding: {frame:?} {last:?}");
-        assert!(left_rect.width() >= 84.0 - 0.5);
+        let tokens = crate::theme::current(&harness.ctx);
+        let pad = tokens.space.pad.dialog;
+        assert!((frame.right() - pad - last.right()).abs() < 1.5, "{os:?}: the row ends at the frame's padding: {frame:?} {last:?}");
+        assert!(left_rect.width() >= crate::style::dialog::DialogStyle::new(&tokens).button_min - 0.5);
     }
 }
 
@@ -306,9 +308,11 @@ fn the_side_column_stacks_ok_above_cancel_at_the_trailing_side() {
     harness.run();
     let (ok, cancel, extra) = (rect_of(&harness, "OK"), rect_of(&harness, "Cancel"), rect_of(&harness, "Add to Swatches"));
     assert!(ok.bottom() < cancel.top() && cancel.bottom() < extra.top(), "{ok:?} {cancel:?} {extra:?}");
-    assert!((ok.width() - extra.width()).abs() < 0.5 && ok.width() >= 96.0 - 0.5, "{ok:?} {extra:?}");
+    let tokens = crate::theme::current(&harness.ctx);
+    let side_min = crate::style::dialog::DialogStyle::new(&tokens).side_min;
+    assert!((ok.width() - extra.width()).abs() < 0.5 && ok.width() >= side_min - 0.5, "{ok:?} {extra:?}");
     let frame = harness.state().last.as_ref().expect("shown").rect;
-    assert!((frame.right() - 7.0 - ok.right()).abs() < 1.5, "{frame:?} {ok:?}");
+    assert!((frame.right() - tokens.space.pad.dialog - ok.right()).abs() < 1.5, "{frame:?} {ok:?}");
     assert!(rect_of(&harness, "Body").right() < ok.left());
 
     harness.get_by_label("Add to Swatches").click();

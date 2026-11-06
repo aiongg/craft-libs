@@ -196,7 +196,7 @@ fn a_slot_that_is_not_visible_is_not_created_and_the_body_grows() {
 }
 
 #[test]
-fn body_only_shows_no_slot_and_paints_the_black_backdrop() {
+fn body_only_shows_no_slot_and_paints_the_scrim_backdrop() {
     let mut win = Win::new();
     let calls = Calls::default();
     let mut seen = None;
@@ -209,14 +209,17 @@ fn body_only_shows_no_slot_and_paints_the_black_backdrop() {
     assert!(out_shell.slots.is_empty() && calls.take().is_empty() && !out_shell.revealed);
     assert_eq!(out_shell.inner, (false, false, false, BodyMode::Only));
     assert!(near(out_shell.body.width(), W) && near(out_shell.body.height(), H));
-    assert!(has_fill(&out, Color32::BLACK));
+    let mut tokens = None;
+    win.frame(vec![], |ui| tokens = Some(Tokens::of(ui)));
+    let scrim = tokens.expect("ran").color.surface.scrim.to_egui();
+    assert!(has_fill(&out, scrim));
 
     let (normal, _) = win.show(&Cfg::new(), vec![]);
     let _ = normal;
     let out = win.frame(vec![], |ui| {
         shell(&Cfg::new(), &calls).show(ui, |_, _| ());
     });
-    assert!(!has_fill(&out, Color32::BLACK));
+    assert!(!has_fill(&out, scrim));
 }
 
 fn has_fill(out: &FullOutput, color: Color32) -> bool {
