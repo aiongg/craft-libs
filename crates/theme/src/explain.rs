@@ -8,7 +8,7 @@ use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
 use super::sizes::{self, ComponentSizes, Preset, Slot, leaves};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
-use super::tokens::{ColorToken, ColorTokens, ElevationTokens, ShapeTokens, StatusKind, TokenRef};
+use super::tokens::{ColorToken, ColorTokens, ElevationTokens, RadiusSet, ShapeTokens, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
 use crate::AppId;
 
@@ -130,6 +130,7 @@ fn source_words(source: ColorSource, anchored_on: Option<ColorToken>) -> String 
         ColorSource::Lighting(amount) if amount >= 0.0 => format!("{} lit by {amount}", ColorToken::SurfacePanel.path()),
         ColorSource::Lighting(amount) => format!("{} shaded by {}", ColorToken::SurfacePanel.path(), -amount),
         ColorSource::NeutralAlpha(n, a) => format!("neutral {n} at alpha {a}"),
+        ColorSource::Faded(t, a) => format!("= {} at alpha {a}", t.path()),
         ColorSource::Accent(n) => format!("accent {n}"),
         ColorSource::AccentMix { from, to, t } => format!("accent {from} → {to} at {t}"),
         ColorSource::Status(kind, n) => format!("status {} {n}", status(kind)),
@@ -284,8 +285,15 @@ pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
 fn size_origins(resolved: &Resolved, size: Size, app: &AppSizes) -> Vec<SizeOrigin> {
     let merged = app.merged(size);
     let tokens = &resolved.tokens;
-    let mut base =
-        Preset { size: tokens.size, space: tokens.space, radius: tokens.shape.radius, edge: tokens.shape.edge, typography: tokens.typography };
+    let mut base = Preset {
+        size: tokens.size,
+        space: tokens.space,
+        radius: tokens.shape.radius,
+        edge: tokens.shape.edge,
+        rows: tokens.shape.rows,
+        stroke: tokens.stroke,
+        typography: tokens.typography,
+    };
     let mut out = Vec::new();
     for leaf in leaves(&mut base, &mut ComponentSizes::default()) {
         let Some(path) = leaf.path.strip_prefix("base.").filter(|p| base_path(p)) else { continue };
@@ -342,7 +350,8 @@ pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<Col
     }
     let set = sizes::builtin(Size::Compact);
     let preset = &set.base;
-    let shape = ShapeTokens { radius: preset.radius, edge: preset.edge };
+    let shape =
+        ShapeTokens { radius: RadiusSet { sm: (preset.radius.control / 2.0).round(), ..preset.radius }, edge: preset.edge, rows: preset.rows };
     let elevation = { ElevationTokens { popup: values::POPUP_SHADOW, floating: values::WINDOW_SHADOW, knob: values::KNOB_SHADOW } };
     let defaults = ComponentTokens::defaults(&Semantic {
         color: &probe,

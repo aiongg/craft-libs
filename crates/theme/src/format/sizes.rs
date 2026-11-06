@@ -11,7 +11,7 @@ use super::write::{emit, number, set_path};
 use super::{ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES};
 use crate::ThemeId;
 use crate::sizes::{ComponentSizes, FULL, Leaf, Preset, SizeSet, Slot, leaves};
-use crate::tokens::{Edge, FontSlot};
+use crate::tokens::{Edge, FontSlot, RowStyle};
 
 /// The `schema` value of a size set file.
 pub const SIZES_SCHEMA: &str = "craft-design-sizes";
@@ -207,8 +207,21 @@ fn assign(slot: &mut Slot<'_>, value: &Value, path: &[String], errors: &mut Vec<
             }
             _ => fail(ErrorKind::BadValue { expected: EDGE_FLAT }),
         },
+        Slot::Rows(r) => match value {
+            Value::String(s) if s == "divided" => {
+                **r = RowStyle::Divided;
+                true
+            }
+            Value::String(s) if s == "rounded" => {
+                **r = RowStyle::Rounded;
+                true
+            }
+            _ => fail(ErrorKind::BadValue { expected: ROWS }),
+        },
     }
 }
+
+const ROWS: &str = "\"divided\" or \"rounded\"";
 
 const EDGE_FLAT: &str = "\"flat\"";
 
@@ -227,7 +240,7 @@ impl SizeSet {
                 Slot::Num(v) => in_range(**v) && v.is_finite(),
                 Slot::Length(v) => **v == FULL || in_range(**v),
                 Slot::Pair(p) => p.iter().all(|&v| in_range(v)),
-                Slot::Bool(_) | Slot::Font(_) | Slot::Edge(_) => true,
+                Slot::Bool(_) | Slot::Font(_) | Slot::Edge(_) | Slot::Rows(_) => true,
             };
             if !ok {
                 errors.push(err(&path_of(leaf.path), ErrorKind::OutOfRange { min: leaf.lo, max: leaf.hi }));
@@ -295,6 +308,10 @@ pub fn write_sizes(file: &SizeSetFile) -> Result<String, FormatErrors> {
             Slot::Bool(b) => Value::Bool(**b),
             Slot::Font(f) => FONTS.iter().find(|(_, s)| s == *f).map_or(Value::Null, |(name, _)| (*name).into()),
             Slot::Edge(_) => "flat".into(),
+            Slot::Rows(r) => match **r {
+                RowStyle::Divided => "divided".into(),
+                RowStyle::Rounded => "rounded".into(),
+            },
         };
         let path: Vec<&str> = leaf.path.split('.').collect();
         set_path(&mut raw, &path, value);

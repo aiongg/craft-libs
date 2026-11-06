@@ -82,7 +82,7 @@ fn app_radii_apply_unless_the_theme_has_its_own_shape() {
     let own = RadiusSet { control: 9.0, ..sizes::builtin(Size::Compact).base.radius };
     theme.shape = Some(ShapeSeed { radius: Some(own), radius_offset: None, edge: None });
     let tokens = resolve_sized(&theme, at(Size::Compact, TextSize::Small), None, &app).tokens;
-    assert_eq!(tokens.shape.radius, own, "the theme's shape wins over the app's radii");
+    assert_eq!(tokens.shape.radius, RadiusSet { sm: 5.0, ..own }, "the theme's shape wins over the app's radii; sm is half of control");
 }
 
 #[test]

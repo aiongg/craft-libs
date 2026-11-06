@@ -250,7 +250,7 @@ impl Parser {
             None | Some(Value::Null) => Radius::Full.px(),
             Some(v) => self.at("pill", |p| p.length(v))?,
         };
-        Some(RadiusSet { control: control?, popup: popup?, window: window?, panel: panel?, button: button?, pill })
+        Some(RadiusSet { sm: 0.0, control: control?, popup: popup?, window: window?, panel: panel?, button: button?, pill })
     }
 
     /// The radius offsets; each key is optional and defaults to 0.

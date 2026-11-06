@@ -49,6 +49,8 @@ pub enum ColorSource {
     Lighting(f64),
     /// A neutral step with an alpha (0..=1).
     NeutralAlpha(usize, f64),
+    /// Another token's colour with its alpha replaced (0..=255).
+    Faded(ColorToken, u8),
     /// A step of the accent ramp.
     Accent(usize),
     /// The accent step `from` moved `t` (0..=1) of the way toward step `to`, in OKLab.
@@ -154,7 +156,7 @@ pub(super) fn panel_step(mode: Mode) -> usize {
 /// The default source of `token` in `mode`.
 pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
     use ColorSource::{
-        Accent, AccentMix, Anchored, Fixed, Lighting, Neutral, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status, StatusMix,
+        Accent, AccentMix, Anchored, Faded, Fixed, Lighting, Neutral, Oklch, OnSolid, Same, ShiftedFrom, SolidFrom, StateVariant, Status, StatusMix,
     };
     use StatusKind::{Bad, Good, Info, Warn};
     let dark = mode == Mode::Dark;
@@ -239,6 +241,9 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::StateSelected => Anchored(pick(6, 5)),
         T::StateSelectedHover => StateVariant { base: T::StateSelected, step: pick(7, 6) },
         T::StateDisabledFill => Same(T::SurfacePanel),
+        T::StateTextSelection => Faded(T::AccentSolid, 0x46),
+        T::StateMatch => Faded(T::DataYellow, 0x5a),
+        T::StateMatchCurrent => Faded(T::StatusWarnSolid, 0x6e),
         T::OverlayStroke => Accent(9),
         T::OverlayLine => Same(T::AccentSolid),
         T::OverlayHalo => Fixed(Rgba::BLACK.with_alpha(alpha(0.6))),
@@ -256,6 +261,8 @@ pub(super) fn source(token: ColorToken, mode: Mode) -> ColorSource {
         T::OverlayCropInvalid => Fixed(Rgba::rgb(0xe5, 0x3e, 0x3e)),
         // Drawn over the document, not the panel, so one colour in both modes (PhotoCraft's default).
         T::OverlayGrid => Fixed(Rgba::rgb(0x8c, 0x8c, 0x8c)),
+        T::OverlayCheckerLight => Fixed(Rgba::rgb(0xfa, 0xfa, 0xfa)),
+        T::OverlayCheckerDark => Fixed(Rgba::rgb(0xd6, 0xd6, 0xd6)),
         // CadCraft's pinned grip colours; grips sit on the document, so one value in both modes.
         T::OverlayGrip => Fixed(Rgba::rgb(0x2f, 0x6b, 0xff)),
         T::OverlayGripWarm => Fixed(Rgba::rgb(0xff, 0x7f, 0x9f)),

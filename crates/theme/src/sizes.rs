@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 use super::format;
 use super::scale::Radius;
 use super::theme::Size;
-use super::tokens::{Edge, FontSlot, RadiusSet, SizeTokens, SpaceTokens, TypeTokens};
+use super::tokens::{Edge, FontSlot, RadiusSet, RowStyle, SizeTokens, SpaceTokens, StrokeTokens, TypeTokens};
 
 /// The Size-dependent semantic values: sizes, spacing, default shape and type roles.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -21,6 +21,10 @@ pub struct Preset {
     pub radius: RadiusSet,
     /// Default edge.
     pub edge: Edge,
+    /// Default row style.
+    pub rows: RowStyle,
+    /// Line widths and dashes.
+    pub stroke: StrokeTokens,
     /// Type roles.
     pub typography: TypeTokens,
 }
@@ -125,6 +129,8 @@ pub(crate) enum Slot<'a> {
     Font(&'a mut FontSlot),
     /// `"flat"`.
     Edge(&'a mut Edge),
+    /// `"divided"` or `"rounded"`.
+    Rows(&'a mut RowStyle),
 }
 
 /// One value of a set: its path in the file, the range it must lie in, and where it is stored.
@@ -165,6 +171,14 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
         "base.size.bar.options" Num 16.0..=80.0 => s.bar.options;
         "base.size.bar.options_narrow" Num 16.0..=80.0 => s.bar.options_narrow;
         "base.size.panel_header" Num 16.0..=64.0 => s.panel_header;
+        "base.size.thumb.sm" Num 12.0..=96.0 => s.thumb.sm;
+        "base.size.thumb.md" Num 12.0..=96.0 => s.thumb.md;
+        "base.size.thumb.lg" Num 12.0..=96.0 => s.thumb.lg;
+        "base.size.handle.sm" Num 2.0..=32.0 => s.handle.sm;
+        "base.size.handle.md" Num 2.0..=32.0 => s.handle.md;
+        "base.size.hit.slop" Num 0.0..=32.0 => s.hit.slop;
+        "base.size.hit.target" Num 0.0..=32.0 => s.hit.target;
+        "base.size.checker" Num 1.0..=32.0 => s.checker;
         "base.size.list.thumb.sm" Num 12.0..=96.0 => s.list.thumb.sm;
         "base.size.list.thumb.md" Num 12.0..=96.0 => s.list.thumb.md;
         "base.size.list.thumb.lg" Num 12.0..=96.0 => s.list.thumb.lg;
@@ -199,6 +213,7 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
     }
     let sp = &mut b.space;
     leaves! { out;
+        "base.space.gap.tight" Num 0.0..=32.0 => sp.gap.tight;
         "base.space.gap.inline" Num 0.0..=32.0 => sp.gap.inline;
         "base.space.gap.row" Num 0.0..=32.0 => sp.gap.row;
         "base.space.gap.stack" Num 0.0..=32.0 => sp.gap.stack;
@@ -218,6 +233,15 @@ pub(crate) fn leaves<'a>(b: &'a mut Preset, c: &'a mut ComponentSizes) -> Vec<Le
     }
     leaves! { out;
         "base.edge" Edge 0.0..=0.0 => b.edge;
+        "base.rows" Rows 0.0..=0.0 => b.rows;
+    }
+    let st = &mut b.stroke;
+    leaves! { out;
+        "base.stroke.thin" Num 0.25..=8.0 => st.thin;
+        "base.stroke.medium" Num 0.25..=8.0 => st.medium;
+        "base.stroke.thick" Num 0.25..=8.0 => st.thick;
+        "base.stroke.dash" Num 1.0..=32.0 => st.dash;
+        "base.stroke.dash_gap" Num 1.0..=32.0 => st.dash_gap;
     }
     let t = &mut b.typography;
     leaves! { out;

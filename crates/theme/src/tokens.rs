@@ -183,6 +183,12 @@ pub struct StateColors {
     pub selected_hover: Rgba,
     /// Fill of disabled controls.
     pub disabled_fill: Rgba,
+    /// Selected text and table cells: `accent.solid` at 27 %.
+    pub text_selection: Rgba,
+    /// Find results: `data.yellow` at 35 %.
+    pub r#match: Rgba,
+    /// The current find result: `status.warn.solid` at 43 %.
+    pub match_current: Rgba,
 }
 
 /// Canvas overlays: selection paths, handles, guides.
@@ -217,6 +223,10 @@ pub struct OverlayColors {
     pub crop_invalid: Rgba,
     /// Canvas grid.
     pub grid: Rgba,
+    /// The light cells of the transparency checkerboard.
+    pub checker_light: Rgba,
+    /// The dark cells of the transparency checkerboard.
+    pub checker_dark: Rgba,
     /// A grip at rest (CadCraft's blue).
     pub grip: Rgba,
     /// A grip under the pointer.
@@ -336,7 +346,16 @@ impl ColorTokens {
             line: LineColors { divider: c, border: c, control_edge: c, knob_edge: c, mark: c, focus: c },
             accent: AccentColors { solid: c, hover: c, pressed: c, strong: c, strong_hover: c, strong_pressed: c, soft: c, border: c, text: c },
             status: Status { good: status, warn: status, bad: status, info: status },
-            state: StateColors { hover: c, pressed: c, selected: c, selected_hover: c, disabled_fill: c },
+            state: StateColors {
+                hover: c,
+                pressed: c,
+                selected: c,
+                selected_hover: c,
+                disabled_fill: c,
+                text_selection: c,
+                r#match: c,
+                match_current: c,
+            },
             overlay: OverlayColors {
                 stroke: c,
                 line: c,
@@ -352,6 +371,8 @@ impl ColorTokens {
                 crop_guide: c,
                 crop_invalid: c,
                 grid: c,
+                checker_light: c,
+                checker_dark: c,
                 grip: c,
                 grip_warm: c,
                 grip_hot: c,
@@ -538,6 +559,12 @@ color_tokens! {
     StateSelectedHover = "state.selected_hover" => state.selected_hover;
     /// `state.disabled_fill`
     StateDisabledFill = "state.disabled_fill" => state.disabled_fill;
+    /// `state.text_selection`
+    StateTextSelection = "state.text_selection" => state.text_selection;
+    /// `state.match`
+    StateMatch = "state.match" => state.r#match;
+    /// `state.match_current`
+    StateMatchCurrent = "state.match_current" => state.match_current;
     /// `overlay.stroke`
     OverlayStroke = "overlay.stroke" => overlay.stroke;
     /// `overlay.line`
@@ -566,6 +593,10 @@ color_tokens! {
     OverlayCropInvalid = "overlay.crop_invalid" => overlay.crop_invalid;
     /// `overlay.grid`
     OverlayGrid = "overlay.grid" => overlay.grid;
+    /// `overlay.checker_light`
+    OverlayCheckerLight = "overlay.checker_light" => overlay.checker_light;
+    /// `overlay.checker_dark`
+    OverlayCheckerDark = "overlay.checker_dark" => overlay.checker_dark;
     /// `overlay.grip`
     OverlayGrip = "overlay.grip" => overlay.grip;
     /// `overlay.grip_warm`
@@ -692,6 +723,9 @@ impl From<ComponentField> for TokenRef {
 /// Corner radii in logical pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct RadiusSet {
+    /// Small parts: half of `control`, rounded; resolved after a theme's own shape applies, so it
+    /// is not in a size set file.
+    pub sm: f32,
     /// Buttons other than pills, fields, small controls.
     pub control: f32,
     /// Popups and menus.
@@ -734,18 +768,32 @@ impl Edge {
     }
 }
 
-/// Corner radii and edge style.
+/// How list and tab rows are drawn.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum RowStyle {
+    /// Square rows separated by dividers.
+    #[default]
+    Divided,
+    /// Rounded rows without dividers.
+    Rounded,
+}
+
+/// Corner radii, edge style and row style.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ShapeTokens {
     /// Corner radii.
     pub radius: RadiusSet,
     /// Edge style.
     pub edge: Edge,
+    /// How list and tab rows are drawn.
+    pub rows: RowStyle,
 }
 
 /// Gaps between neighbouring elements, in logical pixels.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Gaps {
+    /// Between tightly packed items.
+    pub tight: f32,
     /// Between items on one line.
     pub inline: f32,
     /// Between the rows of a panel body (PhotoCraft's `ROW_GAP`) and around a section header.
@@ -837,6 +885,14 @@ pub struct SizeTokens {
     pub bar: BarSizes,
     /// Panel header height.
     pub panel_header: f32,
+    /// Thumbnail sides.
+    pub thumb: ThumbSizes,
+    /// Canvas drag handles.
+    pub handle: HandleSizes,
+    /// Pointer tolerance.
+    pub hit: HitSizes,
+    /// Side of a checkerboard cell in UI swatches and thumbnails.
+    pub checker: f32,
     /// Lists and trees.
     pub list: ListSizes,
     /// Tabs.
@@ -845,7 +901,40 @@ pub struct SizeTokens {
     pub preset: PresetSizes,
 }
 
-/// Thumbnail sides of a list row, in logical pixels, for the three user settings.
+/// Canvas drag handle sizes, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct HandleSizes {
+    /// Small handle: side or diameter.
+    pub sm: f32,
+    /// Standard handle: side or diameter.
+    pub md: f32,
+}
+
+/// Pointer tolerances, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct HitSizes {
+    /// How far a press may move and still be a click.
+    pub slop: f32,
+    /// Grab distance around a handle or line.
+    pub target: f32,
+}
+
+/// Line widths, dash lengths and gaps, in points.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct StrokeTokens {
+    /// Hairline.
+    pub thin: f32,
+    /// Standard line.
+    pub medium: f32,
+    /// Heavy line.
+    pub thick: f32,
+    /// Length of a dash.
+    pub dash: f32,
+    /// Gap between dashes.
+    pub dash_gap: f32,
+}
+
+/// Thumbnail sides, in logical pixels, for the three user settings.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ThumbSizes {
     /// Small.
@@ -1076,6 +1165,8 @@ pub struct Tokens {
     pub space: SpaceTokens,
     /// Control and chrome sizes.
     pub size: SizeTokens,
+    /// Line widths and dashes.
+    pub stroke: StrokeTokens,
     /// Type roles.
     pub typography: TypeTokens,
     /// Shadows.

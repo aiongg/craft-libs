@@ -66,6 +66,7 @@ impl Ramps {
             Source::Fixed(_)
             | Source::Oklch(..)
             | Source::Same(_)
+            | Source::Faded(..)
             | Source::SolidFrom(_)
             | Source::ShiftedFrom { .. }
             | Source::OnSolid(_)
@@ -201,12 +202,13 @@ fn derived_values(unpinned: &ColorTokens, before_pass: &ColorTokens, pinned: &BT
     let mut out = *unpinned;
     for &t in ColorToken::ALL {
         let value = match values::source(t, mode) {
-            Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_)
+            Source::Same(_) | Source::Faded(..) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_)
                 if !pinned.contains(&t) =>
             {
                 before_pass.get(t)
             }
             Source::Same(other) | Source::SolidFrom(other) => unpinned.get(other),
+            Source::Faded(other, a) => unpinned.get(other).with_alpha(a),
             Source::ShiftedFrom { base, from, to, away_from } => {
                 shifted(unpinned.get(base), unpinned.get(from), unpinned.get(to), unpinned.get(away_from))
             }
@@ -399,7 +401,7 @@ fn direct(r: &Ramps, src: Source) -> Option<Rgba> {
         Source::StatusMix { kind, from, to, t } => mix(r.status.get(kind).step(from), r.status.get(kind).step(to), t),
         Source::Fixed(c) => c,
         Source::Oklch(l, c, h) => super::color::Oklch { l, c, h }.to_rgba(),
-        Source::Same(_) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_) => {
+        Source::Same(_) | Source::Faded(..) | Source::SolidFrom(_) | Source::ShiftedFrom { .. } | Source::OnSolid(_) | Source::Lighting(_) => {
             return None;
         }
     })
@@ -414,6 +416,7 @@ fn follow(c: &mut ColorTokens, ramp: &ColorTokens, pinned: &BTreeSet<ColorToken>
         }
         match values::source(t, mode) {
             Source::Same(other) if on_solid || !is_foreground(t) => c.set(t, c.get(other)),
+            Source::Faded(other, a) => c.set(t, c.get(other).with_alpha(a)),
             Source::Lighting(amount) => c.set(t, lighting(c.surface.panel, amount)),
             Source::SolidFrom(other) if on_solid => c.set(t, c.get(other)),
             Source::ShiftedFrom { base, from, to, away_from } if on_solid => {

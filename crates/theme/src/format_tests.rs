@@ -311,7 +311,7 @@ fn write_refuses_what_parse_rejects() {
     def.components = [(radius, OverrideValue::Length(f32::NAN)), (fill, OverrideValue::Color(Rgba::WHITE))].into_iter().collect();
     def.pins.light = Pins::from_iter([(TokenRef::Color(T::SurfacePanel), hex("#ffffff80")), (TokenRef::Component(radius), Rgba::WHITE)]);
     def.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { control: -1.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius: Some(RadiusSet { sm: 0.0, control: -1.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
         edge: Some(EdgeSeed::Bevel { width: 0.0 }),
     });
@@ -386,7 +386,7 @@ fn a_float_shadow_override_round_trips_through_the_file() {
 fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     let mut def = grey_blue();
     let radius = |pill| ShapeSeed {
-        radius: Some(RadiusSet { control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }),
+        radius: Some(RadiusSet { sm: 0.0, control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }),
         radius_offset: None,
         edge: None,
     };

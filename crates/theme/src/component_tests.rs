@@ -601,7 +601,7 @@ fn a_check_box_radius_is_two_in_every_theme_and_an_override_stays_below_the_cap(
     }
     let mut def = grey_blue();
     def.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius: Some(RadiusSet { sm: 0.0, control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
         edge: None,
     });
@@ -1116,7 +1116,7 @@ fn swatch_keycap_and_check_corners_are_the_control_radius_or_their_override_up_t
     assert_eq!((comfy.swatch.radius, comfy.kbd.radius), (4.0, 3.0));
     let mut def = grey_blue();
     def.shape = Some(ShapeSeed {
-        radius: Some(RadiusSet { control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
+        radius: Some(RadiusSet { sm: 0.0, control: 2.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
         edge: None,
     });

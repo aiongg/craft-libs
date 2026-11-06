@@ -46,10 +46,10 @@ pub(crate) enum Target {
     Pin(SizeField),
 }
 
-/// The base paths an app may override: sizes, spacing, corner radii and type sizes, not the
+/// The base paths an app may override: sizes, spacing, corner radii, strokes and type sizes, not the
 /// edge, fonts or the set's component values.
 pub(crate) fn base_path(path: &str) -> bool {
-    ["size.", "space.", "radius."].iter().any(|p| path.starts_with(p))
+    ["size.", "space.", "radius.", "stroke."].iter().any(|p| path.starts_with(p))
         || path.strip_prefix("typography.").is_some_and(|rest| rest.ends_with(".size") || rest.ends_with(".line_height"))
 }
 

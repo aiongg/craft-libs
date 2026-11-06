@@ -1107,6 +1107,8 @@ options_bar.scroll_bar
 outline_draft.close
 outline_draft.same_point
 overlay.artboard
+overlay.checker_dark
+overlay.checker_light
 overlay.crop
 overlay.crop_guide
 overlay.crop_invalid
@@ -1440,7 +1442,9 @@ shape.radius.control
 shape.radius.panel
 shape.radius.pill
 shape.radius.popup
+shape.radius.sm
 shape.radius.window
+shape.rows
 shape_drag.click_slop
 shape_drag.preview_halo
 shape_drag.preview_line
@@ -1485,8 +1489,13 @@ size.bar.options_narrow
 size.bar.status
 size.bar.tab
 size.bar.title
+size.checker
 size.control.md
 size.control.sm
+size.handle.md
+size.handle.sm
+size.hit.slop
+size.hit.target
 size.icon.lg
 size.icon.md
 size.icon.sm
@@ -1526,6 +1535,9 @@ size.tab.height_large
 size.tab.min_width
 size.tab.panel_height
 size.tab.rounded
+size.thumb.lg
+size.thumb.md
+size.thumb.sm
 slice.auto_alpha
 slice.auto_dash
 slice.auto_gap
@@ -1583,6 +1595,7 @@ space.gap.inline
 space.gap.row
 space.gap.section
 space.gap.stack
+space.gap.tight
 space.pad.control
 space.pad.dialog
 space.pad.panel
@@ -1596,9 +1609,12 @@ start.card_max
 start.card_min
 state.disabled_fill
 state.hover
+state.match
+state.match_current
 state.pressed
 state.selected
 state.selected_hover
+state.text_selection
 status.bad.bg
 status.bad.border
 status.bad.fg
@@ -1629,6 +1645,11 @@ status_bar.gap
 status_bar.group_gap
 status_bar.height
 status_bar.pad
+stroke.dash
+stroke.dash_gap
+stroke.medium
+stroke.thick
+stroke.thin
 stroke_editor.choice_width
 stroke_editor.field_width
 stroke_editor.min_height

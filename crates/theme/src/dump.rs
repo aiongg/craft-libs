@@ -14,32 +14,33 @@ use crate::{
     DateTokens, DialogTokens, Dimmed, DockTokens, DragTokens, DropVeilTokens, Easing, Edge, Elevation, ElevationTokens, EmptyStateTokens,
     EventLogTokens, ExportTokens, EyedropperTokens, FieldTokens, FileListTokens, FilterGalleryTokens, FindingsTokens, FloatTokens, FontPickerTokens,
     FontSlot, FormSpacing, FormTokens, FullWindowTokens, Gaps, GlyphsTokens, GradientEditorTokens, GradientLineTokens, GradientPaletteTokens,
-    GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HoverTokens, IconButtonTokens,
-    IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens, LevelsTokens, LineGuideTokens,
-    LinkTokens, LiquifyTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens, MenuHue, MenuTokens,
-    MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens, OutlineDraftTokens, Pads, PagesTokens,
-    PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens, PopoverTokens, PopupTokens,
-    PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens, RatingTokens, ReadoutTokens,
-    RefPointTokens, ResetDotTokens, ReviewTokens, Rgba, RulerTokens, SamplerTokens, ScopesTokens, ScreenPickerTokens, ScrollTokens, SectionTokens,
-    SegmentedTokens, SelectMaskTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens, ShapeDragTokens, ShapeTokens, SheetTokens, SizeTokens,
-    SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens, SplitTokens, StartTokens, States, StatusBarTokens,
-    StrokeEditorTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens, SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens,
-    TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens, TileTokens, TimelineTokens, TitleBarTokens, ToastTokens,
-    ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens, TourTokens, TransformTokens, TreePickerTokens, TypeRole,
-    TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
+    GridTokens, GripTokens, GroupBoxTokens, GuideTokens, HandleSizes, HandleTokens, HarmonyTokens, HistogramTokens, HistoryTokens, HitSizes,
+    HoverTokens, IconButtonTokens, IconPickerTokens, IconSizes, InspectorTokens, ItemColors, KbdTokens, LabelColor, LayerStyleTokens, LayersTokens,
+    LevelsTokens, LineGuideTokens, LinkTokens, LiquifyTokens, ListManagerTokens, ListSizes, ListTokens, ListboxTokens, MarqueeTokens, MeasureTokens,
+    MenuHue, MenuTokens, MetadataTokens, Motion, MotionTokens, NavigatorTokens, NewDocumentTokens, NoticeTokens, OptionsBarTokens,
+    OutlineDraftTokens, Pads, PagesTokens, PaintChipTokens, PanelFooterTokens, PanelHeaderTokens, PanelTokens, PasswordTokens, PasteboardTokens,
+    PopoverTokens, PopupTokens, PreferencesTokens, PresetSizes, PresetTokens, ProgressTokens, PropertyTokens, RadiusSet, RailSizes, RailTokens,
+    RatingTokens, ReadoutTokens, RefPointTokens, ResetDotTokens, ReviewTokens, Rgba, RowStyle, RulerTokens, SamplerTokens, ScopesTokens,
+    ScreenPickerTokens, ScrollTokens, SectionTokens, SegmentedTokens, SelectMaskTokens, SelectTokens, SelectionBarTokens, SelectionFrameTokens,
+    ShapeDragTokens, ShapeTokens, SheetTokens, SizeTokens, SliceTokens, SliderRowTokens, SliderTokens, SpaceTokens, SpinnerTokens, SplitButtonTokens,
+    SplitTokens, StartTokens, States, StatusBarTokens, StrokeEditorTokens, StrokeTokens, SwatchColor, SwatchPaletteTokens, SwatchTokens,
+    SymmetryTokens, TabSizes, TabTokens, TableTokens, TextEditorTokens, TextStylesTokens, ThemeChipTokens, ThumbColors, ThumbSizes, ThumbnailTokens,
+    TileTokens, TimelineTokens, TitleBarTokens, ToastTokens, ToggleButtonTokens, Tokens, Tone, ToolPillTokens, ToolbarTokens, TooltipTokens,
+    TourTokens, TransformTokens, TreePickerTokens, TypeRole, TypeStyle, TypeTokens, VanishingPointTokens, WideAngleTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
 pub fn tokens_text(tokens: &Tokens) -> String {
     let mut out = Lines::default();
 
-    let Tokens { color, shape, space, size, typography, elevation, motion, component } = tokens;
+    let Tokens { color, shape, space, size, stroke, typography, elevation, motion, component } = tokens;
     for &token in ColorToken::ALL {
         out.line(token.path(), hex(color.get(token)));
     }
     shape_lines(&mut out, shape);
     space_lines(&mut out, space);
     size_lines(&mut out, size);
+    stroke_lines(&mut out, stroke);
     type_lines(&mut out, typography);
     elevation_lines(&mut out, elevation);
     motion_lines(&mut out, motion);
@@ -83,18 +84,26 @@ fn edge(e: Edge) -> String {
 }
 
 fn shape_lines(out: &mut Lines, shape: &ShapeTokens) {
-    let ShapeTokens { radius, edge: e } = shape;
-    let RadiusSet { control, popup, window, panel, button, pill } = radius;
-    for (k, v) in [("control", control), ("popup", popup), ("window", window), ("panel", panel), ("button", button), ("pill", pill)] {
+    let ShapeTokens { radius, edge: e, rows } = shape;
+    let RadiusSet { sm, control, popup, window, panel, button, pill } = radius;
+    for (k, v) in [("sm", sm), ("control", control), ("popup", popup), ("window", window), ("panel", panel), ("button", button), ("pill", pill)] {
         out.line(&format!("shape.radius.{k}"), len(*v));
     }
     out.line("shape.edge", edge(*e));
+    out.line("shape.rows", if *rows == RowStyle::Divided { "divided" } else { "rounded" });
+}
+
+fn stroke_lines(out: &mut Lines, stroke: &StrokeTokens) {
+    let StrokeTokens { thin, medium, thick, dash, dash_gap } = stroke;
+    for (k, v) in [("thin", thin), ("medium", medium), ("thick", thick), ("dash", dash), ("dash_gap", dash_gap)] {
+        out.line(&format!("stroke.{k}"), len(*v));
+    }
 }
 
 fn space_lines(out: &mut Lines, space: &SpaceTokens) {
     let SpaceTokens { gap, pad } = space;
-    let Gaps { inline, row, stack, section } = gap;
-    for (k, v) in [("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
+    let Gaps { tight, inline, row, stack, section } = gap;
+    for (k, v) in [("tight", tight), ("inline", inline), ("row", row), ("stack", stack), ("section", section)] {
         out.line(&format!("space.gap.{k}"), len(*v));
     }
     let Pads { control, panel, dialog } = pad;
@@ -104,7 +113,7 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, list, tab: tab_sizes, preset } = size;
+    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, list, tab: tab_sizes, preset } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -122,6 +131,17 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));
+    let ThumbSizes { sm, md, lg } = thumbs;
+    out.line("size.thumb.sm", len(*sm));
+    out.line("size.thumb.md", len(*md));
+    out.line("size.thumb.lg", len(*lg));
+    let HandleSizes { sm, md } = handle;
+    out.line("size.handle.sm", len(*sm));
+    out.line("size.handle.md", len(*md));
+    let HitSizes { slop, target } = hit;
+    out.line("size.hit.slop", len(*slop));
+    out.line("size.hit.target", len(*target));
+    out.line("size.checker", len(*checker));
     let ListSizes { thumb, thumb_row_min, indent, disclosure, toggle_column, min_label, trailing_pad, rounded, dividers } = list;
     let ThumbSizes { sm, md, lg } = thumb;
     out.line("size.list.thumb.sm", len(*sm));
