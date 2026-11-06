@@ -333,7 +333,7 @@ fn image_mode_requests_the_turned_view() {
     assert!(h.state().view.rotation.abs() < 1e-9);
 }
 
-// The armed button draws one line then disarms; Command held draws a line without arming; the release gives Straightened and a fitted frame as one box step; a line under `crop.straighten_min` changes nothing.
+// The armed button draws one line then disarms; Command held draws a line without arming; the release gives Straightened and a fitted frame as one box step; a line under the straighten min changes nothing.
 #[test]
 fn straighten_one_shot_and_temporary_command() {
     let mut h = harness(host(classic()));

@@ -27,7 +27,6 @@ use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
-use craft_ui::style::bezier::BezierStyle as BezierGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 use super::PathOptionsSettings;
@@ -177,54 +176,19 @@ impl<'a> BezierNames<'a> {
     }
 }
 
-/// A path overlay's look, from [`BezierOverlay::style`]. A host preference (VectorCraft's anchor
-/// size and handle style) changes a copy and passes it to [`BezierOverlay::look`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct BezierStyle {
-    /// Outline width.
-    pub line: f32,
-    /// A selected segment's width.
-    pub selected_segment: f32,
-    /// A path without a colour of its own: `overlay.line`.
-    pub color: Color32,
-    /// An anchor: a `anchor` square of `overlay.handle_fill` outlined in
-    /// `overlay.handle_stroke`, or in the path's colour.
-    pub anchor: HandleStyle,
-    /// A selected anchor: filled with `overlay.handle_stroke`, or the path's colour.
-    pub selected_anchor: HandleStyle,
-    /// A direction handle's end: a solid `control` dot of `overlay.handle_stroke`, or the
-    /// path's colour; its line from the anchor is the same colour.
-    pub control: HandleStyle,
-    /// The line from an anchor to a handle's end.
-    pub control_line: f32,
-    /// Distance within which the pointer takes a handle, an anchor or a segment.
-    pub hit: f32,
-    /// Farthest a press may move and still be a click.
-    pub click_slop: f32,
-    /// Largest distance between a curve and the lines it is drawn with.
-    pub flatten: f32,
-    /// Side of an anchor drawn by [`BezierOverlay::highlight`].
-    pub highlight_anchor: f32,
-    /// Under a highlighted segment: `overlay.halo`, the thin stroke width wider on each side.
-    pub highlight_halo: f32,
-    /// The colour of [`highlight_halo`](Self::highlight_halo): `overlay.halo`.
-    pub halo: Color32,
-}
+pub use craft_ui::style::bezier::BezierStyle;
 
-impl BezierStyle {
-    /// The anchor, selected anchor and handle end looks of a path: in its own colour, or the
-    /// overlay's handle colours, which keep the handle contrast rule.
-    fn looks(&self, color: Option<Color32>) -> (HandleStyle, HandleStyle, HandleStyle) {
-        let Some(color) = color else { return (self.anchor, self.selected_anchor, self.control) };
-        let anchor = adjusted(self.anchor, |h| h.stroke = Stroke::new(self.anchor.stroke.width, color));
-        let selected = adjusted(self.selected_anchor, |h| {
-            h.fill = color;
-            h.stroke = Stroke::new(self.selected_anchor.stroke.width, color);
-        });
-        let control = adjusted(self.control, |h| h.fill = color);
-        (anchor, selected, control)
-    }
+/// The anchor, selected anchor and handle end looks of a path: in its own colour, or the
+/// overlay's handle colours, which keep the handle contrast rule.
+fn looks(style: &BezierStyle, color: Option<Color32>) -> (HandleStyle, HandleStyle, HandleStyle) {
+    let Some(color) = color else { return (style.anchor, style.selected_anchor, style.control) };
+    let anchor = adjusted(style.anchor, |h| h.stroke = Stroke::new(style.anchor.stroke.width, color));
+    let selected = adjusted(style.selected_anchor, |h| {
+        h.fill = color;
+        h.stroke = Stroke::new(style.selected_anchor.stroke.width, color);
+    });
+    let control = adjusted(style.control, |h| h.fill = color);
+    (anchor, selected, control)
 }
 
 /// What a pass of [`BezierOverlay::show`] reports.
@@ -541,26 +505,7 @@ impl<'a> BezierOverlay<'a> {
 
     /// The path overlay's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> BezierStyle {
-        let (stroke, size) = (&tokens.stroke, &tokens.size);
-        let sized = |style: HandleStyle, side| adjusted(style, |h| (h.size, h.hit) = (side, 2.0 * size.hit.target));
-        let anchor = sized(Handle::style(tokens, HandleShape::Square), size.handle.sm);
-        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), size.handle.sm);
-        let control = sized(Handle::style(tokens, HandleShape::Rotate), size.handle.sm);
-        BezierStyle {
-            line: stroke.thin,
-            selected_segment: stroke.thick,
-            color: tokens.color.overlay.line.to_egui(),
-            anchor,
-            selected_anchor,
-            control,
-            control_line: stroke.thin,
-            hit: size.hit.target,
-            click_slop: size.hit.slop,
-            flatten: BezierGeometry::new(tokens).flatten,
-            highlight_anchor: size.handle.md,
-            highlight_halo: stroke.thin,
-            halo: tokens.color.overlay.halo.to_egui(),
-        }
+        BezierStyle::new(tokens)
     }
 
     /// Draws the paths over `view` and senses through the host's `canvas` response.
@@ -1098,7 +1043,7 @@ impl<'a> BezierOverlay<'a> {
             if pass.limited {
                 continue;
             }
-            let (anchor, selected, control) = style.looks(path.color);
+            let (anchor, selected, control) = looks(style, path.color);
             let shown: Vec<&Shown> = pass.shown.iter().filter(|s| s.path == index).collect();
             for s in &shown {
                 if let Some(k) = path.knot(s.knot) {

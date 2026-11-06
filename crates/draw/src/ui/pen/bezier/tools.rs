@@ -110,7 +110,7 @@ impl BezierOverlay<'_> {
     ///
     /// - second click of a double-click on an anchor: a [`Target::Toggle`], reported as a
     ///   `ToggleCurvature` Set on release, no drag;
-    /// - an anchor: picks it and selects it alone; past `bezier.click_slop` a drag reports
+    /// - an anchor: picks it and selects it alone; past the click slop a drag reports
     ///   `MoveCurvature { anchors: [it], by }` (Begin, Update, Commit; Esc cancels);
     /// - a segment: an insert at the hit's `t` clamped to [`CURVATURE_T_RANGE`]; the new
     ///   anchor is selected in the pass of the insert's first Set or Update; a drag reports `InsertCurvature { segment, t, by }` as one gesture, a click

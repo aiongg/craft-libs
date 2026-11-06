@@ -29,7 +29,7 @@ use super::panel::ChannelsContext;
 /// - The name, `.italic(row.kind.italic())`; `.description(hidden)` when not visible.
 /// - The shortcut chord at the trailing end (`labels::shortcut_numbers`, `labels::chord_text`,
 ///   the library's plain `Kbd` look in `text.muted`), an optional item that drops before the
-///   name gets narrower than `list.min_label`.
+///   name gets narrower than the min label.
 /// - Selected (the list sets it) for `row.targeted`.
 pub(super) fn channel_row<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     cx: &'r ChannelsContext<'r, K>,
@@ -103,7 +103,7 @@ fn with_thumbnail<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
 }
 
 /// `list_row` with the shortcut chord of `number` at the trailing end, which drops out before the
-/// name gets narrower than `list.min_label`.
+/// name gets narrower than the min label.
 fn with_chord<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     list_row: ListRow<'r, K>,
     cx: &ChannelsContext<'_, K>,
@@ -118,7 +118,7 @@ fn with_chord<'r, K: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
     })
 }
 
-/// Paints a spot channel's ink as a `channels.spot_swatch` square at the bottom right corner of
+/// Paints a spot channel's ink as the spot swatch square at the bottom right corner of
 /// the fitted thumbnail `thumb` (pictures never mirror in a right-to-left interface) (the ink's own colour, exempt from contrast checks).
 pub(super) fn paint_spot_swatch(painter: &Painter, thumb: Rect, ink: craft_theme::Srgba, side: f32) {
     // pc: crates/ui-egui/src/panels/channels_panel.rs:242-247 `paint_spot_swatch`.

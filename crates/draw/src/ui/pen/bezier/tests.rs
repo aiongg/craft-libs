@@ -734,7 +734,7 @@ fn anchors_hidden_draws_outlines_only() {
 }
 
 // Path Options: a colour replaces `overlay.line` for paths without their own colour and a
-// thickness replaces `bezier.line`; the pen draft's line takes them too.
+// thickness replaces the line; the pen draft's line takes them too.
 #[test]
 fn path_options_colour_and_thickness_change_the_pen_and_path_look() {
     let mut h = two_paths();

@@ -25,7 +25,7 @@ const PASTE_CELLS: usize = 24;
 ///    draws it, so a plane's lines stay visible across it.
 /// 2. Each plane (not one the scene could not rebuild): an invalid plane only its outline; the
 ///    others their grid (cells of `grid_size` at the nearest edge, at most `MAX_GRID_LINES` a
-///    direction, `vanishing_point.grid` at `.grid_alpha`) and outline (`.line`, the selected plane
+///    direction, the grid at `.grid_alpha`) and outline (`.line`, the selected plane
 ///    `.line_selected`), in the check's color; the outline over the halo.
 /// 3. The selected plane's nodes: corners and edge middles as `.node` white squares with a
 ///    `.line` outline in the plane's color; Create Plane's pending corners as `.pending` squares
@@ -148,7 +148,7 @@ fn grid_steps(plane: &VanishingPlane, lu: f64, lv: f64, size: f64, along_u: bool
 }
 
 /// The clipboard image on plane `index` (the one [`paste_plane`] chose): a mesh through the plane's
-/// frame tinted white at `vanishing_point.paste_alpha`, cells outside the plane left out (the engine
+/// frame tinted white at the paste alpha, cells outside the plane left out (the engine
 /// clips the paste to the plane). Its extent is the one the editor drags ([`paste_extent`]).
 #[expect(clippy::too_many_arguments, reason = "the paste reads the same state as the planes")]
 fn paint_paste(

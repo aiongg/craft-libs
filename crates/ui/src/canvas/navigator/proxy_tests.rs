@@ -99,7 +99,7 @@ fn tokens() -> UiTokens {
     UiTokens::new(resolve(&builtins()[0], appearance, None).tokens, appearance, Mode::Dark, FontFamilies::default())
 }
 
-// Each `ProxyColor` resolves; `Default` reads `navigator.proxy`; `Custom` keeps its value; the
+// Each `ProxyColor` resolves; `Default` reads the proxy; `Custom` keeps its value; the
 // settings round-trip through JSON as `{"proxyColor": ..}`.
 #[test]
 fn proxy_color_choice_overrides_the_token() {

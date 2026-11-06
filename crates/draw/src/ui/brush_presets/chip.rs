@@ -5,7 +5,7 @@ use craft_ui::direction;
 use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::Interactive;
-use craft_ui::style::brush::BrushStyle;
+use craft_ui::style::brush::BrushPanelStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::accesskit::Role;
 use egui::text::{LayoutJob, TextWrapping};
@@ -55,7 +55,7 @@ impl BrushPresetChip {
 
     /// The sizes and colors of the chip from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushPresetChipStyle {
-        let (b, c) = (BrushStyle::new(tokens), &tokens.color);
+        let (b, c) = (BrushPanelStyle::new(tokens), &tokens.color);
         BrushPresetChipStyle {
             size: Vec2::from(b.chip),
             tip: tokens.size.icon.md,

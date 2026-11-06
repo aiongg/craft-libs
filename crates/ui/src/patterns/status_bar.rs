@@ -179,7 +179,7 @@ impl StatusBar {
             gap: space.gap.stack,
             group_gap: space.gap.section,
             divider: size.icon.md,
-            divider_box: 2.0 * space.gap.stack + 1.0,
+            divider_box: 2.0 * space.gap.stack + tokens.stroke.thin,
             field_width: (size.control.md * FIELD_SCALE).round(),
             fill: c.surface.chrome.to_egui(),
             text: Content::Muted.color(tokens).to_egui(),
@@ -286,7 +286,7 @@ impl StatusBar {
     }
 
     /// A background task's progress, for the trailing group, in reading order: the label in
-    /// `text.muted`, a [`Progress`] bar of `progress.width`, the percentage in the mono role and a
+    /// `text.muted`, a [`Progress`] bar of the width, the percentage in the mono role and a
     /// small cancel button. The label and percentage are painted, not AccessKit nodes: the bar is
     /// one progress indicator named by the label, with the fraction as its value and the percentage
     /// as its value text. The cancel button's id comes from the label. The output's `response`

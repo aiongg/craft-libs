@@ -58,7 +58,7 @@ impl<C> DynamicControl<C> {
 /// [`DynamicControlRowResponse::curve_toggled`] opens it. The Jitter and Minimum rows around it are
 /// `SliderRow`s.
 ///
-/// - **Look.** The label in `text.muted`, the select `brush.control_select` (130) wide, the
+/// - **Look.** The label in `text.muted`, the select as wide as the style's `control_select`, the
 ///   field the number field's default width, the toggle an icon button; RTL mirrors.
 /// - **Keys.** Three Tab stops (select, field, toggle).
 /// - **AccessKit.** The select named "Control:", the field a `SpinButton` "Fade steps", the toggle

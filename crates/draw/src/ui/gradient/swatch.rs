@@ -18,7 +18,7 @@ use egui::{AsIdSalt, IdSalt};
 /// `if GradientSwatch::new("fill", "Gradient picker", &stops).show(ui).clicked() { open_editor }`.
 ///
 /// The ramp is drawn over the checkerboard where it is translucent, inside the swatch's two
-/// rings and corner radius, `swatch.size` high. The swatch edits nothing; a click is the host's
+/// rings and corner radius, the size high. The swatch edits nothing; a click is the host's
 /// cue. AccessKit sees a button named by `label`, with `has_popup` when the host opens one.
 #[derive(Clone)]
 pub struct GradientSwatch<'a> {

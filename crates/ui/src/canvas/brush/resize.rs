@@ -37,9 +37,9 @@ pub struct BrushResizeOptions {
     pub level: BrushLevel,
     /// The largest diameter the app accepts; the smallest is 1.
     pub max_diameter: f64,
-    /// Screen points of vertical travel from level 0 to 1 (`brush.resize_travel`).
+    /// Screen points of vertical travel from level 0 to 1 (`BrushStyle::resize_travel`).
     pub travel: f32,
-    /// The preview's tint: the user's Brush Preview colour, `brush.preview_tint` by default. A
+    /// The preview's tint: the user's Brush Preview colour, `BrushStyle::preview_tint` by default. A
     /// user colour, exempt from contrast.
     pub tint: Color32,
 }

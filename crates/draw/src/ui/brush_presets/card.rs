@@ -9,7 +9,7 @@ use craft_ui::direction;
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::presets::view::grid_room;
 use craft_ui::presets::{CellShape, PresetBrowser, PresetOutput, PresetReorder, PresetRow, PresetState, PresetView};
-use craft_ui::style::brush::BrushStyle;
+use craft_ui::style::brush::BrushPanelStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, Painter, Rect, Ui, Vec2, pos2, vec2};
@@ -115,24 +115,24 @@ pub fn tip_thumb_scale(diameter: f64) -> f32 {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BrushCardLayout {
-    /// The tile: the cell inset by `brush.card_inset × scale` (PhotoCraft 4) at both ends (at most
+    /// The tile: the cell inset by `style.inset × scale` (PhotoCraft 4) at both ends (at most
     /// half the cell), full height. The whole cell stays the drop target.
     pub card: Rect,
     /// The tip's cell (thumbnail and number band), when the tip shows.
     pub tip_cell: Option<Rect>,
     /// The tip thumbnail, centred in what the number band leaves, at
-    /// `min(brush.card_tip_base × scale, that room's side) × tip_thumb_scale(diameter)`; on a
+    /// `min(style.tip_base × scale, that room's side) × tip_thumb_scale(diameter)`; on a
     /// compact card the tip cell's shorter side less 2, centred.
     pub tip: Option<Rect>,
     /// The size number's band at the bottom of the tip cell, 1 pt off its bottom; `None` on a
     /// compact card or without the tip.
     pub number: Option<Rect>,
-    /// The stroke preview: from `brush.card_stroke_inset × scale` (8) past the tip cell,
-    /// `clamp(cell width − 2 × inset, brush.card_stroke_min × scale, brush.card_stroke_max ×
-    /// scale)` (24, 260) wide and at most the cell, `brush.card_stroke_height × max(scale, 0.6)`
+    /// The stroke preview: from `style.stroke_inset × scale` (8) past the tip cell,
+    /// `clamp(cell width − 2 × inset, style.stroke_width[0] × scale, style.stroke_width[1] ×
+    /// scale)` (24, 260) wide and at most the cell, `style.stroke_height × max(scale, 0.6)`
     /// (36) high, centred vertically in the top row.
     pub stroke: Option<Rect>,
-    /// The name: the merged bottom row inset `brush.card_name_inset × scale` (6) at both ends, or
+    /// The name: the merged bottom row inset `style.name_inset × scale` (6) at both ends, or
     /// the stroke's cell when only the tip and the name show (`card_stroke_inset × scale` at the
     /// start, `card_name_inset × scale` at the end).
     pub name: Option<Rect>,
@@ -148,8 +148,8 @@ impl BrushCardLayout {
     /// preset's tip size in pixels (`None`: drawn at full scale), `number_height` the height of the
     /// laid-out size number (ignored when compact).
     ///
-    /// Padding `brush.card_pad × scale` across and `× max(scale, 0.6)` down; the name row
-    /// `brush.card_name_height × max(scale, 0.6)`; the tip cell `min(brush.card_tip_width ×
+    /// Padding `style.pad × scale` across and `× max(scale, 0.6)` down; the name row
+    /// `style.name_height × max(scale, 0.6)`; the tip cell `min(style.tip_width ×
     /// scale, half the top row)` wide, or the whole top row on a tip-only card.
     pub fn of(cell: Rect, parts: BrushCardParts, scale: f32, diameter: Option<f64>, number_height: f32, style: &BrushCardStyle) -> Self {
         // pc: crates/ui-egui/src/panels/brushes_tab.rs:524-635 `preset_card` (pad, name_h, top_h, tip, stroke and name cells)
@@ -223,8 +223,8 @@ impl BrushCardLayout {
     }
 
     /// The size of one card's cell at `scale` for `parts`, the cards sharing a row `width` wide
-    /// (the browser's grid room). Tip only: `brush.card_tip_only × scale` (height floored at 0.6);
-    /// tip and name: `brush.card_tip_name × scale` likewise; otherwise `card_max` width ×
+    /// (the browser's grid room). Tip only: `style.tip_only × scale` (height floored at 0.6);
+    /// tip and name: `style.tip_name × scale` likewise; otherwise `card_max` width ×
     /// scale (at most `width`) by the padding, the top row and the name row, where the top row
     /// is `card_max` height − 2 × pad − name height, and absent when neither tip nor stroke
     /// shows.
@@ -301,7 +301,7 @@ type DiameterOf<'a, K> = Box<dyn Fn(&K) -> Option<f64> + 'a>;
 ///
 /// - **Cells.** Grid view only. The cell shape follows the parts ([`BrushCardLayout::cell_size`]);
 ///   the width is `card_max` width × [`BrushCardsState::scale`], with the browser's
-///   `preset.grid_gap` between cells.
+///   the grid gap between cells.
 /// - **Look.** The tile on `card_fill`, the hover fill `state.hover`, the selected fill
 ///   `state.selected`; the selected ring is the browser's (`preset.ring.*`). Name in `text.muted`
 ///   (`label` role), size number in `text.faint` (`caption` role); the text keeps its size at
@@ -357,7 +357,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetCards<
 
     /// The sizes and colors of a card from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushCardStyle {
-        let (b, c, size, space) = (BrushStyle::new(tokens), &tokens.color, &tokens.size, &tokens.space);
+        let (b, c, size, space) = (BrushPanelStyle::new(tokens), &tokens.color, &tokens.size, &tokens.space);
         BrushCardStyle {
             pad: space.gap.tight,
             inset: space.gap.tight,

@@ -14,7 +14,7 @@ const MIN_ZOOM_BOX: f64 = 2.0;
 /// side, centred and keeping its aspect: the rect the preview picture is drawn into.
 ///
 /// The space left after the inset is at least 1 × 1 point; an empty size counts as 1 × 1.
-/// [`Navigator`](super::Navigator) passes its style's `inset` (`navigator.inset`, 8).
+/// [`Navigator`](super::Navigator) passes its style's `inset` (the inset, 8).
 pub fn preview_rect(frame: Rect, size: Size, inset: f32) -> Rect {
     // pc: crates/ui-egui/src/panels/navigator.rs:157 `navigator_fit` (inner = frame − 2 × 8, at least 1 × 1;
     // scale = min(inner.x / w, inner.y / h); centred on frame.center()).

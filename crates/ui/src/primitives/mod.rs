@@ -145,7 +145,7 @@ pub enum Corner {
     /// Small controls, fields, toolbar items: `radius.control`.
     #[default]
     Control,
-    /// Push and toggle buttons: `button.radius` (`radius.button` unless the theme overrides
+    /// Push and toggle buttons: the radius (`radius.button` unless the theme overrides
     /// it).
     Button,
     /// Popups, menus and dialogs: `radius.popup`.

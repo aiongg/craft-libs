@@ -4,10 +4,10 @@
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ChannelsStyle {
-    /// The thumbnail side when the app sets no `thumbnail_size`: `channels.thumb` (Compact 28,
+    /// The thumbnail side when the app sets no `thumbnail_size`: the thumb (Compact 28,
     /// Comfortable 30); the row height follows the list's thumbnail-row rule.
     pub thumb: f32,
     /// A spot channel's ink swatch at the thumbnail's bottom trailing corner:
-    /// `channels.spot_swatch` (9).
+    /// the spot swatch (9).
     pub spot_swatch: f32,
 }

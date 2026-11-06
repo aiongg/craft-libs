@@ -165,7 +165,7 @@ fn round_tip_becomes_an_ellipse_under_a_skewed_pose() {
     assert!(matches!(BrushCursor::new(&tip).cursor(&style, &prefs(), &wide, false), ToolCursor::Outline { .. }));
 }
 
-// An outline under `brush.tip_min_radius` on screen gives the 4 pt crosshair with no gap.
+// An outline under `BrushStyle::tip_min_radius` on screen gives the 4 pt crosshair with no gap.
 #[test]
 fn tiny_tips_show_a_crosshair() {
     let style = style();

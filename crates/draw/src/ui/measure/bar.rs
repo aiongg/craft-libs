@@ -62,7 +62,7 @@ pub struct RulerBarOutput {
 ///
 /// - Readouts X, Y (the start), W, H (end minus start), A, L1 and L2 (blank without a protractor;
 ///   all blank without a line), each a muted caption and a value in the numeric type role,
-///   `measure.readout_gap` apart; live while the line is dragged (the app passes the line of this
+///   the readout gap apart; live while the line is dragged (the app passes the line of this
 ///   pass). Values have two decimals; with [`units`](Self::units) and no measurement scale the
 ///   lengths and positions are written in the ruler units (X and W in the first, Y and H in the
 ///   second, L1 and L2 in the first), the angle stays a plain number.

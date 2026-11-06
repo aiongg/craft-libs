@@ -375,7 +375,7 @@ impl<'a> ThemeChip<'a> {
         let tokens = Tokens::of(ui);
         let (size, space, radius) = (&tokens.size, &tokens.space, tokens.shape.radius.sm);
         let size_of_chip = Vec2::new(size.control.md + 2.0 * space.pad.control, size.control.sm + 2.0 * space.pad.control);
-        let badge_radius = size.handle.md - 1.0;
+        let badge_radius = size.handle.md - tokens.stroke.thin;
         let outline_radius = CornerRadius::same(radius.round() as u8);
         let slot = self.slot.unwrap_or_else(|| Slot {
             id: ui.make_persistent_id(("theme_chip", self.id_salt, self.theme.id.as_str(), self.dark)),

@@ -38,7 +38,7 @@ use craft_ui::localized::Labels as _;
 ///   [`SliceRules::multi_select`].
 /// - A drag moves the whole slice, also when the press hit a piece of a covered slice; auto and
 ///   layer slices don't move (the press only selects).
-/// - A handle of a selected user slice (8: corners first, `handle.hit` reach, as
+/// - A handle of a selected user slice (8: corners first, the handle's hit reach, as
 ///   [`handle_at`](crate::geometry::slice::handle_at)) resizes it with
 ///   [`resized_rect`](crate::geometry::slice::resized_rect), the travel measured from the handle's
 ///   own point so a snapped pointer is where the edge ends up.
@@ -499,7 +499,7 @@ impl CanvasTool for SliceTool {
 
     fn paint(&self, painter: &Painter, cx: &ToolContext<'_>) {
         // pc: crates/ui-egui/src/tools/slice_ui.rs:242-321 `draw_overlay` (handles at :271-281, the
-        // drag previews at :305-319). Lead call 4: handles are `handle.size` squares in
+        // drag previews at :305-319). Lead call 4: handles are `size.handle` squares in
         // `overlay.handle_fill` with the selected colour's edge, not PhotoCraft's 5 × 5 filled ones.
         // new: `SliceOverlay::paint`, then the handles and the preview with `SliceTool::style`.
         let style = Self::style(cx.tokens);

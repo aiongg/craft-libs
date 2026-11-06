@@ -55,7 +55,7 @@ pub struct StrokeEditorResponse {
 /// ```
 ///
 /// - Presets ([`StrokeSections::PRESETS`]): Solid, Dashed (`[4, 2]`), Dotted (`[0, 2]`, round
-///   caps) as radio rows `stroke_editor.preset_height` high, each with a line sample drawn at
+///   caps) as radio rows the preset height high, each with a line sample drawn at
 ///   opacity 1; the row matching [`StrokeStyle::line_style`] is selected, none for Custom.
 ///   Picking one applies [`StrokeStyle::with_line_style`].
 /// - Rows, a two-column grid (label column at the reading start): Alignment (Inside, Center,
@@ -63,16 +63,16 @@ pub struct StrokeEditorResponse {
 ///   disabled for a solid closed path); Corners (Miter, Round, Bevel; enabled only with
 ///   [`corners`](Self::corners)); Miter limit (1–500, suffix `×`; enabled only for Miter
 ///   corners); Opacity ([`StrokeSections::OPACITY`], 0–100 %, stored 0..=1). Choices are
-///   `Select`s `stroke_editor.choice_width` wide, or `Segmented` icon buttons with
+///   `Select`s the choice width wide, or `Segmented` icon buttons with
 ///   [`StrokeSections::ICONS`]. Under the rows of an open path: "Open paths use centered strokes".
 /// - Dashes ([`StrokeSections::DASHES`]): a "Dashed line" check (setting it applies the Dashed
 ///   preset, clearing it Solid); while dashed, a hint by [`StrokeStyle::dash_unit`], then one row
 ///   per pair ([`StrokeStyle::dash_pairs`]) of Dash and Gap number fields (0–10000, suffix `×`, or
-///   `pt` for document units, `stroke_editor.field_width` wide); "Add pair" (enabled under 32 entries:
+///   `pt` for document units, the field width wide); "Add pair" (enabled under 32 entries:
 ///   appends `[4, 2]`, or `2` to complete an odd pattern) and "Remove pair" (enabled over 2
 ///   entries: drops the last two); "Dash offset" (±1,000,000).
-/// - Sample ([`StrokeSections::SAMPLE`]): a `stroke_editor.sample_height` tall
-///   [`StrokePreview`](super::StrokePreview) on `field.fill`, a rectangle when closed, a line
+/// - Sample ([`StrokeSections::SAMPLE`]): the sample height tall
+///   [`StrokePreview`](super::StrokePreview) on the fill, a rectangle when closed, a line
 ///   otherwise. While the style fails [`StrokeStyle::validate`], [`StrokeLabels::invalid`] in
 ///   `status.bad.fg` under it, and nothing is reported.
 /// - [`mixed`](Self::mixed): a mixed field shows the mixed placeholder and lights no button or
@@ -173,7 +173,7 @@ impl<'a> StrokeEditor<'a> {
         self
     }
 
-    /// Adds the editor to `ui`, `stroke_editor.width` wide.
+    /// Adds the editor to `ui`, the width wide.
     pub fn show(self, ui: &mut Ui) -> StrokeEditorResponse {
         // pc: crates/ui-egui/src/tools/shape_stroke_ui/editor.rs:128-248 (the popup body: presets
         // :139-148, grid :151-190 with the enable rules :152, :165, :172, :179, opacity :184-188,
@@ -231,7 +231,7 @@ impl<'a> StrokeEditor<'a> {
     }
 }
 
-/// The body's width: `stroke_editor.width`, less in a window narrower than that plus the margin.
+/// The body's width: the width, less in a window narrower than that plus the margin.
 pub(super) fn body_width(ui: &Ui, look: &StrokeEditorStyle) -> f32 {
     let room = ui.ctx().content_rect().width() - look.screen_margin;
     look.width.min(room).max(look.min_width)

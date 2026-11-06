@@ -14,8 +14,8 @@ use super::{SelectEvent, SelectLabels, SelectPhase, SelectToolPass, SelectionPro
 /// The drawing rules are [`OutlineDraft`]'s with [`DraftKind::Polygonal`]: ⇧ (without ⌥) turns
 /// the new segment to a multiple of 45° from the last vertex (not the first vertex), ⌥-drag draws
 /// freehand. The first click latches the operation (⌥ with nothing selected is New). The outline
-/// closes on a click within `outline_draft.close` (8 pt) of the first vertex (3 or more), on a
-/// click within `outline_draft.same_point` (3 pt) of the last, on Enter or a double-click.
+/// closes on a click within the close (8 pt) of the first vertex (3 or more), on a
+/// click within the same point (3 pt) of the last, on Enter or a double-click.
 /// Backspace, Delete or a secondary click retract the last vertex (the last one cancels): the tool
 /// takes the secondary button while an outline is open, so the app calls nothing and shows no
 /// context menu then. Esc cancels, between clicks and during a press alike; a document change or

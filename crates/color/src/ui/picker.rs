@@ -114,8 +114,8 @@ pub struct ColorPickerResponse {
 /// # });
 /// ```
 ///
-/// - Compact layout: the area fills the width less the strip, `color_picker.area_height` high
-///   ([`area_height`](ColorPicker::area_height)), the strip `color_picker.strip` wide at the
+/// - Compact layout: the area fills the width less the strip, the area height high
+///   ([`area_height`](ColorPicker::area_height)), the strip the strip wide at the
 ///   reading end. Under them each channel of the model is a [`PropertyRow`] whose word label
 ///   scrubs the [`NumberField`] at the row's end, then a [`Slider`] whose track shows the
 ///   channel's colours ([`dynamic_tracks`](ColorPicker::dynamic_tracks)). A model switch lists
@@ -124,7 +124,7 @@ pub struct ColorPickerResponse {
 ///   [hook](ColorPicker::eyedropper); and with [`alpha`](ColorPicker::alpha) an "Opacity" row
 ///   over the checkerboard. The area shows the [`AreaMode`] the host holds
 ///   ([`mode`](ColorPicker::mode)), hue in the strip by default.
-/// - Full layout: the area `color_picker.area` square, the strip `color_picker.strip_full` wide
+/// - Full layout: the area square, the strip full wide
 ///   at its reading end, the "Opacity" row with [`alpha`](ColorPicker::alpha) and the eyedropper
 ///   button under them. Beside them the [`compare`](ColorPicker::compare) swatch ("new" over
 ///   "current") and the host's [`warning`](ColorPicker::warning)s, over the channel grid: H, S, B,
@@ -353,7 +353,7 @@ impl<'a> ColorPicker<'a> {
         self
     }
 
-    /// The Compact area's height; `color_picker.area_height` without it. A docked panel gives
+    /// The Compact area's height; the area height without it. A docked panel gives
     /// the room its group leaves.
     pub fn area_height(mut self, height: f32) -> Self {
         self.area_height = Some(height);

@@ -111,12 +111,12 @@ pub enum BrushSectionEvent<K> {
 /// [`at_end`](craft_ui::list::ToggleColumn::at_end) and
 /// [`always_visible`](craft_ui::list::ToggleColumn::always_visible).
 ///
-/// - **Look.** `brush.section_list_width` (150) wide, rows `brush.section_row` (23) high; the
+/// - **Look.** the section list width (150) wide, rows the section row (23) high; the
 ///   enable box, the lock and the names are the list row's own, truncated with a tooltip, Brush
-///   Tip Shape in the strong weight; 4 pt after the first row and `brush.section_switch_gap` (6)
+///   Tip Shape in the strong weight; 4 pt after the first row and the section switch gap (6)
 ///   before the first switch row, as spacer rows that take room and have no AccessKit node; the
-///   link row (with the brush icon) and a gap above the sections. Selected row `list.selected`,
-///   hover `list.hover`. The link row and the switch rows can't be selected: keys move the lead
+///   link row (with the brush icon) and a gap above the sections. Selected row the selected,
+///   hover the hover. The link row and the switch rows can't be selected: keys move the lead
 ///   over them without selecting.
 /// - **Pointer.** A click on a pane row reports `Select` and, if its box is clear, `Enable { on:
 ///   true }`; the box toggles only the flag; the lock toggles only the lock; a click on a switch row

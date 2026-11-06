@@ -1,6 +1,6 @@
 //! The look of the Brush Settings panel and its shared rows, from the semantic tokens.
 
-use craft_ui::style::brush::BrushStyle;
+use craft_ui::style::brush::BrushPanelStyle;
 use craft_ui::theme::{ToEgui, UiTokens};
 use egui::{Color32, CornerRadius, Stroke, Vec2};
 
@@ -43,7 +43,7 @@ pub struct BrushSettingsStyle {
 impl BrushSettingsStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        let b = BrushStyle::new(tokens);
+        let b = BrushPanelStyle::new(tokens);
         BrushSettingsStyle {
             panel_width: b.panel_width,
             section_list_width: b.section_list_width,

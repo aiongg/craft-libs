@@ -219,19 +219,19 @@ pub struct CursorStyle {
     pub line: Color32,
     /// The dark halo around the line so it reads on light images: translucent black.
     pub halo: Color32,
-    /// Line width in points: `cursor.stroke`.
+    /// Line width in points: the stroke.
     pub stroke: f32,
-    /// Side of the badge in points: `cursor.badge`.
+    /// Side of the badge in points: the badge.
     pub badge: f32,
-    /// Side of the tool icon in points: `cursor.icon`.
+    /// Side of the tool icon in points: the icon.
     pub icon: f32,
     /// Where the badge beside the system arrow sits, right of and below its hotspot:
-    /// `cursor.badge_beside_x`, `cursor.badge_beside_y`.
+    /// the badge beside x, the badge beside y.
     pub badge_beside: Vec2,
-    /// Arm of the painting tools' precise crosshair, which has no gap: `cursor.precise_reach`.
+    /// Arm of the painting tools' precise crosshair, which has no gap: the precise reach.
     pub precise_reach: f32,
-    /// Arm and gap of the other tools' precise crosshair: `cursor.crosshair_reach`,
-    /// `cursor.crosshair_gap`.
+    /// Arm and gap of the other tools' precise crosshair: the crosshair reach,
+    /// the crosshair gap.
     pub crosshair: (f32, f32),
 }
 

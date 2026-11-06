@@ -32,7 +32,7 @@ impl CropBox {
     /// reach: a corner or an edge ([`BoxPart::Corner`], [`BoxPart::Edge`]), [`BoxPart::Inside`]
     /// or [`BoxPart::Outside`] (the turn zone). Outside the frame the full reach applies, inside
     /// it at most a quarter of the side, so a small frame stays movable. A host takes `reach`
-    /// from the `crop.hit` token in screen points through [`CanvasView::doc_len`].
+    /// from the hit token in screen points through [`CanvasView::doc_len`].
     ///
     /// [`CanvasView::doc_len`]: craft_ui::canvas::CanvasView::doc_len
     pub fn part_at(&self, point: Point, reach: f64) -> BoxPart {

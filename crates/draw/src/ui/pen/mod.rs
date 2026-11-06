@@ -30,7 +30,6 @@ use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
-use craft_ui::style::bezier::BezierStyle as BezierGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 pub use mode::{PathMode, PathTool, PenMode};
 pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings};
@@ -325,25 +324,22 @@ impl<'a> PenDraft<'a> {
     /// The pen draft's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> PenStyle {
         let (stroke, size) = (&tokens.stroke, &tokens.size);
-        let b = BezierGeometry::new(tokens);
-        let sized = |style: HandleStyle, side| adjusted(style, |h| (h.size, h.hit) = (side, 2.0 * size.hit.target));
-        let anchor = sized(Handle::style(tokens, HandleShape::Square), size.handle.sm);
-        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), size.handle.sm);
+        let b = BezierStyle::new(tokens);
         PenStyle {
             draft_line: stroke.medium,
-            color: tokens.color.overlay.line.to_egui(),
+            color: b.color,
             rubber_width: stroke.thin,
             rubber_dash: stroke.dash,
             rubber_gap: stroke.dash_gap,
-            anchor,
-            selected_anchor,
-            control: sized(Handle::style(tokens, HandleShape::Rotate), size.handle.sm),
+            anchor: b.anchor,
+            selected_anchor: b.selected_anchor,
+            control: b.control,
             control_line: stroke.thin,
-            close_anchor: adjusted(selected_anchor, |h| h.size = size.handle.md),
+            close_anchor: adjusted(b.selected_anchor, |h| h.size = size.handle.md),
             close_ring: b.close_ring,
             close_offset: b.close_offset,
-            hit: size.hit.target,
-            click_slop: size.hit.slop,
+            hit: b.hit,
+            click_slop: b.click_slop,
             flatten: b.flatten,
         }
     }

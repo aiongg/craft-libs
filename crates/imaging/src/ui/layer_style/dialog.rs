@@ -95,7 +95,7 @@ impl LayerStyleOutput {
 }
 
 /// The Layer Style dialog's body: the effect list on the left, the selected page on the right
-/// (`layer_style.page_width`, a vertical divider between), as Photoshop lays it out. The host owns
+/// (the page width, a vertical divider between), as Photoshop lays it out. The host owns
 /// the frame (`Dialog` with OK, Cancel and Alt+Cancel Reset), the draft, the engine and the
 /// preview.
 ///

@@ -74,7 +74,7 @@ impl CropBox {
 impl CropFrame<'_> {
     /// One pass of Straighten: a press on the canvas while it is armed starts a line, which
     /// follows the pointer and, on release, gives the angle that levels it when it is at least
-    /// `crop.straighten_min` screen points long. Esc drops the line.
+    /// the straighten min screen points long. Esc drops the line.
     pub(super) fn straighten_pass(&self, ui: &Ui, canvas: &Response, view: &CanvasView, style: &CropStyle, id: Id, busy: bool) -> Pass {
         let ctx = ui.ctx();
         let key = line_key(id);
@@ -133,7 +133,7 @@ impl CropFrame<'_> {
     }
 
     /// The angle a Straighten line from canvas point `from` to `to` gives, when it is at least
-    /// `crop.straighten_min` screen points long.
+    /// the straighten min screen points long.
     pub(super) fn line_angle(view: &CanvasView, style: &CropStyle, from: Pos2, to: Pos2) -> Option<f64> {
         if (to - from).length() < style.straighten_min {
             return None;

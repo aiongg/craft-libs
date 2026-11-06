@@ -172,7 +172,7 @@ impl OptionsBar {
             pad: space.pad.control,
             gap: space.gap.stack,
             divider: size.control.md,
-            divider_box: space.gap.stack + 1.0,
+            divider_box: space.gap.stack + tokens.stroke.thin,
             fields: FIELD_SCALES.map(|scale| (size.control.md * scale).round()),
             scroll_bar: SCROLL_BAR_THICKNESS,
             button: size.control.md,

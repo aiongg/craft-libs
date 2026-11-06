@@ -47,7 +47,7 @@ impl SplitLayout {
         }
     }
 
-    /// The panes' rects in `full`, `gap` points apart (`split.gap`), the main view (pane 0)
+    /// The panes' rects in `full`, `gap` points apart (the gap), the main view (pane 0)
     /// first, the others in reading order.
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`.
     pub fn rects(self, gap: f32, full: ScreenRect) -> Vec<ScreenRect> {

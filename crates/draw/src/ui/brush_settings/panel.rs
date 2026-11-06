@@ -38,7 +38,7 @@ type MakeStrip<'a> = Box<dyn FnOnce([usize; 2]) -> ColorImage + 'a>;
 /// leading side, a vertical line, the selected section's pane (the app's content) in a scroll
 /// area, a hairline, then the [`BrushStrokeStrip`](super::BrushStrokeStrip) with the New, Reset
 /// and Update icon buttons beside it. An ordinary dockable panel; its preferred width is
-/// `brush.panel_width` (540).
+/// the panel width (540).
 ///
 /// - **Pane.** The `body` closure draws the selected pane section's controls, with the shared rows
 ///   ([`BrushSizeField`](super::BrushSizeField), [`TipEllipse`](super::TipEllipse),

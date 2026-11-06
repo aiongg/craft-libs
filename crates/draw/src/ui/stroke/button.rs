@@ -44,7 +44,7 @@ pub struct StrokeButtonResponse {
 /// # }
 /// ```
 ///
-/// - The opener: `stroke_editor.opener_width` by `stroke_editor.opener_height`, the style's name
+/// - The opener: the opener width by the opener height, the style's name
 ///   (Solid, Dashed, Dotted, Custom; "No Color" while [`enabled`](Self::enabled) is false), a
 ///   line sample (a faint line crossed by a red slash while off) and a chevron. AccessKit: a
 ///   button named "Stroke Options" with the style's name as its value; the tooltip says "Stroke

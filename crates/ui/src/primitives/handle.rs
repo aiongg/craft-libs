@@ -50,8 +50,8 @@ pub struct HandleStyle {
     /// The outline outside `size`: `stroke.thin` of `overlay.halo` in high contrast, so the handle
     /// reads on any image; none otherwise.
     pub halo: Stroke,
-    /// Side of the square that takes the pointer, centred on the handle: `size.hit.target`. A test by
-    /// distance from the centre (a box's grips) reads half of it.
+    /// Side of the square that takes the pointer, centred on the handle: the handle's size plus
+    /// `size.hit.target` on each side. A test by distance from the centre (a box's grips) reads half of it.
     pub hit: f32,
     /// The pointer over the handle.
     pub cursor: CursorIcon,
@@ -135,7 +135,14 @@ impl Handle {
             HandleShape::Square | HandleShape::Round => CursorIcon::Move,
             HandleShape::Rotate => CursorIcon::Alias,
         };
-        HandleStyle { size, fill: fill.to_egui(), stroke, halo: Stroke::new(halo, o.halo.to_egui()), hit: tokens.size.hit.target, cursor }
+        HandleStyle {
+            size,
+            fill: fill.to_egui(),
+            stroke,
+            halo: Stroke::new(halo, o.halo.to_egui()),
+            hit: size + 2.0 * tokens.size.hit.target,
+            cursor,
+        }
     }
 
     /// A selected handle's look: a `Square` or `Round` filled with `overlay.handle_stroke`, as a
@@ -182,7 +189,7 @@ impl Handle {
         }
     }
 
-    /// Draws the handle at `center` and senses the pointer on the `size.hit.target` square around it.
+    /// Draws the handle at `center` and senses the pointer on the `hit` square around it.
     pub fn show(self, ui: &mut Ui, center: Pos2) -> Response {
         let tokens = Tokens::of(ui);
         let style = self.look.unwrap_or_else(|| Handle::style(&tokens, self.shape));

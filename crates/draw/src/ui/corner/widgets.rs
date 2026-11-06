@@ -19,7 +19,7 @@ use craft_ui::theme::{Tokens, TokensOf as _};
 pub struct CornerWidgetsResponse {
     /// The overlay's id, also its Tab stop's.
     pub id: Id,
-    /// The radii: a drag reports Begin past `corner.click_slop`, Update every move, Commit on
+    /// The radii: a drag reports Begin past the click slop, Update every move, Commit on
     /// release (Esc cancels, the rest of the press does nothing), each value every changed
     /// target's radii from the press; an arrow key a Set. The host makes one history step for
     /// every target in the value.
@@ -52,12 +52,12 @@ pub struct CornerWidgetsResponse {
 /// # }
 /// ```
 ///
-/// - Look: per shown corner a circle `corner.widget` across in `overlay.handle_fill`, outlined
-///   `corner.line` in `overlay.line`, with a `corner.dot` dot in `overlay.line`, at the centre of
-///   the corner's arc and at least `corner.inset` screen points inside the corner. Hidden when a
-///   side is shorter than `corner.min_side` screen points or the corner's angle is wider than
+/// - Look: per shown corner a circle the widget across in `overlay.handle_fill`, outlined
+///   the line in `overlay.line`, with the dot dot in `overlay.line`, at the centre of
+///   the corner's arc and at least the inset screen points inside the corner. Hidden when a
+///   side is shorter than the min side screen points or the corner's angle is wider than
 ///   [`hide_above`](Self::hide_above).
-/// - Pointer: a press within `corner.hit` screen points of a widget takes it (nearest first, of
+/// - Pointer: a press within the hit screen points of a widget takes it (nearest first, of
 ///   equal distances the first target's; list the topmost shape first). A drag sets the radius
 ///   at the press plus the move projected on the corner's centre step; every target takes that
 ///   radius, each capped at its own maximum (lead call 23); ⌥ changes only the dragged corner of

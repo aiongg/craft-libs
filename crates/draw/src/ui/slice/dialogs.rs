@@ -273,7 +273,7 @@ struct Axis {
 }
 
 impl Axis {
-    /// The most slices one axis divides into (PhotoCraft's `slice.divide` clamp).
+    /// The most slices one axis divides into (PhotoCraft's clamp).
     const MAX_COUNT: u32 = 1000;
     /// The largest slice size in pixels.
     const MAX_SIZE: u32 = 300_000;

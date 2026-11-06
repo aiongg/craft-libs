@@ -76,7 +76,7 @@ pub struct SelectionFrameResponse {
 ///   `overlay.handle_fill` and outlined in the frame's colour, each grown by
 ///   [`grow`](Self::grow) steps of 1 pt.
 /// - Pointer, through the host's canvas response and [`Claim`](crate::canvas::Claim) first: a
-///   press within half of `size.hit.target` (the side of the square a handle takes) of a grip's
+///   press within half the side of the square a handle takes (its size plus `size.hit.target` each side) of a grip's
 ///   centre, or of half its grown size if that is more, takes that corner or edge; a press inside takes the
 ///   inside; a press outside is not the frame's. A drag begins on the first move and follows
 ///   [`quad::drag`](crate::canvas::quad::drag) with the [rules](Self::rules) (resize only by
@@ -353,7 +353,7 @@ impl<'a> SelectionFrame<'a> {
     }
 
     /// The distance from a grip's centre within which a press takes it: half the square
-    /// `size.hit.target` names, or half the grip's grown side if that is larger.
+    /// a handle takes, or half the grip's grown side if that is larger.
     fn reach(&self, style: &SelectionFrameStyle) -> f32 {
         style.handle.hit.max(style.handle.size + f32::from(self.grow) * style.grow_step) / 2.0
     }

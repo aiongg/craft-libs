@@ -11,7 +11,7 @@ use craft_ui::canvas::CanvasView;
 /// Draws what the Connector tool shows over the document, for the tool and for an app that shows
 /// a selected connector's handles under another tool (FigCraft's selection overlay).
 ///
-/// - The route: an accent polyline (`connector.line` 1.5 pt), a curve as its cubic.
+/// - The route: an accent polyline (the line 1.5 pt), a curve as its cubic.
 /// - End handles: white discs with a 1.5 pt accent ring; path handles: accent discs with a 1 pt
 ///   white ring, one per elbow run or one for a curve.
 /// - Attach points ([`paint_sites`](Self::paint_sites)): see [`ConnectorTool`](super::ConnectorTool).

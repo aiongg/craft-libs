@@ -24,12 +24,12 @@ pub(crate) const BLACK_FACE: Color32 = Color32::from_gray(20);
 // pc: crates/ui-egui/src/dialogs/layer_style.rs:1443.
 pub(crate) const WHITE_FACE: Color32 = Color32::from_gray(240);
 
-/// A Blend If slider: a black-to-white ramp (`blend_if.ramp` high, `blend_if.inset` in from each
+/// A Blend If slider: a black-to-white ramp (the ramp high, the inset in from each
 /// side, the bar's width the available width clamped to `blend_if.width_min..=width_max`,
-/// 120..=320; a 32-strip grey ramp with a `blend_if.ramp_border` outline) with a black and a white
+/// 120..=320; a 32-strip grey ramp with the ramp border outline) with a black and a white
 /// handle under it, each split into two halves by Alt (the layer fades between them). A split
-/// pair shows two half triangles; an unsplit pair one whole triangle (`blend_if.handle_width` ×
-/// `blend_if.handle_height`, faces grey 20 and grey 240, edges `text.muted`). The
+/// pair shows two half triangles; an unsplit pair one whole triangle (the handle width ×
+/// the handle height, faces grey 20 and grey 240, edges `text.muted`). The
 /// value readout ("0 / 20    255": a split side as "low / high") sits above the bar at the
 /// trailing end. The ramp never mirrors in a right-to-left interface: it is a tone scale.
 ///

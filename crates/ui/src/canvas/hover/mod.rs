@@ -42,13 +42,13 @@ pub use style::HoverStyle;
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum HoverShape {
-    /// A layer's or group's bounds: a `hover.outline` line just outside the rectangle (the line
+    /// A layer's or group's bounds: the outline line just outside the rectangle (the line
     /// sits outside, so it never covers the layer's edge pixels).
     Rect(Rect),
-    /// An object's outline: a `hover.outline` line along the path.
+    /// An object's outline: the outline line along the path.
     Path(BezPath),
-    /// An object's coverage: a tint of the outline colour at `hover.fill_alpha` × coverage, with
-    /// a one-texel edge at `hover.edge_alpha`.
+    /// An object's coverage: a tint of the outline colour at the fill alpha × coverage, with
+    /// a one-texel edge at the edge alpha.
     Mask(HoverMask),
 }
 

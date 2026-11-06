@@ -282,7 +282,7 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
     if response.is_pointer_button_down_on()
         && let Some(press) = ctx.input(|i| i.pointer.press_origin())
         && response.drag_started()
-        && hit::point(press, view.to_screen(point)) <= tokens.size.hit.target / 2.0
+        && hit::point(press, view.to_screen(point)) <= tokens.size.hit.target
     {
         Claim::take(&ctx, response.id, marker);
     }

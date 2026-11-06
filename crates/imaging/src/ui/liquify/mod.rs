@@ -84,7 +84,7 @@ pub trait LiquifySource {
     fn image(&self) -> &dyn RasterSource;
 
     /// The freeze mask, white with the frozen amount as alpha, and its texel size in document
-    /// pixels. The library tints it with `liquify.freeze` while Show Mask is on.
+    /// pixels. The library tints it with the freeze while Show Mask is on.
     fn freeze_mask(&self) -> Option<(&dyn RasterSource, u32)>;
 
     /// The displaced mesh for Show Mesh at `size`: the field's nodes moved by the field. `None`
@@ -292,7 +292,7 @@ impl LiquifyWorkspace {
     /// `SideFooter::bottom` with OK and Cancel); the canvas
     /// ([`FullWindowCanvas`]) with the source's
     /// image under [`BackdropLayering`], the freeze mask as a `RasterOverlay` tinted
-    /// `liquify.freeze` while Show Mask is on, the mesh through `warp::paint_mesh` while Show Mesh
+    /// the freeze while Show Mask is on, the mesh through `warp::paint_mesh` while Show Mesh
     /// is on, and [`LiquifyCanvas`] as its tool. Then `LocalHistory::settle(&session, busy)` with
     /// `busy` while a stroke runs or the panel's gesture is live. Undo and redo report
     /// [`LiquifyEvent::Replay`] in the same pass.
