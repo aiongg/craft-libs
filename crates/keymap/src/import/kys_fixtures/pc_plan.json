@@ -260,8 +260,7 @@
     "tool_unknown": [],
     "unknown": [],
     "unreadable": []
-   },
-   "differs": "PhotoCraft picks among commands sharing a label by the key it finds (the one whose default is among the row's keys, else the first with a default); plan reports the row as unmatched (ambiguous) and the user picks the command."
+   }
   },
   {
    "name": "same label in two menus, no default among the keys",
@@ -279,8 +278,7 @@
     "tool_unknown": [],
     "unknown": [],
     "unreadable": []
-   },
-   "differs": "PhotoCraft picks among commands sharing a label by the key it finds (the one whose default is among the row's keys, else the first with a default); plan reports the row as unmatched (ambiguous) and the user picks the command."
+   }
   },
   {
    "name": "tool keys by name and by id",
