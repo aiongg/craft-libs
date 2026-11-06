@@ -174,7 +174,8 @@ impl egui::plugin::Plugin for TextFocusRecord {
         let ctx = ui.ctx();
         let focused = if ctx.text_edit_focused() { ctx.memory(|m| m.focused()) } else { None };
         let record = (focused, ctx.cumulative_pass_nr());
-        ctx.data_mut(|d| d.insert_temp(record_id(ctx), record));
+        let id = record_id(ctx);
+        ctx.data_mut(|d| d.insert_temp(id, record));
     }
 }
 
