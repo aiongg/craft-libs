@@ -91,7 +91,7 @@ keys! {
     F20 => "F20", F21 => "F21", F22 => "F22", F23 => "F23", F24 => "F24", F25 => "F25",
     F26 => "F26", F27 => "F27", F28 => "F28", F29 => "F29", F30 => "F30", F31 => "F31",
     F32 => "F32", F33 => "F33", F34 => "F34", F35 => "F35",
-    Escape => "Escape", Tab => "Tab", Backspace => "Backspace", Enter => "Enter",
+    Escape => "Escape", Tab => "Tab", Menu => "Menu", Backspace => "Backspace", Enter => "Enter",
     Space => "Space", Insert => "Insert", Delete => "Delete", Home => "Home", End => "End",
     PageUp => "PageUp", PageDown => "PageDown",
     Up => "Up", Down => "Down", Left => "Left", Right => "Right",

@@ -1121,6 +1121,7 @@ name = "craft-behavior"
 version = "0.1.0"
 dependencies = [
  "accesskit",
+ "craft-keymap",
  "emath",
  "smallvec",
 ]
