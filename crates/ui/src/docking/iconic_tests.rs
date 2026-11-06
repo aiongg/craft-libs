@@ -68,6 +68,15 @@ fn texts(d: &Driver) -> Vec<String> {
         .collect()
 }
 
+fn look() -> DockLook {
+    super::testing::default_look()
+}
+
+/// The iconic column's rect below its column bar, in the 600 pt window.
+fn iconic_column_rect() -> Rect {
+    Rect::from_min_max(pos2(0.0, look().column_bar_height), pos2(look().iconic_width, 600.0))
+}
+
 const CANVAS: Pos2 = pos2(600.0, 400.0);
 
 #[test]
@@ -75,9 +84,9 @@ fn collapsed_column_shows_one_icon_per_panel_with_group_separators() {
     let d = DockDriver::new(docked(&[&[1, 2], &[3]], true), Content);
     let (one, two, three) = (hit(&d, Hit::Icon(1)), hit(&d, Hit::Icon(2)), hit(&d, Hit::Icon(3)));
     let (grip1, grip3) = (hit(&d, Hit::IconGrip(1)), hit(&d, Hit::IconGrip(3)));
-    assert_eq!(one.width(), 36.0, "the column takes the style's iconic width");
+    assert_eq!(one.width(), look().iconic_width, "the column takes the style's iconic width");
     assert_eq!(one.bottom(), two.top(), "a group's icons follow each other");
-    assert_eq!(three.top() - two.bottom(), 7.0, "groups are apart by the separator, with no room for a grip");
+    assert_eq!(three.top() - two.bottom(), look().pad + look().border.width, "groups are apart by the separator, with no room for a grip");
     assert_eq!((grip1.top(), grip1.bottom()), (one.top(), one.top() + 4.0), "the first group's band is its top edge");
     assert_eq!((grip3.top(), grip3.bottom()), (two.bottom(), three.top() + 4.0), "a later group's band covers the separator");
     assert!(d.hit(&Hit::Tab(1)).is_none(), "an iconic column draws no tabs");
@@ -98,7 +107,7 @@ fn widening_an_iconic_column_shows_labels() {
     let edge = hit(&d, Hit::Divider(Divider::Column(1)));
     d.drag(edge.center(), pos2(20.0, edge.center().y));
     d.settle();
-    assert_eq!(first_column(&d.layout).iconic_width, Some(36.0));
+    assert_eq!(first_column(&d.layout).iconic_width, Some(look().iconic_width));
     assert!(!texts(&d).iter().any(|t| t == "Panel 1"));
 }
 
@@ -266,7 +275,7 @@ fn group_dropped_on_an_iconic_column_joins_as_an_icon_group() {
     let one = hit(&d, Hit::Icon(1));
     let target = pos2(one.center().x, one.bottom() - 2.0);
     d.hold(bar, target);
-    let column = Rect::from_min_max(pos2(0.0, 14.0), pos2(36.0, 600.0));
+    let column = iconic_column_rect();
     assert!(d.outlined(column.shrink(1.0)), "the column is outlined");
     let line = Rect::from_x_y_ranges(column.x_range(), (one.bottom() - 2.0)..=(one.bottom() + 2.0));
     assert!(d.filled(line), "with the insertion line under group 1");
@@ -291,7 +300,7 @@ fn an_edge_drop_next_to_an_iconic_column_highlights_only_the_edge() {
     let bar = hit(&d, Hit::DragBar(5)).center();
     let target = pos2(2.0, 300.0);
     d.hold(bar, target);
-    let column = Rect::from_min_max(pos2(0.0, 14.0), pos2(36.0, 600.0));
+    let column = iconic_column_rect();
     assert!(d.filled(Rect::from_x_y_ranges(0.0..=4.0, 0.0..=600.0)), "the edge line");
     assert!(!d.outlined(column.shrink(1.0)), "the iconic column is not outlined");
     d.release(target);

@@ -14,53 +14,57 @@ fn themed(mut test: impl FnMut(&Ui, &DockLook)) {
     assert!(ran);
 }
 
-/// Pro Compact tokens keep every size and factor the renderer used to hold as a literal.
+/// Every size and factor of the look is a semantic token, an expression of one, or a value of the
+/// dock style.
 #[test]
-fn compact_tokens_reproduce_the_literal_sizes() {
+fn sizes_come_from_the_semantic_tokens_and_the_dock_style() {
     themed(|ui, look| {
         assert_eq!(&DockLook::of(ui), look);
+        let t = Tokens::of(ui);
+        let style = crate::style::dock::DockStyle::new(&t);
+        let float = crate::style::float::FloatStyle::new(&t);
+        let (space, size, stroke, shape) = (&t.space, &t.size, &t.stroke, &t.shape);
         let sizes = [
-            ("tab_height", look.tab_height, 28.0),
-            ("gap", look.gap, 4.0),
-            ("body_gap", look.body_gap, 0.0),
-            ("pad", look.pad, 6.0),
-            ("tab_padding", look.tab_padding, 24.0),
-            ("border", look.border.width, 1.0),
-            ("floating_stroke", look.floating_stroke.width, 1.0),
-            ("title_height", look.title_height, 14.0),
-            ("column_bar_height", look.column_bar_height, 14.0),
-            ("icon_size", look.icon_size, 20.0),
-            ("iconic_width", look.iconic_width, 36.0),
-            ("icon_pad", look.icon_pad, 10.0),
-            ("icon_radius", look.icon_radius, 3.0),
-            ("hint_radius", look.hint_radius, 4.0),
-            ("drop_width", look.drop_width, 2.0),
-            ("focus_width", look.focus_width, 1.0),
-            ("marker_radius", look.marker_radius, 1.0),
-            ("drop_fill", look.drop_fill, 0.15),
-            ("ghost_fill", look.ghost_fill, 0.3),
-            ("ghost_stroke", look.ghost_stroke, 0.6),
-            ("tab_fill", look.tab_fill, 0.08),
-            ("grip_alpha", look.grip_alpha, 0.5),
-            ("min_pane", look.min_pane, 40.0),
-            ("drag_bar_width", look.drag_bar_width, 40.0),
-            ("overflow_width", look.overflow_width, 22.0),
-            ("menu_max_height", look.menu_max_height, 360.0),
-            ("iconic_max_width", look.iconic_max_width, 240.0),
-            ("iconic_label_width", look.iconic_label_width, 96.0),
-            ("flyout_height", look.flyout_height, 320.0),
-            ("float_width", look.float_width, 260.0),
-            ("float_height", look.float_height, 320.0),
-            ("min_fitted_height", look.min_fitted_height, 120.0),
-            ("cascade_offset", look.cascade_offset, 24.0),
-            ("hint_offset", look.hint_offset, 28.0),
-            ("float_min_width", look.float_min_width, 40.0),
-            ("float_min_body_height", look.float_min_body_height, 20.0),
+            ("tab_height", look.tab_height, size.panel_header),
+            ("gap", look.gap, space.gap.inline),
+            ("body_gap", look.body_gap, space.gap.stack),
+            ("pad", look.pad, space.pad.control),
+            ("tab_padding", look.tab_padding, 4.0 * space.pad.control),
+            ("border", look.border.width, stroke.thin),
+            ("floating_stroke", look.floating_stroke.width, stroke.thin),
+            ("title_height", look.title_height, size.panel_header),
+            ("column_bar_height", look.column_bar_height, size.panel_header),
+            ("icon_size", look.icon_size, size.icon.lg),
+            ("iconic_width", look.iconic_width, style.iconic_width),
+            ("icon_pad", look.icon_pad, space.gap.stack),
+            ("icon_radius", look.icon_radius, shape.radius.control),
+            ("hint_radius", look.hint_radius, shape.radius.popup),
+            ("drop_width", look.drop_width, stroke.thick),
+            ("focus_width", look.focus_width, stroke.thin),
+            ("marker_radius", look.marker_radius, shape.radius.sm),
+            ("drop_fill", look.drop_fill, style.drop_fill),
+            ("ghost_fill", look.ghost_fill, style.ghost_fill),
+            ("ghost_stroke", look.ghost_stroke, style.ghost_stroke),
+            ("tab_fill", look.tab_fill, style.tab_fill),
+            ("grip_alpha", look.grip_alpha, style.grip_alpha),
+            ("min_pane", look.min_pane, style.min_pane),
+            ("drag_bar_width", look.drag_bar_width, style.drag_bar_width),
+            ("overflow_width", look.overflow_width, style.overflow_width),
+            ("menu_max_height", look.menu_max_height, style.menu_max_height),
+            ("iconic_max_width", look.iconic_max_width, style.iconic_max_width),
+            ("iconic_label_width", look.iconic_label_width, style.iconic_label_width),
+            ("flyout_height", look.flyout_height, style.flyout_height),
+            ("float_width", look.float_width, float.width),
+            ("float_height", look.float_height, float.height),
+            ("min_fitted_height", look.min_fitted_height, float.min_fitted_height),
+            ("cascade_offset", look.cascade_offset, size.control.sm),
+            ("hint_offset", look.hint_offset, size.control.md),
+            ("float_min_width", look.float_min_width, float.min_width),
+            ("float_min_body_height", look.float_min_body_height, float.min_body_height),
         ];
         for (name, got, want) in sizes {
             assert_eq!(got, want, "{name}");
         }
-        assert_eq!(look.floating_radius, egui::CornerRadius::ZERO);
         assert!(look.valid());
     });
 }

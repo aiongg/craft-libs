@@ -384,17 +384,19 @@ fn float_without_a_rect_takes_the_drag_size_inside_the_dock_area() {
     let d = testing::DockDriver::new(workspace().layout, Sized).with_area(area);
     let space = float_space::<P>(&d.ctx, d.id).expect("the area records its float space");
     assert_eq!(space.area, area);
+    let (left, top) = (area.left() + space.inset, area.top() + space.inset);
+    let fitted = testing::default_look().min_fitted_height;
     let float = |params: Value| parse(params).unwrap().to_actions_with(&workspace(), false, &space, permissions).unwrap();
 
     let panel = float(json!({"command": "window.panel.float", "panel": "layers"}));
     // The floating_size width, and an empty body's least fitted height under its 150 points.
-    assert_eq!(panel, vec![Action::Float { panel: s("layers"), rect: [24.0, 54.0, 200.0, 120.0] }], "floating_size, inset in the area");
+    assert_eq!(panel, vec![Action::Float { panel: s("layers"), rect: [left, top, 200.0, fitted] }], "floating_size, inset in the area");
     let [Action::MoveGroup { to: Target::Float { rect: Some([x, y, width, height]) }, .. }] =
         float(json!({"command": "window.panel.float", "panel": "history", "group": true}))[..]
     else {
         panic!()
     };
-    assert_eq!([x, y], [24.0, 54.0]);
+    assert_eq!([x, y], [left, top]);
     assert!(width > 100.0 && width <= 240.0 && height <= 320.0, "the docked group's size, capped: {width}x{height}");
 
     // Given values stay exactly; a lone floating window keeps its rect.
@@ -417,9 +419,9 @@ fn float_without_a_rect_takes_the_drag_size_inside_the_dock_area() {
     let seeded = FloatSpace::new(area).with_panel_size(s("layers"), egui::vec2(180.0, 240.0));
     let applied =
         parse(json!({"command": "window.panel.float", "panel": "layers"})).unwrap().to_actions_with(&workspace(), false, &seeded, permissions);
-    assert_eq!(applied, Ok(vec![Action::Float { panel: s("layers"), rect: [24.0, 54.0, 180.0, 240.0] }]));
+    assert_eq!(applied, Ok(vec![Action::Float { panel: s("layers"), rect: [area.left() + seeded.inset, area.top() + seeded.inset, 180.0, 240.0] }]));
     let recorded = space.clone().with_panel_size(s("layers"), egui::vec2(180.0, 240.0));
-    assert_eq!(float_with(&recorded, "layers"), vec![Action::Float { panel: s("layers"), rect: [24.0, 54.0, 200.0, 120.0] }]);
+    assert_eq!(float_with(&recorded, "layers"), vec![Action::Float { panel: s("layers"), rect: [left, top, 200.0, fitted] }]);
 }
 
 fn float_with(space: &FloatSpace<P>, panel: &str) -> Vec<Action<P>> {

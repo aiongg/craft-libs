@@ -24,15 +24,21 @@ fn in_ui<R>(test: impl FnOnce(&mut Ui) -> R) -> R {
     out.expect("the ui ran")
 }
 
-/// Sizes follow the Size preset: the title bar and column bar scale with the control height, the
-/// iconic column with the panel rail, the tab strip with the tab family.
+/// Sizes follow the Size preset: the strips and bars follow the panel header height, the gaps and
+/// icons grow with the preset, and Comfortable is never smaller than Compact.
 #[test]
 fn the_look_follows_the_size_preset() {
     let sizes = |look: &DockLook| {
         [look.tab_height, look.gap, look.tab_padding, look.title_height, look.column_bar_height, look.iconic_width, look.icon_size, look.body_gap]
     };
-    assert_eq!(sizes(&look_at(Size::Compact, Mode::Light)), [28.0, 4.0, 24.0, 14.0, 14.0, 36.0, 20.0, 0.0]);
-    assert_eq!(sizes(&look_at(Size::Comfortable, Mode::Light)), [40.0, 6.0, 32.0, 18.0, 18.0, 44.0, 22.0, 6.0]);
+    let (compact, comfortable) = (look_at(Size::Compact, Mode::Light), look_at(Size::Comfortable, Mode::Light));
+    for look in [&compact, &comfortable] {
+        assert_eq!((look.title_height, look.column_bar_height), (look.tab_height, look.tab_height));
+    }
+    for (small, large) in sizes(&compact).into_iter().zip(sizes(&comfortable)) {
+        assert!(large >= small, "{small} {large}");
+    }
+    assert!(comfortable.tab_height > compact.tab_height);
 }
 
 /// Controls stacked in a panel body are `dock.body_gap` apart, in a docked panel and a floating one.
@@ -313,6 +319,8 @@ fn the_painters_read_their_own_tokens() {
     // A tab shows a focus ring in `line.focus` while the keyboard has the focus.
     let tab = rect_of(&d, Hit::Tab(1));
     d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::Tab(1))));
+    // The ring follows the input modality, which the theme installer tracks.
+    crate::primitives::focus_ring::track_modality(&d.ctx);
     let press = egui::Event::Key { key: egui::Key::F20, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
     d.step(vec![press]);
     d.step(vec![]);
@@ -359,19 +367,21 @@ fn a_rounded_floating_window_insets_its_body_below_a_title_bar_from_the_top() {
     assert_eq!(tab.top(), 100.0 + title_height);
 }
 
-/// A docked Compact slider row is PhotoCraft's 46 points: field 24, slider 18 and the row's 4, with
-/// no item spacing between them (`panels/panel_docking.rs:1229`).
+/// Docked slider rows follow one another at their own height plus the panel body gap, with no other
+/// spacing between them.
 #[test]
-fn a_docked_slider_row_is_the_photocraft_pitch() {
+fn docked_slider_rows_are_one_row_height_and_the_body_gap_apart() {
     use craft_theme::{AppDefaults, ModeChoice, SuiteChoice, SystemAppearance, ThemeId, ThemePair};
-    use egui::accesskit::Role;
-    use egui_kittest::{Harness, kittest::Queryable as _};
-    struct Rows;
+    use egui_kittest::Harness;
+    use std::{cell::RefCell, rc::Rc};
+    struct Rows(Rc<RefCell<Vec<egui::Rect>>>);
     impl DockContent<u32> for Rows {
         fn body(&mut self, ui: &mut Ui, _: &u32) {
             let numbers = crate::localized::LocaleNumbers::from_tag("en");
+            let mut rows = self.0.borrow_mut();
+            rows.clear();
             for id in ["a", "b"] {
-                let _ = crate::composites::SliderRow::new(id, id, 10.0, 0.0..=100.0, &numbers).show(ui);
+                rows.push(ui.scope(|ui| crate::composites::SliderRow::new(id, id, 10.0, 0.0..=100.0, &numbers).show(ui)).response.rect);
             }
         }
         fn logical_label(&self, _: &u32) -> String {
@@ -388,13 +398,17 @@ fn a_docked_slider_row_is_the_photocraft_pitch() {
             builtins().iter().find(|t| t.id == *id).cloned()
         });
     let layout = Layout { root: Some(Node::Tabs { panels: vec![0], active: 0 }), floating: vec![] };
+    let rows = Rc::new(RefCell::new(Vec::new()));
+    let mut content = Rows(rows.clone());
     let mut harness = Harness::builder()
         .with_size(egui::vec2(400.0, 400.0))
         .with_context_setup(move |ctx: &Context| crate::theme::install(ctx, &base))
         .build_ui(move |ui| {
-            DockArea::new(egui::Id::unique("pitch")).show_content(ui, &layout, &DockConfig::default(), &mut Rows);
+            DockArea::new(egui::Id::unique("pitch")).show_content(ui, &layout, &DockConfig::default(), &mut content);
         });
     harness.run_steps(3);
-    let fields: Vec<_> = harness.query_all(egui_kittest::kittest::by().role(Role::SpinButton)).map(|n| n.rect()).collect();
-    assert_eq!(fields[1].top() - fields[0].top(), 46.0);
+    let rows = rows.borrow();
+    let body_gap = look_at(Size::Compact, Mode::Light).body_gap;
+    assert_eq!(rows.len(), 2);
+    assert!((rows[1].top() - rows[0].bottom() - body_gap).abs() < 0.5, "{rows:?}");
 }

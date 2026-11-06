@@ -30,7 +30,7 @@ fn a_floating_frame_rounds_its_fill_outline_and_title_bar_and_casts_the_shadow()
         let draw = || {
             run(&ctx, vec![], |ui| {
                 FloatingFrame::new(id, RECT).resizable(false).show(ui.ctx(), &style, |ui, inner| {
-                    let bar = Rect::from_min_size(inner.min, vec2(inner.width(), 14.0));
+                    let bar = Rect::from_min_size(inner.min, vec2(inner.width(), style.title_height));
                     TitleBar::new(id.with("title"), "Move").title("Title").show(ui, bar, &style);
                 });
             })
@@ -38,7 +38,12 @@ fn a_floating_frame_rounds_its_fill_outline_and_title_bar_and_casts_the_shadow()
         draw();
         rects(&draw())
     };
-    let base = ChromeStyle { radius: CornerRadius::ZERO, shadow: Shadow::NONE, ..crate::docking::testing::default_chrome() };
+    let base = ChromeStyle {
+        radius: CornerRadius::ZERO,
+        shadow: Shadow::NONE,
+        title_background: Color32::from_rgb(10, 20, 30),
+        ..crate::docking::testing::default_chrome()
+    };
     let token = ChromeStyle { radius, shadow, ..base.clone() };
 
     let shapes = chrome(token.clone());
@@ -139,9 +144,9 @@ fn the_minimum_height_follows_the_title_height() {
         smallest
     };
     let themed = crate::docking::testing::default_chrome();
-    assert_eq!(themed.title_height, 14.0);
-    assert_eq!(minimum(themed.clone()), 14.0 + 20.0);
-    assert_eq!(minimum(ChromeStyle { title_height: 18.0, ..themed }), 18.0 + 20.0);
+    let (title, body) = (themed.title_height, themed.min_body_height);
+    assert_eq!(minimum(themed.clone()), title + body);
+    assert_eq!(minimum(ChromeStyle { title_height: title + 4.0, ..themed }), title + 4.0 + body);
 }
 
 /// A resizable frame hands its contents the whole rect: the title bar starts at the frame's top,
@@ -149,7 +154,7 @@ fn the_minimum_height_follows_the_title_height() {
 #[test]
 fn a_resizable_frame_with_a_radius_draws_its_title_bar_from_the_top() {
     let radius = CornerRadius::same(6);
-    let style = ChromeStyle { radius, ..crate::docking::testing::default_chrome() };
+    let style = ChromeStyle { radius, title_background: Color32::from_rgb(10, 20, 30), ..crate::docking::testing::default_chrome() };
     let ctx = Context::default();
     let id = Id::unique("frame");
     let draw = || {

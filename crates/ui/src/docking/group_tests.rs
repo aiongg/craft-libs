@@ -287,7 +287,7 @@ fn docked_two_tab_group_drags_by_its_bar_and_keeps_order_and_active_tab() {
 }
 
 #[test]
-/// In a 300 pt strip with eight tabs and a 24 pt header, the drag bar keeps at least 40 pt and ends
+/// In a 300 pt strip with eight tabs and a 24 pt header, the drag bar keeps its least width and ends
 /// at the header; tabs shrink and overflow before it is narrowed, and dragging it floats all eight
 /// panels as one group.
 fn drag_bar_survives_a_strip_full_of_tabs() {
@@ -295,7 +295,8 @@ fn drag_bar_survives_a_strip_full_of_tabs() {
     let content = TestContent { header: 24.0, ..Default::default() };
     let mut d = Driver::with(layout, content, Rect::from_min_size(pos2(0.0, 0.0), vec2(300.0, 400.0)));
     let bar = d.rect("drag-bar", 1);
-    assert!(bar.width() >= 40.0, "{bar:?}");
+    let least = crate::docking::testing::default_look().drag_bar_width;
+    assert!(bar.width() >= least, "{bar:?}");
     assert_eq!(bar.right(), 300.0 - 24.0, "the bar ends at the header");
     assert_eq!(d.content.strip_width.get(), 300.0, "the header is sized for the whole strip");
     assert!(d.ctx.read_response(Id::unique(AREA).with(("overflow", &1u32))).is_some(), "tabs shrink, then overflow, before the bar narrows");
@@ -328,7 +329,7 @@ fn extra_tabs_follow_the_panel_tabs_and_overflow_with_them() {
     let min = crate::docking::testing::default_style().min_tab_width;
     assert!(extra.width() >= min - 0.5 && extra.width() < 100.0, "{extra:?}");
     assert_eq!((bar.left(), bar.right()), (extra.right(), 200.0 - 24.0));
-    assert!(bar.width() >= 40.0, "{bar:?}");
+    assert!(bar.width() >= crate::docking::testing::default_look().drag_bar_width, "{bar:?}");
 }
 
 /// Panels with ordinary names.
@@ -816,8 +817,9 @@ fn a_group_dragged_out_of_a_floating_stack_tears_out_alone() {
     let layout = Layout { root: Some(tabs(&[1], 0)), floating: vec![stack] };
     let mut d = Driver::new(layout);
     let from = d.rect("drag-bar", 6).center();
+    let height = 70.0 + 400.0 - d.tab(6).top();
     let out = d.drag(from, pos2(700.0, 300.0));
-    assert!(matches!(moved_group(&out.actions), Some(Target::Float { rect: Some([_, _, 300.0, 191.0]) })), "{:?}", out.actions);
+    assert!(matches!(moved_group(&out.actions), Some(Target::Float { rect: Some([_, _, 300.0, h]) }) if *h == height), "{height} {:?}", out.actions);
     assert_eq!(d.layout.floating.len(), 2);
     assert_eq!(d.layout.floating[0].groups(), vec![Group::new(vec![5], 0)]);
     assert_eq!(d.layout.floating[1].groups(), vec![Group::new(vec![6, 7], 1)]);

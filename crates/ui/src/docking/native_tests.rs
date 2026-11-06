@@ -398,7 +398,7 @@ fn a_minimized_native_window_shrinks_to_its_bar_and_keeps_its_expanded_size() {
 
     // Its bar and its group's tab strip, at the same width and top-left corner; only the width
     // resizes.
-    let collapsed = BAR + crate::docking::testing::default_style().tab_height;
+    let collapsed = bar() + crate::docking::testing::default_style().tab_height;
     d.layout.apply(Action::SetMinimized { panel: 5, minimized: true }).unwrap();
     d.settle();
     assert_eq!(os_window(&d, 5).unwrap().0, Rect::from_min_size(open.min, vec2(240.0, collapsed)));
@@ -704,10 +704,15 @@ fn a_native_window_saves_its_id_place_and_monitor() {
     assert!(serde_json::to_string(&in_window).unwrap().contains(r#""id":3"#));
 }
 
-/// Height of the bar at the top of a native window: the Compact title height.
-const BAR: f32 = 14.0;
+/// Height of the bar at the top of a native window: the title height of the test look.
+fn bar() -> f32 {
+    crate::docking::testing::default_look().title_height
+}
+
 /// A tab row's middle in a native window, below the bar.
-const TAB_ROW: f32 = BAR + 13.0;
+fn tab_row() -> f32 {
+    bar() + crate::docking::testing::default_style().tab_height * 0.5
+}
 
 /// Window `[5, 6]` of [`layout`] and window `[7]` below it, apart on the desktop.
 fn two_windows() -> Layout<u32> {
@@ -736,7 +741,7 @@ fn a_tab_dragged_past_the_main_windows_edge_floats_at_the_desktop_point() {
     // The point grabbed (where the drag began, past the nudge) stays under the pointer: the
     // tab's group starts at the window's top-left, below the bar.
     let (desktop, grab) = (ORIGIN + out.to_vec2(), tab + vec2(8.0, 6.0));
-    let min = pos2(desktop.x - grab.x, desktop.y - grab.y - BAR);
+    let min = pos2(desktop.x - grab.x, desktop.y - grab.y - bar());
     let native = window(&d, 1).native.unwrap();
     assert_eq!(pos2(native[0], native[1]), min);
     assert_eq!(os_window(&d, 1).unwrap().0.min, min);
@@ -762,7 +767,7 @@ fn a_tab_from_a_native_window_docks_in_a_frame_of_the_main_window() {
     let id = window(&d, 5).id;
     // Frame [1, 2] at x = 100 in the main window, on the desktop.
     let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), local);
+    d.window_hold(id, pos2(15.0, tab_row()), local);
     let out = d.window_release(id, local);
     assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 5, anchor: 1 | 2, .. }]), "{:?}", out.actions);
     assert!(in_root(&d, 5));
@@ -773,9 +778,9 @@ fn a_tab_from_a_native_window_docks_in_a_frame_of_the_main_window() {
 fn a_tab_from_a_native_window_joins_another_native_windows_tab_row() {
     let mut d = driver(two_windows());
     let (from, to) = (window(&d, 5).id, window(&d, 7).id);
-    let row = d.host().windows[&d.viewport(to)].rect.min + vec2(200.0, TAB_ROW);
+    let row = d.host().windows[&d.viewport(to)].rect.min + vec2(200.0, tab_row());
     let local = d.window_local(from, row).unwrap();
-    d.window_hold(from, pos2(15.0, TAB_ROW), local);
+    d.window_hold(from, pos2(15.0, tab_row()), local);
     let out = d.window_release(from, local);
     assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 5, anchor: 7, placement: Placement::Tab { .. } }]), "{:?}", out.actions);
     assert!(window(&d, 7).contains(&5));
@@ -803,8 +808,8 @@ fn dragging_the_only_tab_of_a_native_window_moves_the_window() {
     layout.floating.push(Floating::single(vec![7], 0, [300.0, 80.0, 240.0, 200.0]));
     let mut d = driver(layout);
     let id = window(&d, 7).id;
-    d.window_hold(id, pos2(15.0, TAB_ROW), pos2(1000.0, TAB_ROW));
-    let out = d.window_release(id, pos2(15.0, TAB_ROW));
+    d.window_hold(id, pos2(15.0, tab_row()), pos2(1000.0, tab_row()));
+    let out = d.window_release(id, pos2(15.0, tab_row()));
     assert!(!out.actions.iter().any(|a| matches!(a, Action::Float { .. } | Action::Move { .. })), "{:?}", out.actions);
     d.step(vec![]);
     assert_eq!(d.layout.floating.len(), 1);
@@ -925,7 +930,7 @@ fn the_undock_hint_is_drawn_in_the_window_under_the_pointer() {
     let id = window(&d, 5).id;
     let viewport = d.viewport(id);
     let local = d.window_local(id, ORIGIN + vec2(100.0, 300.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), local);
+    d.window_hold(id, pos2(15.0, tab_row()), local);
     assert!(hinted(d.shapes()), "{:?}", texts(d.shapes()));
     assert!(!hinted(&d.host().windows[&viewport].shapes), "not in the source");
 }
@@ -970,7 +975,7 @@ fn a_command_drag_floats_even_over_another_window() {
     d.step(vec![]);
     let native = window(&d, 1).native.unwrap();
     let desktop = ORIGIN + over.to_vec2();
-    assert_eq!(pos2(native[0], native[1]), pos2(desktop.x - tab.x - 8.0, desktop.y - tab.y - 6.0 - BAR));
+    assert_eq!(pos2(native[0], native[1]), pos2(desktop.x - tab.x - 8.0, desktop.y - tab.y - 6.0 - bar()));
 }
 
 #[test]
@@ -980,7 +985,7 @@ fn without_window_positions_a_drag_out_of_a_native_window_floats() {
     d.settle();
     let id = window(&d, 5).id;
     // Over window [7] on the desktop, which cannot be known: a new window.
-    d.window_hold(id, pos2(15.0, TAB_ROW), pos2(-200.0, 400.0));
+    d.window_hold(id, pos2(15.0, tab_row()), pos2(-200.0, 400.0));
     let out = d.window_release(id, pos2(-200.0, 400.0));
     assert!(matches!(out.actions.as_slice(), [Action::Float { panel: 5, .. }]), "{:?}", out.actions);
     // The only tab left moves its window, by handing the move to the window system. A press
@@ -989,7 +994,7 @@ fn without_window_positions_a_drag_out_of_a_native_window_floats() {
     for _ in 0..40 {
         d.step(vec![]);
     }
-    d.window_hold(id, pos2(15.0, TAB_ROW), pos2(120.0, 200.0));
+    d.window_hold(id, pos2(15.0, tab_row()), pos2(120.0, 200.0));
     assert!(d.host().commands.iter().any(|(v, c)| *v == d.viewport(id) && *c == ViewportCommand::StartDrag));
     let out = d.window_release(id, pos2(120.0, 200.0));
     assert!(!out.actions.iter().any(|a| matches!(a, Action::Float { .. } | Action::Move { .. })), "{:?}", out.actions);
@@ -1162,7 +1167,7 @@ fn a_window_made_this_session_opens_where_it_was_put() {
     d.release(out);
     d.settle();
     let desktop = ORIGIN + out.to_vec2();
-    let min = pos2(desktop.x - tab.x - 8.0, desktop.y - tab.y - 6.0 - BAR);
+    let min = pos2(desktop.x - tab.x - 8.0, desktop.y - tab.y - 6.0 - bar());
     let native = window(&d, 1).native.unwrap();
     assert_eq!(pos2(native[0], native[1]), min);
     assert_eq!(os_window(&d, 1).unwrap().0.min, min);
@@ -1275,7 +1280,7 @@ fn a_native_windows_content_is_its_origin_where_its_frame_differs() {
 
     // Its tab drops where the pointer is on the desktop: the main window's tab row of [3, 4].
     let row = d.window_local(id, ORIGIN + vec2(450.0, 13.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), row);
+    d.window_hold(id, pos2(15.0, tab_row()), row);
     let out = d.window_release(id, row);
     assert!(matches!(out.actions.as_slice(), [Action::Move { panel: 5, anchor: 3 | 4, placement: Placement::Tab { .. } }]), "{:?}", out.actions);
 }
@@ -1288,7 +1293,7 @@ fn the_only_tab_of_a_native_window_docks_it_with_title_bar_docks_off() {
     let mut d = driver();
     let id = window(&d, 7).id;
     let row = ORIGIN + vec2(450.0, 13.0);
-    let from = pos2(15.0, TAB_ROW);
+    let from = pos2(15.0, tab_row());
     d.window_step(id, vec![Event::PointerMoved(from), button(from, true)]);
     d.window_step(id, vec![Event::PointerMoved(from + vec2(8.0, 6.0))]);
     for _ in 0..2 {
@@ -1320,7 +1325,7 @@ fn the_only_tab_of_a_native_window_fills_and_joins_a_frame_bodys_center() {
     let id = window(&d, 7).id;
     // The middle of frame [3, 4], in the main window.
     let middle = pos2(600.0, 300.0);
-    let from = pos2(15.0, TAB_ROW);
+    let from = pos2(15.0, tab_row());
     d.window_step(id, vec![Event::PointerMoved(from), button(from, true)]);
     d.window_step(id, vec![Event::PointerMoved(from + vec2(8.0, 6.0))]);
     for _ in 0..2 {
@@ -1451,7 +1456,7 @@ fn escape_or_focus_loss_ends_a_drag_a_native_window_owns() {
     let mut d = driver(layout(true));
     let id = id_of(&d);
     let over = d.window_local(id, ORIGIN + vec2(600.0, 300.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    d.window_hold(id, pos2(15.0, tab_row()), over);
     let out = d.window_step(id, vec![escape()]);
     assert!(out.forwarded_events.is_empty(), "{:?}", out.forwarded_events);
     let out = d.window_release(id, over);
@@ -1481,7 +1486,7 @@ fn escape_or_focus_loss_ends_a_drag_a_native_window_owns() {
     // Another application takes focus: cancelled.
     let mut d = driver(layout(true));
     let id = id_of(&d);
-    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    d.window_hold(id, pos2(15.0, tab_row()), over);
     d.host().focus = None;
     d.window_step(id, vec![Event::PointerMoved(over)]);
     d.host().focus = Some(d.viewport(id));
@@ -1543,7 +1548,7 @@ fn a_drag_ends_when_its_native_window_or_panel_goes() {
     let mut d = driver(layout(true));
     let id = id_of(&d);
     let over = d.window_local(id, ORIGIN + vec2(600.0, 300.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    d.window_hold(id, pos2(15.0, tab_row()), over);
     let viewport = d.viewport(id);
     d.host().windows.get_mut(&viewport).unwrap().close = true;
     d.step(vec![]);
@@ -1555,7 +1560,7 @@ fn a_drag_ends_when_its_native_window_or_panel_goes() {
     // The dragged panel is closed by the application.
     let mut d = driver(layout(true));
     let id = id_of(&d);
-    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    d.window_hold(id, pos2(15.0, tab_row()), over);
     d.layout.apply(Action::Close { panel: 5 }).unwrap();
     let out = d.window_release(id, over);
     assert!(out.error.is_none() && !out.actions.iter().any(|a| matches!(a, Action::Move { .. } | Action::Float { .. })), "{:?}", out.actions);
@@ -1778,7 +1783,7 @@ fn a_native_window_takes_no_input_while_the_app_blocks_it() {
     let id = id_of(&d);
     let viewport = d.viewport(id);
     let counter = d.content.counter_rect.unwrap().center();
-    let tab = pos2(90.0, TAB_ROW);
+    let tab = pos2(90.0, tab_row());
     let key = Event::Key { key: Key::S, physical_key: None, pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
     let level = |d: &DockDriver<u32, Content>| d.host().windows[&viewport].level;
     assert!(!dimmed(&d, viewport));
@@ -2015,7 +2020,7 @@ fn blocking_input_cancels_a_drag_in_progress() {
     let mut d = blocked_driver();
     let id = id_of(&d);
     let over = d.window_local(id, ORIGIN + vec2(600.0, 300.0)).unwrap();
-    d.window_hold(id, pos2(15.0, TAB_ROW), over);
+    d.window_hold(id, pos2(15.0, tab_row()), over);
     assert!(super::is_dragging::<u32>(&d.ctx, d.id));
     d.input_blocked = true;
     d.step(vec![]);
