@@ -1164,6 +1164,9 @@ impl<P, C: DockContent<P> + ?Sized> DockContent<P> for Overrides<'_, P, C> {
     fn panel_menu(&mut self, ui: &mut Ui, panel: &P) {
         self.inner.panel_menu(ui, panel);
     }
+    fn panel_menu_entries(&mut self, panel: &P) -> Vec<crate::menu::MenuEntry<super::panel_menu::PanelCommand>> {
+        self.inner.panel_menu_entries(panel)
+    }
     fn group_header_width(&self, panels: &[P], active: &P, floating: bool, strip_width: f32) -> f32 {
         self.inner.group_header_width(panels, active, floating, strip_width)
     }
