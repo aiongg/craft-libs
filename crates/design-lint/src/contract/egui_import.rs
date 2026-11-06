@@ -7,6 +7,9 @@ use super::sites::{Kind, is_egui};
 
 pub const ID: &str = "contract/egui-import";
 
+/// The layer that may name the `accesskit` data types (spec Overview, layer 1: `AccessRequest` carries an action).
+const DATA_LAYER: u8 = 1;
+
 /// Path segments naming egui's behavioural types and modules: memory, layers, AccessKit, options, input and pass control.
 const SEGMENTS: [&str; 13] = [
     "Memory",
@@ -34,8 +37,9 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     for site in &cx.sites {
         match &site.kind {
             Kind::Path { path, .. } if is_egui(path) => {
-                if let Some(seg) = path.iter().skip(1).find(|s| SEGMENTS.contains(&s.as_str())).or_else(|| path.first().filter(|f| *f == "accesskit"))
-                {
+                let data_types = cx.scope.layer(cx.path) == Some(DATA_LAYER);
+                let accesskit_root = path.first().filter(|f| *f == "accesskit" && !data_types);
+                if let Some(seg) = path.iter().skip(1).find(|s| SEGMENTS.contains(&s.as_str())).or(accesskit_root) {
                     cx.flag(
                         out,
                         ID,

@@ -152,3 +152,12 @@ fn exemptions_and_markers_accept_the_new_rule_ids() {
         "[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/ui\"\nrules = [\"contract\", \"test\", \"api/non-exhaustive\"]\nreason = \"legacy\"\n";
     assert!(Config::parse(Path::new("design-lint.toml"), text).is_ok());
 }
+
+#[test]
+fn layer_one_names_accesskit_data_types_and_no_other_layer_does() {
+    let src = fixture("accept", "accesskit-data.rs");
+    let layered = StaticScope::new().layer("crates/data", 1);
+    assert!(rules_at(&src, "crates/data/src/intent.rs", &layered).is_empty());
+    assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new().layer("crates/data", 2)), ["contract/egui-import"]);
+    assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new()), ["contract/egui-import"]);
+}

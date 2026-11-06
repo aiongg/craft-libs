@@ -74,22 +74,65 @@ fn is_egui_crate(name: &str) -> bool {
     name == "eframe" || name.starts_with("egui") || name.starts_with("epaint")
 }
 
-/// Crates that depend on an egui crate, directly or through another workspace crate.
-fn egui_linked(meta: &Metadata) -> BTreeSet<String> {
-    let mut linked: BTreeSet<String> =
-        meta.packages.iter().filter(|p| p.dependencies.iter().any(|d| is_egui_crate(&d.name))).map(|p| p.name.clone()).collect();
-    loop {
-        let more: Vec<String> = meta
-            .packages
-            .iter()
-            .filter(|p| !linked.contains(&p.name) && p.dependencies.iter().any(|d| linked.contains(&d.name)))
-            .map(|p| p.name.clone())
-            .collect();
-        if more.is_empty() {
-            return linked;
+/// The dependencies `package` builds with when `features` are on, each with the features the declaration asks
+/// of it: the non-optional normal dependencies, and the optional ones a feature enables.
+fn built_with(package: &Package, features: &BTreeSet<String>) -> BTreeMap<String, BTreeSet<String>> {
+    let mut deps: BTreeSet<String> = package.dependencies.iter().filter(|d| d.normal && !d.optional).map(|d| d.name.clone()).collect();
+    let mut asked: Vec<(String, String)> = Vec::new();
+    let mut seen: BTreeSet<String> = BTreeSet::new();
+    let mut todo: Vec<String> = features.iter().cloned().collect();
+    while let Some(feature) = todo.pop() {
+        if !seen.insert(feature.clone()) {
+            continue;
         }
-        linked.extend(more);
+        for member in package.features.get(&feature).into_iter().flatten() {
+            if let Some(dep) = member.strip_prefix("dep:") {
+                deps.insert(dep.to_owned());
+            } else if let Some((dep, sub)) = member.split_once('/') {
+                if !dep.ends_with('?') {
+                    deps.insert(dep.to_owned());
+                }
+                asked.push((dep.trim_end_matches('?').to_owned(), sub.to_owned()));
+            } else {
+                todo.push(member.clone());
+            }
+        }
     }
+    let mut built = BTreeMap::new();
+    for dep in package.dependencies.iter().filter(|d| d.normal && deps.contains(&d.name)) {
+        let wanted: &mut BTreeSet<String> = built.entry(dep.name.clone()).or_default();
+        wanted.extend(dep.features.iter().cloned());
+        if dep.default_features {
+            wanted.insert("default".to_owned());
+        }
+    }
+    for (dep, sub) in asked {
+        if let Some(wanted) = built.get_mut(&dep) {
+            wanted.insert(sub);
+        }
+    }
+    built
+}
+
+/// Whether `name`, built with `features`, depends on an egui crate, directly or through a workspace crate built
+/// with the features its dependent asks for.
+fn links_egui(meta: &Metadata, name: &str, features: &BTreeSet<String>, visiting: &mut Vec<String>) -> bool {
+    let Some(package) = meta.package(name) else { return false };
+    if visiting.iter().any(|v| v == name) {
+        return false;
+    }
+    visiting.push(name.to_owned());
+    let linked = built_with(package, features).into_iter().any(|(dep, wanted)| is_egui_crate(&dep) || links_egui(meta, &dep, &wanted, visiting));
+    visiting.pop();
+    linked
+}
+
+/// Crates that depend on an egui crate, directly or through another workspace crate. An optional dependency
+/// counts only when a feature of the crate in use enables it (its default features, or what the dependent asks
+/// for), so a crate that depends on `craft-keymap` without its `ui` feature does not link egui.
+fn egui_linked(meta: &Metadata) -> BTreeSet<String> {
+    let default = BTreeSet::from(["default".to_owned()]);
+    meta.packages.iter().filter(|p| links_egui(meta, &p.name, &default, &mut Vec::new())).map(|p| p.name.clone()).collect()
 }
 
 /// Test and bench targets with `harness = false`, as paths relative to the crate directory.
@@ -202,4 +245,37 @@ pub fn check_workspace(root: &Path, config: &Config, meta: &Metadata) -> Result<
     findings.extend(check_with_scope(config, root, &scope)?.findings);
     findings.sort_by(|a, b| (&a.path, a.line, a.rule).cmp(&(&b.path, b.line, b.rule)));
     Ok(findings)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn package(name: &str, features: &str, dependencies: &[&str]) -> String {
+        format!(r#"{{"name":"{name}","features":{{{features}}},"dependencies":[{}],"targets":[]}}"#, dependencies.join(","))
+    }
+
+    fn dep(name: &str, optional: bool, features: &[&str]) -> String {
+        let features = features.iter().map(|f| format!("\"{f}\"")).collect::<Vec<_>>().join(",");
+        format!(r#"{{"name":"{name}","kind":null,"optional":{optional},"features":[{features}],"uses_default_features":true}}"#)
+    }
+
+    fn linked(packages: &[String]) -> Vec<String> {
+        let json = format!(r#"{{"packages":[{}]}}"#, packages.join(","));
+        egui_linked(&Metadata::parse(Path::new("."), &json).unwrap()).into_iter().collect()
+    }
+
+    #[test]
+    fn an_optional_dependency_links_egui_only_when_a_feature_in_use_enables_it() {
+        let packages = [
+            package("gated", r#""ui":["dep:egui"]"#, &[&dep("egui", true, &[])]),
+            package("plain", "", &[&dep("gated", false, &[])]),
+            package("plain_above", "", &[&dep("plain", false, &[])]),
+            package("asks", "", &[&dep("gated", false, &["ui"])]),
+            package("direct", "", &[&dep("egui", false, &[])]),
+            package("above", "", &[&dep("direct", false, &[])]),
+            package("by_default", r#""default":["ui"],"ui":["dep:egui"]"#, &[&dep("egui", true, &[])]),
+        ];
+        assert_eq!(linked(&packages), ["above", "asks", "by_default", "direct"]);
+    }
 }
