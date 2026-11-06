@@ -135,7 +135,7 @@ pub fn owner(ctx: &Context, gate: &OwnerGate) -> KeyOwner {
         KeyOwner::Menu
     } else if gate.recording {
         KeyOwner::Recorder
-    } else if gate.dialog || ctx.memory(|m| m.top_modal_layer().is_some()) || crate::viewport::ViewportWindow::any_app_modal(ctx) {
+    } else if gate.dialog || crate::dialog::pass::modal_layer_open(ctx) || crate::viewport::ViewportWindow::any_app_modal(ctx) {
         KeyOwner::Dialog
     } else if text_has_keys(ctx) {
         KeyOwner::Text

@@ -119,6 +119,9 @@ impl BlockingOverlay {
             cancelled = true;
         }
         pass::record(ctx, Entry { id, layer: shown.response.layer_id, rect: ctx.content_rect(), modal: true });
+        if cancelled {
+            pass::mark_closed(ctx, shown.response.layer_id);
+        }
         ctx.set_cursor_icon(cursor);
         cancelled
     }

@@ -23,6 +23,8 @@ struct App {
     over: Option<Rect>,
     last: Option<DialogResponse>,
     outcomes: Vec<Outcome>,
+    /// Who had the keys at the start of each pass.
+    owners: Vec<crate::focus::key_owner::KeyOwner>,
 }
 
 impl App {
@@ -37,6 +39,7 @@ impl App {
             over: None,
             last: None,
             outcomes: Vec::new(),
+            owners: Vec::new(),
         }
     }
 
@@ -53,6 +56,7 @@ fn build(app: App, size: Vec2) -> Harness<'static, App> {
     harness(size).build_ui_state(
         |ui, app: &mut App| {
             let ctx = &ui.ctx().clone();
+            app.owners.push(crate::focus::key_owner::owner(ctx, &crate::focus::key_owner::OwnerGate::default()));
             if !app.open {
                 return;
             }
@@ -222,6 +226,20 @@ fn the_close_box_cancels_a_modal_dialog_and_closes_a_modeless_one() {
         harness.run();
         assert_eq!(harness.state().outcomes, [expected]);
     }
+}
+
+#[test]
+fn the_keys_are_the_dialogs_while_it_is_open_and_the_apps_the_pass_after_it_closes() {
+    use crate::focus::key_owner::KeyOwner;
+    let mut harness = build(App::new(), WINDOW);
+    harness.run();
+    assert_eq!(harness.state().owners.last(), Some(&KeyOwner::Dialog));
+    harness.key_press(Key::Enter);
+    harness.step();
+    assert_eq!(harness.state().outcomes, [Outcome::Ok]);
+    harness.state_mut().owners.clear();
+    harness.step();
+    assert_eq!(harness.state().owners, [KeyOwner::App]);
 }
 
 #[test]

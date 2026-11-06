@@ -25,6 +25,9 @@ struct Registry {
     frame: u64,
     current: Vec<Entry>,
     previous: Vec<Entry>,
+    /// Layers of dialogs that closed in `closed_frame`.
+    closed_frame: u64,
+    closed: Vec<LayerId>,
 }
 
 fn registry_id() -> Id {
@@ -48,6 +51,36 @@ pub(crate) fn record(ctx: &Context, entry: Entry) {
             None => registry.current.push(entry),
         }
     });
+}
+
+/// Notes that the dialog drawn in `layer` closed this pass, so [`modal_layer_open`] can tell the
+/// layer egui still holds as modal for one more pass from an open one.
+pub(crate) fn mark_closed(ctx: &Context, layer: LayerId) {
+    let now = ctx.cumulative_frame_nr();
+    ctx.data_mut(|d| {
+        let registry = d.get_temp_mut_or_default::<Registry>(registry_id());
+        if registry.closed_frame != now {
+            registry.closed.clear();
+            registry.closed_frame = now;
+        }
+        registry.closed.push(layer);
+    });
+}
+
+/// Whether a modal layer is open for the keys at the start of a pass. egui keeps a layer as the
+/// top modal one for the pass after the dialog in it stopped being shown; a layer of a dialog
+/// that closed in the previous frame does not count unless another dialog of the library is
+/// still open. A modal layer the library did not open counts as before.
+pub(crate) fn modal_layer_open(ctx: &Context) -> bool {
+    let Some(top) = ctx.memory(|m| m.top_modal_layer()) else {
+        return false;
+    };
+    let now = ctx.cumulative_frame_nr();
+    let closed = ctx.data(|d| d.get_temp::<Registry>(registry_id())).map(|r| if r.closed_frame + 1 == now { r.closed } else { Vec::new() }).unwrap_or_default();
+    if !closed.contains(&top) {
+        return true;
+    }
+    visible(ctx).iter().any(|e| e.modal && !closed.contains(&e.layer))
 }
 
 /// The dialogs shown in the latest frame the canvas can know of.

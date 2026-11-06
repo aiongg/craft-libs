@@ -692,6 +692,9 @@ impl<'a> Dialog<'a> {
             });
         let closed = outcome.is_some_and(|outcome| outcome.closes() && !(ok_stays_open && outcome == Outcome::Ok));
         if closed {
+            if modal {
+                pass::mark_closed(ctx, response.layer_id);
+            }
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }

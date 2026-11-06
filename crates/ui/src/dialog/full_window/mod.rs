@@ -322,6 +322,7 @@ impl<'a> FullWindowDialog<'a> {
         });
         let closed = outcome.is_some_and(Outcome::closes);
         if closed {
+            pass::mark_closed(ctx, shown.response.layer_id);
             if let Some(focus) = state.return_focus() {
                 ctx.memory_mut(|m| m.request_focus(focus));
             }
