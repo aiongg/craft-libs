@@ -1028,6 +1028,10 @@ impl Names {
 /// The catalog by normalized path and label, for the match steps.
 struct Index {
     tool: Vec<bool>,
+    /// Whether each command has a default binding, for choosing among same-named commands.
+    has_default: Vec<bool>,
+    /// Whether each command has a menu path of its own (not an import-only one).
+    has_menu: Vec<bool>,
     /// Binding keys, for remembered answers.
     keys: HashMap<String, usize>,
     names: Names,
@@ -1039,9 +1043,11 @@ struct Index {
 
 impl Index {
     fn new(keymap: &Keymap) -> Index {
-        let mut ix = Index { tool: Vec::new(), keys: HashMap::new(), names: Names::default(), toggles: Names::default(), segments: HashSet::new() };
+        let mut ix = Index { tool: Vec::new(), has_default: Vec::new(), has_menu: Vec::new(), keys: HashMap::new(), names: Names::default(), toggles: Names::default(), segments: HashSet::new() };
         for (i, b) in keymap.catalog().iter().enumerate() {
             ix.tool.push(matches!(b.kind, Kind::Tool { .. }));
+            ix.has_default.push(!b.defaults.is_empty());
+            ix.has_menu.push(!b.paths.is_empty());
             ix.keys.insert(b.command.key(), i);
             ix.names.add(i, b, str::to_string);
             ix.segments.extend(b.paths.iter().chain(&b.import_paths).flatten().map(|s| normalize_label(s)));
@@ -1052,12 +1058,21 @@ impl Index {
         ix
     }
 
+    /// The one command of `list` of the wanted kind. Among several, those with a default binding
+    /// win over those without, then those with a menu path over those without; the pick is
+    /// unique only when one is left. Aliases such as `history.undo` thus lose to the command
+    /// users know from the menu.
     fn pick(&self, list: Option<&Vec<usize>>, tool: bool) -> Found {
-        let mut fits = list.into_iter().flatten().filter(|i| self.tool.get(**i) == Some(&tool));
-        match (fits.next(), fits.next()) {
-            (Some(i), None) => Found::One(*i, false),
-            (Some(_), Some(_)) => Found::Many,
-            _ => Found::None,
+        let mut fits: Vec<usize> = list.into_iter().flatten().copied().filter(|i| self.tool.get(*i) == Some(&tool)).collect();
+        for preferred in [&self.has_default, &self.has_menu] {
+            if fits.len() > 1 && fits.iter().any(|i| preferred[*i]) {
+                fits.retain(|i| preferred[*i]);
+            }
+        }
+        match fits.as_slice() {
+            [i] => Found::One(*i, false),
+            [] => Found::None,
+            _ => Found::Many,
         }
     }
 
