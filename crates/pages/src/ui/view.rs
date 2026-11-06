@@ -33,7 +33,7 @@ use egui::accesskit::Role;
 use egui::{Key, Modifiers, Rect, Response, Sense, Ui, Vec2, pos2};
 use kurbo::{Point, Size};
 
-use super::style::PageViewStyle;
+use super::style::{DEFAULT_PAPER, PageViewStyle};
 use crate::layout::{
     Fit, LayoutOptions, PageDisplay, PageSpacing, PagedLayout, SCREEN_POINTS_PER_POINT, ViewDefaults, ZOOM_RANGE, fit_scale, place_pages, shown_row,
 };
@@ -263,20 +263,19 @@ impl<'a> PageView<'a> {
         PageView { id_salt: egui::IdSalt::new(id_salt), source, state, options: LayoutOptions::ACROBAT, name: None, bodies: None }
     }
 
-    /// The view's spacing (`pages.gap`, `pages.margin`, `pages.side`, Hide White Space's pad and
-    /// seam), from the tokens.
+    /// The view's spacing (the gap between pages, the margin, the side column, Hide White Space's
+    /// pad and seam), from the tokens.
     pub fn style(tokens: &UiTokens) -> PageViewStyle {
-        use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
+        let pad = tokens.space.pad;
         PageViewStyle {
             spacing: PageSpacing {
-                gap: f64::from(t.gap),
-                margin: f64::from(t.margin),
-                side: f64::from(t.side),
-                white_space_pad: f64::from(t.white_space_pad),
-                seam: f64::from(t.seam),
+                gap: f64::from(tokens.space.gap.section),
+                margin: f64::from(pad.dialog),
+                side: f64::from(2.0 * tokens.size.control.md + 2.0 * pad.panel),
+                white_space_pad: f64::from(tokens.space.gap.inline),
+                seam: f64::from(tokens.stroke.thin),
             },
-            paper: t.paper.to_egui(),
+            paper: DEFAULT_PAPER,
         }
     }
 

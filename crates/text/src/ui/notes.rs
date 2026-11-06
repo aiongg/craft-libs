@@ -20,6 +20,9 @@ use egui::{Align2, Color32, FontId, Galley, Label, Pos2, Response, Ui, WidgetTex
 
 use crate::lists::{ListMarker, ListParagraph, line_starts, markers};
 
+/// The largest indent, points.
+const MAX_INDENT: f32 = 400.0;
+
 /// A run of notes text with its formatting.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct NotesRun {
@@ -307,18 +310,16 @@ pub struct NotesStyle {
     /// The type role of a bold run.
     pub strong: TypeRole,
     /// The size of the notes' default text, points: indents are in points and scale with the text
-    /// size as `size / points` (`text_editor.notes_points`; deckcraft: `panels/notes.rs:118`
-    /// `para_layout`, :216).
+    /// size as `size / points` (`typography.caption.size`).
     pub points: f32,
-    /// The largest indent, points (`text_editor.notes_max_indent`; deckcraft: `panels/notes.rs:49` `px`).
+    /// The largest indent, points .
     pub max_indent: f32,
 }
 
 impl NotesStyle {
     /// The notes' style, from the tokens.
     pub fn of(tokens: &UiTokens) -> Self {
-        let t = &tokens.component.text_editor;
-        NotesStyle { body: TypeRole::Body, strong: TypeRole::BodyStrong, points: t.notes_points, max_indent: t.notes_max_indent }
+        NotesStyle { body: TypeRole::Body, strong: TypeRole::BodyStrong, points: tokens.typography.caption.size, max_indent: MAX_INDENT }
     }
 }
 

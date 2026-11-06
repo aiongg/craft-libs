@@ -56,7 +56,7 @@ impl Geometry {
     }
 }
 
-/// The marker sizes (`ruler.marker_*`).
+/// The marker sizes.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct Shapes {
     /// Half the width of a marker.
@@ -75,18 +75,17 @@ pub(super) struct Shapes {
     pub selector: f32,
 }
 
+const MARKER_HALF: f32 = 4.5;
+const MARKER_COLUMN: f32 = 7.0;
+const MARKER_TIP: f32 = 5.0;
+const MARKER_BAR: f32 = 4.0;
+const MARKER_STEM: f32 = 5.0;
+const MARKER_FOOT: f32 = 4.0;
+const MARKER_SELECTOR: f32 = 14.0;
+
 impl Shapes {
-    pub(super) fn of(tokens: &UiTokens) -> Self {
-        let r = &tokens.component.ruler;
-        Shapes {
-            half: r.marker_half,
-            column: r.marker_column,
-            tip: r.marker_tip,
-            bar: r.marker_bar,
-            stem: r.marker_stem,
-            foot: r.marker_foot,
-            selector: r.marker_selector,
-        }
+    pub(super) fn of(_tokens: &UiTokens) -> Self {
+        Shapes { half: MARKER_HALF, column: MARKER_COLUMN, tip: MARKER_TIP, bar: MARKER_BAR, stem: MARKER_STEM, foot: MARKER_FOOT, selector: MARKER_SELECTOR }
     }
 
     fn triangle(&self, a: Pos2, b: Pos2, c: Pos2, fill: Color32, stroke: Stroke) -> Shape {
@@ -189,7 +188,7 @@ fn span(g: &Geometry, units: &RulerUnits) -> std::ops::RangeInclusive<f64> {
     (f64::from(a.min(b)) * units.per_doc)..=(f64::from(a.max(b)) * units.per_doc)
 }
 
-/// The box of a table column marker at screen x `x`: `ruler.marker_column` wide, the strip's depth
+/// The box of a table column marker at screen x `x`: `MARKER_COLUMN` wide, the strip's depth
 /// tall.
 pub(super) fn column_marker(shapes: &Shapes, strip: Rect, x: f32) -> Rect {
     Rect::from_min_max(pos2(x - shapes.column / 2.0, strip.min.y), pos2(x + shapes.column / 2.0, strip.max.y))

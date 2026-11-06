@@ -84,7 +84,7 @@ type Overlay<'a> = Box<dyn FnOnce(&Painter, &CanvasView, Rect) + 'a>;
 /// panned through a `CanvasView` the tiles share (wheel, pinch, drag through
 /// `canvas::WheelNavigation` and `canvas::pan`; the tile works on a copy whose `rect` is its own
 /// image rect, and writes back `center` and `zoom`, so equal panes stay in step), the caption,
-/// the pills, the rejected veil (`tile.veil`), and the active ring (`tile.ring.selected` 2 pt with
+/// the pills, the rejected veil (`surface.scrim`), and the active ring (`accent.solid`, `stroke.thick` wide, with
 /// its halo). `.survey(true)`: no zoom or pan, always fitted. Window renders are the host's,
 /// drawn through `.overlay(..)` over the picture. AccessKit: an `Image` named by
 /// `CompareLabels::tile_name` (the caption read as text), the pill text as its description.
@@ -247,7 +247,7 @@ impl<'a> CompareTile<'a> {
                     painter.image(texture.id, display, uv, Color32::WHITE); // design: allow(identity tint)
                 }
                 None => {
-                    painter.rect_filled(image_area, 0.0, tokens.component.thumbnail.placeholder.to_egui());
+                    painter.rect_filled(image_area, 0.0, tokens.color.surface.sunken.to_egui());
                 }
             }
             if let Some(overlay) = overlay {

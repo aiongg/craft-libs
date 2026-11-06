@@ -54,8 +54,7 @@ pub struct TableSizePicker {
 impl TableSizePicker {
     /// The picker's sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::TableSizeStyle {
-        let t = &tokens.component.pages;
-        crate::ui::TableSizeStyle { cell: t.table_size_cell, gap: t.table_size_gap, label: craft_theme::TypeRole::Body }
+        crate::ui::TableSizeStyle { cell: tokens.size.icon.md, gap: tokens.space.gap.tight, label: craft_theme::TypeRole::Body }
     }
 
     /// A picker with no preset size.

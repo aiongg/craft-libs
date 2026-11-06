@@ -220,8 +220,7 @@ impl<'a> MarginHandles<'a> {
 
     /// The handles' sizes, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> MarginHandlesStyle {
-        let c = &tokens.component;
-        MarginHandlesStyle { edge_grab: c.pages.margin_handle_grab }
+        MarginHandlesStyle { edge_grab: tokens.size.hit.slop }
     }
 
     /// The unit the drag tooltip and the AccessKit value show (the app's ruler unit).

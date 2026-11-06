@@ -1,103 +1,118 @@
-//! [`SheetStyle`]: the spreadsheet widgets' sizes, from the `sheet` tokens.
+//! [`SheetStyle`]: the spreadsheet widgets' sizes, from the semantic tokens and the sheet's own constants.
 
 use craft_theme::TypeRole;
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The sizes the spreadsheet widgets read, one `sheet.*` token each, at 100 % sheet zoom (the
-/// widgets scale them by the zoom). craft-theme's `sheet` family holds GridCraft's values. The family is
-/// `sheet`, not `table`: `table.*` is the kernel's list table.
+/// An outline button's least side.
+const OUTLINE_BUTTON_MIN: f32 = 7.0;
+/// How far an outline button's hit area reaches past its square.
+const OUTLINE_HIT: f32 = 1.5;
+/// The filter button's least and largest side.
+const FILTER_BUTTON_MIN: f32 = 10.0;
+const FILTER_BUTTON_MAX: f32 = 18.0;
+/// The filter button's inset round the glyph.
+const FILTER_GLYPH_INSET: f32 = 1.5;
+/// How far from a header's far edge a press still grabs it.
+const EDGE_GRAB: f32 = 4.0;
+/// How far from a selection's border a press still moves it.
+const BORDER_GRAB: f32 = 3.0;
+/// The room after the last lane in an outline band.
+const OUTLINE_BAND_SLACK: f32 = 3.0;
+/// The distance of each line of a hidden line's double divider from its edge.
+const HIDDEN_MARK_OFFSET: f32 = 1.5;
+/// The status bar menu's least width.
+const STATUS_MENU_MIN_WIDTH: f32 = 180.0;
+/// The field list checklist's greatest height.
+const FIELD_LIST_CHECKLIST_MAX: f32 = 220.0;
+/// An area's least height in the field list.
+const FIELD_LIST_AREA_MIN: f32 = 60.0;
+/// The alpha of the selection's tint over the cells.
+const SELECTION_ALPHA: u8 = 0x24;
+
+/// The sizes the spreadsheet widgets read, at 100 % sheet zoom (the widgets scale them by the
+/// zoom).
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SheetStyle {
-    /// The column headers' height: `sheet.column_header_height`.
+    /// The column headers' height.
     pub column_header_height: f32,
     /// The row headers' width per digit of the last visible row, and the room around the
-    /// digits: `sheet.row_header_digit`, `sheet.row_header_padding`.
+    /// digits.
     pub row_header_digit: f32,
-    /// The padding around a row header's digits: `sheet.row_header_padding`.
+    /// The padding around a row header's digits.
     pub row_header_padding: f32,
-    /// One outline lane: `sheet.outline_lane`.
+    /// One outline lane.
     pub outline_lane: f32,
     /// What an outline button's side is short of the lane, its least side, the first lane's inset,
-    /// how far a button's hit area reaches past its square and its corner radius:
-    /// `sheet.outline_button_margin`, `sheet.outline_button_min`, `sheet.outline_inset`,
-    /// `sheet.outline_hit`, `sheet.outline_radius`.
+    /// how far a button's hit area reaches past its square and its corner radius.
     pub outline_button_margin: f32,
-    /// An outline button's least side: `sheet.outline_button_min`.
+    /// An outline button's least side.
     pub outline_button_min: f32,
-    /// The first lane's inset: `sheet.outline_inset`.
+    /// The first lane's inset.
     pub outline_inset: f32,
-    /// How far an outline button's hit area reaches past its square: `sheet.outline_hit`.
+    /// How far an outline button's hit area reaches past its square.
     pub outline_hit: f32,
-    /// An outline button's corner radius: `sheet.outline_radius`.
+    /// An outline button's corner radius.
     pub outline_radius: f32,
     /// The type role of a slicer's caption: the theme's strong body role.
     pub slicer_caption: TypeRole,
     /// A slicer's header, value tile, gap between tiles, padding round the tiles and clear
-    /// button: `sheet.slicer_header`, `sheet.slicer_tile`, `sheet.slicer_gap`,
-    /// `sheet.slicer_padding`, `sheet.slicer_clear`.
+    /// button.
     pub slicer_header: f32,
-    /// A slicer's value tile height: `sheet.slicer_tile`.
+    /// A slicer's value tile height.
     pub slicer_tile: f32,
-    /// The gap between slicer tiles: `sheet.slicer_gap`.
+    /// The gap between slicer tiles.
     pub slicer_gap: f32,
-    /// The padding round a slicer's tiles: `sheet.slicer_padding`.
+    /// The padding round a slicer's tiles.
     pub slicer_padding: f32,
-    /// A slicer's clear button side: `sheet.slicer_clear`.
+    /// A slicer's clear button side.
     pub slicer_clear: f32,
-    /// The error checking tag's square: `sheet.error_tag`.
+    /// The error checking tag's square.
     pub error_tag: f32,
-    /// The filter button's least and largest side and its inset from the header cell's corner:
-    /// `sheet.filter_button_min`, `sheet.filter_button_max`, `sheet.filter_button_inset`.
+    /// The filter button's least and largest side and its inset from the header cell's corner.
     pub filter_button_min: f32,
-    /// The filter button's largest side: `sheet.filter_button_max`.
+    /// The filter button's largest side.
     pub filter_button_max: f32,
-    /// The filter button's inset from the header cell's corner: `sheet.filter_button_inset`.
+    /// The filter button's inset from the header cell's corner.
     pub filter_button_inset: f32,
-    /// The filter button's corner radius and its inset round the glyph: `sheet.filter_button_radius`,
-    /// `sheet.filter_button_glyph_inset`.
+    /// The filter button's corner radius and its inset round the glyph.
     pub filter_button_radius: f32,
-    /// The filter button's inset round the glyph: `sheet.filter_button_glyph_inset`.
+    /// The filter button's inset round the glyph.
     pub filter_button_glyph_inset: f32,
-    /// The error checking tag's gap to its cell and corner radius: `sheet.error_tag_gap`,
-    /// `sheet.error_tag_radius`.
+    /// The error checking tag's gap to its cell and corner radius.
     pub error_tag_gap: f32,
-    /// The error checking tag's corner radius: `sheet.error_tag_radius`.
+    /// The error checking tag's corner radius.
     pub error_tag_radius: f32,
-    /// The gap between the status bar's statistics: `sheet.stats_gap`.
+    /// The gap between the status bar's statistics.
     pub stats_gap: f32,
     /// The type role of the status bar's statistics: the theme's label role.
     pub stats_text: TypeRole,
-    /// How far from a header's far edge a press still grabs it, at 100 % zoom: `sheet.edge_grab`.
+    /// How far from a header's far edge a press still grabs it, at 100 % zoom.
     pub edge_grab: f32,
-    /// How far from a selection's border a press still moves it, at 100 % zoom: `sheet.border_grab`.
+    /// How far from a selection's border a press still moves it, at 100 % zoom.
     pub border_grab: f32,
-    /// The room after the last lane in an outline band, at any zoom: `sheet.outline_band_slack`.
+    /// The room after the last lane in an outline band, at any zoom.
     pub outline_band_slack: f32,
-    /// The fill handle's side: `sheet.fill_handle`.
+    /// The fill handle's side.
     pub fill_handle: f32,
-    /// The accent bar on a selected header's inner edge: `sheet.header_accent_bar`.
+    /// The accent bar on a selected header's inner edge.
     pub header_accent_bar: f32,
-    /// The distance of each line of a hidden line's double divider from its edge:
-    /// `sheet.hidden_mark_offset`.
+    /// The distance of each line of a hidden line's double divider from its edge.
     pub hidden_mark_offset: f32,
-    /// How far the headers' separators stop short of the header's start:
-    /// `sheet.header_separator_inset`.
+    /// How far the headers' separators stop short of the header's start.
     pub header_separator_inset: f32,
-    /// The status bar menu's least width: `sheet.status_menu_min_width`.
+    /// The status bar menu's least width.
     pub status_menu_min_width: f32,
-    /// The field list checklist's greatest height and an area's least height:
-    /// `sheet.field_list_checklist_max`, `sheet.field_list_area_min`.
+    /// The field list checklist's greatest height and an area's least height.
     pub field_list_checklist_max: f32,
-    /// An area's least height in the field list: `sheet.field_list_area_min`.
+    /// An area's least height in the field list.
     pub field_list_area_min: f32,
-    /// The selection's tint over the cells: `sheet.selection_fill`.
+    /// The selection's tint over the cells.
     pub selection_fill: Color32,
-    /// The fill handle's fill and its one-point ring: `sheet.fill_handle_fill`,
-    /// `sheet.fill_handle_ring`.
+    /// The fill handle's fill and its one-point ring.
     pub fill_handle_fill: Color32,
-    /// The fill handle's one-point ring colour: `sheet.fill_handle_ring`.
+    /// The fill handle's one-point ring colour.
     pub fill_handle_ring: Color32,
     /// The type role of the column and row headers' text, the outline buttons' digits, a
     /// condition's problem line and the field list's hints: the theme's caption role.
@@ -122,46 +137,46 @@ pub struct SheetStyle {
 impl SheetStyle {
     /// The style from the theme's tokens: `SheetStyle::of(&Tokens::of(ui))`.
     pub fn of(tokens: &UiTokens) -> SheetStyle {
-        let t = &tokens.component.sheet;
+        let (c, size, space) = (&tokens.color, &tokens.size, &tokens.space);
         SheetStyle {
-            column_header_height: t.column_header_height,
-            row_header_digit: t.row_header_digit,
-            row_header_padding: t.row_header_padding,
-            outline_lane: t.outline_lane,
-            outline_button_margin: t.outline_button_margin,
-            outline_button_min: t.outline_button_min,
-            outline_inset: t.outline_inset,
-            outline_hit: t.outline_hit,
-            outline_radius: t.outline_radius,
+            column_header_height: size.control.sm,
+            row_header_digit: size.icon.sm / 2.0,
+            row_header_padding: space.pad.panel,
+            outline_lane: size.icon.sm,
+            outline_button_margin: space.gap.tight,
+            outline_button_min: OUTLINE_BUTTON_MIN,
+            outline_inset: space.gap.tight,
+            outline_hit: OUTLINE_HIT,
+            outline_radius: tokens.shape.radius.sm,
             slicer_caption: TypeRole::BodyStrong,
-            slicer_header: t.slicer_header,
-            slicer_tile: t.slicer_tile,
-            slicer_gap: t.slicer_gap,
-            slicer_padding: t.slicer_padding,
-            slicer_clear: t.slicer_clear,
-            error_tag: t.error_tag,
-            filter_button_min: t.filter_button_min,
-            filter_button_max: t.filter_button_max,
-            filter_button_inset: t.filter_button_inset,
-            error_tag_gap: t.error_tag_gap,
-            error_tag_radius: t.error_tag_radius,
-            filter_button_radius: t.filter_button_radius,
-            filter_button_glyph_inset: t.filter_button_glyph_inset,
-            stats_gap: t.stats_gap,
+            slicer_header: size.control.md,
+            slicer_tile: size.control.sm,
+            slicer_gap: space.gap.tight,
+            slicer_padding: space.gap.inline,
+            slicer_clear: size.icon.sm,
+            error_tag: size.icon.md,
+            filter_button_min: FILTER_BUTTON_MIN,
+            filter_button_max: FILTER_BUTTON_MAX,
+            filter_button_inset: space.gap.tight,
+            error_tag_gap: space.gap.tight,
+            error_tag_radius: tokens.shape.radius.sm,
+            filter_button_radius: tokens.shape.radius.sm,
+            filter_button_glyph_inset: FILTER_GLYPH_INSET,
+            stats_gap: space.gap.stack,
             stats_text: TypeRole::Label,
-            edge_grab: t.edge_grab,
-            border_grab: t.border_grab,
-            outline_band_slack: t.outline_band_slack,
-            fill_handle: t.fill_handle,
-            header_accent_bar: t.header_accent_bar,
-            hidden_mark_offset: t.hidden_mark_offset,
-            header_separator_inset: t.header_separator_inset,
-            status_menu_min_width: t.status_menu_min_width,
-            field_list_checklist_max: t.field_list_checklist_max,
-            field_list_area_min: t.field_list_area_min,
-            selection_fill: t.selection_fill.to_egui(),
-            fill_handle_fill: t.fill_handle_fill.to_egui(),
-            fill_handle_ring: t.fill_handle_ring.to_egui(),
+            edge_grab: EDGE_GRAB,
+            border_grab: BORDER_GRAB,
+            outline_band_slack: OUTLINE_BAND_SLACK,
+            fill_handle: size.handle.sm,
+            header_accent_bar: tokens.stroke.thick,
+            hidden_mark_offset: HIDDEN_MARK_OFFSET,
+            header_separator_inset: space.gap.tight,
+            status_menu_min_width: STATUS_MENU_MIN_WIDTH,
+            field_list_checklist_max: FIELD_LIST_CHECKLIST_MAX,
+            field_list_area_min: FIELD_LIST_AREA_MIN,
+            selection_fill: c.accent.solid.with_alpha(SELECTION_ALPHA).to_egui(),
+            fill_handle_fill: c.accent.solid.to_egui(),
+            fill_handle_ring: c.surface.background.to_egui(),
             header_text: TypeRole::Caption,
             outline_text: TypeRole::Caption,
             problem_text: TypeRole::Caption,

@@ -237,7 +237,7 @@ pub enum ReportLayout {
 /// - The checklist is a kernel [`List`] whose rows carry a check-box
 ///   [`ToggleColumn`] (ticked: [`FieldListEdit::Add`], unticked:
 ///   [`FieldListEdit::Remove`]); a row's tooltip lists the field's samples. Its height is at most
-///   `sheet.field_list_checklist_max`, each area's at least `sheet.field_list_area_min`.
+///   `field_list_checklist_max`, each area's at least `field_list_area_min`.
 /// - Each area is a `List` with [`List::reorder`](craft_ui::list::List) and the
 ///   [`ListDrag`](craft_ui::behavior::ListDrag) payload, so fields drag inside an area and between
 ///   areas ([`List::accept_from`]) with the list's drop marker and ghost; each row's context menu

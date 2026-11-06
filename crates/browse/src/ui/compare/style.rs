@@ -1,27 +1,30 @@
-//! `CompareStyle` from the `tile` tokens.
+//! `CompareStyle` from the semantic tokens.
 
 use craft_ui::theme::{ToEgui as _, UiTokens};
 use egui::Color32;
 
-/// The compare tile's look. The `tile` family.
+/// The width kept for a tile's name in the caption strip.
+const NAME_ROOM: f32 = 110.0;
+
+/// The compare tile's look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CompareStyle {
-    /// `tile.compare_caption` (26).
+    /// `size.control.sm`.
     pub caption: f32,
-    /// `tile.compare_margin` (18).
+    /// `space.gap.section`.
     pub margin: f32,
-    /// `tile.compare_gap` (16).
+    /// `space.gap.section`.
     pub gap: f32,
-    /// `tile.compare_name_room` (110).
+    /// The room kept for a name.
     pub name_room: f32,
     /// The divider (`line.divider`).
     pub divider: Color32,
-    /// The active ring (`tile.ring.selected`).
+    /// The active ring (`accent.solid`).
     pub ring: Color32,
-    /// Its halo (`tile.ring.halo`).
+    /// Its halo (`overlay.halo`).
     pub ring_halo: Color32,
-    /// The veil (`tile.veil`).
+    /// The veil (`surface.scrim`).
     pub veil: Color32,
     /// The Rendering pill (`surface.scrim`) and its text (`text.on_strong`).
     pub pending_fill: Color32,
@@ -37,18 +40,17 @@ impl CompareStyle {
     /// The style of `tokens`.
     pub fn of(tokens: &UiTokens) -> CompareStyle {
         let c = &tokens.color;
-        let t = &tokens.component.tile;
         CompareStyle {
-            caption: t.compare_caption,
-            margin: t.compare_margin,
-            gap: t.compare_gap,
-            name_room: t.compare_name_room,
+            caption: tokens.size.control.sm,
+            margin: tokens.space.gap.section,
+            gap: tokens.space.gap.section,
+            name_room: NAME_ROOM,
             divider: c.line.divider.to_egui(),
-            ring: t.ring_selected.to_egui(),
-            ring_halo: t.ring_halo.to_egui(),
-            veil: t.veil.to_egui(),
-            pending_fill: t.scrim.to_egui(),
-            pill_text: t.badge_text.to_egui(),
+            ring: c.accent.solid.to_egui(),
+            ring_halo: c.overlay.halo.to_egui(),
+            veil: c.surface.scrim.to_egui(),
+            pending_fill: c.surface.scrim.to_egui(),
+            pill_text: c.text.on_strong.to_egui(),
             failed_fill: c.status.bad.solid.to_egui(),
             failed_text: c.text.on_status.to_egui(),
         }

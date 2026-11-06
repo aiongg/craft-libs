@@ -19,7 +19,7 @@ const TRIANGLE_BASE: f32 = 0.375;
 /// The `!` below the centre as a share of the box (1.5 in 16).
 const BANG_DROP: f32 = 0.09375;
 
-/// A link's status badge in a 16 box (`link.badge`): Missing a `status.bad.solid` disc with `?`
+/// A link's status badge in a 16 box (`size.icon.md`): Missing a `status.bad.solid` disc with `?`
 /// in `text.on_status`; Modified a `status.warn.solid` triangle with `!`; Unreadable a
 /// `status.bad.solid` disc with `×`; Refused a `status.bad.solid` disc with `Icon::Ban`; Embedded
 /// `Icon::Image` in `text.muted`; Ok nothing. Has no AccessKit node of its own: the row's name

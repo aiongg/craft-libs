@@ -62,7 +62,7 @@ pub struct PagePreview<'a> {
 impl<'a> PagePreview<'a> {
     /// The preview's measures, from the tokens.
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> PagePreviewStyle {
-        PagePreviewStyle { room: tokens.component.pages.preview_room }
+        PagePreviewStyle { room: tokens.space.pad.dialog }
     }
 
     /// Preview `pages` (0-based), showing `pages[*at]`.

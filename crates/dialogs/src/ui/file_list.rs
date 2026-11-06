@@ -13,6 +13,13 @@ use craft_ui::theme::{Tokens, TokensOf};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, IdSalt, Key, Modifiers, ScrollArea, Ui, UiBuilder};
 
+/// The list box's width.
+const LIST_WIDTH: f32 = 300.0;
+/// The list box shows this many rows of `size.control.md`.
+const LIST_ROWS: f32 = 6.0;
+/// The least width of the buttons beside the list.
+const BUTTON_MIN_WIDTH: f32 = 120.0;
+
 craft_ui::words! {
     /// The picker's words, English by default.
     #[non_exhaustive]
@@ -101,7 +108,7 @@ pub struct FileListPickerResponse {
 /// Photoshop's Load Files into Stack file list, after PhotoCraft's port of it.
 ///
 /// The user sees "Use:" with Files and Folder (when [`folder_mode`](Self::folder_mode) is on), the
-/// list box (300 × 160; one row per file showing its name, the full path as tooltip, and the
+/// list box (one row per file showing its name, the full path as tooltip, and the
 /// app's info line under the name when given, VectorCraft's Place list), and the buttons beside
 /// it: Browse… (an open-many picker in Files mode, a folder picker in Folder mode, both through
 /// `host.files()`), Remove (with a row selected), Add Open Files (when the app passed open
@@ -227,8 +234,8 @@ impl<'a> FileListPicker<'a> {
         let mut add_open = false;
         let mut sort = false;
         let gap = Gap::Stack.points(&tokens);
-        let list_size = egui::Vec2::from(tokens.component.file_list.size);
-        let button_min = tokens.component.file_list.button_min;
+        let list_size = egui::vec2(LIST_WIDTH, LIST_ROWS * tokens.size.control.md);
+        let button_min = BUTTON_MIN_WIDTH;
         ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = gap;
             Surface::new(SurfaceKind::Sunken).show(ui, |ui| {

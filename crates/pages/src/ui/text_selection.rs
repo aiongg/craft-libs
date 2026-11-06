@@ -232,15 +232,15 @@ impl<'a> TextSelectTool<'a> {
     /// The tool's colours and sizes, from the tokens.
     pub fn style(tokens: &UiTokens) -> TextSelectStyle {
         use craft_ui::theme::ToEgui as _;
-        let t = &tokens.component.pages;
+        let state = &tokens.color.state;
         TextSelectStyle {
-            selection: t.text_selection_fill.to_egui(),
-            found: t.find_match.to_egui(),
-            current: t.find_current.to_egui(),
-            radius: t.text_selection_radius,
-            current_radius: t.find_current_radius,
-            current_grow: t.find_current_grow,
-            column_outline: egui::Stroke::new(t.text_selection_column_outline, tokens.color.accent.solid.to_egui()),
+            selection: state.text_selection.to_egui(),
+            found: state.r#match.to_egui(),
+            current: state.match_current.to_egui(),
+            radius: tokens.shape.radius.sm,
+            current_radius: tokens.shape.radius.sm,
+            current_grow: tokens.stroke.thin,
+            column_outline: egui::Stroke::new(tokens.stroke.thin, tokens.color.accent.solid.to_egui()),
         }
     }
 }
