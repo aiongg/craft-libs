@@ -16,6 +16,9 @@ use craft_ui::localized::Labels as _;
 use craft_ui::primitives::FocusRing;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf as _, UiTokens};
 
+/// The plus's arm as a share of the button's radius.
+const PLUS_ARM_SHARE: f32 = 0.5;
+
 craft_ui::words! {
     /// The "+" buttons' names, English by default. The host may name the group for what it adds
     /// ("Add artboard beside").
@@ -53,15 +56,15 @@ impl AddSide {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AddBesideStyle {
-    /// From the object's edge to a button's centre, screen points: `add_beside.offset` (18).
+    /// From the object's edge to a button's centre, screen points.
     pub offset: f32,
-    /// A button's radius: `add_beside.radius` (8).
+    /// A button's radius.
     pub radius: f32,
-    /// The plus's arm as a share of the radius: `add_beside.arm` (0.5).
+    /// The plus's arm as a share of the radius.
     pub arm: f32,
-    /// The plus: `add_beside.line` (1.5) of `accent.solid`.
+    /// The plus, in `accent.solid`.
     pub plus: Stroke,
-    /// The ring: `add_beside.ring` (1) of `accent.solid`.
+    /// The ring, in `accent.solid`.
     pub ring: Stroke,
     /// The disc: `surface.raised`.
     pub fill: Color32,
@@ -153,14 +156,14 @@ impl<'a> AddBesideHandles<'a> {
     pub fn style(tokens: &UiTokens) -> AddBesideStyle {
         // pc: crates/ui-egui/src/tools/artboard_tool.rs:26-28 (`PLUS_OFFSET_PX` 18, `PLUS_RADIUS_PX`
         // 8), :274-279 (fill `card`, 1 pt accent ring, 1.5 pt plus, arm radius × 0.5).
-        let (b, c) = (&tokens.component.add_beside, &tokens.color);
+        let c = &tokens.color;
         let accent = c.accent.solid.to_egui();
         AddBesideStyle {
-            offset: b.offset,
-            radius: b.radius,
-            arm: b.arm,
-            plus: Stroke::new(b.line, accent),
-            ring: Stroke::new(b.ring, accent),
+            offset: tokens.space.gap.section,
+            radius: tokens.shape.radius.popup,
+            arm: PLUS_ARM_SHARE,
+            plus: Stroke::new(tokens.stroke.medium, accent),
+            ring: Stroke::new(tokens.stroke.thin, accent),
             fill: c.surface.raised.to_egui(),
             hot_fill: accent,
             hot_plus: c.text.on_strong.to_egui(),

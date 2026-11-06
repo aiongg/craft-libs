@@ -5,6 +5,7 @@ use craft_ui::direction;
 use craft_ui::icons::{self, Icon, IconSize};
 use craft_ui::localized::{Labels as _, LocaleNumbers};
 use craft_ui::primitives::Interactive;
+use craft_ui::style::brush::BrushStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format};
 use egui::accesskit::Role;
 use egui::text::{LayoutJob, TextWrapping};
@@ -14,14 +15,13 @@ use super::labels::BrushPickerLabels;
 use super::style::BrushPresetChipStyle;
 
 /// Photoshop's brush chip in the options bar: the current tip's image, its size under it and a
-/// chevron, `brush.chip` (44 × 30). A click toggles the [`BrushPresetPicker`](super::BrushPresetPicker);
+/// chevron, `chip` (44 × 30). A click toggles the [`BrushPresetPicker`](super::BrushPresetPicker);
 /// the host passes [`BrushPresetChipResponse::response`] as the picker's anchor and toggle, so a
 /// press on the chip never counts as outside the picker.
 ///
-/// - **Look.** The tip image (`brush.chip_tip`, 14) centred at `brush.chip_tip_at` from the
-///   leading top corner, the size number (`caption` role, `text.muted`) centred at
-///   `brush.chip_number_at` (25) from the top, the chevron centred `brush.chip_chevron_inset` (9)
-///   from the trailing end; the hover fill while hovered or open.
+/// - **Look.** The tip image (`icon.md`) centred near the leading top corner, the size number
+///   (`caption` role, `text.muted`) centred below it, the chevron centred `gap.stack` from the
+///   trailing end; the hover fill while hovered or open.
 /// - **Keys.** One Tab stop; Space and Enter toggle, as a button.
 /// - **AccessKit.** A `Button` named "Brush Preset picker" with `has_popup` and `expanded` (the
 ///   `Popover` sets them on its control anchor); the same text as tooltip.
@@ -55,15 +55,14 @@ impl BrushPresetChip {
 
     /// The sizes and colors of the chip from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushPresetChipStyle {
-        // pc: crates/ui-egui/src/panels/brush_controls.rs:96-108.
-        let (b, c) = (&tokens.component.brush, &tokens.color);
+        let (b, c) = (BrushStyle::new(tokens), &tokens.color);
         BrushPresetChipStyle {
             size: Vec2::from(b.chip),
-            tip: b.chip_tip,
+            tip: tokens.size.icon.md,
             tip_at: Vec2::from(b.chip_tip_at),
             chevron: b.chip_chevron,
             number_at: b.chip_number_at,
-            chevron_inset: b.chip_chevron_inset,
+            chevron_inset: tokens.space.gap.stack,
             hover: c.state.hover.to_egui(),
             number: c.text.muted.to_egui(),
             chevron_color: c.text.faint.to_egui(),

@@ -896,7 +896,7 @@ fn show_story(ui: &mut Ui, args: &mut BoxArgs) {
     let tokens = Tokens::of(ui);
     let painter = ui.painter_at(canvas.view.rect);
     let corners = state.quad.map(|p| canvas.view.to_screen(p));
-    let line = egui::Stroke::new(tokens.component.transform.line, tokens.color.overlay.line.to_egui());
+    let line = egui::Stroke::new(tokens.stroke.thin, tokens.color.overlay.line.to_egui());
     painter.add(egui::Shape::closed_line(corners.to_vec(), line));
     painter.extend(Handle::shapes(&tokens, HandleShape::Round, canvas.view.to_screen(state.pivot), ui.pixels_per_point()));
     ui.data_mut(|d| d.insert_temp(key, (state, skew_v, before)));

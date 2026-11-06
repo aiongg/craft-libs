@@ -15,6 +15,7 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use craft_ui::presets::{PresetEvent, PresetLabels, PresetReorder, PresetRow};
 use craft_ui::primitives::Divider;
+use craft_ui::style::brush::BrushStyle;
 use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
 use egui::{AsIdSalt, Id, IdSalt, Painter, Rect, Ui, Vec2, vec2};
 
@@ -99,10 +100,10 @@ type DiameterOf<'a, K> = Box<dyn Fn(&K) -> Option<f64> + 'a>;
 /// ──────●──────────────────────── grip    card scale
 /// ```
 ///
-/// - **Size.** `brush.picker_width` × `brush.picker_height` (300 × 420) until the user drags the
-///   grip; at least `brush.picker_min_*` (230 × 170); remembered between opens and kept 40 pt
+/// - **Size.** `picker_width` × `picker_height` (300 × 420) until the user drags the
+///   grip; at least `picker_min_*` (230 × 170); remembered between opens and kept 40 pt
 ///   inside the window (the popover's own rules).
-/// - **Head.** A block at most `brush.picker_head_max` (350) wide at the leading edge: the
+/// - **Head.** A block at most `picker_head_max` (350) wide at the leading edge: the
 ///   [`BrushSizeField`](crate::ui::brush_settings::BrushSizeField) (Size, 1 to
 ///   [`max_diameter`](Self::max_diameter), log slider), and the Hardness `SliderRow` (0 to
 ///   100 %) when [`BrushPickerValues::hardness`] is set. They edit the brush live and report
@@ -116,10 +117,10 @@ type DiameterOf<'a, K> = Box<dyn Fn(&K) -> Option<f64> + 'a>;
 ///   Brush Name, Brush Stroke and Brush Tip boxes (at least one stays on); Import Brushes… with
 ///   [`import`](Self::import).
 /// - **Cards.** [`BrushPresetCards`](super::BrushPresetCards) fill the height the head and
-///   footer leave (at least `brush.picker_list_min`), so closing every group doesn't shrink the
+///   footer leave (at least `picker_list_min`), so closing every group doesn't shrink the
 ///   picker. A click picks and keeps the picker open; a double-click picks and closes it.
 /// - **Footer.** The card scale slider (0.15 to 2.0, rounded to 0.01) from the leading edge to
-///   `brush.picker_grip_room` short of the grip.
+///   `picker_grip_room` short of the grip.
 /// - **Closing.** A press outside (not on the [`toggle`](Self::toggle) control, nor in a menu the
 ///   picker opened), Esc, Enter unless a card rename is open, a double-click on a card, and the
 ///   picks that open something else ([`BrushPick::closes`]). Edits made in the closing pass
@@ -218,15 +219,14 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
 
     /// The sizes of the picker from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushPickerStyle {
-        // pc: crates/ui-egui/src/tools/brush_picker.rs:33-55.
-        let b = &tokens.component.brush;
+        let b = BrushStyle::new(tokens);
         BrushPickerStyle {
             size: Vec2::new(b.picker_width, b.picker_height),
             min_size: Vec2::new(b.picker_min_width, b.picker_min_height),
             head_max: b.picker_head_max,
             list_min: b.picker_list_min,
-            gap: b.picker_gap,
-            grip_room: b.picker_grip_room,
+            gap: tokens.space.gap.inline,
+            grip_room: tokens.space.pad.dialog,
             field_min: b.picker_field_min,
         }
     }

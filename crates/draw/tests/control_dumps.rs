@@ -43,18 +43,12 @@ fn gradient_line() {
     });
 }
 
+/// Gradient palettes: the preset ring.
 #[test]
 fn gradient_palette() {
     check("gradient_palette.txt", |d, t| {
-        let g = t.component.gradient_palette;
         let ring = PresetStyle::from_tokens(t);
-        d.line("cell_width", g.cell_width)
-            .line("cell_height", g.cell_height)
-            .line("list_swatch_width", g.list_swatch_width)
-            .line("list_swatch_height", g.list_swatch_height)
-            .line("max_height", g.max_height)
-            .line("ring_selected", ring.ring_selected)
-            .line("ring_halo", ring.ring_halo);
+        d.line("ring_selected", ring.ring_selected).line("ring_halo", ring.ring_halo);
     });
 }
 

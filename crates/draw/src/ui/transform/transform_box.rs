@@ -14,6 +14,7 @@ use craft_ui::localized::{Labels, Unit, Word, Words};
 use craft_ui::popup_list;
 use craft_ui::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
 use craft_ui::story::{Level, Story, StoryChoice, Surface};
+use craft_ui::style::transform::TransformStyle as TransformGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_ui::typed_story;
 
@@ -21,10 +22,10 @@ use craft_ui::typed_story;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum RotateZone {
     /// Anywhere outside (PhotoCraft's Free Transform); the rotate pointer shows within
-    /// `transform.rotate_reach` of a corner.
+    /// `rotate_reach` of a corner.
     #[default]
     Outside,
-    /// Only `transform.band_inner` to `transform.band_outer` outside a corner (PhotoCraft's Move
+    /// Only `band_inner` to `band_outer` outside a corner (PhotoCraft's Move
     /// tool controls, DesignCraft, VectorCraft); the rest of the outside is the tool's.
     Band,
 }
@@ -146,33 +147,31 @@ impl TransformLabels {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TransformStyle {
-    /// The box line: `transform.line` of `overlay.line`, bare.
+    /// The box line: `line` of `overlay.line`, bare.
     pub line: Stroke,
     /// The 8 handles: [`Handle::style`] `Square`.
     pub handle: HandleStyle,
-    /// Distance from a handle or the reference point within which a press takes it:
-    /// `transform.hit`.
+    /// Distance from a handle or the reference point within which a press takes it.
     pub hit: f32,
-    /// Distance from a corner within which the rotate pointer shows outside: `transform.rotate_reach`.
+    /// Distance from a corner within which the rotate pointer shows outside.
     pub rotate_reach: f32,
-    /// The rotate band of [`RotateZone::Band`], from a corner: `transform.band_inner`,
-    /// `transform.band_outer`.
+    /// The rotate band of [`RotateZone::Band`], from a corner.
     pub band_inner: f32,
     /// Outer edge of the rotate band, from a corner.
     pub band_outer: f32,
-    /// Farthest a press outside may move and still be a click: `transform.click_slop`.
+    /// Farthest a press outside may move and still be a click.
     pub click_slop: f32,
-    /// The reference point's circle: `transform.pivot_radius`.
+    /// The reference point's circle.
     pub pivot_radius: f32,
-    /// Each arm of its cross, from the centre: `transform.pivot_arm`.
+    /// Each arm of its cross, from the centre.
     pub pivot_arm: f32,
-    /// The reference point's lines: `transform.line` of `overlay.handle_fill`.
+    /// The reference point's lines: `line` of `overlay.handle_fill`.
     pub pivot: Stroke,
-    /// Under them: `overlay.halo`, `handle.halo` wider on each side.
+    /// Under them: `overlay.halo`, the thin stroke width wider on each side.
     pub pivot_halo: Stroke,
     /// The focus line round the whole box: the focus ring's stroke.
     pub focus: Stroke,
-    /// Under it: `overlay.halo`, `handle.halo` wider on each side.
+    /// Under it: `overlay.halo`, the thin stroke width wider on each side.
     pub focus_halo: Stroke,
     /// From the box line to the focus line: the focus ring's offset.
     pub focus_offset: f32,
@@ -304,11 +303,11 @@ struct Drag {
 ///   and cancels on [`discard`](TransformBoxResponse::discard).
 /// - The host shows it after its guides (it draws over them) and before them in input order: the
 ///   box senses through the canvas response and takes its presses with [`Claim`] first.
-/// - Pointer: the nearest handle or the reference point within `transform.hit` on screen, else
+/// - Pointer: the nearest handle or the reference point within `hit` on screen, else
 ///   inside or outside. Parts the [rules](Self::rules) refuse don't take a press; a press outside
 ///   is taken in [`RotateZone::Outside`] even where rotating is refused, so a click there applies.
 ///   ⌥-press away from the handles moves the reference point there and drags it. A drag begins on
-///   the first move (outside, past `transform.click_slop`).
+///   the first move (outside, past `click_slop`).
 /// - Keys, whenever no text field has focus and no popup is open: Enter applies; Esc cancels a
 ///   drag, ends a held press before its first move (the rest of the press does nothing) and
 ///   otherwise discards; the arrows move the whole box, or, while the box has keyboard focus, the
@@ -452,11 +451,11 @@ impl<'a> TransformBox<'a> {
 
     /// The transform box's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> TransformStyle {
-        let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
-        let halo = tokens.component.handle.halo;
+        let (thin, o) = (tokens.stroke.thin, &tokens.color.overlay);
+        let t = TransformGeometry::new(tokens);
         let ring = FocusRing::style(tokens);
         TransformStyle {
-            line: Stroke::new(t.line, o.line.to_egui()),
+            line: Stroke::new(thin, o.line.to_egui()),
             handle: Handle::style(tokens, HandleShape::Square),
             hit: t.hit,
             rotate_reach: t.rotate_reach,
@@ -465,8 +464,8 @@ impl<'a> TransformBox<'a> {
             click_slop: t.click_slop,
             pivot_radius: t.pivot_radius,
             pivot_arm: t.pivot_arm,
-            pivot: Stroke::new(t.line, o.handle_fill.to_egui()),
-            pivot_halo: Stroke::new(t.line + 2.0 * halo, o.halo.to_egui()),
+            pivot: Stroke::new(thin, o.handle_fill.to_egui()),
+            pivot_halo: Stroke::new(thin + 2.0 * thin, o.halo.to_egui()),
             focus: ring.stroke,
             focus_halo: Stroke::new(ring.stroke.width + 2.0 * halo, o.halo.to_egui()),
             focus_offset: ring.offset,

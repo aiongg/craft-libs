@@ -4,6 +4,7 @@ use craft_ui::controls::slider::{KEY_FILTER, pointer, tap};
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::localized::{Labels as _, Units};
 use craft_ui::primitives::{FocusRing, Interactive};
+use craft_ui::style::brush::BrushStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, Stroke, Ui, Vec2, vec2};
@@ -36,7 +37,7 @@ pub enum TipEllipseGrab {
 }
 
 /// The two roundness dots, relative to the widget's centre in points (screen y down), for an
-/// ellipse of major radius `radius` (`brush.ellipse_radius`, 34): `±minor × radius ×
+/// ellipse of major radius `radius`: `±minor × radius ×
 /// clamp(roundness, 0, 1)`, where the minor axis is the major turned 90° counter-clockwise,
 /// `(−sin a, −cos a)`.
 pub fn ellipse_handles(angle: TipAngle, radius: f32) -> [Vec2; 2] {
@@ -47,7 +48,7 @@ pub fn ellipse_handles(angle: TipAngle, radius: f32) -> [Vec2; 2] {
 }
 
 /// What a press at `at` (relative to the centre) grabs: a roundness dot within `reach`
-/// (`brush.ellipse_grab`, 7) of either, else the arrow.
+/// of either, else the arrow.
 pub fn ellipse_grab(at: Vec2, angle: TipAngle, radius: f32, reach: f32) -> TipEllipseGrab {
     // pc: crates/ui-egui/src/panels/brush_sections.rs:171-173 `ellipse_grab` (`<= 7.0`)
     if ellipse_handles(angle, radius).iter().any(|h| (*h - at).length() <= reach) { TipEllipseGrab::Roundness } else { TipEllipseGrab::Angle }
@@ -78,12 +79,11 @@ pub fn ellipse_drag(grab: TipEllipseGrab, at: Vec2, angle: TipAngle, radius: f32
 /// a drag is one gesture (`Begin`, `Update`, `Commit`; Esc cancels and the value goes back); a
 /// click on the disc is a `Set`.
 ///
-/// - **Look.** `brush.ellipse_size` (84) square; the disc radius `brush.ellipse_disc` (40) on
-///   `brush.ellipse_disc_fill` with a 1 pt `brush.ellipse_disc_border` and `line.divider` cross lines; the ellipse
-///   `brush.ellipse_radius` (34) filled `text.default` at 18 % with a `brush.ellipse_line` (1.5)
-///   `text.default` outline (48 segments); an `accent` arrow of the same width to
-///   `brush.ellipse_arrow_reach` (5) past the ellipse, its head `brush.ellipse_head` (7 long, 8
-///   wide); the dots `brush.ellipse_dot` (4) in `overlay.handle_fill` with a 1 pt `accent` ring.
+/// - **Look.** A square widget; the disc on `surface.sunken` with a `stroke.thin` `line.control_edge`
+///   border and `line.divider` cross lines; the ellipse filled `text.default` at 18 % with a
+///   `stroke.medium` `text.default` outline (48 segments); an `accent` arrow of the same width
+///   reaching past the ellipse, with a head; the dots in `overlay.handle_fill` with a `stroke.thin`
+///   `accent` ring.
 ///   Focus ring around the disc.
 /// - **Keys.** One Tab stop. Up and Right turn the angle 1° counter-clockwise, Down and Left 1°
 ///   clockwise (Shift: 15°), wrapping at ±180; Alt with the arrows changes the roundness by 1 %
@@ -114,20 +114,19 @@ impl TipEllipse {
 
     /// The sizes and colors of the widget from `tokens`.
     pub fn style(tokens: &UiTokens) -> TipEllipseStyle {
-        // pc: crates/ui-egui/src/panels/brush_sections.rs:192-242.
-        let (b, c) = (&tokens.component.brush, &tokens.color);
+        let (b, c) = (BrushStyle::new(tokens), &tokens.color);
         TipEllipseStyle {
             size: b.ellipse_size,
             disc: b.ellipse_disc,
             radius: b.ellipse_radius,
             dot: b.ellipse_dot,
-            grab: b.ellipse_grab,
-            line: b.ellipse_line,
-            arrow_reach: b.ellipse_arrow_reach,
+            grab: tokens.size.hit.target,
+            line: tokens.stroke.medium,
+            arrow_reach: tokens.size.hit.target,
             head: Vec2::from(b.ellipse_head),
             disc_fill: b.ellipse_disc_fill.to_egui(),
-            disc_border: Stroke::new(1.0, b.ellipse_disc_border.to_egui()),
-            cross: Stroke::new(1.0, c.line.divider.to_egui()),
+            disc_border: Stroke::new(tokens.stroke.thin, b.ellipse_disc_border.to_egui()),
+            cross: Stroke::new(tokens.stroke.thin, c.line.divider.to_egui()),
             ellipse: c.text.normal.to_egui(),
             accent: c.accent.solid.to_egui(),
             dot_fill: c.overlay.handle_fill.to_egui(),

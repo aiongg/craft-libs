@@ -171,7 +171,7 @@ fn show_corners(ui: &mut Ui, args: &mut CornerArgs) {
     let painter = ui.painter_at(canvas.view.rect);
     let (line, fill) = (tokens.color.accent.solid.to_egui(), tokens.color.accent.solid.to_egui().gamma_multiply(0.25));
     for shape in state.shapes.iter().rev() {
-        painter.add(Shape::convex_polygon(shape.outline(&canvas.view), fill, Stroke::new(tokens.component.line_guide.width, line)));
+        painter.add(Shape::convex_polygon(shape.outline(&canvas.view), fill, Stroke::new(tokens.stroke.thin, line)));
     }
     let targets: Vec<CornerTarget> = state.shapes.iter().map(FakeShape::target).collect();
     let units = RulerUnits::pixels(LocaleNumbers::of(ui).as_ref().clone());

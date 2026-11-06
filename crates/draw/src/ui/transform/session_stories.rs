@@ -375,7 +375,7 @@ fn show_session(ui: &mut Ui, args: &mut SessionArgs) {
     let painter = ui.painter_at(canvas.view.rect);
     let corners = kept.session.quad().map(|p| canvas.view.to_screen(p));
     let accent = tokens.color.accent.solid.to_egui();
-    let stroke = Stroke::new(tokens.component.line_guide.width, accent);
+    let stroke = Stroke::new(tokens.stroke.thin, accent);
     painter.add(Shape::convex_polygon(corners.to_vec(), accent.gamma_multiply(0.5), stroke));
     painter.add(Shape::line_segment([corners[0], corners[2]], stroke));
 

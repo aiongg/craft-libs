@@ -172,7 +172,7 @@ fn paint_route(painter: &Painter, view: &CanvasView, points: &[Point], routing: 
 /// A box of the fake board.
 fn paint_box(painter: &Painter, view: &CanvasView, tokens: &UiTokens, rect: Rect) {
     let accent = tokens.color.accent.solid.to_egui();
-    let stroke = Stroke::new(tokens.component.line_guide.width, accent);
+    let stroke = Stroke::new(tokens.stroke.thin, accent);
     painter.add(Shape::convex_polygon(view.quad(rect).to_vec(), accent.gamma_multiply(0.15), stroke));
 }
 

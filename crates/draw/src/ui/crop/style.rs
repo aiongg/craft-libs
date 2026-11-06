@@ -2,26 +2,35 @@
 //! own look is [`CropStyle`](super::CropStyle).
 
 use super::bar::CropBar;
+use craft_theme::Rgba;
 use craft_ui::theme::UiTokens;
+
+/// The frame, brackets and edge bars.
+pub(super) const CROP: Rgba = Rgba::rgb(0xff, 0xff, 0xff);
+/// The composition guide lines.
+pub(super) const CROP_GUIDE: Rgba = Rgba([0xff, 0xff, 0xff, 0x5a]);
+/// A perspective quad that cannot be applied.
+pub(super) const CROP_INVALID: Rgba = Rgba::rgb(0xe5, 0x3e, 0x3e);
+
+const MENU_WIDTH: f32 = 240.0;
+const MENU_MAX_WIDTH: f32 = 300.0;
+const PRESET_WIDTH: f32 = 140.0;
 
 /// What the overlay and gear menus of the Crop options bar take.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CropBarStyle {
-    /// The overlay menu's and the gear popover's width: `crop.menu_width` (240 at both Sizes).
+    /// The overlay menu's and the gear popover's width.
     pub menu_width: f32,
-    /// The gear popover's widest: `crop.menu_max_width` (300 at both Sizes).
+    /// The gear popover's widest.
     pub menu_max_width: f32,
-    /// The ratio preset select's width: `crop.preset_width` (140 at both Sizes).
+    /// The ratio preset select's width.
     pub preset_width: f32,
 }
 
 impl CropBar<'_> {
     /// The menus' and the preset select's sizes in `tokens`.
-    pub fn style(tokens: &UiTokens) -> CropBarStyle {
-        // pc: crates/ui-egui/src/tools/crop_shield.rs:150 (240 and 300), crop_presets.rs:137 (140; the overlay menu's 220 at
-        // crop_overlay.rs:285 is unified to 240, lead call 17).
-        let c = &tokens.component.crop;
-        CropBarStyle { menu_width: c.menu_width, menu_max_width: c.menu_max_width, preset_width: c.preset_width }
+    pub fn style(_tokens: &UiTokens) -> CropBarStyle {
+        CropBarStyle { menu_width: MENU_WIDTH, menu_max_width: MENU_MAX_WIDTH, preset_width: PRESET_WIDTH }
     }
 }

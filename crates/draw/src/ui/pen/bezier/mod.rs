@@ -27,6 +27,7 @@ use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
+use craft_ui::style::bezier::BezierStyle as BezierGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
 use super::PathOptionsSettings;
@@ -181,31 +182,31 @@ impl<'a> BezierNames<'a> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BezierStyle {
-    /// Outline width: `bezier.line`.
+    /// Outline width.
     pub line: f32,
-    /// A selected segment's width: `bezier.selected_segment`.
+    /// A selected segment's width.
     pub selected_segment: f32,
     /// A path without a colour of its own: `overlay.line`.
     pub color: Color32,
-    /// An anchor: a `bezier.anchor` square of `overlay.handle_fill` outlined in
+    /// An anchor: a `anchor` square of `overlay.handle_fill` outlined in
     /// `overlay.handle_stroke`, or in the path's colour.
     pub anchor: HandleStyle,
     /// A selected anchor: filled with `overlay.handle_stroke`, or the path's colour.
     pub selected_anchor: HandleStyle,
-    /// A direction handle's end: a solid `bezier.control` dot of `overlay.handle_stroke`, or the
+    /// A direction handle's end: a solid `control` dot of `overlay.handle_stroke`, or the
     /// path's colour; its line from the anchor is the same colour.
     pub control: HandleStyle,
-    /// The line from an anchor to a handle's end: `bezier.control_line`.
+    /// The line from an anchor to a handle's end.
     pub control_line: f32,
-    /// Distance within which the pointer takes a handle, an anchor or a segment: `bezier.hit`.
+    /// Distance within which the pointer takes a handle, an anchor or a segment.
     pub hit: f32,
-    /// Farthest a press may move and still be a click: `bezier.click_slop`.
+    /// Farthest a press may move and still be a click.
     pub click_slop: f32,
-    /// Largest distance between a curve and the lines it is drawn with: `bezier.flatten`.
+    /// Largest distance between a curve and the lines it is drawn with.
     pub flatten: f32,
-    /// Side of an anchor drawn by [`BezierOverlay::highlight`]: `bezier.close_anchor`.
+    /// Side of an anchor drawn by [`BezierOverlay::highlight`].
     pub highlight_anchor: f32,
-    /// Under a highlighted segment: `overlay.halo`, `handle.halo` wider on each side.
+    /// Under a highlighted segment: `overlay.halo`, the thin stroke width wider on each side.
     pub highlight_halo: f32,
     /// The colour of [`highlight_halo`](Self::highlight_halo): `overlay.halo`.
     pub halo: Color32,
@@ -373,15 +374,15 @@ struct Pass<'p> {
 /// # });
 /// ```
 ///
-/// - Look: outlines `bezier.line` in the path's colour, flattened on the screen; a selected
-///   segment `bezier.selected_segment`; anchors hollow squares, selected ones filled; direction
+/// - Look: outlines `line` in the path's colour, flattened on the screen; a selected
+///   segment `selected_segment`; anchors hollow squares, selected ones filled; direction
 ///   handles a line and a dot, for the anchors [`handles`](Self::handles) names, never retracted
 ///   ones. Above [`MAX_ANCHORS`] anchors, outlines only.
-/// - Pointer (in screen points, within `bezier.hit`): shown handles first, then anchors, then
+/// - Pointer (in screen points, within `hit`): shown handles first, then anchors, then
 ///   segments; the nearest of each kind, of equal distances the path drawn last. The host shows
 ///   the overlay before its guides and tool input and skips the tool while
 ///   [`claimed`](BezierResponse::claimed). [`BezierTool`] says what a press does. Past
-///   `bezier.click_slop` a press drags; Esc cancels the drag and the rest of the press does
+///   `click_slop` a press drags; Esc cancels the drag and the rest of the press does
 ///   nothing.
 /// - Keyboard: one Tab stop ([`PartFocus`]). Page Down and Page Up pick the next and previous
 ///   part (anchors in path order, each followed by its shown handles, in then out), Home and End
@@ -531,7 +532,7 @@ impl<'a> BezierOverlay<'a> {
 
     /// The user's Path Options: a [`color`](PathOptionsSettings::color) replaces `overlay.line`
     /// for paths without a colour of their own, a [`thickness`](PathOptionsSettings::thickness)
-    /// replaces `bezier.line` (and `bezier.selected_segment` grows by the same amount). The
+    /// replaces `line` (and `selected_segment` grows by the same amount). The
     /// rubber band setting is the pen draft's. None by default: the tokens' look.
     pub fn path_options(mut self, options: &'a PathOptionsSettings) -> Self {
         self.path_options = Some(options);
@@ -540,24 +541,24 @@ impl<'a> BezierOverlay<'a> {
 
     /// The path overlay's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> BezierStyle {
-        let b = &tokens.component.bezier;
-        let sized = |style: HandleStyle, size| adjusted(style, |h| (h.size, h.hit) = (size, 2.0 * b.hit));
-        let anchor = sized(Handle::style(tokens, HandleShape::Square), b.anchor);
-        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), b.anchor);
-        let control = sized(Handle::style(tokens, HandleShape::Rotate), b.control);
+        let (stroke, size) = (&tokens.stroke, &tokens.size);
+        let sized = |style: HandleStyle, side| adjusted(style, |h| (h.size, h.hit) = (side, 2.0 * size.hit.target));
+        let anchor = sized(Handle::style(tokens, HandleShape::Square), size.handle.sm);
+        let selected_anchor = sized(Handle::selected_style(tokens, HandleShape::Square), size.handle.sm);
+        let control = sized(Handle::style(tokens, HandleShape::Rotate), size.handle.sm);
         BezierStyle {
-            line: b.line,
-            selected_segment: b.selected_segment,
+            line: stroke.thin,
+            selected_segment: stroke.thick,
             color: tokens.color.overlay.line.to_egui(),
             anchor,
             selected_anchor,
             control,
-            control_line: b.control_line,
-            hit: b.hit,
-            click_slop: b.click_slop,
-            flatten: b.flatten,
-            highlight_anchor: b.close_anchor,
-            highlight_halo: tokens.component.handle.halo,
+            control_line: stroke.thin,
+            hit: size.hit.target,
+            click_slop: size.hit.slop,
+            flatten: BezierGeometry::new(tokens).flatten,
+            highlight_anchor: size.handle.md,
+            highlight_halo: stroke.thin,
             halo: tokens.color.overlay.halo.to_egui(),
         }
     }

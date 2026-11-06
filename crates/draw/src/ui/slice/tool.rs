@@ -24,7 +24,7 @@ use craft_ui::localized::Labels as _;
 /// document.
 ///
 /// Slice mode:
-/// - Normal: press and drag; a drag no wider and no taller than `slice.click_slop` (2 document
+/// - Normal: press and drag; a drag no wider and no taller than `click_slop` (2 document
 ///   pixels) is a click that selects the slice under the point (a `Select` event). Fixed Ratio:
 ///   [`fixed_ratio_pixels`](crate::geometry::slice::fixed_ratio_pixels). Fixed Size: exactly its
 ///   pixels, made by a click (`fixed_size_pixels`), previewed from the press. Normal uses
@@ -137,7 +137,7 @@ impl SliceTool {
         self
     }
 
-    /// The slice colour preference (Guides, Grid & Slices); `overlay.slice` when `None`.
+    /// The slice colour preference (Guides, Grid & Slices); the slice colour when `None`.
     pub fn color(&mut self, color: Option<Srgba>) -> &mut Self {
         self.color = color;
         self

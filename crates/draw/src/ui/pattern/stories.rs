@@ -99,7 +99,7 @@ fn swatches(ui: &Ui) -> Vec<PatternSwatch> {
 fn paint(tokens: &UiTokens) -> impl Fn(&Painter, Rect, &PatternSwatch) + Send + Sync + 'static {
     let ink = Content::Normal.color(tokens).to_egui();
     let paper = Content::Muted.color(tokens).to_egui().gamma_multiply(0.25);
-    let width = tokens.component.line_guide.width;
+    let width = tokens.stroke.thin;
     move |painter, rect, swatch| {
         let painter = painter.with_clip_rect(rect);
         painter.rect_filled(rect, 0.0, paper);
