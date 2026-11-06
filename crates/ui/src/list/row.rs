@@ -1104,27 +1104,27 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
             text: color.text.normal.to_egui(),
             dimmed: color.text.faint.to_egui(),
             muted: color.text.muted.to_egui(),
-            selected_text: color.text.on_selected.to_egui(),
-            selected_dimmed: color.text.on_selected.to_egui(),
+            selected_text: list.selected_text.to_egui(),
+            selected_dimmed: list.selected_quiet.to_egui(),
             detail: color.text.faint.to_egui(),
-            selected_detail: color.text.on_selected.to_egui(),
+            selected_detail: list.selected_quiet.to_egui(),
             icon: color.text.muted.to_egui(),
             icon_hover: color.text.normal.to_egui(),
             hover: list.hover.to_egui(),
-            selected: color.state.selected.to_egui(),
-            selected_hover: color.state.selected_hover.to_egui(),
+            selected: list.selected.to_egui(),
+            selected_hover: list.selected_hover.to_egui(),
             stripe: list.stripe.to_egui(),
             divider: Stroke::new(Hairline::Hairline.width(1.0), color.line.divider.to_egui()),
             thumb_border: color.line.border.to_egui(),
             thumb_border_selected: color.line.border.to_egui(),
-            thumb_radius: tokens.shape.radius.sm,
+            thumb_radius: if rounded { tokens.shape.radius.sm } else { 0.0 },
             layer_hover: list.layer_hover.to_egui(),
-            layer_selected: color.state.selected.to_egui(),
-            layer_outline: Color32::TRANSPARENT,
-            layer_radius: tokens.shape.radius.control,
-            layer_selected_text: color.text.on_selected.to_egui(),
-            layer_selected_dimmed: color.text.on_selected.to_egui(),
-            layer_selected_detail: color.text.on_selected.to_egui(),
+            layer_selected: list.layer_selected.to_egui(),
+            layer_outline: list.layer_outline.to_egui(),
+            layer_radius: if rounded { tokens.shape.radius.control } else { 0.0 },
+            layer_selected_text: list.layer_selected_text.to_egui(),
+            layer_selected_dimmed: list.layer_selected_quiet.to_egui(),
+            layer_selected_detail: list.layer_selected_quiet.to_egui(),
             drop: color.accent.solid.to_egui(),
             drop_halo: Stroke::new(tokens.stroke.thin, color.surface.panel.to_egui()),
             ghost_fill: color.surface.raised.to_egui(),
@@ -1573,7 +1573,7 @@ fn paint_background(ui: &Ui, style: &ListRowStyle, rect: Rect, Fill { selected, 
         painter.rect_filled(rect, radius, fill);
     }
     if layer && selected && style.layer_outline != Color32::TRANSPARENT {
-        painter.rect_stroke(rect, radius, Stroke::new(1.0, style.layer_outline), StrokeKind::Inside);
+        painter.rect_stroke(rect, radius, Stroke::new(crate::style::list::LAYER_OUTLINE_WIDTH, style.layer_outline), StrokeKind::Inside);
     }
     if layer && style.dividers {
         let ppp = ui.pixels_per_point();

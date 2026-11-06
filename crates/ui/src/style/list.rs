@@ -1,6 +1,6 @@
 //! Style of the `list` family.
 
-use craft_theme::{Contrast, Rgba, visible_hover};
+use craft_theme::{Contrast, Identify, Oklab, Rgba, contrast_ratio, ensure_contrast, identifiable_outline, over, visible_hover};
 
 use crate::theme::UiTokens;
 
@@ -12,6 +12,17 @@ const HOVER_OPACITY: f32 = 0.5;
 const STRIPE_OPACITY: f32 = 0.25;
 /// Opacity of the accent tint in a layer row's hover fill.
 const LAYER_TINT_OPACITY: f32 = 0.12;
+
+/// How far the selected row's quiet text moves from its text toward the selected fill.
+const SELECTED_QUIET: f64 = 0.4;
+/// Least contrast ratio of text on a fill: standard, high.
+const TEXT_MIN: (f64, f64) = (4.5, 7.0);
+/// Least contrast ratio of a state fill on the panel: standard, high.
+const NON_TEXT_MIN: (f64, f64) = (3.0, 4.5);
+/// Least step of a selected fill beside its hovered fill, as a contrast ratio.
+const HOVER_STEP_MIN: f64 = 1.12;
+/// Width of the layer row's selected outline.
+pub const LAYER_OUTLINE_WIDTH: f32 = 1.0;
 
 /// Sizes and fills of list rows that the semantic tokens don't name.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -32,6 +43,71 @@ pub struct ListStyle {
     pub stripe: Rgba,
     /// Fill of a hovered layer row.
     pub layer_hover: Rgba,
+    /// Fill of a selected row.
+    pub selected: Rgba,
+    /// Fill of a selected row under the pointer.
+    pub selected_hover: Rgba,
+    /// Text of a selected row.
+    pub selected_text: Rgba,
+    /// Quiet text of a selected row (details, a hidden layer's name).
+    pub selected_quiet: Rgba,
+    /// Fill of a selected layer row.
+    pub layer_selected: Rgba,
+    /// Text of a selected layer row.
+    pub layer_selected_text: Rgba,
+    /// Quiet text of a selected layer row.
+    pub layer_selected_quiet: Rgba,
+    /// Outline of a selected layer row; transparent where the selected fill shows on the panel alone.
+    pub layer_outline: Rgba,
+}
+
+/// A selected row's fills and text: unchanged in standard contrast, moved to identify the state on
+/// the panel in high contrast.
+struct SelectedLook {
+    selected: Rgba,
+    selected_hover: Rgba,
+    text: Rgba,
+    quiet: Rgba,
+}
+
+impl SelectedLook {
+    /// `text` is the label on the unmoved fills; `edge` an outline that identifies the selected row
+    /// as well as its fill.
+    fn of(panel: Rgba, selected: Rgba, selected_hover: Rgba, text: Rgba, edge: Option<Rgba>, high: bool) -> Self {
+        let on = [panel];
+        let identify = || edge.map_or_else(|| Identify::on(&on, high), |e| Identify::on(&on, high).edge(e));
+        let (moved, text_on) = identify().fill(selected, text);
+        // A theme whose selected row has a distinct hover step keeps one.
+        let stepped = contrast_ratio(over(selected_hover, panel), over(selected, panel)) >= HOVER_STEP_MIN;
+        let apart: &[Rgba] = if stepped { &[moved] } else { &[] };
+        let (moved_hover, text_on) = identify().apart(apart).with(&[moved]).fill(selected_hover, text_on);
+        let fills = [moved, moved_hover];
+        // Text that already reads on the unmoved fills stays as it is.
+        let text = if fills == [selected, selected_hover] { text } else { readable_on(text_on, &fills, panel, high) };
+        Self { selected: moved, selected_hover: moved_hover, text, quiet: quiet_on_selected(text, &fills, panel, high) }
+    }
+}
+
+/// `text` moved until it reads (the text minimum) on every fill, over `rest`.
+fn readable_on(text: Rgba, fills: &[Rgba], rest: Rgba, high: bool) -> Rgba {
+    let min = if high { TEXT_MIN.1 } else { TEXT_MIN.0 };
+    // Moving away from one fill can move toward the other only when they sit either side of the
+    // text; a second round settles that case.
+    (0..2).fold(text, |text, _| fills.iter().fold(text, |text, &fill| ensure_contrast(text, over(fill, rest), min)))
+}
+
+/// The selected row's text moved toward the selected fill, then as far back as text needs to read
+/// on both selected fills.
+fn quiet_on_selected(text: Rgba, fills: &[Rgba; 2], rest: Rgba, high: bool) -> Rgba {
+    let quiet = mix(text, over(fills[0], rest), SELECTED_QUIET);
+    readable_on(quiet, fills, rest, high)
+}
+
+/// Linear interpolation in OKLab, opaque.
+fn mix(a: Rgba, b: Rgba, t: f64) -> Rgba {
+    let (a, b) = (a.to_oklab(), b.to_oklab());
+    let lerp = |x: f64, y: f64| x + (y - x) * t;
+    Oklab { l: lerp(a.l, b.l), a: lerp(a.a, b.a), b: lerp(a.b, b.b) }.to_oklch().to_rgba()
 }
 
 impl ListStyle {
@@ -48,6 +124,14 @@ impl ListStyle {
             let readable = craft_theme::contrast_ratio(color.text.normal, craft_theme::over(moved, color.surface.panel)) >= 7.0;
             layer_hover = if readable { moved } else { hover };
         }
+        let panel = color.surface.panel;
+        let plain = SelectedLook::of(panel, color.state.selected, color.state.selected_hover, color.text.on_selected, None, high);
+        let bare = SelectedLook::of(panel, color.state.selected, color.state.selected, color.text.on_selected, None, high);
+        // A selected layer carries an outline where its fill alone doesn't show on the panel.
+        let min = if high { NON_TEXT_MIN.1 } else { NON_TEXT_MIN.0 };
+        let shows = contrast_ratio(over(bare.selected, panel), panel) >= min;
+        let outline = (!shows).then(|| identifiable_outline(color.line.control_edge, bare.selected, &[panel], high));
+        let layer = SelectedLook::of(panel, color.state.selected, color.state.selected, color.text.on_selected, outline, high);
         Self {
             row_height_dense: tokens.typography.body.line_height + 2.0 * space.gap.tight,
             thumb_row_min: size.thumb.md + 2.0 * space.gap.tight,
@@ -57,6 +141,14 @@ impl ListStyle {
             hover,
             stripe: color.state.hover.faded(STRIPE_OPACITY),
             layer_hover,
+            selected: plain.selected,
+            selected_hover: plain.selected_hover,
+            selected_text: plain.text,
+            selected_quiet: plain.quiet,
+            layer_selected: layer.selected,
+            layer_selected_text: layer.text,
+            layer_selected_quiet: layer.quiet,
+            layer_outline: outline.unwrap_or(Rgba::TRANSPARENT),
         }
     }
 }

@@ -224,7 +224,13 @@ impl<'a> LayerFilterBar<'a> {
         // 4 more after it, kind buttons 22, name field, mode dropdown).
         let Self { id_salt, filter, blend_modes, labels } = self;
         let labels = labels.unwrap_or_else(|| LayerFilterLabels::of(ui));
-        let style = LayersStyle::of(&Tokens::of(ui));
+        let tokens = Tokens::of(ui);
+        let style = LayersStyle::of(&tokens);
+        let type_width = LayersStyle::filter_type_width(
+            ui,
+            &tokens,
+            [labels.kind.as_str(), labels.name.as_str(), labels.mode.as_str(), labels.filter_type.as_str()],
+        );
         let size = ControlSize::Sm;
         let mut changed = false;
         let row = ui.horizontal(|ui| {
@@ -234,7 +240,7 @@ impl<'a> LayerFilterBar<'a> {
                 .option(FilterBy::Kind, labels.kind.as_str())
                 .option(FilterBy::Name, labels.name.as_str())
                 .option(FilterBy::Mode, labels.mode.as_str())
-                .width(style.filter_type_width)
+                .width(type_width)
                 .size(size)
                 .show(ui);
             ui.add_space(style.filter_type_gap);
