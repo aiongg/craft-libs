@@ -24,9 +24,9 @@ impl MeasureStyle {
     pub fn of(tokens: &UiTokens) -> Self {
         // pc: crates/ui-egui/src/tools/analysis_ui.rs:210 (7 / zoom), :408 `handle` (5 pt arms,
         // 3 pt black under 1 pt white), :489 `readout` (6 pt gap); the line from
-        // `LineGuideStyle::of`.
+        // `LineGuideStyle::new`.
         Self {
-            line: LineGuideStyle::of(tokens),
+            line: LineGuideStyle::new(tokens),
             hit: tokens.size.hit.target,
             handle_arm: tokens.size.handle.sm,
             readout_gap: tokens.space.gap.inline,

@@ -5,14 +5,9 @@ use kurbo::{Point, Rect, Vec2};
 
 use super::guides::dashes;
 use super::{CanvasView, GuideLine, crisp_shape};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+pub use crate::style::grid::GridStyle;
+use crate::theme::{Tokens, TokensOf, UiTokens};
 
-/// A page's margin guide colour when the host gives none: InDesign's magenta.
-pub const DEFAULT_PAGE_MARGINS: craft_theme::Rgba = craft_theme::Rgba::rgb(255, 56, 255);
-/// A page's column guide colour when the host gives none: InDesign's violet.
-pub const DEFAULT_PAGE_COLUMNS: craft_theme::Rgba = craft_theme::Rgba::rgb(166, 40, 255);
-/// A page's baseline grid colour when the host gives none: InDesign's light blue.
-pub const DEFAULT_PAGE_BASELINE: craft_theme::Rgba = craft_theme::Rgba::rgb(140, 205, 230);
 /// Most lines the grid draws along one axis.
 pub const MAX_LINES: usize = 10_000;
 /// Most crossing dots the grid draws.
@@ -40,32 +35,6 @@ impl From<GuideLine> for GridLine {
             GuideLine::Dots => GridLine::Dots,
         }
     }
-}
-
-/// The grid's look, from [`CanvasGrid::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct GridStyle {
-    /// Line width: `stroke.thin`.
-    pub width: f32,
-    /// Minor lines' share of the colour's alpha.
-    pub minor_alpha: f32,
-    /// Smallest step in screen points at which an axis draws.
-    pub min_step: f32,
-    /// Side of a crossing dot: `stroke.medium`.
-    pub crossing: f32,
-    /// Smallest major spacing in screen points at which crossings draw.
-    pub crossing_min: f32,
-    /// Dashes and gaps of the Dashed style: `stroke.dash`, `stroke.dash_gap`.
-    pub dash: f32,
-    /// The gap length of the Dashed style, in screen points.
-    pub gap: f32,
-    /// Dot spacing of the Dots style: `stroke.dash_gap`.
-    pub dot_gap: f32,
-    /// The dot radius of the Dots style, in screen points.
-    pub dot_radius: f32,
-    /// `overlay.grid`.
-    pub color: Color32,
 }
 
 /// Which lines of one axis draw: positions in document units along the axis.
@@ -170,19 +139,7 @@ impl CanvasGrid {
 
     /// The grid look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GridStyle {
-        let g = crate::style::grid::GridStyle::new(tokens);
-        GridStyle {
-            width: tokens.stroke.thin,
-            minor_alpha: g.minor_alpha,
-            min_step: g.min_step,
-            crossing: tokens.stroke.medium,
-            crossing_min: g.crossing_min,
-            dash: tokens.stroke.dash,
-            gap: tokens.stroke.dash_gap,
-            dot_gap: tokens.stroke.dash_gap,
-            dot_radius: crate::style::guide::GuideStyle::new(tokens).dot_radius,
-            color: tokens.color.overlay.grid.to_egui(),
-        }
+        GridStyle::new(tokens)
     }
 
     /// The lines to draw in `view`: positions only, no painting.

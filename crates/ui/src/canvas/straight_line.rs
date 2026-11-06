@@ -9,37 +9,14 @@
 //! use craft_ui::canvas::straight_line::{LineGuideStyle, StraightLinePreview};
 //! # fn demo(painter: &egui::Painter, view: &craft_ui::canvas::CanvasView, tokens: &craft_ui::theme::UiTokens,
 //! #         last_stroke_end: kurbo::Point, pointer: kurbo::Point) {
-//! StraightLinePreview::new(last_stroke_end, pointer).paint(painter, view, &LineGuideStyle::of(tokens));
+//! StraightLinePreview::new(last_stroke_end, pointer).paint(painter, view, &LineGuideStyle::new(tokens));
 //! # }
 //! ```
-use egui::{Color32, Painter, Stroke};
+use egui::{Painter, Stroke};
 use kurbo::Point;
 
 use super::CanvasView;
-use crate::theme::{ToEgui, UiTokens};
-
-/// The look of a guide line drawn on the document (the Shift-click line, the Ruler line and its
-/// protractor arm): a wide halo under a thin line, from the semantic tokens.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct LineGuideStyle {
-    /// Width of the line in points: `stroke.thin`.
-    pub width: f32,
-    /// Width of the halo under it: `stroke.medium + 2 * stroke.thin`.
-    pub halo: f32,
-    /// The line's colour: `overlay.stroke`.
-    pub line: Color32,
-    /// The halo's colour: `overlay.halo`.
-    pub halo_color: Color32,
-}
-
-impl LineGuideStyle {
-    /// The style from `tokens`.
-    pub fn of(tokens: &UiTokens) -> Self {
-        let o = &tokens.color.overlay;
-        let g = crate::style::line_guide::LineGuideStyle::new(tokens);
-        Self { width: tokens.stroke.thin, halo: g.halo, line: o.stroke.to_egui(), halo_color: o.halo.to_egui() }
-    }
-}
+pub use crate::style::line_guide::LineGuideStyle;
 
 /// The Shift-click line from `from` (the end of the last stroke) to `to` (the pointer), both in
 /// document units.

@@ -5,8 +5,8 @@ use crate::canvas::story::ViewArgs;
 use crate::localized::Labels as _;
 use egui::accesskit::{self, Role};
 use egui::{
-    Align2, AsIdSalt, Color32, Context, CursorIcon, FontId, Id, IdSalt, LayerId, Modifiers, Painter, Pos2, Rect as ScreenRect, Response, Sense,
-    Stroke, Ui, WidgetInfo, pos2, vec2,
+    Align2, AsIdSalt, Context, CursorIcon, Id, IdSalt, LayerId, Modifiers, Painter, Pos2, Rect as ScreenRect, Response, Sense, Ui, WidgetInfo, pos2,
+    vec2,
 };
 use kurbo::Point;
 use std::ops::{Range, RangeInclusive};
@@ -20,7 +20,8 @@ use crate::localized::units::{LengthUnit, LengthUnitLabels};
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::primitives::Divider;
 use crate::story::{Level, Story, StoryChoice, Surface};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+pub use crate::style::ruler::RulerStyle;
+use crate::theme::{Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
 /// A press that began on a ruler strip, kept until it ends.
@@ -93,36 +94,6 @@ pub struct RulersResponse {
     /// A unit picked from the rulers' own units menu ([`Rulers::units_menu`]): the host stores
     /// it as the ruler unit preference.
     pub unit_picked: Option<LengthUnit>,
-}
-
-/// The rulers' look, from [`Rulers::style`].
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct RulerStyle {
-    /// Thickness of a strip and side of the corner: `size.icon.sm`.
-    pub size: f32,
-    /// The labels' font: the UI face at `typography.caption.size`.
-    pub font: FontId,
-    /// Between the characters of the left ruler's labels: the label pitch.
-    pub label_pitch: f32,
-    /// Between a tick and its label: `space.gap.tight`.
-    pub label_pad: f32,
-    /// Least distance between labelled ticks: the least tick step.
-    pub step_min: f32,
-    /// Length of the tick halfway between labelled ticks: the mid tick length.
-    pub tick_mid: f32,
-    /// Length of the other minor ticks: the minor tick length.
-    pub tick_minor: f32,
-    /// The strips and the corner: `surface.chrome`.
-    pub fill: Color32,
-    /// 1 point of `text.faint`.
-    pub tick: Stroke,
-    /// Labels: `text.muted`.
-    pub label: Color32,
-    /// The pointer's marker and the cross hairs of a zero point drag: 1 point of `text.normal`.
-    pub marker: Stroke,
-    /// The margin part of a strip, where the text part keeps `fill`: `surface.sunken`.
-    pub margin_shade: Color32,
 }
 
 crate::words! {
@@ -340,23 +311,7 @@ impl<'a> Rulers<'a> {
 
     /// The ruler look in `tokens`.
     pub fn style(tokens: &UiTokens) -> RulerStyle {
-        let c = &tokens.color;
-        let r = crate::style::ruler::RulerStyle::new(tokens);
-        let family = tokens.families().family(craft_theme::FontSlot::Ui).clone();
-        RulerStyle {
-            size: tokens.size.icon.sm,
-            font: FontId::new(tokens.typography.caption.size, family),
-            label_pitch: r.label_pitch,
-            label_pad: tokens.space.gap.tight,
-            step_min: r.step_min,
-            tick_mid: r.tick_mid,
-            tick_minor: r.tick_minor,
-            fill: c.surface.chrome.to_egui(),
-            tick: Stroke::new(tokens.stroke.thin, c.text.faint.to_egui()),
-            label: c.text.muted.to_egui(),
-            marker: Stroke::new(tokens.stroke.thin, c.text.normal.to_egui()),
-            margin_shade: c.surface.sunken.to_egui(),
-        }
+        RulerStyle::new(tokens)
     }
 
     /// Draws the rulers in `full` for `view` (whose rect is [`content_rect`](Self::content_rect)
