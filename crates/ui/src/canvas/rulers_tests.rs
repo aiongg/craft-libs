@@ -12,7 +12,10 @@ use crate::localized::LocaleNumbers;
 use crate::localized::units::LengthUnit;
 use crate::theme::{Base, ToEgui as _, install};
 
-const SIZE: f32 = 16.0;
+/// Thickness of a ruler strip in the suite default theme.
+fn strip() -> f32 {
+    Rulers::style(&crate::theme::current(&egui::Context::default())).size
+}
 
 struct Host {
     zoom: f64,
@@ -58,11 +61,11 @@ impl Host {
 }
 
 fn harness(host: Host) -> Harness<'static, Host> {
-    let size = host.canvas + vec2(SIZE + 40.0, SIZE + 40.0);
+    let size = host.canvas + vec2(strip() + 40.0, strip() + 40.0);
     Harness::<Host>::builder().with_size(size).with_step_dt(1.0 / 60.0).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui_state(
         |ui, host: &mut Host| {
-            let full = ScreenRect::from_min_size(pos2(20.0, 20.0), host.canvas + vec2(SIZE, SIZE));
-            let content = ScreenRect::from_min_max(full.min + vec2(SIZE, SIZE), full.max);
+            let full = ScreenRect::from_min_size(pos2(20.0, 20.0), host.canvas + vec2(strip(), strip()));
+            let content = ScreenRect::from_min_max(full.min + vec2(strip(), strip()), full.max);
             let canvas = ui.interact(content, ui.scope_id().with("canvas"), Sense::click_and_drag() - Sense::FOCUSABLE);
             let center = Point::new(f64::from(host.canvas.x) / 2.0, f64::from(host.canvas.y) / 2.0);
             let view = CanvasView { rotation: host.rotation, flip_x: host.flip, ..CanvasView::new(content, center, host.zoom) };
@@ -113,15 +116,15 @@ fn view(h: &Harness<'_, Host>) -> CanvasView {
 }
 
 fn corner(h: &Harness<'_, Host>) -> Pos2 {
-    view(h).rect.min - vec2(SIZE / 2.0, SIZE / 2.0)
+    view(h).rect.min - vec2(strip() / 2.0, strip() / 2.0)
 }
 
 fn top_ruler(h: &Harness<'_, Host>, x: f32) -> Pos2 {
-    pos2(x, view(h).rect.min.y - SIZE / 2.0)
+    pos2(x, view(h).rect.min.y - strip() / 2.0)
 }
 
 fn left_ruler(h: &Harness<'_, Host>, y: f32) -> Pos2 {
-    pos2(view(h).rect.min.x - SIZE / 2.0, y)
+    pos2(view(h).rect.min.x - strip() / 2.0, y)
 }
 
 fn button(pos: Pos2, pressed: bool, modifiers: Modifiers) -> Event {
@@ -220,7 +223,7 @@ fn labels_stay_out_of_the_corner() {
         let host = Host { zoom, flip, rotation, canvas: vec2(width - 80.0, 300.0), ..Host::new() };
         let mut h = harness(host);
         h.run();
-        let corner = ScreenRect::from_center_size(corner(&h), vec2(SIZE, SIZE));
+        let corner = ScreenRect::from_center_size(corner(&h), vec2(strip(), strip()));
         h.event(Event::PointerMoved(corner.center()));
         h.run_steps(4);
         let (mut ticks, mut labels) = (0, 0);
@@ -274,7 +277,7 @@ fn the_left_ruler_centres_the_characters_of_a_label() {
         .collect();
     assert!(centres.len() > 2);
     for c in centres {
-        assert!((c - (v.rect.min.x - SIZE / 2.0)).abs() < 0.01, "character centre {c}");
+        assert!((c - (v.rect.min.x - strip() / 2.0)).abs() < 0.01, "character centre {c}");
     }
 }
 
@@ -585,14 +588,14 @@ fn a_ruler_menu_pick_reports_the_unit() {
         .build_ui_state(
             |ui, seen: &mut Seen| {
                 let full = ScreenRect::from_min_size(pos2(20.0, 20.0), vec2(200.0, 200.0));
-                let content = ScreenRect::from_min_max(full.min + vec2(SIZE, SIZE), full.max);
+                let content = ScreenRect::from_min_max(full.min + vec2(strip(), strip()), full.max);
                 let view = CanvasView::new(content, Point::new(100.0, 100.0), 1.0);
                 let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
                 let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
                 let out = Rulers::new("rulers", &px, &px, names).units_menu(&LengthUnit::ALL, LengthUnit::Pixels).show(ui, full, &view, None);
                 seen.picked.extend(out.unit_picked);
                 seen.contexts += usize::from(out.context.is_some());
-                seen.corner = content.min - vec2(SIZE / 2.0, SIZE / 2.0);
+                seen.corner = content.min - vec2(strip() / 2.0, strip() / 2.0);
             },
             Seen::default(),
         );
@@ -621,8 +624,8 @@ fn a_ruler_menu_pick_reports_the_unit() {
 #[test]
 fn the_margin_spans_are_shaded_in_each_strip() {
     let mut h = Harness::builder().with_size(vec2(440.0, 340.0)).with_context_setup(|ctx| install(ctx, &Base::suite_default())).build_ui(|ui| {
-        let full = ScreenRect::from_min_size(pos2(20.0, 20.0), vec2(400.0 + SIZE, 300.0 + SIZE));
-        let content = ScreenRect::from_min_max(full.min + vec2(SIZE, SIZE), full.max);
+        let full = ScreenRect::from_min_size(pos2(20.0, 20.0), vec2(400.0 + strip(), 300.0 + strip()));
+        let content = ScreenRect::from_min_max(full.min + vec2(strip(), strip()), full.max);
         let view = CanvasView::new(content, Point::new(200.0, 150.0), 1.0);
         let px = RulerUnits::pixels(LocaleNumbers::from_tag("en").ungrouped());
         let names = RulerNames::new("Horizontal ruler", "Vertical ruler", "Ruler origin");
@@ -632,14 +635,14 @@ fn the_margin_spans_are_shaded_in_each_strip() {
     let shade = crate::theme::current(&h.ctx).color.surface.sunken.to_egui();
     let shades: Vec<ScreenRect> =
         h.output().shapes.iter().filter_map(|s| if let Shape::Rect(r) = &s.shape { (r.fill == shade).then_some(r.rect) } else { None }).collect();
-    let (left, top) = (20.0 + SIZE, 20.0 + SIZE);
+    let (left, top) = (20.0 + strip(), 20.0 + strip());
     // View centre (200, 150) is at the content's centre: document x 0 is 200 points left of it.
     let x0 = left + 400.0 / 2.0 - 200.0;
     let y0 = top + 300.0 / 2.0 - 150.0;
     let expected = [
-        ScreenRect::from_min_max(pos2(x0, 20.0), pos2(x0 + 50.0, 20.0 + SIZE)),
-        ScreenRect::from_min_max(pos2(x0 + 350.0, 20.0), pos2(x0 + 400.0, 20.0 + SIZE)),
-        ScreenRect::from_min_max(pos2(20.0, y0 + 20.0), pos2(20.0 + SIZE, y0 + 40.0)),
+        ScreenRect::from_min_max(pos2(x0, 20.0), pos2(x0 + 50.0, 20.0 + strip())),
+        ScreenRect::from_min_max(pos2(x0 + 350.0, 20.0), pos2(x0 + 400.0, 20.0 + strip())),
+        ScreenRect::from_min_max(pos2(20.0, y0 + 20.0), pos2(20.0 + strip(), y0 + 40.0)),
     ];
     assert_eq!(shades, expected);
 }

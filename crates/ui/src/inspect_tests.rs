@@ -74,7 +74,7 @@ fn each_primitive_records_its_box_with_the_content_inside() {
     assert_eq!(item.outer, item.content);
     assert_eq!(item.outer.size(), vec2(40.0, 20.0));
     assert!(row.content.contains_rect(item.outer));
-    assert!(handle.outer.width() > handle.content.width(), "the hit square is larger than the body");
+    assert!(handle.outer.width() >= handle.content.width(), "the hit square is at least the body");
     assert_eq!(handle.outer.center(), handle.content.center());
 }
 

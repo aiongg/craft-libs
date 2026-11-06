@@ -44,22 +44,24 @@ fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {
 
 #[test]
 fn bar_sits_above_the_selection_and_flips_below() {
+    let tokens = Base::suite_default().shown(craft_theme::Mode::Light).resolved.tokens.clone();
+    let (height, above_gap, below_gap, inset) = (tokens.size.bar.options, tokens.space.gap.stack, tokens.space.pad.panel, tokens.space.gap.stack);
     let middle = selection((300.0, 200.0), (500.0, 300.0));
     let width = 200.0;
-    assert_eq!(place(CANVAS, middle, width, false, &bar()), pos2(300.0, 314.0), "14 pt below, centred");
-    assert_eq!(place(CANVAS, middle, width, true, &bar()), pos2(300.0, 200.0 - 36.0 - 8.0), "8 pt above, centred");
+    assert_eq!(place(CANVAS, middle, width, false, &bar()), pos2(300.0, 300.0 + below_gap), "below, centred");
+    assert_eq!(place(CANVAS, middle, width, true, &bar()), pos2(300.0, 200.0 - height - above_gap), "above, centred");
 
     let high = selection((300.0, 20.0), (500.0, 100.0));
-    assert_eq!(place(CANVAS, high, width, true, &bar()).y, 108.0, "no room above: below");
+    assert_eq!(place(CANVAS, high, width, true, &bar()).y, 100.0 + above_gap, "no room above: below");
 
     let low = selection((300.0, 400.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, low, width, false, &bar()).y, 400.0 - 36.0 - 14.0, "no room below: above");
+    assert_eq!(place(CANVAS, low, width, false, &bar()).y, 400.0 - height - below_gap, "no room below: above");
 
     let tall = selection((300.0, 20.0), (500.0, 590.0));
-    assert_eq!(place(CANVAS, tall, width, false, &bar()).y, 600.0 - 8.0 - 36.0, "neither fits: the canvas's bottom less 8 pt");
+    assert_eq!(place(CANVAS, tall, width, false, &bar()).y, 600.0 - inset - height, "neither fits: the canvas's bottom less the inset");
 
     let corner = selection((0.0, 200.0), (20.0, 300.0));
-    assert_eq!(place(CANVAS, corner, width, false, &bar()).x, 8.0, "x stays 8 pt inside the canvas");
+    assert_eq!(place(CANVAS, corner, width, false, &bar()).x, inset, "x stays an inset inside the canvas");
 
     // The drawn bar uses the width it measured on the previous frame.
     let mut h = host(Some(middle), false);

@@ -452,19 +452,8 @@ fn pointer_tooltips_draw_the_themed_card() {
 }
 
 #[test]
-fn classic_tooltips_draw_a_pale_yellow_card_with_black_text_and_edge() {
-    let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
-    let (frames, texts) = hovered_tooltip("craft.classic", tip);
-    let (yellow, black) = (Color32::from_rgb(0xff, 0xff, 0xe1), Color32::BLACK);
-    let card: Vec<_> = frames.iter().filter(|f| f.0 == yellow).collect();
-    assert_eq!(card.len(), 1, "one tooltip card: {frames:?}");
-    assert_eq!((card[0].1.color, card[0].1.width, card[0].2), (black, 1.0, egui::CornerRadius::ZERO));
-    assert_eq!(texts.last(), Some(&black), "the tooltip text is drawn last");
-}
-
-#[test]
-fn other_themes_tooltips_keep_the_popup_look() {
-    for id in ["craft.artcraft", "craft.soft"] {
+fn tooltips_draw_the_popup_look_of_the_theme() {
+    for id in ["craft.classic", "craft.artcraft", "craft.soft"] {
         let tokens = tokens_of(&theme(id), Mode::Light);
         let popup = egui::Frame::popup(&tokens.style);
         let tip = |ui: &mut Ui| ui.add(Button::new("Target").id_salt("tip")).tooltip("Moves the layer");
