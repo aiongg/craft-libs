@@ -46,7 +46,7 @@ use crate::theme::{Tokens, TokensOf as _, UiTokens};
 /// submenu) lives in egui memory under the popup's id, and starts fresh each time it opens.
 ///
 /// Look: list box rows at the menu's size (`listbox.*`), touching, as wide as the widest row and
-/// at least `menu.min_width`, never wrapping; a mark column at the reading start on every row of a
+/// at least the menu's least width, never wrapping; a mark column at the reading start on every row of a
 /// level that has a check or radio item, an icon column on every row of a level that has an icon;
 /// shortcuts right-aligned in [`Kbd`](crate::controls::Kbd)'s text form in `menu.shortcut`; the
 /// popup frame is `popup.fill` and `popup.border` with `radius.popup` and `popup.shadow`. The active row (the
@@ -171,7 +171,7 @@ impl<'a, T: Clone> Menu<'a, T> {
         self
     }
 
-    /// The narrowest a level of this menu is, in place of `menu.min_width`; a level still widens
+    /// The narrowest a level of this menu is, in place of the menu's least width; a level still widens
     /// to its widest row.
     pub fn min_width(mut self, width: f32) -> Self {
         self.min_width = Some(width);

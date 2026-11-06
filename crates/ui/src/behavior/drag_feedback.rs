@@ -21,6 +21,9 @@ use crate::localized::words::counts;
 use crate::localized::{Labels as _, Words};
 use crate::theme::{ToEgui as _, corner_radius};
 
+/// The narrowest width a drop veil card wraps its lines at.
+const MIN_VEIL_WRAP: f32 = 200.0;
+
 fn hint_id() -> Id {
     Id::NULL.with("craft_ui::behavior::drag_feedback::hint")
 }
@@ -98,14 +101,14 @@ impl<'a> DragBadge<'a> {
         });
         let tokens = crate::theme::current(ctx);
         let (fill, ink) = (tokens.color.accent.solid.to_egui(), tokens.color.text.on_accent.to_egui());
-        let drag = &tokens.component.drag;
-        let pad = vec2(drag.badge_pad_x, drag.badge_pad_y);
+        let pad = vec2(tokens.space.gap.stack, tokens.space.gap.tight);
+        let offset = vec2(tokens.space.pad.panel, tokens.space.gap.stack);
         let font = tokens.font(TypeRole::BodyStrong);
         let rtl = direction::is_rtl(ctx);
         let (pivot, at) = if rtl {
-            (egui::Align2::RIGHT_TOP, pointer + vec2(-drag.badge_offset_x, drag.badge_offset_y))
+            (egui::Align2::RIGHT_TOP, pointer + vec2(-offset.x, offset.y))
         } else {
-            (egui::Align2::LEFT_TOP, pointer + vec2(drag.badge_offset_x, drag.badge_offset_y))
+            (egui::Align2::LEFT_TOP, pointer + offset)
         };
         ctx.set_cursor_icon(CursorIcon::Grabbing);
         Area::new(layer_id("badge", id_salt)).order(Order::Tooltip).interactable(false).pivot(pivot).fixed_pos(at).show(ctx, |ui| {
@@ -206,9 +209,14 @@ impl<'a> DropVeil<'a> {
         // The scrim and its frame go on the layer first, under the card the area adds.
         let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, id));
         painter.rect_filled(screen, 0.0, c.surface.scrim.to_egui());
-        let veil = &tokens.component.drop_veil;
-        painter.rect_stroke(screen.shrink(veil.inset), veil.frame_radius, Stroke::new(veil.frame_width, accent), StrokeKind::Inside);
-        let wrap = (screen.width() - veil.wrap_margin).max(veil.min_wrap);
+        let space = &tokens.space;
+        painter.rect_stroke(
+            screen.shrink(space.gap.stack),
+            tokens.shape.radius.window,
+            Stroke::new(tokens.stroke.thick, accent),
+            StrokeKind::Inside,
+        );
+        let wrap = (screen.width() - 2.0 * space.pad.dialog).max(MIN_VEIL_WRAP);
         let font = tokens.font(TypeRole::Title);
         // A line that wraps keeps its rows centred under each other, not only the block.
         let galleys: Vec<_> = lines
@@ -220,22 +228,22 @@ impl<'a> DropVeil<'a> {
             })
             .collect();
         let width = galleys.iter().fold(0.0f32, |w, g| w.max(g.size().x));
-        let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + veil.card_gap * galleys.len().saturating_sub(1) as f32;
-        let margin = Margin::symmetric(veil.card_pad_x as i8, veil.card_pad_y as i8);
+        let height = galleys.iter().map(|g| g.size().y).sum::<f32>() + space.gap.stack * galleys.len().saturating_sub(1) as f32;
+        let margin = Margin::symmetric(space.pad.dialog as i8, space.pad.dialog as i8);
         Area::new(id).order(Order::Tooltip).interactable(false).pivot(egui::Align2::CENTER_CENTER).fixed_pos(screen.center()).show(ctx, |ui| {
             let live_id = id.with("live");
             region(ui, live_id, Role::Alert, Politeness::Polite, |ui, labels| {
                 for line in lines {
                     labels.add(line.clone());
                 }
-                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(veil.card_radius).inner_margin(margin).show(ui, |ui| {
+                Frame::NONE.fill(raised).stroke(Stroke::new(1.0, accent)).corner_radius(tokens.shape.radius.popup).inner_margin(margin).show(ui, |ui| {
                     let (rect, _) = ui.allocate_exact_size(vec2(width, height), Sense::hover());
                     let mut y = rect.top();
                     for galley in galleys {
                         let size = galley.size();
                         // The galley's rect is where its rows are, whichever side of its origin.
                         ui.painter().galley(pos2(rect.center().x - galley.rect.center().x, y - galley.rect.min.y), galley, ink);
-                        y += size.y + veil.card_gap;
+                        y += size.y + space.gap.stack;
                     }
                 });
             });

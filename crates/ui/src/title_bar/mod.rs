@@ -285,7 +285,7 @@ impl<'a> TitleBar<'a> {
         leading: impl FnOnce(&mut Ui, BarSlots) -> f32,
         trailing: impl FnOnce(&mut Ui, BarSlots),
     ) -> TitleBarResponse {
-        let gap = Tokens::of(ui).component.title_bar.title_gap;
+        let gap = Tokens::of(ui).space.gap.section;
         let rtl = is_rtl(ui);
         self.run(ui, true, move |ui, slots| {
             let inner = leading(ui, slots);

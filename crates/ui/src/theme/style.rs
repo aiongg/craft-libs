@@ -1,11 +1,22 @@
 //! The egui [`Style`] of a set of tokens, so stock egui widgets look as close to the design
 //! system as they can.
 
-use craft_theme::{ButtonColors, Tokens, relative_luminance};
+use craft_theme::{ButtonColors, Edge, Tokens, relative_luminance};
 use egui::style::{Selection, TextCursorStyle, WidgetVisuals, Widgets};
 use egui::{Color32, Stroke, Style, TextStyle, Visuals, vec2};
 
 use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
+use crate::style::button::ButtonStyle;
+use crate::style::field::FieldStyle;
+
+/// The widest a tooltip's text grows before it wraps.
+const TOOLTIP_MAX_WIDTH: f32 = 280.0;
+/// The width of a floating scroll bar when it is not under the pointer.
+const FLOATING_SCROLLBAR_WIDTH: f32 = 4.0;
+/// The opacity of a floating scroll bar's handle.
+const SCROLL_HANDLE_OPACITY: f32 = 1.0;
+/// The opacity of a floating scroll bar's track under the pointer.
+const SCROLL_TRACK_OPACITY: f32 = 0.4;
 
 /// The egui style for `tokens`. Pure: the same tokens and families give the same style.
 ///
@@ -39,18 +50,18 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     .map(|(text_style, type_style)| (text_style, fonts.font_id(type_style)))
     .collect();
 
-    let (space, size, button) = (&tokens.space, &tokens.size, &tokens.component.button);
+    let (space, size) = (&tokens.space, &tokens.size);
     let s = &mut style.spacing;
     s.item_spacing = vec2(space.gap.inline, space.gap.stack);
     // The label's line height, centred in the button's height.
-    s.button_padding = vec2(button.pad_x.md, ((button.height.md - t.label.line_height) / 2.0).max(0.0));
+    s.button_padding = vec2(space.pad.dialog, ((size.control.md - t.label.line_height) / 2.0).max(0.0));
     s.window_margin = margin(space.pad.dialog);
     s.menu_margin = margin(space.pad.control);
     s.interact_size.y = size.control.md;
     s.icon_width = size.icon.sm;
     s.icon_spacing = space.gap.inline;
-    s.tooltip_width = tokens.component.tooltip.max_width;
-    s.scroll = scroll_style(&tokens.component.scroll);
+    s.tooltip_width = TOOLTIP_MAX_WIDTH;
+    s.scroll = scroll_style(tokens);
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
     // Scroll glide is movement within the screen.
@@ -65,14 +76,14 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
 /// bars where the theme bevels. egui paints a bar's track in `extreme_bg_color` (`surface.sunken`)
 /// and its handle in `widgets.{inactive,hovered,active}.bg_fill`: the field fill, `state.hover`
 /// and `state.pressed`.
-fn scroll_style(scroll: &craft_theme::ScrollTokens) -> egui::style::ScrollStyle {
-    if scroll.solid {
+fn scroll_style(tokens: &Tokens) -> egui::style::ScrollStyle {
+    if matches!(tokens.shape.edge, Edge::Bevel { .. }) {
         return egui::style::ScrollStyle::solid();
     }
     egui::style::ScrollStyle {
-        floating_width: scroll.floating_width,
-        interact_handle_opacity: scroll.handle_opacity,
-        interact_background_opacity: scroll.track_opacity,
+        floating_width: FLOATING_SCROLLBAR_WIDTH,
+        interact_handle_opacity: SCROLL_HANDLE_OPACITY,
+        interact_background_opacity: SCROLL_TRACK_OPACITY,
         ..egui::style::ScrollStyle::thin()
     }
 }
@@ -87,7 +98,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     let dark = is_dark(tokens);
     let mut v = if dark { Visuals::dark() } else { Visuals::light() };
     let radius = &tokens.shape.radius;
-    let button = &tokens.component.button;
+    let button = ButtonStyle::new(tokens);
 
     v.dark_mode = dark;
     v.weak_text_color = Some(c.text.muted.to_egui());
@@ -108,7 +119,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     v.window_stroke = stroke(1.0, c.line.border);
     v.menu_corner_radius = corner_radius(radius.popup);
     v.panel_fill = c.surface.chrome.to_egui();
-    v.popup_shadow = super::tokens::popup_shadow(tokens);
+    v.popup_shadow = tokens.elevation.popup.to_egui();
     v.resize_corner_size = tokens.size.icon.sm;
     v.text_cursor = TextCursorStyle { stroke: Stroke { color: c.text.normal.to_egui(), ..v.text_cursor.stroke }, ..v.text_cursor };
     v
@@ -124,20 +135,19 @@ struct Edges {
 
 fn widgets(tokens: &Tokens, colors: &ButtonColors) -> Widgets {
     let c = &tokens.color;
-    let button = &tokens.component.button;
-    let control = corner_radius(button.radius);
+    let control = corner_radius(tokens.shape.radius.button);
     let defaults = if is_dark(tokens) { Widgets::dark() } else { Widgets::light() };
     let state = |base: WidgetVisuals, fill, border, text| WidgetVisuals {
         bg_fill: fill,
         weak_bg_fill: fill,
-        bg_stroke: Stroke::new(button.border_width, border),
+        bg_stroke: Stroke::new(tokens.stroke.thin, border),
         fg_stroke: Stroke { color: text, ..base.fg_stroke },
         corner_radius: control,
         expansion: 0.0,
     };
     let (fill, text) = (&colors.fill, &colors.text);
     // PhotoCraft (`theme.rs:1049-1053`): the field edge at rest, hovered and open, `accent_border` pressed.
-    let field = &tokens.component.field.border;
+    let field = FieldStyle::new(tokens).border;
     let edge = Edges { rest: field.rest.to_egui(), hover: field.hover.to_egui() };
     Widgets {
         noninteractive: WidgetVisuals {

@@ -22,6 +22,12 @@ use crate::theme::{ToEgui, UiTokens, corner_radius, role_format};
 
 /// A radio item's dot: its radius as a part of the glyph size, and the least radius (craft-menu's
 /// ● at the list box's icon size).
+/// The submenu arrow's base, as a fraction of the label size.
+/// The least width of a menu, in control heights.
+const MIN_WIDTH_CONTROLS: f32 = 8.0;
+const ARROW_BASE: f32 = 0.55;
+/// The submenu arrow's depth, as a fraction of the label size.
+const ARROW_DEPTH: f32 = 0.35;
 const RADIO_DOT: f32 = 1.0 / 4.0;
 const RADIO_DOT_MIN: f32 = 2.0;
 
@@ -31,49 +37,48 @@ const RADIO_DOT_MIN: f32 = 2.0;
 pub struct MenuStyle {
     /// The rows, separators and marks: list box rows (`listbox.*`) at the menu's size.
     pub rows: ListboxStyle,
-    /// `menu.min_width`.
+    /// The least width of a menu: eight control heights.
     pub min_width: f32,
-    /// `menu.shortcut_gap`: least room between a label and its shortcut or arrow.
+    /// `space.gap.section`: least room between a label and its shortcut or arrow.
     pub shortcut_gap: f32,
-    /// `menu.scroll_strip`: height of a scroll strip.
+    /// `size.control.sm`: height of a scroll strip.
     pub scroll_strip: f32,
-    /// `menu.arrow_base` and `menu.arrow_depth`: the submenu arrow's base and depth, as fractions
-    /// of the label size.
+    /// The submenu arrow's base, as a fraction of the label size.
     pub arrow_base: f32,
-    /// Depth of the submenu arrow, as a fraction of the label size (`menu.arrow_depth`).
+    /// Depth of the submenu arrow, as a fraction of the label size.
     pub arrow_depth: f32,
-    /// `menu.active.fill` and `menu.active.text`: the active row.
+    /// `accent.solid`: the active row.
     pub active_fill: Color32,
-    /// Text colour of the active row (`menu.active.text`).
+    /// Text colour of the active row (`text.on_accent`).
     pub active_text: Color32,
-    /// `menu.open.fill`: a submenu's row while its submenu is open.
+    /// `state.hover`: a submenu's row while its submenu is open.
     pub open_fill: Color32,
-    /// `menu.shortcut`: a shortcut's colour.
+    /// `text.muted`: a shortcut's colour.
     pub shortcut: Color32,
-    /// `kbd.label`: a shortcut's type role.
+    /// A shortcut's type role: the caption.
     pub shortcut_label: TypeRole,
 }
 
 impl MenuStyle {
     pub(crate) fn new(tokens: &UiTokens, size: ControlSize) -> Self {
-        let m = &tokens.component.menu;
+        let c = &tokens.color;
         Self {
             rows: ListboxStyle {
-                radius: corner_radius(m.radius),
-                active_fill: m.active_fill.to_egui(),
-                active_text: m.active_text.to_egui(),
+                radius: corner_radius(tokens.shape.radius.panel),
+                active_fill: c.accent.solid.to_egui(),
+                active_text: c.text.on_accent.to_egui(),
                 ..crate::controls::Select::style(tokens, size).list
             },
-            min_width: m.min_width,
-            shortcut_gap: m.shortcut_gap,
-            scroll_strip: m.scroll_strip,
-            arrow_base: m.arrow_base,
-            arrow_depth: m.arrow_depth,
-            active_fill: m.active_fill.to_egui(),
-            active_text: m.active_text.to_egui(),
-            open_fill: m.open_fill.to_egui(),
-            shortcut: m.shortcut.to_egui(),
-            shortcut_label: tokens.component.kbd.label,
+            min_width: MIN_WIDTH_CONTROLS * tokens.size.control.md,
+            shortcut_gap: tokens.space.gap.section,
+            scroll_strip: tokens.size.control.sm,
+            arrow_base: ARROW_BASE,
+            arrow_depth: ARROW_DEPTH,
+            active_fill: c.accent.solid.to_egui(),
+            active_text: c.text.on_accent.to_egui(),
+            open_fill: c.state.hover.to_egui(),
+            shortcut: c.text.muted.to_egui(),
+            shortcut_label: TypeRole::Caption,
         }
     }
 }
@@ -85,7 +90,7 @@ pub(crate) struct Columns {
     pub marks: bool,
     /// Some row has an icon.
     pub icons: bool,
-    /// Every row's width: the widest row's, at least `menu.min_width`.
+    /// Every row's width: the widest row's, at least [`MenuStyle::min_width`].
     pub width: f32,
 }
 
@@ -124,18 +129,10 @@ pub(crate) struct RowPainter<'s> {
 }
 
 impl RowPainter<'_> {
-    /// The colours of a row with label colour `tint`: the theme's tokens for PhotoCraft's seven
-    /// hues, else the same derivation for the colour.
+    /// The colours of a row with label colour `tint`, derived over the popup card.
     pub fn tint_colors(&self, tint: Srgba) -> craft_theme::MenuTint {
         let tint = craft_theme::Rgba::from(tint);
-        self.tokens.component.menu.tint_of(tint).unwrap_or_else(|| {
-            craft_theme::MenuTint::derive(
-                tint,
-                self.tokens.component.popup.fill,
-                &self.tokens.color,
-                self.tokens.appearance.contrast == craft_theme::Contrast::High,
-            )
-        })
+        craft_theme::MenuTint::derive(tint, self.tokens.color.surface.panel, &self.tokens.color, self.tokens.appearance.contrast == craft_theme::Contrast::High)
     }
 
     fn label_galley(&self, ui: &Ui, row: &RowContent<'_>, color: Color32) -> Arc<Galley> {

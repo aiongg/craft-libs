@@ -65,14 +65,14 @@ fn compact_tokens_reproduce_the_literal_sizes() {
     });
 }
 
-/// The strip, hover and drop colours come from the `tab` and `dock` families, the shadow from
-/// `float`.
+/// The strip comes from `surface.panel`, the drop colour from `accent.solid`, the shadow from
+/// `elevation.floating`.
 #[test]
-fn colors_and_shadow_come_from_the_component_tokens() {
+fn colors_and_shadow_come_from_the_semantic_tokens() {
     themed(|ui, look| {
         let t = Tokens::of(ui);
-        assert_eq!(look.tab_strip, t.component.tab.strip.to_egui());
-        assert_eq!(look.drop, t.component.dock.drop.to_egui());
+        assert_eq!(look.tab_strip, t.color.surface.panel.to_egui());
+        assert_eq!(look.drop, t.color.accent.solid.to_egui());
         assert_ne!(look.floating_shadow, Shadow::NONE);
     });
 }

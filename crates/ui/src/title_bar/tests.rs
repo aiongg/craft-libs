@@ -720,17 +720,18 @@ fn tokens(size: craft_theme::Size, mode: craft_theme::Mode, theme: &craft_theme:
 /// The style is the `title_bar` family in every built-in theme, mode and size; the family's
 /// contrast pairs run in the component contrast tests of `craft-theme`.
 #[test]
-fn the_style_is_the_family_in_every_built_in() {
+fn the_style_follows_the_semantic_tokens_in_every_built_in() {
     use crate::theme::ToEgui as _;
     use craft_theme::{Mode, Size};
     for theme in craft_theme::builtins() {
         for mode in [Mode::Light, Mode::Dark] {
             for size in [Size::Compact, Size::Comfortable] {
                 let t = tokens(size, mode, theme);
-                let (s, f) = (TitleBar::style(&t), &t.component.title_bar);
-                assert_eq!((s.height, s.pad, s.edge, s.corner), (f.height, f.pad, f.edge, f.corner), "{}", theme.id.as_str());
-                let colours = [s.bar, s.title, s.glyph, s.glyph_inactive, s.hover, s.pressed, s.separator];
-                let family = [f.bar, f.title, f.glyph, f.glyph_inactive, f.hover, f.pressed, f.separator].map(|c| c.to_egui());
+                let (s, c, space) = (TitleBar::style(&t), &t.color, &t.space);
+                let want = (t.size.bar.title, space.pad.panel, space.gap.stack, t.shape.radius.window);
+                assert_eq!((s.height, s.pad, s.edge, s.corner), want, "{}", theme.id.as_str());
+                let colours = [s.bar, s.title, s.glyph, s.glyph_inactive, s.separator];
+                let family = [c.surface.chrome, c.text.muted, c.text.normal, c.text.muted, c.line.divider].map(|c| c.to_egui());
                 assert_eq!(colours, family, "{}", theme.id.as_str());
             }
         }
@@ -859,7 +860,7 @@ fn the_title_centres_between_the_groups_and_the_gap_is_reported() {
     let mut w = titled(windows(), 800.0, 100.0, 100.0);
     w.frame(vec![]);
     w.frame(vec![]);
-    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    let pad = crate::theme::current(&w.ctx).space.pad.panel;
     let rect = painted_title(&w).expect("title");
     assert!((rect.center().x - 400.0).abs() < 0.01, "{rect:?}");
     assert!((rect.center().y - H / 2.0).abs() < 0.5, "{rect:?}");
@@ -911,7 +912,7 @@ fn the_title_mirrors_in_a_right_to_left_ui() {
     w.frame(vec![]);
     w.frame(vec![]);
     let caption = 3.0 * WINDOWS_BUTTON_WIDTH;
-    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    let pad = crate::theme::current(&w.ctx).space.pad.panel;
     // The menus' group at the right end, the controls' at the left beside the buttons.
     let gap = w.slots.expect("slots").gap;
     assert_eq!((gap.left(), gap.right()), (caption + 100.0, 800.0 - pad - 100.0));
@@ -941,7 +942,7 @@ fn a_native_frame_draws_no_title_and_pads_both_ends() {
     w.frame(vec![]);
     w.frame(vec![]);
     assert!(painted_title(&w).is_none());
-    let pad = crate::theme::current(&w.ctx).component.title_bar.pad;
+    let pad = crate::theme::current(&w.ctx).space.pad.panel;
     let s = w.slots.expect("slots");
     assert_eq!((s.content.left(), s.content.right()), (pad, 800.0 - pad));
 
@@ -1258,7 +1259,7 @@ fn a_bar_narrower_than_the_window_keeps_its_buttons_at_its_own_ends() {
     }
     let s = slots.expect("slots");
     let buttons = 3.0 * WINDOWS_BUTTON_WIDTH;
-    let pad = crate::theme::current(&ctx).component.title_bar.pad;
+    let pad = crate::theme::current(&ctx).space.pad.panel;
     assert_eq!((s.content.left(), s.content.right()), (pad, 500.0 - buttons), "{s:?}");
     assert_eq!((s.gap.left(), s.gap.right()), (pad + 100.0, 500.0 - buttons - 100.0), "{s:?}");
     let close = ctx.read_response(caption_id(ViewportId::ROOT, Caption::Close)).expect("close button").rect;

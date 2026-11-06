@@ -1,7 +1,7 @@
 //! [L] The dock look: token resolution per Size, parity of the `DockStyle` split, scope overrides,
 //! the token path's accessible names, and the stories.
 
-use craft_theme::{Appearance, ComponentField, Contrast, DockField, FloatField, Mode, Pins, Rgba, Size, TabField, TextSize, builtins, resolve};
+use craft_theme::{Appearance, ColorToken, Contrast, Mode, Pins, Rgba, Size, TextSize, builtins, resolve};
 use egui::{Context, FontId, Ui};
 
 use super::testing::DockDriver;
@@ -105,7 +105,7 @@ fn the_themed_look_differs_between_modes() {
     }
 }
 
-/// The config as a `DockSpec` reads the look of the ui's theme, so a scope that pins `tab.strip`
+/// The config as a `DockSpec` reads the look of the ui's theme, so a scope that pins `surface.panel`
 /// recolors the strip and leaves the config alone.
 #[test]
 fn the_config_spec_follows_a_scope_override_of_the_tab_strip() {
@@ -113,7 +113,7 @@ fn the_config_spec_follows_a_scope_override_of_the_tab_strip() {
     let config = DockConfig::default();
     let (outside, inside) = in_ui(|ui| {
         let outside = config.parts(ui).1.tab_strip;
-        let colors: Pins = [(ComponentField::Tab(TabField::Strip), pinned)].into_iter().collect();
+        let colors: Pins = [(ColorToken::SurfacePanel, pinned)].into_iter().collect();
         let inside = scope(ui, |o| o.colors = colors, |ui| config.parts(ui).1.into_owned());
         (outside, inside)
     });
@@ -256,8 +256,8 @@ fn the_dock_stories_are_fully_labelled_in_both_locales() {
     }
 }
 
-/// Pins distinct colors on the active tab, focus and current-icon tokens: the tab strip, drag bar and
-/// icon cell painters read them, each from its own token.
+/// Pins distinct colors on the panel surface, focus line and selected-state tokens: the tab strip,
+/// drag bar and icon cell painters read them, each from its own token.
 #[test]
 fn the_painters_read_their_own_tokens() {
     let hover = Rgba([10, 200, 30, 255]);
@@ -265,10 +265,10 @@ fn the_painters_read_their_own_tokens() {
     let selected = Rgba([20, 60, 230, 255]);
     let selected_text = Rgba([250, 120, 10, 255]);
     let pins: Pins = [
-        (ComponentField::Tab(TabField::Active), hover),
-        (ComponentField::Float(FloatField::Focus), focus),
-        (ComponentField::Dock(DockField::IconSelected), selected),
-        (ComponentField::Dock(DockField::IconSelectedText), selected_text),
+        (ColorToken::SurfacePanel, hover),
+        (ColorToken::LineFocus, focus),
+        (ColorToken::StateSelected, selected),
+        (ColorToken::TextOnSelected, selected_text),
     ]
     .into_iter()
     .collect();
@@ -291,7 +291,7 @@ fn the_painters_read_their_own_tokens() {
     };
     let wanted = |color: Rgba| color.to_egui();
 
-    // A tab under the pointer is filled with `tab.active`, as the selected tab is.
+    // A tab under the pointer is filled with `surface.panel`, as the selected tab is.
     let tab = rect_of(&d, Hit::Tab(2));
     assert_ne!(tab, rect_of(&d, Hit::Tab(1)));
     assert!(!rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "resting tab");
@@ -300,7 +300,7 @@ fn the_painters_read_their_own_tokens() {
     assert!(rects(&d).iter().any(|r| r.rect == tab && r.fill == wanted(hover)), "hovered tab");
     d.leave();
 
-    // Keyboard focus on a drag bar is drawn with `float.focus`, at the focus width.
+    // Keyboard focus on a drag bar is drawn with `line.focus`, at the focus width.
     let width = look_at(Size::Compact, Mode::Light).focus_width;
     let bar = rect_of(&d, Hit::DragBar(1));
     d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));
@@ -310,8 +310,7 @@ fn the_painters_read_their_own_tokens() {
     let stroked = rects(&d).iter().any(|r| r.stroke.color == wanted(focus) && r.stroke.width == width && r.rect == bar.shrink(1.0));
     assert!(stroked, "drag bar focus outline");
 
-    // A tab shows the tab component's focus ring (`line.focus`, not `float.focus`) while the
-    // keyboard has the focus.
+    // A tab shows a focus ring in `line.focus` while the keyboard has the focus.
     let tab = rect_of(&d, Hit::Tab(1));
     d.ctx.memory_mut(|m| m.request_focus(DockArea::<u32>::hit_id(d.id, &Hit::Tab(1))));
     let press = egui::Event::Key { key: egui::Key::F20, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::NONE };
@@ -319,10 +318,10 @@ fn the_painters_read_their_own_tokens() {
     d.step(vec![]);
     let ring = rects(&d)
         .iter()
-        .any(|r| r.stroke.width > 0.0 && r.stroke.color != wanted(focus) && r.rect.intersects(tab) && r.rect.size() != tab.size() && r.fill.a() == 0);
+        .any(|r| r.stroke.width > 0.0 && r.stroke.color == wanted(focus) && r.rect.intersects(tab) && r.rect.size() != tab.size() && r.fill.a() == 0);
     assert!(ring, "tab focus ring");
 
-    // The current icon cell is filled with `dock.icon.selected`, its letter in the selected text color.
+    // The current icon cell is filled with `state.selected`, its letter in the selected text color.
     d.ctx.memory_mut(|m| m.surrender_focus(DockArea::<u32>::hit_id(d.id, &Hit::DragBar(1))));
     let cell = rect_of(&d, Hit::Icon(3));
     d.click(cell.center());

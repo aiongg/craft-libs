@@ -101,7 +101,7 @@ fn fill(tokens: &UiTokens, strength: f32) -> egui::Color32 {
 
 /// Paints `rect` (document units) through `view`.
 fn paint_rect(painter: &Painter, view: &CanvasView, tokens: &UiTokens, rect: Rect, strength: f32) {
-    let stroke = Stroke::new(tokens.component.line_guide.width, tokens.color.accent.solid.to_egui());
+    let stroke = Stroke::new(tokens.stroke.thin, tokens.color.accent.solid.to_egui());
     painter.add(Shape::convex_polygon(view.quad(rect).to_vec(), fill(tokens, strength), stroke));
 }
 

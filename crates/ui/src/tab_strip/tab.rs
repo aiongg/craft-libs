@@ -4,7 +4,7 @@ use std::fmt::Debug;
 use std::hash::Hash;
 use std::sync::Arc;
 
-use craft_theme::{Stroke as Hairline, TypeRole, TypeStyle};
+use craft_theme::{RowStyle, Stroke as Hairline, TypeRole, TypeStyle};
 use egui::accesskit::{Node, Role};
 use egui::emath::GuiRounding as _;
 use egui::os::OperatingSystem;
@@ -17,6 +17,9 @@ use crate::icons::{self, Icon, IconSize};
 use crate::primitives::{FocusRing, Interactive};
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, style_format};
+
+/// How far outside its strip a tab drag still resolves targets.
+const TEAR_OFF: f32 = 24.0;
 use crate::typed_story;
 
 crate::words! {
@@ -96,7 +99,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     }
 
     /// Secondary text after the label (a colour mode, a zoom): it stays readable while the label
-    /// is cut, and is drawn in `tab.detail`. Empty text counts as none.
+    /// is cut, and is drawn in `text.faint`. Empty text counts as none.
     pub fn detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into()).filter(|d| !d.is_empty());
         self
@@ -195,88 +198,87 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TabStyle {
-    /// Height of the strip: `tab.height`.
+    /// Height of the strip: `size.bar.tab`.
     pub height: f32,
-    /// Height of a dock group's strip: `tab.panel_height`.
+    /// Height of a dock group's strip: `size.panel_header`.
     pub panel_height: f32,
-    /// Height of the strip with Large Tabs: `tab.height_large`.
+    /// Height of the strip with Large Tabs: `size.bar.title`.
     pub height_large: f32,
-    /// `tab.pad_x`.
+    /// Horizontal padding of a tab: twice `space.pad.control`.
     pub pad_x: f32,
-    /// `tab.gap`.
+    /// Between a tab's parts: `space.gap.inline`.
     pub gap: f32,
-    /// `tab.min_width`.
+    /// Least width of a panel tab before the strip overflows.
     pub min_width: f32,
-    /// Side of the × hit box: `tab.close_box`.
+    /// Side of the × hit box: `size.icon.sm` + 2.
     pub close_box: f32,
-    /// Side of the × glyph: `tab.close_icon`.
+    /// Side of the × glyph: `size.icon.sm` - 2.
     pub close_icon: f32,
-    /// `tab.overflow`.
+    /// Side of the overflow button: `size.control.sm`.
     pub overflow: f32,
-    /// Top corners of the active tab and of a tab under the pointer: `tab.radius`.
+    /// Top corners of the active tab and of a tab under the pointer: `shape.radius.control` in rounded-row themes.
     pub radius: f32,
-    /// `tab.dividers`.
+    /// Whether the theme divides rows.
     pub dividers: bool,
-    /// `tab.drop_width`.
+    /// Width of the drop marker: `stroke.thick`.
     pub drop_width: f32,
-    /// `tab.drop_halo_width` of `tab.drop.halo`.
+    /// The halo of the drop marker: `stroke.thin` in `surface.panel`.
     pub drop_halo: Stroke,
-    /// `tab.progress_height`.
+    /// Height of the progress bar: `stroke.thick`.
     pub progress_height: f32,
-    /// `tab.indicator_width`.
+    /// Thickness of the indicator bar: `stroke.thick`.
     pub indicator_width: f32,
-    /// `tab.text_gap`.
+    /// Between the labels of a text strip's tabs: `space.gap.section`.
     pub text_gap: f32,
-    /// `tab.text_height`.
+    /// Height of a text strip: the label's line, the underline gap and its width.
     pub text_height: f32,
     /// Room after a tab's contents, inside its rect: the spacing of text tabs, 0 otherwise.
     pub tail: f32,
-    /// `tab.underline_width`.
+    /// Thickness of the underline: `stroke.thick`.
     pub underline_width: f32,
-    /// `tab.underline_gap`.
+    /// From the label to the underline: `space.gap.tight`.
     pub underline_gap: f32,
-    /// `tab.tear_off`.
+    /// How far outside its strip a tab drag still resolves targets.
     pub tear_off: f32,
     /// Side of the tab's icon: `size.icon.sm`.
     pub icon_size: f32,
-    /// `tab.label` and `tab.label_large`.
+    /// The label's type role.
     pub label_role: TypeRole,
     /// The label role with Large Tabs on.
     pub label_role_large: TypeRole,
-    /// `tab.detail_role`.
+    /// The detail text's type role.
     pub detail_role: TypeRole,
-    /// `tab.text_label_role`: the label role of a text tab.
+    /// The label role of a text tab.
     pub text_label_role: TypeRole,
     /// Corners of the × under the pointer: `radius.control`.
     pub close_radius: f32,
-    /// `tab.strip`, and `tab.active` behind the active tab and a tab under the pointer.
+    /// The strip's fill: `surface.panel`.
     pub strip: Color32,
-    /// The active tab's fill.
+    /// The fill behind the active tab and a tab under the pointer: `surface.panel`.
     pub active: Color32,
-    /// The label colour of the selected tab (`tab.text`).
+    /// The label colour of the selected tab (`text.normal`).
     pub text: Color32,
-    /// The label colour of the other tabs (`tab.text.inactive`).
+    /// The label colour of the other tabs (`text.muted`).
     pub inactive_text: Color32,
-    /// `tab.detail`.
+    /// The detail text: `text.faint`.
     pub detail: Color32,
-    /// The divider at a tab's trailing edge: `tab.divider`, one physical pixel.
+    /// The divider at a tab's trailing edge: `line.divider`, one physical pixel.
     pub divider: Stroke,
-    /// The × colour at rest (`tab.close`).
+    /// The × colour at rest (`text.faint`).
     pub close_color: Color32,
-    /// The × colour under the pointer (`tab.close.hover`).
+    /// The × colour under the pointer (`text.normal`).
     pub close_hover: Color32,
-    /// Behind the × under the pointer: `tab.close.fill`.
+    /// Behind the × under the pointer: `state.hover`.
     pub close_fill: Color32,
-    /// `tab.drop`.
+    /// The drop marker: `accent.solid`.
     pub drop: Color32,
-    /// `tab.indicator`: the bar along the selected tab's top edge, transparent unless high
-    /// contrast sets it.
+    /// The bar along the selected tab's top edge, transparent unless a style sets it.
     pub indicator: Color32,
-    /// `tab.underline`: under the selected text tab's label.
+    /// `text.normal`: under the selected text tab's label.
     pub underline: Color32,
-    /// The progress bar's track colour (`progress.track`).
+    /// The progress bar's track colour (`surface.sunken`).
     pub track: Color32,
-    /// The progress bar's filled part (`progress.fill`).
+    /// The progress bar's filled part (`accent.solid`).
     pub fill: Color32,
 }
 
@@ -291,8 +293,8 @@ impl TabStyle {
         if large { self.label_role_large } else { self.label_role }
     }
 
-    /// The fill of a tab in `rect`: the active tab and a tab under the pointer take `tab.active`
-    /// with `tab.radius` on the top corners; the others show the strip.
+    /// The fill of a tab in `rect`: the active tab and a tab under the pointer take the active fill
+    /// with the tab radius on the top corners; the others show the strip.
     pub fn paint_surface(&self, painter: &egui::Painter, rect: Rect, filled: bool) {
         if filled {
             let r = corner_radius(self.radius).nw;
@@ -301,7 +303,7 @@ impl TabStyle {
     }
 
     /// The selected tab's indicator: a bar along the top edge of `rect` (the edge the strip
-    /// shows beside), or nothing when `tab.indicator` is transparent.
+    /// shows beside), or nothing when the indicator is transparent.
     pub fn paint_indicator(&self, painter: &egui::Painter, rect: Rect) {
         if self.indicator.a() > 0 {
             let bar = Rect::from_min_size(rect.min, vec2(rect.width(), self.indicator_width.min(rect.height())));
@@ -309,26 +311,26 @@ impl TabStyle {
         }
     }
 
-    /// The style of a label: `tab.text_label_role` for a text tab, else the label role of `large`.
+    /// The style of a label: the text label role for a text tab, else the label role of `large`.
     pub fn label_style(&self, tokens: &UiTokens, large: bool, text_only: bool) -> TypeStyle {
         let role = if text_only { self.text_label_role } else { self.label_role(large) };
         tokens.typography.get(role)
     }
 
-    /// This style for a text tab: the label at the tab's leading edge and `tab.text_gap` after it.
+    /// This style for a text tab: the label at the tab's leading edge and the text gap after it.
     pub fn for_text(&self) -> TabStyle {
         TabStyle { pad_x: 0.0, tail: self.text_gap, ..*self }
     }
 
-    /// The underline of the selected text tab whose label is `label`: `tab.underline_width` thick,
-    /// the label's width, centred `tab.underline_gap` below the label.
+    /// The underline of the selected text tab whose label is `label`: `stroke.thick` thick,
+    /// the label's width, centred `space.gap.tight` below the label.
     pub fn paint_underline(&self, painter: &egui::Painter, label: Rect) {
         let y = label.bottom() + self.underline_gap;
         let ppp = painter.pixels_per_point();
         painter.hline(label.x_range(), y.round_to_pixel_center(ppp), Stroke::new(self.underline_width, self.underline));
     }
 
-    /// The hairline along the bottom edge of a text strip in `rect`, in `tab.divider`, one
+    /// The hairline along the bottom edge of a text strip in `rect`, in `line.divider`, one
     /// physical pixel thick.
     pub fn paint_hairline(&self, painter: &egui::Painter, rect: Rect) {
         let ppp = painter.pixels_per_point();
@@ -337,7 +339,7 @@ impl TabStyle {
         painter.hline(rect.x_range(), y, Stroke::new(width, self.divider.color));
     }
 
-    /// The colour of a tab's label: `tab.text` on the active tab, `tab.text.inactive` on the others,
+    /// The colour of a tab's label: `text.normal` on the active tab, `text.muted` on the others,
     /// also under the pointer (PhotoCraft's tabs do not light up on hover).
     pub fn label_color(&self, active: bool) -> Color32 {
         if active { self.text } else { self.inactive_text }
@@ -428,7 +430,7 @@ pub struct TabMetrics {
 /// except the icon's, which is a square at the tab's middle.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct TabLayout {
-    /// The × hit box, `tab.close_box` wide.
+    /// The × hit box, `size.icon.sm` + 2 wide.
     pub close: Option<Rect>,
     /// The icon.
     pub icon: Option<Rect>,
@@ -458,10 +460,10 @@ pub struct TabView<'a> {
     pub large: bool,
     /// A divider is drawn at the tab's trailing edge (document tabs in Compact).
     pub divider: bool,
-    /// The tab draws only its label, in `tab.text` when active and `tab.text.inactive` otherwise:
+    /// The tab draws only its label, in `text.normal` when active and `text.muted` otherwise:
     /// no surface, indicator or divider (`TabKind::Text`).
     pub text_only: bool,
-    /// A host drag is over the tab: an outline of `tab.drop` inside it.
+    /// A host drag is over the tab: an outline of `accent.solid` inside it.
     pub drop_highlight: bool,
     /// What the tab senses. `Sense::CLICK` is not focusable, so a strip that is one Tab stop
     /// leaves focus to itself.
@@ -564,50 +566,51 @@ pub struct TabResponse {
 impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
     /// The tab's sizes, type roles and colours.
     pub fn style(tokens: &UiTokens) -> TabStyle {
-        let t = &tokens.component.tab;
-        let p = &tokens.component.progress;
+        let (c, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
+        let pad_x = 2.0 * space.pad.control;
+        let rounded = tokens.shape.rows == RowStyle::Rounded;
         TabStyle {
-            height: t.height,
-            panel_height: t.panel_height,
-            height_large: t.height_large,
-            pad_x: t.pad_x,
-            gap: t.gap,
-            min_width: t.min_width,
-            close_box: t.close_box,
-            close_icon: t.close_icon,
-            overflow: t.overflow,
-            radius: t.radius,
-            dividers: t.dividers,
-            drop_width: t.drop_width,
-            drop_halo: Stroke::new(t.drop_halo_width, t.drop_halo.to_egui()),
-            progress_height: t.progress_height,
-            indicator_width: t.indicator_width,
-            text_gap: t.text_gap,
-            text_height: t.text_height,
+            height: size.bar.tab,
+            panel_height: size.panel_header,
+            height_large: size.bar.title,
+            pad_x,
+            gap: space.gap.inline,
+            min_width: size.icon.md + 2.0 * pad_x,
+            close_box: size.icon.sm + 2.0,
+            close_icon: size.icon.sm - 2.0,
+            overflow: size.control.sm,
+            radius: if rounded { tokens.shape.radius.control } else { 0.0 },
+            dividers: tokens.shape.rows == RowStyle::Divided,
+            drop_width: stroke.thick,
+            drop_halo: Stroke::new(stroke.thin, c.surface.panel.to_egui()),
+            progress_height: stroke.thick,
+            indicator_width: stroke.thick,
+            text_gap: space.gap.section,
+            text_height: tokens.typography.body.line_height + space.gap.tight + stroke.thick,
             tail: 0.0,
-            underline_width: t.underline_width,
-            underline_gap: t.underline_gap,
-            tear_off: t.tear_off,
-            icon_size: tokens.size.icon.sm,
-            label_role: t.label,
-            label_role_large: t.label_large,
-            detail_role: t.detail_role,
-            text_label_role: t.text_label_role,
+            underline_width: stroke.thick,
+            underline_gap: space.gap.tight,
+            tear_off: TEAR_OFF,
+            icon_size: size.icon.sm,
+            label_role: TypeRole::Label,
+            label_role_large: TypeRole::Body,
+            detail_role: TypeRole::Caption,
+            text_label_role: TypeRole::Body,
             close_radius: tokens.shape.radius.control,
-            strip: t.strip.to_egui(),
-            active: t.active.to_egui(),
-            text: t.text.to_egui(),
-            inactive_text: t.inactive_text.to_egui(),
-            detail: t.detail.to_egui(),
-            divider: Stroke::new(Hairline::Hairline.width(1.0), t.divider.to_egui()),
-            close_color: t.close_text.to_egui(),
-            close_hover: t.close_hover.to_egui(),
-            close_fill: t.close_fill.to_egui(),
-            drop: t.drop.to_egui(),
-            indicator: t.indicator.to_egui(),
-            underline: t.underline.to_egui(),
-            track: p.track.to_egui(),
-            fill: p.fill.to_egui(),
+            strip: c.surface.panel.to_egui(),
+            active: c.surface.panel.to_egui(),
+            text: c.text.normal.to_egui(),
+            inactive_text: c.text.muted.to_egui(),
+            detail: c.text.faint.to_egui(),
+            divider: Stroke::new(Hairline::Hairline.width(1.0), c.line.divider.to_egui()),
+            close_color: c.text.faint.to_egui(),
+            close_hover: c.text.normal.to_egui(),
+            close_fill: c.state.hover.to_egui(),
+            drop: c.accent.solid.to_egui(),
+            indicator: Color32::TRANSPARENT,
+            underline: c.text.normal.to_egui(),
+            track: c.surface.sunken.to_egui(),
+            fill: c.accent.solid.to_egui(),
         }
     }
 

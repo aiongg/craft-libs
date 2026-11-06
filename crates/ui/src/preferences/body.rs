@@ -21,29 +21,40 @@ use crate::localized::{Labels as _, LocaleNumbers};
 use crate::primitives::{Content, Divider, Text};
 use crate::theme::{Tokens, TokensOf as _};
 
+/// The least height of a body in a parent with no height of its own.
+const BODY_FALLBACK_HEIGHT: f32 = 600.0;
+/// Page list width, in control heights.
+const LIST_CONTROLS: f32 = 6.0;
+/// Choice control width, in control heights.
+const CHOICE_CONTROLS: f32 = 8.0;
+/// Text control width, in control heights.
+const TEXT_CONTROLS: f32 = 10.0;
+/// Hex field width, in control heights.
+const HEX_CONTROLS: f32 = 3.0;
+
 /// The sizes of the body, from [`PreferencesBody::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct PreferencesStyle {
-    /// Width of the page list column: `preferences.list_width`.
+    /// Width of the page list column: six control heights.
     pub list_width: f32,
-    /// Between the page list and the page: `preferences.page_gap`.
+    /// Between the page list and the page: `pad.panel`.
     pub page_gap: f32,
     /// Between the search field, the panes, the notice and the buttons, and between rows:
     /// `gap.stack`.
     pub gap: f32,
-    /// Width of a choice row's control: `preferences.choice_width`.
+    /// Width of a choice row's control: eight control heights.
     pub choice_width: f32,
-    /// Width of a text row's control: `preferences.text_width`.
+    /// Width of a text row's control: ten control heights.
     pub text_width: f32,
     /// Between the divider and the page's contents, and between them and the trailing edge:
-    /// `preferences.page_inset`.
+    /// `pad.panel`.
     pub page_inset: f32,
-    /// Height of a page list row: `preferences.page_row_height`.
+    /// Height of a page list row: `size.control.md`.
     pub page_row_height: f32,
-    /// Width of a colour row's hex field: `preferences.hex_width`.
+    /// Width of a colour row's hex field: three control heights.
     pub hex_width: f32,
-    /// Inset of a checks group's check boxes from the label column: `preferences.checks_inset`.
+    /// Inset of a checks group's check boxes from the label column: `pad.dialog`.
     pub checks_inset: f32,
 }
 
@@ -127,19 +138,19 @@ impl PreferencesBody {
         self
     }
 
-    /// The resolved Preferences style, read from `tokens.component.preferences`.
+    /// The resolved Preferences style: sizes in control heights and the semantic spacing steps.
     pub fn style(tokens: &crate::theme::UiTokens) -> PreferencesStyle {
-        let p = &tokens.component.preferences;
+        let (space, control) = (&tokens.space, tokens.size.control.md);
         PreferencesStyle {
-            list_width: p.list_width,
-            page_gap: p.page_gap,
-            gap: tokens.space.gap.stack,
-            choice_width: p.choice_width,
-            text_width: p.text_width,
-            page_inset: p.page_inset,
-            page_row_height: p.page_row_height,
-            hex_width: p.hex_width,
-            checks_inset: p.checks_inset,
+            list_width: LIST_CONTROLS * control,
+            page_gap: space.pad.panel,
+            gap: space.gap.stack,
+            choice_width: CHOICE_CONTROLS * control,
+            text_width: TEXT_CONTROLS * control,
+            page_inset: space.pad.panel,
+            page_row_height: control,
+            hex_width: HEX_CONTROLS * control,
+            checks_inset: space.pad.dialog,
         }
     }
 
@@ -205,9 +216,9 @@ impl PreferencesBody {
         let rect = if rect.height().is_finite() {
             rect
         } else {
-            Rect::from_min_size(rect.min, egui::vec2(rect.width(), tokens.component.preferences.body_fallback_height))
+            Rect::from_min_size(rect.min, egui::vec2(rect.width(), BODY_FALLBACK_HEIGHT))
         };
-        let button_height = tokens.component.button.height.get(ControlSize::Md);
+        let button_height = tokens.size.control.md;
         let notice_height = if state.error.is_some() { state.notice_height + gap } else { 0.0 };
         let footer_height = button_height + gap + notice_height;
         let content = Rect::from_min_max(rect.min, pos2(rect.max.x, (rect.max.y - footer_height).max(rect.min.y)));

@@ -1,6 +1,6 @@
 //! [`TitleBarStyle`]: the title bar's sizes and colours from the `title_bar` tokens.
 
-use craft_theme::TypeRole;
+use craft_theme::{Rgba, TypeRole};
 use egui::Color32;
 
 use crate::theme::{ToEgui, UiTokens};
@@ -61,33 +61,58 @@ pub struct TitleBarStyle {
 /// How far Breeze's pressed disc is from the bar toward the glyph colour.
 const BREEZE_PRESSED_MIX: f32 = 0.7;
 
+/// The bar height with libadwaita's buttons.
+const ADWAITA_HEIGHT: f32 = 47.0;
+/// The room kept between the title and the buttons before the title is cut.
+const TITLE_MIN_GAP: f32 = 80.0;
+/// The Windows Close button's hover fill.
+const WINDOWS_CLOSE: Rgba = Rgba::rgb(0xC4, 0x2B, 0x1C);
+/// The glyph on the Windows Close button's hover fill.
+const WINDOWS_CLOSE_GLYPH: Rgba = Rgba::WHITE;
+/// Breeze's Close button under the pointer.
+const BREEZE_CLOSE_HOVER: Rgba = Rgba::rgb(0xFF, 0x98, 0xA2);
+/// The glyph on Breeze's hovered Close button.
+const BREEZE_CLOSE_HOVER_GLYPH: Rgba = Rgba::rgb(0x23, 0x26, 0x29);
+/// Breeze's Close button held down.
+const BREEZE_CLOSE_PRESSED: Rgba = Rgba::rgb(0x6D, 0x22, 0x29);
+/// The glyph on Breeze's pressed Close button.
+const BREEZE_CLOSE_PRESSED_GLYPH: Rgba = Rgba::WHITE;
+
+/// `fg` laid over the opaque `bg`.
+fn over(fg: Rgba, bg: Rgba) -> Rgba {
+    let a = f64::from(fg.a()) / 255.0;
+    let channel = |i: usize| (f64::from(fg.0[i]) * a + f64::from(bg.0[i]) * (1.0 - a)).round() as u8;
+    Rgba::rgb(channel(0), channel(1), channel(2))
+}
+
 impl TitleBarStyle {
     /// The style for the installed theme.
     pub fn from_tokens(tokens: &UiTokens) -> Self {
-        let b = &tokens.component.title_bar;
+        let (c, space) = (&tokens.color, &tokens.space);
+        let bar = c.surface.chrome;
         Self {
-            height: b.height,
-            height_adwaita: b.height_adwaita,
-            pad: b.pad,
-            title_gap: b.title_gap,
-            title_min_gap: b.title_min_gap,
-            title_role: b.title_role,
-            edge: b.edge,
-            corner: b.corner,
-            bar: b.bar.to_egui(),
-            title: b.title.to_egui(),
-            glyph: b.glyph.to_egui(),
-            glyph_inactive: b.glyph_inactive.to_egui(),
-            hover: b.hover.to_egui(),
-            pressed: b.pressed.to_egui(),
-            separator: b.separator.to_egui(),
-            windows_close: b.windows_close.to_egui(),
-            windows_close_glyph: b.windows_close_glyph.to_egui(),
-            breeze_pressed: b.bar.to_egui().lerp_to_gamma(b.glyph.to_egui(), BREEZE_PRESSED_MIX),
-            breeze_close_hover: b.breeze_close_hover.to_egui(),
-            breeze_close_hover_glyph: b.breeze_close_hover_glyph.to_egui(),
-            breeze_close_pressed: b.breeze_close_pressed.to_egui(),
-            breeze_close_pressed_glyph: b.breeze_close_pressed_glyph.to_egui(),
+            height: tokens.size.bar.title,
+            height_adwaita: ADWAITA_HEIGHT,
+            pad: space.pad.panel,
+            title_gap: space.gap.section,
+            title_min_gap: TITLE_MIN_GAP,
+            title_role: TypeRole::Title,
+            edge: space.gap.stack,
+            corner: tokens.shape.radius.window,
+            bar: bar.to_egui(),
+            title: c.text.muted.to_egui(),
+            glyph: c.text.normal.to_egui(),
+            glyph_inactive: c.text.muted.to_egui(),
+            hover: over(c.state.hover, bar).to_egui(),
+            pressed: over(c.state.pressed, bar).to_egui(),
+            separator: c.line.divider.to_egui(),
+            windows_close: WINDOWS_CLOSE.to_egui(),
+            windows_close_glyph: WINDOWS_CLOSE_GLYPH.to_egui(),
+            breeze_pressed: bar.to_egui().lerp_to_gamma(c.text.normal.to_egui(), BREEZE_PRESSED_MIX),
+            breeze_close_hover: BREEZE_CLOSE_HOVER.to_egui(),
+            breeze_close_hover_glyph: BREEZE_CLOSE_HOVER_GLYPH.to_egui(),
+            breeze_close_pressed: BREEZE_CLOSE_PRESSED.to_egui(),
+            breeze_close_pressed_glyph: BREEZE_CLOSE_PRESSED_GLYPH.to_egui(),
         }
     }
 }
@@ -106,14 +131,14 @@ mod tests {
     }
 
     #[test]
-    fn the_style_reads_the_title_bar_tokens() {
+    fn the_style_reads_the_semantic_tokens() {
         for (size, height, pad) in [(Size::Compact, 32.0, 8.0), (Size::Comfortable, 38.0, 12.0)] {
             for mode in [Mode::Light, Mode::Dark] {
                 let t = tokens(size, mode);
                 let s = TitleBarStyle::from_tokens(&t);
-                let c = &t.component.title_bar;
+                let c = &t.color;
                 assert_eq!((s.height, s.height_adwaita, s.pad), (height, 47.0, pad));
-                assert_eq!((s.bar, s.glyph, s.hover), (c.bar.to_egui(), c.glyph.to_egui(), c.hover.to_egui()));
+                assert_eq!((s.bar, s.glyph), (c.surface.chrome.to_egui(), c.text.normal.to_egui()));
                 assert_eq!(s.windows_close, Color32::from_rgb(0xC4, 0x2B, 0x1C));
             }
         }

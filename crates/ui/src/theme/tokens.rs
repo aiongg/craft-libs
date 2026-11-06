@@ -41,8 +41,7 @@ pub struct Radii {
     pub window: CornerRadius,
     /// Panels: `shape.radius.panel`.
     pub panel: CornerRadius,
-    /// Push buttons: `button.radius`, which is `shape.radius.button` unless the theme overrides
-    /// it.
+    /// Push buttons: `shape.radius.button`.
     pub button: CornerRadius,
     /// Pill-shaped parts: `shape.radius.pill`, to clamp to half the part's height.
     pub pill: CornerRadius,
@@ -51,7 +50,7 @@ pub struct Radii {
 /// `elevation` as egui shadows.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Shadows {
-    /// Popups and dialogs, in the popup component's shadow colour.
+    /// Popups and dialogs: `elevation.popup`.
     pub popup: Shadow,
     /// Floating parts, such as the shadow under the canvas pasteboard's page.
     pub floating: Shadow,
@@ -70,11 +69,6 @@ const ROLES: [TypeRole; 8] = [
     TypeRole::Mono,
 ];
 
-/// The popup shadow: `elevation.popup`'s offset and blur in the colour of `popup.shadow`.
-pub(crate) fn popup_shadow(tokens: &Tokens) -> Shadow {
-    Shadow { color: tokens.component.popup.shadow.to_egui(), ..tokens.elevation.popup.to_egui() }
-}
-
 impl UiTokens {
     /// Resolves `tokens` into egui values: the style, radii, shadows and fonts, with text in
     /// `families`.
@@ -85,11 +79,11 @@ impl UiTokens {
             popup: corner_radius(r.popup),
             window: corner_radius(r.window),
             panel: corner_radius(r.panel),
-            button: corner_radius(tokens.component.button.radius),
+            button: corner_radius(r.button),
             pill: corner_radius(r.pill),
         };
         let e = &tokens.elevation;
-        let shadow = Shadows { popup: popup_shadow(&tokens), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
+        let shadow = Shadows { popup: e.popup.to_egui(), floating: e.floating.to_egui(), knob: e.knob.to_egui() };
         let fonts = ROLES.map(|role| families.font_id(tokens.typography.get(role)));
         let style = Arc::new(style_for(&tokens, &families));
         Self { tokens: Arc::new(tokens), appearance, mode, style, radius, shadow, families, fonts }
