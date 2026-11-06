@@ -6,6 +6,7 @@ use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
 use super::*;
+use crate::style::list::ListStyle;
 use crate::behavior::{Axis, DropPosition, ListDrag, Move, Reorder, RowInfo, Selection};
 use crate::controls::Button;
 use crate::direction::{self, Direction};
@@ -342,10 +343,10 @@ fn rows(harness: &Harness<'_, Host>) -> Vec<egui::Rect> {
 #[test]
 fn cells_take_the_row_text_colour_and_numeric_ones_tabular_figures() {
     let harness = harness();
-    let list = &crate::theme::current(&harness.ctx).component.list;
+    let tokens = crate::theme::current(&harness.ctx);
     let format = |text: &str| painted_format(&harness, text).expect("the cell is painted");
-    assert_eq!(format("name 0").color, list.selected_text.to_egui(), "row 0 is selected");
-    assert_eq!(format("name 1").color, list.text.to_egui());
+    assert_eq!(format("name 0").color, tokens.color.text.on_selected.to_egui(), "row 0 is selected");
+    assert_eq!(format("name 1").color, tokens.color.text.normal.to_egui());
     assert!(!format("pages 1").font_features.is_empty(), "Pages is numeric");
     assert!(format("name 1").font_features.is_empty(), "Name is not");
 }
@@ -354,7 +355,7 @@ fn cells_take_the_row_text_colour_and_numeric_ones_tabular_figures() {
 #[test]
 fn a_hovered_row_keeps_its_stripe() {
     let mut harness = harness();
-    let stripe = crate::theme::current(&harness.ctx).component.list.stripe.to_egui();
+    let stripe = ListStyle::new(&crate::theme::current(&harness.ctx)).stripe.to_egui();
     let row = rows(&harness)[1];
     assert!(filled(&harness, stripe).iter().any(|r| (r.top() - row.top()).abs() < 0.5), "row 1 is striped");
     harness.event(Event::PointerMoved(row.center()));
@@ -449,7 +450,7 @@ fn a_double_click_on_an_edge_fits_the_column() {
     let mut harness = harness_with(host, Direction::Ltr);
     let before = width(&harness, "Name");
     let widest = (0..5).filter_map(|row| painted_width(&harness, &format!("name {row}"))).fold(0.0, f32::max);
-    let pad = crate::theme::current(&harness.ctx).component.list.pad_x;
+    let pad = crate::theme::current(&harness.ctx).space.pad.control;
     let grip = edge(&harness, "Name").rect().center();
     harness.event(Event::PointerMoved(grip));
     harness.run();
@@ -464,13 +465,13 @@ fn a_double_click_on_an_edge_fits_the_column() {
     assert!(harness.state_mut().take_events().contains(&TableEvent::Layout));
 }
 
-// A column without a least width takes `table.min_column`.
+// A column without a least width takes the table's default least width.
 #[test]
-fn a_column_without_a_least_width_takes_the_token() {
+fn a_column_without_a_least_width_takes_the_default() {
     let mut host = Host::new();
     host.columns[0] = TableColumn::new("name", "Name");
     let mut harness = harness_with(host, Direction::Ltr);
-    let min = crate::theme::current(&harness.ctx).component.table.min_column;
+    let min = table_style(&crate::theme::current(&harness.ctx)).min_column;
     let grip = edge(&harness, "Name").rect().center();
     drag(&mut harness, grip, grip - egui::vec2(900.0, 0.0));
     assert_eq!(width(&harness, "Name"), f64::from(min));
@@ -480,7 +481,7 @@ fn a_column_without_a_least_width_takes_the_token() {
 #[test]
 fn a_dragged_edge_has_the_dock_dividers_fill() {
     let mut harness = harness();
-    let fill = crate::theme::current(&harness.ctx).component.dock.resize.to_egui();
+    let fill = crate::theme::current(&harness.ctx).color.accent.solid.to_egui();
     let grip = edge(&harness, "Name").rect().center();
     harness.event(Event::PointerMoved(grip));
     harness.run();
@@ -581,7 +582,7 @@ fn opens(events: Vec<TableEvent<usize, Col>>) -> Vec<OpenChange<usize>> {
     events.into_iter().filter_map(|event| if let TableEvent::Open(change) = event { Some(change) } else { None }).collect()
 }
 
-// A tree table: the first shown column's cell starts `list.indent` per level plus the disclosure
+// A tree table: the first shown column's cell starts `size.icon.md` per level plus the disclosure
 // column after the row's edge; a click on a closed group's triangle reports Open { open: true },
 // with Alt `all: true`; mirrored in a right-to-left layout.
 #[test]
@@ -883,8 +884,8 @@ fn a_slow_click_on_the_selected_rows_name_renames_it() {
 }
 
 // Rows take a list row's height for the thumbnail size (`ListRowStyle::height`), not
-// `list.row_height`: Small is taller than no thumbnail and Large taller than Medium. Small and
-// Medium both reach `list.thumb_row_min` in the suite's tokens.
+// `size.control.md`: Small is taller than no thumbnail and Large taller than Medium. Small and
+// Medium both reach `ListStyle::thumb_row_min` in the suite's tokens.
 #[test]
 fn rows_take_the_list_row_height_of_the_thumbnail_size() {
     let height = |thumbnails| {

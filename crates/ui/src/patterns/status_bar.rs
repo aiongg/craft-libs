@@ -14,25 +14,28 @@ use crate::primitives::{Content, Divider, Text};
 use crate::story::{Level, NoArgs, PatternStoryLabels, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
+
+/// Width of the zoom field's cell as a multiple of `size.control.md`.
+const FIELD_SCALE: f32 = 2.6;
 use craft_theme::{ControlSize, TypeRole};
 
 /// A status bar's sizes and colours, from [`StatusBar::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct StatusBarStyle {
-    /// Height of the bar: `status_bar.height`.
+    /// Height of the bar: `size.bar.status`.
     pub height: f32,
-    /// Space at both ends of the bar: `status_bar.pad`.
+    /// Space at both ends of the bar: `space.gap.stack`.
     pub pad: f32,
-    /// Between items: `status_bar.gap`.
+    /// Between items: `space.gap.stack`.
     pub gap: f32,
-    /// Added after the zoom field: `status_bar.group_gap`.
+    /// Added after the zoom field: `space.gap.section`.
     pub group_gap: f32,
-    /// Length of a divider: `status_bar.divider`.
+    /// Length of a divider: `size.icon.md`.
     pub divider: f32,
     /// Width of the box a divider is drawn in: the line's own point between two gaps.
     pub divider_box: f32,
-    /// Width of the zoom field's cell: `status_bar.field_width`.
+    /// Width of the zoom field's cell: a multiple of `size.control.md`.
     pub field_width: f32,
     /// Fill of the bar: `surface.chrome`.
     pub fill: Color32,
@@ -167,18 +170,17 @@ impl StatusBar {
         self
     }
 
-    /// The resolved status bar style, read from `tokens.component.status_bar`.
+    /// The resolved status bar style.
     pub fn style(tokens: &UiTokens) -> StatusBarStyle {
-        let s = &tokens.component.status_bar;
-        let c = &tokens.color;
+        let (c, space, size) = (&tokens.color, &tokens.space, &tokens.size);
         StatusBarStyle {
-            height: s.height,
-            pad: s.pad,
-            gap: s.gap,
-            group_gap: s.group_gap,
-            divider: s.divider,
-            divider_box: 2.0 * s.gap + 1.0,
-            field_width: s.field_width,
+            height: size.bar.status,
+            pad: space.gap.stack,
+            gap: space.gap.stack,
+            group_gap: space.gap.section,
+            divider: size.icon.md,
+            divider_box: 2.0 * space.gap.stack + 1.0,
+            field_width: (size.control.md * FIELD_SCALE).round(),
             fill: c.surface.chrome.to_egui(),
             text: Content::Muted.color(tokens).to_egui(),
             message: Content::Faint.color(tokens).to_egui(),
@@ -223,8 +225,8 @@ impl StatusBar {
         response
     }
 
-    /// The zoom field's cell: a box `status_bar.field_width` wide for a [`NumberField`] of
-    /// [`ControlSize::Sm`], followed by `status_bar.group_gap`.
+    /// The zoom field's cell: a box a multiple of `size.control.md` wide for a [`NumberField`] of
+    /// [`ControlSize::Sm`], followed by `space.gap.section`.
     pub fn field<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
         let style = StatusBar::style(&Tokens::of(ui));
         let size = vec2(style.field_width, ui.available_height());
@@ -250,7 +252,7 @@ impl StatusBar {
         ui.add(IconButton::new(Icon::ChevronRight, label).size(ControlSize::Sm))
     }
 
-    /// A divider between items: a line `status_bar.divider` long in `line.divider`, in a box the
+    /// A divider between items: a line `size.icon.md` long in `line.divider`, in a box the
     /// width of two gaps and a point.
     pub fn separator(ui: &mut Ui) {
         let tokens = Tokens::of(ui);

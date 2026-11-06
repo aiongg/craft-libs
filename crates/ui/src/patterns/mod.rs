@@ -13,9 +13,8 @@
 //! - [`ToolbarDrawer`]: Edit Toolbar's All Tools drawer beside the tool rail.
 //! - [`Tour`]: coach marks pointing at parts of the window, one step at a time.
 //!
-//! Patterns take semantic properties only and draw with the component tokens of what they hold
-//! (`options_bar.*` for [`OptionsBar`]); each has a pure `style` function of
-//! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
+//! Patterns take semantic properties only and draw from the semantic tokens; each has a pure
+//! `style` function of [`UiTokens`](crate::theme::UiTokens).
 
 pub(crate) mod align;
 pub(crate) mod align_stories;

@@ -34,6 +34,7 @@ use crate::localized::SharedLabels as _;
 use crate::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
 use crate::patterns::panel::ScrollBarLabels;
 use crate::popup_list;
+use crate::style::list::ListStyle;
 use crate::primitives::{Content, FocusRing, Text};
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, role_format, tabular};
 use craft_theme::TypeRole;
@@ -132,7 +133,7 @@ pub struct TableColumn<C> {
 
 impl<C> TableColumn<C> {
     /// A column with header `label` (as shown, translated); sortable (ascending first), not
-    /// hideable, left aligned, at least `table.min_column` wide, sharing the free width until the
+    /// hideable, left aligned, at least the table's least column width wide, sharing the free width until the
     /// user resizes it.
     pub fn new(key: C, label: impl Into<String>) -> Self {
         Self {
@@ -206,7 +207,7 @@ impl<C> TableColumn<C> {
         &self.label
     }
 
-    /// The least width: the column's own, else the style's `table.min_column`.
+    /// The least width: the column's own, else the style's the table's least column width.
     fn least(&self, style: &TableStyle) -> f32 {
         self.min_width.unwrap_or(style.min_column)
     }
@@ -217,7 +218,7 @@ impl<C> TableColumn<C> {
 pub struct CellContext<'a> {
     /// The row is selected.
     pub selected: bool,
-    /// The text colour of the row: `list.text.selected` in a selected row, `list.text` otherwise.
+    /// The text colour of the row: `text.on_selected` in a selected row, `text.normal` otherwise.
     pub text: Color32,
     /// The column is [numeric](TableColumn::numeric).
     pub numeric: bool,
@@ -358,46 +359,46 @@ impl<C: Clone + PartialEq> TableLayout<C> {
 /// The look of a table's header and rows, from [`Table::style`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct TableStyle {
-    /// Header height: `table.header_height`, the dock tab height, so a table under a panel's
+    /// Header height: `size.bar.tab`, the dock tab height, so a table under a panel's
     /// tabs lines up with them; PdfCraft's is 26.
     pub header_height: f32,
-    /// Row height: `list.height` (PdfCraft 22).
+    /// Row height: `size.control.md` (PdfCraft 22).
     pub row_height: f32,
-    /// Between a cell's edge and its text: `list.pad_x` (PdfCraft 4).
+    /// Between a cell's edge and its text: `space.pad.control` (PdfCraft 4).
     pub cell_pad_x: f32,
-    /// The sort glyph's side and its gap after the label: `table.sort_glyph` (PdfCraft's
-    /// chevron, 12) and `table.sort_gap` (PdfCraft 14 to its centre, so 8 to its edge).
+    /// The sort glyph's side and its gap after the label: `size.icon.sm` (PdfCraft's
+    /// chevron, 12) and `space.gap.stack` (PdfCraft 14 to its centre, so 8 to its edge).
     pub sort_glyph: f32,
-    /// Gap between the sort glyph and the label (`table.sort_gap`).
+    /// Gap between the sort glyph and the label (`space.gap.stack`).
     pub sort_gap: f32,
-    /// The resize grip's hit width, centred on a column edge: `table.grip_width`.
+    /// The resize grip's hit width, centred on a column edge: `size.handle.sm`.
     pub grip_width: f32,
     /// Header text: the `Label` role in `text.muted`, the sorting column's in `text.normal`
     /// (PdfCraft's).
     pub header_text: Color32,
     #[allow(missing_docs)]
     pub header_text_sorted: Color32,
-    /// The header's hover and pressed fills: `list.hover` and `state.pressed`.
+    /// The header's hover and pressed fills: `ListStyle::hover` and `state.pressed`.
     pub header_hover: Color32,
     #[allow(missing_docs)]
     pub header_pressed: Color32,
-    /// The drop line a dragged header shows, `table.drop_line_width` (2.5, PdfCraft's) wide in
-    /// `accent.solid`, reaching `table.drop_line_slack` past the cell it marks.
+    /// The drop line a dragged header shows, `stroke.thick` (2.5, PdfCraft's) wide in
+    /// `accent.solid`, reaching a fixed reach past the cell it marks.
     #[allow(missing_docs)]
     pub drop_line: Color32,
-    /// Width of the drop line (`table.drop_line_width`).
+    /// Width of the drop line (`stroke.thick`).
     pub drop_line_width: f32,
-    /// How far the drop line reaches past the cell it marks (`table.drop_line_slack`).
+    /// How far the drop line reaches past the cell it marks (a fixed reach).
     pub drop_line_slack: f32,
-    /// The least width of a column that sets none: `table.min_column`.
+    /// The least width of a column that sets none: the table's least column width.
     pub min_column: f32,
     /// A column edge's fill while hovered or dragged, and while it has the keyboard focus: the
-    /// dock dividers' (`dock.resize` and `float.focus`, the dock look's `resize` and `focus`).
+    /// dock dividers' (`accent.solid` and `line.focus`).
     /// Header cells stay square, as Photoshop's and the system file lists' do.
     pub edge: Color32,
     #[allow(missing_docs)]
     pub edge_focus: Color32,
-    /// Every other row's fill (`list.stripe`).
+    /// Every other row's fill (`ListStyle::stripe`).
     pub stripe: Color32,
 }
 
@@ -529,7 +530,7 @@ pub struct TableOutput<K, C> {
 ///   in it. Only the rows in view are built. The header stays at the top of the view and scrolls
 ///   sideways with the columns; the vertical scroll bar is the view's, so it is in sight
 ///   whatever the columns' width. Rows draw as [`ListRow`](super::ListRow)s do: the selection, hover and stripe fills
-///   of the `list.*` tokens.
+///   of the list rows.
 /// - **Keys and focus.** One Tab stop for the body, as a [`List`](super::List): the list keys and
 ///   the selection rules of [`ListSelection`](crate::behavior::ListSelection), Enter activates.
 ///   The headers are buttons the Tab key visits after the body is left (Shift+Tab from the body
@@ -550,7 +551,7 @@ pub struct TableOutput<K, C> {
 /// - **Rename.** With [`renamable`](Self::renamable), rows rename in place in one column; see
 ///   there.
 /// - **Row height.** [`thumbnails`](Self::thumbnails) sets the row height for a thumbnail in the
-///   cells: `list.*`'s height for the size ([`ListRowStyle::height`](super::ListRowStyle::height)),
+///   cells: a list row's height for the size ([`ListRowStyle::height`](super::ListRowStyle::height)),
 ///   as a list's rows.
 pub struct Table<'a, K, C, O: ?Sized> {
     id_salt: IdSalt,
@@ -648,10 +649,10 @@ where
     /// table's rows have no label of their own, since the host draws every cell.
     ///
     /// - **Rows.** The first shown column (in the layout's order, whichever column that is)
-    ///   carries the tree: an indent of `list.indent` per level (a leaf inside a group one level
+    ///   carries the tree: an indent of `size.icon.md` per level (a leaf inside a group one level
     ///   more, past its parent's triangle, as a list's tree rows), then the
-    ///   `list.disclosure` column with a group's triangle, then the cell. The indent shrinks
-    ///   before the cell gets narrower than `list.min_label`; the triangle column doesn't
+    ///   `size.icon.md` column with a group's triangle, then the cell. The indent shrinks
+    ///   before the cell gets narrower than `ListStyle::min_label`; the triangle column doesn't
     ///   ([`ListRow`]'s rule). A double click on that column's edge fits the widest cell plus its
     ///   indent and triangle column.
     /// - **Triangle.** The list's: down when open, toward the reading end when closed, with the
@@ -739,7 +740,7 @@ where
         self
     }
 
-    /// The row height for a thumbnail of `thumb` in the cells (default none: `list.row_height`),
+    /// The row height for a thumbnail of `thumb` in the cells (default none: `size.control.md`),
     /// from [`ListRowStyle::height`](super::ListRowStyle::height). The host draws the thumbnail at
     /// [`ListRowStyle::thumb_side`](super::ListRowStyle::thumb_side).
     pub fn thumbnails(mut self, thumb: ThumbSize) -> Self {
@@ -967,32 +968,37 @@ impl Table<'static, (), (), [()]> {
     }
 
     /// The table's look from the tokens.
-    // new: the `table.*` tokens
     pub fn style(tokens: &UiTokens) -> TableStyle {
         table_style(tokens)
     }
 }
 
-/// [`TableStyle`] from the `table.*` and `list.*` tokens.
+/// Reach of the drop line past the cell it marks.
+const DROP_LINE_SLACK: f32 = 3.0;
+/// The least width of a column that sets none.
+const MIN_COLUMN: f32 = 40.0;
+
+/// [`TableStyle`] from the semantic tokens.
 fn table_style(tokens: &UiTokens) -> TableStyle {
-    let (list, table) = (&tokens.component.list, &tokens.component.table);
+    let (color, space, size) = (&tokens.color, &tokens.space, &tokens.size);
+    let list = ListStyle::new(tokens);
     TableStyle {
-        header_height: table.header_height,
-        row_height: list.row_height,
-        cell_pad_x: list.pad_x,
-        sort_glyph: table.sort_glyph,
-        sort_gap: table.sort_gap,
-        grip_width: table.grip_width,
-        header_text: tokens.color.text.muted.to_egui(),
-        header_text_sorted: tokens.color.text.normal.to_egui(),
+        header_height: size.bar.tab,
+        row_height: size.control.md,
+        cell_pad_x: space.pad.control,
+        sort_glyph: size.icon.sm,
+        sort_gap: space.gap.stack,
+        grip_width: size.handle.sm,
+        header_text: color.text.muted.to_egui(),
+        header_text_sorted: color.text.normal.to_egui(),
         header_hover: list.hover.to_egui(),
-        header_pressed: tokens.color.state.pressed.to_egui(),
-        drop_line: tokens.color.accent.solid.to_egui(),
-        drop_line_width: table.drop_line_width,
-        drop_line_slack: table.drop_line_slack,
-        min_column: table.min_column,
-        edge: tokens.component.dock.resize.to_egui(),
-        edge_focus: tokens.component.float.focus.to_egui(),
+        header_pressed: color.state.pressed.to_egui(),
+        drop_line: color.accent.solid.to_egui(),
+        drop_line_width: tokens.stroke.thick,
+        drop_line_slack: DROP_LINE_SLACK,
+        min_column: MIN_COLUMN,
+        edge: color.accent.solid.to_egui(),
+        edge_focus: color.line.focus.to_egui(),
         stripe: list.stripe.to_egui(),
     }
 }
@@ -2104,8 +2110,8 @@ where
     C: Clone + PartialEq + Debug + Send + Sync + 'static,
 {
     /// The tree part of a tree table's first shown cell ([`Table::tree`]): the indent of
-    /// `branch.steps()` levels of `list.indent` (shrunk so that `inner` keeps `list.min_label`),
-    /// then the `list.disclosure` column, whose triangle `tree::show_disclosure` senses and paints
+    /// `branch.steps()` levels of `size.icon.md` (shrunk so that `inner` keeps `ListStyle::min_label`),
+    /// then the `size.icon.md` column, whose triangle `tree::show_disclosure` senses and paints
     /// for a group, named with `tree.name(key)` and `tree.text`; its `RowEvent::Open` reports are
     /// pushed to `opened` as `OpenChange`s. Mirrored in a right-to-left layout. Returns what is
     /// left of `inner` for the host's cell.

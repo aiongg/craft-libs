@@ -1,5 +1,5 @@
 //! `ToolRail`: the rail of tool slots, with hidden tools, the last-used tool per slot and one or
-//! two columns, drawn with the `rail.*` tokens.
+//! two columns, drawn from the semantic tokens.
 
 use egui::accesskit::{Orientation, Role};
 use egui::{
@@ -77,7 +77,7 @@ impl<T> ToolSlot<T> {
         Self { id, tools, group_end: false }
     }
 
-    /// The slot ends a group of tools (default false): the [`ToolRail`] leaves `rail.group_gap`
+    /// The slot ends a group of tools (default false): the [`ToolRail`] leaves `space.gap.inline`
     /// after it, before the next slot (Liquify's gaps after Smooth, Push Left and Thaw). In two
     /// columns the gap follows the row that holds the slot. The tool pill and the Edit Toolbar
     /// drawer ignore it.
@@ -213,7 +213,7 @@ pub struct RailFooter {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RailMetrics {
-    /// `rail.width`; in two columns `rail.width + rail.button + rail.gap`.
+    /// `size.rail.width`; in two columns `size.rail.width + size.rail.button + space.gap.inline / 2`.
     pub width: f32,
     /// The space at each side of the buttons: `(rail.width - rail.button) / 2`.
     pub pad_x: f32,
@@ -439,9 +439,10 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
 
     /// The width of a rail with `columns` columns.
     pub fn metrics(tokens: &UiTokens, columns: usize) -> RailMetrics {
-        let r = &tokens.component.rail;
-        let width = if columns > 1 { r.width + r.button + r.gap } else { r.width };
-        RailMetrics { width, pad_x: ((r.width - r.button) / 2.0).max(0.0) }
+        let rail = &tokens.size.rail;
+        let gap = tokens.space.gap.inline / 2.0;
+        let width = if columns > 1 { rail.width + rail.button + gap } else { rail.width };
+        RailMetrics { width, pad_x: ((rail.width - rail.button) / 2.0).max(0.0) }
     }
 
     /// True when the rail sits against the left edge of the window.
@@ -464,19 +465,18 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
         let left = self.left(ui);
         let tokens = Tokens::of(ui);
         let metrics = Self::metrics(&tokens, self.columns);
-        let r = &tokens.component.rail;
         let layout = Grid {
             columns: self.columns,
-            button: r.button,
-            gap: r.gap,
-            row_gap: r.row_gap,
-            toggle_height: r.toggle_height,
-            toggle_icon: r.toggle_icon,
+            button: tokens.size.rail.button,
+            gap: tokens.space.gap.inline / 2.0,
+            row_gap: tokens.space.gap.inline,
+            toggle_height: tokens.size.icon.sm,
+            toggle_icon: tokens.size.icon.sm,
             pad_x: metrics.pad_x,
-            group_gap: r.group_gap,
+            group_gap: tokens.space.gap.inline,
             left,
         };
-        let (fill, pad_y) = (r.fill.to_egui(), r.pad_y);
+        let (fill, pad_y) = (tokens.color.surface.chrome.to_egui(), tokens.space.pad.panel);
         let style = FlyoutButton::<T>::style(&tokens).icon_button;
         drop(tokens);
 
@@ -672,7 +672,7 @@ impl<'a, T: Clone + PartialEq> ToolRail<'a, T> {
     }
 }
 
-/// Leaves `rail.group_gap` after the slot just placed in `column` of the row: in one
+/// Leaves `space.gap.inline` after the slot just placed in `column` of the row: in one
 /// column (or after the row's last column) the next row starts that much lower
 /// (`ui.add_space`); after a slot in the first of two columns, the gap goes after the row it
 /// holds. The keyboard grid ([`grid_step`]) and the drop places are unchanged.
@@ -858,13 +858,12 @@ pub(crate) fn drop_places(placed: &[Placed], total: usize) -> Vec<DropAt> {
 /// Marks `target`: a line at the edge a new slot goes to, or an outline on the slot it joins.
 fn paint_target(ui: &Ui, columns: usize, rtl: bool, placed: &[Placed], target: DropAt) {
     let tokens = Tokens::of(ui);
-    let r = &tokens.component.rail;
-    let stroke = Stroke::new(r.selected_border_width, r.selected_border.to_egui());
+    let stroke = Stroke::new(tokens.stroke.thin, tokens.color.accent.border.to_egui());
     let painter = ui.painter();
     match target {
         DropAt::Slot { slot, .. } => {
             if let Some(p) = placed.iter().find(|p| p.slot == slot) {
-                let radius = egui::CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8);
+                let radius = egui::CornerRadius::same(tokens.shape.radius.control.round().clamp(0.0, 255.0) as u8);
                 painter.rect_stroke(p.rect, radius, stroke, StrokeKind::Inside);
             }
         }
@@ -904,7 +903,7 @@ struct Grid {
     toggle_height: f32,
     toggle_icon: f32,
     pad_x: f32,
-    /// `rail.group_gap`: the space after a slot that ends a group.
+    /// The space after a slot that ends a group.
     group_gap: f32,
     /// The rail is against the left edge of the window.
     left: bool,

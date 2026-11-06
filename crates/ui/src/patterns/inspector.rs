@@ -1,6 +1,6 @@
 //! `Inspector`: the body of a Properties panel, with a header for what it shows, an empty state and
 //! widget state keyed by the target. `InspectorHeader` is the target's row. The look is the
-//! `inspector.*` tokens.
+//! semantic tokens.
 //!
 //! The target keys the controls' scrub and text-edit state. A host that keeps section open states
 //! across targets, as PhotoCraft does across layers, gives each `SectionHeader` its state with
@@ -13,13 +13,15 @@ use egui::{AsIdSalt, Color32, Frame, IdSalt, InnerResponse, Label, Margin, Rect,
 
 use crate::composites::EmptyState;
 use crate::direction;
-use crate::docking::DockLook;
 use crate::icons::{self, Icon, IconSize};
 use crate::localized::Labels as _;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
+
+/// Least room left for the name before the kind text is hidden.
+const KIND_MIN_NAME: f32 = 60.0;
 
 crate::words! {
     /// The text an inspector writes itself.
@@ -33,11 +35,11 @@ crate::words! {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct InspectorStyle {
-    /// Height of the target header: `inspector.header_height`.
+    /// Height of the target header: `size.panel_header`.
     pub header_height: f32,
-    /// Side of the kind icon: `inspector.icon`.
+    /// Side of the kind icon: `size.icon.lg`.
     pub icon: f32,
-    /// Padding round the body: `inspector.pad`.
+    /// Padding round the body: `space.pad.panel`.
     pub pad: f32,
     /// Between the icon, the name and the kind text: `space.gap.inline`.
     pub gap: f32,
@@ -45,11 +47,11 @@ pub struct InspectorStyle {
     pub icon_color: Color32,
     /// The name's type role: `body_strong`.
     pub title_role: TypeRole,
-    /// The name: `inspector.title`.
+    /// The name: `text.normal`.
     pub title: Color32,
     /// The kind text's type role: `caption`.
     pub kind_role: TypeRole,
-    /// The kind text: `inspector.kind`.
+    /// The kind text: `text.faint`.
     pub kind: Color32,
 }
 
@@ -63,7 +65,7 @@ pub struct InspectorStyle {
 /// # });
 /// ```
 ///
-/// - The row is `inspector.header_height` high. The name is cut with an ellipsis and shows its full
+/// - The row is `size.panel_header` high. The name is cut with an ellipsis and shows its full
 ///   text as a tooltip when it does not fit. The kind text is at the end of the row and is hidden
 ///   when the row is narrower than the kind text plus 60 points.
 /// - **AccessKit:** one `Header` node named "{name} - {kind}" (the name alone without a kind).
@@ -119,7 +121,7 @@ impl InspectorHeader {
         let mut name_end = end;
         let kind = self.kind.as_deref().and_then(|kind| {
             let width = ui.painter().layout_no_wrap(kind.to_owned(), tokens.font(style.kind_role), style.kind).size().x;
-            (rect.width() >= width + tokens.component.inspector.kind_min_name).then_some((kind, width))
+            (rect.width() >= width + KIND_MIN_NAME).then_some((kind, width))
         });
         if let Some((kind, width)) = kind {
             let kind_start = end - forward * width;
@@ -224,19 +226,18 @@ impl Inspector {
         self
     }
 
-    /// The resolved inspector style, read from `tokens.component.inspector`.
+    /// The resolved inspector style.
     pub fn style(tokens: &UiTokens) -> InspectorStyle {
-        let i = &tokens.component.inspector;
         InspectorStyle {
-            header_height: i.header_height,
-            icon: i.icon,
-            pad: i.pad,
+            header_height: tokens.size.panel_header,
+            icon: tokens.size.icon.lg,
+            pad: tokens.space.pad.panel,
             gap: tokens.space.gap.inline,
             icon_color: Content::Muted.color(tokens).to_egui(),
             title_role: TypeRole::BodyStrong,
-            title: i.title.to_egui(),
+            title: tokens.color.text.normal.to_egui(),
             kind_role: TypeRole::Caption,
-            kind: i.kind.to_egui(),
+            kind: tokens.color.text.faint.to_egui(),
         }
     }
 
@@ -250,7 +251,7 @@ impl Inspector {
     pub fn show(self, ui: &mut Ui, add_contents: impl FnOnce(&mut Ui)) -> InnerResponse<()> {
         let tokens = Tokens::of(ui);
         let style = Inspector::style(&tokens);
-        let body_gap = DockLook::of(ui).body_gap;
+        let body_gap = tokens.space.gap.stack;
         let scroll_bar_label = self.scroll_bar_label.unwrap_or_else(|| crate::patterns::panel::ScrollBarLabels::name(ui));
         let builder = UiBuilder::new().id_salt(self.id_salt).accessibility_role(Role::GenericContainer);
         ui.scope_builder(builder, |ui| {

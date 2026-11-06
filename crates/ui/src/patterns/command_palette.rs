@@ -23,21 +23,30 @@ const PATH_SEPARATOR: &str = " › ";
 /// Most matches the list holds (it scrolls past `max_rows`).
 const MAX_RESULTS: usize = 100;
 
+/// Width of the box.
+const WIDTH: f32 = 560.0;
+/// From the window's top to the box's top.
+const TOP: f32 = 110.0;
+/// Result rows shown before the list scrolls.
+const MAX_ROWS: usize = 12;
+/// Commands remembered for the empty query.
+const RECENT: usize = 8;
+
 /// A palette's sizes and colours, from [`CommandPalette::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CommandPaletteStyle {
-    /// Width of the box: `command_palette.width`.
+    /// Width of the box: a fixed width, capped by the window.
     pub width: f32,
-    /// From the window's top to the box's top: `command_palette.top`.
+    /// From the window's top to the box's top: a fixed offset.
     pub top: f32,
-    /// Inner margin of the box: `command_palette.pad`.
+    /// Inner margin of the box: `space.gap.stack`.
     pub pad: f32,
-    /// Height of a result row: `command_palette.row_height`.
+    /// Height of a result row: `size.control.md` plus `2 * space.gap.tight`.
     pub row_height: f32,
-    /// Result rows shown before the list scrolls: `command_palette.max_rows`.
+    /// Result rows shown before the list scrolls: a fixed count.
     pub max_rows: usize,
-    /// Commands remembered for the empty query: `command_palette.recent`.
+    /// Commands remembered for the empty query: a fixed count.
     pub recent: usize,
     /// The dimmed window behind the box: `surface.scrim`.
     pub scrim: Color32,
@@ -152,14 +161,13 @@ impl<'a, 'r, T> CommandPalette<'a, 'r, T> {
 impl CommandPalette<'static, 'static, ()> {
     /// The palette's sizes and colours.
     pub fn style(tokens: &UiTokens) -> CommandPaletteStyle {
-        let p = &tokens.component.command_palette;
         CommandPaletteStyle {
-            width: p.width,
-            top: p.top,
-            pad: p.pad,
-            row_height: p.row_height,
-            max_rows: p.max_rows,
-            recent: p.recent,
+            width: WIDTH,
+            top: TOP,
+            pad: tokens.space.gap.stack,
+            row_height: tokens.size.control.md + 2.0 * tokens.space.gap.tight,
+            max_rows: MAX_ROWS,
+            recent: RECENT,
             scrim: tokens.color.surface.scrim.to_egui(),
             surface: Surface::style(tokens, SurfaceKind::Popup),
         }

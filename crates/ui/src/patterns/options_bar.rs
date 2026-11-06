@@ -14,32 +14,39 @@ use crate::story::{Level, Story, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
+/// Thickness of the floating scroll bar.
+const SCROLL_BAR_THICKNESS: f32 = 4.0;
+/// Width and height of the chevron slot beside the tool icon.
+const SCROLL_CHEVRON_BOX: Vec2 = Vec2::new(10.0, 20.0);
+/// Narrow, medium and wide field widths as multiples of `size.control.md`.
+const FIELD_SCALES: [f32; 3] = [2.4, 2.6, 3.2];
+
 /// An options bar's sizes and colours, from [`OptionsBar::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct OptionsBarStyle {
-    /// Height of a one-row bar: `options_bar.height`, or `height_narrow` for the narrow bar.
+    /// Height of a one-row bar: `size.bar.options`, or `size.control.md` plus `2 * space.gap.tight` for the narrow bar.
     pub height: f32,
-    /// Between two rows of a bar with more than one: `options_bar.row_gap`.
+    /// Between two rows of a bar with more than one: `space.gap.row`.
     pub row_gap: f32,
-    /// Space at the bar's ends: `options_bar.pad`.
+    /// Space at the bar's ends: `space.pad.control`.
     pub pad: f32,
-    /// Between items, and between a caption and its control: `options_bar.gap`.
+    /// Between items, and between a caption and its control: `space.gap.stack`.
     pub gap: f32,
-    /// Length of a divider: `options_bar.divider`.
+    /// Length of a divider: `size.control.md`.
     pub divider: f32,
     /// Width of the box a divider is drawn in: the gap and the line's own point.
     pub divider_box: f32,
-    /// Narrow, medium and wide field widths: `options_bar.field_sm`, `field_md`, `field_lg`.
+    /// Narrow, medium and wide field widths: multiples of `size.control.md`.
     pub fields: [f32; 3],
-    /// Width of the floating scroll bar: `options_bar.scroll_bar`.
+    /// Width of the floating scroll bar: a fixed thickness.
     pub scroll_bar: f32,
-    /// Side of the Home, tool icon, commit and cancel buttons: `options_bar.button`. It is also the
+    /// Side of the Home, tool icon, commit and cancel buttons: `size.control.md`. It is also the
     /// height of a row.
     pub button: f32,
-    /// Width and height of the chevron slot beside the tool icon: `options_bar.chevron`.
+    /// Width and height of the chevron slot beside the tool icon: a fixed box.
     pub chevron_slot: Vec2,
-    /// Room under the content for font ink: `options_bar.ink_room`.
+    /// Room under the content for font ink: `stroke.thick`.
     pub ink_room: f32,
     /// Fill of the bar: `surface.chrome`.
     pub fill: Color32,
@@ -155,22 +162,22 @@ impl OptionsBar {
         self
     }
 
-    /// The resolved options bar style, read from `tokens.component.options_bar`. `narrow` picks
+    /// The resolved options bar style, `narrow` picks
     /// the narrow-window height.
     pub fn style(tokens: &UiTokens, narrow: bool) -> OptionsBarStyle {
-        let o = &tokens.component.options_bar;
+        let (space, size) = (&tokens.space, &tokens.size);
         OptionsBarStyle {
-            height: if narrow { o.height_narrow } else { o.height },
-            row_gap: o.row_gap,
-            pad: o.pad,
-            gap: o.gap,
-            divider: o.divider,
-            divider_box: o.gap + 1.0,
-            fields: [o.field_sm, o.field_md, o.field_lg],
-            scroll_bar: o.scroll_bar,
-            button: o.button,
-            chevron_slot: Vec2::from(o.chevron),
-            ink_room: o.ink_room,
+            height: if narrow { size.control.md + 2.0 * space.gap.tight } else { size.bar.options },
+            row_gap: space.gap.row,
+            pad: space.pad.control,
+            gap: space.gap.stack,
+            divider: size.control.md,
+            divider_box: space.gap.stack + 1.0,
+            fields: FIELD_SCALES.map(|scale| (size.control.md * scale).round()),
+            scroll_bar: SCROLL_BAR_THICKNESS,
+            button: size.control.md,
+            chevron_slot: SCROLL_CHEVRON_BOX,
+            ink_room: tokens.stroke.thick,
             fill: tokens.color.surface.chrome.to_egui(),
             chevron: Content::Faint.color(tokens).to_egui(),
         }
@@ -270,7 +277,7 @@ impl OptionsBar {
         response
     }
 
-    /// A divider between groups: a line `options_bar.divider` long in `line.divider`, in a box
+    /// A divider between groups: a line `size.control.md` long in `line.divider`, in a box
     /// the width of a gap and a point.
     pub fn divider(ui: &mut Ui) {
         let tokens = Tokens::of(ui);
@@ -298,7 +305,7 @@ impl OptionsBar {
     }
 
     fn square_button(ui: &mut Ui, button: IconButton<'_>) -> Response {
-        let side = Tokens::of(ui).component.options_bar.button;
+        let side = Tokens::of(ui).size.control.md;
         let (_, square) = ui.allocate_space(Vec2::splat(side));
         button.show_at(ui, square)
     }

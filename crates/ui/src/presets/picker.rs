@@ -104,8 +104,8 @@ pub struct PresetPickerResponse<K> {
 /// if let Some(key) = pick.picked { set_pattern(key); }
 /// ```
 ///
-/// - **Field.** A `Select`-style box (rest, hover, open and focus looks; `field.fill`,
-///   `field.border`) holding the thumbnail ([`PickerThumb`] size), the name in `Name` and
+/// - **Field.** A `Select`-style box (rest, hover, open and focus looks; `surface.sunken`,
+///   `line.control_edge`) holding the thumbnail ([`PickerThumb`] size), the name in `Name` and
 ///   `ThumbnailAndName` modes ("Custom" with nothing selected), and a chevron at the end. One Tab
 ///   stop. A click toggles the popover; Down, Alt+Down, Enter or Space open it.
 /// - **Popup.** A `Popover` card holding a `PresetBrowser` in grid view (or `view(List)`), no

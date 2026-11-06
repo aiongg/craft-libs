@@ -215,6 +215,9 @@ pub struct Popover {
     keep_anchor_focus: bool,
 }
 
+/// Least distance a popover keeps from the screen edge.
+pub(crate) const SCREEN_MARGIN: f32 = 40.0;
+
 const STATE: &str = "craft-popover-state";
 const GROUP: &str = "craft-popover-group";
 const GROUP_CLOSE: &str = "craft-popover-group-close";
@@ -330,7 +333,6 @@ impl Popover {
         }
 
         let tokens = Tokens::of(ui);
-        let parts = tokens.component.popover;
         let screen = ctx.content_rect();
         let rtl = direction::is_rtl(ui);
         let shown = ctx.read_response(id).is_some() && !fresh;
@@ -366,7 +368,7 @@ impl Popover {
         }
 
         // Size of the content area.
-        let margin = parts.screen_margin;
+        let margin = SCREEN_MARGIN;
         let room = (screen.size() - Vec2::splat(2.0 * margin)).max(Vec2::ZERO);
         let content_size = match size {
             PopoverSize::Fit => ctx.data(|d| d.get_temp::<Vec2>(id.with("fit-size"))).unwrap_or(Vec2::ZERO),
@@ -379,7 +381,7 @@ impl Popover {
         let (pos, pivot) = placement(&anchor, rtl, screen, last, &mut state.above);
 
         let surface = Surface::style(&tokens, SurfaceKind::Popup);
-        let inner_margin = Margin::same((parts.padding + popup_list::edge_width(&surface)).ceil() as i8);
+        let inner_margin = Margin::same((tokens.space.gap.stack + popup_list::edge_width(&surface)).ceil() as i8);
         let pop = PopoverCtx { id, content_size, close: Cell::new(false), initial: Cell::new(None), pressed_outside };
         let drawing = Drawing::enter(&ctx, id);
         let area = Area::new(id)

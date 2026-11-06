@@ -17,7 +17,7 @@ use super::{BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, TileBadge, Tile
 
 /// The opacity of a disabled tile.
 const DISABLED_OPACITY: f32 = 0.4;
-/// The check box's backdrop: `tile.scrim` at this share.
+/// The check box's backdrop: `surface.scrim` at this share.
 const CHECKBOX_BACKDROP: f32 = 0.6;
 /// Stars a rating has.
 const STARS: f32 = 5.0;
@@ -105,15 +105,15 @@ fn pills(ctx: &egui::Context, content: &TileContent, labels: &TileLabels) -> Vec
 }
 
 /// Draws the picture (`Thumbnails::paint` with the tile's state, or the placeholder alone), then
-/// the veil (rejected or dimmed: `tile.veil`; disabled: the whole tile at 40 %), the In and Out
-/// bar (`tile.range_bar` high, `tile.range`), the scrub line (`tile.scrub`, 1 pt), the offline
-/// band (`tile.status_band`), the badge bar (`tile.bar` high on `tile.scrim` per
-/// `BadgeVisibility`: `paint_rating(.., ControlSize::Sm)` in `tile.badge.text`, flag glyph
-/// `tile.flag`, colour dot `tile.dot` with a 1 pt `tile.ring.halo` outline), the corner badges
-/// (`tile.badge_height` pills; a badge in the check box's corner moves below it), the check box
-/// (the library `Checkbox` look at `tile.checkbox`), the rings (selected, hover, focus) and the
-/// caption (name via `fit_name` in `Caption` `tile.caption` or `tile.caption_selected`, detail in
-/// `tile.detail`). Returns where the stars were drawn, for the rating click: the width of five
+/// the veil (rejected or dimmed: `surface.scrim` at 45 %; disabled: the whole tile at 40 %), the In and Out
+/// bar (`TileStyle::range_bar` high, `accent.solid`), the scrub line (`accent.solid`, 1 pt), the offline
+/// band (`size.icon.md`), the badge bar (`size.control.sm` high on `surface.scrim` per
+/// `BadgeVisibility`: `paint_rating(.., ControlSize::Sm)` in `text.on_strong`, flag glyph
+/// `size.icon.sm`, colour dot `TileStyle::dot` with a 1 pt `overlay.halo` outline), the corner badges
+/// (`size.icon.sm` pills; a badge in the check box's corner moves below it), the check box
+/// (the library `Checkbox` look at `size.icon.sm`), the rings (selected, hover, focus) and the
+/// caption (name via `fit_name` in `Caption` `text.muted` or `text.normal`, detail in
+/// `text.faint`). Returns where the stars were drawn, for the rating click: the width of five
 /// stars from the first one's edge, so a click on star `n` sets `n`.
 ///
 /// `thumbnails` paints the picture; without it (or without a state) the placeholder shows.
@@ -382,7 +382,7 @@ fn paint_checkbox(ui: &mut Ui, tokens: &UiTokens, style: &TileStyle, rect: Rect,
 /// The badge rects for one corner, inward from it, skipping the check box's rect (LightCraft's
 /// `a_badge_never_covers_the_checkbox`). `left` says the corner is the picture's left one; the
 /// caller turns Start and End into left and right by the reading direction. Badges stack toward
-/// the middle of the picture, `tile.caption_gap` apart; one that would touch the check box moves
+/// the middle of the picture, `space.gap.tight` apart; one that would touch the check box moves
 /// past it, away from the corner.
 pub(super) fn badge_rects(picture: Rect, widths: &[f32], style: &TileStyle, checkbox: Option<Rect>, left: bool, top: bool) -> Vec<Rect> {
     // lightcraft: crates/ui-egui/src/dialogs/import/body.rs:460 (`badge_rect`: below the box when too wide).

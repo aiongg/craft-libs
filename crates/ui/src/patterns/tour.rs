@@ -10,13 +10,17 @@ use crate::controls::{Button, ButtonVariant, ControlSize, IconButton};
 use crate::direction;
 use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers};
-use crate::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose};
+use crate::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose, SCREEN_MARGIN};
 use crate::primitives::{Content, Corner, Gap, Stack, Text};
 use crate::theme::{ToEgui, current};
 use craft_theme::TypeRole;
 
 /// Pulse speed in radians per second.
 const PULSE_RATE: f64 = 4.0;
+/// Width of the card.
+const CARD_WIDTH: f32 = 340.0;
+/// How far the highlight outline grows at the top of its pulse.
+const HIGHLIGHT_PULSE: f32 = 2.0;
 const REPAINT: Duration = Duration::from_millis(33);
 
 /// One step: what it points at and what it says.
@@ -130,7 +134,6 @@ impl Tour {
         let labels = self.labels.clone().unwrap_or_else(|| TourLabels::of_ctx(ctx));
         let numbers = LocaleNumbers::of_ctx(ctx);
         let tokens = current(ctx);
-        let tour = tokens.component.tour;
         let frame = ctx.cumulative_frame_nr();
         let visit_id = self.id.with("visit");
         let began = ctx.data(|d| d.get_temp::<Visit>(visit_id)).is_none_or(|v| v.frame + 1 < frame);
@@ -145,7 +148,7 @@ impl Tour {
                 ThemeStroke::W2.width(ctx.pixels_per_point()),
                 tokens.color.accent.solid.to_egui().gamma_multiply(0.6 + 0.4 * pulse),
             );
-            let rect = target.expand(tour.highlight_offset + tour.highlight_pulse * pulse);
+            let rect = target.expand(tokens.space.gap.tight + HIGHLIGHT_PULSE * pulse);
             painter.rect_stroke(rect, Corner::Control.radius(&tokens), stroke, StrokeKind::Outside);
             if !still {
                 ctx.request_repaint_after(REPAINT);
@@ -157,16 +160,15 @@ impl Tour {
         host.show(ctx, |ui| {
             let salt = ("card", index);
             let card_id = ui.make_persistent_id(salt);
-            let popover = tokens.component.popover;
-            let estimate = vec2(tour.card_width + 2.0 * (popover.padding + 1.0), 4.0 * tour.card_width / 7.0);
+            let estimate = vec2(CARD_WIDTH + 2.0 * (tokens.space.gap.stack + 1.0), 4.0 * CARD_WIDTH / 7.0);
             let size = ctx.memory(|m| m.area_rect(card_id)).map_or(estimate, |r| r.size());
-            let at = card_position(step.target, size, ctx.content_rect(), popover.screen_margin, tour.target_gap);
+            let at = card_position(step.target, size, ctx.content_rect(), SCREEN_MARGIN, tokens.space.pad.panel);
             let mut open = true;
             let shown = Popover::new(salt, PopoverAnchor::Point(at))
                 .close(PopoverClose::default().outside(false).focus_left(false).enter(true))
                 .label(step.title.clone())
                 .show(ui, &mut open, |ui, pop| {
-                    ui.set_width(tour.card_width);
+                    ui.set_width(CARD_WIDTH);
                     let mut clicked = None;
                     Stack::new(Gap::Row).show(ui, |ui| {
                         direction::horizontal(ui, |ui| {

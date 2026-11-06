@@ -25,10 +25,10 @@ pub enum CaptionPlace {
     /// Under the picture (Bridge; Acrobat's page labels).
     #[default]
     Below,
-    /// In a column at the picture's reading start, top aligned, `tile.start_caption_width` wide
-    /// (PowerPoint's slide numbers): the name in `tile.caption` (`tile.caption_selected` when
+    /// In a column at the picture's reading start, top aligned, `TileStyle::start_caption_width` wide
+    /// (PowerPoint's slide numbers): the name in `text.muted` (`text.normal` when
     /// selected), crossed by a slash when [`TileContent::hidden`](super::TileContent::hidden), and
-    /// the tile's [`marks`](super::TileContent::marks) under it, one per line, in `tile.detail`.
+    /// the tile's [`marks`](super::TileContent::marks) under it, one per line, in `text.faint`.
     /// The arrangement makes each card that much wider; no caption band under the picture.
     Start,
 }
@@ -120,7 +120,7 @@ fn name_color(style: &TileStyle, look: &TileLook<'_>) -> egui::Color32 {
 }
 
 /// A `Start` caption's name shortened to the column, and where it goes: centred, below
-/// `tile.caption_gap` from the column's top.
+/// `space.gap.tight` from the column's top.
 pub(super) fn start_name(painter: &Painter, tokens: &UiTokens, style: &TileStyle, look: &TileLook<'_>) -> Option<(Arc<Galley>, egui::Pos2)> {
     let column = look.caption?;
     let color = name_color(style, look);
@@ -191,7 +191,7 @@ where
         self.state.current.clone_from(&self.strip.current);
     }
 
-    /// The new item row's rect in the arrangement: as wide as a card, `tile.group_header` high,
+    /// The new item row's rect in the arrangement: as wide as a card, `size.panel_header` high,
     /// below the last row.
     fn new_item_rect(&self) -> Rect {
         let inset = self.style.inset;

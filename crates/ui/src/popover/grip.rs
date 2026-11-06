@@ -34,7 +34,7 @@ impl ResizeGrip {
 
     /// The grip's square in `frame`.
     pub fn rect(ui: &Ui, frame: Rect) -> Rect {
-        let size = Tokens::of(ui).component.popover.grip_size;
+        let size = Tokens::of(ui).size.icon.md;
         let rtl = direction::is_rtl(ui);
         let corner = if rtl { frame.left_bottom() } else { frame.right_bottom() };
         let min = if rtl { pos2(corner.x, corner.y - size) } else { pos2(corner.x - size, corner.y - size) };
@@ -44,19 +44,19 @@ impl ResizeGrip {
     /// Draws the grip in the corner of `frame` and senses its drag.
     pub fn show(self, ui: &mut Ui, frame: Rect) -> GripResponse {
         let rtl = direction::is_rtl(ui);
-        let parts = Tokens::of(ui).component.popover;
+        let tokens = Tokens::of(ui);
         let rect = Self::rect(ui, frame);
         let response = ui.interact(rect, self.id, Sense::DRAG);
         if response.hovered() || response.dragged() {
             ui.ctx().set_cursor_icon(if rtl { CursorIcon::ResizeNeSw } else { CursorIcon::ResizeNwSe });
         }
-        let stroke = Stroke::new(1.0, parts.grip_tick.to_egui());
+        let stroke = Stroke::new(1.0, tokens.color.text.muted.to_egui());
         // Ticks run from the edge toward the corner, 3 points in from both edges.
         let inset = 3.0;
         let corner = if rtl { pos2(rect.left() + inset, rect.bottom() - inset) } else { pos2(rect.right() - inset, rect.bottom() - inset) };
         let side = if rtl { 1.0 } else { -1.0 };
         for k in 1..=3 {
-            let d = k as f32 * parts.grip_pitch;
+            let d = k as f32 * tokens.space.gap.inline;
             let from: Pos2 = pos2(corner.x + side * d, corner.y);
             let to: Pos2 = pos2(corner.x, corner.y - d);
             ui.painter().line_segment([from, to], stroke);

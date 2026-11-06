@@ -58,11 +58,11 @@ fn app(orientation: Orientation, overflow: bool) -> impl FnMut(&mut egui::Ui, &m
 }
 
 #[allow(clippy::expect_used)]
-fn tokens() -> craft_theme::ToolbarTokens {
+fn tokens() -> super::toolbar::ToolbarStyle {
     let ctx = Context::default();
     install(&ctx, &Base::suite_default());
     let mut t = None;
-    ctx.run_ui(egui::RawInput::default(), |ui| t = Some(Tokens::of(ui).component.toolbar)).drop_without_applying_deltas();
+    ctx.run_ui(egui::RawInput::default(), |ui| t = Some(Toolbar::style(&Tokens::of(ui)))).drop_without_applying_deltas();
     t.expect("tokens")
 }
 
@@ -162,7 +162,7 @@ fn a_wide_row_has_no_overflow_button_and_shows_every_item() {
     assert_eq!(r.len(), 5);
     assert!(r.iter().all(|r| r.width() == t.button && r.height() == t.button));
     assert_eq!(r[1].left() - r[0].right(), t.gap);
-    assert_eq!(r[2].left() - r[1].right(), t.button - 2.0);
+    assert_eq!(r[2].left() - r[1].right(), t.spacing);
     assert!(h.query_by_label("More").is_none());
 }
 

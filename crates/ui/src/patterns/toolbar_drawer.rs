@@ -18,6 +18,7 @@ use crate::menu::row::{Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::menu::{self, ItemKind};
 use crate::popover::{Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use crate::primitives::{Interactive, Surface, SurfaceKind, Text};
+use crate::style::rail::RailStyle;
 use crate::theme::{ToEgui, Tokens, TokensOf};
 
 /// A heading in the drawer and the tools under it ("Select", "Paint").
@@ -191,8 +192,8 @@ impl ToolbarDrawer {
         let width = widest + ui.spacing().scroll.allocated_width();
 
         let screen = ctx.content_rect();
-        let gap = tokens.component.rail.flyout_gap;
-        let outer = if state.width > 0.0 { state.width } else { width + 2.0 * tokens.component.popover.padding };
+        let gap = tokens.space.gap.stack;
+        let outer = if state.width > 0.0 { state.width } else { width + 2.0 * tokens.space.gap.stack };
         let x = match (rail.center().x < screen.center().x, direction::is_rtl(ui)) {
             (true, false) => rail.right() + gap,
             (true, true) => rail.right() + gap + outer,
@@ -331,16 +332,16 @@ impl ToolbarDrawer {
         if let (Some(drag), Some(at)) = (DragAndDrop::payload::<ToolDrag>(&ctx), ctx.pointer_interact_pos())
             && let Some(tool) = dragged_tool(*drag, groups, toolbar)
         {
-            let r = &tokens.component.rail;
+            let rail = RailStyle::new(&tokens);
             Area::new(id.with("ghost")).order(Order::Tooltip).fixed_pos(at + vec2(8.0, 8.0)).interactable(false).show(&ctx, |ui| {
-                let (rect, _) = ui.allocate_exact_size(Vec2::splat(r.button), Sense::hover());
+                let (rect, _) = ui.allocate_exact_size(Vec2::splat(tokens.size.rail.button), Sense::hover());
                 Surface::paint(ui.painter(), rect, SurfaceKind::Popup, &tokens);
                 icons::paint(
                     ui,
-                    Rect::from_center_size(rect.center(), Vec2::splat(r.icon)),
+                    Rect::from_center_size(rect.center(), Vec2::splat(rail.icon)),
                     tool.icon,
                     icon_size(ControlSize::Md),
-                    r.icon_hover.to_egui(),
+                    tokens.color.text.normal.to_egui(),
                 );
             });
         }

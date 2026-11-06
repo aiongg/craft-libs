@@ -76,13 +76,13 @@ fn every_action_has_an_icon_and_a_label() {
     }
 }
 
-// The ⋯ button sits `align.menu_gap` after the sixth align button.
+// The ⋯ button sits `space.gap.stack` after the sixth align button.
 #[test]
 fn menu_button_keeps_the_token_gap() {
     let mut h =
         Harness::<f32>::builder().with_size([400.0, 400.0]).with_context_setup(|ctx: &Context| install(ctx, &Base::suite_default())).build_ui_state(
             |ui: &mut Ui, gap: &mut f32| {
-                *gap = Tokens::of(ui).component.align.menu_gap;
+                *gap = Tokens::of(ui).space.gap.stack;
                 AlignBar::new("test").show(ui);
             },
             0.0,

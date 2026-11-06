@@ -258,12 +258,12 @@ fn paint_solid(painter: &Painter, rect: Rect, color: Srgba, tokens: &crate::them
 fn paint_two(painter: &Painter, rect: Rect, a: Srgba, b: Srgba, tokens: &crate::theme::UiTokens) {
     let rect = rect.round_to_pixels(painter.ctx().pixels_per_point());
     if a.a < 1.0 || b.a < 1.0 {
-        let swatch = &tokens.component.swatch;
+        let overlay = &tokens.color.overlay;
         painter.extend(crate::controls::swatch::checkerboard(
             rect,
             egui::CornerRadius::ZERO,
-            [swatch.checker_a.to_egui(), swatch.checker_b.to_egui()],
-            swatch.checker_cell,
+            [overlay.checker_light.to_egui(), overlay.checker_dark.to_egui()],
+            tokens.size.checker,
         ));
     }
     let (left, right): (Color32, Color32) = (a.into(), b.into());
@@ -357,7 +357,7 @@ fn show_gradients(ui: &mut Ui, args: &mut PresetArgs) {
                 paint_two(&painter, canvas, a, b, &tokens);
             }
             None => {
-                painter.rect_filled(canvas, 2.0, tokens.component.swatch.checker_a.to_egui());
+                painter.rect_filled(canvas, 2.0, tokens.color.overlay.checker_light.to_egui());
             }
         }
         if hovering {

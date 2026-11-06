@@ -10,6 +10,7 @@ use crate::icons::Icon;
 use crate::localized::Labels as _;
 use crate::menu::{Menu, MenuEntry, MenuItem};
 use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, Surface};
+use crate::style::rail::RailStyle;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 use craft_theme::ControlSize;
@@ -18,17 +19,16 @@ use craft_theme::ControlSize;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FlyoutStyle {
-    /// The button: side `rail.button`, glyph `rail.icon`, rest colour `rail.icon_color`, hover
-    /// `rail.icon.hover` on `rail.hover`, corners `rail.radius`; toggled on, the icon button's
-    /// selected look.
+    /// The button: side `size.rail.button`, rest colour `text.muted`, hover `text.normal` on
+    /// `state.hover`, corners `shape.radius.control`; toggled on, the icon button's selected look.
     pub icon_button: IconButtonStyle,
-    /// Legs of the indicator triangle: `rail.indicator_size`.
+    /// Legs of the indicator triangle: `space.gap.tight`.
     pub indicator: f32,
-    /// Its distance from the button's corner: `rail.indicator_inset`.
+    /// Its distance from the button's corner: `space.gap.tight`.
     pub indicator_inset: f32,
-    /// Its colour: `rail.indicator`.
+    /// Its colour: `text.faint`.
     pub indicator_color: Color32,
-    /// Between the button and the list: `rail.flyout_gap`.
+    /// Between the button and the list: `space.gap.stack`.
     pub gap: f32,
 }
 
@@ -104,10 +104,10 @@ pub struct FlyoutResponse<T> {
 ///   that opened it. Releasing over a row after such a press chooses it; so does a click on a row.
 ///   A press outside, or Esc, closes it. No tooltip shows while a flyout is open or a button is
 ///   held.
-/// - **Look:** the button is an [`IconButton`] drawn from the `rail.*` tokens; a button with
-///   several items has a `rail.indicator` triangle at the corner facing the canvas. The list is a
+/// - **Look:** the button is an [`IconButton`] drawn from the semantic tokens; a button with
+///   several items has a `text.faint` triangle at the corner facing the canvas. The list is a
 ///   [`Menu`] of radio rows (the current item marked, its icon, its label, its shortcut at the
-///   end) beside the button towards the canvas, `rail.flyout_gap` away, never on another side (when it would leave
+///   end) beside the button towards the canvas, `space.gap.stack` away, never on another side (when it would leave
 ///   the screen it moves up by the overflow), and mirrors in a
 ///   right-to-left interface.
 /// - **Keyboard:** the Menu key and Shift+F10 open the flyout of the focused button, as a secondary
@@ -186,25 +186,26 @@ impl<'a, T: Clone + PartialEq> FlyoutButton<'a, T> {
         self
     }
 
-    /// The resolved flyout style, read from `tokens.component.rail`.
+    /// The resolved flyout style.
     pub fn style(tokens: &UiTokens) -> FlyoutStyle {
-        let r = &tokens.component.rail;
+        let (color, space) = (&tokens.color, &tokens.space);
+        let rail = RailStyle::new(tokens);
         let base = IconButton::style(tokens, ControlSize::Md);
-        let hover = r.hover.to_egui();
-        let icon_hover = r.icon_hover.to_egui();
+        let hover = color.state.hover.to_egui();
+        let icon_hover = color.text.normal.to_egui();
         FlyoutStyle {
             icon_button: IconButtonStyle {
-                side: r.button,
-                icon: r.icon,
-                radius: egui::CornerRadius::same(r.radius.round().clamp(0.0, 255.0) as u8),
+                side: tokens.size.rail.button,
+                icon: rail.icon,
+                radius: egui::CornerRadius::same(tokens.shape.radius.control.round().clamp(0.0, 255.0) as u8),
                 fill: craft_theme::States::new(Color32::TRANSPARENT, hover, hover, Color32::TRANSPARENT),
-                text: craft_theme::States::new(r.icon_color.to_egui(), icon_hover, icon_hover, base.text.disabled),
+                text: craft_theme::States::new(color.text.muted.to_egui(), icon_hover, icon_hover, base.text.disabled),
                 ..base
             },
-            indicator: r.indicator_size,
-            indicator_inset: r.indicator_inset,
-            indicator_color: r.indicator_color.to_egui(),
-            gap: r.flyout_gap,
+            indicator: space.gap.tight,
+            indicator_inset: space.gap.tight,
+            indicator_color: color.text.faint.to_egui(),
+            gap: space.gap.stack,
         }
     }
 

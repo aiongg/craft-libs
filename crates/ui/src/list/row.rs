@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::sync::Arc;
 
-use craft_theme::{Stroke as Hairline, ThumbSizes, TypeRole};
+use craft_theme::{RowStyle, Stroke as Hairline, ThumbSizes, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::{Color32, Id, Painter, Pos2, Rect, Response, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2};
@@ -18,6 +18,7 @@ use crate::localized::SharedLabels as _;
 use crate::localized::{Labels, Word, Words};
 use crate::menu::{ContextMenu, MenuEntry, OpenAt};
 use crate::primitives::{FocusRing, Interactive};
+use crate::style::list::ListStyle;
 use crate::story::{Level, Story, StoryArgs, StoryChoice, StoryLabels};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
 use crate::typed_story;
@@ -26,14 +27,14 @@ use crate::typed_story;
 /// (it is serde, for a panel's `*Settings`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ThumbSize {
-    /// No thumbnail: rows are `list.row_height` high.
+    /// No thumbnail: rows are `size.control.md` high.
     #[default]
     None,
-    /// `list.thumb.sm`.
+    /// `size.thumb.sm`.
     Small,
-    /// `list.thumb.md`.
+    /// `size.thumb.md`.
     Medium,
-    /// `list.thumb.lg`.
+    /// `size.thumb.lg`.
     Large,
     /// A side in points, for a thumbnail that follows a slider (a preset browser's list view).
     Px(u16),
@@ -268,7 +269,7 @@ pub struct RowResponse<K> {
     /// drags are the cell's [`RowEvent::Toggle`] edits.
     pub toggles: Vec<Response>,
     /// The least width the row needs: its required parts (toggle columns, disclosure, thumbnails
-    /// and links, required trailing items) and `list.min_label` for the label. The same as
+    /// and links, required trailing items) and `ListStyle::min_label` for the label. The same as
     /// [`ListRow::min_width`]. A narrower row is clipped at its trailing edge. A host sets its
     /// panel's minimum width from this.
     pub min_width: f32,
@@ -278,113 +279,113 @@ pub struct RowResponse<K> {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ListRowStyle {
-    /// Height of a row without a thumbnail: `list.row_height`.
+    /// Height of a row without a thumbnail: `size.control.md`.
     pub row_height: f32,
-    /// Height of a row in a dense list (a layer's sub-row, a compact panel): `list.row_height_dense`.
+    /// Height of a row in a dense list (a layer's sub-row, a compact panel): `ListStyle::row_height_dense`.
     pub row_height_dense: f32,
-    /// Thumbnail sides: `list.thumb`.
+    /// Thumbnail sides: `size.thumb`.
     pub thumb: ThumbSizes,
-    /// Added to the thumbnail for the row's height: `list.thumb_pad`.
+    /// Added to the thumbnail for the row's height: `space.gap.stack`.
     pub thumb_pad: f32,
-    /// Least height of a row with a thumbnail: `list.thumb_row_min`.
+    /// Least height of a row with a thumbnail: `ListStyle::thumb_row_min`.
     pub thumb_row_min: f32,
-    /// `list.pad_x`.
+    /// `space.pad.control`.
     pub pad_x: f32,
-    /// `list.gap`.
+    /// `space.gap.inline`.
     pub gap: f32,
-    /// `list.indent`.
+    /// `size.icon.md`.
     pub indent: f32,
-    /// Width of a tree row's disclosure column: `list.disclosure`.
+    /// Width of a tree row's disclosure column: `size.icon.md`.
     pub disclosure: f32,
-    /// `list.toggle_column`.
+    /// `ListStyle::toggle_column`.
     pub toggle_column: f32,
-    /// `list.min_label`.
+    /// `ListStyle::min_label`.
     pub min_label: f32,
-    /// `list.trailing_pad`.
+    /// `space.pad.panel`.
     pub trailing_pad: f32,
-    /// `list.radius`.
+    /// `shape.radius.control` in rounded rows.
     pub radius: f32,
-    /// `list.dividers`.
+    /// `shape.rows`.
     pub dividers: bool,
-    /// `list.drop_width`.
+    /// `stroke.thick`.
     pub drop_width: f32,
-    /// How far the second-thumb brackets stand outside the thumbnail: `list.bracket_outset`.
+    /// How far the second-thumb brackets stand outside the thumbnail: `space.gap.tight`.
     pub bracket_outset: f32,
-    /// Arm length of the second-thumb brackets: `list.bracket_arm`.
+    /// Arm length of the second-thumb brackets: `space.gap.inline`.
     pub bracket_arm: f32,
     /// Side of an icon: `size.icon.md`.
     pub icon_size: f32,
-    /// Type role of the label: `list.label`.
+    /// Type role of the label: `body`.
     pub label_role: TypeRole,
-    /// Type role of the label of a [strong](ListRow::strong) row: `list.label_strong`.
+    /// Type role of the label of a [strong](ListRow::strong) row: `body_strong`.
     pub label_strong_role: TypeRole,
-    /// Type role of the detail line: `list.detail_role`.
+    /// Type role of the detail line: `caption`.
     pub detail_role: TypeRole,
     /// Line height of the label and of the detail line.
     pub label_line: f32,
     /// Line height of the detail line.
     pub detail_line: f32,
-    /// `list.text`, `list.text.dimmed`, `list.text.selected` and `list.text.selected.dimmed`.
+    /// `text.normal`, `text.faint`, `text.on_selected` and `text.on_selected`.
     pub text: Color32,
     #[allow(missing_docs)]
     pub dimmed: Color32,
-    /// `list.text.muted`: the label of a [muted](ListRow::muted) row.
+    /// `text.muted`: the label of a [muted](ListRow::muted) row.
     pub muted: Color32,
     #[allow(missing_docs)]
     pub selected_text: Color32,
     #[allow(missing_docs)]
     pub selected_dimmed: Color32,
-    /// `list.detail` and `list.detail.selected`.
+    /// `text.faint` and `text.on_selected`.
     pub detail: Color32,
     #[allow(missing_docs)]
     pub selected_detail: Color32,
-    /// `list.icon` and `list.icon.hover`.
+    /// `text.muted` and `text.normal`.
     pub icon: Color32,
     #[allow(missing_docs)]
     pub icon_hover: Color32,
-    /// `list.hover`, `list.selected` and `list.selected.hover`.
+    /// `ListStyle::hover`, `state.selected` and `state.selected_hover`.
     pub hover: Color32,
     #[allow(missing_docs)]
     pub selected: Color32,
     #[allow(missing_docs)]
     pub selected_hover: Color32,
-    /// `list.stripe`: behind every second row of a striped list, under the hover and selected fills.
+    /// `ListStyle::stripe`: behind every second row of a striped list, under the hover and selected fills.
     pub stripe: Color32,
-    /// The hairlines: `list.divider`, one physical pixel.
+    /// The hairlines: `line.divider`, one physical pixel.
     pub divider: Stroke,
-    /// `list.thumb.border` and `list.thumb.border.selected`.
+    /// `line.border` and `line.border`.
     pub thumb_border: Color32,
     #[allow(missing_docs)]
     pub thumb_border_selected: Color32,
-    /// `list.thumb.radius`: the corners of the thumbnail's frame.
+    /// `shape.radius.sm`: the corners of the thumbnail's frame.
     pub thumb_radius: f32,
-    /// The layer form's fills: `list.layer.hover` and `list.layer.selected`, and the 1 pt inside
-    /// outline of the selected row, `list.layer.outline` (clear when the theme has none).
+    /// The layer form's fills: `ListStyle::layer_hover` and `state.selected`, and the 1 pt inside
+    /// outline of the selected row, a clear outline (clear when the theme has none).
     pub layer_hover: Color32,
     #[allow(missing_docs)]
     pub layer_selected: Color32,
     #[allow(missing_docs)]
     pub layer_outline: Color32,
-    /// `list.layer.radius`: the corners of the layer form's fills and outline.
+    /// `shape.radius.control`: the corners of the layer form's fills and outline.
     pub layer_radius: f32,
-    /// `list.layer.text.selected`, `list.layer.text.selected.dimmed` and
-    /// `list.layer.detail.selected`.
+    /// `text.on_selected`, `text.on_selected` and
+    /// `text.on_selected`.
     pub layer_selected_text: Color32,
     #[allow(missing_docs)]
     pub layer_selected_dimmed: Color32,
     #[allow(missing_docs)]
     pub layer_selected_detail: Color32,
-    /// `list.drop`.
+    /// `accent.solid`.
     pub drop: Color32,
-    /// The outline under the drop marker: `list.drop_halo_width` of `list.drop_halo` on each side.
+    /// The outline under the drop marker: `stroke.thin` of `surface.panel` on each side.
     pub drop_halo: Stroke,
-    /// The drag ghost: `list.ghost.fill`, a 1 pt `list.ghost.border`, `radius.control` corners.
+    /// The drag ghost: `surface.raised`, a 1 pt `accent.solid`, `radius.control` corners.
     pub ghost_fill: Color32,
     #[allow(missing_docs)]
     pub ghost_border: Color32,
     /// Corner radius of the drag ghost (`radius.control`).
     pub ghost_radius: f32,
-    /// Where the ghost starts from the pointer toward the reading end: `list.ghost_offset`.
+    /// Where the ghost starts from the pointer toward the reading end: `ListStyle::ghost_offset`.
     pub ghost_offset: Vec2,
 }
 
@@ -436,7 +437,7 @@ type Body<'a> = Box<dyn Fn(&mut Ui) + 'a>;
 /// - **Form.** A plain row (history, actions, swatches) has no dividers and the plain hover. The
 ///   [layer form](ListRow::layer) (layers, channels) adds the dividers, the accent tint on the
 ///   hover and the layer look of the selected row.
-/// - **States** are inputs: [`selected`](ListRow::selected) (the `list.selected` fill,
+/// - **States** are inputs: [`selected`](ListRow::selected) (the `state.selected` fill,
 ///   rounded in Comfortable, no border), [`focused`](ListRow::focused) (the focus ring, drawn
 ///   while the keyboard is the last input), [`dimmed`](ListRow::dimmed) (a hidden layer's faint
 ///   label), [`highlight`](ListRow::highlight) (the hover fill without the pointer),
@@ -445,8 +446,8 @@ type Body<'a> = Box<dyn Fn(&mut Ui) + 'a>;
 ///   [`tooltip`](ListRow::tooltip) sets one. Trailing
 ///   items are placed first, from the trailing edge inward; those marked
 ///   [optional](ListRow::optional_item) drop out, in the order given, before the label would
-///   get narrower than `list.min_label`, and the indent shrinks before the label gets narrower
-///   than that. The label is never narrower than `list.min_label`: a row too narrow for its
+///   get narrower than `ListStyle::min_label`, and the indent shrinks before the label gets narrower
+///   than that. The label is never narrower than `ListStyle::min_label`: a row too narrow for its
 ///   required parts and that label is clipped at the trailing edge, and
 ///   [`min_width`](ListRow::min_width) is the width it needs.
 /// - **Rename.** While [`renaming`](ListRow::renaming), a [`TextField`](crate::controls::TextField)
@@ -605,7 +606,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self.selectable
     }
 
-    /// The label in the strong weight (`list.label_strong`), for a row that heads the others.
+    /// The label in the strong weight (`body_strong`), for a row that heads the others.
     pub fn strong(mut self, strong: bool) -> Self {
         self.strong = strong;
         self
@@ -663,7 +664,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         rename::take_open_draft(ctx)
     }
 
-    /// The width the row needs in `ui`'s theme: its required parts and `list.min_label` for the
+    /// The width the row needs in `ui`'s theme: its required parts and `ListStyle::min_label` for the
     /// label, whatever the indent (which shrinks). Equals [`RowResponse::min_width`] of the shown
     /// row; measures without showing.
     pub fn min_width(&self, ui: &Ui) -> f32 {
@@ -863,15 +864,15 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
-    /// Fills the row with `list.stripe` under the hover and selected fills, for every second row
+    /// Fills the row with `ListStyle::stripe` under the hover and selected fills, for every second row
     /// of a striped list (the host counts the rows).
     pub fn striped(mut self, striped: bool) -> Self {
         self.striped = striped;
         self
     }
 
-    /// A thumbnail of `size` before the label, framed just outside in `list.thumb.border`
-    /// (`list.thumb.border.selected` on the selected row); `paint` draws into the painter, clipped
+    /// A thumbnail of `size` before the label, framed just outside in `line.border`
+    /// (`line.border` on the selected row); `paint` draws into the painter, clipped
     /// to the thumbnail's rect. [`ThumbSize::None`] draws none.
     pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&Painter, Rect) + 'a) -> Self {
         self.thumb = size;
@@ -900,8 +901,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     /// A link glyph before the extra thumbnail added last ([`Icon::Link`] when `linked`, else
     /// [`Icon::Unlink`], dimmed), which reports [`RowEvent::LinkToggled`] when clicked. `name` is
     /// its accessible name and tooltip, with `{row}` standing for the row's label ("Unlink mask
-    /// from {row}"); give each glyph of a row its own. It takes a `list.icon` wide slot; without
-    /// it the thumbnails are a `list.gap` apart. The glyph is a Tab stop and shows the focus ring.
+    /// from {row}"); give each glyph of a row its own. It takes a `text.muted` wide slot; without
+    /// it the thumbnails are a `space.gap.inline` apart. The glyph is a Tab stop and shows the focus ring.
     /// Does nothing before an [`extra_thumb`](ListRow::extra_thumb).
     pub fn thumb_link(mut self, linked: bool, name: impl Into<String>) -> Self {
         if let Some(extra) = self.extras.last_mut() {
@@ -958,7 +959,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     }
 
     /// An item at the trailing end, `width` wide, that drops out when the label would get
-    /// narrower than `list.min_label` with it.
+    /// narrower than `ListStyle::min_label` with it.
     pub fn optional_item(mut self, width: f32, add: impl FnOnce(&mut Ui) + 'a) -> Self {
         self.trailing.push(TrailingItem { width, optional: true, add: Box::new(add) });
         self
@@ -989,8 +990,8 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     }
 
     /// The layer form of the row, for lists of layers and channels: dividers under the row and at
-    /// each toggle column's edge (where `list.dividers` is on; plain rows have none), the hover
-    /// fill with the accent tint, and the selected row in the layer look (`list.layer.*`: in themes
+    /// each toggle column's edge (where `shape.rows` is `Divided`; plain rows have none), the hover
+    /// fill with the accent tint, and the selected row in the layer look (`state.selected`; in themes
     /// whose PhotoCraft kind is not a Pro kind, the hover fill in a 1 pt outline).
     pub fn layer(mut self, layer: bool) -> Self {
         self.layer = layer;
@@ -1003,9 +1004,9 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
         self
     }
 
-    /// A `list.divider` hairline along the row's bottom edge, across its whole width, in a
+    /// A `line.divider` hairline along the row's bottom edge, across its whole width, in a
     /// [plain](ListRow::layer) row too (default false): the History panel's rule under its last
-    /// snapshot. A layer-form row already draws it where `list.dividers` is on, and draws it once.
+    /// snapshot. A layer-form row already draws it where `shape.rows` is `Divided`, and draws it once.
     pub fn rule(mut self, rule: bool) -> Self {
         self.rule = rule;
         self
@@ -1018,7 +1019,7 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
     }
 
     /// Space before the icon or thumbnail, in points (a tree's levels and disclosure column). It
-    /// shrinks before the label gets narrower than `list.min_label`.
+    /// shrinks before the label gets narrower than `ListStyle::min_label`.
     pub fn indent(mut self, indent: f32) -> Self {
         self.indent = indent.max(0.0);
         self
@@ -1072,61 +1073,64 @@ impl<'a, K: std::hash::Hash + std::fmt::Debug + Clone + Send + Sync + 'static> L
 
     /// The row look from the theme's `list` tokens.
     pub fn style(tokens: &UiTokens) -> ListRowStyle {
-        let l = &tokens.component.list;
+        let (space, color, size) = (&tokens.space, &tokens.color, &tokens.size);
+        let list = ListStyle::new(tokens);
+        let (label_role, label_strong_role, detail_role) = (TypeRole::Body, TypeRole::BodyStrong, TypeRole::Caption);
+        let rounded = tokens.shape.rows == RowStyle::Rounded;
         ListRowStyle {
-            row_height: l.row_height,
-            row_height_dense: l.row_height_dense,
-            thumb: l.thumb,
-            thumb_pad: l.thumb_pad,
-            thumb_row_min: l.thumb_row_min,
-            pad_x: l.pad_x,
-            gap: l.gap,
-            indent: l.indent,
-            disclosure: l.disclosure,
-            toggle_column: l.toggle_column,
-            min_label: l.min_label,
-            trailing_pad: l.trailing_pad,
-            radius: l.radius,
-            dividers: l.dividers,
-            drop_width: l.drop_width,
-            bracket_outset: l.bracket_outset,
-            bracket_arm: l.bracket_arm,
-            icon_size: tokens.size.icon.md,
-            label_role: l.label,
-            label_strong_role: l.label_strong,
-            detail_role: l.detail_role,
-            label_line: tokens.typography.get(l.label).line_height,
-            detail_line: tokens.typography.get(l.detail_role).line_height,
-            text: l.text.to_egui(),
-            dimmed: l.dimmed.to_egui(),
-            muted: l.muted.to_egui(),
-            selected_text: l.selected_text.to_egui(),
-            selected_dimmed: l.selected_dimmed.to_egui(),
-            detail: l.detail.to_egui(),
-            selected_detail: l.selected_detail.to_egui(),
-            icon: l.icon.to_egui(),
-            icon_hover: l.icon_hover.to_egui(),
-            hover: l.hover.to_egui(),
-            selected: l.selected.to_egui(),
-            selected_hover: l.selected_hover.to_egui(),
-            stripe: l.stripe.to_egui(),
-            divider: Stroke::new(Hairline::Hairline.width(1.0), l.divider.to_egui()),
-            thumb_border: l.thumb_border.to_egui(),
-            thumb_border_selected: l.thumb_border_selected.to_egui(),
-            thumb_radius: l.thumb_radius,
-            layer_hover: l.layer_hover.to_egui(),
-            layer_selected: l.layer_selected.to_egui(),
-            layer_outline: l.layer_outline.to_egui(),
-            layer_radius: l.layer_radius,
-            layer_selected_text: l.layer_selected_text.to_egui(),
-            layer_selected_dimmed: l.layer_selected_dimmed.to_egui(),
-            layer_selected_detail: l.layer_selected_detail.to_egui(),
-            drop: l.drop.to_egui(),
-            drop_halo: Stroke::new(l.drop_halo_width, l.drop_halo.to_egui()),
-            ghost_fill: l.ghost_fill.to_egui(),
-            ghost_border: l.ghost_border.to_egui(),
+            row_height: size.control.md,
+            row_height_dense: list.row_height_dense,
+            thumb: size.thumb,
+            thumb_pad: space.gap.stack,
+            thumb_row_min: list.thumb_row_min,
+            pad_x: space.pad.control,
+            gap: space.gap.inline,
+            indent: size.icon.md,
+            disclosure: size.icon.md,
+            toggle_column: list.toggle_column,
+            min_label: list.min_label,
+            trailing_pad: space.pad.panel,
+            radius: if rounded { tokens.shape.radius.control } else { 0.0 },
+            dividers: tokens.shape.rows == RowStyle::Divided,
+            drop_width: tokens.stroke.thick,
+            bracket_outset: space.gap.tight,
+            bracket_arm: space.gap.inline,
+            icon_size: size.icon.md,
+            label_role,
+            label_strong_role,
+            detail_role,
+            label_line: tokens.typography.get(label_role).line_height,
+            detail_line: tokens.typography.get(detail_role).line_height,
+            text: color.text.normal.to_egui(),
+            dimmed: color.text.faint.to_egui(),
+            muted: color.text.muted.to_egui(),
+            selected_text: color.text.on_selected.to_egui(),
+            selected_dimmed: color.text.on_selected.to_egui(),
+            detail: color.text.faint.to_egui(),
+            selected_detail: color.text.on_selected.to_egui(),
+            icon: color.text.muted.to_egui(),
+            icon_hover: color.text.normal.to_egui(),
+            hover: list.hover.to_egui(),
+            selected: color.state.selected.to_egui(),
+            selected_hover: color.state.selected_hover.to_egui(),
+            stripe: list.stripe.to_egui(),
+            divider: Stroke::new(Hairline::Hairline.width(1.0), color.line.divider.to_egui()),
+            thumb_border: color.line.border.to_egui(),
+            thumb_border_selected: color.line.border.to_egui(),
+            thumb_radius: tokens.shape.radius.sm,
+            layer_hover: list.layer_hover.to_egui(),
+            layer_selected: color.state.selected.to_egui(),
+            layer_outline: Color32::TRANSPARENT,
+            layer_radius: tokens.shape.radius.control,
+            layer_selected_text: color.text.on_selected.to_egui(),
+            layer_selected_dimmed: color.text.on_selected.to_egui(),
+            layer_selected_detail: color.text.on_selected.to_egui(),
+            drop: color.accent.solid.to_egui(),
+            drop_halo: Stroke::new(tokens.stroke.thin, color.surface.panel.to_egui()),
+            ghost_fill: color.surface.raised.to_egui(),
+            ghost_border: color.accent.solid.to_egui(),
             ghost_radius: tokens.shape.radius.control,
-            ghost_offset: Vec2::from(l.ghost_offset),
+            ghost_offset: Vec2::from(list.ghost_offset),
         }
     }
 
@@ -1807,7 +1811,7 @@ fn paint_label(
 
 /// A drop indicator line for a target that is not a list row: `from` to `to` (axis-aligned,
 /// horizontal when their y matches, vertical otherwise), centred on the segment, drawn in
-/// `list.drop` at `list.drop_width` on its `list.drop_halo` outline. It is the line a
+/// `accent.solid` at `stroke.thick` on its `surface.panel` outline. It is the line a
 /// [`ListRow`] draws for [`DropMark::Before`] and [`DropMark::After`], for headers, buttons and
 /// other rows of the host's own.
 pub fn drop_line(ui: &Ui, from: Pos2, to: Pos2) {
