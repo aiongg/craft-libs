@@ -31,7 +31,7 @@ impl ButtonLook {
             },
             secondary: ButtonColors {
                 fill: States::new(clear, c.state.hover, c.state.pressed, clear),
-                border: States::new(c.line.control_edge, c.line.control_edge, c.line.control_edge, c.line.divider),
+                border: States::new(c.text.muted, c.text.muted, c.text.muted, c.line.divider),
                 text: text(c.text.normal),
             },
             ghost: ButtonColors { fill: States::new(clear, c.state.hover, c.state.pressed, clear), border: none, text: text(c.text.normal) },

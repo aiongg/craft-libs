@@ -71,11 +71,11 @@ pub struct LayersStyle {
 }
 
 impl LayersStyle {
-    /// The Opacity and Fill fields' text part, without the pop-up arrow: "100%" in the number
-    /// field's type role and padding. The box adds the number field's pop-up arrow.
+    /// The Opacity and Fill fields' text part, without the pop-up arrow: "100", the field's gap
+    /// and "%" in the number field's type role and padding. The box adds the number field's pop-up arrow.
     pub(crate) fn percent_field_width(ui: &Ui, tokens: &UiTokens) -> f32 {
         let field = NumberField::style(tokens, ControlSize::Sm).field;
-        text_width(ui, tokens, field.role, "100%") + 2.0 * field.pad_x
+        text_width(ui, tokens, field.role, "100") + field.gap + text_width(ui, tokens, field.role, "%") + 2.0 * field.pad_x
     }
 
     /// The filter type select's width: the widest of `labels` in the select's type role and
