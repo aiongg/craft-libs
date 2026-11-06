@@ -66,7 +66,7 @@ fn secondary_button_is_outlined_until_hovered() {
     for t in every_builtin() {
         let secondary = crate::style::button::ButtonLook::new(&t).secondary;
         assert_eq!(secondary.fill.rest, craft_theme::Rgba::TRANSPARENT);
-        assert_ne!(secondary.border.rest, craft_theme::Rgba::TRANSPARENT);
+        assert_eq!((secondary.border.rest, secondary.border.hover), (t.color.text.muted, t.color.text.muted));
         assert_ne!(secondary.fill.hover, craft_theme::Rgba::TRANSPARENT);
     }
 }

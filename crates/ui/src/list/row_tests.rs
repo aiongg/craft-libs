@@ -770,7 +770,7 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
     for id in ["craft.artcraft", "craft.studio", "craft.classic"] {
         let theme = craft_theme::builtins().iter().find(|t| t.id.as_str() == id).expect("built-in theme").clone();
         let mut rounded = false;
-        let mut panel_color = craft_theme::Rgba::TRANSPARENT;
+        let mut tint = false;
         let mut drawn = |layer: bool, selected: bool, hovered: bool| {
             let mut style = None;
             let drawn = shapes(&ctx, |ui| {
@@ -780,7 +780,7 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
                     |ui| {
                         let tokens = Tokens::of(ui);
                         rounded = tokens.shape.rows == craft_theme::RowStyle::Rounded;
-                        panel_color = tokens.color.surface.panel;
+                        tint = tokens.color.state.selected.0[3] < 255;
                         style = Some(ListRow::<u8>::style(&tokens));
                         panel(ui, 240.0, |ui| {
                             let _ = ListRow::new(1u8, "Layer")
@@ -809,9 +809,8 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
         let row_outline = |shapes: &[Shape]| {
             shapes.iter().any(|s2| matches!(s2, Shape::Rect(r) if r.stroke.color == s.layer_outline && r.stroke.width > 0.0 && r.stroke_kind == egui::StrokeKind::Inside))
         };
-        let shows = craft_theme::contrast_ratio(craft_theme::over(to_rgba(s.layer_selected), panel_color), panel_color) >= 3.0;
         let outlined = s.layer_outline != egui::Color32::TRANSPARENT;
-        assert_eq!(outlined, !shows, "{id}: the selected layer is outlined where its fill alone doesn't show");
+        assert_eq!(outlined, tint, "{id}: the selected layer is outlined when its fill is a tint");
         assert_eq!(row_outline(&selected), outlined, "{id}");
         assert!(!row_outline(&plain), "{id}: a plain row has no outline");
         assert_eq!(s.layer_radius == 0.0, !rounded, "{id}: square layer rows when the rows are divided");
@@ -822,6 +821,41 @@ fn the_layer_form_tints_the_hover_and_fills_the_selected_row() {
         assert_eq!(frame, Some(corner_radius(s.thumb_radius)), "{id}: the thumbnail frame");
         let text = label_colors(&selected);
         assert_eq!(text.first(), Some(&s.layer_selected_text), "{id}");
+    }
+}
+
+/// A selected layer row is outlined when its fill is a tint, and in high contrast when an opaque
+/// fill doesn't show on the panel; an opaque fill that shows has no outline.
+#[test]
+fn the_selected_layer_outline_follows_the_tint_and_high_contrast() {
+    use craft_theme::Contrast;
+    let ctx = context();
+    for theme in craft_theme::builtins() {
+        for contrast in [Contrast::Standard, Contrast::High] {
+            let (mut outline, mut tint, mut shows) = (egui::Color32::TRANSPARENT, false, true);
+            ctx.run_ui(egui::RawInput::default(), |ui| {
+                scope(
+                    ui,
+                    |o| {
+                        o.theme = Some(theme.clone());
+                        o.contrast = Some(contrast);
+                    },
+                    |ui| {
+                        let tokens = Tokens::of(ui);
+                        let s = ListRow::<u8>::style(&tokens);
+                        let panel = tokens.color.surface.panel;
+                        outline = s.layer_outline;
+                        tint = tokens.color.state.selected.0[3] < 255;
+                        let min = if contrast == Contrast::High { 4.5 } else { 3.0 };
+                        shows = craft_theme::contrast_ratio(craft_theme::over(to_rgba(s.layer_selected), panel), panel) >= min;
+                    },
+                )
+            })
+            .drop_without_applying_deltas();
+            let outlined = outline != egui::Color32::TRANSPARENT;
+            let wanted = tint || (contrast == Contrast::High && !shows);
+            assert_eq!(outlined, wanted, "{} {contrast:?}", theme.id);
+        }
     }
 }
 

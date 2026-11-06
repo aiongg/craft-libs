@@ -57,7 +57,7 @@ pub struct ListStyle {
     pub layer_selected_text: Rgba,
     /// Quiet text of a selected layer row.
     pub layer_selected_quiet: Rgba,
-    /// Outline of a selected layer row; transparent where the selected fill shows on the panel alone.
+    /// Outline of a selected layer row; transparent where the selected fill is opaque and, in high contrast, shows on the panel alone.
     pub layer_outline: Rgba,
 }
 
@@ -127,14 +127,16 @@ impl ListStyle {
         let panel = color.surface.panel;
         let plain = SelectedLook::of(panel, color.state.selected, color.state.selected_hover, color.text.on_selected, None, high);
         let bare = SelectedLook::of(panel, color.state.selected, color.state.selected, color.text.on_selected, None, high);
-        // A selected layer carries an outline where its fill alone doesn't show on the panel.
+        // A selected layer carries an outline when its fill is a tint over the panel, and in high
+        // contrast where the fill alone doesn't show on the panel.
         let min = if high { NON_TEXT_MIN.1 } else { NON_TEXT_MIN.0 };
         let shows = contrast_ratio(over(bare.selected, panel), panel) >= min;
-        let outline = (!shows).then(|| identifiable_outline(color.line.control_edge, bare.selected, &[panel], high));
+        let tint = color.state.selected.0[3] < 255;
+        let outline = (tint || (high && !shows)).then(|| identifiable_outline(color.line.control_edge, bare.selected, &[panel], high));
         let layer = SelectedLook::of(panel, color.state.selected, color.state.selected, color.text.on_selected, outline, high);
         Self {
             row_height_dense: tokens.typography.body.line_height + 2.0 * space.gap.tight,
-            thumb_row_min: size.thumb.md + 2.0 * space.gap.tight,
+            thumb_row_min: size.control.md + space.pad.panel,
             toggle_column: size.control.md + space.gap.inline,
             min_label: 3.0 * size.control.md,
             ghost_offset: GHOST_OFFSET,
