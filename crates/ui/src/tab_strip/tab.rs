@@ -252,7 +252,7 @@ pub struct TabStyle {
     pub text_label_role: TypeRole,
     /// Corners of the × under the pointer: `radius.control`.
     pub close_radius: f32,
-    /// The strip's fill: `surface.chrome`.
+    /// The strip's fill: `surface.background`.
     pub strip: Color32,
     /// The fill behind the active tab and a tab under the pointer: `surface.panel`.
     pub active: Color32,
@@ -597,7 +597,7 @@ impl<K: Clone + Eq + Hash + Debug + Send + Sync + 'static> Tab<K> {
             detail_role: TypeRole::Caption,
             text_label_role: TypeRole::Body,
             close_radius: tokens.shape.radius.control,
-            strip: c.surface.chrome.to_egui(),
+            strip: c.surface.background.to_egui(),
             active: c.surface.panel.to_egui(),
             text: c.text.normal.to_egui(),
             inactive_text: c.text.muted.to_egui(),

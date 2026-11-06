@@ -103,18 +103,18 @@ fn a_panel_body_puts_its_content_at_the_margin_and_spaces_it_by_body_gap() {
     assert_eq!(second.top() - first.bottom(), look.body_gap);
 }
 
-/// The tab strip, the column bar and the floating title draw in `surface.chrome`; the selected tab
+/// The tab strip, the column bar and the floating title draw in `surface.background`; the selected tab
 /// and the panel bodies stay `surface.panel`.
 #[test]
-fn bars_draw_in_the_chrome_surface_and_bodies_in_the_panel_surface() {
+fn bars_draw_in_the_background_surface_and_bodies_in_the_panel_surface() {
     use craft_theme::{Appearance, Contrast, Mode, Rgba, Size, TextSize, builtins, resolve};
     let appearance =
         Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::default(), reduced_motion: false };
     let mut tokens = resolve(builtins().first().expect("a built-in theme"), appearance, None).tokens;
-    tokens.color.surface.chrome = Rgba([12, 34, 56, 255]);
+    tokens.color.surface.background = Rgba([12, 34, 56, 255]);
     let tokens = crate::theme::UiTokens::new(tokens, appearance, Mode::Light, crate::theme::FontFamilies::default());
     let look = DockLook::from_tokens(&tokens);
-    assert_eq!(look.tab_strip, tokens.color.surface.chrome.to_egui());
+    assert_eq!(look.tab_strip, tokens.color.surface.background.to_egui());
     assert_eq!(look.title_background, look.tab_strip);
     assert_eq!(look.tab_active, tokens.color.surface.panel.to_egui());
     assert_eq!(look.background, look.tab_active);

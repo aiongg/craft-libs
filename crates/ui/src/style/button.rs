@@ -2,9 +2,6 @@
 
 use craft_theme::{ButtonColors, ButtonVariant, Rgba, States, Tokens};
 
-/// Fraction of the rest fill a secondary button shows while pressed.
-const PRESSED_OPACITY: f32 = 0.8;
-
 /// Colours of the four button variants.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct ButtonLook {
@@ -26,7 +23,6 @@ impl ButtonLook {
         let none = States::new(clear, clear, clear, clear);
         let text = |t: Rgba| States::new(t, t, t, c.text.disabled);
         let bad = c.status.bad;
-        let secondary = c.surface.sunken;
         ButtonLook {
             primary: ButtonColors {
                 fill: States::new(c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.state.disabled_fill),
@@ -34,7 +30,7 @@ impl ButtonLook {
                 text: text(c.text.on_strong),
             },
             secondary: ButtonColors {
-                fill: States::new(secondary, c.state.hover, secondary.faded(PRESSED_OPACITY), c.state.disabled_fill),
+                fill: States::new(clear, c.state.hover, c.state.pressed, clear),
                 border: States::new(c.line.control_edge, c.line.control_edge, c.line.control_edge, c.line.divider),
                 text: text(c.text.normal),
             },

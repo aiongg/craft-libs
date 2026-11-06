@@ -62,6 +62,16 @@ fn primary_button_uses_the_strong_accent_pair() {
 }
 
 #[test]
+fn secondary_button_is_outlined_until_hovered() {
+    for t in every_builtin() {
+        let secondary = crate::style::button::ButtonLook::new(&t).secondary;
+        assert_eq!(secondary.fill.rest, craft_theme::Rgba::TRANSPARENT);
+        assert_ne!(secondary.border.rest, craft_theme::Rgba::TRANSPARENT);
+        assert_ne!(secondary.fill.hover, craft_theme::Rgba::TRANSPARENT);
+    }
+}
+
+#[test]
 fn on_toggle_text_reads_on_its_fill_in_high_contrast() {
     for theme in builtins() {
         for mode in [Mode::Light, Mode::Dark] {
