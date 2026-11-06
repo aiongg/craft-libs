@@ -31,47 +31,52 @@ use crate::popup_list::{self, PopupList};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Stack, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Level, SizeArg, Story, StoryArgs, StoryLabels, variant_list, variant_row};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
+
+/// How much wider than the control padding a list row pads its content.
+const ROW_PAD_OVER_CONTROL: f32 = 4.0;
+/// Rows of control height a list shows before it scrolls.
+const MAX_ROWS: f32 = 17.5;
 use crate::typed_story;
 
 /// The rows of a popup list, from [`Select::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ListboxStyle {
-    /// Height of a row and of a group header: `listbox.height`.
+    /// Height of a row and of a group header.
     pub height: f32,
-    /// Between a row's edge and its contents: `listbox.pad_x`.
+    /// Between a row's edge and its contents.
     pub pad_x: f32,
-    /// The most a select's or combo box's list shows before it scrolls: `listbox.max_height`.
+    /// The most a select's or combo box's list shows before it scrolls.
     pub max_height: f32,
-    /// Between the check mark, an icon and the text: `listbox.gap`.
+    /// Between the check mark, an icon and the text: `space.gap.inline`.
     pub gap: f32,
-    /// Side of the check mark and of an option's icon: `listbox.icon`.
+    /// Side of the check mark and of an option's icon.
     pub icon: f32,
-    /// Above and below a separator's line: `listbox.separator_pad`.
+    /// Above and below a separator's line: `space.gap.inline`.
     pub separator_pad: f32,
-    /// `listbox.label` and `listbox.group_label`.
+    /// The `Body` role for rows and `Caption` for group headers.
     pub label: TypeRole,
     #[allow(missing_docs)]
     pub group_label: TypeRole,
-    /// Corners of a row's fill: `listbox.radius`.
+    /// Corners of a row's fill: `shape.radius.control`.
     pub radius: CornerRadius,
-    /// `listbox.text.rest` and `listbox.text.disabled`.
+    /// `text.normal` and `text.disabled`.
     pub text: Color32,
     #[allow(missing_docs)]
     pub text_disabled: Color32,
-    /// `listbox.active.fill`, `.text` and `.border`: the active row.
+    /// `state.hover`, `text.normal` and `line.control_edge`: the active row.
     pub active_fill: Color32,
     #[allow(missing_docs)]
     pub active_text: Color32,
     #[allow(missing_docs)]
     pub active_border: Color32,
-    /// `listbox.chosen.fill`, `.text` and `.border`: the chosen option, active or not.
+    /// `accent.solid`, `text.on_accent` and `accent.text`: the chosen option, active or not.
     pub chosen_fill: Color32,
     #[allow(missing_docs)]
     pub chosen_text: Color32,
     #[allow(missing_docs)]
     pub chosen_border: Color32,
-    /// `listbox.mark`, `listbox.group` and `listbox.separator`.
+    /// `text.normal`, `text.muted` and `line.divider`.
     pub mark: Color32,
     #[allow(missing_docs)]
     pub group: Color32,
@@ -712,31 +717,35 @@ impl Select<'static, ()> {
 
     /// The select's sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SelectStyle {
-        let l = &tokens.component.listbox;
+        let c = &tokens.color;
+        let (height, icon) = match size {
+            ControlSize::Sm => (tokens.size.control.sm, tokens.size.icon.sm),
+            ControlSize::Md => (tokens.size.control.md, tokens.size.icon.md),
+        };
         SelectStyle {
             field: TextField::style(tokens, size),
-            hover_fill: tokens.color.state.hover.to_egui(),
+            hover_fill: c.state.hover.to_egui(),
             list: ListboxStyle {
-                height: l.height.get(size),
-                pad_x: l.pad_x,
-                max_height: l.max_height,
-                gap: l.gap,
-                icon: l.icon.get(size),
-                separator_pad: l.separator_pad,
-                label: l.label,
-                group_label: l.group_label,
-                radius: corner_radius(l.radius),
-                text: l.text.rest.to_egui(),
-                text_disabled: l.text.disabled.to_egui(),
-                active_fill: l.active_fill.to_egui(),
-                active_text: l.active_text.to_egui(),
-                active_border: l.active_border.to_egui(),
-                chosen_fill: l.chosen_fill.to_egui(),
-                chosen_text: l.chosen_text.to_egui(),
-                chosen_border: l.chosen_border.to_egui(),
-                mark: l.mark.to_egui(),
-                group: l.group.to_egui(),
-                separator: l.separator.to_egui(),
+                height,
+                pad_x: tokens.space.pad.control + ROW_PAD_OVER_CONTROL,
+                max_height: MAX_ROWS * tokens.size.control.md,
+                gap: tokens.space.gap.inline,
+                icon,
+                separator_pad: tokens.space.gap.inline,
+                label: TypeRole::Body,
+                group_label: TypeRole::Caption,
+                radius: corner_radius(tokens.shape.radius.control),
+                text: c.text.normal.to_egui(),
+                text_disabled: c.text.disabled.to_egui(),
+                active_fill: c.state.hover.to_egui(),
+                active_text: c.text.normal.to_egui(),
+                active_border: c.line.control_edge.to_egui(),
+                chosen_fill: c.accent.solid.to_egui(),
+                chosen_text: c.text.on_accent.to_egui(),
+                chosen_border: c.accent.text.to_egui(),
+                mark: c.text.normal.to_egui(),
+                group: c.text.muted.to_egui(),
+                separator: c.line.divider.to_egui(),
                 focus: FocusRing::style(tokens).stroke,
             },
             popup: Surface::style(tokens, SurfaceKind::Popup),

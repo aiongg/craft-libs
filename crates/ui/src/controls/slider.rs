@@ -6,7 +6,7 @@ use std::fmt::Debug;
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
-use craft_theme::{ControlSize, Srgba, States, TypeRole};
+use craft_theme::{ControlSize, Rgba, Srgba, States, TypeRole};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
@@ -32,40 +32,40 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SliderStyle {
-    /// Height of the control: `slider.height`.
+    /// Height of the control.
     pub height: f32,
-    /// Default length: `slider.width`.
+    /// Default length.
     pub width: f32,
-    /// Height of a thumb, its diameter while round: `slider.thumb`.
+    /// Height of a thumb, its diameter while round.
     pub thumb: f32,
-    /// Width of a thumb: `slider.thumb_width`.
+    /// Width of a thumb.
     pub thumb_width: f32,
-    /// Thickness of the track: `slider.track_height`.
+    /// Thickness of the track.
     pub track_height: f32,
-    /// Thickness of a gradient track: `slider.gradient_height`.
+    /// Thickness of a gradient track.
     pub gradient_height: f32,
-    /// The track: flat, with no outline, filled with `slider.track`, with `slider.track_radius`
+    /// The track: flat, with no outline, filled with `line.control_edge`, with `shape.radius.sm`
     /// corners clamped to half its height.
     pub track: SurfaceStyle,
-    /// The filled part, from the start to the value: `slider.fill`.
+    /// The filled part, from the start to the value: `text.muted`.
     pub fill: States<Color32>,
     /// A thumb's shape: a knob [`Surface`] (its outline, or bevel, and the knob shadow) with
-    /// `slider.radius` corners clamped to half its shorter side. Its fill and border colour change with
+    /// `shape.radius.pill` corners clamped to half its shorter side. Its fill and border colour change with
     /// the state; a disabled thumb has no shadow.
     pub thumb_surface: SurfaceStyle,
-    /// `slider.thumb.fill`.
+    /// The thumb face.
     pub thumb_fill: States<Color32>,
-    /// `slider.thumb.border`; a bevel keeps its own colours.
+    /// The thumb outline; a bevel keeps its own colours.
     pub thumb_border: States<Color32>,
-    /// The ring round a thumb, clear of its edge: `slider.ring`.
+    /// The ring round a thumb, clear of its edge: `accent.soft`.
     pub ring: States<Color32>,
-    /// `slider.ring_width`.
+    /// Width of the ring: `stroke.thick`.
     pub ring_width: f32,
-    /// From a thumb's edge to the ring's centre line: `slider.ring_offset`.
+    /// From a thumb's edge to the ring's centre line.
     pub ring_offset: f32,
-    /// Height of the marks and ticks under the track: `slider.mark`.
+    /// Height of the marks and ticks under the track.
     pub mark: f32,
-    /// How near a mark a drag snaps the thumb to it, in points: `slider.snap`.
+    /// How near a mark a drag snaps the thumb to it, in points.
     pub snap: f32,
     /// The colour of marks and ticks: `line.mark`.
     pub mark_color: Color32,
@@ -281,7 +281,7 @@ impl Slider {
         self
     }
 
-    /// The slider's length in points instead of `slider.width`, for a slider that fills a row.
+    /// The slider's length in points instead of its default width, for a slider that fills a row.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -296,7 +296,7 @@ impl Slider {
         self
     }
 
-    /// Whether the part of the track from the start to the value is filled with `slider.fill`
+    /// Whether the part of the track from the start to the value is filled with `text.muted`
     /// (default on). Off draws the whole track in its unfilled colour, as PhotoCraft's and
     /// Photoshop's sliders do; the thumb, ring and states stay as they are.
     pub fn fill(mut self, fill: bool) -> Self {
@@ -315,7 +315,7 @@ impl Slider {
         self
     }
 
-    /// Values the thumb snaps to when a drag or a click brings it within `slider.snap` points,
+    /// Values the thumb snaps to when a drag or a click brings it within the snap distance,
     /// drawn as marks under the track. A mark outside the range is ignored. Keys, the wheel and
     /// screen readers use the step only, so with a step the marks should lie on it.
     pub fn marks(mut self, marks: &[f64]) -> Self {
@@ -335,7 +335,7 @@ impl Slider {
     }
 
     /// The thumb's shape; [`SliderThumb::Triangle`] has the round thumb's fill, border and hit
-    /// area, is `slider.thumb` wide and points up at the track from below.
+    /// area, is a thumb wide and points up at the track from below.
     pub fn thumb(mut self, thumb: SliderThumb) -> Self {
         self.thumb = thumb;
         self
@@ -482,33 +482,36 @@ impl Slider {
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
         let (thumb, thumb_width) = (s.thumb.get(size), s.thumb_width.get(size));
+        let (c, look) = (&tokens.color, crate::style::slider::SliderStyle::new(tokens));
         let track = SurfaceStyle {
-            fill: s.track.to_egui(),
-            radius: corner_radius(s.track_radius.min(s.track_height / 2.0)),
+            fill: c.line.control_edge.to_egui(),
+            radius: corner_radius(tokens.shape.radius.sm.min(look.track_height / 2.0)),
             edge: SurfaceEdge::None,
             shadow: None,
         };
         let mut thumb_surface = Surface::style(tokens, SurfaceKind::Knob);
-        thumb_surface.radius = corner_radius(s.radius.min(thumb.min(thumb_width) / 2.0));
-        let thumb_surface = knob(thumb_surface, s.thumb_colors.fill.rest.to_egui(), s.thumb_colors.border.rest.to_egui(), true);
+        thumb_surface.radius = corner_radius(tokens.shape.radius.pill.min(thumb.min(thumb_width) / 2.0));
+        let thumb_surface = knob(thumb_surface, look.thumb_colors.fill.rest.to_egui(), look.thumb_colors.border.rest.to_egui(), true);
+        let (clear, soft) = (Rgba::TRANSPARENT, c.accent.soft);
+        let muted = c.text.muted;
         SliderStyle {
-            height: s.height.get(size),
-            width: s.width.get(size),
+            height: look.height.get(size),
+            width: look.width.get(size),
             thumb,
             thumb_width,
-            track_height: s.track_height,
-            gradient_height: s.gradient_height,
+            track_height: look.track_height,
+            gradient_height: look.gradient_height,
             track,
-            fill: s.fill.to_egui(),
+            fill: States::new(muted, muted, muted, c.text.disabled).to_egui(),
             thumb_surface,
-            thumb_fill: s.thumb_colors.fill.to_egui(),
-            thumb_border: s.thumb_colors.border.to_egui(),
-            ring: s.ring.to_egui(),
-            ring_width: s.ring_width,
-            ring_offset: s.ring_offset,
-            mark: s.mark.get(size),
-            snap: s.snap,
-            mark_color: tokens.color.line.mark.to_egui(),
+            thumb_fill: look.thumb_colors.fill.to_egui(),
+            thumb_border: look.thumb_colors.border.to_egui(),
+            ring: States::new(clear, soft, soft, clear).to_egui(),
+            ring_width: tokens.stroke.thick,
+            ring_offset: look.ring_offset,
+            mark: look.mark.get(size),
+            snap: look.snap,
+            mark_color: c.line.mark.to_egui(),
         }
     }
 }

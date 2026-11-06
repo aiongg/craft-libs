@@ -31,9 +31,9 @@ pub struct SplitButtonResponse<T> {
 pub struct SplitButtonStyle {
     /// The whole button's look: the [`Button`] of the same variant and size.
     pub button: ButtonStyle,
-    /// The arrow part's width: `split_button.arrow_width`.
+    /// The arrow part's width: `size.icon.md`.
     pub arrow_width: f32,
-    /// The divider's gap from the top and bottom edges: `split_button.divider_inset`.
+    /// The divider's gap from the top and bottom edges: `space.gap.inline`.
     pub divider_inset: f32,
     /// The arrow in quiet variants: `color.text.muted`.
     pub arrow: Color32,
@@ -52,10 +52,10 @@ pub struct SplitButtonStyle {
 /// ```
 ///
 /// - **Look.** A [`Button`](crate::controls::Button) of the variant and size whose end is an
-///   arrow part `split_button.arrow_width` wide (VectorCraft's `SPLIT_ARROW`) with a chevron
+///   arrow part `size.icon.md` wide (VectorCraft's `SPLIT_ARROW`) with a chevron
 ///   down. One surface and one border cover the whole button; each part has its own hover and
 ///   pressed fill, clipped to its half (the outer corners are the button's, the inner ones
-///   square), and a 1-point divider, inset `split_button.divider_inset` top and bottom in the
+///   square), and a 1-point divider, inset `space.gap.inline` top and bottom in the
 ///   button's border colour, separates them. The chevron is in the muted text colour on a
 ///   secondary or ghost button (VectorCraft's `text_dim`) and in the variant's text colour on a
 ///   filled one, where muted text would not read.
@@ -127,11 +127,10 @@ impl<'a, T: Clone + Send + Sync + 'static> SplitButton<'a, T> {
 
     /// The button's sizes and colours for `variant` at `size`.
     pub fn style(tokens: &UiTokens, variant: ButtonVariant, size: ControlSize) -> SplitButtonStyle {
-        let split_button = &tokens.component.split_button;
         SplitButtonStyle {
             button: Button::style(tokens, variant, size),
-            arrow_width: split_button.arrow_width,
-            divider_inset: split_button.divider_inset,
+            arrow_width: tokens.size.icon.md,
+            divider_inset: tokens.space.gap.inline,
             arrow: tokens.color.text.muted.to_egui(),
             arrow_disabled: tokens.color.text.disabled.to_egui(),
         }

@@ -18,19 +18,19 @@ use craft_theme::TypeRole;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct TooltipStyle {
-    /// Widest the text grows: `tooltip.max_width`.
+    /// Widest the text grows.
     pub max_width: f32,
     /// Between the frame and the text: `space.pad.control`.
     pub margin: Margin,
-    /// `tooltip.radius`: `shape.radius.popup`.
+    /// Corner radius: `shape.radius.popup`.
     pub radius: egui::CornerRadius,
     /// The popup shadow.
     pub shadow: Shadow,
-    /// `tooltip.fill`: `surface.panel`.
+    /// Background: `surface.panel`.
     pub fill: egui::Color32,
-    /// `tooltip.border`, one point wide: `line.border`.
+    /// Border, one point wide: `line.border`.
     pub border: Stroke,
-    /// `tooltip.text`, in the body type role: `text.normal`.
+    /// Text, in the body type role: `text.normal`.
     pub text: egui::Color32,
 }
 
@@ -57,16 +57,15 @@ impl Tooltip {
 
     /// The tooltip's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> TooltipStyle {
-        let t = &tokens.component.tooltip;
         let popup = Frame::popup(&tokens.style);
         TooltipStyle {
-            max_width: t.max_width,
+            max_width: crate::style::tooltip::TooltipStyle::new(tokens).max_width,
             margin: popup.inner_margin,
-            radius: corner_radius(t.radius),
+            radius: corner_radius(tokens.shape.radius.popup),
             shadow: popup.shadow,
-            fill: t.fill.to_egui(),
-            border: stroke(1.0, t.border),
-            text: t.text.to_egui(),
+            fill: tokens.color.surface.panel.to_egui(),
+            border: stroke(1.0, tokens.color.line.border),
+            text: tokens.color.text.normal.to_egui(),
         }
     }
 }
@@ -133,7 +132,7 @@ impl TooltipExt for Response {
 
     fn tooltip_ui_at_pointer(self, add_contents: impl FnOnce(&mut Ui)) -> Self {
         let tooltip = if self.enabled() { egui::Tooltip::for_enabled(&self) } else { egui::Tooltip::for_disabled(&self) };
-        let gap = current(&self.ctx).component.tooltip.pointer_gap;
+        let gap = current(&self.ctx).space.pad.panel;
         show_on(&self, tooltip.at_pointer().gap(gap), add_contents);
         self
     }
@@ -171,7 +170,7 @@ fn contents(ui: &mut Ui, style: &TooltipStyle, add_contents: impl FnOnce(&mut Ui
 fn tip_text(ui: &mut Ui, text: String) {
     let tokens = crate::theme::Tokens::of(ui);
     let mut format = Text::format(&tokens, TypeRole::Body, Content::Normal);
-    format.color = tokens.component.tooltip.text.to_egui();
+    format.color = tokens.color.text.normal.to_egui();
     format.valign = ui.text_valign();
     ui.add(Label::new(LayoutJob::single_section(text, format)));
 }

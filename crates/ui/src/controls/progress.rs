@@ -28,15 +28,15 @@ const DASH_GAP: f32 = 1.0;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ProgressStyle {
-    /// Default length: `progress.width`.
+    /// Default length.
     pub width: f32,
-    /// Thickness: `progress.track_height`.
+    /// Thickness.
     pub height: f32,
-    /// `progress.radius`, on the track and the fill.
+    /// `shape.radius.pill`, on the track and the fill.
     pub radius: CornerRadius,
-    /// The sunken surface with `progress.track` and `progress.radius`.
+    /// The sunken surface with `surface.sunken` and `shape.radius.pill`.
     pub track: SurfaceStyle,
-    /// `progress.fill`.
+    /// `accent.solid`.
     pub fill: Color32,
 }
 
@@ -51,7 +51,7 @@ enum Amount {
 /// A horizontal progress bar: `ui.add(Progress::new(0.4).label("Export"))`.
 ///
 /// The fill grows from the reading start, so it mirrors in a right-to-left interface, and is never
-/// narrower than the bar is thick unless it is empty. The bar is `progress.width` long unless
+/// narrower than the bar is thick unless it is empty. The bar has its default length unless
 /// [`width`](Progress::width) says otherwise. [`Progress::indeterminate`]
 /// moves a segment along the track; with reduced motion the segment stands still and is drawn as
 /// dashes, so it cannot be mistaken for a determinate fill. AccessKit sees a progress indicator
@@ -96,15 +96,15 @@ impl Progress {
 
     /// The bar's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> ProgressStyle {
-        let p = &tokens.component.progress;
-        let radius = corner_radius(p.radius);
+        let p = crate::style::progress::ProgressStyle::new(tokens);
+        let radius = corner_radius(tokens.shape.radius.pill);
         let mut track = Surface::style(tokens, SurfaceKind::Sunken);
-        track.fill = p.track.to_egui();
+        track.fill = tokens.color.surface.sunken.to_egui();
         track.radius = radius;
         if let SurfaceEdge::Border(stroke) = &mut track.edge {
-            stroke.color = p.edge.to_egui();
+            stroke.color = tokens.color.line.control_edge.to_egui();
         }
-        ProgressStyle { width: p.width, height: p.track_height, radius, track, fill: p.fill.to_egui() }
+        ProgressStyle { width: p.width, height: p.track_height, radius, track, fill: tokens.color.accent.solid.to_egui() }
     }
 
     /// `fraction` as drawn and reported: clamped to 0..=1, and 0 when it is not a number.

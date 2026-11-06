@@ -550,7 +550,7 @@ fn show_path(ui: &mut Ui, args: &mut PathArgs) {
 fn show_stars(ui: &mut Ui, args: &mut DisabledArgs) {
     let words = ControlStoryLabels::of(ui);
     let tokens = Tokens::of(ui);
-    let star = tokens.component.rating.star.to_egui();
+    let star = tokens.color.text.normal.to_egui();
     state(ui, "story-stars", [3_u8, 0], |ui, [medium, small]| {
         variant_list(ui, "story-stars", |form| {
             variant_row(form, &words.rating_medium, |ui| {
@@ -562,7 +562,8 @@ fn show_stars(ui: &mut Ui, args: &mut DisabledArgs) {
             variant_row(form, &words.rating_painted, |ui| {
                 ui.horizontal(|ui| {
                     for (size, rating) in [(ControlSize::Md, *medium), (ControlSize::Sm, *small)] {
-                        let (side, step) = (tokens.component.rating.badge_star.get(size), tokens.component.rating.badge_step.get(size));
+                        let style = Rating::style(&tokens, size);
+                        let (side, step) = (style.badge_star, style.badge_step);
                         let (rect, _) = ui.allocate_exact_size(vec2(step * 5.0, side), Sense::hover());
                         paint_rating(ui.painter(), &tokens, rect.left_center(), rating, size, star);
                     }

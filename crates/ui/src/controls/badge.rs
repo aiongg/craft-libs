@@ -1,6 +1,6 @@
 //! [`Badge`]: a small label in a tone.
 
-use craft_theme::TypeRole;
+use craft_theme::{Rgba, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::epaint::RectShape;
@@ -17,24 +17,26 @@ use crate::typed_story;
 
 /// The largest count a count badge shows; more reads `99+`.
 pub const MAX_COUNT: u32 = 99;
+/// Vertical padding between the label's line and the badge's edge.
+const PAD_Y: f32 = 1.0;
 
 /// A badge's size and colours, from [`Badge::look`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct BadgeLook {
-    /// `badge.height`.
+    /// Height.
     pub height: f32,
-    /// At the start and end of the label: `badge.pad_x`.
+    /// At the start and end of the label.
     pub pad_x: f32,
-    /// `badge.radius`.
+    /// Corner radius.
     pub radius: CornerRadius,
-    /// `badge.label`.
+    /// Type role of the label.
     pub label: TypeRole,
-    /// `badge.<tone>.<style>.fill`.
+    /// Background.
     pub fill: Color32,
-    /// `badge.<tone>.<style>.text`.
+    /// Label colour.
     pub text: Color32,
-    /// `badge.<tone>.<style>.border`; one point wide.
+    /// Outline colour; one point wide.
     pub border: Color32,
 }
 
@@ -76,17 +78,43 @@ impl Badge {
 
     /// The sizes and colours for `tone` and `style` from `tokens`.
     pub fn look(tokens: &UiTokens, tone: BadgeTone, style: BadgeStyle) -> BadgeLook {
-        let b = &tokens.component.badge;
-        let colors = b.colors(tone, style);
+        let colors = badge_colors(tokens, tone, style);
         BadgeLook {
-            height: b.height,
-            pad_x: b.pad_x,
-            radius: corner_radius(b.radius),
-            label: b.label,
+            height: tokens.typography.get(TypeRole::Caption).line_height + 2.0 * PAD_Y,
+            pad_x: tokens.space.pad.control,
+            radius: corner_radius(tokens.shape.radius.pill),
+            label: TypeRole::Caption,
             fill: colors.fill.to_egui(),
             text: colors.text.to_egui(),
             border: colors.border.to_egui(),
         }
+    }
+}
+
+/// Fill, text and border of a badge.
+struct BadgeColors {
+    fill: Rgba,
+    text: Rgba,
+    border: Rgba,
+}
+
+fn badge_colors(tokens: &UiTokens, tone: BadgeTone, style: BadgeStyle) -> BadgeColors {
+    let c = &tokens.color;
+    let soft = |fill, text, border| BadgeColors { fill, text, border };
+    let solid = |fill, text| BadgeColors { fill, text, border: fill };
+    let status = |t: &craft_theme::StatusColors| match style {
+        BadgeStyle::Soft => soft(t.bg, t.fg, t.border),
+        BadgeStyle::Solid => solid(t.solid, c.text.on_status),
+    };
+    match (tone, style) {
+        (BadgeTone::Neutral, BadgeStyle::Soft) => soft(c.surface.sunken, c.text.muted, c.line.border),
+        (BadgeTone::Neutral, BadgeStyle::Solid) => solid(c.text.muted, c.surface.panel),
+        (BadgeTone::Accent, BadgeStyle::Soft) => soft(c.state.selected, c.text.on_selected, c.accent.solid),
+        (BadgeTone::Accent, BadgeStyle::Solid) => solid(c.accent.strong, c.text.on_strong),
+        (BadgeTone::Good, _) => status(&c.status.good),
+        (BadgeTone::Warn, _) => status(&c.status.warn),
+        (BadgeTone::Bad, _) => status(&c.status.bad),
+        (BadgeTone::Info, _) => status(&c.status.info),
     }
 }
 

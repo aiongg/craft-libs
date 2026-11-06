@@ -1,7 +1,7 @@
 use std::cell::Cell;
 
 use craft_theme::{
-    Appearance, ButtonVariant, ComponentField, Contrast, ControlSize, Mode, OverrideValue, Size, State, TextSize, ThemeDef, TypeRole, builtins,
+    Appearance, ButtonVariant, Contrast, ControlSize, Mode, Size, State, TextSize, ThemeDef, TypeRole, builtins,
     contrast_ratio, resolve,
 };
 use egui::epaint::Vertex;
@@ -26,11 +26,11 @@ pub(super) fn every_builtin() -> Vec<UiTokens> {
 }
 
 #[test]
-fn button_styles_are_their_button_tokens() {
+fn button_styles_are_their_semantic_tokens() {
     for t in every_builtin() {
-        let b = &t.component.button;
+        let looks = crate::style::button::ButtonStyle::new(&t);
         for variant in ButtonVariant::ALL {
-            let colors = b.colors(variant);
+            let colors = looks.colors(variant);
             for size in SIZES {
                 let s = Button::style(&t, variant, size);
                 for state in State::ALL {
@@ -38,8 +38,12 @@ fn button_styles_are_their_button_tokens() {
                     assert_eq!(s.border.get(state), colors.border.get(state).to_egui(), "{variant:?} border {state:?}");
                     assert_eq!(s.text.get(state), colors.text.get(state).to_egui(), "{variant:?} text {state:?}");
                 }
-                assert_eq!((s.height, s.pad_x, s.icon, s.gap, s.label), (b.height.get(size), b.pad_x.get(size), b.icon.get(size), b.gap, b.label));
-                assert_eq!(s.border_width, b.border_width);
+                let (height, pad_x, icon) = match size {
+                    ControlSize::Sm => (t.size.control.sm, t.space.pad.control, t.size.icon.sm),
+                    ControlSize::Md => (t.size.control.md, t.space.pad.dialog, t.size.icon.md),
+                };
+                assert_eq!((s.height, s.pad_x, s.icon, s.gap, s.label), (height, pad_x, icon, t.space.gap.inline, TypeRole::Label));
+                assert_eq!(s.border_width, t.stroke.thin);
                 assert_eq!(s.radius, Corner::Button.radius(&t));
                 let surface = if variant == ButtonVariant::Ghost { None } else { Some(SurfaceKind::Raised) };
                 assert_eq!(s.surface, surface);
@@ -49,52 +53,53 @@ fn button_styles_are_their_button_tokens() {
 }
 
 #[test]
-fn a_button_radius_override_reaches_button_corners() {
-    let mut def = theme("craft.graphite");
-    def.components.insert(ComponentField::from_path("button.radius").unwrap(), OverrideValue::Length(3.0));
-    let t = tokens_of(&def, Mode::Dark);
-    assert_ne!(t.shape.radius.button, 3.0);
-    assert_eq!(Button::style(&t, ButtonVariant::Primary, ControlSize::Md).radius, egui::CornerRadius::same(3));
-    assert_eq!(ToggleButton::style(&t, ControlSize::Sm).off.radius, egui::CornerRadius::same(3));
-}
-
-#[test]
 fn icon_button_toggle_button_and_segmented_styles_come_from_their_tokens() {
     for t in every_builtin() {
-        let c = &t.component;
+        let c = &t.color;
         for size in SIZES {
+            let (side, icon, glyph_less) = match size {
+                ControlSize::Sm => (t.size.control.sm, t.size.icon.sm, 2.0),
+                ControlSize::Md => (t.size.control.md, t.size.icon.md, 4.0),
+            };
             let i = IconButton::style(&t, size);
-            assert_eq!((i.side, i.icon, i.radius), (c.icon_button.size.get(size), c.icon_button.icon.get(size), Corner::Control.radius(&t)));
-            assert_eq!((i.fill, i.text), (c.button.ghost.fill.to_egui(), c.button.ghost.text.to_egui()));
-            let on = &c.icon_button.selected;
+            assert_eq!((i.side, i.icon, i.radius), (side, icon - glyph_less, Corner::Control.radius(&t)));
+            let ghost = crate::style::button::ButtonStyle::new(&t).ghost;
+            assert_eq!((i.fill, i.text), (ghost.fill.to_egui(), ghost.text.to_egui()));
             assert_eq!(
                 [i.selected_fill, i.selected_border, i.selected_text].map(|s| (s.rest, s.pressed, s.disabled)),
-                craft_theme::ButtonPart::ALL.map(|p| (on.on(p).to_egui(), on.on(p).to_egui(), on.on_disabled(p).to_egui())),
-                "on, the icon button holds icon_button.selected.*"
+                [
+                    (c.accent.soft.to_egui(), c.accent.soft.to_egui(), c.accent.soft.to_egui()),
+                    (c.accent.border.to_egui(), c.accent.border.to_egui(), c.line.divider.to_egui()),
+                    (c.accent.text.to_egui(), c.accent.text.to_egui(), c.text.disabled.to_egui()),
+                ],
+                "on, the icon button holds the accent colours"
             );
             assert_eq!(
                 (i.badge, i.badge_edge),
-                (c.icon_button.badge.get(size), egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui()))
+                (icon * 0.4, egui::Stroke::new(craft_theme::Stroke::W1.width(1.0), t.color.line.mark.to_egui()))
             );
 
             let toggle = ToggleButton::style(&t, size);
             assert_eq!(toggle.off, Button::style(&t, ButtonVariant::Secondary, size));
-            let on = c.toggle_button.on_fill.to_egui();
-            assert_eq!(toggle.on_fill.get(State::Rest), on, "on, the toggle holds toggle_button.on.*");
+            let on = c.accent.soft.to_egui();
+            assert_eq!(toggle.on_fill.get(State::Rest), on, "on, the toggle holds the accent colours");
             assert_eq!(toggle.on_fill.get(State::Pressed), on);
-            assert_eq!(toggle.on_border.get(State::Hover), c.toggle_button.on_border.to_egui());
-            assert_eq!(toggle.on_text.get(State::Rest), c.toggle_button.on_text.to_egui());
+            assert_eq!(toggle.on_border.get(State::Hover), c.accent.border.to_egui());
+            assert_eq!(toggle.on_text.get(State::Rest), c.accent.text.to_egui());
             let on_disabled = [&toggle.on_fill, &toggle.on_border, &toggle.on_text].map(|s| s.get(State::Disabled));
-            let tokens = craft_theme::ButtonPart::ALL.map(|part| c.toggle_button.on_disabled(part).to_egui());
-            assert_eq!(on_disabled, tokens, "on and disabled: toggle_button.on_disabled.*");
+            assert_eq!(on_disabled, [c.accent.soft.to_egui(), c.line.divider.to_egui(), c.text.disabled.to_egui()], "on and disabled");
             assert_ne!(toggle.on_fill.get(State::Disabled), toggle.off.fill.get(State::Disabled), "on and disabled still looks on");
 
             let s = Segmented::style(&t, size);
-            let seg = &c.segmented;
-            assert_eq!((s.height, s.pad_x, s.icon, s.gap), (seg.height.get(size), seg.pad_x.get(size), seg.icon.get(size), seg.gap));
-            assert_eq!(s.selected_border, seg.selected_border.to_egui());
-            assert_eq!((s.fill, s.text), (seg.segment.fill.to_egui(), seg.segment.text.to_egui()));
-            assert_eq!((s.selected_fill, s.selected_text), (seg.selected.fill.to_egui(), seg.selected.text.to_egui()));
+            let look = crate::style::segmented::SegmentedStyle::new(&t);
+            let (height, icon) = match size {
+                ControlSize::Sm => (t.size.control.sm, t.size.icon.sm),
+                ControlSize::Md => (t.size.control.md, t.size.icon.md),
+            };
+            assert_eq!((s.height, s.pad_x, s.icon, s.gap), (height, look.pad_x.get(size), icon, look.gap));
+            assert_eq!(s.selected_border.rest, c.line.control_edge.to_egui());
+            assert_eq!((s.fill.hover, s.text.rest), (look.hover_fill.to_egui(), c.text.muted.to_egui()));
+            assert_eq!((s.selected_fill.rest, s.selected_text.rest), (c.state.selected.to_egui(), c.text.on_selected.to_egui()));
         }
     }
 }
@@ -146,21 +151,6 @@ fn context() -> Context {
 
 fn press(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
-}
-
-#[test]
-fn a_theme_override_of_the_primary_rest_fill_reaches_the_painted_fill() {
-    // Breeze pins `button.primary.fill.rest` away from its accent.
-    let breeze = theme("craft.breeze");
-    let t = tokens_of(&breeze, Mode::Light);
-    let pinned = t.component.button.primary.fill.rest.to_egui();
-    assert_ne!(pinned, t.color.accent.solid.to_egui());
-    let ctx = context();
-    let shapes = pass(&ctx, &breeze, vec![], |ui| {
-        ui.add(Button::new("Export").variant(ButtonVariant::Primary));
-    });
-    let filled = shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == pinned));
-    assert!(filled, "no rect filled with the pinned {pinned:?}");
 }
 
 /// The colours of the vertices nearest the top-left and bottom-right corners of `rect` among
@@ -227,8 +217,8 @@ fn classic_raises_the_selected_pill() {
     assert_eq!(meshes, 1, "one bevel, on the selected pill");
     let mesh = shapes.iter().find_map(|s| if let Shape::Mesh(mesh) = s { Some(mesh) } else { None }).expect("a bevel mesh");
     assert!(mesh.vertices.iter().any(|v| v.color == light) && mesh.vertices.iter().any(|v| v.color == dark));
-    let fill = t.component.segmented.selected.fill.rest.to_egui();
-    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == fill)), "the pill is filled with state.hover");
+    let fill = t.color.state.selected.to_egui();
+    assert!(shapes.iter().any(|s| matches!(s, Shape::Rect(r) if r.fill == fill)), "the pill is filled with state.selected");
 }
 
 #[test]
@@ -306,24 +296,31 @@ fn a_least_width_wider_than_the_room_stops_at_the_room() {
 }
 
 #[test]
-fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
+fn check_box_radio_and_switch_styles_come_from_the_semantic_tokens() {
     for t in every_builtin() {
-        let c = &t.component.check;
+        let c = &t.color;
+        let colors = super::check::CheckColors::new(&t);
         let sunken = crate::primitives::Surface::style(&t, SurfaceKind::Sunken);
-        let (off, on) = (IndicatorColors::from(&c.off), IndicatorColors::from(&c.on));
-        assert_eq!((off.mark, on.mark), (None, Some(c.on.mark.to_egui())), "off has no mark");
+        let (off, on) = (IndicatorColors::from(&colors.off), IndicatorColors::from(&colors.on));
+        assert_eq!((off.mark, on.mark), (None, Some(colors.on.mark.to_egui())), "off has no mark");
+        assert_eq!(colors.off.border.rest, c.text.faint, "an off outline is text.faint at rest");
         let text = |s: State, normal: craft_theme::Rgba| if s == State::Disabled { t.color.text.disabled.to_egui() } else { normal.to_egui() };
         for size in SIZES {
+            let (control, icon) = match size {
+                ControlSize::Sm => (t.size.control.sm, t.size.icon.sm),
+                ControlSize::Md => (t.size.control.md, t.size.icon.md),
+            };
+            let side = if size == ControlSize::Sm { icon } else { icon - 2.0 };
             let b = Checkbox::style(&t, size);
-            assert_eq!((b.height, b.side, b.gap, b.label, b.mark), (c.height.get(size), c.box_size.get(size), c.box_gap, c.label, c.mark.get(size)));
-            assert_eq!((b.radius, b.outline, b.off, b.on), (egui::CornerRadius::from(c.radius), c.outline, off, on));
+            assert_eq!((b.height, b.side, b.gap, b.label), (control, side, t.space.gap.stack, TypeRole::Body));
+            assert_eq!((b.radius, b.outline, b.off, b.on), (egui::CornerRadius::from(t.shape.radius.sm), t.stroke.medium, off, on));
             let r = RadioGroup::style(&t, size);
-            assert_eq!((r.height, r.diameter, r.dot, r.outline, r.off, r.on), (b.height, b.side, c.dot.get(size), c.outline, off, on));
+            assert_eq!((r.height, r.diameter, r.dot, r.outline, r.off, r.on), (b.height, b.side, side * 0.4, t.stroke.medium, off, on));
             let s = Switch::style(&t, size);
-            assert_eq!((s.width, s.track_height, s.inset), (c.track.get(size), c.size.get(size), c.thumb_inset));
+            assert_eq!((s.width, s.track_height, s.inset), (icon * 2.0, icon, t.space.gap.tight));
             assert_eq!(s.thumb, s.track_height - 2.0 * s.inset);
-            assert_eq!((s.surface, s.off, s.on), (sunken, off, IndicatorColors::from(&c.switch)));
-            assert_eq!((s.thumb_fill, s.thumb_border), (c.thumb.fill.to_egui(), c.thumb.border.to_egui()));
+            assert_eq!((s.surface, s.off, s.on), (sunken, off, IndicatorColors::from(&colors.switch)));
+            assert_eq!((s.thumb_fill, s.thumb_border), (colors.thumb.fill.to_egui(), colors.thumb.border.to_egui()));
             assert_eq!((s.travel, s.easing), (t.motion.r#move.millis as f32 / 1000.0, t.motion.r#move.easing));
             for state in State::ALL {
                 let muted = text(state, t.color.text.muted);
@@ -334,14 +331,11 @@ fn check_box_radio_and_switch_styles_come_from_the_check_tokens() {
 }
 
 /// Slider and switch thumbs are knobs in both modes: a light `surface.knob` face (Classic: its
-/// bevelled panel grey) on the knob surface, round on a switch. A slider thumb's ring is the
-/// theme's `slider.ring`, `accent.soft` while hovered or pressed unless the theme pins it (Classic
-/// pins it clear).
+/// bevelled panel grey) on the knob surface, round on a switch. A slider thumb's ring is
+/// `accent.soft` while hovered or pressed.
 #[test]
 fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
-    let mut defaults = 0;
     for def in builtins() {
-        let pins_ring = [&def.pins.light, &def.pins.dark].iter().any(|p| p.colors.keys().any(|k| k.path().starts_with("slider.ring.")));
         for mode in [Mode::Light, Mode::Dark] {
             let t = tokens_of(def, mode);
             let c = &t.color;
@@ -350,29 +344,19 @@ fn slider_and_switch_thumbs_are_knobs_in_both_modes() {
             if matches!(knob.edge, crate::primitives::SurfaceEdge::Border(_)) {
                 assert!(c.surface.knob.to_oklch().l > 0.9, "{} {mode:?}: the knob face {} is light", def.id, c.surface.knob.to_hex());
             }
-            let ring = t.component.slider.ring.to_egui();
-            if !pins_ring {
-                let (soft, clear) = (c.accent.soft.to_egui(), Color32::TRANSPARENT);
-                assert_eq!(ring, craft_theme::States::new(clear, soft, soft, clear), "{} {mode:?}: the default ring", def.id);
-                defaults += 1;
-            }
+            let (soft, clear) = (c.accent.soft.to_egui(), Color32::TRANSPARENT);
+            let ring = craft_theme::States::new(clear, soft, soft, clear);
             for size in SIZES {
                 let s = Slider::style(&t, size);
                 assert_eq!([s.thumb_fill.rest, s.thumb_fill.hover, s.thumb_fill.pressed], [face; 3], "{} {mode:?}", def.id);
                 assert_eq!((s.thumb_surface.fill, s.thumb_surface.edge, s.thumb_surface.shadow), (face, knob.edge, knob.shadow));
-                assert_eq!((s.ring, s.ring_width), (ring, t.component.slider.ring_width));
+                assert_eq!((s.ring, s.ring_width), (ring, t.stroke.thick));
                 let w = Switch::style(&t, size);
                 assert_eq!([w.thumb_fill.rest, w.thumb_fill.hover, w.thumb_fill.pressed], [face; 3], "{} {mode:?}", def.id);
                 assert_eq!((w.thumb_surface.fill, w.thumb_surface.edge, w.thumb_surface.shadow), (face, knob.edge, knob.shadow));
             }
         }
     }
-    assert!(defaults > 0, "some built-in keeps the default ring");
-    let classic = tokens_of(&theme("craft.classic"), Mode::Light);
-    assert_eq!(
-        classic.component.slider.ring.to_egui(),
-        craft_theme::States::new(Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT, Color32::TRANSPARENT)
-    );
 }
 
 /// A switch's track and thumb take `shape.radius.pill`, at most half their height: round by
@@ -721,24 +705,29 @@ fn every_change_is_one_set_with_the_modifiers_held_and_a_mixed_box_becomes_check
 }
 
 #[test]
-fn text_field_styles_come_from_the_field_tokens() {
+fn text_field_styles_come_from_the_semantic_tokens() {
     for t in every_builtin() {
-        let f = &t.component.field;
+        let f = crate::style::field::FieldStyle::new(&t);
         for size in [ControlSize::Sm, ControlSize::Md] {
             let s = TextField::style(&t, size);
-            assert_eq!((s.height, s.width, s.icon), (f.height.get(size), f.width.get(size), f.icon.get(size)));
+            let (height, icon) = match size {
+                ControlSize::Sm => (t.size.control.sm, t.size.icon.sm),
+                ControlSize::Md => (t.size.control.md, t.size.icon.md),
+            };
+            assert_eq!((s.height, s.width, s.icon), (height, f.width.get(size), icon));
         }
         let s = TextField::style(&t, ControlSize::Md);
-        assert_eq!((s.pad_x, s.gap, s.role), (f.pad_x, f.gap, f.role));
-        assert_eq!((s.surface.fill, s.surface.radius), (f.fill.rest.to_egui(), crate::theme::corner_radius(f.radius)));
+        assert_eq!((s.pad_x, s.gap, s.role), (t.space.pad.control, t.space.gap.inline, TypeRole::Body));
+        assert_eq!((s.surface.fill, s.surface.radius), (t.color.surface.sunken.to_egui(), crate::theme::corner_radius(t.shape.radius.control)));
         if let crate::primitives::SurfaceEdge::Border(stroke) = s.surface.edge {
-            assert_eq!(stroke.color, f.border.rest.to_egui());
+            assert_eq!(stroke.color, t.color.line.control_edge.to_egui());
         }
+        let c = &t.color;
         let colors = [s.fill_disabled, s.border_hover, s.border_focused, s.border_disabled, s.text, s.text_disabled, s.placeholder];
-        let tokens = [f.fill.disabled, f.border.hover, f.border.focused, f.border.disabled, f.text.rest, f.text.disabled, f.placeholder.rest];
+        let tokens = [c.state.disabled_fill, c.line.control_edge, c.line.focus, c.line.divider, c.text.normal, c.text.disabled, c.text.faint];
         assert_eq!(colors, tokens.map(|c| c.to_egui()));
         let colors = [s.placeholder_disabled, s.selection, s.selected_text, s.caret, s.invalid];
-        assert_eq!(colors, [f.placeholder.disabled, f.selection, f.selected_text, f.caret, f.invalid].map(|c| c.to_egui()));
+        assert_eq!(colors, [c.text.disabled, c.accent.soft, c.text.normal, c.text.normal, c.status.bad.fg].map(|c| c.to_egui()));
     }
 }
 

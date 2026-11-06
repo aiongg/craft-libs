@@ -107,7 +107,7 @@ impl RangeSlider {
         self
     }
 
-    /// The slider's length in points instead of `slider.width`, for one that shares a row with a
+    /// The slider's length in points instead of its default width, for one that shares a row with a
     /// readout.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
@@ -247,11 +247,11 @@ impl RangeSlider {
 /// `text.normal` with a 1 point `text.muted` outline and 1 point corners, flat (`text.disabled`
 /// when disabled).
 pub(super) fn range_style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
-    let (s, c) = (&tokens.component.slider, &tokens.color);
+    let (s, c) = (crate::style::slider::SliderStyle::new(tokens), &tokens.color);
     let mut style = Slider::style(tokens, size);
     style.thumb_width = s.range_thumb_width.get(size);
     style.thumb = s.range_thumb_height.get(size);
-    style.thumb_surface.radius = corner_radius(s.range_thumb_radius);
+    style.thumb_surface.radius = corner_radius(tokens.shape.radius.sm);
     style.thumb_surface.shadow = None;
     style.thumb_surface.edge = SurfaceEdge::Border(Stroke::new(1.0, c.text.muted.to_egui()));
     let lit = |on: Color32| States::new(on, on, on, c.text.disabled.to_egui());
@@ -344,7 +344,7 @@ fn show(ui: &mut Ui, args: &mut RangeArgs) {
             for (i, (name, value)) in ["Levels", "Steps of 5"].into_iter().zip(values.iter_mut()).enumerate() {
                 let text = format!("{:.1} to {:.1}", value.0, value.1);
                 labelled(form, name, &text, |ui| {
-                    // Shorter than `slider.width` so the widest readout, "100.0 to 100.0", fits the
+                    // Shorter than the default width so the widest readout, "100.0 to 100.0", fits the
                     // narrowest column beside the label.
                     let mut slider = RangeSlider::new(("range-slider", i), (format!("{name} from"), format!("{name} to")), *value, 0.0..=100.0)
                         .width(120.0)

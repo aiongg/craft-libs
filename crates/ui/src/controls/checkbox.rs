@@ -5,7 +5,7 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, IdSalt, Rect, Shape, Stroke, Ui, vec2};
 
 use super::button::content_color;
-use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
+use super::check::{CheckColors, CheckSizes, IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::salt;
 use crate::edit::{EditPolicy, EditResponse, Gesture};
 use crate::primitives::{Gap, Interactive, Stack};
@@ -80,23 +80,23 @@ impl CheckValue for bool {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CheckboxStyle {
-    /// Height of one line: `check.height`.
+    /// Height of one line: the control height.
     pub height: f32,
-    /// Side of the box: `check.box_size`.
+    /// Side of the box.
     pub side: f32,
-    /// Between the box and the label: `check.box_gap`.
+    /// Between the box and the label: `space.gap.stack`.
     pub gap: f32,
-    /// `check.label`.
+    /// Type role of the label.
     pub label: TypeRole,
-    /// The box's corners: `check.radius`.
+    /// The box's corners: `shape.radius.sm`.
     pub radius: CornerRadius,
-    /// Stroke width of the check and the dash: `check.mark`.
+    /// Stroke width of the check and the dash.
     pub mark: f32,
-    /// Width of the outline, drawn inside the box: `check.outline`.
+    /// Width of the outline, drawn inside the box: `stroke.medium`.
     pub outline: f32,
-    /// Unchecked: `check.off.*`.
+    /// Unchecked.
     pub off: IndicatorColors,
-    /// Checked or mixed: `check.on.*`.
+    /// Checked or mixed.
     pub on: IndicatorColors,
     /// The label: `text.muted`, `text.disabled`.
     pub text: States<Color32>,
@@ -110,8 +110,8 @@ pub struct CheckboxStyle {
 /// held. AccessKit reports a `CheckBox` named by the label, toggled true, false or mixed, after
 /// this frame's click.
 ///
-/// The box sits at the reading start, flat in every theme: the `check.off.*` colours with an
-/// outline while unchecked, `check.on.*` with a check or a dash while checked or mixed. The
+/// The box sits at the reading start, flat in every theme: the off colours with an
+/// outline while unchecked, the on colours with a check or a dash while checked or mixed. The
 /// pointer is a hand over the box and the label, and pressing the label shows the box pressed. The label wraps, is cut or runs on as the `Ui`'s wrap mode says, with
 /// the whole label in a tooltip when cut.
 #[derive(Debug)]
@@ -148,7 +148,7 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
         self
     }
 
-    /// Whether it takes input; a disabled box draws `check.*.disabled`.
+    /// Whether it takes input; a disabled box draws disabled colours.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -203,17 +203,17 @@ impl<'a, T: CheckValue> Checkbox<'a, T> {
 impl Checkbox<'static, CheckState> {
     /// The box's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> CheckboxStyle {
-        let c = &tokens.component.check;
+        let (sizes, colors) = (CheckSizes::new(tokens, size), CheckColors::new(tokens));
         CheckboxStyle {
-            height: c.height.get(size),
-            side: c.box_size.get(size),
-            gap: c.box_gap,
-            label: c.label,
-            radius: CornerRadius::from(c.radius),
-            mark: c.mark.get(size),
-            outline: c.outline,
-            off: IndicatorColors::from(&c.off),
-            on: IndicatorColors::from(&c.on),
+            height: sizes.height,
+            side: sizes.box_size,
+            gap: sizes.box_gap,
+            label: TypeRole::Body,
+            radius: CornerRadius::from(sizes.radius),
+            mark: sizes.mark,
+            outline: sizes.outline,
+            off: IndicatorColors::from(&colors.off),
+            on: IndicatorColors::from(&colors.on),
             text: label_colors(tokens, tokens.color.text.muted),
         }
     }

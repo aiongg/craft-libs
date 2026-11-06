@@ -40,13 +40,13 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct NumberFieldStyle {
-    /// The box, the text and the selection: [`TextField::style`], `field.number_width` wide.
+    /// The box, the text and the selection: [`TextField::style`], a number field's default width.
     pub field: TextFieldStyle,
-    /// The unit: `field.unit.rest` and `field.unit.disabled`.
+    /// The unit: `text.faint`, `text.disabled` when disabled.
     pub unit: Color32,
     #[allow(missing_docs)]
     pub unit_disabled: Color32,
-    /// The scrub label or icon: `field.scrub.rest` and `field.scrub.disabled`.
+    /// The scrub label or icon: `text.muted`, `text.disabled` when disabled.
     pub scrub: Color32,
     #[allow(missing_docs)]
     pub scrub_disabled: Color32,
@@ -409,7 +409,7 @@ impl<'a> NumberField<'a> {
         self
     }
 
-    /// The box's width, in place of `field.number_width` (and of the room a justified layout
+    /// The box's width, in place of the default width (and of the room a justified layout
     /// gives it). For a dialog whose fields have the widths of its source.
     pub fn width(mut self, width: f32) -> Self {
         self.box_width = Some(width);
@@ -672,7 +672,7 @@ impl<'a> NumberField<'a> {
 
     /// The field's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> NumberFieldStyle {
-        let f = &tokens.component.field;
+        let f = crate::style::field::FieldStyle::new(tokens);
         let mut field = TextField::style(tokens, size);
         field.width = f.number_width.get(size);
         NumberFieldStyle {

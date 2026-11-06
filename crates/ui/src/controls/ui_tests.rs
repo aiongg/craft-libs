@@ -1086,7 +1086,7 @@ fn a_toned_icon_button_paints_its_icon_in_the_status_colour() {
         harness.run();
         let ctx = harness.ctx.clone();
         let tokens = crate::theme::current(&ctx);
-        let warn = tokens.component.notice.fg(Tone::Warn).to_egui();
+        let warn = crate::style::notice::NoticeStyle::new(&tokens).fg(Tone::Warn).to_egui();
         let ghost = IconButton::style(&tokens, ControlSize::Md).text.rest;
         let icon =
             |color| harness.output().shapes.iter().any(|s| matches!(&s.shape, egui::Shape::Mesh(m) if m.vertices.iter().all(|v| v.color == color)));

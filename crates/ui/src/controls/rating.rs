@@ -37,15 +37,15 @@ pub const MAX_STARS: u8 = 5;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RatingStyle {
-    /// One star's cell: `rating.cell` at the size.
+    /// One star's cell: Cell side at the size.
     pub cell: f32,
-    /// A star's side in the control: `rating.star_size` at the size.
+    /// A star's side in the control: Side at the size.
     pub star: f32,
-    /// A star's side on a badge ([`paint_rating`]): `rating.badge_star` at the size.
+    /// A star's side on a badge ([`paint_rating`]): Side at the size.
     pub badge_star: f32,
-    /// Between the left edges of badge stars: `rating.badge_step` at the size.
+    /// Between the left edges of badge stars: Step at the size.
     pub badge_step: f32,
-    /// Lit stars: `rating.star`.
+    /// Lit stars: `text.normal`.
     pub lit: Color32,
     /// Unlit stars: `color.text.muted`.
     pub unlit: Color32,
@@ -61,8 +61,8 @@ pub struct RatingStyle {
 ///
 /// - **Look.** Five [`Icon::Star`](crate::icons::Icon::Star) outlines in the muted text colour
 ///   (LightCraft's icon colour), the first `rating` of them
-///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled) in `rating.star`, the text colour
-///   (LightCraft's near-text star), on cells of `rating.cell` with stars of `rating.star`'s sizes.
+///   [`Icon::StarFilled`](crate::icons::Icon::StarFilled) in the text colour
+///   (LightCraft's near-text star), on cells one star wide plus the tight gap on each side.
 ///   In right-to-left the first star is on the right.
 /// - **Pointer.** Hovering star `n` previews `n` filled stars and fills the hovered cell through
 ///   the state layer; a click sets `n`, and a click on the current rating's star clears it to 0
@@ -112,13 +112,17 @@ impl<'a> Rating<'a> {
 
     /// The stars' sizes and colours at `size`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> RatingStyle {
-        let rating = &tokens.component.rating;
+        let icon = match size {
+            ControlSize::Sm => tokens.size.icon.sm,
+            ControlSize::Md => tokens.size.icon.md,
+        };
+        let badge_star = (icon * BADGE_STAR_SHARE).round();
         RatingStyle {
-            cell: rating.cell.get(size),
-            star: rating.star_size.get(size),
-            badge_star: rating.badge_star.get(size),
-            badge_step: rating.badge_step.get(size),
-            lit: rating.star.to_egui(),
+            cell: icon + 2.0 * tokens.space.gap.tight,
+            star: icon,
+            badge_star,
+            badge_step: badge_star + tokens.space.gap.tight / 2.0,
+            lit: tokens.color.text.normal.to_egui(),
             unlit: tokens.color.text.muted.to_egui(),
             disabled: tokens.color.text.disabled.to_egui(),
         }
@@ -230,6 +234,9 @@ impl<'a> Rating<'a> {
         EditResponse::new(response, event)
     }
 }
+
+/// A painted badge star's side in icon sides.
+const BADGE_STAR_SHARE: f32 = 2.0 / 3.0;
 
 /// Number keys 0 to 5, the ratings.
 const DIGITS: [Key; 6] = [Key::Num0, Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];

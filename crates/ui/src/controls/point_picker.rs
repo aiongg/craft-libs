@@ -21,6 +21,9 @@ use crate::localized::{LocaleNumbers, Unit};
 use crate::primitives::{Content, FocusRing, Gap, Interactive, Row, Stack, Text};
 use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+
+/// The thumbnail's least width and height.
+const THUMBNAIL_MIN: [f32; 2] = [240.0, 160.0];
 use crate::typed_story;
 
 /// The style of one picker, from the tokens.
@@ -103,7 +106,7 @@ impl<'a> PointPicker<'a> {
     /// The style, dumped under `components/point_picker`.
     // new: sizes from `dialog.viewport_min` and the field tokens; no PhotoCraft token.
     pub fn style(tokens: &UiTokens) -> PointPickerStyle {
-        PointPickerStyle { thumbnail: Vec2::from(tokens.component.dialog.viewport_min), cross: tokens.component.field.icon.get(ControlSize::Md) }
+        PointPickerStyle { thumbnail: Vec2::from(THUMBNAIL_MIN), cross: tokens.size.icon.md }
     }
 
     /// Draws the thumbnail and the two fields.

@@ -16,21 +16,21 @@ use egui::StrokeKind;
 #[test]
 fn small_control_styles_are_their_tokens() {
     for t in every_builtin() {
-        let c = &t.component;
+        let c = &t.color;
         for size in SIZES {
             let s = Swatch::style(&t, size);
-            assert_eq!((s.side, s.radius), (c.swatch.size.get(size), crate::theme::corner_radius(c.swatch.radius)));
-            assert_eq!((s.edge, s.checker_cell), (c.swatch.edge.to_egui(), c.swatch.checker_cell));
-            assert_eq!(s.checker, [c.swatch.checker_a.to_egui(), c.swatch.checker_b.to_egui()]);
-            assert_eq!((s.selected.color, s.selected.width), (c.swatch.selected.to_egui(), c.swatch.selected_width));
-            assert_eq!((s.mixed_fill, s.mixed_mark), (c.swatch.mixed_fill.to_egui(), c.swatch.mixed_mark.to_egui()));
+            let look = crate::style::swatch::SwatchStyle::new(&t);
+            assert_eq!((s.side, s.radius), (look.size.get(size), crate::theme::corner_radius(look.radius)));
+            assert_eq!((s.edge, s.checker_cell), (c.line.control_edge.to_egui(), t.size.checker));
+            assert_eq!(s.checker, [c.overlay.checker_light.to_egui(), c.overlay.checker_dark.to_egui()]);
+            assert_eq!((s.selected.color, s.selected.width), (c.accent.solid.to_egui(), t.stroke.thick));
+            assert_eq!((s.mixed_fill, s.mixed_mark), (c.surface.sunken.to_egui(), c.text.muted.to_egui()));
         }
         for tone in BadgeTone::ALL {
             for style in BadgeStyle::ALL {
                 let look = Badge::look(&t, tone, style);
-                let colors = c.badge.colors(tone, style);
-                assert_eq!((look.fill, look.text, look.border), (colors.fill.to_egui(), colors.text.to_egui(), colors.border.to_egui()));
-                assert_eq!((look.height, look.pad_x, look.label), (c.badge.height, c.badge.pad_x, c.badge.label));
+                assert_eq!(look.pad_x, t.space.pad.control);
+                assert_eq!(look.label, craft_theme::TypeRole::Caption);
             }
         }
         // Status tones read the status tokens straight.
@@ -43,24 +43,27 @@ fn small_control_styles_are_their_tokens() {
         assert_eq!((bad.fill, bad.text), (t.color.status.bad.solid.to_egui(), t.color.text.on_status.to_egui()));
 
         let k = Kbd::style(&t);
-        assert_eq!((k.height, k.pad_x, k.text), (c.kbd.height, c.kbd.pad_x, c.kbd.text.to_egui()));
+        assert_eq!((k.height, k.pad_x, k.text), (crate::style::kbd::KbdStyle::new(&t).height, t.space.gap.inline, c.text.muted.to_egui()));
         let raised = Surface::style(&t, SurfaceKind::Raised);
-        assert_eq!((k.keycap.edge, k.keycap.fill), (raised.edge, c.kbd.fill.to_egui()), "a keycap is a raised surface");
+        assert_eq!((k.keycap.edge, k.keycap.fill), (raised.edge, c.surface.raised.to_egui()), "a keycap is a raised surface");
 
         let p = Progress::style(&t);
-        assert_eq!((p.height, p.fill, p.track.fill), (c.progress.track_height, c.progress.fill.to_egui(), c.progress.track.to_egui()));
+        assert_eq!(
+            (p.height, p.fill, p.track.fill),
+            (crate::style::progress::ProgressStyle::new(&t).track_height, c.accent.solid.to_egui(), c.surface.sunken.to_egui())
+        );
         match p.track.edge {
-            SurfaceEdge::Border(edge) => assert_eq!(edge.color, c.progress.edge.to_egui()),
+            SurfaceEdge::Border(edge) => assert_eq!(edge.color, c.line.control_edge.to_egui()),
             edge => assert_eq!(edge, Surface::style(&t, SurfaceKind::Sunken).edge, "a bevelled track keeps the theme's bevel"),
         }
 
         let tip = Tooltip::style(&t);
-        assert_eq!(tip.max_width, c.tooltip.max_width);
+        assert_eq!(tip.max_width, crate::style::tooltip::MAX_WIDTH);
         assert_eq!(tip.max_width, t.style.spacing.tooltip_width, "stock tooltips wrap at the same width");
-        assert_eq!((tip.fill, tip.border.color), (c.tooltip.fill.to_egui(), c.tooltip.border.to_egui()));
-        assert_eq!((tip.radius, tip.shadow), (crate::theme::corner_radius(c.tooltip.radius), t.shadow.popup));
+        assert_eq!((tip.fill, tip.border.color), (c.surface.panel.to_egui(), c.line.border.to_egui()));
+        assert_eq!((tip.radius, tip.shadow), (crate::theme::corner_radius(t.shape.radius.popup), t.shadow.popup));
         assert_eq!(tip.margin, crate::theme::margin(t.space.pad.control));
-        assert_eq!(tip.text, c.tooltip.text.to_egui());
+        assert_eq!(tip.text, c.text.normal.to_egui());
     }
 }
 
@@ -116,7 +119,7 @@ fn plain_keys_take_the_content_colour_and_keycaps_their_own() {
     assert_eq!(text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord))), [t.color.text.muted.to_egui()], "muted by default");
     assert_eq!(text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord).content(Content::OnSelected))), [t.color.text.on_selected.to_egui()]);
     let keycaps = text_colors(&ctx, |ui| _ = ui.add(Kbd::new(&chord).keycaps(true).content(Content::OnSelected)));
-    assert!(keycaps.iter().all(|&c| c == t.component.kbd.text.to_egui()), "{keycaps:?}");
+    assert!(keycaps.iter().all(|&c| c == t.color.text.muted.to_egui()), "{keycaps:?}");
 }
 
 /// Badges and keycaps grow with the Text size setting: at the largest, the label still sits inside
@@ -271,7 +274,7 @@ fn a_button_draws_its_loading_ring_through_the_spinner() {
     let points = shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p.points) } else { None }).unwrap();
     let tokens = tokens_in(&ctx);
     let side = Spinner::style(&tokens, Some(IconSize::Md), Content::Muted).points;
-    let radius = side / 2.0 - tokens.component.spinner.inset;
+    let radius = side / 2.0 - tokens.space.gap.tight;
     let center = points[0] - vec2(radius, 0.0);
     let expected = Spinner::points(Rect::from_center_size(center, vec2(side, side)), radius, 0.0, 240f32.to_radians());
     assert_eq!(points.len(), expected.len());
@@ -301,14 +304,14 @@ fn a_progress_fill_is_the_clamped_fraction_of_the_track_and_nan_draws_empty() {
 }
 
 #[test]
-fn a_bar_is_120_long_and_its_fill_is_never_narrower_than_the_bar_is_thick() {
+fn a_bar_has_its_default_length_and_its_fill_is_never_narrower_than_the_bar_is_thick() {
     let ctx = motion_context(true);
     let (shapes, _) = frame(&ctx, 0.0, |ui| {
         ui.add(Progress::new(0.01));
     });
     let style = Progress::style(&tokens_in(&ctx));
     let width_of = |fill: Color32| shapes.iter().find_map(|s| if let Shape::Rect(r) = s { (r.fill == fill).then_some(r.rect.width()) } else { None });
-    assert_eq!(width_of(style.track.fill), Some(120.0), "the track");
+    assert_eq!(width_of(style.track.fill), Some(style.width), "the track");
     assert_eq!(width_of(style.fill), Some(style.height), "a 1% fill is as wide as the bar is thick");
 }
 
@@ -316,7 +319,7 @@ fn a_bar_is_120_long_and_its_fill_is_never_narrower_than_the_bar_is_thick() {
 fn a_spinner_is_egus_ring_with_the_token_stroke_and_its_end_sweeps() {
     let ctx = motion_context(false);
     let tokens = tokens_in(&ctx);
-    let spinner = &tokens.component.spinner;
+    let stroke = tokens.stroke.thick + tokens.stroke.thin;
     let ring = |time: f64| {
         for settle in [0.0, 0.1, 0.2] {
             frame(&ctx, settle, |ui| {
@@ -329,8 +332,8 @@ fn a_spinner_is_egus_ring_with_the_token_stroke_and_its_end_sweeps() {
         shapes.into_iter().find_map(|s| if let Shape::Path(p) = s { Some(p) } else { None }).unwrap()
     };
     let path = ring(0.5);
-    assert_eq!(path.stroke.width, spinner.stroke);
-    let radius = tokens.size.control.md / 2.0 - spinner.inset;
+    assert_eq!(path.stroke.width, stroke);
+    let radius = tokens.size.control.md / 2.0 - tokens.space.gap.tight;
     assert_eq!(path.points.len(), (radius.round() as usize).clamp(8, 128));
     let sweep = |time: f64| ring(time).points.last().unwrap().distance(ring(time).points[0]);
     assert_ne!(sweep(0.5), sweep(1.5), "the end of the arc moves relative to its start");

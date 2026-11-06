@@ -302,11 +302,14 @@ impl<'a> Autocomplete<'a> {
     }
 }
 
+/// The suggestion list's narrowest width.
+const MIN_WIDTH: f32 = 220.0;
+
 /// The suggestion list's sizes and colours, from [`Autocomplete::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AutocompleteStyle {
-    /// The list's narrowest width: `autocomplete.min_width`.
+    /// The list's narrowest width.
     pub min_width: f32,
     /// Between the editor and the list: `style.gap`.
     pub gap: f32,
@@ -316,9 +319,9 @@ pub struct AutocompleteStyle {
     pub popup: SurfaceStyle,
     /// The active suggestion's description: its text role.
     pub description: TypeRole,
-    /// The inline completion's box: `field.selection`.
+    /// The inline completion's box: `field` selection fill.
     pub completion_fill: Color32,
-    /// The inline completion's text: `field.selected_text`.
+    /// The inline completion's text: `text.normal`.
     pub completion_text: Color32,
 }
 
@@ -326,17 +329,17 @@ impl Autocomplete<'static> {
     /// The list's sizes and colours.
     pub fn style(tokens: &UiTokens) -> AutocompleteStyle {
         let select = Select::style(tokens, ControlSize::Md);
-        let (autocomplete, field) = (&tokens.component.autocomplete, &tokens.component.field);
+        let field = crate::style::field::FieldStyle::new(tokens);
         let mut list = select.list;
         list.label = TypeRole::Mono;
         AutocompleteStyle {
-            min_width: autocomplete.min_width,
-            gap: autocomplete.gap,
+            min_width: MIN_WIDTH,
+            gap: tokens.space.gap.tight,
             list,
             popup: select.popup,
             description: TypeRole::Caption,
             completion_fill: field.selection.to_egui(),
-            completion_text: field.selected_text.to_egui(),
+            completion_text: tokens.color.text.normal.to_egui(),
         }
     }
 }
@@ -360,7 +363,7 @@ pub fn completion_rest<'s>(full: &'s str, typed: &str) -> Option<&'s str> {
 }
 
 /// Paints `rest` as selected text right after `galley`, the editor's laid-out text drawn at
-/// `text_pos`: the `field.selection.fill` box and `field.selection.text`, in the galley's font
+/// `text_pos`: the selection box and `text.normal`, in the galley's font
 /// (GridCraft's column AutoComplete: accent fill, on-accent text).
 // gridcraft: crates/ui-egui/src/formula_bar.rs:861 (inline completion)
 pub fn paint_inline_completion(ui: &Ui, text_pos: Pos2, galley: &Galley, rest: &str) {

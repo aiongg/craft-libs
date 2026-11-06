@@ -8,7 +8,7 @@ use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, CornerRadius, CursorIcon, Id, IdSalt, Rect, Response, Sense, Ui, UiBuilder, Vec2, vec2};
 
 use super::button::content_color;
-use super::check::{IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
+use super::check::{CheckColors, CheckSizes, IndicatorColors, Labelled, Layout, Paint, box_shape, label_colors};
 use super::checkbox::LONG_LABEL;
 use super::common_stories::ControlStoryLabels;
 use super::{SizeDisabledArgs, icon_size};
@@ -26,25 +26,25 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RadioStyle {
-    /// Height of one line: `check.height`.
+    /// Height of one line: the control height.
     pub height: f32,
-    /// Diameter of the circle: `check.box_size`.
+    /// Diameter of the circle.
     pub diameter: f32,
-    /// Between the circle and the label: `check.box_gap`.
+    /// Between the circle and the label: `space.gap.stack`.
     pub gap: f32,
-    /// `check.label`.
+    /// Type role of the label.
     pub label: TypeRole,
-    /// Diameter of the dot: `check.dot`.
+    /// Diameter of the dot.
     pub dot: f32,
     /// Side of a leading icon ([`RadioOption::icon`]): the `icon` token of the size.
     pub icon: f32,
     /// Size class of a leading icon.
     pub icon_class: IconSize,
-    /// Width of the outline, drawn inside the circle: `check.outline`.
+    /// Width of the outline, drawn inside the circle: `stroke.medium`.
     pub outline: f32,
-    /// Not selected: `check.off.*`.
+    /// Not selected.
     pub off: IndicatorColors,
-    /// Selected: `check.on.*`.
+    /// Selected.
     pub on: IndicatorColors,
     /// The label: `text.muted`, `text.disabled`.
     pub text: States<Color32>,
@@ -132,7 +132,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
     }
 
     /// Whether the last option added takes input; a disabled one takes no focus, so Tab and the
-    /// arrow keys pass over it, and it draws `check.*.disabled`.
+    /// arrow keys pass over it, and it draws disabled colours.
     pub fn item_enabled(mut self, enabled: bool) -> Self {
         if let Some(item) = self.items.last_mut() {
             item.enabled = enabled;
@@ -146,7 +146,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
         self
     }
 
-    /// Whether the group takes input; a disabled group draws every option `check.*.disabled`.
+    /// Whether the group takes input; a disabled group draws every option disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self
@@ -214,18 +214,18 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioGroup<'a, T> {
 impl RadioGroup<'static, ()> {
     /// The sizes and colours of a radio button of `size`, in a [`RadioGroup`] or a [`RadioSet`].
     pub fn style(tokens: &UiTokens, size: ControlSize) -> RadioStyle {
-        let c = &tokens.component.check;
+        let (sizes, colors) = (CheckSizes::new(tokens, size), CheckColors::new(tokens));
         RadioStyle {
-            height: c.height.get(size),
-            diameter: c.box_size.get(size),
-            gap: c.box_gap,
-            label: c.label,
+            height: sizes.height,
+            diameter: sizes.box_size,
+            gap: sizes.box_gap,
+            label: TypeRole::Body,
             icon: icon_size(size).points(tokens),
             icon_class: icon_size(size),
-            dot: c.dot.get(size),
-            outline: c.outline,
-            off: IndicatorColors::from(&c.off),
-            on: IndicatorColors::from(&c.on),
+            dot: sizes.dot,
+            outline: sizes.outline,
+            off: IndicatorColors::from(&colors.off),
+            on: IndicatorColors::from(&colors.on),
             text: label_colors(tokens, tokens.color.text.muted),
         }
     }
@@ -281,7 +281,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioSet<'a, T> {
     }
 
     /// Whether the last option added takes input; a disabled one takes no focus, so Tab and the
-    /// arrow keys pass over it, and it draws `check.*.disabled`.
+    /// arrow keys pass over it, and it draws disabled colours.
     pub fn item_enabled(mut self, enabled: bool) -> Self {
         if let Some(item) = self.items.last_mut() {
             item.enabled = enabled;
@@ -295,7 +295,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> RadioSet<'a, T> {
         self
     }
 
-    /// Whether the set takes input; a disabled set draws every option `check.*.disabled`.
+    /// Whether the set takes input; a disabled set draws every option disabled.
     pub fn enabled(mut self, enabled: bool) -> Self {
         self.enabled = enabled;
         self

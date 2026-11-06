@@ -27,6 +27,12 @@ use crate::typed_story;
 /// Degrees of a quarter turn's half: the step Page Up and Page Down take, and the grid Shift
 /// snaps the pointer to.
 const OCTANT: f64 = 45.0;
+/// Side of the dial's box at the base control height.
+const DIAL_SIZE: f32 = 42.0;
+/// Control height the dial's size is set for.
+const BASE_CONTROL: f32 = 24.0;
+/// The dead zone's radius in control heights.
+const DEAD_ZONE_IN_CONTROLS: f32 = 0.1;
 
 /// An operation of an angle dial's parts, on its value (`None`: mixed).
 #[derive(Clone, Debug, PartialEq)]
@@ -72,25 +78,25 @@ impl AngleOrientation {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct AngleDialStyle {
-    /// Side of the dial's box: `angle_dial.size`.
+    /// Side of the dial's box.
     pub size: f32,
-    /// From the box to the face's edge: `angle_dial.margin`.
+    /// From the box to the face's edge.
     pub margin: f32,
-    /// The face: `angle_dial.face`.
+    /// The face.
     pub face: Color32,
-    /// The face's edge, one point inside it: `angle_dial.edge`.
+    /// The face's edge, one point inside it.
     pub edge: Stroke,
     /// The edge's colour while the pointer is over the dial or drags it: `text.normal`.
     pub edge_active: Color32,
-    /// The needle: `angle_dial.needle_width` in `angle_dial.needle`.
+    /// The needle.
     pub needle: Stroke,
-    /// From the face's edge to the needle's tip: `angle_dial.needle_inset`.
+    /// From the face's edge to the needle's tip.
     pub needle_inset: f32,
-    /// Radius of the dot at the centre: `angle_dial.hub`, in `angle_dial.hub_fill`.
+    /// Radius of the dot at the centre.
     pub hub: f32,
     #[allow(missing_docs)]
     pub hub_fill: Color32,
-    /// Radius round the centre within which the pointer changes nothing: `angle_dial.dead_zone`.
+    /// Radius round the centre within which the pointer changes nothing.
     pub dead_zone: f32,
     /// Between the dial and its field: `gap.inline`.
     pub gap: f32,
@@ -209,7 +215,7 @@ impl<'a> AngleDial<'a> {
         self
     }
 
-    /// The size of the field; the dial's diameter is `angle_dial.size` at every [`ControlSize`].
+    /// The size of the field; the dial's diameter is the same at every [`ControlSize`].
     pub fn size(mut self, size: ControlSize) -> Self {
         self.size = size;
         self
@@ -229,18 +235,18 @@ impl<'a> AngleDial<'a> {
 
     /// The dial's sizes and colours from `tokens`.
     pub fn style(tokens: &UiTokens) -> AngleDialStyle {
-        let d = &tokens.component.angle_dial;
+        let (c, size) = (&tokens.color, &tokens.size);
         AngleDialStyle {
-            size: d.size,
-            margin: d.margin,
-            face: d.face.to_egui(),
-            edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), d.edge.to_egui()),
-            edge_active: tokens.color.text.normal.to_egui(),
-            needle: Stroke::new(d.needle_width, d.needle.to_egui()),
-            needle_inset: d.needle_inset,
-            hub: d.hub,
-            hub_fill: d.hub_fill.to_egui(),
-            dead_zone: d.dead_zone,
+            size: (DIAL_SIZE * size.control.md / BASE_CONTROL).round(),
+            margin: tokens.space.gap.tight,
+            face: c.surface.sunken.to_egui(),
+            edge: Stroke::new(craft_theme::Stroke::W1.width(1.0), c.line.control_edge.to_egui()),
+            edge_active: c.text.normal.to_egui(),
+            needle: Stroke::new(tokens.stroke.thick, c.accent.solid.to_egui()),
+            needle_inset: tokens.space.gap.inline,
+            hub: size.handle.sm / 2.0,
+            hub_fill: c.text.muted.to_egui(),
+            dead_zone: size.control.md * DEAD_ZONE_IN_CONTROLS,
             gap: Gap::Inline.points(tokens),
         }
     }
