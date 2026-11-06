@@ -421,19 +421,45 @@ pub(crate) fn stories() -> Vec<Story> {
     ]
 }
 
-/// Every variant at each size (rows) in the rest, disabled and loading states.
+/// Every variant at each size (rows) in the rest, disabled and loading states. When the full grid
+/// is wider than the room offered (an overview tile), the loading column is left out.
 fn show_variants(ui: &mut Ui, args: &mut VariantsArgs) {
     let label = args.label.as_str();
     let icon = args.icon.icon();
     let gap = Tokens::of(ui).space.gap;
     // Grid cells offer little width on the first pass, and a button shrinks to what it is offered.
     let room = ui.available_width();
+    let all = [("rest", true, false), ("disabled", false, false), ("loading", true, true)];
+    // The full grid needs the widest row label plus the widest button of each state column.
+    let mut label_width = 0.0f32;
+    let mut button_width = 0.0f32;
+    let mut measure = ui.new_child(
+        egui::UiBuilder::new()
+            .id_salt("button-variants-measure")
+            .max_rect(Rect::from_min_size(ui.next_widget_position(), vec2(1.0e4, 1.0e3)))
+            .invisible(),
+    );
+    for variant in ButtonVariant::ALL {
+        for size in super::SIZES {
+            let text = Text::new(format!("{} {}", variant.name(), super::size_name(size))).content(crate::primitives::Content::Muted);
+            label_width = label_width.max(measure.add(text).rect.width());
+            for (_, _, loading) in all {
+                let mut button = Button::new(label).variant(variant).size(size).loading(loading);
+                if let Some(icon) = icon {
+                    button = button.icon(icon);
+                }
+                button_width = button_width.max(button.natural_width(&measure));
+            }
+        }
+    }
+    let full_width = label_width + (all.len() as f32) * button_width + (all.len() as f32) * gap.inline;
+    let states = if full_width <= room { &all[..] } else { &all[..2] };
     egui::Grid::new("button-variants").spacing(vec2(gap.inline, gap.row)).show(ui, |ui| {
         for variant in ButtonVariant::ALL {
             for size in super::SIZES {
                 let size_name = super::size_name(size);
                 ui.add(Text::new(format!("{} {size_name}", variant.name())).content(crate::primitives::Content::Muted));
-                for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
+                for &(state, enabled, loading) in states {
                     let mut button = Button::new(label).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
                         "button-variants",
                         variant.name(),
