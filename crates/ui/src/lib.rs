@@ -44,6 +44,7 @@ pub mod presets;
 pub mod primitives;
 pub mod shell;
 pub mod story;
+pub mod style;
 pub mod tab_strip;
 pub mod tabs;
 pub mod testing;
