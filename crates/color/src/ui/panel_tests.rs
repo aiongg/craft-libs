@@ -287,8 +287,9 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     let value = |rig: &Rig, role: Role, name: &str| {
         rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == role && n.label() == Some(name)).and_then(|n| n.value()).unwrap_or_default().to_owned()
     };
-    let hue_before = value(&rig, Role::Slider, "Hue");
-    assert!(hue_before.starts_with("Hue 210"), "{hue_before}");
+    let hue = |rig: &Rig| rig.nodes.iter().map(|(_, n)| n).find(|n| n.role() == Role::Slider && n.label() == Some("Hue")).and_then(|n| n.numeric_value());
+    let hue_before = hue(&rig);
+    assert!(hue_before.is_some_and(|h| (h - 210.0).abs() < 1.0), "{hue_before:?}");
 
     let area = rig.bounds(Role::Slider, "Saturation and brightness");
     let start = area.center();
@@ -303,7 +304,7 @@ fn dragging_to_the_bottom_right_keeps_the_knob_there() {
     rig.settle();
     let area_text = value(&rig, Role::Slider, "Saturation and brightness");
     assert!(area_text.starts_with("Saturation 100") && area_text.contains("Brightness 0"), "the knob stays at the corner: {area_text}");
-    assert_eq!(value(&rig, Role::Slider, "Hue"), hue_before, "the hue stays");
+    assert_eq!(hue(&rig), hue_before, "the hue stays");
 }
 
 /// Non-finite channel values become 0, as PhotoCraft's model wrapper did; finite ones stay.
