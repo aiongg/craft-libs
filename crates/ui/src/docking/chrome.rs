@@ -674,9 +674,9 @@ pub struct TitledFrameResponse<R, P = ()> {
 impl<'a> FloatingFrame<'a> {
     /// A title bar on the frame's top edge: its drag moves the frame ([`live_move`]), double
     /// click is reported on [`TitledFrameResponse::title`]. The frame's `limits` keep room for
-    /// [`ChromeStyle::title_height`]. Gap 7. PhotoCraft's cards
+    /// [`ChromeStyle::title_height`]. PhotoCraft's cards
     /// (`panels/type_panels_ui.rs` `windows`) are `egui::Window`s with a header row and a ×, no
-    /// move bar and no double-click; the bar's sizes here are the dock's float tokens.
+    /// move bar and no double-click; the bar's sizes here come from the dock look.
     pub fn title_bar(mut self, title: TitleBar<'a>) -> Self {
         self.title = Some(title);
         self

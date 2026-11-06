@@ -341,8 +341,7 @@ mod v1_fixtures {
             })
             .collect();
         let covered = |p: Pos2| windows.iter().enumerate().any(|(i, w)| own.is_none_or(|own| i > own) && w.contains(p));
-        // Clear of the side resize bands, which reach down from the window's corners.
-        let mut x = rect.left() + 12.0;
+        let mut x = rect.left() + 4.0;
         while x < rect.right() {
             let p = pos2(x, rect.center().y);
             if !covered(p) {

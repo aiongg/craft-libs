@@ -24,7 +24,7 @@ fn in_ui<R>(test: impl FnOnce(&mut Ui) -> R) -> R {
     out.expect("the ui ran")
 }
 
-/// Sizes follow the Size preset: the strips and bars follow the panel header height, the gaps and
+/// Sizes follow the Size preset: the tab strip follows the panel header height, the title and column bars their label's line, the gaps and
 /// icons grow with the preset, and Comfortable is never smaller than Compact.
 #[test]
 fn the_look_follows_the_size_preset() {
@@ -33,7 +33,8 @@ fn the_look_follows_the_size_preset() {
     };
     let (compact, comfortable) = (look_at(Size::Compact, Mode::Light), look_at(Size::Comfortable, Mode::Light));
     for look in [&compact, &comfortable] {
-        assert_eq!((look.title_height, look.column_bar_height), (look.tab_height, look.tab_height));
+        assert_eq!(look.title_height, look.column_bar_height);
+        assert!(look.title_height < look.tab_height, "the title is a slim bar, not a panel header");
     }
     for (small, large) in sizes(&compact).into_iter().zip(sizes(&comfortable)) {
         assert!(large >= small, "{small} {large}");

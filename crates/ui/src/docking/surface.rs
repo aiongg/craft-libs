@@ -110,7 +110,7 @@ pub struct DockStyle {
     /// \[D\] Width of the band along the docked area's left and right edges, and inside an empty
     /// dock, that makes a new dock (28 pt).
     pub new_dock_band: f32,
-    /// \[D\] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
+    /// \[D\] Side of a panel icon in an iconic column; each icon row is `icon_pad` taller.
     pub icon_size: f32,
     /// \[D\] Width of an iconic column without a saved width, and the narrowest it gets.
     pub iconic_width: f32,

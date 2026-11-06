@@ -13,10 +13,12 @@ const FLYOUT_HEIGHT: f32 = 320.0;
 /// Greatest height of an overflow menu.
 const MENU_MAX_HEIGHT: f32 = 360.0;
 
-/// Sizes and alphas of docking areas that the semantic tokens don't name.
+/// Sizes and alphas of docking areas that the semantic tokens don't name. [`crate::docking::DockLook`]
+/// reads them; applications configure the flat [`crate::docking::DockStyle`].
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct DockStyle {
-    /// Width of an iconic column.
+pub struct DockMetrics {
+    /// Width of an iconic column: an icon button (`icon.lg` and its `pad.control` on both sides)
+    /// and `gap.tight` between the button and the column's edges.
     pub iconic_width: f32,
     /// Least width or height of a pane in a split.
     pub min_pane: f32,
@@ -44,12 +46,12 @@ pub struct DockStyle {
     pub grip_alpha: f32,
 }
 
-impl DockStyle {
+impl DockMetrics {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
         let (space, size) = (&tokens.space, &tokens.size);
         Self {
-            iconic_width: size.control.md + 2.0 * space.gap.tight,
+            iconic_width: size.icon.lg + 2.0 * space.pad.control + 2.0 * space.gap.tight,
             min_pane: MIN_PANE,
             drag_bar_width: size.icon.lg + 2.0 * space.pad.panel,
             iconic_max_width: ICONIC_MAX_WIDTH,

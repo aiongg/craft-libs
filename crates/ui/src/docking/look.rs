@@ -20,7 +20,8 @@ pub struct DockLook {
     pub gap: f32,
     /// Gap beside attached side docks; `None`: `gap`. Other split dividers keep `gap`.
     pub dock_gap: Option<f32>,
-    /// Vertical gap between stacked controls in a panel body, docked or floating: `space.gap.stack`.
+    /// Vertical gap between stacked controls in a panel body, docked or floating; 0: controls
+    /// space themselves.
     pub body_gap: f32,
     /// Least width or height of a pane in a split: `dock.min_pane`.
     pub min_pane: f32,
@@ -67,11 +68,11 @@ pub struct DockLook {
     pub floating_stroke: Stroke,
     /// Painted over a native floating window while [`super::DockArea::input_blocked`] is on.
     pub blocked_dim: Color32,
-    /// Height of a floating window's title bar.
+    /// Height of a floating window's title bar: its label's line and `gap.tight` above and below.
     pub title_height: f32,
-    /// \[D\] Height of the bar above each dock column. It drags the column and holds its »/« button.
+    /// \[D\] Height of the bar above each dock column, as the title bar's. It drags the column and holds its »/« button.
     pub column_bar_height: f32,
-    /// \[D\] Side of a panel icon in an iconic column; each icon row is 10 pt taller.
+    /// \[D\] Side of a panel icon in an iconic column; each icon row is `icon_pad` taller.
     pub icon_size: f32,
     /// \[D\] Width of an iconic column without a saved width, and the narrowest it gets.
     pub iconic_width: f32,
@@ -161,22 +162,23 @@ impl DockLook {
     /// The look the semantic tokens describe, with the dock and floating-window styles.
     pub fn from_tokens(tokens: &UiTokens) -> Self {
         let (c, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
-        let dock = crate::style::dock::DockStyle::new(tokens);
+        let dock = crate::style::dock::DockMetrics::new(tokens);
         let float = crate::style::float::FloatStyle::new(tokens);
+        let bar_height = tokens.typography.get(TypeRole::Label).line_height + 2.0 * space.gap.tight;
         let high = tokens.appearance.contrast == Contrast::High;
         let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], high).fill(c.state.selected, c.text.on_selected);
         Self {
             tab_height: size.panel_header,
             gap: space.gap.inline,
             dock_gap: None,
-            body_gap: space.gap.stack,
+            body_gap: 0.0,
             min_pane: dock.min_pane,
             drag_bar_width: dock.drag_bar_width,
             overflow_width: dock.overflow_width,
             menu_max_height: dock.menu_max_height,
             pad: space.pad.control,
             background: c.surface.panel.to_egui(),
-            tab_strip: c.surface.panel.to_egui(),
+            tab_strip: c.surface.chrome.to_egui(),
             tab_active: c.surface.panel.to_egui(),
             tab_radius: if tokens.shape.rows == RowStyle::Rounded { tokens.shape.radius.control } else { 0.0 },
             icon_selected: icon_selected.to_egui(),
@@ -191,8 +193,8 @@ impl DockLook {
             floating_background: c.surface.panel.to_egui(),
             floating_stroke: Stroke::new(stroke.thin, c.line.border.to_egui()),
             blocked_dim: c.surface.scrim.to_egui(),
-            title_height: size.panel_header,
-            column_bar_height: size.panel_header,
+            title_height: bar_height,
+            column_bar_height: bar_height,
             icon_size: size.icon.lg,
             iconic_width: dock.iconic_width,
             iconic_max_width: dock.iconic_max_width,
