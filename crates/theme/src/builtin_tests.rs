@@ -327,14 +327,14 @@ fn slider_thumbs_are_round_except_in_classic() {
     }
 }
 
-/// Pro, Pro Light Gray, Graphite and ArtCraft draw divided rows at every Size; the other themes
-/// draw rounded rows.
+/// Pro, Pro Light Gray, Graphite and ArtCraft take their row style from the Size (rounded at
+/// Comfortable, divided at Compact); the other themes draw rounded rows at every Size.
 #[test]
 fn builtin_themes_set_their_row_style() {
-    let divided = ["craft.pro", "craft.pro-light-gray", "craft.graphite", "craft.artcraft"];
+    let by_size = ["craft.pro", "craft.pro-light-gray", "craft.graphite", "craft.artcraft"];
     for theme in builtins() {
         for a in appearances() {
-            let want = if divided.contains(&theme.id.as_str()) { RowStyle::Divided } else { RowStyle::Rounded };
+            let want = if by_size.contains(&theme.id.as_str()) && a.size == Size::Compact { RowStyle::Divided } else { RowStyle::Rounded };
             assert_eq!(resolve(theme, a, None).tokens.shape.rows, want, "{} {a:?}", theme.id);
         }
     }
