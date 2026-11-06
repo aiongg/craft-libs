@@ -77,8 +77,9 @@ fn style_follows_the_tokens() {
         let scroll = &style.spacing.scroll;
         assert!(scroll.floating);
         assert_eq!((scroll.floating_width, scroll.interact_handle_opacity, scroll.interact_background_opacity), (4.0, 1.0, 0.4));
-        assert_eq!(v.widgets.inactive.weak_bg_fill, tokens.component.button.secondary.fill.rest.to_egui());
-        assert_eq!(v.widgets.hovered.bg_fill, tokens.component.button.secondary.fill.hover.to_egui());
+        let button = crate::style::button::ButtonStyle::new(tokens);
+        assert_eq!(v.widgets.inactive.weak_bg_fill, button.secondary.fill.rest.to_egui());
+        assert_eq!(v.widgets.hovered.bg_fill, button.secondary.fill.hover.to_egui());
         assert_eq!(v.widgets.noninteractive.fg_stroke.color, tokens.color.text.normal.to_egui());
         assert_eq!(style.spacing.interact_size.y, tokens.size.control.md);
         assert_eq!(style.text_styles[&egui::TextStyle::Heading].size, tokens.typography.heading.size);

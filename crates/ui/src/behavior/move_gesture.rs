@@ -100,11 +100,9 @@ pub struct ConstrainStyle {
 }
 
 impl ConstrainStyle {
-    /// The style from `tokens` (`constrain.copy_reach`, `constrain.stroke_lock`).
+    /// The style from `tokens`: the copy reach is `size.hit.slop`, the stroke lock `stroke.thick`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // The `constrain` token family (values 2 and 3 at both Sizes).
-        let c = &tokens.component.constrain;
-        Self { copy_reach: f64::from(c.copy_reach), stroke_lock: f64::from(c.stroke_lock) }
+        Self { copy_reach: f64::from(tokens.size.hit.slop), stroke_lock: f64::from(tokens.stroke.thick) }
     }
 }
 

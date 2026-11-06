@@ -234,7 +234,7 @@ fn the_backdrop_is_the_hosts_pasteboard_or_the_token() {
     assert!(has_fill(&out, pasteboard));
     let mut tokens = None;
     win.frame(vec![], |ui| tokens = Some(Tokens::of(ui)));
-    let token = tokens.expect("ran").component.app_shell.backdrop.to_egui();
+    let token = tokens.expect("ran").color.surface.canvas.to_egui();
     let out = win.frame(vec![], |ui| {
         shell(&Cfg::new(), &calls).show(ui, |_, _| ());
     });
@@ -368,7 +368,7 @@ fn the_narrow_options_bar_and_two_rail_columns_take_their_token_sizes() {
         assert_eq!(rect(&out, "options").height(), tokens.size.bar.options, "{size:?}");
         assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 1).width, "{size:?}");
         let out = pref_show(&mut win, vec![], true, 2, true, BodyMode::Normal);
-        assert_eq!(rect(&out, "options").height(), tokens.size.bar.options_narrow, "{size:?}");
+        assert_eq!(rect(&out, "options").height(), tokens.size.control.md + 2.0 * tokens.space.gap.tight, "{size:?}");
         assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 2).width, "{size:?}");
         let out = pref_show(&mut win, vec![], true, 5, true, BodyMode::Normal);
         assert_eq!(rect(&out, "tools").width(), ToolRail::<()>::metrics(&tokens, 2).width, "{size:?}: more than two columns count as two");

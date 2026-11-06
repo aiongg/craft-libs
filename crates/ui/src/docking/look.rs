@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use craft_theme::TypeRole;
+use craft_theme::{RowStyle, TypeRole};
 use egui::{Color32, CornerRadius, FontId, Frame, InnerResponse, Margin, Shadow, Stroke, Ui};
 
 use super::{DockConfig, DockStyle};
@@ -14,13 +14,13 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius};
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DockLook {
-    /// Height of a group's tab strip: `tab.panel_height`.
+    /// Height of a group's tab strip: `size.panel_header`.
     pub tab_height: f32,
     /// Space between the groups of a split.
     pub gap: f32,
     /// Gap beside attached side docks; `None`: `gap`. Other split dividers keep `gap`.
     pub dock_gap: Option<f32>,
-    /// Vertical gap between stacked controls in a panel body, docked or floating: `dock.body_gap`.
+    /// Vertical gap between stacked controls in a panel body, docked or floating: `space.gap.stack`.
     pub body_gap: f32,
     /// Least width or height of a pane in a split: `dock.min_pane`.
     pub min_pane: f32,
@@ -40,7 +40,7 @@ pub struct DockLook {
     pub tab_strip: Color32,
     /// The selected tab, and the tab under the pointer.
     pub tab_active: Color32,
-    /// Top corners of the selected tab: `tab.radius`.
+    /// Top corners of the selected tab: `shape.radius.control` in rounded-row themes.
     pub tab_radius: f32,
     /// Fill of the current icon cell in an iconic column.
     pub icon_selected: Color32,
@@ -114,9 +114,9 @@ pub struct DockLook {
     /// Least height of a floating window fitted to its content: `float.min_fitted_height`.
     pub min_fitted_height: f32,
     /// Offset of a floated window from the dock area's corner or the window it cascades from:
-    /// `float.cascade_offset`.
+    /// `size.control.sm`.
     pub cascade_offset: f32,
-    /// Distance from the pointer to the centre of the float hint: `float.hint_offset`.
+    /// Distance from the pointer to the centre of the float hint: `size.control.md`.
     pub hint_offset: f32,
     /// Narrowest a resized floating window gets: `float.min_width`.
     pub float_min_width: f32,
@@ -158,49 +158,51 @@ impl DockLook {
         Self::from_tokens(&Tokens::of(ui))
     }
 
-    /// The look the `dock`, `float` and `tab` component tokens describe.
+    /// The look the semantic tokens describe, with the dock and floating-window styles.
     pub fn from_tokens(tokens: &UiTokens) -> Self {
-        let (dock, float, tab) = (&tokens.component.dock, &tokens.component.float, &tokens.component.tab);
+        let (c, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
+        let dock = crate::style::dock::DockStyle::new(tokens);
+        let float = crate::style::float::FloatStyle::new(tokens);
         Self {
-            tab_height: tab.panel_height,
-            gap: dock.gap,
+            tab_height: size.panel_header,
+            gap: space.gap.inline,
             dock_gap: None,
-            body_gap: dock.body_gap,
+            body_gap: space.gap.stack,
             min_pane: dock.min_pane,
             drag_bar_width: dock.drag_bar_width,
             overflow_width: dock.overflow_width,
             menu_max_height: dock.menu_max_height,
-            pad: tokens.space.pad.control,
+            pad: space.pad.control,
             background: dock.background.to_egui(),
-            tab_strip: tab.strip.to_egui(),
-            tab_active: tab.active.to_egui(),
-            tab_radius: tab.radius,
-            icon_selected: dock.icon_selected.to_egui(),
-            text: tab.text.to_egui(),
-            inactive_text: tab.inactive_text.to_egui(),
-            border: Stroke::new(dock.border_width, dock.border.to_egui()),
+            tab_strip: c.surface.panel.to_egui(),
+            tab_active: c.surface.panel.to_egui(),
+            tab_radius: if tokens.shape.rows == RowStyle::Rounded { tokens.shape.radius.control } else { 0.0 },
+            icon_selected: c.state.selected.to_egui(),
+            text: c.text.normal.to_egui(),
+            inactive_text: c.text.muted.to_egui(),
+            border: Stroke::new(stroke.thin, dock.border.to_egui()),
             resize: dock.resize.to_egui(),
             drop: dock.drop.to_egui(),
             focus: float.focus.to_egui(),
             font: tokens.font(TypeRole::Label),
-            tab_padding: 2.0 * tab.pad_x,
+            tab_padding: 4.0 * space.pad.control,
             floating_background: float.fill.to_egui(),
-            floating_stroke: Stroke::new(float.border_width, float.border.to_egui()),
+            floating_stroke: Stroke::new(stroke.thin, float.border.to_egui()),
             blocked_dim: float.blocked.to_egui(),
-            title_height: dock.title_height,
-            column_bar_height: dock.column_bar_height,
-            icon_size: dock.icon_size,
+            title_height: size.panel_header,
+            column_bar_height: size.panel_header,
+            icon_size: size.icon.lg,
             iconic_width: dock.iconic_width,
             iconic_max_width: dock.iconic_max_width,
             iconic_label_width: dock.iconic_label_width,
             flyout_height: dock.flyout_height,
-            icon_pad: dock.icon_pad,
-            icon_selected_text: dock.icon_selected_text.to_egui(),
-            icon_radius: dock.icon_radius,
-            hint_radius: dock.hint_radius,
-            drop_width: dock.drop_width,
-            focus_width: dock.focus_width,
-            marker_radius: dock.marker_radius,
+            icon_pad: space.gap.stack,
+            icon_selected_text: c.text.on_selected.to_egui(),
+            icon_radius: tokens.shape.radius.control,
+            hint_radius: tokens.shape.radius.popup,
+            drop_width: stroke.thick,
+            focus_width: stroke.thin,
+            marker_radius: tokens.shape.radius.sm,
             drop_fill: dock.drop_fill,
             ghost_fill: dock.ghost_fill,
             ghost_stroke: dock.ghost_stroke,
@@ -209,13 +211,13 @@ impl DockLook {
             float_width: float.width,
             float_height: float.height,
             min_fitted_height: float.min_fitted_height,
-            cascade_offset: float.cascade_offset,
-            hint_offset: float.hint_offset,
+            cascade_offset: size.control.sm,
+            hint_offset: size.control.md,
             float_min_width: float.min_width,
             float_min_body_height: float.min_body_height,
-            floating_radius: corner_radius(float.radius),
-            floating_shadow: float.shadow.to_egui(),
-            title_background: float.title.to_egui(),
+            floating_radius: corner_radius(tokens.shape.radius.panel),
+            floating_shadow: tokens.elevation.floating.to_egui(),
+            title_background: c.surface.chrome.to_egui(),
             title_text: float.title_text.to_egui(),
             title_muted: float.title_muted.to_egui(),
             grip: float.grip.to_egui(),

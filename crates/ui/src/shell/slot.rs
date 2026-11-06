@@ -56,7 +56,7 @@ impl Slot {
         self.size(width)
     }
 
-    /// A top slot takes the narrow options bar height (`bar.options_narrow`) instead of the
+    /// A top slot takes the narrow options bar height (`size.control.md + 2 * space.gap.tight`) instead of the
     /// options bar height. Serves Preferences > Workspace > "Enable Narrow Options Bar". Has no
     /// effect on the title bar or on a slot with an exact [`size`](Self::size). The slot only sizes
     /// itself: the host passes the same choice to [`OptionsBar::narrow`](crate::patterns::OptionsBar::narrow) for the bar it draws in it.

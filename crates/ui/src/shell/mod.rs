@@ -60,6 +60,9 @@ use crate::direction;
 use crate::patterns::ToolRail;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _};
 
+/// The width of the window edge strip where the pointer reveals a hidden slot.
+const EDGE_REVEAL_ZONE: f32 = 4.0;
+
 type SlotFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 type BodyFn<'a, R> = Box<dyn FnOnce(&mut Ui, &ShellCx) -> R + 'a>;
 
@@ -301,14 +304,13 @@ impl<'a> AppShell<'a> {
             log::error!("{message}");
         }
         let tokens = Tokens::of(ui);
-        let shell_tokens = tokens.component.app_shell;
         let rect = ui.max_rect();
         #[cfg_attr(not(feature = "window-frame"), allow(unused_mut))]
-        let mut state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, self.edge_reveal, rect, shell_tokens.edge_reveal);
+        let mut state = visibility::begin_pass(&ctx, &window, self.mode, self.allow_reveal, self.edge_reveal, rect, EDGE_REVEAL_ZONE);
         // Defaults from the token sizes, by edge.
         let default_size = |slot: &Slot, edge: Edge| match edge {
             Edge::Top if slot.key == "title" => tokens.size.bar.title,
-            Edge::Top if slot.narrow => tokens.size.bar.options_narrow,
+            Edge::Top if slot.narrow => tokens.size.control.md + 2.0 * tokens.space.gap.tight,
             Edge::Top => tokens.size.bar.options,
             Edge::Bottom => tokens.size.bar.status,
             Edge::Start | Edge::End => ToolRail::<()>::metrics(&tokens, slot.columns).width,
@@ -382,8 +384,8 @@ impl<'a> AppShell<'a> {
         }
 
         let backdrop = match mode {
-            BodyMode::Only => shell_tokens.body_only_backdrop.to_egui(),
-            BodyMode::Normal => backdrop.unwrap_or_else(|| shell_tokens.backdrop.to_egui()),
+            BodyMode::Only => tokens.color.surface.scrim.to_egui(),
+            BodyMode::Normal => backdrop.unwrap_or_else(|| tokens.color.surface.canvas.to_egui()),
         };
         let revealed = mode == BodyMode::Only && !shown.is_empty();
         let cx = ShellCx { window: window.clone(), mode, revealed, tab_reveal: state.tab, edges: state.edges, tabs, shown, ctx: ctx.clone() };

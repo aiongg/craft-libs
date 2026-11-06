@@ -5,7 +5,6 @@ use egui::emath::GuiRounding as _;
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align2, AsIdSalt, Id, IdSalt, Key, Modifiers, Rect, Response, Sense, Ui, UiBuilder, pos2, vec2};
 
-use super::HistoryPanel;
 use super::labels::{UNDO_ACTIONS, UndoListLabels};
 use crate::direction;
 use crate::edit::steps::StepRows;
@@ -52,7 +51,7 @@ pub struct UndoListOutput {
 ///
 /// - **Rows.** One row per past state, from the current state back to row 1 (row 0, "Open", is
 ///   not an action), labels only (no source column, no icons), `list.row_height` high, the
-///   popup `history.undo_list_width` wide ([`HistoryPanel::style`](super::HistoryPanel::style)).
+///   popup as wide as its longest label plus an icon and `space.pad.panel` on both sides.
 ///   At most 18 rows show; more scroll, keeping the marked row in view.
 /// - **Marking.** Hover or Down and Up mark rows `0..=i` (row 0 is the newest), filled with
 ///   `list.hover`. A click or Enter reports `UndoThrough(i + 1)` and closes the popup
@@ -93,7 +92,6 @@ impl<'a> UndoList<'a> {
     pub fn show(self, ui: &mut Ui) -> UndoListOutput {
         let tokens = Tokens::of(ui);
         let style = ListRow::<()>::style(&tokens);
-        let width = HistoryPanel::style(&tokens).undo_list_width;
         let labels = self.labels.unwrap_or_else(|| UndoListLabels::of(ui));
         let words = Words::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
@@ -145,7 +143,13 @@ impl<'a> UndoList<'a> {
         let stop = if moved_by_key { mark.unwrap_or(0) } else { focus_row.or(mark).unwrap_or(0) };
         let pointer_moved = ui.input(|i| i.pointer.delta() != vec2(0.0, 0.0));
 
-        ui.set_width(width);
+        let text_format = role_format(&tokens, style.label_role, style.text);
+        let widest = (0..count)
+            .map(|i| steps.label(state_of(i)).into_owned())
+            .chain(std::iter::once(labels.cancel.clone()))
+            .map(|text| ui.painter().layout_no_wrap(text, text_format.font_id.clone(), text_format.color).size().x)
+            .fold(0.0f32, f32::max);
+        ui.set_width(widest + tokens.size.icon.md + 2.0 * tokens.space.pad.panel);
         let scope = ui.scope_builder(
             UiBuilder::new().id_salt(self.id_salt).accessibility_role(Role::ListBox).accessibility_label(labels.list.clone()),
             |ui| {

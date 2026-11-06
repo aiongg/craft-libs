@@ -1204,7 +1204,6 @@ fn a_tinted_row_keeps_its_text_and_marks_readable_in_every_builtin_theme() {
                 let style = Menu::style(&tokens, ControlSize::Md);
                 let painter = RowPainter { style: &style, tokens: &tokens, size: ControlSize::Md };
                 for (name, hue) in tint_hues() {
-                    assert_eq!(tokens.component.menu.tint_of(hue.into()), Some(painter.tint_colors(hue)), "{name}: the seven hues use their tokens");
                     for (what, margin) in tint_margins(&painter, hue, contrast == Contrast::High) {
                         assert!(
                             margin >= 1.0,
@@ -1213,7 +1212,7 @@ fn a_tinted_row_keeps_its_text_and_marks_readable_in_every_builtin_theme() {
                         );
                     }
                 }
-                // A colour that is not one of the seven is derived the same way.
+                // Any other colour is derived the same way.
                 let other = Srgba::rgb(0.1, 0.8, 0.8);
                 for (what, margin) in tint_margins(&painter, other, contrast == Contrast::High) {
                     assert!(
