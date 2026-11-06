@@ -229,6 +229,20 @@ impl FileService {
         (Self { inner, wake, to_panels }, panels)
     }
 
+    /// A service whose panels answer each pick with the next of `answers` instead of opening a
+    /// native dialog, and answer [`Answer::Cancelled`] once the queue is empty. The answers pass
+    /// through the same settling as native ones (extension completion, the Replace question), so an
+    /// app test drives the real [`FilePanels::pump_with`] path, including
+    /// [`FilePanels::open_questions`], without a window system.
+    #[cfg(feature = "ui")]
+    pub fn scripted(wake: Wake, answers: impl IntoIterator<Item = Answer>) -> (Self, FilePanels) {
+        let (service, mut panels) = Self::new(wake);
+        panels.backend_problem = || None;
+        let mut answers = answers.into_iter().collect::<VecDeque<_>>();
+        panels.dialogs.set_override(Some(Box::new(move |_| answers.pop_front().unwrap_or(Answer::Cancelled))));
+        (service, panels)
+    }
+
     /// Seeds the remembered folders (from the app's settings) before the first pick; the app reads
     /// them back with [`last_folders`](FileService::last_folders) to store them.
     pub fn with_last_folders(self, folders: HashMap<String, PathBuf>) -> Self {
@@ -813,6 +827,23 @@ mod service_tests {
             assert!(service.take_answer(id).is_none(), "the pick waits for the answer");
             assert!(service.pick_pending());
             (service, panels, dialogs, id, dir.join("Photo.png"))
+        }
+
+        // The public scripted constructor drives the same path: a colliding Save answer opens the
+        // Replace question, which lists as open and answers the path once confirmed.
+        #[test]
+        fn a_scripted_save_that_collides_asks_replace() {
+            let dir = scratch("scripted");
+            std::fs::write(dir.join("Photo.png"), b"old").expect("fixture");
+            let (service, mut panels) = FileService::scripted(Wake::none(), [Answer::Paths(vec![dir.join("Photo")])]);
+            let mut dialogs = DialogHost::new();
+            let id = service.pick(PickRequest::save("export").suggested_extension("png"));
+            panels.pump_with(&mut dialogs, NONE);
+            let open: Vec<_> = panels.open_questions().collect();
+            assert_eq!(open.len(), 1);
+            assert!(dialogs.confirm_by_id::<StandardPrompt>(&Context::default(), open[0]));
+            panels.pump_with(&mut dialogs, NONE);
+            assert_eq!(answered(&service, id), Picked::Paths(vec![dir.join("Photo.png")]));
         }
 
         // Confirming the prompt by the id the panels list, as `ui.dialog.confirm` does, settles
