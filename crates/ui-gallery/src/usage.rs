@@ -17,21 +17,13 @@ use egui::{Context, Rect, Vec2, vec2};
 
 use crate::appearance::Appearance;
 use crate::gallery::default_story_of;
-use crate::probe::{Cache, Key, Pass, Probe, Usage};
+use crate::probe::{Cache, Key, Probe, Usage};
 
 /// The size the scan draws each story at.
 const SCAN_SIZE: Vec2 = vec2(480.0, 640.0);
 
 /// The height tiles probe their story at; the width is the tile's.
 pub(crate) const TILE_HEIGHT: f32 = 640.0;
-
-/// The pass that names `token`.
-fn pass_of(token: TokenRef) -> Pass {
-    match token {
-        TokenRef::Color(_) => Pass::Semantic,
-        TokenRef::Component(_) => Pass::Semantic,
-    }
-}
 
 /// What a scan was started for.
 #[derive(Clone, PartialEq)]
@@ -45,8 +37,6 @@ struct Run {
     context: ScanContext,
     stories: Vec<Story>,
     next: usize,
-    /// The pass of story `next` that is probed next.
-    pass: Pass,
     /// For each token, the shapes each component painted with it.
     painters: HashMap<TokenRef, BTreeMap<&'static str, usize>>,
 }
@@ -92,7 +82,7 @@ impl Scan {
             }
         }
         let stories = components.into_iter().filter_map(|c| default_story_of(stories, c).copied()).collect();
-        self.run = Some(Run { context, stories, next: 0, pass: Pass::Semantic, painters: HashMap::new() });
+        self.run = Some(Run { context, stories, next: 0, painters: HashMap::new() });
     }
 
     /// Runs the scan's next probe if the Used by list is on screen and this frame's probe is
@@ -105,17 +95,16 @@ impl Scan {
         let Some(run) = self.run.as_mut() else { return };
         while let Some(story) = run.stories.get(run.next).copied() {
             let ScanContext { appearance, mode } = &run.context;
-            let pass = run.pass;
-            let key = key_of(theme, &story, &story.defaults(), appearance, *mode, pass, SCAN_SIZE);
+            let key = key_of(theme, &story, &story.defaults(), appearance, *mode, SCAN_SIZE);
             let (usage, probed) = match self.cache.get(&key) {
                 Some(usage) => (usage, false),
                 None if std::mem::take(&mut self.budget) => {
-                    (self.cache.get_or_run(key, || Probe::story(theme, appearance, *mode, pass, SCAN_SIZE, &story, &mut story.defaults())), true)
+                    (self.cache.get_or_run(key, || Probe::story(theme, appearance, *mode, SCAN_SIZE, &story, &mut story.defaults())), true)
                 }
                 None => break,
             };
             for used in &usage.uses {
-                if let Some(token) = used.token.filter(|t| pass_of(*t) == pass) {
+                if let Some(token) = used.token {
                     *run.painters.entry(token).or_default().entry(story.component).or_default() += 1;
                 }
             }
@@ -144,8 +133,8 @@ impl Scan {
     }
 }
 
-fn key_of(theme: &ThemeDef, story: &Story, args: &Args, appearance: &Appearance, mode: Mode, pass: Pass, size: Vec2) -> Key {
-    Key::new(theme, story.id, format!("{args:?}"), appearance, mode, pass, size)
+fn key_of(theme: &ThemeDef, story: &Story, args: &Args, appearance: &Appearance, mode: Mode, size: Vec2) -> Key {
+    Key::new(theme, story.id, format!("{args:?}"), appearance, mode, size)
 }
 
 /// A tile's story as picking sees it.
@@ -157,9 +146,8 @@ pub(crate) struct TileProbe {
     pub(crate) usage: Arc<Usage>,
 }
 
-/// Picking in the tiles: the pass to probe in, and where the tiles report their stories.
+/// Picking in the tiles: where the tiles report their stories.
 pub(crate) struct TilePick<'a> {
-    pub(crate) pass: Pass,
     pub(crate) tiles: &'a mut Vec<TileProbe>,
 }
 
@@ -181,12 +169,12 @@ impl<'a> Highlight<'a> {
         Self { scan, token, pick, theme, mode, pending: None }
     }
 
-    /// The usage of `story` with `args` drawn `size` large in `pass`. `None` while it has not been
+    /// The usage of `story` with `args` drawn `size` large. `None` while it has not been
     /// probed: a probe runs now if this frame's is unused, else the next frame asks again. While
     /// the pointer is down, when the args may change every frame, the last usage the tile got
     /// stands.
-    fn usage(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2, pass: Pass) -> Option<Arc<Usage>> {
-        let key = key_of(self.theme, story, args, appearance, self.mode, pass, size);
+    fn usage(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2) -> Option<Arc<Usage>> {
+        let key = key_of(self.theme, story, args, appearance, self.mode, size);
         let pointer_down = ctx.input(|i| i.pointer.any_down());
         let mut blank = key.clone();
         blank.args.clear();
@@ -198,7 +186,7 @@ impl<'a> Highlight<'a> {
             }
             None if std::mem::take(&mut self.scan.budget) => {
                 let (theme, mode) = (self.theme, self.mode);
-                self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, pass, size, story, &mut args.clone()))
+                self.scan.cache.get_or_run(key, || Probe::story(theme, appearance, mode, size, story, &mut args.clone()))
             }
             None => {
                 ctx.request_repaint();
@@ -222,15 +210,15 @@ impl<'a> Highlight<'a> {
     /// token is selected. The story is also recorded for picking.
     pub(crate) fn tile(&mut self, ctx: &Context, appearance: &Appearance, story: &Story, args: &Args, size: Vec2, origin: Vec2) -> Vec<Rect> {
         self.pending = None;
-        if let Some(pick) = self.pick.as_ref().map(|p| p.pass)
-            && let Some(usage) = self.usage(ctx, appearance, story, args, size, pick)
+        if self.pick.is_some()
+            && let Some(usage) = self.usage(ctx, appearance, story, args, size)
             && let Some(pick) = self.pick.as_mut()
         {
             self.pending = Some(pick.tiles.len());
             pick.tiles.push(TileProbe { origin, clip: Rect::from_min_size(origin.to_pos2(), size), usage });
         }
         let Some(token) = self.token else { return Vec::new() };
-        let Some(usage) = self.usage(ctx, appearance, story, args, size, pass_of(token)) else { return Vec::new() };
+        let Some(usage) = self.usage(ctx, appearance, story, args, size) else { return Vec::new() };
         usage.rects(token).into_iter().map(|r| r.translate(origin)).collect()
     }
 

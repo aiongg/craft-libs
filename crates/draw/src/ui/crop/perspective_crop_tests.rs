@@ -373,7 +373,7 @@ fn shapes_of(h: &Harness<'_, Host>, keep: impl Fn(&Shape) -> bool) -> usize {
     n
 }
 
-fn grid_color(h: &Harness<'_, Host>) -> Color32 {
+fn grid_color() -> Color32 {
     CROP.to_egui().gamma_multiply(150.0 / 255.0)
 }
 
@@ -381,7 +381,7 @@ fn grid_color(h: &Harness<'_, Host>) -> Color32 {
 fn a_valid_quad_draws_its_grid_and_an_invalid_one_draws_red_without_it() {
     let mut h = harness(Some(QUAD), |_| {});
     h.run();
-    let grid = grid_color(&h);
+    let grid = grid_color();
     let is_grid = move |s: &Shape| matches!(s, Shape::LineSegment { stroke, .. } if stroke.color == grid && (stroke.width - 1.0).abs() < 1e-6);
     let n = grid_steps(200.0, 48.0);
     assert!(h.state().committable);

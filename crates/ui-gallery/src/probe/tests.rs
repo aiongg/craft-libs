@@ -6,7 +6,7 @@ use egui::accesskit::Role;
 use egui::{Color32, Context, Pos2, RawInput, Rect, Ui, vec2};
 use std::sync::Arc;
 
-use super::{Cache, Key, Pass, Probe, Usage};
+use super::{Cache, Key, Probe, Usage};
 use crate::appearance::{Appearance, builtin};
 use crate::preview::AppPreview;
 
@@ -14,11 +14,11 @@ fn theme(appearance: &Appearance) -> &'static craft_theme::ThemeDef {
     builtin(&appearance.theme).expect("a built-in theme")
 }
 
-fn button_primary(pass: Pass, size: egui::Vec2) -> Usage {
+fn button_primary(size: egui::Vec2) -> Usage {
     let appearance = Appearance::default();
     let story = registry().into_iter().find(|s| s.id == "controls/button/variants").expect("the Button variants story");
     let mut args = (story.args)();
-    Probe::story(theme(&appearance), &appearance, Mode::Light, pass, size, &story, &mut args)
+    Probe::story(theme(&appearance), &appearance, Mode::Light, size, &story, &mut args)
 }
 
 fn path(p: &str) -> TokenRef {
@@ -28,7 +28,7 @@ fn path(p: &str) -> TokenRef {
 #[test]
 fn the_primary_button_fill_is_a_semantic_token() {
     let size = vec2(480.0, 320.0);
-    let a = button_primary(Pass::Semantic, size);
+    let a = button_primary(size);
     let fill = a.rects(path("accent.solid"));
     assert!(!fill.is_empty(), "accent.solid paints the primary fill: {:?}", a.tokens());
 }
@@ -42,7 +42,6 @@ fn a_token_nothing_paints_has_no_uses_and_a_blend_is_computed() {
         theme(&appearance),
         &appearance,
         Mode::Light,
-        Pass::Semantic,
         size,
         |_| {},
         |ui| {
@@ -64,12 +63,11 @@ fn a_token_nothing_paints_has_no_uses_and_a_blend_is_computed() {
 fn text_is_found_by_its_section_colour_and_by_an_override_colour() {
     let appearance = Appearance::default();
     let size = vec2(300.0, 100.0);
-    let run = |pass| {
+    let run = || {
         Probe::run(
             theme(&appearance),
             &appearance,
             Mode::Light,
-            pass,
             size,
             |_| {},
             |ui| {
@@ -82,7 +80,7 @@ fn text_is_found_by_its_section_colour_and_by_an_override_colour() {
             },
         )
     };
-    let usage = run(Pass::Semantic);
+    let usage = run();
     assert_eq!(usage.at(Pos2::new(14.0, 18.0)), Some(TokenRef::Color(ColorToken::TextMuted)));
     assert_eq!(usage.at(Pos2::new(14.0, 48.0)), Some(TokenRef::Color(ColorToken::TextNormal)));
 }
@@ -90,8 +88,8 @@ fn text_is_found_by_its_section_colour_and_by_an_override_colour() {
 #[test]
 fn two_runs_give_the_same_usage_inside_the_drawn_size() {
     let size = vec2(480.0, 320.0);
-    let first = button_primary(Pass::Semantic, size);
-    let second = button_primary(Pass::Semantic, size);
+    let first = button_primary(size);
+    let second = button_primary(size);
     assert_eq!(first, second);
     let bounds = Rect::from_min_size(Pos2::ZERO, size);
     assert!(first.uses.iter().all(|u| bounds.contains_rect(u.visible())), "every rect lies in the drawn size");
@@ -101,7 +99,7 @@ fn two_runs_give_the_same_usage_inside_the_drawn_size() {
 fn the_cache_probes_once_per_key() {
     let appearance = Appearance::default();
     let theme = theme(&appearance);
-    let key = Key::new(theme, "x", "", &appearance, Mode::Light, Pass::Semantic, vec2(10.0, 10.0));
+    let key = Key::new(theme, "x", "", &appearance, Mode::Light, vec2(10.0, 10.0));
     let mut cache = Cache::default();
     let mut runs = 0;
     for _ in 0..3 {
@@ -121,10 +119,10 @@ fn the_cache_probes_once_per_key() {
 
 const APP_SIZE: egui::Vec2 = vec2(1280.0, 800.0);
 
-fn app(pass: Pass) -> Usage {
+fn app() -> Usage {
     let appearance = Appearance::default();
     let mut preview = AppPreview::default();
-    Probe::run(theme(&appearance), &appearance, Mode::Light, pass, APP_SIZE, |_| {}, |ui| preview.show(ui))
+    Probe::run(theme(&appearance), &appearance, Mode::Light, APP_SIZE, |_| {}, |ui| preview.show(ui))
 }
 
 /// The bounds of the node named `name` with `role`, laid out as the probe lays out the app.
@@ -156,7 +154,7 @@ fn bounds_of(name: &str, role: Role) -> Rect {
 
 #[test]
 fn the_mock_app_paints_chrome_tokens_over_a_layer_row_but_not_over_the_document() {
-    let usage = app(Pass::Semantic);
+    let usage = app();
     let row = bounds_of("Shapes", Role::ListBoxOption);
     assert_eq!(usage.at(row.center()), Some(path("state.selected")), "the selected Layers row at {:?}", row.center());
     let doc = bounds_of("Document", Role::Canvas);
@@ -172,7 +170,7 @@ fn token_color(ui: &Ui, field: impl Fn(&craft_ui::theme::UiTokens) -> craft_them
 
 fn small(setup: impl FnOnce(&Context), draw: impl FnMut(&mut Ui)) -> Usage {
     let appearance = Appearance::default();
-    Probe::run(theme(&appearance), &appearance, Mode::Light, Pass::Semantic, SMALL, setup, draw)
+    Probe::run(theme(&appearance), &appearance, Mode::Light, SMALL, setup, draw)
 }
 
 #[test]
@@ -184,13 +182,13 @@ fn a_story_is_probed_without_its_surface_frame() {
         .iter()
         .find(|s| matches!(s.surface, craft_ui::story::Surface::Canvas | craft_ui::story::Surface::Chrome))
         .expect("a story on a bar surface");
-    let usage = Probe::story(theme(&appearance), &appearance, Mode::Light, Pass::Semantic, size, story, &mut (story.args)());
+    let usage = Probe::story(theme(&appearance), &appearance, Mode::Light, size, story, &mut (story.args)());
     let whole = Rect::from_min_size(Pos2::ZERO, size);
     assert!(
         !usage.uses.iter().any(|u| u.rect.contains_rect(whole) || (u.token.is_some() && u.rect.width() >= size.x && u.rect.height() >= size.y)),
         "no shape of the frame is recorded"
     );
-    let button = button_primary(Pass::Semantic, size);
+    let button = button_primary(size);
     let fill = button.rects(path("accent.solid"));
     assert!(fill.iter().all(|r| r.min.x > 0.0 && r.min.y > 0.0), "the surface margin offsets the story as in a tile: {fill:?}");
 }
@@ -304,8 +302,7 @@ fn a_probe_copy_of_the_app_has_the_flyout_open_that_the_live_one_has() {
         });
         output.drop_without_applying_deltas();
     }
-    let probe =
-        |mut preview: AppPreview| Probe::run(theme(&appearance), &appearance, Mode::Light, Pass::Semantic, APP_SIZE, |_| {}, |ui| preview.show(ui));
+    let probe = |mut preview: AppPreview| Probe::run(theme(&appearance), &appearance, Mode::Light, APP_SIZE, |_| {}, |ui| preview.show(ui));
     let closed = probe(live.clone());
     let open = probe(live.for_probe());
     assert!(open.uses.len() > closed.uses.len(), "the flyout adds paint: {} / {}", open.uses.len(), closed.uses.len());
@@ -324,20 +321,18 @@ fn probe_times() {
         }
     }
     let start = std::time::Instant::now();
-    Probe::run(theme, &appearance, Mode::Light, Pass::Semantic, vec2(10.0, 10.0), |_| {}, |_| {});
+    Probe::run(theme, &appearance, Mode::Light, vec2(10.0, 10.0), |_| {}, |_| {});
     println!("empty drawing (theme, context, fonts, two frames): {:?}", start.elapsed());
-    for pass in [Pass::Semantic] {
-        let start = std::time::Instant::now();
-        let mut slowest = (std::time::Duration::ZERO, "");
-        for story in &components {
-            let mut args = (story.args)();
-            let one = std::time::Instant::now();
-            Probe::story(theme, &appearance, Mode::Light, pass, vec2(480.0, 640.0), story, &mut args);
-            slowest = slowest.max((one.elapsed(), story.id));
-        }
-        println!("{pass:?}: {} default stories in {:?}, slowest {:?} ({})", components.len(), start.elapsed(), slowest.0, slowest.1);
-        let start = std::time::Instant::now();
-        app(pass);
-        println!("{pass:?}: mock app in {:?}", start.elapsed());
+    let start = std::time::Instant::now();
+    let mut slowest = (std::time::Duration::ZERO, "");
+    for story in &components {
+        let mut args = (story.args)();
+        let one = std::time::Instant::now();
+        Probe::story(theme, &appearance, Mode::Light, vec2(480.0, 640.0), story, &mut args);
+        slowest = slowest.max((one.elapsed(), story.id));
     }
+    println!("{} default stories in {:?}, slowest {:?} ({})", components.len(), start.elapsed(), slowest.0, slowest.1);
+    let start = std::time::Instant::now();
+    app();
+    println!("mock app in {:?}", start.elapsed());
 }

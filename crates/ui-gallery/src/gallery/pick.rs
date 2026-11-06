@@ -6,7 +6,7 @@
 use craft_theme::TokenRef;
 use craft_ui::controls::TooltipExt as _;
 use craft_ui::theme::{StrokeExt as _, ToEgui, Tokens, TokensOf, scale};
-use egui::{Area, Context, CursorIcon, Id, Order, Pos2, Rect, Sense, StrokeKind, Ui, UiKind};
+use egui::{Area, CursorIcon, Id, Order, Pos2, Rect, Sense, StrokeKind, Ui, UiKind};
 
 use crate::usage::TileProbe;
 
@@ -42,11 +42,6 @@ impl Picker {
             self.generation += 1;
         }
         self.on = on;
-    }
-
-    /// Whether the Alt key picks the component field instead of the semantic token.
-    pub(super) fn field_requested(ctx: &Context) -> bool {
-        ctx.input(|i| i.modifiers.alt)
     }
 
     /// The shape of the tiles drawn this frame at `pos`.
