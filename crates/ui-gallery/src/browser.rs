@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use craft_theme::{
-    AppId, AppSizes, Appearance, ColorOrigin, ColorSource, ColorToken, ContrastIntent, ControlSize, EdgeSeed, Explained, FieldOrigin, Mode, PinLayer,
+    AppId, AppSizes, Appearance, ColorOrigin, ColorSource, ColorToken, ComponentField, ComponentTokens, ContrastIntent, ControlSize, EdgeSeed, Explained, Mode, PinLayer,
     Rgba, SizeOrigin, StatusKind, ThemeDef, TokenRef, TypeRole, Variants, explain_sized,
 };
 use craft_ui::behavior::{RowInfo, Selection, SelectionChange, SelectionMode};
@@ -159,14 +159,10 @@ impl Browser {
             }
             rows.push(RowInfo::leaf(Row::Token(token)));
         }
-        let components: Vec<TokenRef> = e
-            .components
-            .iter()
-            .filter(|o| self.shows(e, TokenRef::Component(o.field), o.pin.is_some(), o.contrast_move.is_some()))
-            .map(|o| TokenRef::Component(o.field))
-            .collect();
+        let components: Vec<TokenRef> =
+            ComponentField::ALL.iter().map(|&f| TokenRef::Component(f)).filter(|&t| self.shows(e, t, false, false)).collect();
         if !components.is_empty() {
-            rows.push(RowInfo::section(Row::Group("component colours")));
+            rows.push(RowInfo::section(Row::Group("component tokens")));
             rows.extend(components.into_iter().map(|t| RowInfo::leaf(Row::Token(t))));
         }
         let mut group = "";
@@ -197,6 +193,12 @@ impl Browser {
                     let o = &e.sizes[*i];
                     let words = format!("{} · {}", value_words(o.value), layer_words(o.layer));
                     ListRow::new(*row, o.path.as_str()).trailing_item(SIZE_WIDTH, move |ui| {
+                        ui.monospace(words.clone());
+                    })
+                }
+                Row::Token(TokenRef::Component(f)) => {
+                    let words = lengths_words(&e.resolved.tokens.component, *f);
+                    ListRow::new(*row, f.path()).trailing_item(SIZE_WIDTH, move |ui| {
                         ui.monospace(words.clone());
                     })
                 }
@@ -297,12 +299,12 @@ impl Browser {
         ui.heading(selected.path());
         let origin = match selected {
             TokenRef::Color(t) => e.color(t).inspect(|o| color_facts(ui, o)),
-            TokenRef::Component(f) => e.field(f).and_then(|o| {
-                field_facts(ui, o);
-                o.reads.and_then(|t| e.color(t))
-            }),
+            TokenRef::Component(f) => {
+                component_facts(ui, &e.resolved.tokens.component, f);
+                return None;
+            }
         };
-        let used = used_by(ui, e, selected, scan);
+        let used = used_by(ui, selected, scan);
         if let Some(token) = used.select {
             self.selected = Some(token);
         }
@@ -328,7 +330,7 @@ impl Browser {
     }
 }
 
-/// What the Used by and Read by sections reported.
+/// What the Used by section reported.
 #[derive(Default)]
 struct UsedBy {
     /// The component a link named.
@@ -337,10 +339,8 @@ struct UsedBy {
     select: Option<TokenRef>,
 }
 
-/// The components that paint with `token` (from the scan, which fills in as it runs) and the
-/// tokens it is read through: the component fields that default to a semantic token, or the
-/// semantic token a field reads.
-fn used_by(ui: &mut Ui, e: &Explained, token: TokenRef, scan: &Scan) -> UsedBy {
+/// The components that paint with `token`, from the scan, which fills in as it runs.
+fn used_by(ui: &mut Ui, token: TokenRef, scan: &Scan) -> UsedBy {
     let mut out = UsedBy::default();
     SectionHeader::new("gallery.tokens.used_by", "Used by").show(ui, |ui| {
         scan.mark_shown();
@@ -361,21 +361,6 @@ fn used_by(ui: &mut Ui, e: &Explained, token: TokenRef, scan: &Scan) -> UsedBy {
             });
         }
         ui.add(Text::new("Stories at rest; blended colours not counted").role(TypeRole::Caption).content(Content::Muted));
-    });
-    let read: Vec<TokenRef> = match token {
-        TokenRef::Color(t) => e.readers(t).into_iter().map(TokenRef::Component).collect(),
-        TokenRef::Component(f) => e.field(f).and_then(|o| o.reads).map(TokenRef::Color).into_iter().collect(),
-    };
-    let title = if matches!(token, TokenRef::Color(_)) { "Read by" } else { "Reads" };
-    SectionHeader::new("gallery.tokens.read_by", title).show(ui, |ui| {
-        if read.is_empty() {
-            ui.add(Text::new("Nothing reads it by default").content(Content::Muted));
-        }
-        for other in read {
-            if ui.add(Link::new(other.path()).role(TypeRole::Mono).id_salt(("gallery.tokens.read_by", other.path()))).clicked() {
-                out.select = Some(other);
-            }
-        }
     });
     out
 }
@@ -451,18 +436,23 @@ fn color_facts(ui: &mut Ui, o: &ColorOrigin) {
     });
 }
 
-fn field_facts(ui: &mut Ui, o: &FieldOrigin) {
+/// The standard and small size of a component token, as `md / sm`.
+fn lengths_words(c: &ComponentTokens, f: ComponentField) -> String {
+    let by = match f {
+        ComponentField::SliderThumbWidth => c.slider.thumb_width,
+        ComponentField::SliderThumbHeight => c.slider.thumb_height,
+    };
+    format!("{} / {}", by.md, by.sm)
+}
+
+fn component_facts(ui: &mut Ui, c: &ComponentTokens, f: ComponentField) {
     Grid::new("gallery.tokens.facts").num_columns(2).show(ui, |ui| {
-        fact(ui, "Value", o.value);
-        ui.label("Default");
-        ui.label(reads_words(o));
+        ui.label("Standard / small");
+        ui.monospace(lengths_words(c, f));
         ui.end_row();
-        ui.label("Override");
-        ui.label(o.pin.map_or("none", pin_words));
+        ui.label("Set in");
+        ui.label("the theme file's components map");
         ui.end_row();
-        if let Some(before) = o.contrast_move {
-            fact(ui, "Before the contrast pass", before);
-        }
     });
 }
 
@@ -541,15 +531,12 @@ fn swatch(ui: &mut Ui, color: Rgba, size: egui::Vec2) -> egui::Rect {
 pub(crate) fn value_of(e: &Explained, token: TokenRef) -> Rgba {
     match token {
         TokenRef::Color(t) => e.resolved.tokens.color(t),
-        TokenRef::Component(f) => e.resolved.tokens.component.color(f).unwrap_or(Rgba::TRANSPARENT),
+        TokenRef::Component(_) => Rgba::TRANSPARENT,
     }
 }
 
-/// The heading a size row is listed under: its base group, or the component sizes.
+/// The heading a size row is listed under.
 fn size_group(o: &SizeOrigin) -> &'static str {
-    if !o.base {
-        return "component sizes";
-    }
     match o.path.split_once('.').map_or(o.path.as_str(), |(g, _)| g) {
         "size" => "sizes",
         "space" => "spacing",
@@ -592,10 +579,6 @@ fn pin_words(layer: PinLayer) -> &'static str {
         PinLayer::AppHighContrast => "app high-contrast pin",
         _ => "pin",
     }
-}
-
-fn reads_words(o: &FieldOrigin) -> String {
-    o.reads.map_or_else(|| "computed".to_owned(), |t| format!("reads {}", t.path()))
 }
 
 #[cfg(test)]

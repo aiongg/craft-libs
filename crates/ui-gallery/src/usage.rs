@@ -29,7 +29,7 @@ pub(crate) const TILE_HEIGHT: f32 = 640.0;
 fn pass_of(token: TokenRef) -> Pass {
     match token {
         TokenRef::Color(_) => Pass::Semantic,
-        TokenRef::Component(_) => Pass::Component,
+        TokenRef::Component(_) => Pass::Semantic,
     }
 }
 
@@ -119,13 +119,7 @@ impl Scan {
                     *run.painters.entry(token).or_default().entry(story.component).or_default() += 1;
                 }
             }
-            match pass {
-                Pass::Semantic => run.pass = Pass::Component,
-                Pass::Component => {
-                    run.pass = Pass::Semantic;
-                    run.next += 1;
-                }
-            }
+            run.next += 1;
             if probed {
                 break;
             }

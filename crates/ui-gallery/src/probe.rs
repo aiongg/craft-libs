@@ -1,8 +1,7 @@
 //! The paint probe: which theme tokens a drawing paints with, and where.
 //!
 //! The drawing runs headless in its own context under a probe theme in which every colour token
-//! (pass [`Pass::Semantic`]) or every colour token and component colour field (pass
-//! [`Pass::Component`]) has a distinct opaque colour. Reading the painted shapes back, each
+//! (pass [`Pass::Semantic`]) has a distinct opaque colour. Reading the painted shapes back, each
 //! colour that is a probe colour names the token the drawing painted it with, and the rect it
 //! painted. Colours that are not probe colours (blends, scaled colours, constants) count as
 //! computed. States a drawing does not show, and closed popups, are not painted and so not found.
@@ -12,7 +11,7 @@ use std::collections::{BTreeSet, HashMap};
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
-use craft_theme::{ColorToken, ComponentField, Contrast, Mode, ModePins, Pins, Rgba, SystemAppearance, ThemeDef, TokenRef, resolve};
+use craft_theme::{ColorToken, Contrast, Mode, ModePins, Pins, Rgba, SystemAppearance, ThemeDef, TokenRef};
 use craft_ui::interface_scale::InterfaceScale;
 use craft_ui::story::{Args, Story};
 use craft_ui::theme::{ToEgui, install, scope};
@@ -25,12 +24,8 @@ use crate::appearance::Appearance;
 /// Which colours the probe theme pins.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Pass {
-    /// Semantic tokens only: a component field that takes a token's colour unchanged paints with
-    /// the token's probe colour, so a button fill is found as `accent.solid`.
+    /// Every colour token pinned: a button fill is found as `accent.solid`.
     Semantic,
-    /// Semantic tokens and every component colour field: a button fill is found as
-    /// `button.primary.fill.rest`.
-    Component,
 }
 
 /// One painted colour.
@@ -115,7 +110,7 @@ impl Probe {
         setup: impl FnOnce(&Context),
         mut draw: impl FnMut(&mut Ui),
     ) -> Usage {
-        let (probe, names) = probe_theme(theme, appearance, mode, pass);
+        let (probe, names) = probe_theme(theme);
         let ctx = Context::default();
         let base = appearance.configure(&ctx, None, false, SystemAppearance::default());
         setup(&ctx);
@@ -258,32 +253,16 @@ impl Cache {
 }
 
 /// `theme` with probe colours pinned in both modes, and the token each probe colour stands for.
-fn probe_theme(theme: &ThemeDef, appearance: &Appearance, mode: Mode, pass: Pass) -> (ThemeDef, HashMap<Color32, TokenRef>) {
+fn probe_theme(theme: &ThemeDef) -> (ThemeDef, HashMap<Color32, TokenRef>) {
     let mut probe = theme.clone();
     probe.high_contrast = ModePins::default();
     probe.apps.clear();
-    let mut refs: Vec<TokenRef> = ColorToken::ALL.iter().map(|&t| TokenRef::Color(t)).collect();
+    let refs: Vec<TokenRef> = ColorToken::ALL.iter().map(|&t| TokenRef::Color(t)).collect();
     let pin_all = |probe: &mut ThemeDef, refs: &[TokenRef]| {
         let pins: Pins = refs.iter().enumerate().map(|(i, &t)| (t, probe_color(i))).collect();
         probe.pins = ModePins { light: pins.clone(), dark: pins };
     };
     pin_all(&mut probe, &refs);
-    if pass == Pass::Component {
-        // Which fields are colours does not depend on the colours, so one resolve lists them.
-        let resolved = resolve(
-            &probe,
-            craft_theme::Appearance {
-                mode,
-                contrast: Contrast::Standard,
-                size: appearance.size(),
-                text_size: appearance.text_size(),
-                reduced_motion: false,
-            },
-            None,
-        );
-        refs.extend(ComponentField::ALL.iter().filter(|&&f| resolved.tokens.component.color(f).is_some()).map(|&f| TokenRef::Component(f)));
-        pin_all(&mut probe, &refs);
-    }
     let names = refs.iter().enumerate().map(|(i, &t)| (probe_color(i).to_egui(), t)).collect();
     (probe, names)
 }

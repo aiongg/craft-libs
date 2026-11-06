@@ -471,7 +471,7 @@ fn a_column_without_a_least_width_takes_the_default() {
     let mut host = Host::new();
     host.columns[0] = TableColumn::new("name", "Name");
     let mut harness = harness_with(host, Direction::Ltr);
-    let min = table_style(&crate::theme::current(&harness.ctx)).min_column;
+    let min = Table::style(&crate::theme::current(&harness.ctx)).min_column;
     let grip = edge(&harness, "Name").rect().center();
     drag(&mut harness, grip, grip - egui::vec2(900.0, 0.0));
     assert_eq!(width(&harness, "Name"), f64::from(min));

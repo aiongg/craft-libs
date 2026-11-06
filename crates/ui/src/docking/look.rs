@@ -3,7 +3,7 @@
 
 use std::borrow::Cow;
 
-use craft_theme::{RowStyle, TypeRole};
+use craft_theme::{Contrast, Identify, RowStyle, TypeRole};
 use egui::{Color32, CornerRadius, FontId, Frame, InnerResponse, Margin, Shadow, Stroke, Ui};
 
 use super::{DockConfig, DockStyle};
@@ -163,6 +163,8 @@ impl DockLook {
         let (c, space, size, stroke) = (&tokens.color, &tokens.space, &tokens.size, &tokens.stroke);
         let dock = crate::style::dock::DockStyle::new(tokens);
         let float = crate::style::float::FloatStyle::new(tokens);
+        let high = tokens.appearance.contrast == Contrast::High;
+        let (icon_selected, icon_selected_text) = Identify::on(&[c.surface.panel], high).fill(c.state.selected, c.text.on_selected);
         Self {
             tab_height: size.panel_header,
             gap: space.gap.inline,
@@ -173,22 +175,22 @@ impl DockLook {
             overflow_width: dock.overflow_width,
             menu_max_height: dock.menu_max_height,
             pad: space.pad.control,
-            background: dock.background.to_egui(),
+            background: c.surface.panel.to_egui(),
             tab_strip: c.surface.panel.to_egui(),
             tab_active: c.surface.panel.to_egui(),
             tab_radius: if tokens.shape.rows == RowStyle::Rounded { tokens.shape.radius.control } else { 0.0 },
-            icon_selected: c.state.selected.to_egui(),
+            icon_selected: icon_selected.to_egui(),
             text: c.text.normal.to_egui(),
             inactive_text: c.text.muted.to_egui(),
-            border: Stroke::new(stroke.thin, dock.border.to_egui()),
-            resize: dock.resize.to_egui(),
-            drop: dock.drop.to_egui(),
-            focus: float.focus.to_egui(),
+            border: Stroke::new(stroke.thin, c.line.border.to_egui()),
+            resize: c.accent.solid.to_egui(),
+            drop: c.accent.solid.to_egui(),
+            focus: c.line.focus.to_egui(),
             font: tokens.font(TypeRole::Label),
             tab_padding: 4.0 * space.pad.control,
-            floating_background: float.fill.to_egui(),
-            floating_stroke: Stroke::new(stroke.thin, float.border.to_egui()),
-            blocked_dim: float.blocked.to_egui(),
+            floating_background: c.surface.panel.to_egui(),
+            floating_stroke: Stroke::new(stroke.thin, c.line.border.to_egui()),
+            blocked_dim: c.surface.scrim.to_egui(),
             title_height: size.panel_header,
             column_bar_height: size.panel_header,
             icon_size: size.icon.lg,
@@ -197,7 +199,7 @@ impl DockLook {
             iconic_label_width: dock.iconic_label_width,
             flyout_height: dock.flyout_height,
             icon_pad: space.gap.stack,
-            icon_selected_text: c.text.on_selected.to_egui(),
+            icon_selected_text: icon_selected_text.to_egui(),
             icon_radius: tokens.shape.radius.control,
             hint_radius: tokens.shape.radius.popup,
             drop_width: stroke.thick,
@@ -218,9 +220,9 @@ impl DockLook {
             floating_radius: corner_radius(tokens.shape.radius.panel),
             floating_shadow: tokens.elevation.floating.to_egui(),
             title_background: c.surface.chrome.to_egui(),
-            title_text: float.title_text.to_egui(),
-            title_muted: float.title_muted.to_egui(),
-            grip: float.grip.to_egui(),
+            title_text: c.text.normal.to_egui(),
+            title_muted: c.text.muted.to_egui(),
+            grip: c.accent.solid.to_egui(),
         }
     }
 

@@ -267,7 +267,8 @@ impl Gallery {
 
 /// The pass that picks a semantic token, or with Alt the component field.
 fn pass_of_pick(field: bool) -> Pass {
-    if field { Pass::Component } else { Pass::Semantic }
+    let _ = field;
+    Pass::Semantic
 }
 
 /// Draws `add` inside the panel's padding.

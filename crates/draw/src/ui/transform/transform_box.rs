@@ -467,7 +467,7 @@ impl<'a> TransformBox<'a> {
             pivot: Stroke::new(thin, o.handle_fill.to_egui()),
             pivot_halo: Stroke::new(thin + 2.0 * thin, o.halo.to_egui()),
             focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * halo, o.halo.to_egui()),
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * thin, o.halo.to_egui()),
             focus_offset: ring.offset,
         }
     }

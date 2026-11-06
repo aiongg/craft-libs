@@ -2,6 +2,7 @@
 //! and Canvas Size with units, file size and the 3×3 anchor. In `sizing`, not `size`: `size.rs`
 //! holds the frame's own size rules ([`Width`](super::Width), [`Body`](super::Body)).
 
+use craft_theme::ControlSize;
 use egui::accesskit::Role;
 use egui::text::LayoutJob;
 use egui::{Align, Color32, Context, Label, Layout, Pos2, Rect, Response, Shape, Stroke, Ui, UiBuilder, Vec2, vec2};
@@ -14,7 +15,7 @@ use super::stack::{DialogId, DialogStack, dialog_id};
 use super::state::DialogState;
 use crate::behavior::RadioSelection;
 use crate::composites::{Form, FormGrid, RowLabel, SectionHeader};
-use crate::controls::{Checkbox, NumberField, Select};
+use crate::controls::{Checkbox, NumberField, Segmented, Select};
 use crate::edit::{EditEvent, EditResponse};
 use crate::localized::{Labels as _, LocaleNumbers, SharedLabels};
 use crate::primitives::{Content, Interactive, StateColors, SurfaceKind};
@@ -687,7 +688,7 @@ impl<'a> AnchorGrid<'a> {
         let ids = (0..Anchor::ALL.len()).map(|i| (Interactive::id_in(&group, ("anchor", i)), true)).collect();
         let mut radios = RadioSelection::new(ids, Anchor::ALL.iter().position(|a| a == self.anchor));
         radios.report_size(ui, group.unique_id());
-        let selected_fill = StateColors { fill: tokens.color.state.hover.to_egui(), border: None };
+        let selected_fill = StateColors { fill: Segmented::style(&tokens, ControlSize::Md).selected_fill, border: None };
         let sensed: Vec<_> = Anchor::ALL
             .iter()
             .enumerate()

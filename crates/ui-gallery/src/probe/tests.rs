@@ -26,16 +26,11 @@ fn path(p: &str) -> TokenRef {
 }
 
 #[test]
-fn the_primary_button_fill_is_a_semantic_token_in_pass_a_and_a_field_in_pass_b() {
+fn the_primary_button_fill_is_a_semantic_token() {
     let size = vec2(480.0, 320.0);
     let a = button_primary(Pass::Semantic, size);
-    let b = button_primary(Pass::Component, size);
     let fill = a.rects(path("accent.solid"));
     assert!(!fill.is_empty(), "accent.solid paints the primary fill: {:?}", a.tokens());
-    let field = b.rects(path("button.primary.fill.rest"));
-    assert!(!field.is_empty(), "button.primary.fill.rest paints it in pass B");
-    assert!(field.iter().any(|r| fill.contains(r)), "the same rect: {fill:?} / {field:?}");
-    assert!(b.rects(path("accent.solid")).iter().all(|r| !field.contains(r)));
 }
 
 #[test]
@@ -95,8 +90,8 @@ fn text_is_found_by_its_section_colour_and_by_an_override_colour() {
 #[test]
 fn two_runs_give_the_same_usage_inside_the_drawn_size() {
     let size = vec2(480.0, 320.0);
-    let first = button_primary(Pass::Component, size);
-    let second = button_primary(Pass::Component, size);
+    let first = button_primary(Pass::Semantic, size);
+    let second = button_primary(Pass::Semantic, size);
     assert_eq!(first, second);
     let bounds = Rect::from_min_size(Pos2::ZERO, size);
     assert!(first.uses.iter().all(|u| bounds.contains_rect(u.visible())), "every rect lies in the drawn size");
@@ -329,9 +324,9 @@ fn probe_times() {
         }
     }
     let start = std::time::Instant::now();
-    Probe::run(theme, &appearance, Mode::Light, Pass::Component, vec2(10.0, 10.0), |_| {}, |_| {});
+    Probe::run(theme, &appearance, Mode::Light, Pass::Semantic, vec2(10.0, 10.0), |_| {}, |_| {});
     println!("empty drawing (theme, context, fonts, two frames): {:?}", start.elapsed());
-    for pass in [Pass::Semantic, Pass::Component] {
+    for pass in [Pass::Semantic] {
         let start = std::time::Instant::now();
         let mut slowest = (std::time::Duration::ZERO, "");
         for story in &components {

@@ -86,7 +86,7 @@ fn rgb8(c: Srgba) -> [u8; 3] {
 pub fn rail(ui: &mut Ui, mock: &mut Mock, last_used: &mut LastUsed<Tool>) {
     let slots = slots();
     let numbers = LocaleNumbers::of(ui);
-    let backdrop = Tokens::of(ui).component.rail.fill.to_egui();
+    let backdrop = Tokens::of(ui).color.surface.chrome.to_egui();
     let colors = mock.colors;
     let mut after = colors;
     let out = ToolRail::new("tools").show(ui, &slots, &mock.tools.current, last_used, |ui, _| {

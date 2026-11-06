@@ -199,17 +199,6 @@ impl AppLayer {
                     self.map_mut().insert(path.clone(), SizeValue::Number(value as f32));
                 }
             }
-            SizeValue::Switch(shown) => {
-                let mut on = match set {
-                    Some(SizeValue::Switch(b)) => b,
-                    _ => shown,
-                };
-                let before = on;
-                let _ = Checkbox::bool("Override", &mut on).show(ui);
-                if on != before {
-                    self.map_mut().insert(path.clone(), SizeValue::Switch(on));
-                }
-            }
         }
         if ui.add(Button::new("Remove override").size(ControlSize::Sm).enabled(set.is_some()).id_salt("gallery.app_layer.remove")).clicked() {
             self.map_mut().remove(&path);
@@ -221,8 +210,6 @@ impl AppLayer {
 pub(crate) fn value_words(value: SizeValue) -> String {
     match value {
         SizeValue::Number(n) => n.to_string(),
-        SizeValue::Switch(true) => "on".to_owned(),
-        SizeValue::Switch(false) => "off".to_owned(),
     }
 }
 
@@ -231,8 +218,6 @@ pub(crate) fn layer_words(layer: SizeLayer) -> &'static str {
     match layer {
         SizeLayer::SizeSet => "size set",
         SizeLayer::App => "app",
-        SizeLayer::Derived => "derived",
-        SizeLayer::AppPin => "app pin",
         _ => "other",
     }
 }

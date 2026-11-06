@@ -98,7 +98,7 @@ impl SliceTool {
             handle: handle.size,
             handle_hit: handle.hit,
             handle_fill: handle.fill,
-            handle_edge: Stroke::new(handle.stroke.width, o.slice_selected.to_egui()),
+            handle_edge: Stroke::new(handle.stroke.width, SLICE_SELECTED.to_egui()),
         }
     }
 }

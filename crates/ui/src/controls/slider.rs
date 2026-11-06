@@ -481,7 +481,7 @@ impl Slider {
     /// The slider's sizes and colours at `size` from `tokens`.
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
-        let (thumb, thumb_width) = (s.thumb.get(size), s.thumb_width.get(size));
+        let (thumb, thumb_width) = (s.thumb_height.get(size), s.thumb_width.get(size));
         let (c, look) = (&tokens.color, crate::style::slider::SliderStyle::new(tokens));
         let track = SurfaceStyle {
             fill: c.line.control_edge.to_egui(),

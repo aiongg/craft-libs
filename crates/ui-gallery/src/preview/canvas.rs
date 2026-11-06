@@ -116,7 +116,7 @@ pub fn document(ui: &mut Ui, mock: &mut Mock, chrome: Option<Chrome<'_>>) {
     let ctx = ui.ctx().clone();
     let tokens = Tokens::of(ui);
     let pasteboard = tokens.color.surface.canvas.to_egui();
-    let ruler_size = tokens.component.ruler.size;
+    let ruler_size = tokens.size.icon.sm;
     drop(tokens);
     // With a shell the canvas moves between the dock's panel and the bare body when the dock
     // hides; its id, and so its keyboard focus, must not depend on where it is.

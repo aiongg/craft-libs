@@ -342,8 +342,8 @@ impl<'a> PenDraft<'a> {
             close_anchor: adjusted(selected_anchor, |h| h.size = size.handle.md),
             close_ring: b.close_ring,
             close_offset: b.close_offset,
-            hit: b.hit,
-            click_slop: b.click_slop,
+            hit: size.hit.target,
+            click_slop: size.hit.slop,
             flatten: b.flatten,
         }
     }

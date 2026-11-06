@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use craft_theme::{ControlSize, Rgba, States, TypeRole};
+use craft_theme::{Contrast, ControlSize, Identify, Rgba, States, TypeRole};
 use egui::accesskit::Role;
 use egui::emath::GuiRounding as _;
 use egui::text::LayoutJob;
@@ -225,7 +225,10 @@ impl Segmented<'static, ()> {
         };
         let clear = Rgba::TRANSPARENT;
         let (hover, muted) = (look.hover_fill, c.text.muted);
-        let (selected, on_selected, edge) = (c.state.selected, c.text.on_selected, c.line.control_edge);
+        let edge = c.line.control_edge;
+        // In high contrast the selected pill shows on the surfaces it sits on, by its fill or its edge.
+        let high = tokens.appearance.contrast == Contrast::High;
+        let (selected, on_selected) = Identify::on(&[c.surface.panel, c.surface.raised], high).edge(edge).fill(c.state.selected, c.text.on_selected);
         SegmentedStyle {
             height,
             pad_x: look.pad_x.get(size),
