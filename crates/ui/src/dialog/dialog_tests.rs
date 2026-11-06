@@ -234,9 +234,9 @@ fn the_keys_are_the_dialogs_while_it_is_open_and_the_apps_the_pass_after_it_clos
     let mut harness = build(App::new(), WINDOW);
     harness.run();
     assert_eq!(harness.state().owners.last(), Some(&KeyOwner::Dialog));
-    harness.key_press(Key::Enter);
+    harness.key_press(Key::Escape);
     harness.step();
-    assert_eq!(harness.state().outcomes, [Outcome::Ok]);
+    assert_eq!(harness.state().outcomes, [Outcome::Cancel]);
     harness.state_mut().owners.clear();
     harness.step();
     assert_eq!(harness.state().owners, [KeyOwner::App]);
