@@ -331,6 +331,9 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
             };
             let groups = self.dock_groups.len();
             self.column(ui, column, first, column_rect, edge);
+            // A narrow column keeps a third of its width between its two edge bands, so a drop
+            // inside it (an iconic column) still reaches its groups.
+            let band_width = band_width.min(width * 2.0 / 3.0);
             let (outer_band, outer_line) = column_edge(x, rect.y_range(), band_width, line_width);
             let (inner_band, inner_line) = column_edge(inner, rect.y_range(), band_width, line_width);
             let before = (DockTarget::ColumnEdge { anchor: first.clone(), after: false }, outer_line);
@@ -615,7 +618,8 @@ impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Renderer<'_, P> {
     /// toggles iconic on double-click (M2) and opens the column menu (U1).
     fn column_bar(&mut self, ui: &mut Ui, column: &Column<P>, first: &P, bar: Rect, rect: Rect, edge: Edge) {
         ui.painter().rect_filled(bar, 0.0, self.look.tab_strip);
-        let width = self.look.column_bar_height.min(bar.width());
+        // The button leaves the drag grip at least half of the bar, so a narrow iconic column keeps both.
+        let width = self.look.column_bar_height.min(bar.width() * 0.5);
         let (button, grip) = match edge {
             Edge::Left => (
                 Rect::from_min_max(bar.min, pos2(bar.left() + width, bar.bottom())),
