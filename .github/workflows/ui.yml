@@ -3,9 +3,9 @@ name: Shared UI
 on:
   push:
     branches: [main]
-    paths: ["crates/ui/**", "crates/ui-macros/**", "crates/i18n/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ui.yml"]
+    paths: ["crates/ui-legacy/**", "crates/ui-macros-legacy/**", "crates/i18n/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ui.yml"]
   pull_request:
-    paths: ["crates/ui/**", "crates/ui-macros/**", "crates/i18n/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ui.yml"]
+    paths: ["crates/ui-legacy/**", "crates/ui-macros-legacy/**", "crates/i18n/**", "Cargo.toml", "Cargo.lock", ".github/workflows/ui.yml"]
   workflow_dispatch:
 
 permissions:
@@ -40,15 +40,15 @@ jobs:
         with:
           key: craft-ui
       - run: cargo fmt --check
-      - run: cargo clippy -p craft-ui --all-targets --locked -- -D warnings
-      - run: cargo clippy -p craft-ui --all-targets --all-features --locked -- -D warnings
+      - run: cargo clippy -p craft-ui-legacy --all-targets --locked -- -D warnings
+      - run: cargo clippy -p craft-ui-legacy --all-targets --all-features --locked -- -D warnings
       - name: Docs (links and missing docs)
         if: runner.os == 'Linux'
-        run: cargo doc -p craft-ui --all-features --no-deps --locked
+        run: cargo doc -p craft-ui-legacy --all-features --no-deps --locked
         env:
           RUSTDOCFLAGS: -D warnings
-      - run: cargo test -p craft-ui --locked
-      - run: cargo test -p craft-ui --all-features --locked
+      - run: cargo test -p craft-ui-legacy --locked
+      - run: cargo test -p craft-ui-legacy --all-features --locked
   wasm:
     timeout-minutes: 15
     name: UI WASM
@@ -61,4 +61,4 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           key: craft-ui-wasm
-      - run: cargo check -p craft-ui --all-features --locked --target wasm32-unknown-unknown
+      - run: cargo check -p craft-ui-legacy --all-features --locked --target wasm32-unknown-unknown

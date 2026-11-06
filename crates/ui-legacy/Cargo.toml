@@ -1,11 +1,15 @@
 [package]
-name = "craft-ui"
+name = "craft-ui-legacy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 description = "Reusable egui controls and icon catalogs for Craft frontends"
+
+[lib]
+# The name its dependents, tests and macro output use.
+name = "craft_ui"
 
 [lints]
 workspace = true
@@ -16,7 +20,7 @@ craft-host = { workspace = true, features = ["ui"] }
 craft-pdf = { workspace = true, default-features = false }
 craft-i18n = { workspace = true, features = ["collate"] }
 craft-theme = { workspace = true }
-craft-ui-macros = { workspace = true }
+craft-ui-macros = { package = "craft-ui-macros-legacy", path = "../ui-macros-legacy" }
 craft-window = { workspace = true, features = ["ui"], optional = true }
 egui = { workspace = true }
 epaint = { version = "0.37", default-features = false }

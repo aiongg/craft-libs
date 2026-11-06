@@ -101,12 +101,12 @@ The gallery holds every theme. Themes switch at run time. It needs Rust 1.95 or 
 
 ```
 git switch design-system
-cargo run --release -p craft-ui-gallery
+cargo run --release -p craft-ui-gallery-legacy
 ```
 
 - Update with `git pull` and rebuild.
 - Candidate fonts are optional: check out the `craft-fonts` repository at branch `design-system-fonts` and set `CRAFT_FONTS_DIR=<absolute path>` before `cargo run`.
-- Web build: `cd crates/ui-gallery && trunk serve --release true index.html`. It needs `trunk` and the `wasm32` target.
+- Web build: `cd crates/ui-gallery-legacy && trunk serve --release true index.html`. It needs `trunk` and the `wasm32` target.
 
 ### 2.2 Depend on `craft` from an app
 
@@ -515,10 +515,10 @@ Text dumps of every token and component style are the regression gate.
 The gallery story sweeps (every story in every tab and variants view, the accessible-name and pseudo-locale audits, and the overview size checks) take about ten minutes in a debug build. They are `#[ignore]`d in `craft-ui-gallery`, so `cargo test --workspace` skips them. A smoke test in `crates/ui-gallery/tests/gallery.rs` still checks that the gallery builds and its stories register. Run the full sweep with:
 
 ```sh
-cargo test -p craft-ui-gallery --release -- --include-ignored
+cargo test -p craft-ui-gallery-legacy --release -- --include-ignored
 ```
 
-The release run takes about 3 minutes against about 10 in debug. The pseudo-locale checks exist in debug builds only, so run them with `cargo test -p craft-ui-gallery --test gallery -- --include-ignored pseudo`.
+The release run takes about 3 minutes against about 10 in debug. The pseudo-locale checks exist in debug builds only, so run them with `cargo test -p craft-ui-gallery-legacy --test gallery -- --include-ignored pseudo`.
 
 ### 8.2 Design lint
 

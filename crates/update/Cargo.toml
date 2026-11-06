@@ -19,7 +19,7 @@ screen-testing = ["ui", "dep:egui_kittest", "egui_kittest/wgpu"]
 
 [dependencies]
 egui = { workspace = true, optional = true }
-craft-ui = { workspace = true, optional = true }
+craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
 # `Host::app`: the name the update dialogs show.
 craft-host = { workspace = true, features = ["ui"], optional = true }
 # The dialog screenshots (`screen-testing`).

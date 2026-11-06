@@ -1,5 +1,5 @@
 [package]
-name = "craft-ui-macros"
+name = "craft-ui-macros-legacy"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

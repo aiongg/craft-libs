@@ -1,6 +1,6 @@
 # Shared UI visual regressions
 
-`crates/ui/tests/visual_regression.rs` runs actual shared components through egui and renders
+`crates/ui-legacy/tests/visual_regression.rs` runs actual shared components through egui and renders
 paired images with the same offscreen wgpu renderer. `visual/fixtures.rs` supplies independent
 reference painters with fixed geometry and state colors. References do not call the shared
 components or obtain expected rectangles from component responses. These fixtures specify the
@@ -33,8 +33,8 @@ control, and verify that accepted layouts preserve every group and fit the suppl
 ## Running and reviewing
 
 ```sh
-cargo test -p craft-ui --test visual_regression
-CRAFT_UI_VISUAL_DIR=/absolute/path/to/visuals cargo test -p craft-ui --test visual_regression
+cargo test -p craft-ui-legacy --test visual_regression
+CRAFT_UI_VISUAL_DIR=/absolute/path/to/visuals cargo test -p craft-ui-legacy --test visual_regression
 ```
 
 The optional directory receives one subdirectory per suite. Each case writes `-before.png`

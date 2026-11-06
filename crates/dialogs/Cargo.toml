@@ -15,7 +15,7 @@ craft-atomic = { workspace = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 craft-platform = { workspace = true }
-craft-ui = { workspace = true, optional = true }
+craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
 egui = { workspace = true, optional = true }
 raw-window-handle = "0.6.2"
 rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }

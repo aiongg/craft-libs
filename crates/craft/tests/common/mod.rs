@@ -11,7 +11,10 @@ pub const NOT_IN_FACADE: &[(&str, &str)] = &[
     ("media-testkit", "test support: ffmpeg discovery and fixture locations for the media crates"),
     ("plate-test", "a test harness: reference PDFs and PDF structure checks"),
     ("ui-gallery", "a tool: the story gallery application"),
+    ("ui-gallery-legacy", "a tool: the story gallery application on craft-ui-legacy"),
     ("ui-macros", "a proc-macro crate that craft-ui re-exports"),
+    ("ui-macros-legacy", "a proc-macro crate that craft-ui-legacy re-exports"),
+    ("behavior", "layer 1: pure behaviours with no egui, below craft-ui"),
 ];
 
 /// Crates every app gets without a feature.

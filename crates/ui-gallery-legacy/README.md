@@ -1,6 +1,6 @@
 # craft-ui-gallery
 
-The component gallery for the Craft design system. Run it with `cargo run --release -p craft-ui-gallery`, or for the web `trunk serve --release true index.html` in this folder.
+The component gallery for the Craft design system. Run it with `cargo run --release -p craft-ui-gallery-legacy`, or for the web `trunk serve --release true index.html` in this folder.
 
 Contents:
 

@@ -12,7 +12,7 @@ craft-i18n = { workspace = true }
 craft-keymap = { workspace = true, features = ["ui"] }
 craft-quit = { workspace = true, features = ["ui"] }
 craft-theme = { workspace = true }
-craft-ui = { workspace = true }
+craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy" }
 egui = { workspace = true }
 serde_json = { workspace = true }
 

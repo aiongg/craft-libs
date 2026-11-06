@@ -21,7 +21,7 @@ unicode-bidi = { version = "0.3.18", optional = true }
 unicode-bidi-mirroring = { version = "0.4.0", optional = true }
 # `ui`: the canvas text editor, style and character panels and the spelling dialog, on craft-ui.
 egui = { workspace = true, optional = true }
-craft-ui = { workspace = true, optional = true }
+craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
 craft-theme = { workspace = true, optional = true }
 craft-host = { workspace = true, features = ["ui"], optional = true }
 serde = { workspace = true }

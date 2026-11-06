@@ -19,7 +19,7 @@ screen-testing = ["ui", "craft-ui/screen-testing"]
 
 [dependencies]
 craft-theme = { workspace = true, optional = true }
-craft-ui = { workspace = true, optional = true }
+craft-ui = { package = "craft-ui-legacy", path = "../ui-legacy", optional = true }
 egui = { workspace = true, optional = true }
 serde = { workspace = true }
 web-time = "1.1"
