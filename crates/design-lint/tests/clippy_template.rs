@@ -66,6 +66,13 @@ fn facade_modules() -> BTreeMap<String, PathBuf> {
             by_package.insert(name.replace('-', "_"), dir);
         }
     }
+    // A dependency the facade declares with its own path (a renamed package) points there.
+    let facade_manifest = std::fs::read_to_string(crates.join("craft/Cargo.toml")).unwrap();
+    for line in facade_manifest.lines() {
+        let Some((key, rest)) = line.split_once(" = {") else { continue };
+        let Some(path) = rest.split("path = \"").nth(1).and_then(|p| p.split('"').next()) else { continue };
+        by_package.insert(key.trim().replace('-', "_"), crates.join("craft").join(path));
+    }
     let lib = std::fs::read_to_string(crates.join("craft/src/lib.rs")).unwrap();
     lib.lines()
         .filter_map(|l| {
@@ -81,7 +88,8 @@ fn module_exists(src: &Path, module: &str) -> bool {
 
 #[test]
 fn template_replacements_exist() {
-    let ui = manifest_dir().join("../ui/src");
+    // The template guides the apps, which use the legacy library until cut-over.
+    let ui = manifest_dir().join("../ui-legacy/src");
     let theme = manifest_dir().join("../theme/src");
     let (mut ui_files, mut all_files) = (Vec::new(), Vec::new());
     rust_files(&ui, &mut ui_files);
