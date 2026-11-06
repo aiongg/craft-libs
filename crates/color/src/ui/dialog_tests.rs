@@ -204,8 +204,8 @@ fn the_strips_pointer_room_is_its_own_not_the_areas() {
     assert!(ColorStrip::outer_width(&style, style.strip) == style.strip + room);
 }
 
-/// PhotoCraft's content width (window 520 with its frame): the side actions end at the content's
-/// trailing edge and the extra width goes between the grid and the column.
+/// From the picker's natural width up: the side actions end at the content's trailing edge and the
+/// extra width goes between the grid and the column.
 #[test]
 fn side_actions_end_at_the_content_edge_at_any_width() {
     let ends = |content: f32| {
@@ -216,11 +216,12 @@ fn side_actions_end_at_the_content_edge_at_any_width() {
         let edge = shown.window.right() - (shown.window.width() - content) / 2.0;
         (edge, add.right(), ok.left(), hex.right())
     };
-    let (edge, right, ok_left, hex_right) = ends(488.0);
+    let natural = Shown::with(Host::Dialog(InitialFocus::None), true, None).picker_rect.width();
+    let (edge, right, ..) = ends(natural);
     assert!((edge - right).abs() < 0.5, "the column ends at the content edge {edge}: {right}");
-    assert!(ok_left > hex_right, "beyond the grid");
-    let (edge, right, ..) = ends(560.0);
+    let (edge, right, ok_left, hex_right) = ends(natural + 200.0);
     assert!((edge - right).abs() < 0.5, "and at a wider one {edge}: {right}");
+    assert!(ok_left > hex_right, "the extra width goes between the grid and the column");
 }
 
 /// PhotoCraft's content width with the roomy margin: the window is under PhotoCraft's cap of 384.

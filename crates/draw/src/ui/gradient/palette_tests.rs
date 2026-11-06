@@ -130,7 +130,11 @@ impl Rig {
             ui.set_width(self.width);
             let _ = GradientPalette::new("palette", "Presets", &self.groups).layout(self.layout).selected(selected).show(ui);
         });
-        let n = output.shapes.iter().filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.stroke_kind == egui::StrokeKind::Outside)).count();
+        let n = output
+            .shapes
+            .iter()
+            .filter(|c| matches!(&c.shape, egui::Shape::Rect(r) if r.stroke_kind == egui::StrokeKind::Outside && r.stroke.width > 0.0))
+            .count();
         output.drop_without_applying_deltas();
         n
     }

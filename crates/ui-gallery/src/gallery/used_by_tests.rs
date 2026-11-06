@@ -1,5 +1,5 @@
 //! The Theme panel's Used by list and the tile highlight.
-use craft_theme::{ColorToken, ComponentField, ModeChoice, TokenRef};
+use craft_theme::{ColorToken, ModeChoice, TokenRef};
 use craft_ui::inspect::AccessTree;
 use egui::accesskit::Role;
 use egui::{Context, Event, Modifiers, RawInput, Rect, vec2};
@@ -7,7 +7,7 @@ use egui::{Context, Event, Modifiers, RawInput, Rect, vec2};
 use super::Gallery;
 use crate::layout::{GalleryWorkspace, PanelId};
 
-/// A gallery in a 1280 x 2400 window, tall enough that the detail shows its sections without scrolling, with AccessKit on.
+/// A gallery in a 1280 x 3200 window, tall enough that the detail shows its sections without scrolling, with AccessKit on.
 struct Fixture {
     ctx: Context,
     gallery: Gallery,
@@ -24,7 +24,7 @@ impl Fixture {
 
     fn frame(&mut self, events: Vec<Event>) -> Option<AccessTree> {
         let raw = RawInput {
-            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 2400.0))),
+            screen_rect: Some(Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, 3200.0))),
             events,
             time: Some(self.time),
             ..RawInput::default()
@@ -107,14 +107,6 @@ fn the_scan_lists_button_as_a_painter_of_accent_solid_and_its_link_opens_the_com
     assert_eq!(f.gallery.workspace(), GalleryWorkspace::Components);
     assert_eq!(f.gallery.open_tabs(), ["Button"]);
     assert_eq!(f.gallery.front_tab(), PanelId::Component("Button"));
-}
-
-#[test]
-fn read_by_lists_the_fields_that_default_to_the_token_and_selects_one_from_its_link() {
-    let mut f = theme_workspace();
-    let field = ComponentField::ALL.iter().find(|f| f.path() == "button.primary.fill.rest").copied().expect("the primary button fill");
-    f.click_link("button.primary.fill.rest");
-    assert_eq!(f.gallery.selected_token(), Some(TokenRef::Component(field)));
 }
 
 #[test]

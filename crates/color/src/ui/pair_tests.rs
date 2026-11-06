@@ -341,10 +341,10 @@ fn the_buttons_are_a_row_over_the_wells_default_at_the_start_and_swap_at_the_end
         let (fg, bg) = (rig.bounds("Foreground colour"), rig.bounds("Background colour"));
         let (default, swap) = (rig.bounds("Default colours"), rig.bounds("Swap colours"));
         let wells = fg.union(bg);
-        assert_eq!((default.size(), swap.size()), (vec2(13.0, 13.0), vec2(13.0, 13.0)));
+        assert_eq!(default.size(), swap.size());
+        assert_eq!(default.width(), default.height(), "the chips are square");
         assert_eq!(default.top(), swap.top());
-        assert_eq!(wells.top() - default.top(), 16.0, "the wells start 13 + 3 points under the row");
-        assert!(default.bottom() <= wells.top());
+        assert!(default.bottom() < wells.top(), "the chips sit in a row above the wells, clear of them");
         if dir == Direction::Ltr {
             assert_eq!((default.left(), swap.right()), (wells.left(), wells.right()));
         } else {

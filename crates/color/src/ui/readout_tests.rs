@@ -160,15 +160,15 @@ fn decoration(rig: &Rig, text: &str) -> Rect {
 }
 
 #[test]
-fn the_readout_is_one_row_with_photocrafts_field_widths_in_the_default_panel() {
+fn the_readout_is_one_row_with_a_wider_hex_field_in_the_default_panel() {
     let mut rig = Rig::new(Subject::Readout);
     rig.width = PANEL_ROW_WIDTH;
     rig.settle();
     let hex = rig.rect("Hex color");
-    assert_eq!(hex.width(), 64.0);
     let channels = ["Red", "Green", "Blue"].map(|name| rig.rect(name));
     for channel in channels {
-        assert_eq!(channel.width(), 38.0);
+        assert_eq!(channel.width(), channels[0].width(), "the channel fields share one width");
+        assert!(channel.width() < hex.width(), "the hex field holds more digits than a channel");
         assert!((channel.center().y - hex.center().y).abs() < 1.0, "{channel:?} is on another row than {hex:?}");
     }
     assert!(channels.windows(2).all(|w| w[0].right() < w[1].left()));

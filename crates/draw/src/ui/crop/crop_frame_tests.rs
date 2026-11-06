@@ -825,17 +825,18 @@ fn the_turn_pointer_bends_towards_the_corner_of_the_pointers_quadrant() {
 
 // Drawing.
 
-/// The 3 point segments of the last frame, in drawing order.
+/// The bracket-width segments of the last frame, in drawing order.
 fn brackets(h: &Harness<'_, Host>) -> Vec<[Pos2; 2]> {
-    fn collect(shape: &Shape, out: &mut Vec<[Pos2; 2]>) {
+    fn collect(shape: &Shape, width: f32, out: &mut Vec<[Pos2; 2]>) {
         match shape {
-            Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, out)),
-            Shape::LineSegment { points, stroke } if (stroke.width - 3.0).abs() < 1e-6 => out.push(*points),
+            Shape::Vec(shapes) => shapes.iter().for_each(|s| collect(s, width, out)),
+            Shape::LineSegment { points, stroke } if (stroke.width - width).abs() < 1e-6 => out.push(*points),
             _ => {}
         }
     }
+    let width = CropFrame::style(&current(&h.ctx)).bracket.width;
     let mut out = Vec::new();
-    h.output().shapes.iter().for_each(|c| collect(&c.shape, &mut out));
+    h.output().shapes.iter().for_each(|c| collect(&c.shape, width, &mut out));
     out
 }
 
@@ -844,22 +845,26 @@ fn len(s: &[Pos2; 2]) -> f32 {
 }
 
 #[test]
-fn brackets_are_14_long_up_to_a_third_of_the_side_and_bars_a_quarter() {
+fn brackets_follow_the_style_arm_up_to_a_third_of_the_side_and_bars_a_quarter() {
     let mut h = harness(|_| {});
     h.run();
+    let style = CropFrame::style(&current(&h.ctx));
     let segments = brackets(&h);
     assert_eq!(segments.len(), 12, "8 bracket arms and 4 bars");
-    assert!(segments[..8].iter().all(|s| (len(s) - 14.0).abs() < 1e-4));
-    assert!(segments[8..].iter().all(|s| (len(s) - 14.0).abs() < 1e-4), "bars are 2 × min(14, side / 4) / 2");
+    assert!(segments[..8].iter().all(|s| (len(s) - style.bracket_arm).abs() < 1e-4));
+    let bar = style.bracket_arm.min(140.0 / style.bar_share).min(200.0 / style.bar_share);
+    assert!(segments[8..].iter().all(|s| (len(s) - bar).abs() < 1e-4), "bars are min(arm, side / bar_share)");
 
-    // A 30 × 24 frame: the arm is a third of the short side (8); the bars are min(8, side / 4).
+    // A 30 × 24 frame: the arm is a third of the short side; the bars are min(arm, side / bar_share).
     let mut h = harness_with(CropBox::upright(Rect::new(100.0, 100.0, 130.0, 124.0)), 0.0, false, |_| {});
     h.run();
     let segments = brackets(&h);
-    assert!(segments[..8].iter().all(|s| (len(s) - 8.0).abs() < 1e-4), "{segments:?}");
+    let arm = style.bracket_arm.min(24.0 / 3.0);
+    assert!(arm < style.bracket_arm, "the frame is small enough to shorten the arm");
+    assert!(segments[..8].iter().all(|s| (len(s) - arm).abs() < 1e-4), "{segments:?}");
     let (horizontal, vertical): (Vec<_>, Vec<_>) = segments[8..].iter().partition(|s| (s[0].y - s[1].y).abs() < 1e-4);
-    assert!(horizontal.iter().all(|s| (len(s) - 7.5).abs() < 1e-4), "{horizontal:?}");
-    assert!(vertical.iter().all(|s| (len(s) - 6.0).abs() < 1e-4), "{vertical:?}");
+    assert!(horizontal.iter().all(|s| (len(s) - arm.min(30.0 / style.bar_share)).abs() < 1e-4), "{horizontal:?}");
+    assert!(vertical.iter().all(|s| (len(s) - arm.min(24.0 / style.bar_share)).abs() < 1e-4), "{vertical:?}");
 }
 
 #[test]

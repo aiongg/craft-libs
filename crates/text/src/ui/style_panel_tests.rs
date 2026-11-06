@@ -103,29 +103,37 @@ fn delete_and_backspace_delete_the_picked_style() {
 #[test]
 fn a_narrow_footer_leaves_the_end_buttons_uncovered() {
     let labels = TextStylesLabels::english();
-    let app = App {
-        kind: TextStyleKind::Paragraph,
-        rows: rows(&["Basic Paragraph", "Heading"]),
-        state: TextStylesState::default(),
-        current: Some(1),
-        overridden: true,
-        text_selected: true,
-        actions: Vec::new(),
-        statuses: Vec::new(),
+    let build = |width: f32| {
+        let app = App {
+            kind: TextStyleKind::Paragraph,
+            rows: rows(&["Basic Paragraph", "Heading"]),
+            state: TextStylesState::default(),
+            current: Some(1),
+            overridden: true,
+            text_selected: true,
+            actions: Vec::new(),
+            statuses: Vec::new(),
+        };
+        let mut harness = HarnessBuilder::default()
+            .with_step_dt(0.05)
+            .with_size(egui::vec2(width, 300.0))
+            .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
+            .build_ui_state(
+                |ui, app: &mut App| {
+                    let r = TextStylesPanel::new("styles", app.kind, &app.rows, &mut app.state)
+                        .current(app.current, app.overridden)
+                        .target(true)
+                        .show(ui);
+                    app.actions.extend(r.actions);
+                },
+                app,
+            );
+        harness.run();
+        harness
     };
-    let mut harness = HarnessBuilder::default()
-        .with_step_dt(0.05)
-        .with_size(egui::vec2(150.0, 300.0))
-        .with_context_setup(|ctx| install(ctx, &Base::suite_default()))
-        .build_ui_state(
-            |ui, app: &mut App| {
-                let r =
-                    TextStylesPanel::new("styles", app.kind, &app.rows, &mut app.state).current(app.current, app.overridden).target(true).show(ui);
-                app.actions.extend(r.actions);
-            },
-            app,
-        );
-    harness.run();
+    // The room of four buttons can't hold the six.
+    let one = build(150.0).get_by_label(&labels.options).rect().width();
+    let mut harness = build(4.0 * one);
     let options = harness.get_by_label(&labels.options).rect();
     let redefine = harness.get_by_label(&labels.redefine).rect();
     assert!(redefine.right() > options.right(), "the width must be too narrow for the six buttons: {redefine:?} {options:?}");

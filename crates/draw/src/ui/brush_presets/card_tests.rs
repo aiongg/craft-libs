@@ -62,14 +62,18 @@ fn card_layout_places_tip_stroke_and_name() {
     }
 }
 
-// At scale 1 a tip-only cell is 60 × 70 and a tip-and-name cell 150 × 70; a full card is 300 wide.
+// At scale 1 a tip-only cell and a tip-and-name cell are the style's fixed cells, the second the
+// wider; a full card is as wide as the style's maximum.
 #[test]
 fn tip_only_and_tip_and_name_cards_use_their_fixed_cells() {
     let style = style();
-    assert_eq!(BrushCardLayout::cell_size(parts(false, false, true), 1.0, 500.0, &style), vec2(60.0, 70.0));
-    assert_eq!(BrushCardLayout::cell_size(parts(true, false, true), 1.0, 500.0, &style), vec2(150.0, 70.0));
+    let only = BrushCardLayout::cell_size(parts(false, false, true), 1.0, 500.0, &style);
+    let named = BrushCardLayout::cell_size(parts(true, false, true), 1.0, 500.0, &style);
+    assert_eq!(only, style.tip_only);
+    assert_eq!(named, style.tip_name);
+    assert!(only.x < named.x, "the name needs room beside the tip");
     let full = BrushCardLayout::cell_size(BrushCardParts::ALL, 1.0, 500.0, &style);
-    assert_eq!((full.x, full.y), (300.0, 70.0));
+    assert_eq!(full.x, style.max.x);
     assert_eq!(BrushCardLayout::cell_size(BrushCardParts::ALL, 1.0, 200.0, &style).x, 200.0, "a narrow room caps the width");
 }
 

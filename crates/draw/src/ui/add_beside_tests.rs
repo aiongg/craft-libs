@@ -21,7 +21,7 @@ fn style() -> super::add_beside::AddBesideStyle {
     AddBesideHandles::style(&current(&ctx))
 }
 
-// An object 15 points wide on screen shows no buttons; a button under a `clear_of` rect is hidden
+// An object narrower than two button radii on screen shows no buttons; a button under a `clear_of` rect is hidden
 // and the others show; `hidden(true)` hides all.
 #[test]
 fn add_beside_hides_when_small_or_under_clear_rectangles() {
@@ -29,7 +29,8 @@ fn add_beside_hides_when_small_or_under_clear_rectangles() {
     let big = Rect::new(150.0, 100.0, 250.0, 200.0);
     let sides = |handles: &AddBesideHandles<'_>| handles.buttons(&view, &style).into_iter().map(|b| b.0).collect::<Vec<_>>();
     assert_eq!(sides(&AddBesideHandles::new("big", big)), AddSide::ALL);
-    assert!(sides(&AddBesideHandles::new("small", Rect::new(190.0, 140.0, 205.0, 160.0))).is_empty(), "15 points wide");
+    let narrow = f64::from(2.0 * style.radius) - 1.0;
+    assert!(sides(&AddBesideHandles::new("small", Rect::new(190.0, 140.0, 190.0 + narrow, 160.0))).is_empty(), "under two radii wide");
     assert!(sides(&AddBesideHandles::new("hidden", big).hidden(true)).is_empty());
 
     let right = egui::Rect::from_center_size(Pos2::new(250.0 + style.offset, 150.0), vec2(4.0, 4.0));
