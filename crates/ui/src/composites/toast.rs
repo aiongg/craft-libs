@@ -25,33 +25,36 @@ const MAX_TOASTS: usize = 3;
 /// Most bullet lines a card shows; the rest become one "…and n more" line.
 const MAX_LINES: usize = 8;
 
+/// Outer width of a card, in points.
+const CARD_WIDTH: f32 = 360.0;
+
 /// A card's sizes, type roles and colours, from [`ToastStack::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ToastStyle {
-    /// Outer width: `toast.width`.
+    /// Outer width: 360 points.
     pub width: f32,
-    /// Between the card's edge and its content: `toast.pad`.
+    /// Between the card's edge and its content: `space.pad.panel`.
     pub pad: f32,
-    /// From the host rect's edge at the reading end and from its bottom edge: `toast.inset`.
+    /// From the host rect's edge at the reading end and from its bottom edge: `space.pad.dialog` on both axes.
     pub inset: [f32; 2],
-    /// Between cards: `toast.gap`.
+    /// Between cards: `space.gap.stack`.
     pub gap: f32,
-    /// Corner radius: `toast.radius`.
+    /// Corner radius: `shape.radius.popup`.
     pub radius: f32,
-    /// Card fill: `toast.fill`.
+    /// Card fill: `surface.panel`.
     pub fill: egui::Color32,
-    /// Offset of the card's shadow: `toast.shadow.x` and `.y`. Its colour is the popup's.
+    /// Offset of the card's shadow: `elevation.popup.offset`. Its colour is the popup's.
     pub shadow_offset: [f32; 2],
-    /// Blur of the card's shadow: `toast.shadow.blur`.
+    /// Blur of the card's shadow: `elevation.popup.blur`.
     pub shadow_blur: f32,
-    /// Outline of a flat card: `toast.<tone>.edge`.
+    /// Outline of a flat card: the tone's status `fg`, `line.border` when neutral.
     pub edge: egui::Color32,
-    /// Title: `toast.<tone>.title`.
+    /// Title: the tone's status `fg`, `text.normal` when neutral.
     pub title: egui::Color32,
-    /// Bullet lines: `toast.line`.
+    /// Bullet lines: `text.muted`.
     pub line: egui::Color32,
-    /// The "…and n more" line: `toast.more`.
+    /// The "…and n more" line: `text.faint`.
     pub more: egui::Color32,
     /// Side of the tone icon: `icon.md`.
     pub icon: f32,
@@ -243,22 +246,25 @@ impl ToastStack {
         self
     }
 
-    /// The card's look for `tone` from the theme's `toast` tokens.
+    /// The card's look for `tone` from the semantic tokens.
     pub fn style(tokens: &UiTokens, tone: Tone) -> ToastStyle {
-        let t = &tokens.component.toast;
+        let c = &tokens.color;
+        let popup = &tokens.elevation.popup;
+        // A bad toast draws in the warning colours.
+        let status = if tone == Tone::Bad { Tone::Warn } else { tone }.status().map(|kind| c.status.get(kind).fg);
         ToastStyle {
-            width: t.width,
-            pad: t.pad,
-            inset: t.inset,
-            gap: t.gap,
-            radius: t.radius,
-            fill: t.fill.to_egui(),
-            shadow_offset: t.shadow_offset,
-            shadow_blur: t.shadow_blur,
-            edge: t.edge(tone).to_egui(),
-            title: t.title(tone).to_egui(),
-            line: t.line.to_egui(),
-            more: t.more.to_egui(),
+            width: CARD_WIDTH,
+            pad: tokens.space.pad.panel,
+            inset: [tokens.space.pad.dialog; 2],
+            gap: tokens.space.gap.stack,
+            radius: tokens.shape.radius.popup,
+            fill: c.surface.panel.to_egui(),
+            shadow_offset: popup.offset,
+            shadow_blur: popup.blur,
+            edge: status.unwrap_or(c.line.border).to_egui(),
+            title: status.unwrap_or(c.text.normal).to_egui(),
+            line: c.text.muted.to_egui(),
+            more: c.text.faint.to_egui(),
             icon: IconSize::Md.points(tokens),
             title_role: TypeRole::BodyStrong,
             line_role: TypeRole::Body,

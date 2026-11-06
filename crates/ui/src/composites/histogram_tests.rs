@@ -781,7 +781,7 @@ fn the_plot_has_an_edge_only_when_bordered_and_a_selection_is_the_accent() {
     install(&ctx, &Base::suite_default());
     ctx.run_ui(egui::RawInput::default(), |ui| {
         let tokens = Tokens::of(ui);
-        assert_eq!(style.selection, tokens.color.accent.solid.to_egui().gamma_multiply(tokens.component.histogram.selection_alpha));
+        assert_eq!(style.selection, tokens.color.accent.solid.to_egui().gamma_multiply(0.35));
     })
     .drop_without_applying_deltas();
 }

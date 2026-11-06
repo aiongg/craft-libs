@@ -1,7 +1,7 @@
 //! [`FormGrid`]: the two-column grid of a dialog or a preferences page, labels in the first
 //! column and controls in the second.
 
-use craft_theme::{ControlSize, TypeRole};
+use craft_theme::TypeRole;
 use egui::text::LayoutJob;
 use egui::{AsIdSalt, Color32, IdSalt, InnerResponse, Label, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
@@ -18,19 +18,24 @@ use crate::story::{Level, Story, StoryArgs};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
+/// Extra space between rows of a roomy grid.
+const ROOMY_ROW_EXTRA: f32 = 1.0;
+/// Least width of a roomy grid's label column, in `size.control.md` steps.
+const ROOMY_LABEL_CONTROLS: f32 = 6.25;
+
 /// A form grid's gaps, label column and label look, from [`FormGrid::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FormStyle {
-    /// Between the label column and the control column: `form.column_gap`, or
-    /// `form.roomy.column_gap`.
+    /// Between the label column and the control column: `space.gap.section`, plus `space.gap.tight`
+    /// in a roomy grid.
     pub column_gap: f32,
-    /// Between two rows: `form.row_gap`, or `form.roomy.row_gap`.
+    /// Between two rows: `space.gap.stack`, plus a point in a roomy grid.
     pub row_gap: f32,
-    /// The least width of the label column: `form.label_min`, or `form.roomy.label_min`.
+    /// The least width of the label column: none, or in a roomy grid 6.25 `size.control.md`.
     pub label_min: f32,
     /// Where a label sits on the first pass of a row, before the control it names is measured: it
-    /// is centred on a band this high from the top of the row (`field.height.md`). From the next
+    /// is centred on a band this high from the top of the row (`size.control.md`). From the next
     /// pass a label is centred on its control, whatever the control's size.
     pub label_band: f32,
     /// The label's type role: `label`.
@@ -51,7 +56,7 @@ pub enum LabelAlign {
 
 /// A two-column form: each row is a label and the control beside it.
 ///
-/// The label column is as wide as the widest label (and at least `form.label_min`), the control
+/// The label column is as wide as the widest label (and at least the style's `label_min`), the control
 /// column takes the rest. A label is centred on the first control height of its row, and names
 /// the row's control for AccessKit (`labelled_by`); the label draws its trailing colon, and its
 /// accessible text, so the control's name, is the label without it. Right to left, the columns swap.
@@ -83,7 +88,7 @@ impl FormGrid {
         Self { id_salt: IdSalt::new(id_salt), roomy: false, align: LabelAlign::End, label_min: None }
     }
 
-    /// The preferences-page spacing (`form.roomy.*`) in place of the dialog's.
+    /// The preferences-page spacing (roomy gaps and label column) in place of the dialog's.
     pub fn roomy(mut self, roomy: bool) -> Self {
         self.roomy = roomy;
         self
@@ -95,7 +100,7 @@ impl FormGrid {
         self
     }
 
-    /// The least width of the label column, in place of the token's.
+    /// The least width of the label column, in place of the style's.
     pub fn min_label_width(mut self, width: f32) -> Self {
         self.label_min = Some(width);
         self
@@ -103,13 +108,17 @@ impl FormGrid {
 
     /// The gaps and label look of a grid.
     pub fn style(tokens: &UiTokens, roomy: bool) -> FormStyle {
-        let f = &tokens.component.form;
-        let spacing = if roomy { f.roomy } else { f.normal };
+        let (gap, control) = (&tokens.space.gap, tokens.size.control.md);
+        let (column_gap, row_gap, label_min) = if roomy {
+            (gap.section + gap.tight, gap.stack + ROOMY_ROW_EXTRA, control * ROOMY_LABEL_CONTROLS)
+        } else {
+            (gap.section, gap.stack, 0.0)
+        };
         FormStyle {
-            column_gap: spacing.column_gap,
-            row_gap: spacing.row_gap,
-            label_min: spacing.label_min,
-            label_band: tokens.component.field.height.md,
+            column_gap,
+            row_gap,
+            label_min,
+            label_band: control,
             label_role: TypeRole::Label,
             label: Content::Muted.color(tokens).to_egui(),
         }
@@ -258,7 +267,7 @@ impl Form<'_> {
     ///
     /// The response is the toggle's; `changed()` is set on the frame it flips.
     pub fn linked<R>(&mut self, name: impl Into<String>, on: &mut bool, add_rows: impl FnOnce(&mut Form<'_>) -> R) -> InnerResponse<R> {
-        let side = self.tokens.component.icon_button.size.get(ControlSize::Md);
+        let side = self.tokens.size.control.md;
         debug_assert!(self.link.is_none(), "FormGrid::linked scopes do not nest");
         self.link = Some(Linked { reserve: self.style.column_gap + side, centres: Vec::new(), edge: None });
         let inner = add_rows(self);

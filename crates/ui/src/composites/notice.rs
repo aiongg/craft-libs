@@ -16,7 +16,7 @@ use crate::typed_story;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct NoticeStyle {
-    /// Between the icon and the text: `notice.icon_gap`.
+    /// Between the icon and the text: `space.gap.inline`.
     pub icon_gap: f32,
     /// Side of the tone icon: `icon.sm`.
     pub icon: f32,
@@ -24,7 +24,7 @@ pub struct NoticeStyle {
     pub title_role: TypeRole,
     /// The message's type role: `caption`.
     pub message_role: TypeRole,
-    /// Icon and title, and the message when there is no title: `notice.<tone>.fg`.
+    /// Icon and title, and the message when there is no title: the tone's `status.<tone>.fg`, `text.muted` when neutral.
     pub fg: Color32,
     /// The message under a title: `text.muted`, as the bullet lines of a PhotoCraft notice.
     pub body: Color32,
@@ -92,15 +92,15 @@ impl Notice {
         self
     }
 
-    /// The look of a notice of `tone` from the theme's `notice` tokens.
+    /// The look of a notice of `tone` from the semantic tokens.
     pub fn style(tokens: &UiTokens, tone: Tone) -> NoticeStyle {
-        let n = &tokens.component.notice;
+        let fg = tone.status().map_or(tokens.color.text.muted, |kind| tokens.color.status.get(kind).fg);
         NoticeStyle {
-            icon_gap: n.icon_gap,
+            icon_gap: tokens.space.gap.inline,
             icon: IconSize::Sm.points(tokens),
             title_role: TypeRole::BodyStrong,
             message_role: TypeRole::Caption,
-            fg: n.fg(tone).to_egui(),
+            fg: fg.to_egui(),
             body: tokens.color.text.muted.to_egui(),
         }
     }

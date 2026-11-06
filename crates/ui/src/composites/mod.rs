@@ -31,10 +31,9 @@
 //! - [`live`]: live regions, which announce a message once when it appears. [`Tone`] is the
 //!   neutral, info, good, warn and bad tone of toasts and notices.
 //!
-//! Composites take semantic properties only and draw with the component tokens of what they hold
-//! (`curve.*` for [`CurveEditor`], `field.*` for [`Field`], `property.*` for [`PropertyRow`], `section.*` for [`SectionHeader`],
-//! `panel_header.*` for [`PanelHeader`], `panel_footer.*` for [`PanelFooter`], `slider_row.*` for [`SliderRow`], `histogram.*` for [`Histogram`], `toast.*`, `notice.*` and `empty_state.*`); each has a pure `style` function of
-//! [`UiTokens`](crate::theme::UiTokens), dumped under `crates/ui/tests/dumps/components/`.
+//! Composites take semantic properties only and draw with the semantic tokens; each has a pure
+//! `style` function of [`UiTokens`](crate::theme::UiTokens) that computes its sizes and colours,
+//! dumped under `crates/ui/tests/dumps/components/`.
 //!
 //! ```
 //! use craft_ui::behavior::FieldTab;

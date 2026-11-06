@@ -8,20 +8,20 @@ use egui::{AsIdSalt, Color32, CornerRadius, IdSalt, InnerResponse, Label, Margin
 use crate::controls::Checkbox;
 use crate::primitives::Content;
 use crate::story::{Level, Story, StoryArgs};
-use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, corner_radius, role_format};
+use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
 /// A group box's outline, padding and title, from [`GroupBox::style`].
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GroupBoxStyle {
-    /// The outline, one physical pixel: `group_box.edge`.
+    /// The outline, one physical pixel: `line.divider`.
     pub edge: Stroke,
-    /// Corner radius: `group_box.radius`.
+    /// Corner radius: `shape.radius.panel`.
     pub radius: CornerRadius,
-    /// Between the outline and the content: `group_box.padding`.
+    /// Between the outline and the content: `space.pad.panel`.
     pub padding: f32,
-    /// Between two boxes: `group_box.gap`. The host's stack applies it; the box adds none.
+    /// Between two boxes: `space.gap.stack`. The host's stack applies it; the box adds none.
     pub gap: f32,
     /// Between the title and the content: `gap.stack`.
     pub title_gap: f32,
@@ -40,9 +40,9 @@ pub struct GroupBoxStyle {
 /// # });
 /// ```
 ///
-/// - The box fills the available width. The content sits `group_box.padding` inside the outline,
+/// - The box fills the available width. The content sits `space.pad.panel` inside the outline,
 ///   under the title, `gap.stack` below it.
-/// - Several boxes in a column are `group_box.gap` apart ([`GroupBox::gap`]).
+/// - Several boxes in a column are `space.gap.stack` apart ([`GroupBox::gap`]).
 /// - **AccessKit:** a `Group` named by the title.
 #[must_use = "show the group box with `show`"]
 pub struct GroupBox<'a> {
@@ -78,23 +78,22 @@ impl<'a> GroupBox<'a> {
         self
     }
 
-    /// The box's look from the theme's `group_box` tokens, scaled to `pixels_per_point`.
+    /// The box's look from the semantic tokens, scaled to `pixels_per_point`.
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> GroupBoxStyle {
-        let g = &tokens.component.group_box;
         GroupBoxStyle {
-            edge: Stroke::new(Hairline::Hairline.width(pixels_per_point), g.edge.to_egui()),
-            radius: corner_radius(g.radius),
-            padding: g.padding,
-            gap: g.gap,
+            edge: Stroke::new(Hairline::Hairline.width(pixels_per_point), tokens.color.line.divider.to_egui()),
+            radius: tokens.radius.panel,
+            padding: tokens.space.pad.panel,
+            gap: tokens.space.gap.stack,
             title_gap: tokens.space.gap.stack,
             title_role: TypeRole::BodyStrong,
             title: Content::Normal.color(tokens).to_egui(),
         }
     }
 
-    /// The gap between boxes in a column, `group_box.gap`.
+    /// The gap between boxes in a column, `space.gap.stack`.
     pub fn gap(ui: &Ui) -> f32 {
-        Tokens::of(ui).component.group_box.gap
+        Tokens::of(ui).space.gap.stack
     }
 
     /// Draws the box and its contents through `add_contents`.

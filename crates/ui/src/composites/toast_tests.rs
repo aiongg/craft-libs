@@ -243,10 +243,10 @@ fn a_repaint_is_requested_for_the_next_expiry() {
 #[test]
 fn the_stack_sits_in_the_bottom_corner_at_the_reading_end() {
     let tokens = tokens();
-    let [inset_x, inset_y] = tokens.component.toast.inset;
+    let [inset_x, inset_y] = ToastStack::style(&tokens, Tone::Neutral).inset;
     let mut ltr = harness(Direction::Ltr, App::new(&[1, 2], None));
     steps(&mut ltr, 3);
-    let pad = tokens.component.toast.pad;
+    let pad = ToastStack::style(&tokens, Tone::Neutral).pad;
     let (first, newest) = (dismiss(&ltr, 0).rect(), dismiss(&ltr, 1).rect());
     assert!((newest.right() + pad - (BODY.right() - inset_x)).abs() < 1.0, "{newest:?}");
     assert!((newest.bottom() + pad - (BODY.bottom() - inset_y)).abs() < 1.0, "{newest:?}");
@@ -261,8 +261,8 @@ fn the_stack_sits_in_the_bottom_corner_at_the_reading_end() {
 #[test]
 fn a_new_toast_is_in_place_the_frame_it_appears() {
     let tokens = tokens();
-    let [inset_x, inset_y] = tokens.component.toast.inset;
-    let pad = tokens.component.toast.pad;
+    let [inset_x, inset_y] = ToastStack::style(&tokens, Tone::Neutral).inset;
+    let pad = ToastStack::style(&tokens, Tone::Neutral).pad;
     let mut harness = harness(Direction::Ltr, App::new(&[1], None));
     steps(&mut harness, 3);
     let lines = (1..=4).map(|n| format!("line {n}")).collect();
@@ -273,7 +273,7 @@ fn a_new_toast_is_in_place_the_frame_it_appears() {
     let last_line = harness.get_by(|n| n.role() == Role::Label && n.value().as_deref() == Some("line 4")).rect();
     assert!((last_line.bottom() + pad - (BODY.bottom() - inset_y)).abs() < 1.0, "{last_line:?}");
     assert!((newest.right() + pad - (BODY.right() - inset_x)).abs() < 1.0, "{newest:?}");
-    let gap = tokens.component.toast.gap;
+    let gap = ToastStack::style(&tokens, Tone::Neutral).gap;
     assert!((newest.top() - pad - gap - (first.bottom() + pad)).abs() < 1.0, "{first:?} above {newest:?}");
 }
 
@@ -291,8 +291,8 @@ fn a_click_above_the_cards_reaches_what_is_under_the_column() {
 #[test]
 fn a_press_on_a_cards_padding_reaches_nothing_under_it() {
     let tokens = tokens();
-    let [inset_x, inset_y] = tokens.component.toast.inset;
-    let left = BODY.right() - inset_x - tokens.component.toast.width;
+    let [inset_x, inset_y] = ToastStack::style(&tokens, Tone::Neutral).inset;
+    let left = BODY.right() - inset_x - ToastStack::style(&tokens, Tone::Neutral).width;
     let mut app = App::new(&[1], None).with_button_before();
     // Under the card's bottom left corner, which is padding.
     app.before_at = Some(Rect::from_min_size(pos2(left - 20.0, BODY.bottom() - inset_y - 30.0), egui::vec2(100.0, 40.0)));

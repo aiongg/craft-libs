@@ -83,40 +83,39 @@ pub fn fill(template: &str, values: &[(&str, &str)]) -> String {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CurveStyle {
-    /// Least and greatest side of the graph, gradient bars included: `curve.min_side`,
-    /// `curve.max_side`.
+    /// Least side of the graph, gradient bars included: five `size.control.md`.
     pub min_side: f32,
-    /// Greatest side of the graph, gradient bars included (`curve.max_side`).
+    /// Greatest side of the graph, gradient bars included (12.5 `size.control.md`).
     pub max_side: f32,
-    /// Inset of the value area in the plot: `curve.pad`.
+    /// Inset of the value area in the plot: `space.gap.inline`.
     pub pad: f32,
-    /// Thickness of the gradient bars and their gap to the plot: `curve.bar`, `curve.bar_gap`.
+    /// Thickness of the gradient bars and their gap to the plot: `size.icon.sm`, `space.gap.inline`.
     pub bar: f32,
-    /// Gap between the gradient bars and the plot (`curve.bar_gap`).
+    /// Gap between the gradient bars and the plot (`space.gap.inline`).
     pub bar_gap: f32,
-    /// Radius around a point that takes a press: `curve.hit`.
+    /// Radius around a point that takes a press: `size.hit.target`.
     pub hit: f32,
-    /// How far outside the plot a dragged interior point is removed: `curve.drag_off`.
+    /// How far outside the plot a dragged interior point is removed: `size.icon.sm` plus `space.gap.inline`.
     pub drag_off: f32,
-    /// The plot: `curve.fill`, a one-point `curve.border` outside it.
+    /// The plot: `surface.sunken`, a `stroke.thin` `line.control_edge` outside it.
     pub fill: Color32,
-    /// One-point outline of the plot (`curve.border`).
+    /// One-point outline of the plot (`line.control_edge`).
     pub border: Stroke,
-    /// The quarter grid: one point of `curve.grid`.
+    /// The quarter grid: `stroke.thin` of `line.divider`.
     pub grid: Stroke,
-    /// The diagonal: one point of `curve.baseline`.
+    /// The diagonal: `stroke.thin` of `line.control_edge`.
     pub baseline: Stroke,
-    /// Width of the edited curve: `curve.width`.
+    /// Width of the edited curve: `stroke.medium`.
     pub width: f32,
-    /// Width and opacity of the other channels' curves: `curve.other_width`, `curve.other_alpha`.
+    /// Width and opacity of the other channels' curves: `stroke.thin`, 0.8.
     pub other_width: f32,
-    /// Opacity of the other channels' curves (`curve.other_alpha`).
+    /// Opacity of the other channels' curves (0.8).
     pub other_alpha: f32,
-    /// An unselected point: `handle.size` square of `curve.point_fill` with a `handle.stroke`
-    /// outline of `curve.point_stroke` inside it.
+    /// An unselected point: `size.handle.md` square of `surface.sunken` with a `stroke.thin`
+    /// outline of `text.normal` inside it.
     pub point: HandleStyle,
-    /// The selected point: `curve.point_stroke` with a `handle.stroke` outline of
-    /// `curve.point_halo` outside it.
+    /// The selected point: `text.normal` with a `stroke.thin` outline of
+    /// `overlay.halo` outside it.
     pub selected: HandleStyle,
     /// The hint line: `caption` in `text.faint`.
     pub hint_role: TypeRole,
@@ -152,7 +151,7 @@ struct State {
 #[non_exhaustive]
 pub struct CurveEditorState {
     /// The rect that levels `0..=levels` map to: inside the plot's border, its gradient bars and
-    /// its inset (`curve.pad`). Level `(0, 0)` is its bottom-left corner and `(levels, levels)`
+    /// its inset (`space.gap.inline`). Level `(0, 0)` is its bottom-left corner and `(levels, levels)`
     /// its top-right corner, whatever the reading direction.
     pub plot: Rect,
     /// The greatest level, as [`CurveEditor::levels`] set it.
@@ -238,6 +237,12 @@ struct Drag {
     corner: bool,
 }
 
+/// Least and greatest side of the graph, in `size.control.md` steps.
+const MIN_SIDE_CONTROLS: f32 = 5.0;
+const MAX_SIDE_CONTROLS: f32 = 12.5;
+/// Opacity of the other channels' curves.
+const OTHER_CURVE_ALPHA: f32 = 0.8;
+
 const STATE: &str = "craft_ui::curve_editor";
 /// The editor's gesture, made of the graph's and the fields' (`edit::parts`).
 const EDIT: &str = "craft_ui::curve_editor::edit";
@@ -266,7 +271,7 @@ type CornerSamples<'a> = dyn Fn(&[[f32; 2]], &[bool]) -> Vec<f32> + 'a;
 /// Edits one tone curve through the edit lifecycle: `CurveEditor::new("curves", "Curve", &curve,
 /// &numbers).show(ui)` returns an [`EditResponse<Curve>`].
 ///
-/// The graph is square: the plot (`curve.fill`, `curve.border`), a quarter grid, the diagonal of
+/// The graph is square: the plot (`surface.sunken`, `line.control_edge`), a quarter grid, the diagonal of
 /// the unchanged curve, the curve in the active channel's colour, its points, and gradient bars
 /// under it and at its left. Under the graph the Input/Output row edits the selected point, and a
 /// hint line can follow. The graph keeps its geometry right to left
@@ -280,7 +285,7 @@ type CornerSamples<'a> = dyn Fn(&[[f32; 2]], &[bool]) -> Vec<f32> + 'a;
 ///
 /// Pointer: a press on a point selects and drags it; a press on the empty graph adds a point there
 /// and drags it, as one gesture; a press within two levels of a point's input selects that point
-/// and takes it to the pointer, as one gesture (PhotoCraft). Dragged more than `curve.drag_off`
+/// and takes it to the pointer, as one gesture (PhotoCraft). Dragged more than `size.icon.sm` plus `space.gap.inline`
 /// off the plot an interior point is removed, and comes back on re-entry within the drag. A
 /// right-click or a Cmd/Ctrl press on a point deletes it. A press gives the graph keyboard focus;
 /// while a typing run has it (a field's), the press waits for the run's commit to go out and then
@@ -413,7 +418,7 @@ impl<'a> CurveEditor<'a> {
     }
 
     /// The graph's side, bars included, in place of the available width clamped to
-    /// `curve.min_side..=curve.max_side`.
+    /// five to 12.5 `size.control.md`.
     pub fn side(mut self, side: f32) -> Self {
         self.side = Some(side);
         self
@@ -542,38 +547,39 @@ impl<'a> CurveEditor<'a> {
         });
     }
 
-    /// The editor's look from the theme's `curve` tokens.
+    /// The editor's look from the semantic tokens.
     pub fn style(tokens: &UiTokens) -> CurveStyle {
-        let c = &tokens.component.curve;
-        let h = &tokens.component.handle;
-        let line = |color: Rgba| Stroke::new(craft_theme::Stroke::W1.width(1.0), color.to_egui());
+        let c = &tokens.color;
+        let control = tokens.size.control.md;
+        let (thin, inline) = (tokens.stroke.thin, tokens.space.gap.inline);
+        let line = |color: Rgba| Stroke::new(thin, color.to_egui());
         let mut point = Handle::style(tokens, HandleShape::Square);
-        point.fill = c.point_fill.to_egui();
-        point.stroke = Stroke::new(h.stroke, c.point_stroke.to_egui());
+        point.fill = c.surface.sunken.to_egui();
+        point.stroke = Stroke::new(thin, c.text.normal.to_egui());
         point.halo = Stroke::NONE;
         let mut selected = point;
-        selected.fill = c.point_stroke.to_egui();
+        selected.fill = c.text.normal.to_egui();
         selected.stroke = Stroke::NONE;
-        selected.halo = Stroke::new(h.stroke, c.point_halo.to_egui());
+        selected.halo = Stroke::new(thin, c.overlay.halo.to_egui());
         CurveStyle {
-            min_side: c.min_side,
-            max_side: c.max_side,
-            pad: c.pad,
-            bar: c.bar,
-            bar_gap: c.bar_gap,
-            hit: c.hit,
-            drag_off: c.drag_off,
-            fill: c.fill.to_egui(),
-            border: line(c.border),
-            grid: line(c.grid),
-            baseline: line(c.baseline),
-            width: c.width,
-            other_width: c.other_width,
-            other_alpha: c.other_alpha,
+            min_side: control * MIN_SIDE_CONTROLS,
+            max_side: control * MAX_SIDE_CONTROLS,
+            pad: inline,
+            bar: tokens.size.icon.sm,
+            bar_gap: inline,
+            hit: tokens.size.hit.target,
+            drag_off: tokens.size.icon.sm + inline,
+            fill: c.surface.sunken.to_egui(),
+            border: line(c.line.control_edge),
+            grid: line(c.line.divider),
+            baseline: line(c.line.control_edge),
+            width: tokens.stroke.medium,
+            other_width: thin,
+            other_alpha: OTHER_CURVE_ALPHA,
             point,
             selected,
             hint_role: TypeRole::Caption,
-            hint: tokens.color.text.faint.to_egui(),
+            hint: c.text.faint.to_egui(),
         }
     }
 

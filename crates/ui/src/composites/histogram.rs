@@ -70,7 +70,7 @@ impl ChannelColor {
     /// token.
     pub fn curve(self, tokens: &UiTokens) -> Color32 {
         match self {
-            ChannelColor::Neutral => tokens.component.curve.point_stroke.to_egui(),
+            ChannelColor::Neutral => tokens.color.text.normal.to_egui(),
             other => other.color(tokens),
         }
     }
@@ -117,7 +117,7 @@ pub enum HistogramScale {
 pub enum HistogramLook {
     /// One channel as a filled area in its colour.
     Tone,
-    /// One grey, `histogram.backdrop`, in every channel, to sit behind a curve.
+    /// One grey, `surface.sunken` at three quarters opacity, in every channel, to sit behind a curve.
     Backdrop,
     /// Overlapping ribbons: filled bands with exact overlap colours and an outline each.
     Rgb,
@@ -194,11 +194,11 @@ impl HistogramData {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct HistogramStyle {
-    /// Height of the plot: `histogram.height`.
+    /// Height of the plot: four `size.control.md`.
     pub height: f32,
-    /// The tone plot's box: `field.fill`.
+    /// The tone plot's box: `surface.sunken`.
     pub fill: Color32,
-    /// The box's edge: `field.border.rest`.
+    /// The box's edge: `line.control_edge`.
     pub border: Color32,
     /// The plot behind RGB ribbons: `data.scope`, dark in every theme.
     pub scope: Color32,
@@ -215,15 +215,15 @@ pub struct HistogramStyle {
     /// The colour of each [`ChannelColor`] on the scope, in [`ChannelColor::ALL`] order: its data
     /// token, `data.luma` for neutral. Read it with [`ink`](HistogramStyle::ink).
     pub inks: [Color32; 7],
-    /// The tone look behind a curve, in every channel: `histogram.backdrop`.
+    /// The tone look behind a curve, in every channel: `surface.sunken` at three quarters opacity.
     pub backdrop: Color32,
-    /// The selected range's band: `accent.solid` at `histogram.selection_alpha`.
+    /// The selected range's band: `accent.solid` at 35 % opacity.
     pub selection: Color32,
-    /// Width of the ribbons' outlines: `histogram.line`.
+    /// Width of the ribbons' outlines: `stroke.thin`.
     pub line: f32,
-    /// Width of a marker tick and of the selection's edges: `histogram.marker_width`.
+    /// Width of a marker tick and of the selection's edges: `stroke.medium`.
     pub marker_width: f32,
-    /// Height of a marker tick, from the bottom of the plot: `histogram.marker_height`.
+    /// Height of a marker tick, from the bottom of the plot: `size.icon.sm`.
     pub marker_height: f32,
     /// The stale mark: `status.warn.fg`.
     pub stale: Color32,
@@ -263,14 +263,14 @@ crate::words! {
 /// ```
 ///
 /// - **Bins:** any count, drawn across the plot width, each bin centred in its slot.
-/// - **Tone look:** a filled area on `field.fill`, with a `field.border.rest` edge only when
+/// - **Tone look:** a filled area on `surface.sunken`, with a `line.control_edge` edge only when
 ///   [`bordered`](Histogram::bordered), in the channel's data token (`text.muted` for neutral).
 /// - **RGB look** ([`rgb`](Histogram::rgb), [`channels`](Histogram::channels)): the bins smoothed
 ///   for display with the five-bin binomial kernel (the two edge bins pinned), one shared scale
-///   and a `histogram.line` outline per channel. Fills are opaque: `rgb` adds the channel colours where fills overlap
+///   and a `stroke.thin` outline per channel. Fills are opaque: `rgb` adds the channel colours where fills overlap
 ///   (saturating, as light), `channels` takes their product (as inks). The plot sits on `data.scope` and draws the dark mode's data
 ///   colours.
-/// - **Outline:** the original histogram as a `histogram.line` line over the plot, on the plot's
+/// - **Outline:** the original histogram as a `stroke.thin` line over the plot, on the plot's
 ///   scale in the tone look (a taller original is clamped to the top of the plot) and on its own
 ///   scale in the RGB look.
 /// - **Marker, markers:** a tick at a level, standing on the bottom of the plot (PhotoCraft's sampler mark); markers add a caption beside the tick, level with its top.
@@ -330,6 +330,12 @@ impl std::ops::Deref for HistogramResponse {
 
 /// Channels a plot draws; the overlap masks are 32-bit.
 const MAX_CHANNELS: usize = 32;
+/// Height of the plot, in `size.control.md` steps.
+const PLOT_HEIGHT_CONTROLS: f32 = 4.0;
+/// Opacity of the tone backdrop behind a curve.
+const BACKDROP_ALPHA: f32 = 0.75;
+/// Opacity of the selected range's band.
+const SELECTION_ALPHA: f32 = 0.35;
 
 /// The keys a focused plot keeps from focus navigation; Esc only while there is a selection to clear.
 const fn selection_keys(clearable: bool) -> EventFilter {
@@ -456,13 +462,13 @@ impl Histogram {
         self
     }
 
-    /// The plot's height in points; `histogram.height` by default.
+    /// The plot's height in points; four `size.control.md` by default.
     pub fn height(mut self, height: f32) -> Self {
         self.height = Some(height);
         self
     }
 
-    /// Draws the 1 point `field.border.rest` edge round the plot. Off by default, as the Histogram
+    /// Draws the `line.control_edge` edge round the plot. Off by default, as the Histogram
     /// panel has none; a levels editor turns it on.
     pub fn bordered(mut self, bordered: bool) -> Self {
         self.bordered = bordered;
@@ -483,21 +489,21 @@ impl Histogram {
     /// The look in `tokens`. The ribbon colours are those of `tokens`; [`show`](Histogram::show)
     /// uses the dark mode's.
     pub fn style(tokens: &UiTokens) -> HistogramStyle {
-        let (h, d) = (&tokens.component.histogram, &tokens.color.data);
+        let (c, d) = (&tokens.color, &tokens.color.data);
         HistogramStyle {
-            height: h.height,
-            fill: tokens.component.field.fill.rest.to_egui(),
-            border: tokens.component.field.border.rest.to_egui(),
+            height: tokens.size.control.md * PLOT_HEIGHT_CONTROLS,
+            fill: c.surface.sunken.to_egui(),
+            border: c.line.control_edge.to_egui(),
             scope: d.scope.to_egui(),
-            tones: ChannelColor::ALL.map(|c| if c == ChannelColor::Neutral { tokens.color.text.muted.to_egui() } else { c.color(tokens) }),
-            outline_neutral: tokens.color.text.normal.to_egui(),
+            tones: ChannelColor::ALL.map(|ch| if ch == ChannelColor::Neutral { c.text.muted.to_egui() } else { ch.color(tokens) }),
+            outline_neutral: c.text.normal.to_egui(),
             ribbons: [d.red.to_egui(), d.green.to_egui(), d.blue.to_egui()],
-            inks: ChannelColor::ALL.map(|c| c.color(tokens)),
-            backdrop: h.backdrop.to_egui(),
-            selection: tokens.color.accent.solid.to_egui().gamma_multiply(h.selection_alpha),
-            line: h.line,
-            marker_width: h.marker_width,
-            marker_height: h.marker_height,
+            inks: ChannelColor::ALL.map(|ch| ch.color(tokens)),
+            backdrop: c.surface.sunken.to_egui().gamma_multiply(BACKDROP_ALPHA),
+            selection: c.accent.solid.to_egui().gamma_multiply(SELECTION_ALPHA),
+            line: tokens.stroke.thin,
+            marker_width: tokens.stroke.medium,
+            marker_height: tokens.size.icon.sm,
             stale: tokens.color.status.warn.fg.to_egui(),
         }
     }
