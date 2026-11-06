@@ -17,9 +17,53 @@ pub fn measured_change_asks_for_discard(recorded: Option<Vec2>, real: Vec2, chan
     }
 }
 
+/// A size that moves from one value to another over a duration, evaluated at the reader's clock.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Tween {
+    /// The size at `start`.
+    pub from: Vec2,
+    /// The size at `start + duration` and after.
+    pub to: Vec2,
+    /// The clock reading, in seconds, when the tween began.
+    pub start: f64,
+    /// How long it runs, in seconds.
+    pub duration: f64,
+}
+
+impl Tween {
+    /// A tween from `from` to `to` that begins at `start` and runs for `duration`.
+    pub const fn new(from: Vec2, to: Vec2, start: f64, duration: f64) -> Self {
+        Tween { from, to, start, duration }
+    }
+
+    /// The size at clock reading `now`, eased in and out.
+    pub fn at(&self, now: f64) -> Vec2 {
+        if self.duration <= 0.0 {
+            return self.to;
+        }
+        let t = ((now - self.start) / self.duration).clamp(0.0, 1.0) as f32;
+        self.from + (self.to - self.from) * (t * t * (3.0 - 2.0 * t))
+    }
+
+    /// Whether the tween has reached its end at `now`.
+    pub fn is_done(&self, now: f64) -> bool {
+        now >= self.start + self.duration
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_tween_runs_from_start_to_end_and_stays() {
+        let tween = Tween::new(Vec2::ZERO, Vec2::new(100.0, 40.0), 1.0, 0.5);
+        assert_eq!(tween.at(0.0), Vec2::ZERO);
+        assert_eq!(tween.at(1.25), Vec2::new(50.0, 20.0));
+        assert_eq!(tween.at(9.0), Vec2::new(100.0, 40.0));
+        assert!(!tween.is_done(1.4) && tween.is_done(1.5));
+    }
 
     #[test]
     fn only_a_first_appearance_or_a_change_after_a_settled_frame_asks() {
