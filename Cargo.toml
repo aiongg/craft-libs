@@ -23,6 +23,7 @@ hayro-syntax = { version = "=0.7.2", default-features = false, features = ["std"
 bytemuck = "1"
 kurbo = "0.13"
 thiserror = "2"
+craft-behavior = { path = "crates/behavior" }
 craft-atomic = { path = "crates/atomic" }
 craft-automation = { path = "crates/automation" }
 craft-browse = { path = "crates/browse" }

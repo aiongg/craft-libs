@@ -1,0 +1,21 @@
+[package]
+name = "craft-ui-gallery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Story viewer over craft-ui's registered stories"
+publish = false
+autotests = false
+
+[[bin]]
+name = "craft-ui-gallery"
+path = "src/main.rs"
+test = false
+
+[lints]
+workspace = true
+
+[dependencies]
+craft-ui = { workspace = true }

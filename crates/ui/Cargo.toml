@@ -1,0 +1,41 @@
+[package]
+name = "craft-ui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Runtime, contract, components, patterns and shell of the craft UI library, on egui"
+autotests = false
+
+[lib]
+# Every test lives in the `it` integration binary, so `cargo test` builds the library once.
+test = false
+
+[lints]
+workspace = true
+
+[features]
+default = []
+# `shell::app`: the eframe entry point.
+app = ["dep:eframe"]
+# `craft_ui::testing`: the fixture and suite runner, on egui_kittest.
+testing = ["dep:egui_kittest"]
+# GPU-rendered tests.
+testing-gpu = ["testing", "egui_kittest/wgpu"]
+
+[dependencies]
+craft-behavior = { workspace = true }
+craft-theme = { workspace = true }
+craft-ui-macros = { workspace = true }
+egui = { workspace = true }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11", "default_fonts"], optional = true }
+egui_kittest = { version = "0.37", default-features = false, optional = true }
+
+[dev-dependencies]
+craft-ui = { path = ".", features = ["testing"] }
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
