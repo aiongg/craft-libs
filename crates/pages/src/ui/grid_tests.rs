@@ -18,7 +18,6 @@ fn baselines_follow_the_page_zoom() {
     use kurbo::{Point, Rect};
 
     use craft_ui::canvas::CanvasView;
-    use craft_ui::theme::current;
 
     use super::view::PageViewState;
 

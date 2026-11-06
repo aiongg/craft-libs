@@ -95,12 +95,11 @@ pub fn parse_sizes(bytes: &[u8]) -> Result<SizeSetFile, FormatErrors> {
         let mut table = leaves(&mut base);
         let index: HashMap<&'static str, usize> = table.iter().enumerate().map(|(i, l)| (l.path, i)).collect();
         let mut seen = HashSet::new();
-        for section in ["base"] {
-            match raw.get(section) {
-                Some(Value::Object(o)) => walk(o, &mut vec![section.to_owned()], &mut table, &index, &mut seen, &mut errors),
-                None | Some(Value::Null) => errors.push(err(&path_of(section), ErrorKind::Missing)),
-                Some(_) => errors.push(err(&path_of(section), ErrorKind::WrongType { expected: "an object" })),
-            }
+        let section = "base";
+        match raw.get(section) {
+            Some(Value::Object(o)) => walk(o, &mut vec![section.to_owned()], &mut table, &index, &mut seen, &mut errors),
+            None | Some(Value::Null) => errors.push(err(&path_of(section), ErrorKind::Missing)),
+            Some(_) => errors.push(err(&path_of(section), ErrorKind::WrongType { expected: "an object" })),
         }
         for leaf in &table {
             let section_ok = matches!(raw.get(leaf.path.split('.').next().unwrap_or_default()), Some(Value::Object(_)));

@@ -76,7 +76,7 @@ fn on_toggle_text_reads_on_its_fill_in_high_contrast() {
     for theme in builtins() {
         for mode in [Mode::Light, Mode::Dark] {
             let high = Appearance { mode, contrast: Contrast::High, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
-            let t = UiTokens::new(resolve(&theme, high, None).tokens, high, mode, FontFamilies::default());
+            let t = UiTokens::new(resolve(theme, high, None).tokens, high, mode, FontFamilies::default());
             let on = super::toggle_button::on_colors(&t);
             let fill = t.color.surface.panel.to_egui().blend(on.fill.rest);
             let fill = craft_theme::Srgba::from(fill).into();

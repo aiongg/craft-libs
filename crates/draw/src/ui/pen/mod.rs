@@ -30,7 +30,7 @@ use craft_ui::edit::{CancelReason, EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::words::format_in;
 use craft_ui::localized::{Labels, Word, Words};
 use craft_ui::primitives::{Handle, HandleShape, HandleStyle};
-use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::theme::{Tokens, TokensOf, UiTokens};
 pub use mode::{PathMode, PathTool, PenMode};
 pub use options::{PATH_OPTIONS_COLOR_KEY, PathOptionsLabels, PathOptionsPopover, PathOptionsPopoverResponse, PathOptionsSettings};
 

@@ -12,9 +12,9 @@ use craft_ui::edit::order::Turn;
 use craft_ui::edit::{EditEvent, EditPolicy, Gesture};
 use craft_ui::localized::{Labels, Unit, Word, Words};
 use craft_ui::popup_list;
-use craft_ui::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
+use craft_ui::primitives::{Handle, HandleShape};
 use craft_ui::story::{Level, Story, StoryChoice, Surface};
-use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
+use craft_ui::theme::{Tokens, TokensOf, UiTokens};
 use craft_ui::typed_story;
 
 /// Where a press outside the box rotates it.

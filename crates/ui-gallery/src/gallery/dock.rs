@@ -126,7 +126,7 @@ impl Gallery {
         let mode = self.appearance.mode(shown_mode(ui.ctx()));
         let token = self.browser.selected();
         let tiles = self.workspace == GalleryWorkspace::Theme && self.preview == PreviewView::Components && self.pick.on;
-        let pick = tiles.then(|| TilePick { tiles: &mut self.pick.tiles });
+        let pick = tiles.then_some(TilePick { tiles: &mut self.pick.tiles });
         let highlight =
             (token.is_some() || pick.is_some()).then(|| Highlight::new(&mut self.scan, token, pick, self.applied.base.inputs.theme(mode), mode));
         TabEnv {

@@ -1,7 +1,6 @@
 //! The ruler's geometry and drawing.
 
 use craft_ui::canvas::{RulerStyle, RulerUnits, Rulers, TickRule, crisp};
-use craft_ui::theme::UiTokens;
 use egui::{Align2, Color32, Painter, Pos2, Rect, Shape, Stroke, pos2, vec2};
 
 use super::TabAlign;

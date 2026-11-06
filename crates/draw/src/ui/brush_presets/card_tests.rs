@@ -2,7 +2,7 @@
 
 use craft_theme::Mode;
 use craft_ui::theme::{Base, install, tokens_in_mode};
-use egui::{Rect, pos2, vec2};
+use egui::{Rect, pos2};
 
 use super::*;
 

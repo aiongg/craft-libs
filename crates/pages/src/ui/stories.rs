@@ -26,7 +26,6 @@ use craft_ui::localized::Labels as _;
 use craft_ui::localized::units::LengthUnit;
 use craft_ui::menu::{MenuEntry, MenuItem};
 use craft_ui::story::{Level, NoArgs, Story, StoryArgs, dialog_closed, dialog_shown, drive, last_event, lock, shared};
-use craft_ui::theme::{Tokens, TokensOf as _};
 use craft_ui::typed_story;
 use egui::{Ui, vec2};
 use kurbo::{Point, Rect, Size};
@@ -332,7 +331,6 @@ fn sample_grid() -> PageGrid {
 }
 
 fn show_view(ui: &mut Ui, name: &str, demo: &mut ViewDemo, options: LayoutOptions) {
-    let tokens = Tokens::of(ui);
     let pages = Pages::new(12);
     let out = in_area(ui, AREA_ASPECT, |ui| PageView::new(name, &pages, &mut demo.state).options(options).name(name).show(ui));
     let mut tool = TextSelectTool::new(&out.pages, &MockTexts, &mut demo.text);
