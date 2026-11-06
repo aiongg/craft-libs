@@ -5,6 +5,7 @@
 
 pub mod canvas;
 pub mod columns;
+pub mod doc_key;
 pub mod eviction;
 pub mod focus;
 pub mod input;
@@ -23,13 +24,14 @@ pub mod wheel;
 
 pub use canvas::CanvasTransform;
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
+pub use doc_key::DocKey;
 pub use focus::{CancelRule, KeyOwner, OwnerClass, ScopeKind};
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
 pub use motion::MotionMode;
 pub use keys::{DropOperation, KeyRole, Os};
-pub use nav::{NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead};
+pub use nav::{Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead};
 pub use part::{PartKey, PartRef};
 pub use scroll::{ScrollPos, ScrollSpan};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};

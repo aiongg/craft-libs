@@ -5,6 +5,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::memory;
+use crate::runtime::{focus, keys};
 use craft_host::Host;
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
@@ -169,7 +170,6 @@ pub(crate) fn set_frame_layers(ctx: &Context, painter: Option<fn(&Context)>) {
 }
 
 /// Adds text to the next `FrameOutput`'s announcements.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 access"))]
 pub(crate) fn announce(ctx: &Context, text: String) {
     store::with::<FrameState, _>(ctx, |state| state.output.announcements.push(text));
 }
@@ -209,7 +209,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     // H0: one press per pass.
     let frame = pass::frame_nr(ctx, viewport);
     let held_back = PerViewport::<ViewportRecord>::with(ctx, viewport, |record| raw_input::hold_back_presses(input, frame, &mut record.held));
-    if held_back {
+    // H3: the key stage strips what the runtime owns; egui decides on a repaint from the events left.
+    let stripped = keys::input_hook(ctx, input);
+    if held_back || stripped {
         raw_input::request_repaint_of(ctx, viewport);
     }
     // H2: click options.
@@ -243,11 +245,15 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
     Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
+    // H7: focus moves and the pass's intents.
+    focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != craft_behavior::Os::Mac);
+    keys::begin(&ctx);
 }
 
 /// The end hook.
 pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
+    focus::end(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);

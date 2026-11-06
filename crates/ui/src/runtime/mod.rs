@@ -11,6 +11,7 @@ pub mod focus;
 pub mod frame;
 pub mod ime;
 pub mod inspect;
+pub mod keys;
 pub mod install;
 pub mod memory;
 pub mod pointer;

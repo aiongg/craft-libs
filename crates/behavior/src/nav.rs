@@ -1,7 +1,7 @@
 //! The navigation core (spec 9.5): shapes, the key-free outline, stepping, roving groups, type-ahead and
 //! single-value keys. Focus movement and collection selection share it.
 
-use crate::intent::{Granularity, MoveMods, NavMove};
+use crate::intent::{MoveMods, NavMove};
 
 /// The geometry a collection's keyboard navigation follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -443,6 +443,7 @@ pub fn step_value(steps: &ValueSteps, axes: ValueAxes, mv: NavMove, mods: MoveMo
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::intent::Granularity;
 
     struct Rows {
         depth: Vec<usize>,
