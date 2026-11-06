@@ -128,7 +128,7 @@ fn member_on_canvas(transform: Option<CanvasTransform>) {
     assert_eq!(log.borrow().activated_members(0), 0);
 
     // Control: a drag that starts on the canvas background starts the tool's drag.
-    let free = log.borrow().last().to_screen(Pos2::new(160.0, 360.0));
+    let free = Pos2::new(160.0, 360.0);
     log.borrow_mut().clear();
     drag(&mut frames, free, Vec2::new(40.0, 30.0), &mut show_frame);
     let phases = log.borrow().root_phases(0, Some(BACKGROUND));
@@ -188,7 +188,7 @@ fn tap_on_canvas(transform: Option<CanvasTransform>, gone: bool) {
     assert!(log.borrow().root_phases(0, Some(BACKGROUND)).is_empty(), "the tool starts no press lifecycle");
 
     // A tap on the background starts exactly one press lifecycle, on the tool, and activates no member.
-    let free = log.borrow().last().to_screen(Pos2::new(160.0, 360.0));
+    let free = Pos2::new(160.0, 360.0);
     pointer::tap(&mut frames, free, gone, &mut show_frame);
     frames.idle(1, &mut show_frame);
     let phases = log.borrow().root_phases(0, Some(BACKGROUND));
@@ -344,7 +344,7 @@ fn a_layer_over_the_pointer_takes_the_hover_from_the_arena() {
         show_frame(ui);
         cover(ui.ctx(), Vec2::splat(600.0));
     };
-    frames.idle(2, &mut with_cover);
+    frames.idle(3, &mut with_cover);
     assert!(!log.borrow().last().root.parts[0].hovered, "a layer over the pointer takes the hover");
 }
 

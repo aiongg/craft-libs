@@ -2,14 +2,22 @@
 
 use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, Ui, ViewportCommand};
 
-/// Runs one frame at `time` seconds with `events` and drops its texture changes. Returns whether the
-/// frame sent a close command.
-pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> bool {
+/// What a frame sent out that trials read.
+pub(crate) struct FrameResult {
+    /// The frame sent a close command.
+    pub closed: bool,
+    /// The cursor the frame's output asked for.
+    pub cursor: egui::CursorIcon,
+}
+
+/// Runs one frame at `time` seconds with `events` and drops its texture changes.
+pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
-    output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)))
+    let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
+    FrameResult { closed, cursor: output.platform_output.cursor_icon }
 }
 
 /// A key press event with `modifiers`.

@@ -3,7 +3,7 @@
 use craft_behavior::{Cursor, CursorIcon, CursorPriority, PaintedCursor, Sense};
 use craft_ui::runtime::cursor::current;
 use craft_ui::testing::pointer;
-use craft_ui::testing::sensing::{ProbePart, ProbeRoot, show, system_cursor};
+use craft_ui::testing::sensing::{ProbePart, ProbeRoot, show};
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 
@@ -22,7 +22,7 @@ fn brush_over(priority: CursorPriority) -> (Option<Cursor>, egui::CursorIcon) {
     assert_eq!(current(&frames.ctx), None, "no request while the pointer is elsewhere");
     frames.frame(vec![pointer::moved(area.center())], &mut show_frame);
     frames.idle(1, &mut show_frame);
-    (current(&frames.ctx), system_cursor(&frames.ctx))
+    (current(&frames.ctx), frames.cursor_icon())
 }
 
 #[trial]

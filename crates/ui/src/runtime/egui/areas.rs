@@ -11,6 +11,12 @@ pub(crate) fn show_area<R>(ctx: &Context, name: &'static str, body: impl FnOnce(
     egui::Area::new(crate::runtime::egui::memory::unique(name)).show(ctx, body).inner
 }
 
+/// Shows an interactable `egui::Area` at the screen's top left and runs `body` on its `Ui`.
+#[cfg(feature = "testing")]
+pub(crate) fn show_cover<R>(ctx: &Context, name: &'static str, body: impl FnOnce(&mut Ui) -> R) -> R {
+    egui::Area::new(crate::runtime::egui::memory::unique(name)).fixed_pos(Pos2::ZERO).interactable(true).show(ctx, body).inner
+}
+
 /// A layer's mapping from its own space to the screen's.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct LayerMap(TSTransform);

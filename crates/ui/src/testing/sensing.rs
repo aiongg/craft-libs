@@ -351,10 +351,6 @@ pub fn press_focus(ctx: &Context, at: Pos2) -> Option<PressFocus> {
 
 /// Shows an egui area of `size` over everything else, as a popup does.
 pub fn cover(ctx: &Context, size: Vec2) {
-    areas::show_area(ctx, "probe_cover", |ui| fixture::allocate_blocker(ui, size));
+    areas::show_cover(ctx, "probe_cover", |ui| fixture::allocate_blocker(ui, size));
 }
 
-/// The system cursor the viewport's output holds after the last pass.
-pub fn system_cursor(ctx: &Context) -> egui::CursorIcon {
-    crate::runtime::egui::output::cursor_set(ctx)
-}

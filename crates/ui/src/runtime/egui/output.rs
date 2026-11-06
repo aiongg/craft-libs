@@ -8,12 +8,6 @@ pub(crate) fn set_cursor(ctx: &Context, icon: CursorIcon) {
     ctx.set_cursor_icon(egui_icon(icon));
 }
 
-/// The cursor icon the viewport's output holds.
-#[cfg(feature = "testing")]
-pub(crate) fn cursor_set(ctx: &Context) -> egui::CursorIcon {
-    ctx.output(|output| output.cursor_icon)
-}
-
 fn egui_icon(icon: CursorIcon) -> egui::CursorIcon {
     use egui::CursorIcon as E;
     match icon {
