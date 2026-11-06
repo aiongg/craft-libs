@@ -339,7 +339,7 @@ fn cfg_is_test(meta: &Meta) -> bool {
     }
 }
 
-fn is_test_attr(attr: &Attribute) -> bool {
+pub(crate) fn is_test_attr(attr: &Attribute) -> bool {
     if attr.path().is_ident("test") {
         return true;
     }
