@@ -377,7 +377,7 @@ impl SheetGeometry {
 /// The workbook sheet the grid shows; the app implements it on its sheet. Read only: the grid
 /// reports what the user asks for as [`GridEdit`]s and moves the selection in [`GridState`].
 pub trait GridModel {
-    /// Row heights and column widths (points at 100 %) with hidden lines at 0.
+    /// Row heights (points at 100 %), with hidden rows at 0.
     fn rows(&self) -> &LineIndex;
     /// Column widths in points at 100 %, with hidden columns at 0.
     fn columns(&self) -> &LineIndex;
