@@ -32,11 +32,19 @@ pub fn resolve_columns(columns: &[ColumnWidth], content: &[f32], room: f32, gap:
 
 /// What a `Grid` pass measured: the widest child per column and the tallest per row.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct GridMeasure {
     /// The widest child of each column.
     pub columns: Vec<f32>,
     /// The tallest child of each row.
     pub rows: Vec<f32>,
+}
+
+impl GridMeasure {
+    /// A measurement of `columns` and `rows`.
+    pub const fn new(columns: Vec<f32>, rows: Vec<f32>) -> Self {
+        GridMeasure { columns, rows }
+    }
 }
 
 /// Hands out the cells of one `Grid` pass, row-major. Cells are placed from `last` pass's measurements; this

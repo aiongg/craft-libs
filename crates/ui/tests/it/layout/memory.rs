@@ -6,7 +6,7 @@ use craft_ui::testing::layout::{body, is_animating, measured_block, read_size, s
 use craft_ui::testing::{Frames, trial};
 use egui::Vec2;
 
-static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Fixed(60.0), ColumnWidth::Content];
+static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Content, ColumnWidth::Content];
 
 /// Skeleton: `frames_state::end_aligned_readout_changing_every_frame_runs_one_pass`.
 ///
@@ -14,23 +14,29 @@ static COLUMNS: [ColumnWidth; 2] = [ColumnWidth::Fixed(60.0), ColumnWidth::Conte
 /// discard pass, and a size that changes every frame is placed from last frame's value and runs none.
 #[trial]
 fn continuous_change_runs_no_discard_and_a_settled_change_runs_one() {
+    const FIRST: f32 = 20.0;
+    const STEP: f32 = 30.0;
+    const SETTLED: f32 = 290.0;
+    const LONGER: f32 = 400.0;
+    const WITHIN_TOLERANCE: f32 = 400.4;
     let mut frames = Frames::new();
     let grid = BodyLayout::grid(&COLUMNS);
-    let show = |frames: &mut Frames, width: f32| {
+    let run = |frames: &mut Frames, width: f32| {
         frames.frame(vec![], |ui| {
-            measured_block(ui, "readout", Vec2::new(width, 20.0));
-            body(ui, "grid", &grid, &[Vec2::new(60.0, 20.0), Vec2::new(width, 20.0)]);
+            measured_block(ui, "readout", Vec2::new(width, FIRST));
+            body(ui, "grid", &grid, &[Vec2::new(width, FIRST), Vec2::new(width, FIRST)]);
         })
     };
-    assert_eq!(show(&mut frames, 20.0), 2, "the first appearance runs a discard pass");
-    let growing: Vec<usize> = (1..10).map(|step| show(&mut frames, 20.0 + 30.0 * step as f32)).collect();
-    assert!(growing[1..].iter().all(|passes| *passes == 1), "continuous change runs one pass per frame: {growing:?}");
+    let (once, twice) = (1, 2);
+    assert_eq!(run(&mut frames, FIRST), twice, "the first appearance runs a discard pass");
+    let growing: Vec<usize> = (1..10).map(|step| run(&mut frames, FIRST + STEP * step as f32)).collect();
+    assert!(growing[1..].iter().all(|passes| *passes == once), "continuous change runs one pass per frame: {growing:?}");
     for _ in 0..3 {
-        assert!(show(&mut frames, 290.0) <= 2, "settling takes at most one extra pass");
+        assert!(run(&mut frames, SETTLED) <= twice, "settling takes at most one extra pass");
     }
-    assert_eq!(show(&mut frames, 290.0), 1, "a settled block runs one pass");
-    assert_eq!(show(&mut frames, 400.0), 2, "a change after a settled frame runs a discard pass, for both blocks together");
-    assert_eq!(show(&mut frames, 400.4), 1, "a change under half a point is the same size");
+    assert_eq!(run(&mut frames, SETTLED), once, "a settled block runs one pass");
+    assert_eq!(run(&mut frames, LONGER), twice, "a change after a settled frame runs a discard pass, for both blocks together");
+    assert_eq!(run(&mut frames, WITHIN_TOLERANCE), once, "a change under half a point is the same size");
 }
 
 /// 6.3: a size tween is evaluated at the reader's clock and asks for no discard pass while it runs.

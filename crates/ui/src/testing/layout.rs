@@ -60,7 +60,14 @@ pub fn reordered_fonts() -> egui::FontDefinitions {
 }
 
 /// A placeholder child of a fixed size.
-pub struct Block(pub Vec2);
+pub struct Block(Vec2);
+
+impl Block {
+    /// A child that takes `size`.
+    pub const fn new(size: Vec2) -> Self {
+        Block(size)
+    }
+}
 
 impl Show for Block {
     fn measure_in(&mut self, _: &mut Ui, _: Id, _: Proposal) -> Vec2 {

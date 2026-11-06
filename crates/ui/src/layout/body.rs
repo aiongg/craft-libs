@@ -109,10 +109,10 @@ fn row_id(grid: Id, index: usize) -> Id {
 /// What the grid measured last pass; each entry is read as a placement that used it.
 fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
     let rows = layout_memory::read(ctx, sub(grid, "rows")).map_or(0, |count| count.x as usize);
-    GridMeasure {
-        columns: (0..columns).map(|i| layout_memory::read(ctx, column_id(grid, i)).map_or(0.0, |size| size.x)).collect(),
-        rows: (0..rows).map(|i| layout_memory::read(ctx, row_id(grid, i)).map_or(0.0, |size| size.y)).collect(),
-    }
+    GridMeasure::new(
+        (0..columns).map(|i| layout_memory::read(ctx, column_id(grid, i)).map_or(0.0, |size| size.x)).collect(),
+        (0..rows).map(|i| layout_memory::read(ctx, row_id(grid, i)).map_or(0.0, |size| size.y)).collect(),
+    )
 }
 
 /// Runs `body` in a child `Ui` laid out by `layout` under `id`, in the direction of `ui`'s env. `gap` is the

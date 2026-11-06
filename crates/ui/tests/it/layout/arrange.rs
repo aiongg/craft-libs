@@ -34,7 +34,7 @@ fn stairs(direction: Direction, mirrors: bool) -> (Rect, Vec<Rect>) {
     let mut out = (Rect::NOTHING, Vec::new());
     frames.frame(vec![], |ui| {
         let room = ui.available_rect_before_wrap();
-        let mut children = [Placed::new("a", Block(Vec2::new(40.0, 10.0))), Placed::new("b", Block(Vec2::new(50.0, 10.0)))];
+        let mut children = [Placed::new("a", Block::new(Vec2::new(40.0, 10.0))), Placed::new("b", Block::new(Vec2::new(50.0, 10.0)))];
         with_env(
             ui,
             |o| o.direction = Some(direction),
