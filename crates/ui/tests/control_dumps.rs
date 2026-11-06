@@ -530,7 +530,7 @@ fn status_bar() {
 fn command_palette() {
     check("command_palette.txt", |d, t| {
         let s = CommandPalette::style(t);
-        d.line("width", s.width).line("top", s.top).line("pad", s.pad).line("row_height", s.row_height);
+        d.line("pad", s.pad).line("row_height", s.row_height);
         d.line("max_rows", s.max_rows).line("recent", s.recent).line("scrim", s.scrim);
         surface(d, "surface", &s.surface);
     });

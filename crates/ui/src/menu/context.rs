@@ -77,7 +77,7 @@ impl<'a, T: Clone> ContextMenu<'a, T> {
         self
     }
 
-    /// The narrowest a level of the menu is, in place of `menu.min_width`; a level still widens to
+    /// The narrowest a level of the menu is, in place of `MenuStyle::min_width`; a level still widens to
     /// its widest row ([`Menu::min_width`]).
     pub fn min_width(mut self, width: f32) -> Self {
         self.min_width = Some(width);

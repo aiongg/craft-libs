@@ -502,19 +502,19 @@ fn timeline_stroke(painter: &Painter, tokens: &UiTokens) -> Stroke {
 
 /// A dot on the timeline line, centred in `rect`: filled for the version shown, else hollow
 /// (FigCraft `versions.rs:386`, `:388`).
-fn paint_dot(painter: &Painter, rect: Rect, tokens: &UiTokens, style: &ReviewStyle, filled: bool) {
+fn paint_dot(painter: &Painter, rect: Rect, tokens: &UiTokens, filled: bool) {
     let line = timeline_stroke(painter, tokens);
     let color = tokens.color.accent.solid.to_egui();
     if filled {
-        painter.circle_filled(rect.center(), style.version_dot_radius, color);
+        painter.circle_filled(rect.center(), tokens.shape.radius.sm, color);
     } else {
-        painter.circle(rect.center(), style.version_dot_hollow_radius, tokens.color.surface.panel.to_egui(), Stroke::new(line.width, color));
+        painter.circle(rect.center(), tokens.shape.radius.sm, tokens.color.surface.panel.to_egui(), Stroke::new(line.width, color));
     }
 }
 
 /// The radius of the dot of a row, which the timeline line stops at.
-fn dot_radius(style: &ReviewStyle, filled: bool) -> f32 {
-    if filled { style.version_dot_radius } else { style.version_dot_hollow_radius }
+fn dot_radius(tokens: &UiTokens) -> f32 {
+    tokens.shape.radius.sm
 }
 
 /// Whether the dot of `key` is the filled one: the version the canvas shows.
@@ -534,7 +534,7 @@ fn paint_timeline(ui: &Ui, cx: &Cx, rows: &[(RowKey, Rect)], clip: Rect, (first,
     let stroke = timeline_stroke(&painter, cx.tokens);
     for (key, rect) in rows {
         let x = rect.min.x + cx.style.version_dot_x;
-        let radius = dot_radius(cx.style, dot_filled(cx, key));
+        let radius = dot_radius(cx.tokens);
         let y = rect.center().y;
         if key != first {
             painter.line_segment([pos2(x, rect.min.y), pos2(x, y - radius)], stroke);
@@ -629,7 +629,7 @@ fn history(ui: &mut Ui, cx: &Cx, state: &mut PanelState, actions: &mut Vec<Versi
         });
     let out = list.show(ui, |_, key| {
         let filled = dot_filled(cx, key);
-        let dot = move |painter: &Painter, rect: Rect| paint_dot(painter, rect, cx.tokens, cx.style, filled);
+        let dot = move |painter: &Painter, rect: Rect| paint_dot(painter, rect, cx.tokens, filled);
         match key {
             RowKey::Current => ListRow::new(key.clone(), &labels.current).indent(indent).glyph_sized(slot, dot),
             RowKey::Group(head) => {

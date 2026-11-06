@@ -285,8 +285,8 @@ impl<'a> MarkerStrip<'a> {
                 continue;
             }
             let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(marker.name.clone(), text.clone())));
-            let width = galley.size().x + 2.0 * style.marker_name_pad;
-            if let Some(left) = name_box_x(x, width, end, rect, style.marker_name_gap, style.marker_end_gap) {
+            let width = galley.size().x + 2.0 * tokens.space.gap.inline;
+            if let Some(left) = name_box_x(x, width, end, rect, tokens.space.gap.inline, tokens.space.gap.tight) {
                 let name_box = Rect::from_min_size(pos2(left, rect.top()), vec2(width, height.max(galley.size().y)));
                 painter.rect(
                     name_box,
@@ -295,7 +295,7 @@ impl<'a> MarkerStrip<'a> {
                     Stroke::new(hairline, color.line.control_edge.to_egui()),
                     egui::StrokeKind::Inside,
                 );
-                painter.galley(pos2(name_box.left() + style.marker_name_pad, name_box.center().y - galley.size().y / 2.0), galley, text.color);
+                painter.galley(pos2(name_box.left() + tokens.space.gap.inline, name_box.center().y - galley.size().y / 2.0), galley, text.color);
             }
         }
         for &(marker, start, length) in &placed {

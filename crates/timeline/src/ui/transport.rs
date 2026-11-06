@@ -179,8 +179,7 @@ pub struct TransportBarSettings {
 }
 
 /// A monitor's transport row (Premiere's, as FilmCraft draws it), through the kernel's
-/// horizontal [`Toolbar`]: `style.transport_button` squares
-/// ([`TimelineStyle`]) centred under the picture, Pause in place of Play
+/// horizontal [`Toolbar`]: `size.control.md` squares centred under the picture, Pause in place of Play
 /// while playing, Loop pressed while on, and a "+" button editor at the right (a popover with a
 /// [`Checkbox`] per button and Reset) when the row has room.
 ///
@@ -242,7 +241,7 @@ impl<'a> TransportBar<'a> {
         let Self { id_salt, buttons, mut settings, playing, looping, editable, labels } = self;
         let labels = labels.unwrap_or_else(|| TransportLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let side = TimelineStyle::of(&tokens).transport_button;
+        let side = tokens.size.control.md;
         let toolbar = Toolbar::style(&tokens);
         let id = ui.make_persistent_id(id_salt);
         let hidden: Vec<TransportButton> = settings.as_ref().map(|s| s.hidden.clone()).unwrap_or_default();

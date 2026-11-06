@@ -535,7 +535,7 @@ fn timeline_panel(ui: &mut Ui, _: &mut NoArgs) {
     let style = TimelineStyle::of(&tokens);
     let width = ui.available_width();
     let demo = shared(ui, "panel", || PanelDemo {
-        seq: sample_sequence(&labels, (width - style.header_width) / SHOWN_SECONDS),
+        seq: sample_sequence(&labels, (width - TimelineStyle::header_width(ui.painter(), &tokens)) / SHOWN_SECONDS),
         snap: true,
         linked: true,
         last: None,
@@ -1178,7 +1178,6 @@ const OVERVIEW_CLIPS: u8 = 6;
 // new: eight tracks of runs and the visible box.
 fn overview(ui: &mut Ui, _: &mut NoArgs) {
     let tokens = Tokens::of(ui);
-    let style = TimelineStyle::of(&tokens);
     let demo = shared(ui, "overview", || {
         let palette = LabelPalette::default();
         let mut end = Tick::ZERO;
@@ -1204,7 +1203,7 @@ fn overview(ui: &mut Ui, _: &mut NoArgs) {
     let width = ui.available_width();
     let height = width * OVERVIEW_ASPECT;
     ui.allocate_ui(vec2(width, height), |ui| {
-        let runs = overview_runs(&demo.tracks, demo.end, ui.available_rect_before_wrap(), &style);
+        let runs = overview_runs(&demo.tracks, demo.end, ui.available_rect_before_wrap(), &tokens);
         TimelineOverview::new("overview", &runs, &mut demo.view, width, demo.end).playhead(Some(secs(30.0))).show(ui);
     });
 }

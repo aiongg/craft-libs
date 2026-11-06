@@ -19,6 +19,10 @@ const KEYFRAME_ARROW_HEIGHT: f32 = 20.0;
 const KEYFRAME_NAV_STEP: f32 = 16.0;
 const MARKER_WIDTH: f32 = 8.0;
 const WORK_AREA_GRAB: f32 = 7.0;
+/// A track name typical of a header: the default header is as wide as this plus its buttons.
+const HEADER_SAMPLE: &str = "Video track 12";
+/// Buttons a track header holds beside its name (mute, solo, lock).
+const HEADER_BUTTONS: f32 = 3.0;
 const RULER_WORK_HIT_PAD: f32 = 1.0;
 const RULER_RENDER_HIT_PAD: f32 = 2.0;
 const RULER_LABEL_GAP: f32 = 110.0;
@@ -33,7 +37,6 @@ const GRAPH_REACH: f32 = 6.0;
 const OVERVIEW_VIEW_MIN: f32 = 100.0;
 const RULER_MARKER_BAND: f32 = 14.0;
 const RULER_WORK_HEIGHT: f32 = 6.0;
-const RULER_LABEL_ROW: f32 = 14.0;
 const RULER_LABEL_Y: f32 = 24.0;
 const RULER_TICK_INSET: f32 = 3.0;
 const RULER_MAJOR_TICK: f32 = 10.0;
@@ -63,8 +66,6 @@ pub struct TimelineStyle {
     pub divider_height: f32,
     /// The Mix row at the bottom.
     pub mix_row_height: f32,
-    /// The track headers' default width.
-    pub header_width: f32,
     /// A new video track's height.
     pub video_track_height: f32,
     /// A new audio track's height.
@@ -83,8 +84,6 @@ pub struct TimelineStyle {
     pub roll_zone: f32,
     /// The room [`TimeView::fit`](crate::TimeView::fit) leaves.
     pub fit_margin: f32,
-    /// A transport button's square.
-    pub transport_button: f32,
     /// A keyframe glyph's box.
     pub keyframe_glyph: f32,
     /// How near the playhead or another key a Shift-dragged key snaps.
@@ -113,12 +112,6 @@ pub struct TimelineStyle {
     pub marker_height: f32,
     /// A marker's hit width.
     pub marker_hit: f32,
-    /// The room either side of a marker's name inside its box.
-    pub marker_name_pad: f32,
-    /// The room between a marker's flag and its name box.
-    pub marker_name_gap: f32,
-    /// The room between a range marker's end and a name box after it.
-    pub marker_end_gap: f32,
     /// A graph key's square.
     pub graph_key: f32,
     /// A graph key's hit square.
@@ -127,20 +120,8 @@ pub struct TimelineStyle {
     pub graph_handle: f32,
     /// A graph handle's hit square.
     pub graph_handle_hit: f32,
-    /// The room over the graph's plot.
-    pub graph_top_inset: f32,
-    /// The room between the plot's edge and its value labels.
-    pub graph_label_inset: f32,
     /// How far past the plot a key still counts as shown.
     pub graph_reach: f32,
-    /// The graph's bottom bar.
-    pub graph_bar_height: f32,
-    /// The room either side of the overview's runs.
-    pub overview_inset_x: f32,
-    /// The room over and under the overview's runs.
-    pub overview_inset_y: f32,
-    /// How far the overview's view box reaches past the runs.
-    pub overview_box_outset: f32,
     /// The least width the overview takes the time area to have.
     pub overview_view_min: f32,
     /// The ruler's marker band at its top.
@@ -163,8 +144,6 @@ pub struct TimelineStyle {
     pub ruler_head_height: f32,
     /// A work-area end cap's width.
     pub ruler_cap_width: f32,
-    /// The radius of the knobs at the scroll thumb's ends.
-    pub scroll_knob_radius: f32,
     /// How near a scroll thumb's end a press must be to resize the view.
     pub scroll_end_zone: f32,
     /// The least the track headers' width can be dragged to.
@@ -173,8 +152,6 @@ pub struct TimelineStyle {
     pub header_width_max: f32,
     /// A caption row's height when the app gives none.
     pub caption_row_height: f32,
-    /// How far each level of a track's depth indents its header.
-    pub header_indent: f32,
     /// The type role of The ruler's time labels: the theme's caption role.
     pub ruler_text: TypeRole,
     /// The type role of A marker's name: the theme's caption role.
@@ -202,6 +179,14 @@ pub struct TimelineStyle {
 }
 
 impl TimelineStyle {
+    /// The default width of the track headers: a typical track name, the buttons beside it and
+    /// the padding around them.
+    pub fn header_width(painter: &egui::Painter, tokens: &UiTokens) -> f32 {
+        let name = painter.layout_no_wrap(HEADER_SAMPLE.to_owned(), tokens.font(TypeRole::Body), egui::Color32::PLACEHOLDER).size().x;
+        let space = &tokens.space;
+        name + HEADER_BUTTONS * (tokens.size.control.sm + space.gap.inline) + 2.0 * space.pad.control
+    }
+
     /// The style from the theme's tokens: `TimelineStyle::of(&Tokens::of(ui))`.
     pub fn of(tokens: &UiTokens) -> TimelineStyle {
         let control = tokens.size.control.md;
@@ -209,12 +194,11 @@ impl TimelineStyle {
         let top_height = control + 2.0 * space.pad.panel;
         TimelineStyle {
             top_height,
-            ruler_height: RULER_MARKER_BAND + RULER_WORK_HEIGHT + RULER_LABEL_ROW + RULER_MAJOR_TICK,
+            ruler_height: RULER_MARKER_BAND + RULER_WORK_HEIGHT + tokens.typography.caption.line_height + RULER_MAJOR_TICK,
             scrollbar_height: SCROLLBAR_HEIGHT,
             scroll_thumb_min: SCROLL_THUMB_MIN,
             divider_height: DIVIDER_HEIGHT,
             mix_row_height: control + 2.0 * space.gap.tight,
-            header_width: control * 7.0,
             video_track_height: tokens.size.thumb.lg + space.pad.panel,
             audio_track_height: tokens.size.thumb.lg + space.gap.stack,
             track_height_min: TRACK_HEIGHT_MIN,
@@ -224,7 +208,6 @@ impl TimelineStyle {
             edge_zone: EDGE_ZONE,
             roll_zone: ROLL_ZONE,
             fit_margin: space.gap.stack + space.gap.tight,
-            transport_button: control,
             keyframe_glyph: KEYFRAME_GLYPH_SIZE,
             keyframe_snap: KEYFRAME_SNAP,
             keyframe_arrow_width: KEYFRAME_ARROW_WIDTH,
@@ -239,20 +222,11 @@ impl TimelineStyle {
             scrub_step: SCRUB_STEP,
             marker_height: MARKER_HEIGHT,
             marker_hit: MARKER_HIT,
-            marker_name_pad: space.gap.inline,
-            marker_name_gap: space.gap.inline,
-            marker_end_gap: space.gap.tight,
             graph_key: GRAPH_KEY_SIZE,
             graph_key_hit: GRAPH_KEY_HIT,
             graph_handle: tokens.size.handle.sm / 2.0,
             graph_handle_hit: GRAPH_HANDLE_HIT,
-            graph_top_inset: space.gap.inline,
-            graph_label_inset: space.gap.inline,
             graph_reach: GRAPH_REACH,
-            graph_bar_height: control,
-            overview_inset_x: space.gap.stack,
-            overview_inset_y: space.gap.inline,
-            overview_box_outset: space.gap.tight,
             overview_view_min: OVERVIEW_VIEW_MIN,
             ruler_marker_band: RULER_MARKER_BAND,
             ruler_work_height: RULER_WORK_HEIGHT,
@@ -264,12 +238,10 @@ impl TimelineStyle {
             ruler_head_half_width: RULER_HEAD_HALF_WIDTH,
             ruler_head_height: RULER_HEAD_HEIGHT,
             ruler_cap_width: RULER_CAP_WIDTH,
-            scroll_knob_radius: tokens.shape.radius.sm,
             scroll_end_zone: SCROLL_END_ZONE,
             header_width_min: HEADER_WIDTH_MIN,
             header_width_max: HEADER_WIDTH_MAX,
             caption_row_height: control,
-            header_indent: space.pad.panel,
             ruler_text: TypeRole::Caption,
             marker_text: TypeRole::Caption,
             graph_text: TypeRole::Caption,

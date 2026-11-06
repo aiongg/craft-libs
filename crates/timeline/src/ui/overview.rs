@@ -2,7 +2,7 @@
 
 use craft_ui::localized::Labels as _;
 use craft_ui::primitives::Corner;
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, scale};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, scale};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Rect, Response, Sense, Stroke, StrokeKind, Ui, WidgetInfo, pos2, vec2};
 
@@ -38,8 +38,8 @@ pub struct OverviewRun {
 /// same pixels in the same order (a drum edit holds tens of thousands of clips under a point
 /// wide). The app caches the result per document revision and rect.
 // soundcraft: crates/ui-egui/src/edit_window/universe.rs:15 `universe_runs`.
-pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, outer: Rect, style: &TimelineStyle) -> Vec<OverviewRun> {
-    let rect = TimelineOverview::area(outer, style);
+pub fn overview_runs(tracks: &[Vec<(TimeRange, Color32)>], end: Tick, outer: Rect, tokens: &UiTokens) -> Vec<OverviewRun> {
+    let rect = TimelineOverview::area(outer, tokens);
     let total = overview_total(end).0.max(1) as f32;
     let row = (rect.height() / tracks.len().max(1) as f32).max(1.0);
     let mut runs = Vec::new();
@@ -104,8 +104,8 @@ impl<'a> TimelineOverview<'a> {
 
     /// Where the runs and the view box draw inside `outer`, the rect the widget is shown in
     /// (SoundCraft `universe.rs:61`). [`overview_runs`] places its runs there.
-    pub fn area(outer: Rect, style: &TimelineStyle) -> Rect {
-        outer.shrink2(vec2(style.overview_inset_x, style.overview_inset_y))
+    pub fn area(outer: Rect, tokens: &UiTokens) -> Rect {
+        outer.shrink2(vec2(tokens.space.gap.stack, tokens.space.gap.inline))
     }
 
     /// Show the overview; a click or drag moves the view, and the response reports it.
@@ -117,7 +117,7 @@ impl<'a> TimelineOverview<'a> {
         let style = TimelineStyle::of(&tokens);
         let enabled = ui.is_enabled();
         let outer = ui.available_rect_before_wrap();
-        let area = Self::area(outer, &style);
+        let area = Self::area(outer, &tokens);
         let id = ui.make_persistent_id(id_salt);
         let response = ui.interact(area, id, Sense::DRAG);
         ui.advance_cursor_after_rect(outer);
@@ -143,8 +143,8 @@ impl<'a> TimelineOverview<'a> {
         let first = to_fraction(view.start);
         let last = first + shown;
         let window = Rect::from_min_max(
-            pos2(area.min.x + first * area.width(), area.min.y - style.overview_box_outset),
-            pos2(area.min.x + last.min(1.0) * area.width(), area.max.y + style.overview_box_outset),
+            pos2(area.min.x + first * area.width(), area.min.y - tokens.space.gap.tight),
+            pos2(area.min.x + last.min(1.0) * area.width(), area.max.y + tokens.space.gap.tight),
         );
         painter.rect_stroke(
             window,

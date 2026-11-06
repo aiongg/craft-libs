@@ -26,14 +26,14 @@ craft_ui::words! {
 
 /// A chat bubble with its corner at `tip` (beside the pointer): the name over the text when
 /// given, in `fill` (the person's colour) at `alpha`. It is as wide as its text, which wraps at
-/// `ReviewStyle::chat_width`; rounded `ReviewStyle::chat_radius` except the corner at the pointer, which is
+/// `ReviewStyle::chat_width`; rounded `shape.radius.popup` except the corner at the pointer, which is
 /// square (FigCraft's bubble).
 // figcraft: crates/ui-egui/src/live.rs:232 `chat_bubble`.
 pub fn paint_chat_bubble(painter: &Painter, tokens: &UiTokens, tip: Pos2, name: Option<&str>, text: &str, fill: Color32, alpha: f32) {
     let style = ReviewStyle::of(tokens);
     let on = ink_on(&style, fill).gamma_multiply(alpha);
     let mut body = LayoutJob::single_section(text.to_owned(), role_format(tokens, style.body_text, on));
-    body.wrap.max_width = style.chat_width;
+    body.wrap.max_width = style.chat_width(painter, tokens);
     let body = painter.layout_job(body);
     let head = name.map(|name| {
         painter.layout_job(LayoutJob::single_section(name.to_owned(), role_format(tokens, style.caption_text, on.gamma_multiply(NAME_INK))))
@@ -43,7 +43,7 @@ pub fn paint_chat_bubble(painter: &Painter, tokens: &UiTokens, tip: Pos2, name: 
     let head_height = head.as_ref().map_or(0.0, |galley| galley.size().y + gap);
     let width = head.as_ref().map_or(0.0, |galley| galley.size().x).max(body.size().x);
     let rect = Rect::from_min_size(tip + tag_offset(tokens), vec2(width, head_height + body.size().y) + 2.0 * pad);
-    let radius = bubble_radius(&style);
+    let radius = bubble_radius(tokens);
     painter.rect_filled(rect, radius, fill.gamma_multiply(alpha));
     let mut at = rect.min + pad;
     if let Some(head) = head {
@@ -55,8 +55,8 @@ pub fn paint_chat_bubble(painter: &Painter, tokens: &UiTokens, tip: Pos2, name: 
 }
 
 /// The bubble's corners: square at the pointer (top left).
-fn bubble_radius(style: &ReviewStyle) -> CornerRadius {
-    let round = style.chat_radius.round().clamp(0.0, 255.0) as u8;
+fn bubble_radius(tokens: &UiTokens) -> CornerRadius {
+    let round = tokens.shape.radius.popup.round().clamp(0.0, 255.0) as u8;
     CornerRadius { nw: 0, ne: round, sw: round, se: round }
 }
 
@@ -131,12 +131,12 @@ impl<'a> CursorChatBox<'a> {
             let mut escaped = false;
             let mut left = false;
             egui::Area::new(id.with("area")).order(Order::Foreground).fixed_pos(at + tag_offset(&tokens)).show(&ctx, |ui| {
-                Frame::NONE.fill(fill).corner_radius(bubble_radius(&style)).inner_margin(pad).show(ui, |ui| {
+                Frame::NONE.fill(fill).corner_radius(bubble_radius(&tokens)).inner_margin(pad).show(ui, |ui| {
                     ui.visuals_mut().override_text_color = Some(on);
                     let field = TextField::new(id.with("text"), &labels.name, text.as_str())
                         .id(field_id)
                         .placeholder(&labels.hint)
-                        .width(style.chat_width)
+                        .width(style.chat_width(ui.painter(), &tokens))
                         .show(ui);
                     if state.focus {
                         ui.memory_mut(|memory| memory.request_focus(field_id));

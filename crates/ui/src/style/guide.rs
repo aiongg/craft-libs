@@ -52,26 +52,11 @@ pub struct GuideStyle {
     pub focus_halo: Stroke,
     /// From the guide's edge to the focus lines: the focus ring's offset.
     pub focus_offset: f32,
-    /// Width of Guide Layout's Number field.
-    pub number_width: f32,
-    /// Width of its Width and Height fields.
-    pub size_width: f32,
-    /// Width of the field in each of its Margin sides.
-    pub margin_width: f32,
-    /// Width of New Guide's Position field.
-    pub position_width: f32,
-    /// Width of New Guide's Color list.
-    pub color_width: f32,
-    /// Width of Guide Layout's Preset and Target lists.
-    pub layout_list_width: f32,
-    /// Width of Guide Layout's Color list.
-    pub layout_color_width: f32,
 }
 
 impl GuideStyle {
     /// The guide style for `tokens`.
     pub fn new(tokens: &UiTokens) -> Self {
-        let control = tokens.size.control.md;
         let o = &tokens.color.overlay;
         let ring = FocusRing::style(tokens);
         let smart = SMART_GUIDE.to_egui();
@@ -93,13 +78,6 @@ impl GuideStyle {
             focus: ring.stroke,
             focus_halo: Stroke::new(ring.stroke.width + 2.0 * tokens.stroke.thin, o.halo.to_egui()),
             focus_offset: ring.offset,
-            number_width: control * 2.25,
-            size_width: control * 2.0,
-            margin_width: control * 2.25,
-            position_width: control * 4.0,
-            color_width: control * 4.5,
-            layout_list_width: control * 7.5,
-            layout_color_width: control * 5.75,
         }
     }
 }

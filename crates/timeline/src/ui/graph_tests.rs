@@ -14,7 +14,6 @@ use super::graph::{
     nice_step,
 };
 use super::keyframes::{KeyframeId, KeyframeInterpolation};
-use super::style::TimelineStyle;
 use crate::time::{Tick, TimeView};
 
 fn secs(s: f64) -> Tick {
@@ -93,11 +92,11 @@ fn graph(curves: Vec<GraphCurve>, selection: Selection<KeyframeId>) -> Harness<'
 
 /// The point of `(seconds, value)` on the plot.
 fn point(seconds: f64, value: f64) -> Pos2 {
-    let mut style = None;
-    egui::__run_test_ui(|ui| style = Some(TimelineStyle::of(&Tokens::of(ui))));
-    let style = style.unwrap();
-    let top = AREA.top() + style.graph_top_inset;
-    let bottom = AREA.bottom() - style.graph_bar_height;
+    let mut tokens = None;
+    egui::__run_test_ui(|ui| tokens = Some(Tokens::of(ui)));
+    let tokens = tokens.unwrap();
+    let top = AREA.top() + tokens.space.gap.inline;
+    let bottom = AREA.bottom() - tokens.size.control.md;
     pos2(AREA.left() + seconds as f32 * 100.0, bottom - (value / 100.0) as f32 * (bottom - top))
 }
 

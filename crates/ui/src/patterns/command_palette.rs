@@ -13,6 +13,7 @@ use crate::menu::row::{Columns, MenuStyle, RowContent, RowPainter, RowState};
 use crate::menu::{self, ItemKind, MenuEntry, MenuItem};
 use crate::primitives::{Content, Divider, Interactive, Surface, SurfaceKind, SurfaceStyle, Text};
 use crate::story::{Level, PatternStoryLabels, Story, StoryArgs, StoryLabels};
+use crate::text::text_width;
 use crate::theme::{ToEgui, UiTokens, current};
 use crate::typed_story;
 use craft_theme::{ControlSize, TypeRole};
@@ -23,10 +24,10 @@ const PATH_SEPARATOR: &str = " › ";
 /// Most matches the list holds (it scrolls past `max_rows`).
 const MAX_RESULTS: usize = 100;
 
-/// Width of the box.
-const WIDTH: f32 = 560.0;
-/// From the window's top to the box's top.
-const TOP: f32 = 110.0;
+/// Share of the window's height from its top to the box's top.
+const TOP_SHARE: f32 = 0.12;
+/// Share of the window's width the box takes at most.
+const MAX_WIDTH_SHARE: f32 = 0.6;
 /// Result rows shown before the list scrolls.
 const MAX_ROWS: usize = 12;
 /// Commands remembered for the empty query.
@@ -36,10 +37,6 @@ const RECENT: usize = 8;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CommandPaletteStyle {
-    /// Width of the box: a fixed width, capped by the window.
-    pub width: f32,
-    /// From the window's top to the box's top: a fixed offset.
-    pub top: f32,
     /// Inner margin of the box: `space.gap.stack`.
     pub pad: f32,
     /// Height of a result row: `size.control.md` plus `2 * space.gap.tight`.
@@ -162,8 +159,6 @@ impl CommandPalette<'static, 'static, ()> {
     /// The palette's sizes and colours.
     pub fn style(tokens: &UiTokens) -> CommandPaletteStyle {
         CommandPaletteStyle {
-            width: WIDTH,
-            top: TOP,
             pad: tokens.space.gap.stack,
             row_height: tokens.size.control.md + 2.0 * tokens.space.gap.tight,
             max_rows: MAX_ROWS,
@@ -171,6 +166,21 @@ impl CommandPalette<'static, 'static, ()> {
             scrim: tokens.color.surface.scrim.to_egui(),
             surface: Surface::style(tokens, SurfaceKind::Popup),
         }
+    }
+}
+
+/// What a result row shows for `entry`.
+fn row_content<T>(entry: &PaletteEntry<T>) -> RowContent<'_> {
+    RowContent {
+        label: entry.label(),
+        mnemonic: None,
+        icon: None,
+        swatch: None,
+        kind: ItemKind::Plain,
+        shortcut: entry.shortcut_of(),
+        submenu: false,
+        tint: None,
+        detail: None,
     }
 }
 
@@ -225,12 +235,14 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
             Some(host) => (*host).clone(),
             None => ctx.data(|d| d.get_temp(recents_id)).unwrap_or_default(),
         };
-        let width = style.width.min(ctx.content_rect().width() - 2.0 * SCREEN_MARGIN).max(0.0);
-        let area = egui::Modal::default_area(self.id).anchor(Align2::CENTER_TOP, vec2(0.0, style.top)).accessible_name(self.labels.name.clone());
+        let window = ctx.content_rect();
+        let top = window.height() * TOP_SHARE;
+        let area = egui::Modal::default_area(self.id).anchor(Align2::CENTER_TOP, vec2(0.0, top)).accessible_name(self.labels.name.clone());
         let mut outcome = Outcome::default();
         let shown = egui::Modal::new(self.id).area(area).backdrop_color(style.scrim).frame(Frame::NONE).show(ctx, |ui| {
             Surface::new(SurfaceKind::Popup).show(ui, |ui| {
                 Frame::NONE.inner_margin(Margin::same(style.pad.round() as i8)).show(ui, |ui| {
+                    let width = self.box_width(ui, &style, &tokens, window.width());
                     ui.set_width((width - 2.0 * style.pad).max(0.0));
                     ui.spacing_mut().item_spacing.y = 0.0;
                     outcome = self.contents(ui, &style, &tokens, &mut state, &recent);
@@ -260,6 +272,20 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
             ctx.data_mut(|d| d.remove_temp::<State>(state_id));
         }
         chosen
+    }
+
+    /// The width of the box: the widest of the entries' rows, the search field with its
+    /// placeholder and the key hint, plus the margins, no wider than [`MAX_WIDTH_SHARE`] of a
+    /// `window` wide window and its margins.
+    fn box_width(&self, ui: &Ui, style: &CommandPaletteStyle, tokens: &UiTokens, window: f32) -> f32 {
+        let menu_style = MenuStyle::new(tokens, ControlSize::Md);
+        let rows = RowPainter { style: &menu_style, tokens, size: ControlSize::Md };
+        let cols = Columns { marks: false, icons: false, width: 0.0 };
+        let widest = self.entries.iter().map(|entry| rows.width(ui, &row_content(entry), &cols)).fold(0.0, f32::max);
+        let field = text_width(ui, &self.labels.placeholder, &tokens.font(TypeRole::Body)) + 2.0 * tokens.size.control.md;
+        let hint = text_width(ui, &self.labels.hint, &tokens.font(TypeRole::Caption));
+        let wanted = widest.max(field).max(hint) + 2.0 * style.pad;
+        wanted.min(window * MAX_WIDTH_SHARE).min(window - 2.0 * SCREEN_MARGIN).max(0.0)
     }
 
     /// The entries the list shows for `query`: the matches, or with no query the commands last
@@ -381,17 +407,7 @@ impl<'a, T: Clone + PartialEq + Send + Sync + 'static> CommandPalette<'a, '_, T>
                 for (at, &index) in options.shown.iter().enumerate() {
                     let entry = &self.entries[index];
                     let enabled = entry.is_enabled();
-                    let content = RowContent {
-                        label: entry.label(),
-                        mnemonic: None,
-                        icon: None,
-                        swatch: None,
-                        kind: ItemKind::Plain,
-                        shortcut: entry.shortcut_of(),
-                        submenu: false,
-                        tint: None,
-                        detail: None,
-                    };
+                    let content = row_content(entry);
                     let r = Interactive::with_id(list_id.with(("option", at)), Role::ListBoxOption, entry.label())
                         .sense(Sense::CLICK)
                         .enabled(enabled)

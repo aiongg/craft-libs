@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use craft_theme::Stroke as ThemeStroke;
-use egui::{Area, AsIdSalt, Context, Id, LayerId, Order, Pos2, Rect, StrokeKind, Vec2, pos2, vec2};
+use egui::{Area, AsIdSalt, Context, Id, LayerId, Order, Pos2, Rect, StrokeKind, Ui, Vec2, pos2, vec2};
 
 use crate::controls::{Button, ButtonVariant, ControlSize, IconButton};
 use crate::direction;
@@ -12,13 +12,14 @@ use crate::icons::Icon;
 use crate::localized::{Labels as _, LocaleNumbers};
 use crate::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose, SCREEN_MARGIN};
 use crate::primitives::{Content, Corner, Gap, Stack, Text};
-use crate::theme::{ToEgui, current};
+use crate::text::text_width;
+use crate::theme::{ToEgui, UiTokens, current};
 use craft_theme::TypeRole;
 
 /// Pulse speed in radians per second.
 const PULSE_RATE: f64 = 4.0;
-/// Width of the card.
-const CARD_WIDTH: f32 = 340.0;
+/// Share of the window's width the card takes at most.
+const MAX_CARD_SHARE: f32 = 0.3;
 /// How far the highlight outline grows at the top of its pulse.
 const HIGHLIGHT_PULSE: f32 = 2.0;
 const REPAINT: Duration = Duration::from_millis(33);
@@ -91,6 +92,28 @@ struct Visit {
     previous: Option<Id>,
 }
 
+/// The card's inner width: the widest title or body line of any step, so the card keeps its width
+/// from step to step, at least what the footer's buttons need and at most [`MAX_CARD_SHARE`] of a
+/// `window` wide window (the footer's width wins over the share).
+fn card_width(ui: &Ui, tokens: &UiTokens, labels: &TourLabels, steps: &[TourStep], window: f32) -> f32 {
+    let (title, body) = (tokens.font(TypeRole::Title), tokens.font(TypeRole::Body));
+    let text = steps.iter().map(|s| text_width(ui, &s.title, &title).max(text_width(ui, &s.body, &body))).fold(0.0, f32::max);
+    let label = tokens.font(TypeRole::Label);
+    let button = |name: &str| text_width(ui, name, &label) + tokens.size.control.md;
+    let footer = button(&labels.skip) + button(&labels.back) + button(&labels.next).max(button(&labels.done)) + 2.0 * tokens.space.gap.inline;
+    text.min(window * MAX_CARD_SHARE).max(footer).min((window - 2.0 * SCREEN_MARGIN).max(footer))
+}
+
+/// The size the card with `step` takes before it has been laid out once: the stacked rows at
+/// `width`, inside the popover's margin.
+fn card_estimate(ui: &Ui, tokens: &UiTokens, step: &TourStep, width: f32) -> Vec2 {
+    let line = |role: TypeRole| tokens.typography.get(role).line_height;
+    let body = ui.painter().layout(step.body.clone(), tokens.font(TypeRole::Body), egui::Color32::PLACEHOLDER, width).size().y;
+    let rows = [line(TypeRole::Caption).max(tokens.size.control.sm), line(TypeRole::Title), body, tokens.size.control.md];
+    let margin = 2.0 * tokens.space.gap.stack;
+    vec2(width + margin, rows.iter().sum::<f32>() + (rows.len() - 1) as f32 * tokens.space.gap.stack + margin)
+}
+
 /// The card's top left corner. Beside the target on the first side with room (right, left, below,
 /// above), else at the bottom right; centred without a target. `margin` is kept to the screen's
 /// edge.
@@ -160,7 +183,8 @@ impl Tour {
         host.show(ctx, |ui| {
             let salt = ("card", index);
             let card_id = ui.make_persistent_id(salt);
-            let estimate = vec2(CARD_WIDTH + 2.0 * (tokens.space.gap.stack + 1.0), 4.0 * CARD_WIDTH / 7.0);
+            let card_width = card_width(ui, &tokens, &labels, steps, ctx.content_rect().width());
+            let estimate = card_estimate(ui, &tokens, step, card_width);
             let size = ctx.memory(|m| m.area_rect(card_id)).map_or(estimate, |r| r.size());
             let at = card_position(step.target, size, ctx.content_rect(), SCREEN_MARGIN, tokens.space.pad.panel);
             let mut open = true;
@@ -168,7 +192,7 @@ impl Tour {
                 .close(PopoverClose::default().outside(false).focus_left(false).enter(true))
                 .label(step.title.clone())
                 .show(ui, &mut open, |ui, pop| {
-                    ui.set_width(CARD_WIDTH);
+                    ui.set_width(card_width);
                     let mut clicked = None;
                     Stack::new(Gap::Row).show(ui, |ui| {
                         direction::horizontal(ui, |ui| {

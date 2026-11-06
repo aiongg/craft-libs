@@ -9,7 +9,6 @@ use egui::{Key, KeyboardShortcut, Modifiers, Ui};
 use egui_kittest::Harness;
 use egui_kittest::kittest::{NodeT as _, Queryable as _};
 
-use super::style::TimelineStyle;
 use super::transport::{MediaControls, TransportBar, TransportBarSettings, TransportButton};
 
 fn harness<S>(show: impl FnMut(&mut Ui, &mut S) + 'static, state: S) -> Harness<'static, S> {
@@ -121,12 +120,12 @@ fn media_controls_toggle_nudge_and_seek() {
     assert_eq!(step, Some(6.75), "Right moves a quarter second");
 }
 
-// the buttons are `timeline.transport_button` squares, not the toolbar's own size.
+// the buttons are `size.control.md` squares, not the toolbar's own size.
 #[test]
 fn transport_buttons_use_the_timeline_leaf_size() {
     let harness = harness(
         |ui, side: &mut f32| {
-            *side = TimelineStyle::of(&Tokens::of(ui)).transport_button;
+            *side = Tokens::of(ui).size.control.md;
             let _ = TransportBar::new("bar", &TransportButton::PROGRAM).show(ui);
         },
         0.0,

@@ -841,7 +841,7 @@ impl<'a> TimelineScrollBar<'a> {
         painter.rect_filled(bar, round, color.surface.sunken.to_egui());
         let hot = response.hovered() || response.dragged();
         painter.rect_filled(thumb, round, if hot { color.text.muted } else { color.text.faint }.to_egui());
-        let radius = style.scroll_knob_radius;
+        let radius = tokens.shape.radius.sm;
         for x in [thumb.left() + thumb.height() / 2.0, thumb.right() - thumb.height() / 2.0] {
             painter.circle(
                 pos2(x, thumb.center().y),

@@ -3,7 +3,7 @@
 use craft_theme::ButtonVariant;
 use craft_ui::controls::{Button, Link};
 use craft_ui::localized::{Labels as _, Words, fmt};
-use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, corner_radius};
+use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens, corner_radius};
 use egui::accesskit::Role;
 use egui::{Align, AsIdSalt, Color32, Frame, IdSalt, Layout, Margin, Response, Sense, Ui, Vec2, WidgetInfo};
 
@@ -51,7 +51,7 @@ craft_ui::words! {
 
 /// PowerPoint's Compare pane (DeckCraft): "Compared with {name}" (and the by-position note),
 /// Accept All (n) and Reject All (n), then a card per change: a colour bar
-/// (`ReviewStyle::revision_bar_*` in `ReviewStyle::revision_inserted`, `_deleted` or `_changed` of
+/// (`ReviewStyle::revision_bar_*` in `status.good`, `bad` or `info` of
 /// [`ReviewStyle`]), the heading as a [`Link`]
 /// (goes there), Accept and Reject at the right, up to eight detail lines with bullets. With no
 /// changes: "No differences left." and End Review. Every link and button is a Tab stop in reading
@@ -137,11 +137,11 @@ pub struct RevisionsPanelOutput {
 }
 
 /// The colour bar of `kind`.
-fn kind_color(style: &ReviewStyle, kind: RevisionKind) -> Color32 {
+fn kind_color(tokens: &UiTokens, kind: RevisionKind) -> Color32 {
     match kind {
-        RevisionKind::Inserted => style.revision_inserted,
-        RevisionKind::Deleted => style.revision_deleted,
-        RevisionKind::Changed => style.revision_changed,
+        RevisionKind::Inserted => tokens.color.status.good.fg.to_egui(),
+        RevisionKind::Deleted => tokens.color.status.bad.fg.to_egui(),
+        RevisionKind::Changed => tokens.color.status.info.fg.to_egui(),
     }
 }
 
@@ -174,7 +174,7 @@ fn card(
         ui.horizontal(|ui| {
             let (bar, response) = ui.allocate_exact_size(Vec2::new(style.revision_bar_width, style.revision_bar_height), Sense::hover());
             response.widget_info(|| WidgetInfo::labeled(Role::Label, true, kind_word(labels, revision.kind)));
-            ui.painter().rect_filled(bar, 0.0, kind_color(style, revision.kind));
+            ui.painter().rect_filled(bar, 0.0, kind_color(tokens, revision.kind));
             if ui.add(Link::new(&revision.heading).id_salt(id.with(("go", index)))).clicked() {
                 actions.push(RevisionAction::Go(index));
             }

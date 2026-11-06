@@ -245,7 +245,7 @@ pub enum CommentEdit {
 ///   `ReviewStyle::status_*` of [`ReviewStyle`]); the checkmark (a toggle on the
 ///   selected card, a mark otherwise); a lock badge; replies under it, each with its own "…"
 ///   ([`PressMenu`]: Edit, Copy text, Delete).
-/// - The selected card has the `ReviewStyle::card_accent` bar, the reply box and "…" (Edit, Set
+/// - The selected card has the `accent.solid` bar, the reply box and "…" (Edit, Set
 ///   status, Delete). Locked threads and `read_only` hide the editing items.
 /// - Keyboard: Up / Down move between cards (selecting them), Enter focuses the reply box, Esc
 ///   leaves an inline edit; every button is a Tab stop. AccessKit: a list of cards, each named
@@ -446,13 +446,13 @@ fn kind_icon(kind: Option<AnnotationKind>) -> Icon {
 }
 
 /// The icon and colour of a status badge; `None` has none.
-fn status_badge(style: &ReviewStyle, status: ReviewStatus) -> Option<(Icon, Color32)> {
+fn status_badge(tokens: &UiTokens, status: ReviewStatus) -> Option<(Icon, Color32)> {
     match status {
         ReviewStatus::None => None,
-        ReviewStatus::Accepted => Some((Icon::ThumbsUp, style.status_accepted)),
-        ReviewStatus::Rejected => Some((Icon::ThumbsDown, style.status_rejected)),
-        ReviewStatus::Cancelled => Some((Icon::XCircle, style.status_cancelled)),
-        ReviewStatus::Completed => Some((Icon::Check, style.status_completed)),
+        ReviewStatus::Accepted => Some((Icon::ThumbsUp, tokens.color.status.good.fg.to_egui())),
+        ReviewStatus::Rejected => Some((Icon::ThumbsDown, tokens.color.status.bad.fg.to_egui())),
+        ReviewStatus::Cancelled => Some((Icon::XCircle, tokens.color.text.faint.to_egui())),
+        ReviewStatus::Completed => Some((Icon::Check, tokens.color.status.good.fg.to_egui())),
     }
 }
 
@@ -784,7 +784,7 @@ fn select(thread: ThreadId, state: &mut CommentsPanelState, edits: &mut Vec<Comm
 
 /// Draws a card; true when the card itself has the keyboard focus.
 fn card(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelState, edits: &mut Vec<CommentEdit>) -> bool {
-    let (tokens, style) = (cx.tokens, cx.style);
+    let tokens = cx.tokens;
     let selected = state.selected == Some(thread.id);
     let editable = !cx.read_only && !thread.locked;
     let id = card_id(cx, thread.id);
@@ -811,8 +811,8 @@ fn card(ui: &mut Ui, cx: &Cx, thread: &CommentThread, state: &mut CommentsPanelS
     let response = shown.response;
     let rect = shown.inner;
     if selected {
-        let bar = Rect::from_min_max(rect.min, pos2(rect.min.x + style.card_accent_width, rect.max.y));
-        ui.painter().rect_filled(bar, 0.0, style.card_accent);
+        let bar = Rect::from_min_max(rect.min, pos2(rect.min.x + tokens.stroke.thick, rect.max.y));
+        ui.painter().rect_filled(bar, 0.0, tokens.color.accent.solid.to_egui());
     }
     let name = thread.messages.first().map_or_else(String::new, |m| fmt(&cx.labels.card_name, &[("author", &m.author), ("text", &m.text)]));
     ui.ctx().accesskit_node_builder(response.id, |node| {
@@ -899,7 +899,7 @@ fn card_head(
             } else if thread.marked {
                 badge(ui, tokens, Icon::Check, tokens.color.text.muted.to_egui(), &labels.marked);
             }
-            if let Some((icon, color)) = status_badge(style, thread.status) {
+            if let Some((icon, color)) = status_badge(tokens, thread.status) {
                 status_chip(ui, tokens, icon, color, status_label(labels, thread.status));
             }
         });

@@ -289,7 +289,7 @@ impl<'a> ThreadPopover<'a> {
             .label(name)
             .show(ui, &mut open, |ui, pop| {
                 pop.initial_focus(reply_field(&cx));
-                ui.set_width(style.popover_width);
+                ui.set_width(style.popover_width(ui.painter(), &tokens));
                 ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
                 popover_header(ui, &cx, pop, &mut edits);
                 let mut escape_used = false;
@@ -353,7 +353,7 @@ impl<'a> CommentComposer<'a> {
             .label(&labels.add_comment)
             .show(ui, &mut open, |ui, pop| {
                 pop.initial_focus(field_id);
-                ui.set_width(style.popover_width);
+                ui.set_width(style.popover_width(ui.painter(), &tokens));
                 ui.spacing_mut().item_spacing.y = tokens.space.gap.row;
                 let field = TextField::new(id.with("text"), &labels.add_comment, draft.as_str())
                     .id(field_id)
@@ -460,8 +460,8 @@ fn single_pin(ui: &mut Ui, cx: &PinCx, pin: &CommentPin, me: &str, open: bool, o
         if unread {
             let centre = rect.right_top() + vec2(-style.pin_dot_inset, style.pin_dot_inset);
             let ring = StrokeWidth::W1.width(ui.pixels_per_point());
-            ui.painter().circle_filled(centre, style.pin_dot_radius + ring, tokens.color.surface.raised.to_egui());
-            ui.painter().circle_filled(centre, style.pin_dot_radius, accent);
+            ui.painter().circle_filled(centre, tokens.shape.radius.sm + ring, tokens.color.surface.raised.to_egui());
+            ui.painter().circle_filled(centre, tokens.shape.radius.sm, accent);
         }
         if resolved {
             let centre = rect.right_bottom() - Vec2::splat(style.pin_check_inset);

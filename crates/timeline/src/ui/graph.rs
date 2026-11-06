@@ -274,8 +274,8 @@ impl<'a> GraphEditor<'a> {
         let style = TimelineStyle::of(&tokens);
         let enabled = ui.is_enabled();
         let id = ui.make_persistent_id(id_salt);
-        let bar = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - style.graph_bar_height).max(rect.top())), rect.max);
-        let plot = Rect::from_min_max(pos2(rect.left(), (rect.top() + style.graph_top_inset).min(bar.top())), pos2(rect.right(), bar.top()));
+        let bar = Rect::from_min_max(pos2(rect.left(), (rect.bottom() - tokens.size.control.md).max(rect.top())), rect.max);
+        let plot = Rect::from_min_max(pos2(rect.left(), (rect.top() + tokens.space.gap.inline).min(bar.top())), pos2(rect.right(), bar.top()));
         let response = ui.interact(plot, id, Sense::click_and_drag());
         let modifiers = ui.input(|i| i.modifiers);
 
@@ -633,7 +633,7 @@ fn paint_plot(
         let y = y_of(line);
         plot_painter.line_segment([pos2(plot.left(), y), pos2(plot.right(), y)], grid);
         plot_painter.text(
-            pos2(plot.left() + style.graph_label_inset, y - hairline),
+            pos2(plot.left() + tokens.space.gap.inline, y - hairline),
             Align2::LEFT_BOTTOM,
             format_value(line, step),
             text.font_id.clone(),
