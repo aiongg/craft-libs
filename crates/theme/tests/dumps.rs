@@ -58,6 +58,28 @@ fn app_sizes_dump() -> (String, String) {
     ("pro-dark-standard-comfortable-app-sizes.txt".to_owned(), dump(&resolved.tokens, &resolved.warnings))
 }
 
+/// The token set is closed: every path a built-in produces is listed in `tests/token-set.txt`,
+/// and every listed path is produced. The list changes only by hand, after the plan does.
+#[test]
+fn token_set_is_the_listed_set() {
+    let text = include_str!("token-set.txt");
+    let listed: BTreeSet<&str> = text.lines().filter(|l| !l.is_empty() && !l.starts_with('#')).collect();
+    let mut produced = BTreeSet::new();
+    for (_, tokens, _) in resolved_variants() {
+        for line in tokens_text(&tokens).lines() {
+            produced.insert(line.split_once(" = ").map_or(line, |(path, _)| path).to_owned());
+        }
+    }
+    let new: Vec<&str> = produced.iter().map(String::as_str).filter(|p| !listed.contains(p)).collect();
+    let gone: Vec<&str> = listed.iter().copied().filter(|p| !produced.contains(*p)).collect();
+    assert!(
+        new.is_empty(),
+        "token paths not in tests/token-set.txt (a token needs a role shared by several components and an entry in the design-system plan first):\n  {}",
+        new.join("\n  ")
+    );
+    assert!(gone.is_empty(), "tests/token-set.txt lists paths no theme produces; delete these lines:\n  {}", gone.join("\n  "));
+}
+
 #[test]
 fn token_paths_are_unique_in_every_variant() {
     for (name, tokens, _) in resolved_variants() {
