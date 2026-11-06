@@ -171,7 +171,7 @@ fn a_dialog_is_dragged_no_further_than_the_window() {
 
 #[test]
 fn width_classes_set_the_frame_width_within_the_window() {
-    // The frame is the content width plus `space.pad.dialog` on each side, within the width class.
+    // The frame is the content width plus `space.pad.panel` on each side, within the width class.
     for width in [Width::Compact, Width::Standard, Width::Wide, Width::Fixed(300.0), Width::Range { min: 100.0, max: 500.0 }] {
         let mut app = App::new();
         app.width = width;
@@ -180,7 +180,7 @@ fn width_classes_set_the_frame_width_within_the_window() {
         let tokens = crate::theme::current(&harness.ctx);
         let (_, max) = width.range(&tokens, 1000.0);
         let frame = harness.state().rect().width();
-        let pad = 2.0 * tokens.space.pad.dialog;
+        let pad = 2.0 * tokens.space.pad.panel;
         assert!(frame <= max + pad + 1.0, "{width:?}: {frame} within {max} + {pad}");
         assert!(frame > pad + 1.0, "{width:?}: the frame holds its content: {frame}");
         if let Width::Fixed(fixed) = width {
@@ -754,7 +754,7 @@ fn a_footer_keeps_its_gap_to_the_bottom_of_a_capped_resizable_dialog() {
     });
     harness.run();
     let gap = frame.get().bottom() - harness.get_by_label("OK").rect().bottom();
-    let pad = crate::theme::current(&harness.ctx).space.pad.dialog;
+    let pad = crate::theme::current(&harness.ctx).space.pad.panel;
     assert!((gap - pad).abs() < 0.5, "footer to frame bottom {gap}, pad {pad}, frame {:?}", frame.get());
 }
 
@@ -810,7 +810,7 @@ fn the_title_rule_sits_the_title_height_under_the_pad_whatever_the_close_box() {
                 // The body starts after the rule (one point), an item gap and the body gap.
                 at[i] = body_top - r.rect.top() - 1.0 - gap - tokens.space.gap.stack;
                 if !close {
-                    expected = tokens.space.pad.dialog + r.title_height + gap + tokens.space.gap.inline;
+                    expected = tokens.space.pad.panel + r.title_height + gap + tokens.space.gap.inline;
                 }
             });
             output.drop_without_applying_deltas();
