@@ -148,7 +148,7 @@ impl DialogFrame {
     pub fn style(tokens: &UiTokens, pixels_per_point: f32) -> DialogFrameStyle {
         DialogFrameStyle {
             surface: Surface::style(tokens, SurfaceKind::Dialog),
-            pad: tokens.space.pad.dialog,
+            pad: tokens.space.pad.panel,
             pad_roomy: tokens.space.pad.dialog,
             title_gap: tokens.space.gap.inline,
             body_gap: tokens.space.gap.stack,

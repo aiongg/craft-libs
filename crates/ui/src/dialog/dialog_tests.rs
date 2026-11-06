@@ -819,3 +819,21 @@ fn the_title_rule_sits_the_title_height_under_the_pad_whatever_the_close_box() {
     assert!((at[0] - expected).abs() < 0.5, "rule at {}, expected {expected}", at[0]);
     assert!((at[1] - at[0]).abs() < 0.5, "the close box moved the rule: {} against {}", at[1], at[0]);
 }
+
+// The close box overlays the title row, so its centre is the row's centre, which the drag band
+// (symmetric about the row) shares.
+#[test]
+fn the_close_box_centres_on_the_title_row() {
+    let ctx = egui::Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut centres = None;
+    for _ in 0..2 {
+        let output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let r = DialogFrame::new("frame", "New Document").close_label("Close").show(ui, |_| {});
+            centres = r.close.map(|close| (close.rect.center().y, r.drag.rect.center().y));
+        });
+        output.drop_without_applying_deltas();
+    }
+    let (close, title) = centres.expect("a close box");
+    assert!((close - title).abs() <= 1.0, "close box centre {close}, title centre {title}");
+}
