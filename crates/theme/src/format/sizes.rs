@@ -1,6 +1,6 @@
 //! Size set files: schema `craft-design-sizes`, version 1. Read, checked and written with the
 //! conventions of theme files: unknown top-level keys are kept, every error is reported with
-//! its path. Unlike a theme, `base` and `components` take only the paths in the table in
+//! its path. Unlike a theme, `base` takes only the paths in the table in
 //! [`sizes`](crate::sizes).
 
 use std::collections::{HashMap, HashSet};
@@ -10,7 +10,7 @@ use serde_json::{Map, Value};
 use super::write::{emit, number, set_path};
 use super::{ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES};
 use crate::ThemeId;
-use crate::sizes::{ComponentSizes, FULL, Leaf, Preset, SizeSet, Slot, leaves};
+use crate::sizes::{FULL, Leaf, Preset, SizeSet, Slot, leaves};
 use crate::tokens::{Edge, FontSlot, RowStyle};
 
 /// The `schema` value of a size set file.
@@ -20,7 +20,7 @@ pub const SIZES_SCHEMA_VERSION: u64 = 1;
 
 const FONT: &str = "\"ui\", \"ui_semibold\" or \"mono\"";
 const FONTS: [(&str, FontSlot); 3] = [("ui", FontSlot::Ui), ("ui_semibold", FontSlot::UiSemibold), ("mono", FontSlot::Mono)];
-const TOP_ORDER: [&str; 6] = ["schema", "schema_version", "id", "name", "base", "components"];
+const TOP_ORDER: [&str; 5] = ["schema", "schema_version", "id", "name", "base"];
 
 /// A parsed size set file: the set and the JSON it came from, so that [`write_sizes`] keeps
 /// unknown keys.
@@ -90,12 +90,12 @@ pub fn parse_sizes(bytes: &[u8]) -> Result<SizeSetFile, FormatErrors> {
         }
     };
 
-    let (mut base, mut components) = (Preset::default(), ComponentSizes::default());
+    let mut base = Preset::default();
     {
-        let mut table = leaves(&mut base, &mut components);
+        let mut table = leaves(&mut base);
         let index: HashMap<&'static str, usize> = table.iter().enumerate().map(|(i, l)| (l.path, i)).collect();
         let mut seen = HashSet::new();
-        for section in ["base", "components"] {
+        for section in ["base"] {
             match raw.get(section) {
                 Some(Value::Object(o)) => walk(o, &mut vec![section.to_owned()], &mut table, &index, &mut seen, &mut errors),
                 None | Some(Value::Null) => errors.push(err(&path_of(section), ErrorKind::Missing)),
@@ -113,7 +113,7 @@ pub fn parse_sizes(bytes: &[u8]) -> Result<SizeSetFile, FormatErrors> {
     if !errors.is_empty() {
         return Err(FormatErrors(errors));
     }
-    let set = SizeSet { name: name.unwrap_or_else(|| id.clone()), id, base, components };
+    let set = SizeSet { name: name.unwrap_or_else(|| id.clone()), id, base };
     set.validate()?;
     Ok(SizeSetFile { set, raw })
 }
@@ -176,20 +176,6 @@ fn assign(slot: &mut Slot<'_>, value: &Value, path: &[String], errors: &mut Vec<
             }
             _ => fail(ErrorKind::BadValue { expected: LENGTH }),
         },
-        Slot::Pair(p) => match value {
-            Value::Array(a) if a.len() == 2 && a.iter().all(Value::is_number) => {
-                **p = [number_of(&a[0]).unwrap_or_default(), number_of(&a[1]).unwrap_or_default()];
-                true
-            }
-            _ => fail(ErrorKind::WrongType { expected: "an array of two numbers" }),
-        },
-        Slot::Bool(b) => match value {
-            Value::Bool(v) => {
-                **b = *v;
-                true
-            }
-            _ => fail(ErrorKind::WrongType { expected: "true or false" }),
-        },
         Slot::Font(f) => match value {
             Value::String(s) => match FONTS.iter().find(|(name, _)| name == s) {
                 Some(&(_, font)) => {
@@ -233,14 +219,13 @@ impl SizeSet {
         if let Err(e) = ThemeId::parse(&self.id) {
             errors.push(err(&path_of("id"), ErrorKind::BadId(e)));
         }
-        let (mut base, mut components) = (self.base, self.components);
-        for leaf in leaves(&mut base, &mut components) {
+        let mut base = self.base;
+        for leaf in leaves(&mut base) {
             let in_range = |v: f32| (leaf.lo..=leaf.hi).contains(&v);
             let ok = match &leaf.slot {
                 Slot::Num(v) => in_range(**v) && v.is_finite(),
                 Slot::Length(v) => **v == FULL || in_range(**v),
-                Slot::Pair(p) => p.iter().all(|&v| in_range(v)),
-                Slot::Bool(_) | Slot::Font(_) | Slot::Edge(_) | Slot::Rows(_) => true,
+                Slot::Font(_) | Slot::Edge(_) | Slot::Rows(_) => true,
             };
             if !ok {
                 errors.push(err(&path_of(leaf.path), ErrorKind::OutOfRange { min: leaf.lo, max: leaf.hi }));
@@ -264,12 +249,8 @@ impl SizeSet {
         le("base.size.control.sm", s.control.sm, "at most base.size.control.md", s.control.md);
         le("base.size.icon.sm", s.icon.sm, "at most base.size.icon.md", s.icon.md);
         le("base.size.icon.md", s.icon.md, "at most base.size.icon.lg", s.icon.lg);
-        le("base.size.list.thumb.sm", s.list.thumb.sm, "at most base.size.list.thumb.md", s.list.thumb.md);
-        le("base.size.list.thumb.md", s.list.thumb.md, "at most base.size.list.thumb.lg", s.list.thumb.lg);
-        // A row grows with a large thumbnail, so only the smaller two are held to the row's least height.
-        le("base.size.list.thumb.md", s.list.thumb.md, "at most base.size.list.thumb_row_min", s.list.thumb_row_min);
-        le("base.size.tab.close_icon", s.tab.close_icon, "at most base.size.tab.close", s.tab.close);
-        le("components.button.height.sm", self.components.button_height_sm, "at most components.button.height.md", self.components.button_height_md);
+        le("base.size.thumb.sm", s.thumb.sm, "at most base.size.thumb.md", s.thumb.md);
+        le("base.size.thumb.md", s.thumb.md, "at most base.size.thumb.lg", s.thumb.lg);
         let t = &self.base.typography;
         for (name, style) in [
             ("caption", t.caption),
@@ -298,14 +279,12 @@ pub fn write_sizes(file: &SizeSetFile) -> Result<String, FormatErrors> {
     raw.insert("schema_version".to_owned(), SIZES_SCHEMA_VERSION.into());
     raw.insert("id".to_owned(), file.set.id.as_str().into());
     raw.insert("name".to_owned(), file.set.name.as_str().into());
-    let (mut base, mut components) = (file.set.base, file.set.components);
-    for leaf in leaves(&mut base, &mut components) {
+    let mut base = file.set.base;
+    for leaf in leaves(&mut base) {
         let value = match &leaf.slot {
             Slot::Num(v) => number(**v),
             Slot::Length(v) if **v == FULL => "full".into(),
             Slot::Length(v) => number(**v),
-            Slot::Pair(p) => Value::Array(p.iter().map(|&v| number(v)).collect()),
-            Slot::Bool(b) => Value::Bool(**b),
             Slot::Font(f) => FONTS.iter().find(|(_, s)| s == *f).map_or(Value::Null, |(name, _)| (*name).into()),
             Slot::Edge(_) => "flat".into(),
             Slot::Rows(r) => match **r {

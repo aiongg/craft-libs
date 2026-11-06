@@ -59,20 +59,16 @@ fn files_round_trip_and_keep_unknown_top_level_keys() {
 fn out_of_range_unknown_and_wrong_kind_values_are_rejected_naming_the_path() {
     let e = rejected(&edited("base.size.control.md", Some(json!(60))));
     assert!(matches!(error_at(&e, "base.size.control.md"), ErrorKind::OutOfRange { .. }));
-    let e = rejected(&edited("components.toolbar.pad", Some(json!([6, 99]))));
-    assert!(matches!(error_at(&e, "components.toolbar.pad"), ErrorKind::OutOfRange { .. }));
     let e = rejected(&edited("base.size.bogus", Some(json!(12))));
     assert_eq!(error_at(&e, "base.size.bogus"), &ErrorKind::UnknownToken);
-    let e = rejected(&edited("components.button.nope", Some(json!({"x": 1}))));
-    assert_eq!(error_at(&e, "components.button.nope"), &ErrorKind::UnknownToken);
-    let e = rejected(&edited("base.size.list.rounded", Some(json!(1))));
-    assert!(matches!(error_at(&e, "base.size.list.rounded"), ErrorKind::WrongType { .. }));
+    let e = rejected(&edited("base.size.list", Some(json!({"x": 1}))));
+    assert_eq!(error_at(&e, "base.size.list"), &ErrorKind::UnknownToken);
     let e = rejected(&edited("base.size.control.md", Some(json!("24"))));
     assert!(matches!(error_at(&e, "base.size.control.md"), ErrorKind::WrongType { .. }));
     let e = rejected(&edited("base.typography.body.font", Some(json!("serif"))));
     assert!(matches!(error_at(&e, "base.typography.body.font"), ErrorKind::BadValue { .. }));
-    let e = rejected(&edited("components.toast.pad", None));
-    assert_eq!(error_at(&e, "components.toast.pad"), &ErrorKind::Missing);
+    let e = rejected(&edited("base.size.hit.slop", None));
+    assert_eq!(error_at(&e, "base.size.hit.slop"), &ErrorKind::Missing);
 }
 
 #[test]
@@ -81,6 +77,6 @@ fn broken_cross_rules_are_rejected_naming_the_path() {
     assert!(matches!(error_at(&e, "base.size.control.sm"), ErrorKind::CrossRule { .. }));
     let e = rejected(&edited("base.typography.body.line_height", Some(json!(10))));
     assert!(matches!(error_at(&e, "base.typography.body.line_height"), ErrorKind::CrossRule { .. }));
-    let e = rejected(&edited("base.size.list.thumb.md", Some(json!(40))));
-    assert!(matches!(error_at(&e, "base.size.list.thumb.md"), ErrorKind::CrossRule { .. }));
+    let e = rejected(&edited("base.size.thumb.md", Some(json!(60))));
+    assert!(matches!(error_at(&e, "base.size.thumb.md"), ErrorKind::CrossRule { .. }));
 }

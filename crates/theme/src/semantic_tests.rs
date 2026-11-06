@@ -157,8 +157,6 @@ fn assert_meets_spec(name: &str, r: &Resolved, contrast: Contrast) {
         let ratio = contrast_ratio(t.color(T::OverlayStroke), halo);
         assert!(ratio >= min, "{name} {contrast:?}: overlay.stroke on halo over {backdrop:?} is {ratio:.2}");
     }
-    let ratio = contrast_ratio(t.color(T::OverlayMarquee), t.color(T::OverlayMarqueeDash));
-    assert!(ratio >= min, "{name} {contrast:?}: overlay.marquee on overlay.marquee_dash is {ratio:.2}");
     let ratio = contrast_ratio(t.color(T::OverlayHandleStroke), t.color(T::OverlayHandleFill));
     assert!(ratio >= min, "{name} {contrast:?}: overlay.handle_stroke on overlay.handle_fill is {ratio:.2}");
 }
@@ -223,91 +221,13 @@ fn pinned_failing_text_warns_in_standard_and_is_fixed_in_high() {
         let t = &r.tokens;
         assert_eq!(t.color(T::TextFaint), pin);
         assert_eq!(t.color(T::CaptionInactive), pin, "caption.inactive follows the pinned text.faint");
-        let mut expected: Vec<_> = TEXT_BGS
+        let expected: Vec<_> = TEXT_BGS
             .map(|bg| ContrastCheck { fg: T::TextFaint.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
             .into_iter()
             .collect();
-        // The off outline of check boxes, radio buttons and switches starts as `text.faint`. Neither
-        // it nor the fill shows, so the outline moves and is not among the warnings.
-        // The inline empty-state message is `text.faint` on the panel.
-        expected.push(ContrastCheck {
-            fg: ComponentField::EmptyState(EmptyStateField::Text).into(),
-            bg: T::SurfacePanel.into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
-            minimum: 4.5,
-        });
-        let sunken = t.color(T::SurfaceSunken);
-        // Text field placeholders and a number's unit are `text.faint` on the field fill,
-        // `surface.sunken`.
-        let field = |part| ComponentField::Field(FieldField::Color { part, disabled: false });
-        for part in [FieldPart::Placeholder, FieldPart::Unit] {
-            expected.push(ContrastCheck {
-                fg: field(part).into(),
-                bg: field(FieldPart::Fill).into(),
-                ratio: contrast_ratio(pin, sunken),
-                minimum: 4.5,
-            });
-        }
-        // An inspector's kind text is `text.faint` on the panel.
-        expected.push(ContrastCheck {
-            fg: ComponentField::Inspector(InspectorField::Kind).into(),
-            bg: T::SurfacePanel.into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
-            minimum: 4.5,
-        });
-        // A review's cancelled status badge is `text.faint` on the panel (a mark: 3:1).
-        expected.push(ContrastCheck {
-            fg: ComponentField::Review(ReviewField::StatusCancelled).into(),
-            bg: T::SurfacePanel.into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
-            minimum: 3.0,
-        });
-        // A list row's dimmed label and its detail line are `text.faint` on the panel.
-        for f in [ComponentField::List(ListField::Dimmed), ComponentField::List(ListField::Detail), ComponentField::Preset(PresetField::Count)] {
-            expected.push(ContrastCheck {
-                fg: f.into(),
-                bg: T::SurfacePanel.into(),
-                ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
-                minimum: 4.5,
-            });
-        }
-        // A panel-rail glyph at rest is `text.faint` on the rail (a mark: 3:1).
-        let rail = |f| ComponentField::Rail(f);
-        expected.push(ContrastCheck {
-            fg: rail(RailField::PanelIcon).into(),
-            bg: rail(RailField::Fill).into(),
-            ratio: contrast_ratio(pin, t.component.color(rail(RailField::Fill)).unwrap()),
-            minimum: 3.0,
-        });
-        // A tab's detail text is `text.faint` on the strip and the active tab.
-        let tab = ComponentField::Tab;
-        for bg in [TabField::Strip, TabField::Active] {
-            expected.push(ContrastCheck {
-                fg: tab(TabField::Detail).into(),
-                bg: tab(bg).into(),
-                ratio: contrast_ratio(pin, t.component.color(tab(bg)).unwrap()),
-                minimum: 4.5,
-            });
-        }
-        // A tab's × is `text.faint` on the strip and the active tab (a mark: 3:1).
-        for bg in [TabField::Strip, TabField::Active] {
-            expected.push(ContrastCheck {
-                fg: tab(TabField::Close).into(),
-                bg: tab(bg).into(),
-                ratio: contrast_ratio(pin, t.component.color(tab(bg)).unwrap()),
-                minimum: 3.0,
-            });
-        }
-        // A toast's "more" line is `text.faint` on the card fill, `surface.panel`.
-        expected.push(ContrastCheck {
-            fg: ComponentField::Toast(ToastField::More).into(),
-            bg: ComponentField::Toast(ToastField::Fill).into(),
-            ratio: contrast_ratio(pin, t.color(T::SurfacePanel)),
-            minimum: 4.5,
-        });
         let reads_pin = |w: &&ContrastCheck| match w.fg {
             TokenRef::Color(c) => r.tokens.color(c) == pin,
-            TokenRef::Component(f) => r.tokens.component.color(f) == Some(pin),
+            TokenRef::Component(_) => false,
         };
         assert_eq!(r.warnings.iter().filter(reads_pin).copied().collect::<Vec<_>>(), expected, "{mode:?}");
 
@@ -486,7 +406,7 @@ fn anchored_greys_take_a_pinned_panels_tint() {
 fn a_bevel_lights_and_shades_a_pinned_panel() {
     let mut def = grey_blue();
     def.id = ThemeId::parse("test.bevel-panel").unwrap();
-    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Bevel { width: 1.0 }) });
     def.pins.light = Pins::from_iter([(T::SurfacePanel, hex("#c0c0c0"))]);
     def.pins.dark = Pins::from_iter([(T::SurfacePanel, hex("#404040"))]);
     for mode in [Mode::Light, Mode::Dark] {
@@ -576,107 +496,34 @@ fn dark_accent_seed_in_light_mode_still_meets_the_overlay_pairs() {
 
 /// Guide colours are the user's, and the bare overlay line can't promise a ratio on an image: a
 /// pinned guide or line colour that vanishes on the panel and the halo is kept in both contrasts
-/// and reported nowhere. The marquee's dashes are a pair, so a pinned marquee that matches them is
-/// fixed in high contrast.
+/// and reported nowhere.
 #[test]
 fn guide_colours_are_exempt_from_the_overlay_pairs() {
     let mut def = grey_blue();
     let faint = hex("#202020");
-    let guides = [
-        T::OverlayGuide,
-        T::OverlayGuideSelected,
-        T::OverlaySmartGuide,
-        T::OverlayLine,
-        T::OverlayCrop,
-        T::OverlayCropGuide,
-        T::OverlayCropInvalid,
-        T::OverlayGrid,
-    ];
-    def.pins.dark = Pins::from_iter(guides.map(|t| (t, faint)).into_iter().chain([(T::OverlayMarquee, hex("#101010"))]));
+    let guides = [T::OverlayGuide, T::OverlayLine, T::OverlayGrid];
+    def.pins.dark = Pins::from_iter(guides.map(|t| (t, faint)));
     let standard = resolve(&def, app(Mode::Dark, Contrast::Standard), None);
     for t in guides {
         assert_eq!(standard.tokens.color(t), faint, "{}", t.path());
         assert!(!standard.warnings.iter().any(|w| w.fg == TokenRef::Color(t) || w.bg == TokenRef::Color(t)), "{}: {:?}", t.path(), standard.warnings);
     }
-    assert!(
-        standard.warnings.iter().any(|w| w.fg == TokenRef::Color(T::OverlayMarquee) && w.bg == TokenRef::Color(T::OverlayMarqueeDash)),
-        "{:?}",
-        standard.warnings
-    );
     let high = resolve(&def, app(Mode::Dark, Contrast::High), None);
     for t in guides {
         assert_eq!(high.tokens.color(t), faint, "{}", t.path());
     }
-    let ratio = contrast_ratio(high.tokens.color(T::OverlayMarquee), high.tokens.color(T::OverlayMarqueeDash));
-    assert!(ratio >= 4.5, "high contrast fixes the pinned marquee: {ratio:.2}");
 }
 
-/// The crop and grid overlays sit on the document, so they keep one value in every built-in mode.
+/// The grid overlay sits on the document, so it keeps one value in every built-in mode.
 #[test]
-fn crop_and_grid_overlay_colours_are_fixed() {
+fn grid_overlay_colour_is_fixed() {
     for theme in builtins() {
         for mode in [Mode::Light, Mode::Dark] {
             if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
                 continue;
             }
             let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
-            assert_eq!(c.overlay.crop, Rgba::WHITE);
-            assert_eq!(c.overlay.crop_guide, Rgba::WHITE.with_alpha(90));
-            assert_eq!(c.overlay.crop_invalid, hex("#e53e3e"));
             assert_eq!(c.overlay.grid, hex("#8c8c8c"));
-        }
-    }
-}
-
-/// Grips sit on the document, so they keep CadCraft's colours in every built-in mode.
-#[test]
-fn grip_overlay_colours_are_fixed() {
-    for theme in builtins() {
-        for mode in [Mode::Light, Mode::Dark] {
-            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
-                continue;
-            }
-            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
-            assert_eq!(c.overlay.grip, hex("#2f6bff"));
-            assert_eq!(c.overlay.grip_warm, hex("#ff7f9f"));
-            assert_eq!(c.overlay.grip_hot, hex("#ff3b3b"));
-            assert_eq!(c.overlay.grip_stroke, hex("#103080"));
-            assert_eq!(c.overlay.grip_dyn, hex("#26c6e8"));
-        }
-    }
-}
-
-/// Warp pins and the pin mesh sit on the document, so they keep PhotoCraft's colours in every built-in mode.
-#[test]
-fn pin_overlay_colours_are_fixed() {
-    for theme in builtins() {
-        for mode in [Mode::Light, Mode::Dark] {
-            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
-                continue;
-            }
-            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
-            assert_eq!(c.overlay.pin, hex("#ffd60a"));
-            assert_eq!(c.overlay.pin_ring, hex("#000000"));
-            assert_eq!(c.overlay.pin_turn, hex("#ffffff"));
-            assert_eq!(c.overlay.mesh, hex("#28282896"));
-        }
-    }
-}
-
-/// Slice and artboard overlays sit on the document, so they keep PhotoCraft's colours in every built-in mode.
-#[test]
-fn slice_and_artboard_overlay_colours_are_fixed() {
-    for theme in builtins() {
-        for mode in [Mode::Light, Mode::Dark] {
-            if matches!((theme.variants, mode), (Variants::LightOnly, Mode::Dark) | (Variants::DarkOnly, Mode::Light)) {
-                continue;
-            }
-            let c = resolve(theme, app(mode, Contrast::Standard), None).tokens.color;
-            assert_eq!(c.overlay.slice, hex("#38b5ff"));
-            assert_eq!(c.overlay.slice_selected, hex("#ffb000"));
-            assert_eq!(c.overlay.slice_auto, hex("#6e6e6e"));
-            assert_eq!(c.overlay.slice_text, hex("#ffffff"));
-            assert_eq!(c.overlay.artboard, hex("#0000005a"));
         }
     }
 }
@@ -760,60 +607,6 @@ fn single_variant_theme_resolves_both_modes() {
 }
 
 #[test]
-fn options_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
-    let def = grey_blue();
-    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.options_bar;
-    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
-    assert_eq!((compact.height, compact.height_narrow, compact.pad, compact.gap, compact.divider), (36.0, 30.0, 10.0, 8.0, 22.0));
-    assert_eq!((compact.field_sm, compact.field_md, compact.field_lg), (58.0, 62.0, 76.0));
-    assert_eq!((compact.scroll_bar, compact.button, compact.row_gap), (4.0, 26.0, 4.0));
-    assert_eq!((comfy.height, comfy.height_narrow, comfy.pad, comfy.gap, comfy.divider), (42.0, 34.0, 10.0, 10.0, 28.0));
-    assert_eq!((comfy.field_sm, comfy.field_md, comfy.field_lg), (72.0, 78.0, 95.0));
-    assert_eq!((comfy.scroll_bar, comfy.button, comfy.row_gap), (4.0, 28.0, 5.0));
-}
-
-#[test]
-fn status_bar_sizes_are_photocraft_compact_scaled_by_the_control_height() {
-    let def = grey_blue();
-    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.status_bar;
-    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
-    assert_eq!(
-        (compact.height, compact.pad, compact.gap, compact.group_gap, compact.divider, compact.field_width),
-        (24.0, 10.0, 8.0, 12.0, 16.0, 64.0)
-    );
-    assert_eq!((comfy.height, comfy.pad, comfy.gap, comfy.group_gap, comfy.divider, comfy.field_width), (30.0, 10.0, 10.0, 15.0, 20.0, 78.0));
-}
-
-#[test]
-fn command_palette_sizes_are_photocraft_with_a_taller_row_when_comfortable() {
-    let def = grey_blue();
-    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.command_palette;
-    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
-    assert_eq!((compact.width, compact.top, compact.pad, compact.row_height, compact.max_rows, compact.recent), (560.0, 110.0, 10.0, 32.0, 12, 8));
-    assert_eq!((comfy.width, comfy.row_height), (560.0, 38.0));
-}
-
-#[test]
-fn inspector_sizes_are_photocraft_header_with_a_taller_row_when_comfortable() {
-    let def = grey_blue();
-    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
-    let (compact, comfy) = (at(Size::Compact), at(Size::Comfortable));
-    let (c, k) = (compact.component.inspector, comfy.component.inspector);
-    assert_eq!((c.header_height, c.icon, k.header_height, k.icon), (24.0, 15.0, 30.0, 18.0));
-    assert_eq!(c.pad, compact.space.pad.panel);
-    assert_eq!((c.title, c.kind), (compact.color(T::TextNormal), compact.color(T::TextFaint)));
-}
-
-#[test]
-fn toolbar_sizes_are_photocraft_with_larger_buttons_when_comfortable() {
-    let def = grey_blue();
-    let at = |size| resolve(&def, Appearance { size, ..app(Mode::Light, Contrast::Standard) }, None).tokens.component.toolbar;
-    let (c, k) = (at(Size::Compact), at(Size::Comfortable));
-    assert_eq!((c.button, c.button_large, c.gap, c.group_gap, c.pad, c.width, c.overflow), (26.0, 34.0, 4.0, 6.0, [6.0, 8.0], 48.0, 30.0));
-    assert_eq!((k.button, k.button_large, k.gap, k.group_gap, k.pad, k.width, k.overflow), (32.0, 42.0, 5.0, 8.0, [8.0, 10.0], 60.0, 38.0));
-}
-
-#[test]
 fn size_presets_text_size_shape_and_motion() {
     let def = grey_blue();
     let at = |size, text_size| resolve(&def, Appearance { size, text_size, ..app(Mode::Light, Contrast::Standard) }, None).tokens;
@@ -823,10 +616,8 @@ fn size_presets_text_size_shape_and_motion() {
     assert_eq!((compact.size.control.md, compact.size.control.sm), (24.0, 20.0));
     assert_eq!((comfy.size.control.md, comfy.size.control.sm), (30.0, 24.0));
     assert_eq!((compact.size.bar.title, compact.size.bar.tab, compact.size.bar.status, compact.size.bar.options), (32.0, 26.0, 24.0, 36.0));
-    assert_eq!((compact.size.bar.options_narrow, comfy.size.bar.options, comfy.size.bar.options_narrow), (30.0, 42.0, 34.0));
+    assert_eq!(comfy.size.bar.options, 42.0);
     assert_eq!((comfy.size.rail.width, comfy.size.rail.button, comfy.size.panel_header), (50.0, 36.0, 34.0));
-    assert_eq!((compact.size.rail.panel_width, compact.size.rail.panel_button), (36.0, 28.0));
-    assert_eq!((comfy.size.rail.panel_width, comfy.size.rail.panel_button), (44.0, 32.0));
     assert_eq!((comfy.size.icon.sm, comfy.size.icon.md, comfy.size.icon.lg), (14.0, 18.0, 22.0));
     assert_eq!((compact.space.gap.inline, compact.space.gap.stack, compact.space.gap.section), (4.0, 6.0, 12.0));
     assert_eq!((comfy.space.pad.control, comfy.space.pad.panel, comfy.space.pad.dialog), (8.0, 12.0, 20.0));
@@ -852,6 +643,7 @@ fn size_presets_text_size_shape_and_motion() {
     classic.shape = Some(ShapeSeed {
         radius: Some(RadiusSet { sm: 0.0, control: 0.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
+        button_radius: None,
         edge: Some(EdgeSeed::Bevel { width: 1.0 }),
     });
     classic.pins.light = Pins::from_iter([(T::EdgeLight, Rgba::WHITE)]);
@@ -1015,33 +807,18 @@ fn unpinned_accent_strong_follows_a_pinned_accent_solid() {
     assert!(contrast_ratio(text, strong) >= 4.5, "{strong:?}");
 }
 
-/// A failing pin is reported on its semantic pairs and on every component pair whose default
-/// reads it; the colours stay.
+/// A failing pin is reported on its semantic pairs; the colours stay.
 #[test]
-fn pinned_failing_text_warns_on_its_pairs_and_the_component_pairs_that_read_it() {
+fn pinned_failing_text_warns_on_its_pairs() {
     let mut def = grey_blue();
     let pin = hex("#c8c8c8");
     def.pins.light = Pins::from_iter([(T::TextNormal, pin)]);
-    let (r, steps) = resolve::resolve_with_steps(&def, app(Mode::Light, Contrast::Standard), None, &AppSizes::default());
+    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
     let t = &r.tokens;
     let expected: Vec<_> = TEXT_BGS
         .map(|bg| ContrastCheck { fg: T::TextNormal.into(), bg: bg.into(), ratio: contrast_ratio(pin, t.color(bg)), minimum: 4.5 })
         .into_iter()
         .collect();
-    let reads_pin = |w: &&ContrastCheck| match w.fg {
-        TokenRef::Component(f) => t.component.color(f) == Some(pin),
-        TokenRef::Color(c) => t.color(c) == pin,
-    };
-    let (semantic, component): (Vec<ContrastCheck>, Vec<ContrastCheck>) =
-        r.warnings.iter().filter(reads_pin).partition(|w| matches!(w.fg, TokenRef::Color(_)));
-    assert_eq!(semantic, expected);
-    let failing: Vec<_> = steps.component_pairs.iter().filter(|p| !p.passes()).filter(reads_pin).copied().collect();
-    assert!(!component.is_empty());
-    assert_eq!(component, failing);
-
-    // A pinned component colour is reported.
-    let text = ComponentField::from_path("button.secondary.text.rest").unwrap();
-    def.pins.light = Pins::from_iter([(TokenRef::Component(text), pin)]);
-    let r = resolve(&def, app(Mode::Light, Contrast::Standard), None);
-    assert!(r.warnings.iter().any(|w| w.fg == TokenRef::Component(text)), "{:?}", r.warnings);
+    let reads_pin = |w: &&ContrastCheck| matches!(w.fg, TokenRef::Color(c) if t.color(c) == pin);
+    assert_eq!(r.warnings.iter().filter(reads_pin).copied().collect::<Vec<_>>(), expected);
 }

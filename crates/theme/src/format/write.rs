@@ -5,8 +5,8 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Number, Value};
 
 use super::{FormatErrors, SCHEMA, SCHEMA_VERSION, ThemeFile};
-use crate::components::{ComponentField, OverrideValue};
-use crate::scale::{Elevation, Radius};
+use crate::components::ComponentField;
+use crate::scale::Radius;
 use crate::theme::{AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, ShapeSeed, ThemeDef, Variants};
 
 /// Top-level keys in the order a file lists them; other keys follow, sorted.
@@ -121,6 +121,14 @@ fn update_shape(shape: &mut Map<String, Value>, s: &ShapeSeed) {
             }
         }),
     }
+    match s.button_radius {
+        None => {
+            shape.remove("button_radius");
+        }
+        Some(r) => {
+            shape.insert("button_radius".to_owned(), length(r));
+        }
+    }
     if let Some(e) = s.edge {
         shape.insert("edge".to_owned(), edge(e));
     }
@@ -199,24 +207,8 @@ fn pin_map(pins: &Pins) -> Map<String, Value> {
     pins.colors.iter().filter(|(t, _)| !pins.refs.contains_key(t)).map(|(t, c)| (t.path(), Value::from(c.to_hex()))).chain(refs).collect()
 }
 
-fn component_map(components: &BTreeMap<ComponentField, OverrideValue>) -> Map<String, Value> {
-    components.iter().map(|(f, v)| (f.path(), override_value(v))).collect()
-}
-
-pub(super) fn override_value(v: &OverrideValue) -> Value {
-    match *v {
-        OverrideValue::Color(c) => c.to_hex().into(),
-        OverrideValue::Length(l) => length(l),
-        OverrideValue::Elevation(e) => {
-            // A shadow that is no preset level is written as the nearest one by blur.
-            let level = (0..Elevation::LEVELS.len())
-                .min_by(|&a, &b| (Elevation::level(a).blur - e.blur).abs().total_cmp(&(Elevation::level(b).blur - e.blur).abs()))
-                .unwrap_or(0);
-            let mut o = Map::new();
-            o.insert("level".to_owned(), level.into());
-            Value::Object(o)
-        }
-    }
+fn component_map(components: &BTreeMap<ComponentField, f32>) -> Map<String, Value> {
+    components.iter().map(|(f, &v)| (f.path(), length(v))).collect()
 }
 
 fn length(v: f32) -> Value {
@@ -289,28 +281,5 @@ pub(super) fn set_path(dst: &mut Map<String, Value>, path: &[&str], value: Value
             dst.insert((*key).to_owned(), value);
         }
         [key, rest @ ..] => with_object(dst, key, |o| set_path(o, rest, value)),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #![allow(clippy::unwrap_used)]
-
-    use serde_json::json;
-
-    use super::override_value;
-    use crate::components::OverrideValue;
-    use crate::format::parse::Parser;
-    use crate::scale::Elevation;
-
-    #[test]
-    fn elevation_overrides_parse_and_write() {
-        let mut p = Parser::new();
-        assert_eq!(p.elevation(&json!({ "level": 2 })), Some(Elevation::level(2)));
-        assert_eq!(p.elevation(&json!({ "level": 4 })), None);
-        assert_eq!(p.errors.len(), 1);
-        assert_eq!(override_value(&OverrideValue::Elevation(Elevation::level(3))), json!({ "level": 3 }));
-        let near_one = Elevation { blur: Elevation::level(1).blur + 0.5, ..Elevation::level(1) };
-        assert_eq!(override_value(&OverrideValue::Elevation(near_one)), json!({ "level": 1 }));
     }
 }

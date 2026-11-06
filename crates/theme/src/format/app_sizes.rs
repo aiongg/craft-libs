@@ -3,12 +3,9 @@
 use serde_json::{Map, Value};
 
 use super::{ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES};
-use crate::app_sizes::{AppSizes, SizeMap, SizeValue, Target, target};
-use crate::components::SizeField;
-use crate::ramp::Mode;
-use crate::resolve_sized;
-use crate::sizes::{ComponentSizes, FULL, Leaf, Preset, SizeSet, Slot, leaves};
-use crate::theme::{Appearance, Contrast, Size, TextSize, TextSizeSteps};
+use crate::app_sizes::{AppSizes, SizeMap, SizeValue, target};
+use crate::sizes::{FULL, Leaf, Preset, SizeSet, Slot, leaves};
+use crate::theme::{Size, TextSizeSteps};
 
 const SECTIONS: [&str; 3] = ["all", "compact", "comfortable"];
 
@@ -47,7 +44,6 @@ pub(super) fn parse(bytes: &[u8]) -> Result<AppSizes, FormatErrors> {
         AppSizes { all: section("all"), compact: section("compact"), comfortable: section("comfortable"), text_steps: TextSizeSteps::default() };
     if errors.is_empty() {
         cross_rules(&sizes, &mut errors);
-        component_cross_rules(&sizes, &mut errors);
     }
     if errors.is_empty() { Ok(sizes) } else { Err(FormatErrors(errors)) }
 }
@@ -61,21 +57,11 @@ fn map(section: &str, obj: &Map<String, Value>, errors: &mut Vec<FormatError>) -
             fail(ErrorKind::UnknownToken);
             continue;
         };
-        let (range, switch, length) = match &target {
-            Target::Pin(field) => (field.range(), false, false),
-            Target::Base(file_path) => {
-                let (mut base, mut components) = (Preset::default(), ComponentSizes::default());
-                let found = leaves(&mut base, &mut components).into_iter().find(|l| l.path == *file_path);
-                let Some(Leaf { lo, hi, slot, .. }) = found else { continue };
-                ((lo, hi), matches!(slot, Slot::Bool(_)), matches!(slot, Slot::Length(_)))
-            }
-        };
+        let mut base = Preset::default();
+        let found = leaves(&mut base).into_iter().find(|l| l.path == target);
+        let Some(Leaf { lo, hi, slot, .. }) = found else { continue };
+        let (range, length) = ((lo, hi), matches!(slot, Slot::Length(_)));
         let parsed = match value {
-            Value::Bool(b) if switch => Some(SizeValue::Switch(*b)),
-            _ if switch => {
-                fail(ErrorKind::WrongType { expected: "true or false" });
-                None
-            }
             Value::String(s) if length && s == "full" => Some(SizeValue::Number(FULL)),
             Value::Number(n) => {
                 let n = n.as_f64().unwrap_or(f64::NAN) as f32;
@@ -116,39 +102,6 @@ fn cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
     }
 }
 
-/// Component sizes that must keep an order for the renderer to draw: the first at most the
-/// second. A pin that breaks it is reported at the pinned path (the first when both are).
-const COMPONENT_ORDER: &[(&str, &str)] = &[("dock.iconic_width", "dock.iconic_max_width")];
-
-/// The rule text for an end of [`COMPONENT_ORDER`].
-fn order_rule(path: &str) -> &'static str {
-    match path {
-        "dock.iconic_width" => "at most dock.iconic_max_width",
-        _ => "at least dock.iconic_width",
-    }
-}
-
-/// [`COMPONENT_ORDER`] on the component sizes of each set with the overrides applied.
-fn component_cross_rules(sizes: &AppSizes, errors: &mut Vec<FormatError>) {
-    for (name, size) in [("compact", Size::Compact), ("comfortable", Size::Comfortable)] {
-        let merged = sizes.merged(size);
-        let pinned = |path: &str| merged.contains_key(path);
-        let rules: Vec<_> = COMPONENT_ORDER.iter().filter(|(a, b)| pinned(a) || pinned(b)).collect();
-        if rules.is_empty() {
-            continue;
-        }
-        let appearance = Appearance { mode: Mode::Dark, contrast: Contrast::Standard, size, text_size: TextSize::Small, reduced_motion: false };
-        let tokens = resolve_sized(crate::builtins::suite_default(), appearance, None, sizes).tokens;
-        for (first, second) in rules {
-            let value = |path: &str| SizeField::from_path(path).map(|f| f.get(&tokens.component));
-            if value(first) > value(second) {
-                let path = if pinned(first) { first } else { second };
-                errors.push(err(name, path, ErrorKind::CrossRule { rule: order_rule(path) }));
-            }
-        }
-    }
-}
-
 /// The block as pretty-printed JSON ending in a newline: the sections that have values, each
 /// with its paths in order. [`AppSizes::parse`] reads it back to the same value when the values
 /// are valid.
@@ -162,7 +115,6 @@ pub fn write_app_sizes(sizes: &AppSizes) -> String {
             .iter()
             .map(|(path, value)| {
                 let json = match value {
-                    SizeValue::Switch(b) => Value::Bool(*b),
                     SizeValue::Number(n) if *n == FULL && path.starts_with("radius.") => "full".into(),
                     SizeValue::Number(n) => super::write::number(*n),
                 };

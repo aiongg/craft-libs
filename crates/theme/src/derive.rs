@@ -1,17 +1,11 @@
 //! Colour derivation: seeds to ramps, ramps to tokens, the background greys anchored on the
-//! panel (state variants on their pinned bases), pins, then the contrast pass; and the same for
-//! component colours: overrides, then their own contrast pass.
+//! panel (state variants on their pinned bases), pins, then the contrast pass.
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::color::{Oklab, Oklch, Rgba};
-use super::components::{
-    ButtonField, ButtonPart, ButtonVariant, ComponentField, ComponentTokens, ContrastPair as ComponentPair, FieldKind, FloatField, OverrideValue,
-    State,
-};
 use super::contrast::{contrast_ratio, ensure_contrast, relative_luminance};
 use super::ramp::{self, Mode, Ramp, RampKind};
-use super::scale::Elevation;
 use super::theme::{Contrast, PinLayer, Pins, ThemeDef};
 use super::tokens::{ColorToken, ColorTokens, Status, TokenRef};
 use super::values::{self, Bg, ColorSource as Source, PairRule, RULES};
@@ -740,130 +734,4 @@ fn measure(c: &ColorTokens, rules: &[PairRule], high: bool) -> Vec<ContrastCheck
         }
     }
     out
-}
-
-/// Applies `theme`'s component overrides in `mode` for `app`: colour pins (in [`pins`] order),
-/// then the mode-independent overrides, the app's last. Overrides that
-/// [`ThemeDef::override_errors`] lists are skipped. Returns each pinned field with the layer
-/// whose pin it takes.
-pub(super) fn component_overrides(
-    comp: &mut ComponentTokens,
-    theme: &ThemeDef,
-    app: Option<&AppId>,
-    mode: Mode,
-    high: bool,
-    color: &ColorTokens,
-    on_accent_pinned: bool,
-) -> BTreeMap<ComponentField, PinLayer> {
-    let mut layers = BTreeMap::new();
-    // `set` rejects pins on non-colour fields and values of the wrong kind; those keep the default.
-    for (layer, t, v) in pins(theme, app, mode, high) {
-        if let TokenRef::Component(f) = t
-            && comp.set(f, OverrideValue::Color(v)).is_ok()
-        {
-            layers.insert(f, layer);
-        }
-    }
-    let app_components = app.and_then(|a| theme.apps.get(a)).map(|o| &o.components);
-    for (&f, &v) in theme.components.iter().chain(app_components.into_iter().flatten()) {
-        if f.kind() == FieldKind::Color {
-            continue;
-        }
-        // A shadow override names a preset level: its geometry, in the alpha of `surface.shadow`
-        // (level 0 casts none).
-        let v = match v {
-            OverrideValue::Elevation(e) if e.alpha > 0.0 => {
-                OverrideValue::Elevation(Elevation { alpha: f32::from(color.surface.shadow.a()) / 255.0, ..e })
-            }
-            v => v,
-        };
-        let _ = comp.set(f, v);
-    }
-    let field = |state| ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Primary, part: ButtonPart::Text, state });
-    let text_pinned = on_accent_pinned || layers.contains_key(&field(State::Rest));
-    comp.button.follow(|f| layers.contains_key(&ComponentField::Button(f)), text_pinned, color.surface.panel, high);
-    comp.list.follow(color, high, |f| layers.contains_key(&ComponentField::List(f)));
-    comp.listbox.follow(color, high, |f| layers.contains_key(&ComponentField::Listbox(f)));
-    // High contrast marks the selected tab with the accent, which the pass then moves to read on
-    // the strip and on the tab; Standard leaves the indicator to the theme.
-    if high && comp.tab.indicator == Rgba::TRANSPARENT {
-        comp.tab.indicator = color.accent.solid;
-    }
-    // A floating group's title bar is its tab strip.
-    if !layers.contains_key(&ComponentField::Float(FloatField::Title)) {
-        comp.float.title = comp.tab.strip;
-    }
-    layers
-}
-
-/// The component contrast pass. Defaults derive from semantic tokens that already passed or
-/// were reported by the semantic pass. With standard contrast, failing pairs are kept and
-/// reported, whatever made them fail: a component pin, or a semantic pin the defaults read. With
-/// high contrast every failing pair is fixed: the foreground moves first, then the background if
-/// the foreground alone can't reach the minimum. Returns every pair measured on the result, and
-/// the pairs that are reported.
-pub(super) fn component_colors(comp: &mut ComponentTokens, color: &ColorTokens, high: bool) -> (Vec<ContrastCheck>, Vec<ContrastCheck>) {
-    if high {
-        for p in &ComponentTokens::pairs() {
-            if let Some(alt) = p.alternate
-                && let (Some(a), Some(b)) = (pair_color(comp, color, alt), component_bg(comp, color, p.bg))
-                && ratio(a, b) >= p.minimum.1
-            {
-                continue;
-            }
-            fix_component_pair(comp, color, p.fg, p.bg, p.minimum.1);
-        }
-    }
-    let measured = measure_components(comp, color, high);
-    let warnings = measured.iter().filter(|m| !m.passes()).copied().collect();
-    (measured, warnings)
-}
-
-/// Every component pair on `comp` over `color`.
-pub(super) fn measure_components(comp: &ComponentTokens, color: &ColorTokens, high: bool) -> Vec<ContrastCheck> {
-    let check = |p: &ComponentPair| {
-        let minimum = if high { p.minimum.1 } else { p.minimum.0 };
-        let (fg, bg) = (pair_color(comp, color, p.fg)?, component_bg(comp, color, p.bg)?);
-        let own = ratio(fg, bg);
-        // The better of the two foregrounds is the one reported.
-        let alternate = p.alternate.and_then(|alt| Some((alt, ratio(pair_color(comp, color, alt)?, bg)))).filter(|&(_, r)| r > own);
-        let (fg, ratio) = alternate.unwrap_or((p.fg, own));
-        Some(ContrastCheck { fg, bg: p.bg, ratio, minimum })
-    };
-    ComponentTokens::pairs().iter().filter_map(check).collect()
-}
-
-/// The colour of a component pair's token: a semantic one or a component field.
-fn pair_color(comp: &ComponentTokens, color: &ColorTokens, token: TokenRef) -> Option<Rgba> {
-    match token {
-        TokenRef::Color(t) => Some(color.get(t)),
-        TokenRef::Component(f) => comp.color(f),
-    }
-}
-
-/// The colour a component pair's background presents: translucent fills over `surface.panel`.
-fn component_bg(comp: &ComponentTokens, color: &ColorTokens, bg: TokenRef) -> Option<Rgba> {
-    Some(over(pair_color(comp, color, bg)?, color.surface.panel))
-}
-
-/// Moves a component `fg`, then a component `bg`, until the pair reaches `min`. Moved colours are
-/// opaque. A semantic `fg` stays as the semantic pass left it: only a component `bg` moves.
-fn fix_component_pair(comp: &mut ComponentTokens, color: &ColorTokens, fg: TokenRef, bg: TokenRef, min: f64) {
-    let (Some(f), Some(b)) = (pair_color(comp, color, fg), component_bg(comp, color, bg)) else { return };
-    if ratio(f, b) >= min {
-        return;
-    }
-    let moved = match fg {
-        TokenRef::Component(field) => {
-            let moved = ensure_contrast(f.with_alpha(255), b, min);
-            let _ = comp.set(field, OverrideValue::Color(moved));
-            moved
-        }
-        TokenRef::Color(_) => f,
-    };
-    if let TokenRef::Component(bg) = bg
-        && ratio(moved, b) < min
-    {
-        let _ = comp.set(bg, OverrideValue::Color(ensure_contrast(b, moved, min)));
-    }
 }

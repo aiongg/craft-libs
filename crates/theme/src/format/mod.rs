@@ -8,7 +8,6 @@ use std::fmt;
 
 use serde_json::{Map, Value};
 
-use super::components::FieldKind;
 use super::theme::ThemeDef;
 use crate::IdError;
 
@@ -100,17 +99,10 @@ pub enum ErrorKind {
     BadAppId,
     /// A path that names no semantic token or component field.
     UnknownToken,
-    /// A component field that is not a colour, in a colour map.
+    /// A component field in a colour map: component fields are lengths.
     PinNotColor,
-    /// A colour field in `components`; component colours go in the mode maps.
+    /// A colour token in `components`; colours go in the mode maps.
     ColorNotPerMode,
-    /// A value of a different kind than the field's.
-    WrongKind {
-        /// The field's kind.
-        expected: FieldKind,
-        /// The value's kind.
-        found: FieldKind,
-    },
     /// A colour map for a mode the theme's `variants` leaves out.
     NoSuchMode,
     /// `seeds` in a map that does not take them (high-contrast and app maps).
@@ -185,9 +177,8 @@ impl FormatError {
             ErrorKind::BadId(e) => e.to_string(),
             ErrorKind::BadAppId => "not an app id: use 2 to 64 of a-z, 0-9, '.', '_' or '-', starting with a-z or 0-9".to_owned(),
             ErrorKind::UnknownToken => "unknown token".to_owned(),
-            ErrorKind::PinNotColor => "not a colour field; set it in components".to_owned(),
+            ErrorKind::PinNotColor => "a component field is a length; set it in components".to_owned(),
             ErrorKind::ColorNotPerMode => "colours are set per mode, in light or dark".to_owned(),
-            ErrorKind::WrongKind { expected, found } => format!("expected a {expected:?} value, found {found:?}"),
             ErrorKind::NoSuchMode => "the theme's variants leave this mode out".to_owned(),
             ErrorKind::SeedsNotAllowed => "seeds are set in the theme's own light and dark maps only".to_owned(),
             ErrorKind::UnknownReference { name } => format!("reference {{{name}}} names no token"),

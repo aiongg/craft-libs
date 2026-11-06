@@ -23,15 +23,15 @@ fn full() -> Value {
             "radius": { "control": 3, "popup": 4, "window": 6, "panel": 0, "button": "full", "x_radius": 1 },
             "edge": { "bevel": { "width": 1 } }, "x_shape": true
         },
-        "light": { "surface.panel": "#F0F0F0", "button.primary.fill.rest": "#1062C4" },
+        "light": { "surface.panel": "#F0F0F0", "accent.solid": "#1062C4" },
         "dark": { "surface.panel": "#535353" },
         "high_contrast": { "light": { "text.normal": "#000000" }, "dark": {}, "x_hc": "kept" },
-        "components": { "button.radius": 4.5 },
+        "components": { "slider.thumb_height": 4.5 },
         "apps": {
             "photocraft": {
                 "light": {}, "dark": { "surface.canvas": "#282828" },
                 "high_contrast": { "dark": { "text.normal": "#FFFFFF" }, "x_app_hc": 1 },
-                "components": { "button.radius": "full" }, "x_app": [true]
+                "components": { "slider.thumb_height": "full" }, "x_app": [true]
             },
             "x_app_entry": {}
         }
@@ -66,7 +66,7 @@ fn round_trip_keeps_values_and_unknown_keys() {
     let photo = &t.apps[&AppId::parse("photocraft").unwrap()];
     assert_eq!(photo.pins.dark.get(T::SurfaceCanvas), Some(hex("#282828")));
     assert_eq!(photo.high_contrast.dark.get(T::TextNormal), Some(hex("#ffffff")));
-    assert_eq!(photo.components.values().next(), Some(&OverrideValue::Length(999.0)));
+    assert_eq!(photo.components.values().next(), Some(&999.0));
 
     let text = format::write(&file).unwrap();
     let written: Value = serde_json::from_str(&text).unwrap();
@@ -83,7 +83,7 @@ fn round_trip_keeps_values_and_unknown_keys() {
         ("/apps/photocraft/high_contrast/dark/text.normal", &json!("#ffffff")),
         ("/apps/x_app_entry", &orig["apps"]["x_app_entry"]),
         ("/version", &json!(3)),
-        ("/components/button.radius", &json!(4.5)),
+        ("/components/slider.thumb_height", &json!(4.5)),
         ("/shape/radius/button", &json!("full")),
         ("/dark/surface.panel", &json!("#535353")),
     ] {
@@ -123,7 +123,7 @@ fn defaults_and_exported_themes() {
 
     let mut def = grey_blue();
     def.pins.light = Pins::from_iter([(T::TextFaint, hex("#c8c8c8"))]);
-    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, edge: Some(EdgeSeed::Flat) });
+    def.shape = Some(ShapeSeed { radius: None, radius_offset: None, button_radius: None, edge: Some(EdgeSeed::Flat) });
     let file = format::to_file(&def).unwrap();
     let text = format::write(&file).unwrap();
     assert_eq!(format::parse(text.as_bytes()).unwrap().theme, def);
@@ -153,23 +153,18 @@ fn file_level_errors() {
 
 #[test]
 fn every_field_error_has_its_path() {
-    let cases: [(&str, Value, &str); 23] = [
+    let cases: [(&str, Value, &str); 22] = [
         ("/dark/surface.panel", json!("nope"), "dark.\"surface.panel\": not a colour"),
         ("/dark/surface.panel", json!("#53535380"), "dark.\"surface.panel\": surfaces must be opaque"),
         ("/high_contrast/light/surface.canvas", json!("#00000000"), "high_contrast.light.\"surface.canvas\": surfaces must be opaque"),
         ("/light/surface.nothing", json!("#ffffff"), "light.\"surface.nothing\": unknown token"),
-        ("/light/button.radius", json!("#ffffff"), "light.\"button.radius\": not a colour field; set it in components"),
-        (
-            "/components/button.primary.fill.rest",
-            json!("#ffffff"),
-            "components.\"button.primary.fill.rest\": colours are set per mode, in light or dark",
-        ),
+        ("/light/slider.thumb_height", json!("#ffffff"), "light.\"slider.thumb_height\": a component field is a length; set it in components"),
         ("/components/surface.panel", json!("#ffffff"), "components.\"surface.panel\": colours are set per mode, in light or dark"),
-        ("/components/button.radius", json!({ "level": 1 }), "components.\"button.radius\": expected a Length value, found Elevation"),
-        ("/components/button.edge", json!("flat"), "components.\"button.edge\": unknown token"),
-        ("/components/button.nope", json!(4), "components.\"button.nope\": unknown token"),
-        ("/components/button.radius", json!(-1), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
-        ("/components/button.radius", json!({ "x": 1 }), "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\""),
+        ("/components/button.radius", json!(4), "components.\"button.radius\": unknown token"),
+        ("/components/slider.edge", json!("flat"), "components.\"slider.edge\": unknown token"),
+        ("/components/slider.nope", json!(4), "components.\"slider.nope\": unknown token"),
+        ("/components/slider.thumb_height", json!(-1), "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\""),
+        ("/components/slider.thumb_height", json!({ "x": 1 }), "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\""),
         ("/id", json!("Bad Id"), "id: a theme id starts with a-z or 0-9"),
         ("/id", json!(4), "id: expected a string"),
         ("/seeds", json!(4), "seeds: expected an object"),
@@ -181,9 +176,9 @@ fn every_field_error_has_its_path() {
         ("/apps/photocraft/dark/surface.canvas", json!(1), "apps.photocraft.dark.\"surface.canvas\": not a colour"),
         ("/apps/photocraft/high_contrast/dark/text.normal", json!("x"), "apps.photocraft.high_contrast.dark.\"text.normal\": not a colour"),
         (
-            "/apps/photocraft/components/button.radius",
-            json!({ "level": 1 }),
-            "apps.photocraft.components.\"button.radius\": expected a Length value, found Elevation",
+            "/apps/photocraft/components/slider.thumb_height",
+            json!("wide"),
+            "apps.photocraft.components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
         ),
     ];
     for (pointer, value, expected) in cases {
@@ -213,14 +208,14 @@ fn errors_are_reported_together() {
     v["id"] = json!("Bad");
     v["seeds"]["neutral"] = json!("grey");
     v["dark"]["surface.panel"] = json!("nope");
-    v["components"]["button.radius"] = json!({ "level": 1 });
+    v["components"]["slider.thumb_height"] = json!("wide");
     assert_eq!(
         errors(&v),
         [
             "id: a theme id starts with a-z or 0-9",
             "seeds.neutral: not a colour",
             "dark.\"surface.panel\": not a colour",
-            "components.\"button.radius\": expected a Length value, found Elevation",
+            "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
         ]
     );
 }
@@ -242,13 +237,13 @@ fn app_overrides_apply_only_to_that_app() {
     let other = AppId::parse("filmcraft").unwrap();
     let mut def = grey_blue();
     def.pins.dark = Pins::from_iter([(T::SurfaceRaised, hex("#303030"))]);
-    def.components.insert(ComponentField::from_path("button.radius").unwrap(), OverrideValue::Length(2.0));
+    def.components.insert(ComponentField::from_path("slider.thumb_height").unwrap(), 2.0);
     def.apps.insert(
         photo.clone(),
         AppOverrides {
             pins: ModePins { light: Pins::default(), dark: Pins::from_iter([(T::SurfaceRaised, hex("#404040"))]) },
             high_contrast: ModePins { light: Pins::default(), dark: Pins::from_iter([(T::LineDivider, hex("#606060"))]) },
-            components: [(ComponentField::from_path("button.radius").unwrap(), OverrideValue::Length(9.0))].into_iter().collect(),
+            components: [(ComponentField::from_path("slider.thumb_height").unwrap(), 9.0)].into_iter().collect(),
         },
     );
     assert!(def.override_errors().is_empty());
@@ -257,7 +252,7 @@ fn app_overrides_apply_only_to_that_app() {
     assert_eq!(raised(None), hex("#303030"));
     assert_eq!(raised(Some(&photo)), hex("#404040"));
     assert_eq!(raised(Some(&other)), hex("#303030"));
-    let radius = |a: Option<&AppId>| resolve(&def, dark, a).tokens.component.button.radius;
+    let radius = |a: Option<&AppId>| resolve(&def, dark, a).tokens.component.slider.thumb_height.md;
     assert_eq!((radius(None), radius(Some(&photo)), radius(Some(&other))), (2.0, 9.0, 2.0));
     // The app's high-contrast pins apply after the theme's, which apply after the app's pins.
     def.high_contrast.dark = Pins::from_iter([(T::LineDivider, hex("#505050")), (T::SurfaceRaised, hex("#000000"))]);
@@ -306,13 +301,13 @@ fn write_refuses_what_parse_rejects() {
     assert!(format::parse(format::write(&file).unwrap().as_bytes()).is_ok());
 
     let mut def = grey_blue();
-    let radius = ComponentField::from_path("button.radius").unwrap();
-    let fill = ComponentField::from_path("button.primary.fill.rest").unwrap();
-    def.components = [(radius, OverrideValue::Length(f32::NAN)), (fill, OverrideValue::Color(Rgba::WHITE))].into_iter().collect();
+    let radius = ComponentField::from_path("slider.thumb_height").unwrap();
+    def.components = [(radius, f32::NAN)].into_iter().collect();
     def.pins.light = Pins::from_iter([(TokenRef::Color(T::SurfacePanel), hex("#ffffff80")), (TokenRef::Component(radius), Rgba::WHITE)]);
     def.shape = Some(ShapeSeed {
         radius: Some(RadiusSet { sm: 0.0, control: -1.0, popup: 0.0, window: 0.0, panel: 0.0, button: 0.0, pill: 0.0 }),
         radius_offset: None,
+        button_radius: None,
         edge: Some(EdgeSeed::Bevel { width: 0.0 }),
     });
     let got = paths(def.validate().unwrap_err());
@@ -322,9 +317,8 @@ fn write_refuses_what_parse_rejects() {
             "shape.radius.control: expected a length: a number of 0 or more, or \"full\"",
             "shape.edge: expected \"flat\" or {\"bevel\": {\"width\": n}} with n above 0",
             "light.\"surface.panel\": surfaces must be opaque",
-            "light.\"button.radius\": not a colour field; set it in components",
-            "components.\"button.radius\": expected a length: a number of 0 or more, or \"full\"",
-            "components.\"button.primary.fill.rest\": colours are set per mode, in light or dark",
+            "light.\"slider.thumb_height\": a component field is a length; set it in components",
+            "components.\"slider.thumb_height\": expected a length: a number of 0 or more, or \"full\"",
         ]
     );
 }
@@ -361,33 +355,13 @@ fn appearance(mode: Mode) -> Appearance {
     Appearance { mode, contrast: Contrast::Standard, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false }
 }
 
-/// `float.shadow` is written as `{"level": n}` and read back as the same elevation.
-#[test]
-fn a_float_shadow_override_round_trips_through_the_file() {
-    let mut def = grey_blue();
-    let shadow = ComponentField::from_path("float.shadow").unwrap();
-    for level in 0..Elevation::LEVELS.len() {
-        def.components.insert(shadow, OverrideValue::Elevation(Elevation::level(level)));
-        let text = format::write(&format::to_file(&def).unwrap()).unwrap();
-        let written: Value = serde_json::from_str(&text).unwrap();
-        assert_eq!(written["components"]["float.shadow"], json!({ "level": level }));
-        let back = format::parse(text.as_bytes()).unwrap().theme;
-        assert_eq!(back.components[&shadow], OverrideValue::Elevation(Elevation::level(level)));
-        let alpha = if level == 0 { 0.0 } else { 50.0 / 255.0 };
-        assert_eq!(resolve(&back, appearance(Mode::Light), None).tokens.component.float.shadow, Elevation { alpha, ..Elevation::level(level) });
-    }
-    let bad = json!({ "level": 4 });
-    let mut v = full();
-    v["components"] = json!({ "float.shadow": bad });
-    assert_eq!(errors(&v), ["components.\"float.shadow\": expected {\"level\": 0 to 3}"]);
-}
-
 #[test]
 fn a_default_pill_radius_is_not_written_and_a_set_one_is() {
     let mut def = grey_blue();
     let radius = |pill| ShapeSeed {
         radius: Some(RadiusSet { sm: 0.0, control: 1.0, popup: 1.0, window: 1.0, panel: 1.0, button: 1.0, pill }),
         radius_offset: None,
+        button_radius: None,
         edge: None,
     };
     let written = |def: &ThemeDef| -> Value { serde_json::from_str(&format::write(&format::to_file(def).unwrap()).unwrap()).unwrap() };
@@ -410,24 +384,25 @@ fn with_light(pins: Value) -> Value {
 #[test]
 fn references_resolve_to_the_final_value_in_every_appearance() {
     let v = with_light(json!({
-        "slider.ring.rest": "{accent.solid}", "slider.ring.hover": "{accent.hover}",
-        "text.muted": "{slider.ring.rest}", "accent.solid": "#204080"
+        "overlay.line": "{accent.solid}", "overlay.grid": "{accent.hover}",
+        "text.muted": "{overlay.line}", "accent.solid": "#204080"
     }));
     let mut v = v;
-    v["dark"] = json!({ "slider.ring.rest": "{accent.solid}", "slider.ring.hover": "{accent.hover}" });
-    v["high_contrast"] = json!({ "light": { "slider.ring.rest": "{text.normal}" }, "dark": {} });
+    v["dark"] = json!({ "overlay.line": "{accent.solid}", "overlay.grid": "{accent.hover}" });
+    v["high_contrast"] = json!({ "light": { "overlay.line": "{text.normal}" }, "dark": {} });
     let file = parse_value(&v).unwrap();
     for a in appearances() {
         let t = resolve(&file.theme, a, None).tokens;
-        let (s, accent) = (&t.component.slider.ring, |c| t.color(c));
+        let accent = |c| t.color(c);
         let high_light = a.contrast == Contrast::High && a.mode == Mode::Light;
-        assert_eq!(s.rest, if high_light { accent(T::TextNormal) } else { accent(T::AccentSolid) }, "{a:?}");
+        let line = accent(T::OverlayLine);
+        assert_eq!(line, if high_light { accent(T::TextNormal) } else { accent(T::AccentSolid) }, "{a:?}");
         if !high_light {
-            assert_eq!(s.hover, accent(T::AccentHover), "{a:?}");
+            assert_eq!(accent(T::OverlayGrid), accent(T::AccentHover), "{a:?}");
         }
         if a.mode == Mode::Light {
             // A reference to a reference reads the pinned token's value, and a pin is read as pinned.
-            assert_eq!(accent(T::TextMuted), s.rest, "{a:?}");
+            assert_eq!(accent(T::TextMuted), line, "{a:?}");
             if a.contrast == Contrast::Standard {
                 assert_eq!(accent(T::AccentSolid), hex("#204080"));
             }
@@ -459,7 +434,7 @@ fn references_that_never_settle_are_errors() {
 
 #[test]
 fn references_survive_a_write_and_parse() {
-    let file = parse_value(&with_light(json!({ "slider.fill.rest": "{accent.solid}" }))).unwrap();
+    let file = parse_value(&with_light(json!({ "overlay.line": "{accent.solid}" }))).unwrap();
     let again = format::parse(format::write(&file).unwrap().as_bytes()).unwrap();
     assert_eq!(again.theme.pins.light.refs, file.theme.pins.light.refs);
     assert!(again.theme.pins.light.colors.is_empty());
@@ -467,10 +442,10 @@ fn references_survive_a_write_and_parse() {
 
 #[test]
 fn unknown_reference_names_the_key_and_the_reference() {
-    let e = errors(&with_light(json!({ "slider.fill.rest": "{accent.nope}" })));
-    assert_eq!(e, ["light.\"slider.fill.rest\": reference {accent.nope} names no token"]);
-    let e = errors(&with_light(json!({ "text.muted": "{button.radius}" })));
-    assert_eq!(e, ["light.\"text.muted\": reference {button.radius} is not a colour field"]);
+    let e = errors(&with_light(json!({ "overlay.line": "{accent.nope}" })));
+    assert_eq!(e, ["light.\"overlay.line\": reference {accent.nope} names no token"]);
+    let e = errors(&with_light(json!({ "text.muted": "{slider.thumb_height}" })));
+    assert_eq!(e, ["light.\"text.muted\": reference {slider.thumb_height} is not a colour field"]);
 }
 
 #[test]
@@ -483,18 +458,4 @@ fn reference_cycles_are_errors() {
     );
     let e = errors(&with_light(json!({ "text.muted": "{text.muted}" })));
     assert_eq!(e.len(), 1, "{e:?}");
-}
-
-#[test]
-fn classic_slider_fill_is_the_accent_in_every_state() {
-    let classic = builtins().iter().find(|t| t.id.as_str() == "craft.classic").unwrap();
-    for a in appearances() {
-        let t = resolve(classic, a, None).tokens;
-        let s = &t.component.slider.fill;
-        // High contrast moves the fill to show on the track.
-        if a.contrast == Contrast::High {
-            continue;
-        }
-        assert_eq!((s.rest, s.hover, s.pressed), [t.color(T::AccentSolid); 3].into(), "{a:?}");
-    }
 }

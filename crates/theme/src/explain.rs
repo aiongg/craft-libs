@@ -3,12 +3,11 @@
 
 use super::app_sizes::{AppSizes, SizeValue, base_path};
 use super::color::Rgba;
-use super::components::{ComponentField, ComponentTokens, Semantic, SizeField};
 use super::derive::{Anchoring, ContrastCheck, PassMove, Ramps};
 use super::resolve::{self, Resolved};
-use super::sizes::{self, ComponentSizes, Preset, Slot, leaves};
+use super::sizes::{Preset, Slot, leaves};
 use super::theme::{Appearance, PinLayer, Size, ThemeDef};
-use super::tokens::{ColorToken, ColorTokens, ElevationTokens, RadiusSet, ShapeTokens, StatusKind, TokenRef};
+use super::tokens::{ColorToken, StatusKind, TokenRef};
 use super::values::{self, ColorSource};
 use crate::AppId;
 
@@ -22,13 +21,9 @@ pub struct Explained {
     pub ramps: Ramps,
     /// One per [`ColorToken::ALL`], in that order.
     pub colors: Vec<ColorOrigin>,
-    /// One per component colour field, in [`ComponentField::ALL`] order.
-    pub components: Vec<FieldOrigin>,
-    /// Every pair the contrast rules measure, failing or not: semantic pairs in rule order, then
-    /// component pairs.
+    /// Every pair the contrast rules measure, failing or not, in rule order.
     pub pairs: Vec<PairReport>,
-    /// The base size, spacing, radius and type values in the order of a size set file, then
-    /// every component size ([`SizeField::all`] order).
+    /// The base size, spacing, radius and type values in the order of a size set file.
     pub sizes: Vec<SizeOrigin>,
 }
 
@@ -40,16 +35,12 @@ pub enum SizeLayer {
     SizeSet,
     /// A base value the app overrides.
     App,
-    /// A component size derived from the base values and the size set's component data.
-    Derived,
-    /// A component size the app pins.
-    AppPin,
 }
 
 impl SizeLayer {
     /// Whether the app layer set the value.
     pub fn from_app(self) -> bool {
-        matches!(self, SizeLayer::App | SizeLayer::AppPin)
+        self == SizeLayer::App
     }
 }
 
@@ -57,16 +48,13 @@ impl SizeLayer {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SizeOrigin {
-    /// The path an app's `sizes.json` names it by, such as `size.control.md` or
-    /// `toolbar.button`.
+    /// The path an app's `sizes.json` names it by, such as `size.control.md`.
     pub path: String,
     /// The layer that set it.
     pub layer: SizeLayer,
-    /// Whether it is a base value (layers 1 and 2) rather than a component size.
-    pub base: bool,
     /// The final value, after the theme's shape and Text size.
     pub value: SizeValue,
-    /// The least and greatest number an app may set; `(0, 0)` for a switch.
+    /// The least and greatest number an app may set.
     pub range: (f32, f32),
 }
 
@@ -149,24 +137,6 @@ fn source_words(source: ColorSource, anchored_on: Option<ColorToken>) -> String 
     }
 }
 
-/// How a component colour field got its value.
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct FieldOrigin {
-    /// The field.
-    pub field: ComponentField,
-    /// The semantic token the default takes, when the default is one token unchanged; `None`
-    /// for a computed default (a constant or a mix).
-    pub reads: Option<ColorToken>,
-    /// The layer whose pin overrides the field, if any.
-    pub pin: Option<PinLayer>,
-    /// The value before any contrast pass, when a pass changed it: the component pass, or the
-    /// semantic pass through the token the default reads.
-    pub contrast_move: Option<Rgba>,
-    /// The final value.
-    pub value: Rgba,
-}
-
 /// One measured contrast pair. Translucent backgrounds are measured over `surface.panel`;
 /// pairs on `overlay.halo` report the lower of the ratios over black and over white.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -176,7 +146,7 @@ pub struct PairReport {
     pub pair: ContrastCheck,
     /// The ratio before any contrast pass.
     pub ratio_before: f64,
-    /// Whether a contrast pass, semantic or component, moved the foreground or the background.
+    /// Whether the contrast pass moved the foreground or the background.
     pub moved_by_pass: bool,
     /// Whether the pair failed before the passes and passes after them.
     pub fixed_by_pass: bool,
@@ -193,18 +163,6 @@ impl Explained {
     /// The origin of `token`.
     pub fn color(&self, token: ColorToken) -> Option<&ColorOrigin> {
         self.colors.iter().find(|o| o.token == token)
-    }
-
-    /// The origin of a component colour field; `None` for fields that are not colours.
-    pub fn field(&self, field: ComponentField) -> Option<&FieldOrigin> {
-        self.components.iter().find(|o| o.field == field)
-    }
-
-    /// The component colour fields whose default is `token` unchanged, in [`ComponentField`]
-    /// order. Reads the origins `explain` already computed, so it depends only on the component
-    /// defaults, not on the theme's pins.
-    pub fn readers(&self, token: ColorToken) -> Vec<ComponentField> {
-        self.components.iter().filter(|o| o.reads == Some(token)).map(|o| o.field).collect()
     }
 
     /// Every pair `token` takes part in, as foreground or background.
@@ -226,7 +184,6 @@ pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
     let (resolved, steps) = resolve::resolve_with_steps(theme, appearance, app, sizes);
     let mode = resolved.variant_used;
     let final_colors = &resolved.tokens.color;
-    let final_components = &resolved.tokens.component;
     let changed = |before: Rgba, after: Rgba| (before != after).then_some(before);
 
     let colors: Vec<ColorOrigin> = ColorToken::ALL
@@ -246,26 +203,11 @@ pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
         })
         .collect();
 
-    let reads = default_reads();
-    let components: Vec<FieldOrigin> = ComponentField::ALL
-        .iter()
-        .filter_map(|&field| {
-            let value = final_components.color(field)?;
-            Some(FieldOrigin {
-                field,
-                reads: reads.iter().find(|(f, _)| *f == field).and_then(|&(_, t)| t),
-                pin: steps.component_pins.get(&field).copied(),
-                contrast_move: changed(steps.component_before.color(field)?, value),
-                value,
-            })
-        })
-        .collect();
-
     let moved = |t: TokenRef| match t {
         TokenRef::Color(t) => colors.iter().any(|o| o.token == t && o.contrast_move.is_some()),
-        TokenRef::Component(f) => components.iter().any(|o| o.field == f && o.contrast_move.is_some()),
+        TokenRef::Component(_) => false,
     };
-    let before: Vec<&ContrastCheck> = steps.color.pairs_before.iter().chain(&steps.component_pairs_before).collect();
+    let before: Vec<&ContrastCheck> = steps.color.pairs_before.iter().collect();
     let report = |pair: &ContrastCheck| {
         let ratio_before = before.iter().find(|b| b.fg == pair.fg && b.bg == pair.bg).map_or(pair.ratio, |b| b.ratio);
         PairReport {
@@ -275,13 +217,13 @@ pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
             fixed_by_pass: ratio_before < pair.minimum && pair.passes(),
         }
     };
-    let pairs = steps.color.pairs.iter().chain(&steps.component_pairs).map(report).collect();
+    let pairs = steps.color.pairs.iter().map(report).collect();
 
     let sizes = size_origins(&resolved, appearance.size, sizes);
-    Explained { resolved, ramps: steps.color.ramps, colors, components, pairs, sizes }
+    Explained { resolved, ramps: steps.color.ramps, colors, pairs, sizes }
 }
 
-/// The layer of every base value and component size in `resolved`.
+/// The layer of every base value in `resolved`.
 fn size_origins(resolved: &Resolved, size: Size, app: &AppSizes) -> Vec<SizeOrigin> {
     let merged = app.merged(size);
     let tokens = &resolved.tokens;
@@ -295,81 +237,16 @@ fn size_origins(resolved: &Resolved, size: Size, app: &AppSizes) -> Vec<SizeOrig
         typography: tokens.typography,
     };
     let mut out = Vec::new();
-    for leaf in leaves(&mut base, &mut ComponentSizes::default()) {
+    for leaf in leaves(&mut base) {
         let Some(path) = leaf.path.strip_prefix("base.").filter(|p| base_path(p)) else { continue };
         let value = match leaf.slot {
             Slot::Num(x) | Slot::Length(x) => SizeValue::Number(*x),
-            Slot::Bool(b) => SizeValue::Switch(*b),
             _ => continue,
         };
         // A theme's own corner radii win over the app's, so an override that did not take is the set's.
         let set_by_app = merged.get(path).is_some_and(|o| !path.starts_with("radius.") || *o == value);
         let layer = if set_by_app { SizeLayer::App } else { SizeLayer::SizeSet };
-        out.push(SizeOrigin { path: path.to_owned(), layer, base: true, value, range: (leaf.lo, leaf.hi) });
-    }
-    for field in SizeField::all() {
-        let path = field.path();
-        let layer = if merged.contains_key(&path) { SizeLayer::AppPin } else { SizeLayer::Derived };
-        out.push(SizeOrigin { path, layer, base: false, value: SizeValue::Number(field.get(&tokens.component)), range: field.range() });
+        out.push(SizeOrigin { path: path.to_owned(), layer, value, range: (leaf.lo, leaf.hi) });
     }
     out
-}
-
-/// Two ways to give each token its own opaque colour: channel = (index × step + offset) mod 256
-/// for red, green and blue. The steps are odd, so each channel alone tells up to 256 tokens
-/// apart; the spreads differ, so a mix that lands on another token's colour under one probe
-/// doesn't under the other.
-pub(super) const PROBES: [[usize; 6]; 2] = [[53, 97, 151, 11, 31, 67], [89, 163, 211, 17, 113, 7]];
-
-/// Each component colour field with the semantic token its default takes, if it is one token:
-/// the matches both [`PROBES`] agree on.
-pub(super) fn default_reads() -> Vec<(ComponentField, Option<ColorToken>)> {
-    agree(&probe_reads(PROBES[0]), &probe_reads(PROBES[1]))
-}
-
-/// The matches of `a` that `b` has too; any other field reads none.
-pub(super) fn agree(
-    a: &[(ComponentField, Option<ColorToken>)],
-    b: &[(ComponentField, Option<ColorToken>)],
-) -> Vec<(ComponentField, Option<ColorToken>)> {
-    a.iter().map(|&(f, t)| (f, t.filter(|&t| b.contains(&(f, Some(t)))))).collect()
-}
-
-/// Component defaults are code (each family's `defaults(&Semantic)`), not a table, so the token
-/// a field reads can't be looked up. Instead the defaults run on colours that all differ, and
-/// each colour field's value is matched back to the token that had it. A field whose value
-/// matches no token (a constant, a mix) reads none. One run serves every mode and size: the
-/// defaults copy or combine semantic colours, and the Size preset feeds only non-colour fields.
-pub(super) fn probe_reads(spread: [usize; 6]) -> Vec<(ComponentField, Option<ColorToken>)> {
-    let [rm, gm, bm, ro, go, bo] = spread;
-    let channel = |i: usize, step: usize, offset: usize| (i.wrapping_mul(step).wrapping_add(offset) % 256) as u8;
-    let mut probe = ColorTokens::splat(Rgba::TRANSPARENT);
-    for (i, &t) in ColorToken::ALL.iter().enumerate() {
-        // Opaque, so no probe colour equals a translucent constant such as `Rgba::TRANSPARENT`.
-        probe.set(t, Rgba([channel(i, rm, ro), channel(i, gm, go), channel(i, bm, bo), 0xff]));
-    }
-    let set = sizes::builtin(Size::Compact);
-    let preset = &set.base;
-    let shape =
-        ShapeTokens { radius: RadiusSet { sm: (preset.radius.control / 2.0).round(), ..preset.radius }, edge: preset.edge, rows: preset.rows };
-    let elevation = { ElevationTokens { popup: values::POPUP_SHADOW, floating: values::WINDOW_SHADOW, knob: values::KNOB_SHADOW } };
-    let defaults = ComponentTokens::defaults(&Semantic {
-        color: &probe,
-        shape: &shape,
-        space: &preset.space,
-        size: &preset.size,
-        elevation: &elevation,
-        set: &set.components,
-        typography: &preset.typography,
-        high: false,
-    });
-    ComponentField::ALL
-        .iter()
-        .filter_map(|&f| {
-            let v = defaults.color(f)?;
-            // A menu tint is derived from several tokens, not read from one.
-            let derived = matches!(f, ComponentField::Menu(crate::MenuField::Tint(..)));
-            Some((f, ColorToken::ALL.iter().copied().find(|&t| !derived && probe.get(t) == v)))
-        })
-        .collect()
 }

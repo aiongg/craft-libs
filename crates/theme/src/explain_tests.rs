@@ -20,10 +20,6 @@ fn unpinned() -> ThemeDef {
     def
 }
 
-fn field(path: &str) -> ComponentField {
-    ComponentField::from_path(path).unwrap()
-}
-
 #[test]
 fn explained_resolution_is_resolve() {
     // One thread per theme: an explanation resolves again with its steps.
@@ -54,7 +50,6 @@ fn pins_report_their_layer() {
     let grey = Rgba::rgb(0x40, 0x40, 0x40);
     let mut def = unpinned();
     def.pins.dark = Pins::from_iter([(T::LineDivider, grey), (T::SurfaceRaised, grey)]);
-    def.pins.dark.colors.insert(TokenRef::Component(field("button.ghost.border.rest")), grey);
     def.high_contrast.dark = Pins::from_iter([(T::LineBorder, grey)]);
     def.apps.insert(
         photo.clone(),
@@ -71,8 +66,6 @@ fn pins_report_their_layer() {
     assert_eq!(pin(&standard, T::SurfaceRaised), Some(PinLayer::Theme));
     assert_eq!(pin(&standard, T::LineBorder), None, "high-contrast pins apply only in high contrast");
     assert_eq!(pin(&standard, T::TextNormal), None);
-    assert_eq!(standard.field(field("button.ghost.border.rest")).unwrap().pin, Some(PinLayer::Theme));
-    assert_eq!(standard.field(field("button.ghost.border.hover")).unwrap().pin, None);
 
     let for_app = explain(&def, appearance(Mode::Dark, Contrast::Standard, Size::Compact), Some(&photo));
     assert_eq!(pin(&for_app, T::SurfaceRaised), Some(PinLayer::App));
@@ -100,42 +93,11 @@ fn contrast_moves_report_the_value_before_the_pass() {
 }
 
 #[test]
-fn component_fields_read_their_semantic_token() {
-    let e = explain(&graphite(), appearance(Mode::Light, Contrast::Standard, Size::Compact), None);
-    let reads = |path: &str| e.field(field(path)).unwrap().reads;
-    assert_eq!(reads("button.primary.fill.rest"), Some(T::AccentSolid));
-    assert_eq!(reads("button.primary.text.rest"), Some(T::TextOnAccent));
-    assert_eq!(reads("button.secondary.border.rest"), Some(T::LineControlEdge));
-    assert_eq!(reads("button.ghost.fill.rest"), None, "transparent is a constant");
-    assert!(e.field(field("button.radius")).is_none(), "only colour fields are listed");
-}
-
-#[test]
-fn readers_are_the_fields_that_read_the_token() {
-    let e = explain(&graphite(), appearance(Mode::Light, Contrast::Standard, Size::Compact), None);
-    assert!(e.readers(T::AccentSolid).contains(&field("button.primary.fill.rest")));
-    for &t in ColorToken::ALL.iter() {
-        for f in e.readers(t) {
-            assert_eq!(e.field(f).unwrap().reads, Some(t));
-        }
-    }
-    let listed: usize = ColorToken::ALL.iter().map(|&t| e.readers(t).len()).sum();
-    assert_eq!(listed, e.components.iter().filter(|o| o.reads.is_some()).count(), "every reading field is listed once");
-    let order = |fs: Vec<ComponentField>| fs.iter().map(|f| ComponentField::ALL.iter().position(|a| a == f).unwrap()).collect::<Vec<_>>();
-    let idx = order(e.readers(T::AccentSolid));
-    assert!(idx.windows(2).all(|w| w[0] < w[1]), "ComponentField order");
-    let unread = ColorToken::ALL.iter().find(|&&t| e.readers(t).is_empty());
-    assert!(unread.is_some(), "some token is read by no field");
-}
-
-#[test]
 fn every_warning_is_a_failing_pair_with_its_ratio() {
     let a = appearance(Mode::Dark, Contrast::Standard, Size::Compact);
     let mut def = unpinned();
     let panel = resolve(&def, a, None).tokens.color(T::SurfacePanel);
     def.pins.dark = Pins::from_iter([(TokenRef::Color(T::TextNormal), panel)]);
-    def.pins.dark.colors.insert(TokenRef::Component(field("button.primary.fill.rest")), Rgba::rgb(0x80, 0x80, 0x80));
-    def.pins.dark.colors.insert(TokenRef::Component(field("button.primary.text.rest")), Rgba::rgb(0x88, 0x88, 0x88));
 
     let mut cases: Vec<(ThemeDef, Appearance)> = vec![(def, a)];
     for theme in builtins() {
@@ -145,7 +107,7 @@ fn every_warning_is_a_failing_pair_with_its_ratio() {
             }
         }
     }
-    let (mut semantic, mut component) = (0, 0);
+    let mut warned = 0;
     for (theme, a) in &cases {
         let e = explain(theme, *a, None);
         for w in &e.resolved.warnings {
@@ -153,13 +115,10 @@ fn every_warning_is_a_failing_pair_with_its_ratio() {
                 e.pairs.iter().find(|p| p.pair.fg == w.fg && p.pair.bg == w.bg).unwrap_or_else(|| panic!("{} {a:?}: {w:?} not in pairs", theme.id));
             assert_eq!(found.pair, *w);
             assert!(!found.pair.passes() && !found.fixed_by_pass);
-            match w.fg {
-                TokenRef::Color(_) => semantic += 1,
-                TokenRef::Component(_) => component += 1,
-            }
+            warned += 1;
         }
     }
-    assert!(semantic > 0 && component > 0, "the pinned theme has warnings of both layers");
+    assert!(warned > 0, "the pinned theme has warnings");
 }
 
 #[test]
@@ -220,11 +179,6 @@ fn fixed_and_moved_pairs_differ() {
     assert!(moved.ratio_before >= moved.pair.minimum && moved.ratio_before != moved.pair.ratio);
     assert!(moved.moved_by_pass && !moved.fixed_by_pass);
 
-    // The semantic pass moved `accent.solid` and `text.on_accent`, which the button reads.
-    let button = e.pairs.iter().find(|p| p.pair.fg == field("button.primary.text.rest").into()).unwrap();
-    assert_eq!(button.pair.bg, field("button.primary.fill.rest").into());
-    assert!(button.moved_by_pass && button.fixed_by_pass);
-
     // A pinned panel no text can reach 7:1 on: `text.normal` moves and still fails.
     let mut def = unpinned();
     def.high_contrast.dark = Pins::from_iter([(T::SurfacePanel, Rgba::rgb(0x77, 0x77, 0x77))]);
@@ -232,39 +186,6 @@ fn fixed_and_moved_pairs_differ() {
     let failing = pair(&e, T::TextNormal, T::SurfacePanel);
     assert!(!failing.pair.passes() && failing.ratio_before < failing.pair.minimum);
     assert!(failing.moved_by_pass && !failing.fixed_by_pass);
-}
-
-#[test]
-fn reads_are_what_both_probes_agree_on() {
-    use super::explain::{PROBES, agree, default_reads, probe_reads};
-    let (a, b) = (probe_reads(PROBES[0]), probe_reads(PROBES[1]));
-    // The hover fill of lists is `state.hover` moved only when it is too close
-    // to the row beside it, so whether a probe reads it depends on the probe's colours.
-    let moved_when_close = [ComponentField::List(ListField::Hover)];
-    // Selected fills and their text move in lightness to show on what they sit on, so what they
-    // read depends on the probe's colours too.
-    let moved_to_show = |f: &ComponentField| {
-        matches!(
-            f,
-            ComponentField::List(
-                ListField::Selected | ListField::SelectedHover | ListField::SelectedText | ListField::SelectedDimmed | ListField::SelectedDetail
-            ) | ComponentField::IconButton(_)
-                | ComponentField::Segmented(SegmentedField::Selected { .. })
-                | ComponentField::Dock(DockField::IconSelected | DockField::IconSelectedText)
-                | ComponentField::Button(ButtonField::Color { variant: ButtonVariant::Secondary, state: State::Pressed, .. })
-                | ComponentField::Check(CheckField::Off { part: CheckOffPart::Border, state: State::Rest })
-        )
-    };
-    let steady = |reads: &[(ComponentField, Option<T>)]| {
-        reads.iter().filter(|(f, _)| !moved_when_close.contains(f) && !moved_to_show(f)).copied().collect::<Vec<_>>()
-    };
-    assert_eq!(steady(&a), steady(&b), "today's defaults read the same tokens under either probe");
-    let reads = default_reads();
-    assert_eq!(steady(&reads), steady(&a));
-    assert!(reads.iter().filter(|(f, _)| moved_when_close.contains(f)).all(|&(_, t)| t.is_none() || t == Some(T::StateHover)));
-    let f = field("button.primary.fill.rest");
-    assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, Some(T::AccentHover))]), [(f, None)]);
-    assert_eq!(agree(&[(f, Some(T::AccentSolid))], &[(f, None)]), [(f, None)]);
 }
 
 #[test]
@@ -289,25 +210,21 @@ fn a_pulled_anchored_token_names_its_target_and_the_pair() {
 
 #[test]
 fn explained_sizes_name_the_layer_that_set_each_value() {
-    let sizes =
-        AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "toolbar.button": 40 } }"#).unwrap();
+    let sizes = AppSizes::parse(br#"{ "all": { "size.control.md": 28, "typography.body.size": 15 }, "comfortable": { "space.pad.panel": 10 } }"#).unwrap();
     let theme = unpinned();
     let origin = |e: &Explained, path: &str| e.sizes.iter().find(|o| o.path == path).cloned().unwrap_or_else(|| panic!("no size {path}"));
 
     let plain = explain(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None);
     assert!(plain.sizes.iter().all(|o| !o.layer.from_app()), "no app layer, no app origin");
     assert_eq!(origin(&plain, "size.control.md").layer, SizeLayer::SizeSet);
-    assert_eq!(origin(&plain, "list.row_height").layer, SizeLayer::Derived);
 
     let comfortable = explain_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None, &sizes);
     assert_eq!(comfortable.resolved, resolve_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Comfortable), None, &sizes));
     let control = origin(&comfortable, "size.control.md");
     assert_eq!((control.layer, control.value, control.range), (SizeLayer::App, SizeValue::Number(28.0), (16.0, 48.0)));
-    assert_eq!(origin(&comfortable, "list.row_height").layer, SizeLayer::Derived, "derived from the override, not set by it");
-    assert_eq!(origin(&comfortable, "list.row_height").value, SizeValue::Number(28.0));
-    assert_eq!(origin(&comfortable, "toolbar.button").layer, SizeLayer::AppPin);
+    assert_eq!(origin(&comfortable, "space.pad.panel").layer, SizeLayer::App);
     assert_eq!(origin(&comfortable, "space.gap.row").layer, SizeLayer::SizeSet);
 
     let compact = explain_sized(&theme, appearance(Mode::Dark, Contrast::Standard, Size::Compact), None, &sizes);
-    assert_eq!(origin(&compact, "toolbar.button").layer, SizeLayer::Derived, "a pin for the other set does not apply");
+    assert_eq!(origin(&compact, "space.pad.panel").layer, SizeLayer::SizeSet, "an override for the other set does not apply");
 }

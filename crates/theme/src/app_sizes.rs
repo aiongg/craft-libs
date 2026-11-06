@@ -1,30 +1,25 @@
-//! An app's size overrides: layer 2 (base values) and layer 4 (component pins) of the size
-//! model. The app ships them as a JSON block read by [`AppSizes::parse`] and hands them to the
+//! An app's size overrides: layer 2 (base values) of the size model. The app ships them as a JSON block read by [`AppSizes::parse`] and hands them to the
 //! resolver in [`AppDefaults`](crate::AppDefaults).
 
 use std::collections::BTreeMap;
 
-use super::components::{ComponentTokens, SizeField};
 use super::format::{self, FormatErrors};
-use super::sizes::{ComponentSizes, Leaf, Preset, Slot, leaves};
+use super::sizes::{Leaf, Preset, Slot, leaves};
 use super::theme::{Size, TextSizeSteps};
 
-/// The value of one override: a length, or a switch.
+/// The value of one override: a length in logical pixels; a corner radius of 999 gives pills.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum SizeValue {
-    /// A length in logical pixels; a corner radius of 999 gives pills.
+    /// A length.
     Number(f32),
-    /// A switch, such as `size.list.rounded`.
-    Switch(bool),
 }
 
-/// Overrides by path, such as `size.control.md` or `toolbar.button`.
+/// Overrides by path, such as `size.control.md`.
 pub type SizeMap = BTreeMap<String, SizeValue>;
 
-/// An app's size overrides. A path is either a base value (layer 2: `size.*`, `space.*`,
-/// `radius.*`, `typography.<role>.size` and `.line_height`), which the size set's derived
-/// component sizes follow, or a component size (layer 4: [`SizeField`]), which changes that one
-/// token. A size set's own map wins over `all`.
+/// An app's size overrides. A path is a base value (`size.*`, `space.*`, `radius.*`,
+/// `stroke.*`, `typography.<role>.size` and `.line_height`), which every size derived from it
+/// follows. A size set's own map wins over `all`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct AppSizes {
     /// For every size set.
@@ -38,30 +33,21 @@ pub struct AppSizes {
     pub text_steps: TextSizeSteps,
 }
 
-/// Where a path leads.
-pub(crate) enum Target {
-    /// A base value: its path in a size set file.
-    Base(String),
-    /// A component size.
-    Pin(SizeField),
-}
-
 /// The base paths an app may override: sizes, spacing, corner radii, strokes and type sizes, not the
-/// edge, fonts or the set's component values.
+/// edge or fonts.
 pub(crate) fn base_path(path: &str) -> bool {
     ["size.", "space.", "radius.", "stroke."].iter().any(|p| path.starts_with(p))
         || path.strip_prefix("typography.").is_some_and(|rest| rest.ends_with(".size") || rest.ends_with(".line_height"))
 }
 
-/// The place `path` leads to, or `None` when it names no override.
-pub(crate) fn target(path: &str) -> Option<Target> {
-    if base_path(path) {
-        let (mut base, mut components) = (Preset::default(), ComponentSizes::default());
-        let file_path = format!("base.{path}");
-        let found = leaves(&mut base, &mut components).iter().any(|l| l.path == file_path);
-        return found.then_some(Target::Base(file_path));
+/// The path of `path` in a size set file, or `None` when it names no override.
+pub(crate) fn target(path: &str) -> Option<String> {
+    if !base_path(path) {
+        return None;
     }
-    SizeField::from_path(path).map(Target::Pin)
+    let mut base = Preset::default();
+    let file_path = format!("base.{path}");
+    leaves(&mut base).iter().any(|l| l.path == file_path).then_some(file_path)
 }
 
 impl AppSizes {
@@ -111,23 +97,11 @@ impl AppSizes {
         if merged.is_empty() {
             return;
         }
-        let mut components = ComponentSizes::default();
-        for Leaf { path, slot, .. } in leaves(base, &mut components) {
+        for Leaf { path, slot, .. } in leaves(base) {
             let Some(value) = path.strip_prefix("base.").and_then(|p| merged.get(p)) else { continue };
-            match (slot, value) {
-                (Slot::Num(x) | Slot::Length(x), SizeValue::Number(n)) => *x = *n,
-                (Slot::Bool(b), SizeValue::Switch(v)) => *b = *v,
-                // `parse` rejects a value of the wrong kind.
-                _ => {}
-            }
-        }
-    }
-
-    /// Layer 4: the component pins for `size` on the derived `tokens`.
-    pub(crate) fn apply_pins(&self, size: Size, tokens: &mut ComponentTokens) {
-        for (path, value) in &self.merged(size) {
-            if let (Some(Target::Pin(field)), SizeValue::Number(n)) = (target(path), value) {
-                field.set(tokens, *n);
+            let SizeValue::Number(n) = value;
+            if let Slot::Num(x) | Slot::Length(x) = slot {
+                *x = *n;
             }
         }
     }

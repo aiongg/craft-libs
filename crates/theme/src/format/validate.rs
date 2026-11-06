@@ -4,7 +4,7 @@
 use std::collections::BTreeMap;
 
 use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, OFFSET};
-use crate::components::{ComponentField, FieldKind, OverrideValue};
+use crate::components::ComponentField;
 use crate::ramp::Mode;
 use crate::resolve;
 use crate::theme::{Appearance, Contrast, EdgeSeed, ModePins, PinLayer, Pins, ShapeSeed, Size, TextSize, ThemeDef, Variants};
@@ -89,6 +89,9 @@ impl Check {
                 }
             });
         }
+        if let Some(r) = shape.button_radius {
+            self.at("button_radius", |c| c.length(r));
+        }
         if let Some(e) = shape.edge {
             self.at("edge", |c| c.edge(e));
         }
@@ -124,14 +127,14 @@ impl Check {
     fn pins(&mut self, pins: &Pins) {
         for &token in pins.refs.keys() {
             self.at(&token.path(), |c| {
-                if matches!(token, TokenRef::Component(f) if f.kind() != FieldKind::Color) {
+                if matches!(token, TokenRef::Component(_)) {
                     c.fail(ErrorKind::PinNotColor);
                 }
             });
         }
         for (&token, colour) in &pins.colors {
             self.at(&token.path(), |c| match token {
-                TokenRef::Component(f) if f.kind() != FieldKind::Color => c.fail(ErrorKind::PinNotColor),
+                TokenRef::Component(_) => c.fail(ErrorKind::PinNotColor),
                 TokenRef::Color(t) if t.is_opaque_surface() && colour.a() < 255 => c.fail(ErrorKind::NotOpaque),
                 _ => {}
             });
@@ -235,17 +238,9 @@ impl Check {
         }
     }
 
-    fn components(&mut self, components: &BTreeMap<ComponentField, OverrideValue>) {
-        for (&field, &value) in components {
-            self.at(&field.path(), |c| {
-                let (expected, found) = (field.kind(), value.kind());
-                match value {
-                    _ if expected == FieldKind::Color => c.fail(ErrorKind::ColorNotPerMode),
-                    _ if expected != found => c.fail(ErrorKind::WrongKind { expected, found }),
-                    OverrideValue::Length(l) => c.length(l),
-                    OverrideValue::Color(_) | OverrideValue::Elevation(_) => {}
-                }
-            });
+    fn components(&mut self, components: &BTreeMap<ComponentField, f32>) {
+        for (&field, &length) in components {
+            self.at(&field.path(), |c| c.length(length));
         }
     }
 }

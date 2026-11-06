@@ -205,56 +205,16 @@ pub struct OverlayColors {
     pub handle_fill: Rgba,
     /// Outline of handles; follows `stroke` unless pinned.
     pub handle_stroke: Rgba,
-    /// Marching ants and selection bands: the light colour, under `marquee_dash`.
+    /// Marching ants and selection bands: the light colour.
     pub marquee: Rgba,
-    /// The dashes over `marquee`, and the line of an outline being drawn.
-    pub marquee_dash: Rgba,
     /// Ruler guides, unless the host gives a guide its own colour.
     pub guide: Rgba,
-    /// The selected guide.
-    pub guide_selected: Rgba,
-    /// Smart guides and the distances they measure.
-    pub smart_guide: Rgba,
-    /// The crop frame's line, brackets and edge bars.
-    pub crop: Rgba,
-    /// The crop frame's composition guides.
-    pub crop_guide: Rgba,
-    /// The perspective crop quad when its corners do not form a valid quad.
-    pub crop_invalid: Rgba,
     /// Canvas grid.
     pub grid: Rgba,
     /// The light cells of the transparency checkerboard.
     pub checker_light: Rgba,
     /// The dark cells of the transparency checkerboard.
     pub checker_dark: Rgba,
-    /// A grip at rest (CadCraft's blue).
-    pub grip: Rgba,
-    /// A grip under the pointer.
-    pub grip_warm: Rgba,
-    /// A grip being dragged.
-    pub grip_hot: Rgba,
-    /// A dynamic grip (an arrow, a triangle or a dynamic point) at rest (CadCraft's cyan).
-    pub grip_dyn: Rgba,
-    /// A grip's outline.
-    pub grip_stroke: Rgba,
-    /// A Puppet Warp pin's fill.
-    pub pin: Rgba,
-    /// A pin's ring and the selected pin's core.
-    pub pin_ring: Rgba,
-    /// The fixed-rotation ring and its line.
-    pub pin_turn: Rgba,
-    /// The pin mesh's lines.
-    pub mesh: Rgba,
-    /// A slice's outline (the default; a preference overrides it).
-    pub slice: Rgba,
-    /// The selected slice's outline.
-    pub slice_selected: Rgba,
-    /// An auto slice's badge fill.
-    pub slice_auto: Rgba,
-    /// A slice badge's text.
-    pub slice_text: Rgba,
-    /// An inactive artboard's edge.
-    pub artboard: Rgba,
 }
 
 /// Chart and histogram colours.
@@ -363,30 +323,10 @@ impl ColorTokens {
                 handle_fill: c,
                 handle_stroke: c,
                 marquee: c,
-                marquee_dash: c,
                 guide: c,
-                guide_selected: c,
-                smart_guide: c,
-                crop: c,
-                crop_guide: c,
-                crop_invalid: c,
                 grid: c,
                 checker_light: c,
                 checker_dark: c,
-                grip: c,
-                grip_warm: c,
-                grip_hot: c,
-                grip_dyn: c,
-                grip_stroke: c,
-                pin: c,
-                pin_ring: c,
-                pin_turn: c,
-                mesh: c,
-                slice: c,
-                slice_selected: c,
-                slice_auto: c,
-                slice_text: c,
-                artboard: c,
             },
             data: DataColors { series: [c; 8], red: c, green: c, blue: c, luma: c, cyan: c, magenta: c, yellow: c, scope: c },
             caption: CaptionColors { close_hover: c, close_text: c, inactive: c },
@@ -577,54 +517,14 @@ color_tokens! {
     OverlayHandleStroke = "overlay.handle_stroke" => overlay.handle_stroke;
     /// `overlay.marquee`
     OverlayMarquee = "overlay.marquee" => overlay.marquee;
-    /// `overlay.marquee_dash`
-    OverlayMarqueeDash = "overlay.marquee_dash" => overlay.marquee_dash;
     /// `overlay.guide`
     OverlayGuide = "overlay.guide" => overlay.guide;
-    /// `overlay.guide_selected`
-    OverlayGuideSelected = "overlay.guide_selected" => overlay.guide_selected;
-    /// `overlay.smart_guide`
-    OverlaySmartGuide = "overlay.smart_guide" => overlay.smart_guide;
-    /// `overlay.crop`
-    OverlayCrop = "overlay.crop" => overlay.crop;
-    /// `overlay.crop_guide`
-    OverlayCropGuide = "overlay.crop_guide" => overlay.crop_guide;
-    /// `overlay.crop_invalid`
-    OverlayCropInvalid = "overlay.crop_invalid" => overlay.crop_invalid;
     /// `overlay.grid`
     OverlayGrid = "overlay.grid" => overlay.grid;
     /// `overlay.checker_light`
     OverlayCheckerLight = "overlay.checker_light" => overlay.checker_light;
     /// `overlay.checker_dark`
     OverlayCheckerDark = "overlay.checker_dark" => overlay.checker_dark;
-    /// `overlay.grip`
-    OverlayGrip = "overlay.grip" => overlay.grip;
-    /// `overlay.grip_warm`
-    OverlayGripWarm = "overlay.grip_warm" => overlay.grip_warm;
-    /// `overlay.grip_hot`
-    OverlayGripHot = "overlay.grip_hot" => overlay.grip_hot;
-    /// `overlay.grip_dyn`
-    OverlayGripDyn = "overlay.grip_dyn" => overlay.grip_dyn;
-    /// `overlay.grip_stroke`
-    OverlayGripStroke = "overlay.grip_stroke" => overlay.grip_stroke;
-    /// `overlay.pin`
-    OverlayPin = "overlay.pin" => overlay.pin;
-    /// `overlay.pin_ring`
-    OverlayPinRing = "overlay.pin_ring" => overlay.pin_ring;
-    /// `overlay.pin_turn`
-    OverlayPinTurn = "overlay.pin_turn" => overlay.pin_turn;
-    /// `overlay.mesh`
-    OverlayMesh = "overlay.mesh" => overlay.mesh;
-    /// `overlay.slice`
-    OverlaySlice = "overlay.slice" => overlay.slice;
-    /// `overlay.slice_selected`
-    OverlaySliceSelected = "overlay.slice_selected" => overlay.slice_selected;
-    /// `overlay.slice_auto`
-    OverlaySliceAuto = "overlay.slice_auto" => overlay.slice_auto;
-    /// `overlay.slice_text`
-    OverlaySliceText = "overlay.slice_text" => overlay.slice_text;
-    /// `overlay.artboard`
-    OverlayArtboard = "overlay.artboard" => overlay.artboard;
     /// `data.series.0`
     DataSeries0 = "data.series.0" => data.series[0];
     /// `data.series.1`
@@ -851,10 +751,6 @@ pub struct RailSizes {
     pub width: f32,
     /// Square button inside the rail.
     pub button: f32,
-    /// Width of a panel rail: the iconic column of a dock and a panel rail.
-    pub panel_width: f32,
-    /// Square button inside a panel rail.
-    pub panel_button: f32,
 }
 
 /// Bar heights, in logical pixels.
@@ -868,8 +764,6 @@ pub struct BarSizes {
     pub status: f32,
     /// Tool options bar.
     pub options: f32,
-    /// Tool options bar when the user prefers the narrow one.
-    pub options_narrow: f32,
 }
 
 /// Fixed sizes of controls and chrome.
@@ -893,12 +787,6 @@ pub struct SizeTokens {
     pub hit: HitSizes,
     /// Side of a checkerboard cell in UI swatches and thumbnails.
     pub checker: f32,
-    /// Lists and trees.
-    pub list: ListSizes,
-    /// Tabs.
-    pub tab: TabSizes,
-    /// Preset browsers.
-    pub preset: PresetSizes,
 }
 
 /// Canvas drag handle sizes, in logical pixels.
@@ -943,81 +831,6 @@ pub struct ThumbSizes {
     pub md: f32,
     /// Large.
     pub lg: f32,
-}
-
-/// Sizes and looks of list rows that differ by Size preset.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ListSizes {
-    /// Thumbnail sides.
-    pub thumb: ThumbSizes,
-    /// Least height of a row with a thumbnail.
-    pub thumb_row_min: f32,
-    /// Indent of one tree level.
-    pub indent: f32,
-    /// Width of the disclosure column.
-    pub disclosure: f32,
-    /// Width of one toggle column (eye, lock).
-    pub toggle_column: f32,
-    /// Least width of a row's label before optional trailing items drop out and the indent
-    /// shrinks.
-    pub min_label: f32,
-    /// Room kept at a row's trailing edge for an overlay scroll bar.
-    pub trailing_pad: f32,
-    /// State fills have `radius.control` corners (flat otherwise).
-    pub rounded: bool,
-    /// Rows have a divider under them and toggle columns one at their trailing edge.
-    pub dividers: bool,
-}
-
-/// Sizes and looks of tabs that differ by Size preset.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct TabSizes {
-    /// Height of a dock group's tab strip (PhotoCraft's panel tabs are 2 taller than its
-    /// document tabs).
-    pub panel_height: f32,
-    /// Height of a strip with Large Tabs.
-    pub height_large: f32,
-    /// Least width of a panel tab before the strip overflows.
-    pub min_width: f32,
-    /// Side of the × hit box.
-    pub close: f32,
-    /// Side of the × glyph.
-    pub close_icon: f32,
-    /// The active and hovered tab's top corners are `radius.control` (square otherwise).
-    pub rounded: bool,
-    /// Document tabs have a divider at their trailing edge.
-    pub dividers: bool,
-}
-
-/// Sizes of preset browsers that differ by Size preset.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct PresetSizes {
-    /// Height of a group or folder header.
-    pub header_height: f32,
-    /// Between grid cells.
-    pub grid_gap: f32,
-    /// Between the grid and the panel edge.
-    pub grid_inset: f32,
-    /// Corner radius of a grid cell.
-    pub cell_radius: f32,
-    /// Between a thumbnail and its caption.
-    pub caption_gap: f32,
-    /// Width of the thumbnail size slider.
-    pub slider_width: f32,
-    /// Width of a wide picker field's thumbnail (custom shapes).
-    pub picker_wide_width: f32,
-    /// Height of a wide picker field's thumbnail.
-    pub picker_wide_height: f32,
-    /// Side of a square picker field's thumbnail (patterns, contours).
-    pub picker_square: f32,
-    /// Side of a cell in the picker's popup.
-    pub picker_cell: f32,
-    /// Width of the named preset row's Name field.
-    pub name_width: f32,
-    /// The greatest height of the picker's popup.
-    pub popup_max_height: f32,
-    /// The gap between the browser's list and its own footer (the `size.preset.footer_room` leaf).
-    pub footer_room: f32,
 }
 
 /// The font a type role uses. `craft_ui::fonts` maps each slot to a face.
@@ -1154,7 +967,7 @@ pub struct MotionTokens {
     pub reduced: bool,
 }
 
-/// Every resolved token: the semantic layer and the component layer.
+/// Every resolved token: the semantic layer and the component tokens.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Tokens {
     /// Colours.
@@ -1173,7 +986,7 @@ pub struct Tokens {
     pub elevation: ElevationTokens,
     /// Animations.
     pub motion: MotionTokens,
-    /// Per-family component tokens, derived from the fields above.
+    /// The component tokens.
     pub component: ComponentTokens,
 }
 

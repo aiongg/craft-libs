@@ -6,8 +6,8 @@ use serde_json::{Map, Value};
 
 use super::{EDGE, ErrorKind, FormatError, FormatErrors, LENGTH, MAX_THEME_BYTES, OFFSET, SCHEMA, SCHEMA_VERSION, ThemeFile};
 use crate::color::Rgba;
-use crate::components::{ComponentField, FieldKind, OverrideValue};
-use crate::scale::{Elevation, Radius};
+use crate::components::ComponentField;
+use crate::scale::Radius;
 use crate::theme::{
     AppOverrides, ContrastIntent, EdgeSeed, ModePins, ModeSeeds, Pins, RadiusOffset, SeedOverrides, Seeds, ShapeSeed, ThemeDef, Variants,
 };
@@ -226,11 +226,15 @@ impl Parser {
                 Some(r) => p.at("radius_offset", |p| p.radius_offset(r)).map(Some),
                 None => Some(None),
             };
+            let button_radius = match shape.get("button_radius") {
+                None | Some(Value::Null) => Some(None),
+                Some(v) => p.at("button_radius", |p| p.length(v)).map(Some),
+            };
             let edge = p.at("edge", |p| match shape.get("edge") {
                 None | Some(Value::Null) => Some(None),
                 Some(v) => p.edge(v).map(Some),
             });
-            Some(Some(ShapeSeed { radius: radius?, radius_offset: radius_offset?, edge: edge? }))
+            Some(Some(ShapeSeed { radius: radius?, radius_offset: radius_offset?, button_radius: button_radius?, edge: edge? }))
         })
     }
 
@@ -377,9 +381,7 @@ impl Parser {
                     p.fail(ErrorKind::UnknownToken);
                     return false;
                 };
-                if let TokenRef::Component(f) = token
-                    && f.kind() != FieldKind::Color
-                {
+                if matches!(token, TokenRef::Component(_)) {
                     p.fail(ErrorKind::PinNotColor);
                     return false;
                 }
@@ -389,7 +391,7 @@ impl Parser {
                             p.fail(ErrorKind::UnknownReference { name: name.to_owned() });
                             false
                         }
-                        Some(TokenRef::Component(f)) if f.kind() != FieldKind::Color => {
+                        Some(TokenRef::Component(_)) => {
                             p.fail(ErrorKind::ReferenceNotColor { name: name.to_owned() });
                             false
                         }
@@ -416,7 +418,7 @@ impl Parser {
     }
 
     /// The `components` map of `obj`.
-    fn components(&mut self, obj: &Map<String, Value>) -> Option<BTreeMap<ComponentField, OverrideValue>> {
+    fn components(&mut self, obj: &Map<String, Value>) -> Option<BTreeMap<ComponentField, f32>> {
         let Some(m) = self.optional_object(obj, "components") else { return Some(BTreeMap::new()) };
         self.at("components", |p| {
             let mut out = BTreeMap::new();
@@ -434,7 +436,7 @@ impl Parser {
         })
     }
 
-    fn component_value(&mut self, key: &str, v: &Value) -> Option<(ComponentField, OverrideValue)> {
+    fn component_value(&mut self, key: &str, v: &Value) -> Option<(ComponentField, f32)> {
         if ColorToken::from_path(key).is_some() {
             self.fail(ErrorKind::ColorNotPerMode);
             return None;
@@ -443,34 +445,7 @@ impl Parser {
             self.fail(ErrorKind::UnknownToken);
             return None;
         };
-        let expected = field.kind();
-        if expected == FieldKind::Color {
-            self.fail(ErrorKind::ColorNotPerMode);
-            return None;
-        }
-        let Some(found) = value_kind(v) else {
-            self.fail(ErrorKind::BadValue { expected: kind_hint(expected) });
-            return None;
-        };
-        if found != expected {
-            self.fail(ErrorKind::WrongKind { expected, found });
-            return None;
-        }
-        let value = match expected {
-            FieldKind::Length => OverrideValue::Length(self.length(v)?),
-            FieldKind::Elevation => OverrideValue::Elevation(self.elevation(v)?),
-            FieldKind::Color => return None,
-        };
-        Some((field, value))
-    }
-
-    /// `{ "level": 0 to 3 }`.
-    pub(super) fn elevation(&mut self, v: &Value) -> Option<Elevation> {
-        let level = v.get("level").and_then(Value::as_u64).filter(|l| *l < Elevation::LEVELS.len() as u64);
-        if level.is_none() {
-            self.fail(ErrorKind::BadValue { expected: "{\"level\": 0 to 3}" });
-        }
-        level.map(|l| Elevation::level(l as usize))
+        Some((field, self.length(v)?))
     }
 
     fn apps(&mut self, raw: &Map<String, Value>, variants: Variants) -> Option<BTreeMap<AppId, AppOverrides>> {
@@ -510,24 +485,5 @@ impl Parser {
             }
             ok.then_some(out)
         })
-    }
-}
-
-/// The kind a JSON value looks like: a `#` colour, a number or `"full"`, an elevation.
-fn value_kind(v: &Value) -> Option<FieldKind> {
-    match v {
-        Value::Number(_) => Some(FieldKind::Length),
-        Value::String(s) if s == "full" => Some(FieldKind::Length),
-        Value::String(s) if Rgba::from_hex(s).is_some() => Some(FieldKind::Color),
-        Value::Object(o) if o.contains_key("level") => Some(FieldKind::Elevation),
-        _ => None,
-    }
-}
-
-fn kind_hint(kind: FieldKind) -> &'static str {
-    match kind {
-        FieldKind::Color => "a colour",
-        FieldKind::Length => "a length: a number of 0 or more, or \"full\"",
-        FieldKind::Elevation => "{\"level\": 0 to 3}",
     }
 }

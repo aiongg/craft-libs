@@ -1,7 +1,8 @@
-//! Selected and on states must be identifiable (WCAG 1.4.11) in high contrast: a fill, an edge or
-//! a mark reaches the non-text minimum on what the state sits on. Where a fill carries the state
-//! alone, its derived colour moves in OKLCH lightness to the nearest step that does, with its text
-//! still readable on it. Standard contrast keeps the theme's own fills.
+//! Contrast helpers for state indicators. Selected and on states must be identifiable (WCAG 1.4.11)
+//! in high contrast: a fill, an edge or a mark reaches the non-text minimum on what the state sits
+//! on. Where a fill carries the state alone, its derived colour moves in OKLCH lightness to the
+//! nearest step that does, with its text still readable on it. Standard contrast keeps the theme's
+//! own fills.
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -36,7 +37,7 @@ thread_local! {
 }
 
 /// What a selected fill has to show against.
-pub(super) struct Identify<'a> {
+pub struct Identify<'a> {
     /// The fills it sits on; it reaches the non-text minimum on each.
     pub on: &'a [Rgba],
     /// Fills it touches that it also keeps a `values::LIST_HOVER_MIN` step from (a selected row
@@ -182,7 +183,7 @@ impl<'a> Identify<'a> {
 /// An outline of a box that is identifiable by its fill or its outline: `outline` unchanged where
 /// `fill` or `outline` reaches the non-text minimum on every fill in `on`; otherwise `outline`
 /// moved in lightness, keeping hue and chroma, just far enough to reach it.
-pub(super) fn identifiable_outline(outline: Rgba, fill: Rgba, on: &[Rgba], high: bool) -> Rgba {
+pub fn identifiable_outline(outline: Rgba, fill: Rgba, on: &[Rgba], high: bool) -> Rgba {
     let min = if high { values::NON_TEXT_MIN.1 } else { values::NON_TEXT_MIN.0 };
     let shows = |c: Rgba| on.iter().all(|&bg| contrast_ratio(over(c, bg), bg) >= min);
     if shows(fill) || shows(outline) {

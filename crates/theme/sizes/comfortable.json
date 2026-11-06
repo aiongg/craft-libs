@@ -17,7 +17,6 @@
     "size": {
       "bar": {
         "options": 42.0,
-        "options_narrow": 34.0,
         "status": 30.0,
         "tab": 30.0,
         "title": 38.0
@@ -40,51 +39,10 @@
         "md": 18.0,
         "sm": 14.0
       },
-      "list": {
-        "disclosure": 18.0,
-        "dividers": false,
-        "indent": 18.0,
-        "min_label": 80.0,
-        "rounded": true,
-        "thumb": {
-          "lg": 48.0,
-          "md": 34.0,
-          "sm": 18.0
-        },
-        "thumb_row_min": 40.0,
-        "toggle_column": 36.0,
-        "trailing_pad": 12.0
-      },
       "panel_header": 34.0,
-      "preset": {
-        "caption_gap": 3.0,
-        "cell_radius": 6.0,
-        "footer_room": 6.0,
-        "grid_gap": 6.0,
-        "grid_inset": 12.0,
-        "header_height": 30.0,
-        "name_width": 180.0,
-        "picker_cell": 50.0,
-        "picker_square": 50.0,
-        "picker_wide_height": 28.0,
-        "picker_wide_width": 45.0,
-        "popup_max_height": 320.0,
-        "slider_width": 108.0
-      },
       "rail": {
         "button": 36.0,
-        "panel_button": 32.0,
-        "panel_width": 44.0,
         "width": 50.0
-      },
-      "tab": {
-        "close": 16.0,
-        "close_icon": 12.0,
-        "dividers": false,
-        "height_large": 38.0,
-        "min_width": 44.0,
-        "panel_height": 40.0,
-        "rounded": true
       },
       "thumb": {
         "lg": 48.0,
@@ -154,62 +112,6 @@
         "line_height": 20.0,
         "size": 14.0
       }
-    }
-  },
-  "components": {
-    "button": {
-      "height": {
-        "md": 30.0,
-        "sm": 22.0
-      },
-      "pad_x": 18.0
-    },
-    "channels": {
-      "thumb": 30.0
-    },
-    "command_palette": {
-      "row_height": 38.0
-    },
-    "dock": {
-      "body_gap": 6.0
-    },
-    "inspector": {
-      "header_height": 30.0,
-      "icon": 18.0
-    },
-    "options_bar": {
-      "button": 28.0
-    },
-    "progress": {
-      "width": 140.0
-    },
-    "status_bar": {
-      "field_width": 78.0
-    },
-    "tile": {
-      "caption_gap": 3.0,
-      "gap": 8.0,
-      "group_header": 44.0,
-      "inset": 6.0
-    },
-    "toast": {
-      "inset": [
-        20.0,
-        15.0
-      ],
-      "pad": 13.0
-    },
-    "toolbar": {
-      "button": 32.0,
-      "button_large": 42.0,
-      "gap": 5.0,
-      "group_gap": 8.0,
-      "overflow": 38.0,
-      "pad": [
-        8.0,
-        10.0
-      ],
-      "width": 60.0
     }
   }
 }

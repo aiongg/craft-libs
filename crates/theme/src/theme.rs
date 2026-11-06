@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 
 use super::color::Rgba;
-use super::components::{ComponentField, FieldKind, OverrideError, OverrideValue};
+use super::components::{ComponentField, OverrideError};
 use super::ramp::Mode;
 use super::tokens::{ColorTokens, Edge, RadiusSet, Status, TokenRef};
 use crate::{AppId, ThemeId};
@@ -26,12 +26,12 @@ pub struct ThemeDef {
     pub shape: Option<ShapeSeed>,
     /// Which modes the theme has.
     pub variants: Variants,
-    /// Fixed colours per mode, semantic and component, replacing derived ones.
+    /// Fixed colours per mode, replacing derived ones.
     pub pins: ModePins,
     /// Fixed colours used only with [`Contrast::High`], applied over `pins`.
     pub high_contrast: ModePins,
-    /// Mode-independent component overrides (radii, shadows). Colours go in the pins.
-    pub components: BTreeMap<ComponentField, OverrideValue>,
+    /// Component token overrides: the slider thumb lengths.
+    pub components: BTreeMap<ComponentField, f32>,
     /// Whether the theme is meant to have low contrast.
     pub contrast_intent: ContrastIntent,
     /// Per-app overrides, applied over the theme's own values when resolving for that app.
@@ -47,8 +47,8 @@ pub struct AppOverrides {
     pub pins: ModePins,
     /// Fixed colours per mode used only with [`Contrast::High`].
     pub high_contrast: ModePins,
-    /// Mode-independent component overrides.
-    pub components: BTreeMap<ComponentField, OverrideValue>,
+    /// Component token overrides.
+    pub components: BTreeMap<ComponentField, f32>,
 }
 
 impl ThemeDef {
@@ -68,17 +68,14 @@ impl ThemeDef {
     }
 
     /// Every override that resolution skips, in the theme and in its app overrides: a pin on a
-    /// component field that is not a colour, a colour in `components`, or a value of the wrong
-    /// kind there.
+    /// component field, which is a length.
     pub fn override_errors(&self) -> Vec<OverrideError> {
         let mut out = Vec::new();
         let high = [&self.high_contrast.light, &self.high_contrast.dark];
         let own = [&self.pins.light, &self.pins.dark];
         pin_errors(own.into_iter().chain(high), &mut out);
-        component_errors(&self.components, &mut out);
         for app in self.apps.values() {
             pin_errors([&app.pins.light, &app.pins.dark, &app.high_contrast.light, &app.high_contrast.dark], &mut out);
-            component_errors(&app.components, &mut out);
         }
         out
     }
@@ -87,22 +84,9 @@ impl ThemeDef {
 fn pin_errors<'a>(pins: impl IntoIterator<Item = &'a Pins>, out: &mut Vec<OverrideError>) {
     for pins in pins {
         for &key in pins.colors.keys().chain(pins.refs.keys()) {
-            if let TokenRef::Component(field) = key
-                && field.kind() != FieldKind::Color
-            {
+            if let TokenRef::Component(field) = key {
                 out.push(OverrideError::PinNotColor(field));
             }
-        }
-    }
-}
-
-fn component_errors(components: &BTreeMap<ComponentField, OverrideValue>, out: &mut Vec<OverrideError>) {
-    for (&field, value) in components {
-        let (expected, found) = (field.kind(), value.kind());
-        if expected == FieldKind::Color {
-            out.push(OverrideError::ColorNotPerMode(field));
-        } else if expected != found {
-            out.push(OverrideError::WrongKind { field, expected, found });
         }
     }
 }
@@ -227,6 +211,8 @@ pub struct ShapeSeed {
     /// Added to the control, popup and window radii in force (the preset's, or `radius`), so a
     /// theme keeps its own shape at every Size. A result below 0 is 0; a "full" radius stays full.
     pub radius_offset: Option<RadiusOffset>,
+    /// Replaces the button radius in force (the preset's, or `radius`'s); 999 gives pills.
+    pub button_radius: Option<f32>,
     /// Replaces the preset's edge style.
     pub edge: Option<EdgeSeed>,
 }

@@ -4,8 +4,8 @@
 //! One file per built-in, mode it has, contrast and size, at the default text size. Run
 //! `UPDATE_DUMPS=1 cargo test -p craft-theme dump` to rewrite them.
 //!
-//! The struct destructuring below is exhaustive on purpose: a new token or component field
-//! doesn't compile until it is dumped.
+//! The struct destructuring below is exhaustive on purpose: a new token doesn't compile until it
+//! is dumped.
 
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
@@ -45,10 +45,10 @@ fn token_dumps() {
     check_dir(&dir, &files);
 }
 
-/// The sample app's size overrides: a base override that its derived sizes follow, and one pin.
-const SAMPLE_SIZES: &str = r#"{ "all": { "size.control.md": 28 }, "comfortable": { "toolbar.button": 34 } }"#;
+/// The sample app's size overrides: a base override for both sets and one for Comfortable.
+const SAMPLE_SIZES: &str = r#"{ "all": { "size.control.md": 28 }, "comfortable": { "space.pad.panel": 14 } }"#;
 
-/// Comfortable with [`SAMPLE_SIZES`]: the layers 2 and 4 of the size model on one theme.
+/// Comfortable with [`SAMPLE_SIZES`]: the app's base overrides on one theme.
 fn app_sizes_dump() -> (String, String) {
     let sizes = AppSizes::parse(SAMPLE_SIZES.as_bytes()).unwrap();
     let theme = builtins().iter().find(|t| t.id.as_str() == "craft.pro").unwrap();
