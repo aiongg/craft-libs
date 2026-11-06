@@ -31,3 +31,25 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
 pub(crate) fn bare_context() -> Context {
     Context::default()
 }
+
+/// A paragraph of `text` wrapped to the available width.
+pub(crate) fn wrapped_text(ui: &mut Ui, text: &str) {
+    ui.add(egui::Label::new(text).wrap());
+}
+
+/// The default font definitions with the proportional family's first font moved to the end, a change that
+/// needs a new layout of every text.
+pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
+    let mut definitions = egui::FontDefinitions::default();
+    if let Some(proportional) = definitions.families.get_mut(&egui::FontFamily::Proportional)
+        && !proportional.is_empty()
+    {
+        proportional.rotate_left(1);
+    }
+    definitions
+}
+
+/// Senses `rect` under `id`, as a placed child's one widget does.
+pub(crate) fn placeholder(ui: &mut Ui, id: egui::Id, rect: Rect) -> egui::Response {
+    ui.interact(rect, id, egui::Sense::hover())
+}

@@ -12,6 +12,7 @@ pub mod frame;
 pub mod ime;
 pub mod inspect;
 pub mod install;
+pub mod layout_memory;
 pub mod memory;
 pub mod pointer;
 pub mod toast;

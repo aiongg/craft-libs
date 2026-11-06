@@ -6,6 +6,7 @@
 
 pub mod frames;
 pub mod input;
+pub mod layout;
 pub mod memory;
 
 pub use craft_ui_macros::trial;

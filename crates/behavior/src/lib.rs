@@ -3,10 +3,14 @@
 //!
 //! The crate depends on no egui crate: it uses `emath` and the `accesskit` data crate only.
 
+pub mod arrangement;
 pub mod canvas;
 pub mod columns;
 pub mod eviction;
+pub mod flow;
+pub mod grid;
 pub mod item_layout;
+pub mod label_column;
 pub mod layout_memory;
 pub mod motion;
 pub mod nav;
@@ -14,16 +18,23 @@ pub mod one_press;
 pub mod part;
 pub mod scroll;
 pub mod selection;
+pub mod sizing;
 pub mod value;
 pub mod wheel;
 
+pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
+pub use flow::{Flow, Insets};
+pub use grid::{GridCursor, GridMeasure, resolve_columns};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
+pub use label_column::{LabelColumn, LabelPlacement};
+pub use layout_memory::SizeTween;
 pub use motion::MotionMode;
 pub use nav::NavShape;
 pub use part::{PartKey, PartRef};
 pub use scroll::{ScrollPos, ScrollSpan};
+pub use sizing::{Metrics, Proposal};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
 pub use value::Value;
 pub use wheel::{WheelPhase, WheelUnit};
