@@ -1620,6 +1620,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-ui-bench"
+version = "0.1.0"
+dependencies = [
+ "craft-ui-legacy",
+ "egui",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
