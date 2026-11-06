@@ -1709,6 +1709,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "craft-ui-parity"
+version = "0.1.0"
+dependencies = [
+ "craft-theme",
+ "craft-ui-gallery-legacy",
+ "craft-ui-legacy",
+ "egui",
+ "egui_kittest",
+]
+
+[[package]]
 name = "craft-update"
 version = "0.1.0"
 dependencies = [
