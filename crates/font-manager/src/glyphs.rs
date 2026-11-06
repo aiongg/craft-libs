@@ -168,8 +168,10 @@ const CELL_MIN: f32 = 24.0;
 const CELL_MAX: f32 = 64.0;
 /// The room round a glyph in its cell, as a fraction of the cell.
 const GLYPH_INSET_RATIO: f32 = 0.1;
-/// The grid's height when the host gives the panel no bound.
-const UNBOUNDED_GRID_HEIGHT: f32 = 260.0;
+/// The grid cell before the user zooms, in points.
+const CELL_DEFAULT: f32 = 32.0;
+/// How many cell rows the grid shows at most before it scrolls.
+const GRID_ROWS: f32 = 8.0;
 
 type Textures = HashMap<char, Option<TextureHandle>>;
 
@@ -310,11 +312,11 @@ impl<'a> GlyphsPanel<'a> {
             let _ = select.show(ui);
         });
 
-        let recent_cell = tokens.size.control.sm;
+        let recent_cell = tokens.size.control.md;
         let recent_pad = tokens.stroke.thin;
         let recent_pitch = recent_cell + 2.0 * tokens.stroke.thin;
         let recent_glyph_inset = recent_cell * GLYPH_INSET_RATIO;
-        let size = if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(CELL_MIN, CELL_MAX) } else { tokens.size.control.md };
+        let size = if settings.zoom.is_finite() && settings.zoom > 0.0 { settings.zoom.clamp(CELL_MIN, CELL_MAX) } else { CELL_DEFAULT };
         let glyph_inset = size * GLYPH_INSET_RATIO;
         let ppp = ctx.pixels_per_point();
         let ink = Content::Normal.color(&tokens).to_egui();
@@ -352,11 +354,12 @@ impl<'a> GlyphsPanel<'a> {
 
         // The grid.
         let chars = category_chars(&ctx, panel, source, family, style, &settings.category, &settings.recent);
-        // What the panel has left above the zoom row; a host with no bound gets a fixed height.
+        // At most `GRID_ROWS` cell rows, less where the panel has less room above the zoom row.
+        let rows_height = GRID_ROWS * size;
         let grid_height = if ui.available_height().is_finite() {
-            (ui.available_height() - tokens.size.control.md - ui.spacing().item_spacing.y).max(size)
+            (ui.available_height() - tokens.size.control.md - ui.spacing().item_spacing.y).clamp(size, rows_height.max(size))
         } else {
-            UNBOUNDED_GRID_HEIGHT
+            rows_height
         };
         let width = (ui.available_width() - ui.spacing().scroll.bar_width - ui.spacing().scroll.bar_inner_margin).max(size);
         let columns = GridNav::columns(width, 0.0, 0.0, size);

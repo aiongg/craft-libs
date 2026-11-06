@@ -34,9 +34,9 @@ pub struct PagePreviewStyle {
 /// line, captions and spacing are the grid's (`TileStyle`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PageThumbnailsStyle {
-    /// The thumbnail width at zoom 1 (`size.thumb.lg`).
+    /// The thumbnail width at zoom 1 (a constant).
     pub usual_width: f32,
-    /// What the panel keeps free beside the thumbnails (`space.pad.dialog + space.gap.section`).
+    /// What the panel keeps free beside the thumbnails (a constant).
     pub panel_inset: f32,
 }
 
@@ -152,7 +152,7 @@ pub struct FrameMarksStyle {
 /// [`EdgePicker`](super::EdgePicker)'s sizes and colours.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct EdgePickerStyle {
-    /// The square's side and the lines' inset from it (`3 * size.control.md + 2 * space.gap.inline`, `space.pad.control`).
+    /// The square's side and the lines' inset from it (a constant, `space.pad.panel`).
     pub side: f32,
     #[allow(missing_docs)]
     pub inset: f32,

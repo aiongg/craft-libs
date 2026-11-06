@@ -28,7 +28,6 @@ const RULER_RENDER_HIT_PAD: f32 = 2.0;
 const RULER_LABEL_GAP: f32 = 110.0;
 const RULER_TICK_GAP: f32 = 12.0;
 const SCRUB_STEP: f32 = 1.0;
-const MARKER_HEIGHT: f32 = 10.0;
 const MARKER_HIT: f32 = 10.0;
 const GRAPH_KEY_SIZE: f32 = 7.0;
 const GRAPH_KEY_HIT: f32 = 11.0;
@@ -191,10 +190,13 @@ impl TimelineStyle {
     pub fn of(tokens: &UiTokens) -> TimelineStyle {
         let control = tokens.size.control.md;
         let space = &tokens.space;
-        let top_height = control + 2.0 * space.pad.panel;
+        let marker_row = tokens.typography.caption.line_height;
+        let ruler_height = RULER_MARKER_BAND.max(marker_row) + RULER_WORK_HEIGHT + tokens.typography.caption.line_height + RULER_MAJOR_TICK;
+        // The top strip holds the ruler under one marker-name row, and at least the transport buttons.
+        let top_height = (control + 2.0 * space.pad.panel).max(ruler_height + marker_row);
         TimelineStyle {
             top_height,
-            ruler_height: RULER_MARKER_BAND + RULER_WORK_HEIGHT + tokens.typography.caption.line_height + RULER_MAJOR_TICK,
+            ruler_height,
             scrollbar_height: SCROLLBAR_HEIGHT,
             scroll_thumb_min: SCROLL_THUMB_MIN,
             divider_height: DIVIDER_HEIGHT,
@@ -220,7 +222,7 @@ impl TimelineStyle {
             ruler_label_gap: RULER_LABEL_GAP,
             ruler_tick_gap: RULER_TICK_GAP,
             scrub_step: SCRUB_STEP,
-            marker_height: MARKER_HEIGHT,
+            marker_height: marker_row,
             marker_hit: MARKER_HIT,
             graph_key: GRAPH_KEY_SIZE,
             graph_key_hit: GRAPH_KEY_HIT,
@@ -228,7 +230,7 @@ impl TimelineStyle {
             graph_handle_hit: GRAPH_HANDLE_HIT,
             graph_reach: GRAPH_REACH,
             overview_view_min: OVERVIEW_VIEW_MIN,
-            ruler_marker_band: RULER_MARKER_BAND,
+            ruler_marker_band: RULER_MARKER_BAND.max(marker_row),
             ruler_work_height: RULER_WORK_HEIGHT,
             ruler_label_y: RULER_LABEL_Y,
             ruler_tick_inset: RULER_TICK_INSET,

@@ -5,16 +5,20 @@ use egui::Color32;
 
 /// The width kept for a tile's name in the caption strip.
 const NAME_ROOM: f32 = 110.0;
+/// The caption strip's height, the margin round the tiles and the gap between them.
+const CAPTION: f32 = 26.0;
+const MARGIN: f32 = 18.0;
+const GAP: f32 = 16.0;
 
 /// The compare tile's look.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CompareStyle {
-    /// `size.control.sm`.
+    /// The caption strip's height.
     pub caption: f32,
-    /// `space.gap.section`.
+    /// The margin round the tiles.
     pub margin: f32,
-    /// `space.gap.section`.
+    /// The gap between tiles.
     pub gap: f32,
     /// The room kept for a name.
     pub name_room: f32,
@@ -41,9 +45,9 @@ impl CompareStyle {
     pub fn of(tokens: &UiTokens) -> CompareStyle {
         let c = &tokens.color;
         CompareStyle {
-            caption: tokens.size.control.sm,
-            margin: tokens.space.gap.section,
-            gap: tokens.space.gap.section,
+            caption: CAPTION,
+            margin: MARGIN,
+            gap: GAP,
             name_room: NAME_ROOM,
             divider: c.line.divider.to_egui(),
             ring: c.accent.solid.to_egui(),

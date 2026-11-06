@@ -42,6 +42,11 @@ use egui::{DragAndDrop, Pos2, Rect, Response, Ui};
 use super::style::PageThumbnailsStyle;
 use super::view::PageSource;
 
+/// The thumbnail width at zoom 1, in points.
+const USUAL_THUMBNAIL_WIDTH: f32 = 150.0;
+/// What the panel keeps free beside the thumbnails, in points.
+const THUMBNAIL_PANEL_INSET: f32 = 40.0;
+
 /// The thumbnail zoom: 0.5 to 1.5 of the usual width in steps of 0.25, 1 by default (PdfCraft's
 /// `THUMBNAIL_ZOOM_RANGE` and its − and + step). The size row's [`ThumbnailSlider`] and the grid's
 /// ⌘/Ctrl + / − / 0 step on it.
@@ -249,9 +254,9 @@ impl<'a> PageThumbnails<'a> {
         ui.make_persistent_id(egui::IdSalt::new(id_salt))
     }
 
-    /// The panel's sizes, from the tokens.
-    pub fn style(tokens: &UiTokens) -> PageThumbnailsStyle {
-        PageThumbnailsStyle { usual_width: tokens.size.thumb.lg, panel_inset: tokens.space.pad.dialog + tokens.space.gap.section }
+    /// The panel's sizes: the thumbnail range is a user zoom, so its base is a constant.
+    pub fn style(_tokens: &UiTokens) -> PageThumbnailsStyle {
+        PageThumbnailsStyle { usual_width: USUAL_THUMBNAIL_WIDTH, panel_inset: THUMBNAIL_PANEL_INSET }
     }
 
     /// Off: no drag, no stacking keys, no Delete, no file drops (a read-only document).

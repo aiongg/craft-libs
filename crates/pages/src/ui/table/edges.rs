@@ -13,6 +13,8 @@ use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, UiBuilder, pos2, vec2};
 
 /// The width of the line under the pointer.
 const LINE_HOVER_WIDTH: f32 = 3.0;
+/// The edge picker square's side, in points.
+const EDGE_PICKER_SIDE: f32 = 64.0;
 
 craft_ui::words! {
     /// The edges' and presets' names (Word's border menu, InDesign's proxy tooltips).
@@ -180,8 +182,8 @@ impl<'a> EdgePicker<'a> {
     pub fn style(tokens: &craft_ui::theme::UiTokens) -> crate::ui::EdgePickerStyle {
         use craft_ui::theme::ToEgui as _;
         crate::ui::EdgePickerStyle {
-            side: 3.0 * tokens.size.control.md + 2.0 * tokens.space.gap.inline,
-            inset: tokens.space.pad.control,
+            side: EDGE_PICKER_SIDE,
+            inset: tokens.space.pad.panel,
             fill: tokens.color.surface.sunken.to_egui(),
             line_on: tokens.stroke.thick,
             line_off: tokens.stroke.thin,
