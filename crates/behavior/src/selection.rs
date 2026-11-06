@@ -30,6 +30,7 @@ pub trait SelectionModel<K>: Value + Default {
 
 /// A set of keys with a lead and an anchor.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Selection<K> {
     /// The selected keys.
     pub items: Vec<K>,
@@ -37,6 +38,13 @@ pub struct Selection<K> {
     pub lead: Option<K>,
     /// The anchor.
     pub anchor: Option<K>,
+}
+
+impl<K> Selection<K> {
+    /// A selection of `items` with `lead` and `anchor`.
+    pub fn new(items: Vec<K>, lead: Option<K>, anchor: Option<K>) -> Self {
+        Selection { items, lead, anchor }
+    }
 }
 
 impl<K> Default for Selection<K> {
@@ -77,6 +85,7 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
 
 /// Cell selection of a sheet: row keys with a lead column and cell ranges. Changes report as selection changes.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct CellSelection<K> {
     /// The selected rows.
     pub rows: Selection<K>,
@@ -84,6 +93,13 @@ pub struct CellSelection<K> {
     pub lead_column: Option<ColumnKey>,
     /// Cell ranges: first row, last row and the columns they cover.
     pub ranges: Vec<(K, K, Range<u32>)>,
+}
+
+impl<K> CellSelection<K> {
+    /// A selection of `rows`, the column of the lead cell and cell `ranges`.
+    pub fn new(rows: Selection<K>, lead_column: Option<ColumnKey>, ranges: Vec<(K, K, Range<u32>)>) -> Self {
+        CellSelection { rows, lead_column, ranges }
+    }
 }
 
 impl<K> Default for CellSelection<K> {

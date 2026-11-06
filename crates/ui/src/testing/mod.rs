@@ -7,6 +7,7 @@ pub use craft_ui_macros::trial;
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct Trial {
     /// The module path of the function, crate name first.
     pub module: &'static str,

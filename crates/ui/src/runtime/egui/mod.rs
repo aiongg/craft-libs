@@ -5,7 +5,6 @@ pub mod alloc;
 pub mod areas;
 pub mod child;
 pub mod clipboard;
-pub mod data;
 pub mod focus;
 pub mod fonts;
 pub mod ime;

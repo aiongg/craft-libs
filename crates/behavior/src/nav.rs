@@ -9,6 +9,7 @@ pub enum NavShape {
     /// Rows that expand and collapse.
     Tree,
     /// Equal-width cells that wrap at `columns`.
+    #[non_exhaustive]
     WrappedGrid {
         /// Cells per row.
         columns: usize,
@@ -19,4 +20,11 @@ pub enum NavShape {
     Cell,
     /// Items with free positions; arrows go to the nearest item in that direction.
     Spatial,
+}
+
+impl NavShape {
+    /// Equal-width cells that wrap at `columns`.
+    pub const fn wrapped_grid(columns: usize) -> Self {
+        Self::WrappedGrid { columns }
+    }
 }

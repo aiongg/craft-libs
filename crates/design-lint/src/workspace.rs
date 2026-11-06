@@ -44,6 +44,7 @@ const fn place(krate: &'static str, module: &'static [&'static str]) -> Place {
 fn places(key: &str) -> Vec<Place> {
     match key {
         k if EGUI_KEYS.contains(&k) => vec![place("craft-ui", &["runtime", "egui"])],
+        "style-mutation" => vec![place("craft-ui", &["runtime", "egui", "style"]), place("craft-ui", &["runtime", "egui", "scale"])],
         "contract/memory" => vec![place("craft-ui", &["runtime", "egui", "memory"])],
         "contract/layers" => vec![place("craft-ui", &["runtime", "egui", "areas"])],
         "contract/motion:clock" => vec![place("craft-ui", &["runtime", "motion"])],

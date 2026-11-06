@@ -122,6 +122,8 @@ pub struct Analysis {
     pub findings: Vec<Finding>,
     /// Line ranges (1-based, inclusive) of `#[cfg(test)]` and `#[test]` items that were not checked.
     pub skipped: Vec<RangeInclusive<usize>>,
+    /// Line ranges of `#[cfg(test)]` and `#[test]` items, whether they were checked or not.
+    pub test_code: Vec<RangeInclusive<usize>>,
     /// `allow` and `expect` attributes naming a `clippy::disallowed_*` lint, inner and outer.
     pub clippy_allows: usize,
 }
@@ -404,12 +406,17 @@ fn peel(e: &Expr) -> &Expr {
 }
 
 impl Linter<'_> {
-    /// Whether an item with these attributes is test code to skip; records its lines when it is.
+    /// Whether an item with these attributes is test code to skip; records its lines when it is test code.
     fn skips(&mut self, attrs: &[Attribute], span: proc_macro2::Span) -> bool {
-        if self.include_tests || !attrs.iter().any(is_test_attr) {
+        if !attrs.iter().any(is_test_attr) {
             return false;
         }
-        self.out.skipped.push(span.start().line..=span.end().line);
+        let lines = span.start().line..=span.end().line;
+        self.out.test_code.push(lines.clone());
+        if self.include_tests {
+            return false;
+        }
+        self.out.skipped.push(lines);
         true
     }
 

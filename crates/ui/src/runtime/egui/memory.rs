@@ -1,16 +1,21 @@
-//! `IdTypeMap` temp entries (`insert_temp`, `remove_temp_raw`).
+//! Context data: `IdTypeMap` temp entries, the per-service state behind one lock each, and id minting.
 
 use egui::util::IdTypeMap;
 use egui::util::id_type_map::RawKey;
-use egui::{Context, Id};
+use egui::{Context, Id, Ui};
 use std::any::Any;
+use std::hash::Hash;
+use std::sync::{Arc, Mutex, PoisonError};
+
+/// Context data: the map the runtime's slots live in.
+pub(crate) type Map = IdTypeMap;
 
 /// A boxed entry moved out of context data. The caller drops it later, outside every lock.
 pub(crate) type Removed = Box<dyn Any + Send + Sync>;
 
 /// Moves one typed slot out of the map as the box it is stored in. `IdTypeMap::remove_temp::<T>` would run
 /// `T::default()` and drop the placeholder under the data lock; the raw removal runs no app code.
-pub(crate) fn take_raw<T: Any + Send + Sync>(data: &mut IdTypeMap, id: Id) -> Option<Removed> {
+pub(crate) fn take_raw<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
     data.remove_temp_raw(RawKey::new::<T>(id))
 }
 
@@ -21,7 +26,8 @@ pub(crate) fn take<T: Any + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
 }
 
 /// Stores `value` under `id`. The entry it replaces is dropped after the data lock is released.
-pub(crate) fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T) {
+#[doc(hidden)]
+pub fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T) {
     let replaced = ctx.data_mut(|data| {
         let old = take_raw::<T>(data, id);
         data.insert_temp(id, value);
@@ -42,4 +48,51 @@ pub(crate) fn peek_clone<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) ->
 /// Whether a value of type `T` is stored under `id`. For plain-data markers: it clones the value under the lock.
 pub(crate) fn contains<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) -> bool {
     ctx.data(|data| data.get_temp::<T>(id).is_some())
+}
+
+/// Runs `f` on the context's data under its lock; `f` runs no app code and makes no call that reaches the context.
+pub(crate) fn locked<R>(ctx: &Context, f: impl FnOnce(&mut Map) -> R) -> R {
+    ctx.data_mut(f)
+}
+
+/// The id derived from `source` alone, with no parent.
+pub(crate) fn unique(source: impl Hash + std::fmt::Debug) -> Id {
+    Id::unique(source)
+}
+
+/// Runs `f` on a child `Ui` of `ui`.
+#[doc(hidden)]
+pub fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.scope(f).inner
+}
+
+/// A service's state in context data. Cloning shares the state.
+///
+/// The context's data lock is held only to fetch the handle. The service's own lock is held while `with`
+/// runs its closure, so the closure runs no app code and makes no call that reaches the context (7.2, the
+/// lock rule).
+#[derive(Default)]
+pub(crate) struct Service<S>(Arc<Mutex<S>>);
+
+impl<S> Clone for Service<S> {
+    fn clone(&self) -> Self {
+        Service(Arc::clone(&self.0))
+    }
+}
+
+impl<S: Default + Send + 'static> Service<S> {
+    /// The context's service of type `S`, created on first use.
+    pub(crate) fn of(ctx: &Context) -> Service<S> {
+        locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(unique("craft_ui.service")).clone())
+    }
+
+    /// Runs `f` on the state under the service's lock.
+    pub(crate) fn with<R>(&self, f: impl FnOnce(&mut S) -> R) -> R {
+        f(&mut self.0.lock().unwrap_or_else(PoisonError::into_inner))
+    }
+}
+
+/// Runs `f` on the context's service of type `S`.
+pub(crate) fn with<S: Default + Send + 'static, R>(ctx: &Context, f: impl FnOnce(&mut S) -> R) -> R {
+    Service::<S>::of(ctx).with(f)
 }

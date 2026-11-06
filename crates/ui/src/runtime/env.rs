@@ -1,6 +1,6 @@
 //! `Env` and scopes, app values and `content_env`.
 
-use crate::runtime::egui::data::Service;
+use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{scale, stack, style};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
@@ -42,9 +42,17 @@ impl Default for Scale {
 
 /// The motion mode in effect, carried in `Env.motion`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct MotionPolicy {
     /// The level animations run at.
     pub mode: MotionMode,
+}
+
+impl MotionPolicy {
+    /// The policy that runs animations at `mode`.
+    pub const fn new(mode: MotionMode) -> Self {
+        Self { mode }
+    }
 }
 
 /// The id of an arena, carried in `Env.arena`.
@@ -210,7 +218,7 @@ impl Env {
                 enabled: true,
                 read_only: false,
                 direction: root.direction,
-                motion: MotionPolicy { mode: root.motion },
+                motion: MotionPolicy::new(root.motion),
                 ids_stable: true,
                 scale: Scale(pixels_per_point),
                 arena: None,

@@ -136,6 +136,17 @@ fn check_with_scope_applies_scope_markers_and_exemptions() {
 }
 
 #[test]
+fn older_rules_defer_to_the_scoped_rules() {
+    let root = Path::new(FIXTURES).join("older");
+    let scope = StaticScope::new().allow("style-mutation", "src/runtime/egui/style.rs");
+    let mut config = Config::new(["src", "tests"]);
+    config.include_tests = true;
+    let report = check_with_scope(&config, &root, &scope).unwrap();
+    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
+    assert_eq!(hits, [("src/other.rs".to_owned(), "style-mutation", 2), ("src/other.rs".to_owned(), "literal-size/vec2", 6)]);
+}
+
+#[test]
 fn exemptions_and_markers_accept_the_new_rule_ids() {
     let text =
         "[lint]\npaths = [\"src\"]\n[[exempt]]\npath = \"src/ui\"\nrules = [\"contract\", \"test\", \"api/non-exhaustive\"]\nreason = \"legacy\"\n";

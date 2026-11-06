@@ -1,7 +1,8 @@
 //! Memory lifetimes, eviction by owner and the runtime sub-id derivation.
 
 use crate::support::Frames;
-use craft_ui::runtime::memory::{Facts, MemoryStage, dispose_evicted, forget, forget_saved, sub};
+use craft_ui::runtime::egui::memory::put;
+use craft_ui::runtime::memory::{Facts, MemoryStage, dispose_evicted, forget, forget_saved, global, sub};
 use craft_ui::testing::trial;
 use egui::Id;
 use std::sync::Mutex;
@@ -31,7 +32,7 @@ impl Drop for Probe {
         }
         DROPPED.fetch_add(1, Ordering::SeqCst);
         if let Some(ctx) = CTX.lock().expect("probe context lock").as_ref() {
-            ctx.data_mut(|d| d.insert_temp(Id::unique("probe"), 1u8));
+            put(ctx, global("probe", ()), 1u8);
             let _ = ctx.input(|i| i.time);
             CALLED_CONTEXT.fetch_add(1, Ordering::SeqCst);
         }
@@ -49,7 +50,7 @@ fn shown_stage(ui: &egui::Ui, id: Id) {
 fn evicted_slot_drops_once_outside_any_egui_lock() {
     let mut frames = Frames::new();
     *CTX.lock().expect("probe context lock") = Some(frames.ctx.clone());
-    let holder = Id::unique("holder");
+    let holder = global("holder", ());
     for _ in 0..3 {
         frames.frame(vec![], |ui| shown_stage(ui, holder));
     }
@@ -67,7 +68,7 @@ fn evicted_slot_drops_once_outside_any_egui_lock() {
 #[trial]
 fn sizing_peek_moves_nothing_and_keeps_the_kept_value() {
     let mut frames = Frames::new();
-    let id = Id::unique("floaty");
+    let id = global("floaty", ());
     frames.frame(vec![], |ui| {
         let mut stage = MemoryStage::open(ui.ctx(), id);
         *stage.session::<u32>(id) = 7;
@@ -91,7 +92,7 @@ fn sizing_peek_moves_nothing_and_keeps_the_kept_value() {
 #[trial]
 fn lifetimes_follow_their_owner_until_forgotten() {
     let mut frames = Frames::new();
-    let id = Id::unique("owner");
+    let id = global("owner", ());
     let mut appeared = Vec::new();
     for _ in 0..2 {
         frames.frame(vec![], |ui| {
@@ -145,12 +146,12 @@ fn lifetimes_follow_their_owner_until_forgotten() {
 /// Skeleton: `collide::children_and_items_keyed_like_runtime_regions_keep_their_own_ids`.
 #[trial]
 fn runtime_sub_ids_never_equal_an_author_key() {
-    let component = Id::unique("component");
+    let component = global("component", ());
     for region in ["body", "children", "header", "footer", "layer", "edit"] {
         assert_ne!(sub(component, region), component.with(region), "{region}: a runtime region differs from an author key");
     }
     assert_ne!(sub(component, ("popup", "menu")), component.with(("popup", "menu")));
-    let list = Id::unique("list");
+    let list = global("list", ());
     assert_ne!(sub(list, ("key", "children")), sub(list, "children"), "an item keyed like a region keeps its own id");
     assert_ne!(sub(list, ("mem", "a")), sub(list, ("mem", "b")));
 }

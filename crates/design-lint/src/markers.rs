@@ -10,7 +10,7 @@ use syn::spanned::Spanned;
 use syn::visit::{self, Visit};
 
 use crate::report::{Finding, Severity};
-use crate::rules::{RULES, analyze_file, is_unmarkable, parse_failure, selector_matches};
+use crate::rules::{RULES, STYLE_MUTATION, analyze_file, is_unmarkable, parse_failure, selector_matches};
 
 pub const EMPTY: &str = "marker/empty";
 pub const INVALID: &str = "marker/invalid";
@@ -65,7 +65,17 @@ impl Marker {
 /// those findings are dropped before markers are matched, so a marker that only covers them is unused.
 /// `parse` findings are never exempt, and no marker covers them.
 pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, exempt: &dyn Fn(&str) -> bool) -> Marked {
-    analyze_with_extra(src, include_tests, deny_unused, exempt, &|_| Vec::new())
+    analyze_with_extra(src, include_tests, deny_unused, exempt, &|_| Vec::new(), FilePlace::default())
+}
+
+/// Where a file sits, for the older rules that the scoped rules replace in some places.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct FilePlace {
+    /// The file may change the style and the interface scale (`style-mutation`).
+    pub style_writer: bool,
+    /// `test/literal-size` covers test code, so `literal-size/*` skips `#[cfg(test)]` items and, when `test_file`, the whole file.
+    pub tests_scoped: bool,
+    pub test_file: bool,
 }
 
 /// [`analyze_with_markers`] with `extra` findings (the scoped `contract/*` rules) merged in before exemptions and markers apply.
@@ -75,13 +85,19 @@ pub(crate) fn analyze_with_extra(
     deny_unused: bool,
     exempt: &dyn Fn(&str) -> bool,
     extra: &dyn Fn(&syn::File) -> Vec<Finding>,
+    place: FilePlace,
 ) -> Marked {
     let file = match syn::parse_file(src) {
         Ok(file) => file,
         Err(e) => return Marked { findings: parse_failure(&e).findings, markers: 0, clippy_allows: 0 },
     };
     let analysis = analyze_file(src, &file, include_tests);
-    let mut findings: Vec<Finding> = analysis.findings.into_iter().chain(extra(&file)).filter(|f| !exempt(f.rule)).collect();
+    let in_tests = |line: usize| place.tests_scoped && (place.test_file || analysis.test_code.iter().any(|r| r.contains(&line)));
+    let older = analysis
+        .findings
+        .iter()
+        .filter(|f| !(f.rule == STYLE_MUTATION && place.style_writer) && !(f.rule.starts_with("literal-size/") && in_tests(f.line)));
+    let mut findings: Vec<Finding> = older.cloned().chain(extra(&file)).filter(|f| !exempt(f.rule)).collect();
     let lines: Vec<&str> = src.lines().collect();
     let markers = find_markers(&lines, &file);
     let mut spans: Option<Vec<RangeInclusive<usize>>> = None;

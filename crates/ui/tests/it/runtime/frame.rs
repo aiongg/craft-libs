@@ -1,9 +1,10 @@
 //! The frame loop: installed options, the one-press rule and the per-frame output.
 
 use crate::support::Frames;
+use craft_ui::runtime::egui::input::{allow_zoom_keys, frame_input, key_press, set_max_click_duration};
 use craft_ui::runtime::frame::{announce, take_output};
 use craft_ui::testing::trial;
-use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Vec2};
+use egui::{Event, Modifiers, PointerButton, Pos2, Rect, Vec2};
 
 const AT: Pos2 = Pos2::new(20.0, 12.0);
 
@@ -31,8 +32,7 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
     let mut time = 0.0;
     let mut raw_frame = |events: Vec<Event>| {
         time += 1.0 / 60.0;
-        let input =
-            RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))), time: Some(time), events, ..RawInput::default() };
+        let input = frame_input(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0)), time, events);
         let mut out = frames.ctx.run_ui(input, |_| {});
         out.textures_delta.clear();
         out
@@ -40,7 +40,7 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
     raw_frame(vec![]);
     assert!(frames.ctx.options(|o| o.quit_shortcuts.is_empty()), "install empties egui's quit shortcuts");
     let zoom = frames.ctx.zoom_factor();
-    let key = |key| Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers: Modifiers::COMMAND };
+    let key = |key| key_press(key, Modifiers::COMMAND);
     let mut closed = false;
     for key_pressed in [egui::Key::Equals, egui::Key::Plus, egui::Key::Q] {
         let out = raw_frame(vec![key(key_pressed)]);
@@ -51,7 +51,7 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
     assert_eq!(frames.ctx.zoom_factor(), zoom, "Cmd+= left the zoom factor alone");
     assert!(!closed, "Cmd+Q asked for no close");
     // Control: with egui's own option back on, the same key zooms.
-    frames.ctx.options_mut(|o| o.zoom_with_keyboard = true);
+    allow_zoom_keys(&frames.ctx);
     raw_frame(vec![key(egui::Key::Equals)]);
     raw_frame(vec![]);
     raw_frame(vec![]);
@@ -63,10 +63,10 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
 #[trial]
 fn clicks_have_no_time_limit_in_every_pass() {
     let mut frames = Frames::new();
-    frames.ctx.options_mut(|o| o.input_options.max_click_duration = 0.5);
+    set_max_click_duration(&frames.ctx, 0.5);
     frames.idle(1, |_| {});
     assert_eq!(frames.ctx.options(|o| o.input_options.max_click_duration), f64::INFINITY);
-    frames.ctx.options_mut(|o| o.input_options.max_click_duration = 0.5);
+    set_max_click_duration(&frames.ctx, 0.5);
     frames.idle(1, |_| {});
     assert_eq!(frames.ctx.options(|o| o.input_options.max_click_duration), f64::INFINITY, "rewritten each pass");
 }

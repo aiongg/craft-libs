@@ -25,14 +25,23 @@ pub enum ColumnWidth {
     /// The app's width.
     Fixed(f32),
     /// A share of the remaining width, by weight.
+    #[non_exhaustive]
     Fill {
         /// The column's weight among the `Fill` columns.
         weight: f32,
     },
 }
 
+impl ColumnWidth {
+    /// A share of the remaining width with `weight` among the `Fill` columns.
+    pub const fn fill(weight: f32) -> Self {
+        Self::Fill { weight }
+    }
+}
+
 /// One horizontal section of a grid layout: its rect, the columns it shows and their edges.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct GridSection {
     /// Relative to the viewport, like every rect of an `ItemLayout`.
     pub rect: Rect,
@@ -42,9 +51,24 @@ pub struct GridSection {
     pub edges: Vec<f32>,
 }
 
+impl GridSection {
+    /// A section at `rect` showing `columns` with their edges.
+    pub fn new(rect: Rect, columns: Range<u32>, edges: Vec<f32>) -> Self {
+        Self { rect, columns, edges }
+    }
+}
+
 /// The sections of a sheet layout, one per frozen area.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct GridView {
     /// The sections, in reading order.
     pub sections: SmallVec<[GridSection; 4]>,
+}
+
+impl GridView {
+    /// A view of `sections`, in reading order.
+    pub fn new(sections: impl IntoIterator<Item = GridSection>) -> Self {
+        Self { sections: sections.into_iter().collect() }
+    }
 }

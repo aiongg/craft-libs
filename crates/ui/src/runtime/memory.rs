@@ -1,10 +1,8 @@
 //! Ids and memory: `Remember`, the memory stage, `Facts`, eviction and saved state.
 
-use crate::runtime::egui::data::Service;
-use crate::runtime::egui::memory::{self as store, Removed, take_raw};
+use crate::runtime::egui::memory::{self as store, Map, Removed, Service, take_raw};
 use crate::runtime::egui::pass;
 use crate::runtime::frame::PerViewport;
-use egui::util::IdTypeMap;
 use egui::{Context, Id, ViewportId};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -87,9 +85,9 @@ use tier::{ONESHOT, PRESS, SAVED, SESSION, SHOWN};
 struct Wrapped<const TIER: u8, T>(T);
 
 /// Moves one typed slot out of the map; the caller drops the value outside every lock.
-type Remover = fn(&mut IdTypeMap, Id) -> Option<Removed>;
+type Remover = fn(&mut Map, Id) -> Option<Removed>;
 
-fn remove_slot<const TIER: u8, T: Slot>(data: &mut IdTypeMap, id: Id) -> Option<Removed> {
+fn remove_slot<const TIER: u8, T: Slot>(data: &mut Map, id: Id) -> Option<Removed> {
     take_raw::<Wrapped<TIER, T>>(data, id)
 }
 
@@ -154,7 +152,7 @@ pub fn evict(ctx: &Context) {
         let mut moved: Vec<Removed> = Vec::new();
         for key in gone {
             if let Some(rec) = reg.slots.remove(&key) {
-                moved.extend(ctx.data_mut(|data| (rec.remove)(data, key.0)));
+                moved.extend(store::locked(ctx, |data| (rec.remove)(data, key.0)));
             }
         }
         reg.graveyard.extend(moved);
@@ -177,7 +175,7 @@ fn forget_tier(ctx: &Context, id: Id, tier: u8) {
         let mut moved: Vec<Removed> = Vec::new();
         for key in keys {
             if let Some(rec) = reg.slots.remove(&key) {
-                moved.extend(ctx.data_mut(|data| (rec.remove)(data, key.0)));
+                moved.extend(store::locked(ctx, |data| (rec.remove)(data, key.0)));
             }
         }
         moved
@@ -188,7 +186,7 @@ fn forget_tier(ctx: &Context, id: Id, tier: u8) {
 /// Registers a slot the motion service wrote straight into context data, so it goes with its owner's shown entries.
 #[doc(hidden)]
 pub fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
-    fn remove<T: Any + Send + Sync>(data: &mut IdTypeMap, id: Id) -> Option<Removed> {
+    fn remove<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
         take_raw::<T>(data, id)
     }
     Service::<Registry>::of(ctx).with(|reg| {
@@ -442,7 +440,7 @@ impl<X: StageAccess> Remember for X {
 
     fn saved<T: Savable>(&mut self, key: &SaveKey) -> &mut T {
         face_guard(self.stage());
-        self.stage_mut().saved(Id::unique(key.as_str()))
+        self.stage_mut().saved(store::unique(key.as_str()))
     }
 
     fn recall<T: Slot>(&self) -> T {
@@ -481,7 +479,7 @@ pub fn sub(base: Id, tag: impl Hash + Debug) -> Id {
 /// The id of a runtime singleton named `name`, optionally under a `scope` such as a viewport.
 #[doc(hidden)]
 pub fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
-    Id::unique(name).with(scope)
+    store::unique(name).with(scope)
 }
 
 /// Cross-widget facts, registered in one pass and read in the next. Runtime services only.

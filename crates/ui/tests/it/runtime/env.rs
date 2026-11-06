@@ -3,6 +3,7 @@
 use crate::support::Frames;
 use craft_behavior::MotionMode;
 use craft_theme::ControlSize;
+use craft_ui::runtime::egui::memory::scoped;
 use craft_ui::runtime::env::{Direction, Env, EnvValue, RootEnv, Scale, with_env};
 use craft_ui::testing::trial;
 
@@ -20,18 +21,18 @@ impl EnvValue for Units {
 fn interface_scale_from_the_root_env_changes_pixels_per_point_in_the_next_pass() {
     let mut frames = Frames::new();
     let seen = std::cell::Cell::new((0.0f32, 0.0f32));
-    let show = |frames: &mut Frames| {
+    let pass = |frames: &mut Frames| {
         frames.frame(vec![], |ui| seen.set((ui.ctx().pixels_per_point(), Env::of(ui).scale.0)));
         seen.get()
     };
     frames.root(RootEnv::new().scale(Scale(1.0)));
-    assert_eq!(show(&mut frames), (1.0, 1.0), "scale 1 is the native density");
+    assert_eq!(pass(&mut frames), (1.0, 1.0), "scale 1 is the native density");
     frames.root(RootEnv::new().scale(Scale(2.0)));
-    show(&mut frames);
-    assert_eq!(show(&mut frames), (2.0, 2.0), "the scale reaches pixels per point and Env::scale by the pass after set_input");
+    pass(&mut frames);
+    assert_eq!(pass(&mut frames), (2.0, 2.0), "the scale reaches pixels per point and Env::scale by the pass after set_input");
     frames.root(RootEnv::new().scale(Scale(1.0)));
-    show(&mut frames);
-    assert_eq!(show(&mut frames), (1.0, 1.0), "and back");
+    pass(&mut frames);
+    assert_eq!(pass(&mut frames), (1.0, 1.0), "and back");
 }
 
 /// 2.3 merge table: enabled ANDs, read-only ORs, motion takes the lowest mode, the innermost value wins, and
@@ -69,7 +70,7 @@ fn scopes_merge_by_the_table_and_follow_the_ui_tree() {
                         assert_eq!(inner.motion.mode, MotionMode::Reduced, "the lowest mode wins");
                         assert_eq!(inner.size, ControlSize::Sm, "the outer scope's size is inherited");
                         assert_eq!(inner.get::<Units>(), Units("in"), "the innermost app value wins");
-                        ui.scope(|child| assert_eq!(Env::of(child).get::<Units>(), Units("in"), "a child Ui sees its parent's entry"));
+                        scoped(ui, |child| assert_eq!(Env::of(child).get::<Units>(), Units("in"), "a child Ui sees its parent's entry"));
                     },
                 );
                 assert_eq!(Env::of(ui).get::<Units>(), Units("mm"), "leaving a scope restores the outer entry");

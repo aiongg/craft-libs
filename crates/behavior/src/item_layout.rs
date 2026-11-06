@@ -41,6 +41,7 @@ pub trait ItemLayout {
 
 /// Rows of equal height, optionally split into columns: lists, popup lists, tab strips and timeline tracks.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct SpanLayout {
     /// Height of one row.
     pub row_h: f32,
@@ -50,6 +51,20 @@ pub struct SpanLayout {
     pub width: f32,
     /// The columns with their widths, from the start edge.
     pub columns: Vec<(ColumnKey, f32)>,
+}
+
+impl SpanLayout {
+    /// `count` rows of height `row_h` and `width`, with no columns.
+    pub fn new(row_h: f32, count: usize, width: f32) -> Self {
+        Self { row_h, count, width, columns: Vec::new() }
+    }
+
+    /// The columns with their widths, from the start edge.
+    #[must_use]
+    pub fn columns(mut self, columns: Vec<(ColumnKey, f32)>) -> Self {
+        self.columns = columns;
+        self
+    }
 }
 
 impl ItemLayout for SpanLayout {
@@ -91,9 +106,17 @@ impl ItemLayout for SpanLayout {
 
 /// Items at positions the document stores: a freeform bin or a node graph.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct FreeLayout {
     /// One rect per item, in content coordinates.
     pub rects: Vec<Rect>,
+}
+
+impl FreeLayout {
+    /// Items at `rects`, in content coordinates.
+    pub fn new(rects: Vec<Rect>) -> Self {
+        Self { rects }
+    }
 }
 
 impl ItemLayout for FreeLayout {
@@ -130,7 +153,7 @@ mod tests {
     use super::*;
 
     fn rows(count: usize) -> SpanLayout {
-        SpanLayout { row_h: 20.0, count, width: 100.0, columns: vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)] }
+        SpanLayout::new(20.0, count, 100.0).columns(vec![(ColumnKey::new("a"), 30.0), (ColumnKey::new("b"), 70.0)])
     }
 
     #[test]

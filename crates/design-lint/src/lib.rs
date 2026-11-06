@@ -41,6 +41,7 @@ pub use baseline::{Baseline, BaselineCheck, Increase};
 pub use clippy::{ClippyDrift, ClippyShadow, DriftKind, check_clippy, clippy_drift, clippy_shadows, merge_clippy, write_clippy};
 pub use config::{Config, Exemption};
 pub use contract::{RuleScope, StaticScope, analyze_contract};
+use markers::FilePlace;
 pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};
 pub use rules::{Analysis, RULES, analyze_source};
@@ -101,7 +102,12 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
                 any
             };
             let extra = |parsed: &syn::File| scope.map_or_else(Vec::new, |s| contract::analyze_file(parsed, &shown, s, config.include_tests));
-            let marked = markers::analyze_with_extra(&src, config.include_tests, config.deny_unused, &exempt, &extra);
+            let place = scope.map_or_else(FilePlace::default, |s| FilePlace {
+                style_writer: s.allows(rules::STYLE_MUTATION, &shown),
+                tests_scoped: true,
+                test_file: is_test_path(file.strip_prefix(&base).unwrap_or(&file)),
+            });
+            let marked = markers::analyze_with_extra(&src, config.include_tests, config.deny_unused, &exempt, &extra, place);
             report.markers += marked.markers;
             report.clippy_allows += marked.clippy_allows;
             for mut finding in marked.findings {
