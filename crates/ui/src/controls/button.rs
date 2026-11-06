@@ -12,7 +12,7 @@ use super::{Spinner, TooltipExt as _, icon_size, salt};
 use crate::direction;
 use crate::icons::{self, Icon};
 use crate::primitives::{Corner, Interactive, StateColors, StateLayer, SurfaceKind, Text};
-use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice, variant_cluster, variant_list};
+use crate::story::{Level, SizeArg, Story, StoryArgs, StoryChoice};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens, role_format};
 use crate::typed_story;
 
@@ -425,24 +425,30 @@ pub(crate) fn stories() -> Vec<Story> {
 fn show_variants(ui: &mut Ui, args: &mut VariantsArgs) {
     let label = args.label.as_str();
     let icon = args.icon.icon();
-    variant_list(ui, "button-variants", |form| {
+    let gap = Tokens::of(ui).space.gap;
+    // Grid cells offer little width on the first pass, and a button shrinks to what it is offered.
+    let room = ui.available_width();
+    egui::Grid::new("button-variants").spacing(vec2(gap.inline, gap.row)).show(ui, |ui| {
         for variant in ButtonVariant::ALL {
             for size in super::SIZES {
                 let size_name = super::size_name(size);
-                variant_cluster(form, &format!("{} {size_name}", variant.name()), |ui| {
-                    for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
-                        let mut button = Button::new(label).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
-                            "button-variants",
-                            variant.name(),
-                            size_name,
-                            state,
-                        ));
-                        if let Some(icon) = icon {
-                            button = button.icon(icon);
-                        }
-                        ui.add(button);
+                ui.add(Text::new(format!("{} {size_name}", variant.name())).content(crate::primitives::Content::Muted));
+                for (state, enabled, loading) in [("rest", true, false), ("disabled", false, false), ("loading", true, true)] {
+                    let mut button = Button::new(label).variant(variant).size(size).enabled(enabled).loading(loading).id_salt((
+                        "button-variants",
+                        variant.name(),
+                        size_name,
+                        state,
+                    ));
+                    if let Some(icon) = icon {
+                        button = button.icon(icon);
                     }
-                });
+                    ui.scope(|ui| {
+                        ui.set_max_width(room);
+                        ui.add(button)
+                    });
+                }
+                ui.end_row();
             }
         }
     });
