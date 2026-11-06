@@ -6,7 +6,6 @@ use egui::{Color32, Pos2, Rect, Ui, pos2, vec2};
 use egui_kittest::Harness;
 
 use super::overview::{OverviewRun, TimelineOverview, overview_runs};
-use super::style::TimelineStyle;
 use crate::time::{Tick, TimeRange, TimeView};
 
 fn secs(s: f64) -> Tick {
@@ -39,12 +38,12 @@ fn runs_merge_touching_clips_of_one_colour() {
         at += length + if index == 3000 { 30.0 } else { 0.0 };
     }
     // The runs fill the widget's own area: no inset or tail to copy.
-    let mut style = None;
-    egui::__run_test_ui(|ui| style = Some(TimelineStyle::of(&Tokens::of(ui))));
-    let style = style.unwrap();
+    let mut tokens = None;
+    egui::__run_test_ui(|ui| tokens = Some(Tokens::of(ui)));
+    let tokens = tokens.unwrap();
     let outer = Rect::from_min_size(pos2(8.0, 4.0), vec2(900.0, 56.0));
-    let rect = TimelineOverview::area(outer, &style);
-    let runs = overview_runs(std::slice::from_ref(&clips), secs(at), outer, &style);
+    let rect = TimelineOverview::area(outer, &tokens);
+    let runs = overview_runs(std::slice::from_ref(&clips), secs(at), outer, &tokens);
     assert!(runs.len() <= 6, "{} rects for 5000 clips", runs.len());
 
     let width = secs(at + 10.0).0 as f32;

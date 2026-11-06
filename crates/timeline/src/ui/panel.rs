@@ -428,7 +428,10 @@ impl<'a, M: TimelineModel> Timeline<'a, M> {
                 + style.scrollbar_height;
             let (outer, _) = ui.allocate_exact_size(vec2(avail.x, if avail.y.is_finite() { avail.y } else { wanted }), Sense::hover());
             let panel_response = ui.interact(outer, id.with("panel"), Sense::hover());
-            let header_w = header_width.unwrap_or(style.header_width).clamp(style.header_width_min, style.header_width_max).min(outer.width());
+            let header_w = header_width
+                .unwrap_or_else(|| TimelineStyle::header_width(ui.painter(), &tokens))
+                .clamp(style.header_width_min, style.header_width_max)
+                .min(outer.width());
             let geo = Geo::new(
                 &style,
                 outer,
@@ -864,7 +867,7 @@ impl<'a> TrackHeader<'a> {
         let text = role_format(&tokens, style.header_text, color.text.normal.to_egui());
         let gap = ui.spacing().item_spacing.x;
         let galley = ui.fonts_mut(|fonts| fonts.layout_job(LayoutJob::single_section(track.name.to_owned(), text.clone())));
-        let mut x = strip.right() + gap + f32::from(track.depth) * header_indent(&style);
+        let mut x = strip.right() + gap + f32::from(track.depth) * header_indent(&tokens);
         painter.galley(pos2(x, rect.center().y - galley.size().y / 2.0), galley.clone(), text.color);
         x += galley.size().x + gap;
         let side = IconButton::style(&tokens, ControlSize::Sm).side;
@@ -970,8 +973,8 @@ fn resolved_height(style: &TimelineStyle, track: &TrackInfo<'_>) -> f32 {
 }
 
 /// How far each level of a track's `depth` indents its name.
-fn header_indent(style: &TimelineStyle) -> f32 {
-    style.header_indent
+fn header_indent(tokens: &UiTokens) -> f32 {
+    tokens.space.pad.panel
 }
 /// The factor one `=` or `-` press zooms by, about the playhead (FilmCraft `menus.rs:421`).
 const KEY_ZOOM: f64 = 1.6;

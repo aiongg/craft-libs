@@ -2,12 +2,18 @@
 
 use craft_theme::TypeRole;
 use craft_ui::theme::{ToEgui as _, UiTokens};
-use egui::Color32;
+use egui::{Color32, Painter};
 
 const CLUSTER_RADIUS: f32 = 24.0;
 const PIN_INSET: f32 = 3.0;
 const PIN_DOT_INSET: f32 = 2.0;
 const PIN_CHECK_INSET: f32 = 3.0;
+/// A comment typical of a thread: the thread popover is as wide as this on one line.
+const THREAD_SAMPLE: &str = "Please align this with the headline above.";
+/// A line a collaborator types in a cursor chat bubble.
+const CHAT_SAMPLE: &str = "Can you move this a little to the left?";
+/// An invite link, the longest value the join field takes.
+const JOIN_SAMPLE: &str = "https://example.com/join/abc123";
 const INK_DARK: Color32 = Color32::from_rgb(0x1E, 0x1E, 0x1E);
 
 /// The sizes and colours the review widgets read, from the semantic tokens.
@@ -18,52 +24,20 @@ pub struct ReviewStyle {
     pub pin: f32,
     /// Pins nearer than this gather into a cluster.
     pub cluster_radius: f32,
-    /// The thread popover's width.
-    pub popover_width: f32,
     /// The version history's timeline dot column.
     pub version_dot_x: f32,
     /// The version text column's x position.
     pub version_text_x: f32,
-    /// A cursor chat bubble's width.
-    pub chat_width: f32,
-    /// A cursor chat bubble's corner radius.
-    pub chat_radius: f32,
-    /// The join field's width.
-    pub join_width: f32,
-    /// The status badges.
-    pub status_accepted: Color32,
-    #[allow(missing_docs)]
-    pub status_rejected: Color32,
-    #[allow(missing_docs)]
-    pub status_cancelled: Color32,
-    #[allow(missing_docs)]
-    pub status_completed: Color32,
-    /// The selected comment card's accent bar.
-    pub card_accent: Color32,
-    /// The revision kinds' bars.
-    pub revision_inserted: Color32,
-    #[allow(missing_docs)]
-    pub revision_deleted: Color32,
-    #[allow(missing_docs)]
-    pub revision_changed: Color32,
     /// The revision card's colour bar width.
     pub revision_bar_width: f32,
     /// The revision card's colour bar height.
     pub revision_bar_height: f32,
-    /// The selected comment card's accent bar width.
-    pub card_accent_width: f32,
     /// The room between a pin's bubble and the avatar circle inside it.
     pub pin_inset: f32,
-    /// The unread dot's radius on a pin.
-    pub pin_dot_radius: f32,
     /// How far the unread dot sits in from the pin's top right corner.
     pub pin_dot_inset: f32,
     /// How far the resolved check sits in from the pin's bottom right corner.
     pub pin_check_inset: f32,
-    /// The filled version dot's radius.
-    pub version_dot_radius: f32,
-    /// The hollow version dot's radius.
-    pub version_dot_hollow_radius: f32,
     /// The light ink on a person's colour.
     pub ink_light: Color32,
     /// The dark ink on a person's colour.
@@ -86,6 +60,26 @@ pub struct ReviewStyle {
 }
 
 impl ReviewStyle {
+    /// The thread popover's width: a typical comment on one line.
+    pub fn popover_width(&self, painter: &Painter, tokens: &UiTokens) -> f32 {
+        self.sample_width(painter, tokens, THREAD_SAMPLE)
+    }
+
+    /// A cursor chat bubble's width: a typical chat line.
+    pub fn chat_width(&self, painter: &Painter, tokens: &UiTokens) -> f32 {
+        self.sample_width(painter, tokens, CHAT_SAMPLE)
+    }
+
+    /// The join field's width: an invite link.
+    pub fn join_width(&self, painter: &Painter, tokens: &UiTokens) -> f32 {
+        self.sample_width(painter, tokens, JOIN_SAMPLE)
+    }
+
+    /// The width of `sample` in the body role plus the horizontal control padding on both sides.
+    fn sample_width(&self, painter: &Painter, tokens: &UiTokens, sample: &str) -> f32 {
+        painter.layout_no_wrap(sample.to_owned(), tokens.font(self.body_text), Color32::PLACEHOLDER).size().x + 2.0 * tokens.space.pad.control
+    }
+
     /// The style from the theme's tokens: `ReviewStyle::of(&Tokens::of(ui))`.
     pub fn of(tokens: &UiTokens) -> ReviewStyle {
         let color = &tokens.color;
@@ -93,29 +87,13 @@ impl ReviewStyle {
         ReviewStyle {
             pin: control,
             cluster_radius: CLUSTER_RADIUS,
-            popover_width: control * 10.0,
             version_dot_x: tokens.size.icon.md,
             version_text_x: tokens.size.icon.md + 2.0 * tokens.space.pad.control,
-            chat_width: control * 7.0,
-            chat_radius: tokens.shape.radius.popup,
-            join_width: control * 6.5,
             revision_bar_width: tokens.space.gap.tight,
             revision_bar_height: tokens.size.icon.sm,
-            status_accepted: color.status.good.fg.to_egui(),
-            status_rejected: color.status.bad.fg.to_egui(),
-            status_cancelled: color.text.faint.to_egui(),
-            status_completed: color.status.good.fg.to_egui(),
-            card_accent: color.accent.solid.to_egui(),
-            revision_inserted: color.status.good.fg.to_egui(),
-            revision_deleted: color.status.bad.fg.to_egui(),
-            revision_changed: color.status.info.fg.to_egui(),
-            card_accent_width: tokens.stroke.thick,
             pin_inset: PIN_INSET,
-            pin_dot_radius: tokens.shape.radius.sm,
             pin_dot_inset: PIN_DOT_INSET,
             pin_check_inset: PIN_CHECK_INSET,
-            version_dot_radius: tokens.shape.radius.sm,
-            version_dot_hollow_radius: tokens.shape.radius.sm,
             ink_light: color.text.on_strong.to_egui(),
             ink_dark: INK_DARK,
             body_text: TypeRole::Body,

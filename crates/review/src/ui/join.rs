@@ -43,7 +43,7 @@ impl<'a> JoinField<'a> {
         Self { id_salt: IdSalt::new(id_salt), transport, typed, width: None, focus: false, labels: None }
     }
 
-    /// Width of the field; `review.join_width` ([`ReviewStyle`]) by default.
+    /// Width of the field; [`ReviewStyle::join_width`] by default.
     pub fn width(mut self, width: f32) -> Self {
         self.width = Some(width);
         self
@@ -84,7 +84,7 @@ impl<'a> JoinField<'a> {
                         .id(field_id)
                         .placeholder(&labels.hint)
                         .secret(true)
-                        .width(width.unwrap_or(style.join_width))
+                        .width(width.unwrap_or_else(|| style.join_width(ui.painter(), &tokens)))
                         .show(ui);
                     if let Some(value) = field.event.as_ref().and_then(|event| event.value()) {
                         value.clone_into(typed);
