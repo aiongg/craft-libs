@@ -27,7 +27,7 @@ const KNOB_DISABLED: f64 = 0.5;
 
 /// Sizes and thumb colours of sliders.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SliderStyle {
+pub struct SliderLook {
     /// Height.
     pub height: BySize<f32>,
     /// Default width.
@@ -50,14 +50,14 @@ pub struct SliderStyle {
     pub snap: f32,
 }
 
-impl SliderStyle {
+impl SliderLook {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
         let (c, size) = (&tokens.color, &tokens.size);
         let scaled = |base: f32| BySize { sm: (base * size.control.sm / BASE_CONTROL).round(), md: (base * size.control.md / BASE_CONTROL).round() };
         let (face, edge) = (c.surface.knob, c.line.knob_edge);
         let disabled = mix(face, c.surface.panel, KNOB_DISABLED);
-        SliderStyle {
+        SliderLook {
             height: BySize { sm: size.control.sm - HEIGHT_INSET.0, md: size.control.md - HEIGHT_INSET.1 },
             width: BySize { sm: WIDTH_IN_CONTROLS * size.control.sm, md: WIDTH_IN_CONTROLS * size.control.md },
             range_thumb_width: scaled(RANGE_THUMB_WIDTH),

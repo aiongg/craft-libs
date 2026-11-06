@@ -2,14 +2,12 @@
 
 use craft_theme::{ButtonColors, ButtonVariant, Rgba, States, Tokens};
 
-/// Fraction of the rest fill a primary button shows while pressed; a secondary button's pressed fill uses it too.
+/// Fraction of the rest fill a secondary button shows while pressed.
 const PRESSED_OPACITY: f32 = 0.8;
-/// Fraction of the rest fill a primary button shows under the pointer.
-const HOVER_OPACITY: f32 = 0.9;
 
 /// Colours of the four button variants.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ButtonStyle {
+pub struct ButtonLook {
     /// Primary colours.
     pub primary: ButtonColors,
     /// Secondary colours.
@@ -20,7 +18,7 @@ pub struct ButtonStyle {
     pub danger: ButtonColors,
 }
 
-impl ButtonStyle {
+impl ButtonLook {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
         let c = &tokens.color;
@@ -28,15 +26,15 @@ impl ButtonStyle {
         let none = States::new(clear, clear, clear, clear);
         let text = |t: Rgba| States::new(t, t, t, c.text.disabled);
         let bad = c.status.bad;
-        let primary = c.accent.solid;
-        ButtonStyle {
+        let secondary = c.surface.sunken;
+        ButtonLook {
             primary: ButtonColors {
-                fill: States::new(primary, primary.faded(HOVER_OPACITY), primary.faded(PRESSED_OPACITY), c.state.disabled_fill),
+                fill: States::new(c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.state.disabled_fill),
                 border: none,
-                text: text(c.text.on_accent),
+                text: text(c.text.on_strong),
             },
             secondary: ButtonColors {
-                fill: States::new(c.surface.sunken, c.state.hover, c.surface.sunken.faded(PRESSED_OPACITY), c.state.disabled_fill),
+                fill: States::new(secondary, c.state.hover, secondary.faded(PRESSED_OPACITY), c.state.disabled_fill),
                 border: States::new(c.line.control_edge, c.line.control_edge, c.line.control_edge, c.line.divider),
                 text: text(c.text.normal),
             },

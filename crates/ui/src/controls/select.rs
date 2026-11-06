@@ -70,7 +70,7 @@ pub struct ListboxStyle {
     pub active_text: Color32,
     #[allow(missing_docs)]
     pub active_border: Color32,
-    /// `accent.solid`, `text.on_accent` and `accent.text`: the chosen option, active or not.
+    /// `state.selected`, `text.on_selected` and `accent.text`: the chosen option, active or not.
     pub chosen_fill: Color32,
     #[allow(missing_docs)]
     pub chosen_text: Color32,
@@ -740,8 +740,8 @@ impl Select<'static, ()> {
                 active_fill: c.state.hover.to_egui(),
                 active_text: c.text.normal.to_egui(),
                 active_border: c.line.control_edge.to_egui(),
-                chosen_fill: c.accent.solid.to_egui(),
-                chosen_text: c.text.on_accent.to_egui(),
+                chosen_fill: c.state.selected.to_egui(),
+                chosen_text: c.text.on_selected.to_egui(),
                 chosen_border: c.accent.text.to_egui(),
                 mark: c.text.normal.to_egui(),
                 group: c.text.muted.to_egui(),

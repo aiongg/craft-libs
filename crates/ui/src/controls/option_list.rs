@@ -480,9 +480,9 @@ mod tests {
             out.textures_delta.clear();
             let (s, tokens) = style.unwrap_or_else(|| panic!("no style"));
             use crate::theme::ToEgui as _;
-            let accent = tokens.color.accent.solid.to_egui();
-            assert_eq!(rect_fills(&out.shapes), [accent, accent, tokens.color.state.hover.to_egui()], "{id}");
-            assert_eq!(s.list.chosen_text, tokens.color.text.on_accent.to_egui(), "{id}");
+            let chosen = tokens.color.state.selected.to_egui();
+            assert_eq!(rect_fills(&out.shapes), [chosen, chosen, tokens.color.state.hover.to_egui()], "{id}");
+            assert_eq!(s.list.chosen_text, tokens.color.text.on_selected.to_egui(), "{id}");
             assert_eq!(s.list.radius, crate::theme::corner_radius(tokens.shape.radius.control), "{id}");
         }
     }

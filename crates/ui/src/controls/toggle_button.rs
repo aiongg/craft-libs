@@ -1,6 +1,6 @@
 //! [`ToggleButton`]: a button that stays pressed while on.
 
-use craft_theme::{ButtonVariant, ControlSize, Rgba, States, TypeRole};
+use craft_theme::{ButtonVariant, Contrast, ControlSize, Identify, Rgba, States, TypeRole, ensure_contrast, over};
 use egui::accesskit::Role;
 use egui::{AsIdSalt, Color32, IdSalt, Response, Ui, Widget};
 
@@ -99,6 +99,9 @@ impl<'a> ToggleButton<'a> {
     }
 }
 
+/// Minimum contrast of text on its fill: standard, high.
+const TEXT_MIN: (f64, f64) = (4.5, 7.0);
+
 /// The colours of a button that is on, per state: shared with the icon button.
 pub(crate) struct OnColors {
     pub fill: States<Color32>,
@@ -108,13 +111,19 @@ pub(crate) struct OnColors {
 
 /// `accent.soft` inside an `accent.border` outline with `accent.text`, the same in every state
 /// but disabled, which keeps the fill and drops the outline and text to the disabled colours.
+/// The fill and text pass through [`Identify`] so they show on the panel and raised surfaces
+/// in high contrast, and the outline counts as identifying.
 pub(crate) fn on_colors(tokens: &UiTokens) -> OnColors {
     let c = &tokens.color;
     let held = |on: Rgba, disabled: Rgba| {
         let (on, disabled) = (on.to_egui(), disabled.to_egui());
         States::new(on, on, on, disabled)
     };
-    OnColors { fill: held(c.accent.soft, c.accent.soft), border: held(c.accent.border, c.line.divider), text: held(c.accent.text, c.text.disabled) }
+    let high = tokens.appearance.contrast == Contrast::High;
+    let (fill, text) = Identify::on(&[c.surface.panel, c.surface.raised], high).edge(c.accent.border).fill(c.accent.soft, c.accent.text);
+    // A theme whose soft fill is as dark as its accent text (a solid accent fill) still reads.
+    let text = ensure_contrast(text, over(fill, c.surface.panel), if high { TEXT_MIN.1 } else { TEXT_MIN.0 });
+    OnColors { fill: held(fill, fill), border: held(c.accent.border, c.line.divider), text: held(text, c.text.disabled) }
 }
 
 impl Widget for ToggleButton<'_> {

@@ -482,7 +482,7 @@ impl Slider {
     pub fn style(tokens: &UiTokens, size: ControlSize) -> SliderStyle {
         let s = &tokens.component.slider;
         let (thumb, thumb_width) = (s.thumb_height.get(size), s.thumb_width.get(size));
-        let (c, look) = (&tokens.color, crate::style::slider::SliderStyle::new(tokens));
+        let (c, look) = (&tokens.color, crate::style::slider::SliderLook::new(tokens));
         let track = SurfaceStyle {
             fill: c.line.control_edge.to_egui(),
             radius: corner_radius(tokens.shape.radius.sm.min(look.track_height / 2.0)),

@@ -6,11 +6,8 @@ use egui::style::{Selection, TextCursorStyle, WidgetVisuals, Widgets};
 use egui::{Color32, Stroke, Style, TextStyle, Visuals, vec2};
 
 use super::convert::{FontFamilies, ToEgui, corner_radius, margin, stroke};
-use crate::style::button::ButtonStyle;
+use crate::style::button::ButtonLook;
 use crate::style::field::FieldStyle;
-
-/// The widest a tooltip's text grows before it wraps.
-const TOOLTIP_MAX_WIDTH: f32 = 280.0;
 
 /// The egui style for `tokens`. Pure: the same tokens and families give the same style.
 ///
@@ -54,7 +51,7 @@ pub fn style_for(tokens: &Tokens, fonts: &FontFamilies) -> Style {
     s.interact_size.y = size.control.md;
     s.icon_width = size.icon.sm;
     s.icon_spacing = space.gap.inline;
-    s.tooltip_width = TOOLTIP_MAX_WIDTH;
+    s.tooltip_width = crate::style::tooltip::MAX_WIDTH;
     s.scroll = scroll_style(tokens);
 
     style.animation_time = tokens.motion.hover.millis as f32 / 1000.0;
@@ -93,7 +90,7 @@ fn visuals(tokens: &Tokens) -> Visuals {
     let dark = is_dark(tokens);
     let mut v = if dark { Visuals::dark() } else { Visuals::light() };
     let radius = &tokens.shape.radius;
-    let button = ButtonStyle::new(tokens);
+    let button = ButtonLook::new(tokens);
 
     v.dark_mode = dark;
     v.weak_text_color = Some(c.text.muted.to_egui());
