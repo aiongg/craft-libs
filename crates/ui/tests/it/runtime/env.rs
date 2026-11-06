@@ -1,11 +1,11 @@
 //! `Env`: the root, scopes and the interface scale.
 
-use crate::support::Frames;
 use craft_behavior::MotionMode;
 use craft_theme::ControlSize;
-use craft_ui::runtime::egui::memory::scoped;
 use craft_ui::runtime::env::{Direction, Env, EnvValue, RootEnv, Scale, with_env};
-use craft_ui::testing::trial;
+use craft_ui::testing::frames::show_area;
+use craft_ui::testing::memory::scoped;
+use craft_ui::testing::{Frames, trial};
 
 #[derive(Clone, Debug, PartialEq)]
 struct Units(&'static str);
@@ -25,24 +25,24 @@ fn interface_scale_from_the_root_env_changes_pixels_per_point_in_the_next_pass()
         frames.frame(vec![], |ui| seen.set((ui.ctx().pixels_per_point(), Env::of(ui).scale.0)));
         seen.get()
     };
-    frames.root(RootEnv::new().scale(Scale(1.0)));
+    frames.root(RootEnv::new().scale(Scale::new(1.0)));
     assert_eq!(pass(&mut frames), (1.0, 1.0), "scale 1 is the native density");
-    frames.root(RootEnv::new().scale(Scale(2.0)));
+    frames.root(RootEnv::new().scale(Scale::new(2.0)));
     pass(&mut frames);
     assert_eq!(pass(&mut frames), (2.0, 2.0), "the scale reaches pixels per point and Env::scale by the pass after set_input");
-    frames.root(RootEnv::new().scale(Scale(1.0)));
+    frames.root(RootEnv::new().scale(Scale::new(1.0)));
     pass(&mut frames);
     assert_eq!(pass(&mut frames), (1.0, 1.0), "and back");
 }
 
-/// 2.3 merge table: enabled ANDs, read-only ORs, motion takes the lowest mode, the innermost value wins, and
-/// `Env::of` follows the `Ui` tree.
+/// 2.3 merge table: enabled ANDs and disables the child `Ui`, read-only ORs, motion takes the lowest mode, the
+/// innermost value wins, and `Env::of` follows the `Ui` tree.
 #[trial]
 fn scopes_merge_by_the_table_and_follow_the_ui_tree() {
     let mut frames = Frames::new();
     frames.frame(vec![], |ui| {
         let root = Env::of(ui);
-        assert!(root.enabled && !root.read_only);
+        assert!(root.enabled && !root.read_only && ui.is_enabled());
         assert_eq!(root.size, ControlSize::Md);
         assert_eq!(root.get::<Units>(), Units("pt"));
         with_env(
@@ -66,6 +66,7 @@ fn scopes_merge_by_the_table_and_follow_the_ui_tree() {
                     |ui| {
                         let inner = Env::of(ui);
                         assert!(!inner.enabled, "nothing below can enable again");
+                        assert!(!ui.is_enabled(), "a disabling scope disables its child Ui, and an inner scope cannot enable it");
                         assert!(inner.read_only, "nothing below can make it writable");
                         assert_eq!(inner.motion.mode, MotionMode::Reduced, "the lowest mode wins");
                         assert_eq!(inner.size, ControlSize::Sm, "the outer scope's size is inherited");
@@ -74,8 +75,46 @@ fn scopes_merge_by_the_table_and_follow_the_ui_tree() {
                     },
                 );
                 assert_eq!(Env::of(ui).get::<Units>(), Units("mm"), "leaving a scope restores the outer entry");
+                assert!(!ui.is_enabled(), "the scope's own Ui stays disabled after an inner scope");
             },
         );
+        assert_eq!(Env::of(ui).get::<Units>(), Units("pt"));
+        assert!(ui.is_enabled(), "the parent Ui is untouched by the scope");
+    });
+}
+
+/// 2.1: the `Ui` of an egui `Area` has no entry above it and reads its viewport's root env, not defaults.
+#[trial]
+fn an_area_ui_reads_the_root_env_of_its_viewport() {
+    let mut frames = Frames::new();
+    let mut root = RootEnv::new().direction(Direction::Rtl);
+    root.values.set(Units("mm"));
+    frames.root(root);
+    let mut seen = None;
+    frames.frame(vec![], |ui| {
+        show_area(ui.ctx(), "popup", |area_ui| {
+            let env = Env::of(area_ui);
+            seen = Some((env.direction, env.get::<Units>()));
+        });
+    });
+    assert_eq!(seen, Some((Direction::Rtl, Units("mm"))));
+}
+
+/// 2.3: a scope's body panicking leaves no entry behind.
+#[trial]
+fn a_panicking_scope_body_leaves_the_outer_env() {
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| {
+        let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            with_env(
+                ui,
+                |o| {
+                    o.values.set(Units("mm"));
+                },
+                |_| panic!("scope body"),
+            );
+        }));
+        assert!(unwound.is_err());
         assert_eq!(Env::of(ui).get::<Units>(), Units("pt"));
     });
 }

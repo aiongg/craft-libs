@@ -1,9 +1,15 @@
 //! The fixture, the suite runner and the story helpers.
 //!
 //! The registration half of the kit: `#[trial]` functions list themselves in [`TRIALS`], and the integration
-//! binary's runner collects them.
+//! binary's runner collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
+//! crate-private services the trials check.
+
+pub mod frames;
+pub mod input;
+pub mod memory;
 
 pub use craft_ui_macros::trial;
+pub use frames::Frames;
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]

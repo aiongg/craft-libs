@@ -72,7 +72,7 @@ fn every_reject_fixture_fails_with_its_rule() {
 fn api_rule_reports_each_shape() {
     let findings = analyze_contract(&fixture("reject", "api-non-exhaustive.rs"), Path::new("src/lib.rs"), &scope(), false);
     let messages: Vec<_> = findings.iter().map(|f| f.message.as_str()).collect();
-    assert_eq!(messages.len(), 4, "{messages:#?}");
+    assert_eq!(messages.len(), 5, "{messages:#?}");
 }
 
 #[test]

@@ -59,7 +59,11 @@ fn items(cx: &Cx<'_>, list: &[Item], out: &mut Vec<Finding>) {
             Item::Struct(s)
                 if is_pub(&s.vis) && !doc_hidden(&s.attrs) && !is_test_attr_any(&s.attrs) && !cx.scope.is_closed(&s.ident.to_string()) =>
             {
-                let public_fields = matches!(&s.fields, Fields::Named(f) if f.named.iter().any(|f| is_pub(&f.vis)));
+                let public_fields = match &s.fields {
+                    Fields::Named(f) => f.named.iter().any(|f| is_pub(&f.vis)),
+                    Fields::Unnamed(f) => f.unnamed.iter().any(|f| is_pub(&f.vis)),
+                    Fields::Unit => false,
+                };
                 if public_fields && !has(&s.attrs, "non_exhaustive") {
                     cx.flag_span(
                         out,

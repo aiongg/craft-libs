@@ -1,9 +1,10 @@
 //! `Env` and scopes, app values and `content_env`.
 
-use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{scale, stack, style};
+use crate::runtime::egui::{child, pass, scale, stack, style};
+use crate::runtime::frame::PerViewport;
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
+pub use craft_i18n::Direction;
 use craft_theme::{AppSizes, ControlSize, TextSize};
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::{Any, TypeId};
@@ -12,27 +13,17 @@ use std::hash::Hash;
 use std::ops::Deref;
 use std::sync::Arc;
 
-/// The layout direction.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum Direction {
-    /// Left to right.
-    #[default]
-    Ltr,
-    /// Right to left.
-    Rtl,
-}
-
-impl Direction {
-    /// Whether the direction is right to left.
-    pub const fn is_rtl(self) -> bool {
-        matches!(self, Direction::Rtl)
-    }
-}
-
 /// The interface scale: pixels per point.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Scale(pub f32);
+
+impl Scale {
+    /// `pixels_per_point` pixels per point.
+    pub const fn new(pixels_per_point: f32) -> Self {
+        Scale(pixels_per_point)
+    }
+}
 
 impl Default for Scale {
     fn default() -> Self {
@@ -57,7 +48,15 @@ impl MotionPolicy {
 
 /// The id of an arena, carried in `Env.arena`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct ArenaId(pub Id);
+
+impl ArenaId {
+    /// The arena whose id is `id`.
+    pub const fn new(id: Id) -> Self {
+        ArenaId(id)
+    }
+}
 
 /// An app-defined value inherited down the tree like the library's own.
 pub trait EnvValue: Clone + PartialEq + Send + Sync + 'static {
@@ -123,7 +122,7 @@ impl Default for RootEnv {
         RootEnv {
             sizes: Arc::new(AppSizes::default()),
             text_size: TextSize::default(),
-            direction: Direction::default(),
+            direction: Direction::Ltr,
             motion: MotionMode::default(),
             scale: Scale::default(),
             tab_all_controls: true,
@@ -203,8 +202,8 @@ pub struct EnvCapture(Env);
 
 impl EnvCapture {
     /// The env a new egui layer or viewport starts with.
-    #[doc(hidden)]
-    pub fn env(&self) -> Env {
+    #[expect(dead_code, reason = "used by F2 layers")]
+    pub(crate) fn env(&self) -> Env {
         self.0.clone()
     }
 }
@@ -229,14 +228,17 @@ impl Env {
         }
     }
 
-    /// The env of `ui`: the nearest entry up the `Ui` stack. For app panels (layer 8) and caller closures only.
+    /// The env of `ui`: the nearest entry up the `Ui` stack, else the running viewport's root env, so the `Ui`
+    /// of an egui `Area` or `Window` reads the app's root values. For app panels (layer 8) and caller closures only.
     ///
     /// While apps still use `add_enabled_ui`, it also ANDs `ui.is_enabled()`.
     pub fn of(ui: &Ui) -> Env {
-        let viewport = ui.ctx().viewport_id();
-        let store = EnvStore::of(ui.ctx());
-        let found = stack::nearest(ui, |node| store.with(|entries| entries.0.get(&(viewport, node)).cloned()));
-        let env = found.unwrap_or_else(|| Env::from_root(&RootEnv::default(), None, scale::pixels_per_point(ui.ctx())));
+        let ctx = ui.ctx();
+        let viewport = pass::current_viewport(ctx);
+        let found = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| {
+            stack::nearest(ui, |node| envs.entries.get(&node).cloned()).or_else(|| envs.root.clone())
+        });
+        let env = found.unwrap_or_else(|| Env::from_root(&RootEnv::default(), None, scale::pixels_per_point(ctx)));
         if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
     }
 
@@ -267,44 +269,57 @@ impl Env {
 
     /// Installs `env` for `ui` and everything below it; `restore` puts back what it replaced.
     pub(crate) fn install_for(ui: &Ui, env: Env) -> Installed {
-        let key = (ui.ctx().viewport_id(), stack::node_id(ui));
-        let previous = EnvStore::of(ui.ctx()).with(|entries| entries.0.insert(key, env));
-        Installed { key, previous }
+        let viewport = pass::current_viewport(ui.ctx());
+        let node = stack::node_id(ui);
+        let previous = PerViewport::<ViewportEnvs>::with(ui.ctx(), viewport, |envs| envs.entries.insert(node, env));
+        Installed { viewport, node, previous }
     }
 
     /// Puts back the entry `install_for` replaced.
     pub(crate) fn restore(ctx: &Context, installed: Installed) {
-        EnvStore::of(ctx).with(|entries| match installed.previous {
+        PerViewport::<ViewportEnvs>::with(ctx, installed.viewport, |envs| match installed.previous {
             Some(previous) => {
-                entries.0.insert(installed.key, previous);
+                envs.entries.insert(installed.node, previous);
             }
             None => {
-                entries.0.remove(&installed.key);
+                envs.entries.remove(&installed.node);
             }
         });
     }
-}
 
-/// The env entries by the `Ui` they are installed for, per viewport. The service lock is held only to
-/// install or look up an entry or clone an `Arc`.
-#[derive(Default)]
-struct EnvStore(HashMap<(ViewportId, Id), Env>);
-
-impl EnvStore {
-    fn of(ctx: &Context) -> Service<EnvStore> {
-        Service::of(ctx)
+    /// Records `env` as the root env of `viewport`, which `Env::of` falls back to for a `Ui` with no entry above it.
+    pub(crate) fn set_root(ctx: &Context, viewport: ViewportId, env: Env) {
+        PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root = Some(env));
     }
 }
 
-/// Drops the env entries of viewports egui no longer reports.
-pub(crate) fn prune_viewports(ctx: &Context, live: &[ViewportId]) {
-    EnvStore::of(ctx).with(|entries| entries.0.retain(|(viewport, _), _| live.contains(viewport)));
+/// One viewport's env entries by the `Ui` they are installed for, and its root env. The lock is held only to
+/// install or look up an entry or clone an `Arc`.
+#[derive(Default)]
+struct ViewportEnvs {
+    entries: HashMap<Id, Env>,
+    root: Option<Env>,
 }
 
 /// What `install_for` replaced.
 pub(crate) struct Installed {
-    key: (ViewportId, Id),
+    viewport: ViewportId,
+    node: Id,
     previous: Option<Env>,
+}
+
+/// Restores the replaced entry when dropped, so a panic in a scope's body leaves no entry behind.
+struct Restore<'a> {
+    ctx: &'a Context,
+    installed: Option<Installed>,
+}
+
+impl Drop for Restore<'_> {
+    fn drop(&mut self) {
+        if let Some(installed) = self.installed.take() {
+            Env::restore(self.ctx, installed);
+        }
+    }
 }
 
 /// What component code sees: everything in `Env` except tokens, size, enabled, read-only, arena, transform
@@ -380,24 +395,19 @@ impl Overrides {
     }
 }
 
-/// Runs `body` with `set`'s changes applied to the inherited values. A scope that changes direction builds
-/// its child `Ui` with an explicit layout and never inherits the parent's.
+/// Runs `body` in a child `Ui` with `set`'s changes applied to the inherited values. A scope that disables
+/// disables its child `Ui`; one that changes direction builds the child with an explicit layout and never
+/// inherits the parent's.
 pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnOnce(&mut Ui) -> R) -> R {
     let mut overrides = Overrides::default();
     set(&mut overrides);
     let outer = Env::of(ui);
     let inner = outer.derive(|scoped| overrides.apply(scoped));
+    let direction = (inner.direction != outer.direction).then(|| inner.direction.is_rtl());
+    let disabled = !inner.enabled;
     let ctx = ui.ctx().clone();
-    if inner.direction == outer.direction {
-        let installed = Env::install_for(ui, inner);
-        let result = body(ui);
-        Env::restore(&ctx, installed);
-        return result;
-    }
-    style::scope_direction(ui, inner.direction.is_rtl(), |child| {
-        let installed = Env::install_for(child, inner);
-        let result = body(child);
-        Env::restore(&ctx, installed);
-        result
+    child::scope(ui, disabled, direction, |child| {
+        let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(child, inner)) };
+        body(child)
     })
 }

@@ -2,7 +2,8 @@
 
 use crate::runtime::egui::memory::{self as store, Map, Removed, Service, take_raw};
 use crate::runtime::egui::pass;
-use crate::runtime::frame::PerViewport;
+use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
+use craft_behavior::eviction::owner_due;
 use egui::{Context, Id, ViewportId};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -28,24 +29,31 @@ impl<T: Slot + Serialize + DeserializeOwned> Savable for T {}
 pub struct SaveKey(Cow<'static, str>);
 
 impl SaveKey {
-    /// A key; evaluated in a const context it rejects a name without a crate prefix at compile time.
+    /// A key `crate_prefix.name`; evaluated in a const context it rejects a malformed name at compile time. The
+    /// prefix is lowercase ASCII letters, digits and underscores.
     pub const fn new(key: &'static str) -> Self {
         let bytes = key.as_bytes();
-        let mut i = 0;
-        let mut prefixed = false;
-        while i < bytes.len() {
-            if bytes[i] == b'.' {
-                prefixed = true;
-            }
-            i += 1;
+        let mut prefix = 0;
+        while prefix < bytes.len() && bytes[prefix] != b'.' {
+            let byte = bytes[prefix];
+            assert!(
+                byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_',
+                "a SaveKey's crate prefix is lowercase ASCII, digits and underscores"
+            );
+            prefix += 1;
         }
-        assert!(prefixed, "a SaveKey needs a crate prefix");
+        assert!(prefix > 0 && prefix + 1 < bytes.len(), "a SaveKey is `crate_prefix.name`");
         SaveKey(Cow::Borrowed(key))
     }
 
     /// The key's text.
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+
+    /// The id the key's slots are stored under: one derivation, whatever component writes them.
+    fn id(&self) -> Id {
+        global("craft_ui.saved", self)
     }
 }
 
@@ -76,9 +84,8 @@ mod tier {
     pub(super) const PRESS: u8 = 1;
     pub(super) const SESSION: u8 = 2;
     pub(super) const SAVED: u8 = 3;
-    pub(super) const ONESHOT: u8 = 4;
 }
-use tier::{ONESHOT, PRESS, SAVED, SESSION, SHOWN};
+use tier::{PRESS, SAVED, SESSION, SHOWN};
 
 /// One lifetime of one type under one id, so a type can sit in two lifetimes.
 #[derive(Clone, Default)]
@@ -123,32 +130,38 @@ struct Registry {
     graveyard: Vec<Removed>,
 }
 
-/// The ids claimed as the base of an open stage, per viewport and its pass number.
-#[derive(Default)]
-struct BaseClaims(HashMap<ViewportId, (u64, HashSet<Id>)>);
-
-/// Marks the bases whose stage was written back, for `appeared`.
+/// Marks a base whose stage was written back: the frame it was first shown in, for `appeared`. A discard pass
+/// repeats the frame, so `appeared` stays true through it.
 #[derive(Clone)]
-struct Seen;
+struct Seen(u64);
 
-/// Eviction, run by the end hook. Only an owner's registration is tested: an owner not registered for 3
-/// passes of the viewport that last showed it and 0.5 s loses its shown and one-shot entries (its press
-/// entries went when their press ended). Session and saved entries go only through `forget` and
-/// `forget_saved`. A viewport egui no longer reports counts as 3 passes elapsed.
-#[doc(hidden)]
-pub fn evict(ctx: &Context) {
-    let now = pass::now(ctx);
+/// Registers `owner`'s pass, at step 3: eviction tests only owners. Shown entries of an owner not registered
+/// for 3 passes of the viewport that last showed it and 0.5 s are evicted by `evict`.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+pub(crate) fn register_owner(ctx: &Context, owner: Id) {
+    let viewport = pass::current_viewport(ctx);
+    let (pass_nr, at) = (pass::pass_nr(ctx, viewport), frame::clock(ctx));
+    Service::<Registry>::of(ctx).with(|reg| {
+        reg.owners.insert(owner, OwnerRecord { viewport, pass: pass_nr, at });
+    });
+}
+
+/// Eviction, run by the end hook. An owner that `owner_due` finds due loses its shown and press entries (a press
+/// entry whose press never ended goes with its owner). Session and saved entries go only through `forget` and
+/// `forget_saved`.
+pub(crate) fn evict(ctx: &Context) {
+    let now = frame::clock(ctx);
     let live = pass::live_viewports(ctx);
     let registry = Service::<Registry>::of(ctx);
     registry.with(|reg| {
-        let due = |r: &OwnerRecord| now - r.at >= 0.5 && (!live.contains(&r.viewport) || pass::pass_nr(ctx, r.viewport) >= r.pass + 3);
+        let due = |r: &OwnerRecord| owner_due(r.pass, r.at, pass::pass_nr(ctx, r.viewport), now, live.contains(&r.viewport));
         let dead: HashSet<Id> = reg.owners.iter().filter(|(_, r)| due(r)).map(|(id, _)| *id).collect();
         if dead.is_empty() {
             return;
         }
         reg.owners.retain(|id, _| !dead.contains(id));
         let gone: Vec<(Id, u8, TypeId)> =
-            reg.slots.iter().filter(|(k, r)| dead.contains(&r.owner) && matches!(k.1, SHOWN | ONESHOT | PRESS)).map(|(k, _)| *k).collect();
+            reg.slots.iter().filter(|(k, r)| dead.contains(&r.owner) && matches!(k.1, SHOWN | PRESS)).map(|(k, _)| *k).collect();
         let mut moved: Vec<Removed> = Vec::new();
         for key in gone {
             if let Some(rec) = reg.slots.remove(&key) {
@@ -160,13 +173,15 @@ pub fn evict(ctx: &Context) {
 }
 
 /// Removes the session slots under `id` (all types). The only way a session slot goes.
-pub fn forget(ctx: &Context, id: Id) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+pub(crate) fn forget(ctx: &Context, id: Id) {
     forget_tier(ctx, id, SESSION);
 }
 
-/// Removes the saved slots under `id`. The only way a saved slot goes.
-pub fn forget_saved(ctx: &Context, id: Id) {
-    forget_tier(ctx, id, SAVED);
+/// Removes the saved slots of `key`. The only way a saved slot goes.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 commands"))]
+pub(crate) fn forget_saved(ctx: &Context, key: &SaveKey) {
+    forget_tier(ctx, key.id(), SAVED);
 }
 
 fn forget_tier(ctx: &Context, id: Id, tier: u8) {
@@ -184,8 +199,8 @@ fn forget_tier(ctx: &Context, id: Id, tier: u8) {
 }
 
 /// Registers a slot the motion service wrote straight into context data, so it goes with its owner's shown entries.
-#[doc(hidden)]
-pub fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
+#[expect(dead_code, reason = "used by F2 motion")]
+pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
     fn remove<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
         take_raw::<T>(data, id)
     }
@@ -195,8 +210,8 @@ pub fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
 }
 
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
-#[doc(hidden)]
-pub fn dispose_evicted(ctx: &Context) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+pub(crate) fn dispose_evicted(ctx: &Context) {
     let queue = Service::<Registry>::of(ctx).with(|reg| std::mem::take(&mut reg.graveyard));
     drop(queue);
 }
@@ -211,7 +226,8 @@ fn press_ended<T: Slot>(value: &(dyn Any + Send + Sync)) -> bool {
     value.downcast_ref::<Wrapped<PRESS, Option<T>>>().is_some_and(|wrapped| wrapped.0.is_none())
 }
 
-/// Slots move into the stage on first use and back after `finish` returns.
+/// Slots move into the stage on first use and back after `finish` returns. It appears in the sealed
+/// `StageAccess` and has no public constructor.
 #[doc(hidden)]
 pub struct MemoryStage {
     ctx: Context,
@@ -225,17 +241,19 @@ pub struct MemoryStage {
     /// A sizing pass or `measure_in`: reads clone from context data, nothing moves, nothing is written back.
     peek_only: bool,
     /// A face's stage: a `Remember` write is a debug assertion, because a face has no state of its own.
-    pub face: bool,
+    pub(crate) face: bool,
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
 impl MemoryStage {
     /// A stage whose entries belong to `base`.
-    pub fn open(ctx: &Context, base: Id) -> Self {
+    #[expect(dead_code, reason = "used by F2 pipeline")]
+    pub(crate) fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
     }
 
     /// A stage whose entries belong to `owner`: a popup body's stage belongs to the component that shows it.
-    pub fn open_owned(ctx: &Context, base: Id, owner: Id) -> Self {
+    pub(crate) fn open_owned(ctx: &Context, base: Id, owner: Id) -> Self {
         let stage = Self::new(ctx, base, owner, false);
         stage.claim(base);
         stage
@@ -243,7 +261,7 @@ impl MemoryStage {
 
     /// The stage of a sizing pass: it opens no lifetime stage, so a container's first appearance in a new
     /// layer cannot lose a kept value.
-    pub fn open_peek(ctx: &Context, base: Id) -> Self {
+    pub(crate) fn open_peek(ctx: &Context, base: Id) -> Self {
         Self::new(ctx, base, base, true)
     }
 
@@ -260,39 +278,42 @@ impl MemoryStage {
     }
 
     /// Debug assertion: no id is the base of two open stages in one pass of its viewport.
-    pub fn claim(&self, base: Id) {
+    pub(crate) fn claim(&self, base: Id) {
         if self.peek_only || self.claimed.borrow().contains(&base) {
             return;
         }
         self.claimed.borrow_mut().push(base);
         let viewport = pass::current_viewport(&self.ctx);
         let pass_nr = pass::pass_nr(&self.ctx, viewport);
-        let duplicate = Service::<BaseClaims>::of(&self.ctx).with(|claims| {
-            let slot = claims.0.entry(viewport).or_insert_with(|| (pass_nr, HashSet::new()));
-            if slot.0 != pass_nr {
-                *slot = (pass_nr, HashSet::new());
-            }
-            !slot.1.insert(base)
-        });
+        let duplicate = PerViewport::<Stamped<HashSet<Id>>>::with_pass(
+            &self.ctx,
+            viewport,
+            pass_nr,
+            |claimed, _| claimed.clear(),
+            |claimed| !claimed.insert(base),
+        );
         debug_assert!(!duplicate, "an id is the base of two open stages in one pass");
     }
 
     /// Read-only access for `measure_in`: opens no stage.
-    pub fn peek<T: Slot>(ctx: &Context, id: Id) -> T {
+    #[expect(dead_code, reason = "used by F2 pipeline")]
+    pub(crate) fn peek<T: Slot>(ctx: &Context, id: Id) -> T {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
-    pub fn owner(&self) -> Id {
+    #[expect(dead_code, reason = "used by F2 pipeline")]
+    pub(crate) fn owner(&self) -> Id {
         self.owner
     }
 
     /// True for the first pass a base id is shown; per base id, so a body and its component differ.
-    pub fn appeared_at(&self, base: Id) -> bool {
+    pub(crate) fn appeared_at(&self, base: Id) -> bool {
         let mut touched = self.touched.borrow_mut();
         if !touched.contains(&base) {
             touched.push(base);
         }
-        !store::contains::<Seen>(&self.ctx, base)
+        let frame = pass::frame_nr(&self.ctx, pass::current_viewport(&self.ctx));
+        store::peek_clone::<Seen>(&self.ctx, base).is_none_or(|seen| seen.0 == frame)
     }
 
     #[allow(clippy::unreachable, reason = "the entry key holds the lifetime and the type, so the downcast cannot fail")]
@@ -320,15 +341,15 @@ impl MemoryStage {
         }
     }
 
-    pub fn shown<T: Slot>(&mut self, id: Id) -> &mut T {
+    pub(crate) fn shown<T: Slot>(&mut self, id: Id) -> &mut T {
         self.slot::<SHOWN, T>(id)
     }
 
-    pub fn session<T: Slot>(&mut self, id: Id) -> &mut T {
+    pub(crate) fn session<T: Slot>(&mut self, id: Id) -> &mut T {
         self.slot::<SESSION, T>(id)
     }
 
-    pub fn press<T: Slot>(&mut self, id: Id) -> &mut Option<T> {
+    pub(crate) fn press<T: Slot>(&mut self, id: Id) -> &mut Option<T> {
         self.slot::<PRESS, Option<T>>(id);
         if let Some(entry) = self.entries.get_mut(&(PRESS, TypeId::of::<Option<T>>(), id)) {
             entry.ended = Some(press_ended::<T>);
@@ -336,15 +357,25 @@ impl MemoryStage {
         self.slot::<PRESS, Option<T>>(id)
     }
 
-    pub fn saved<T: Slot>(&mut self, id: Id) -> &mut T {
-        self.slot::<SAVED, T>(id)
+    pub(crate) fn saved<T: Slot>(&mut self, key: &SaveKey) -> &mut T {
+        self.slot::<SAVED, T>(key.id())
     }
 
-    pub fn take<T: Slot>(&mut self, id: Id) -> Option<T> {
-        self.slot::<ONESHOT, Option<T>>(id).take()
+    /// The shown slot of `id`, moved out: it is read once. `None` when nothing was written under it.
+    pub(crate) fn take<T: Slot>(&mut self, id: Id) -> Option<T> {
+        let ty = TypeId::of::<T>();
+        if let Some(entry) = self.entries.remove(&(SHOWN, ty, id)) {
+            return entry.value.downcast::<Wrapped<SHOWN, T>>().ok().map(|wrapped| wrapped.0);
+        }
+        if self.peek_only {
+            return store::peek_clone::<Wrapped<SHOWN, T>>(&self.ctx, id).map(|wrapped| wrapped.0);
+        }
+        let moved = store::take::<Wrapped<SHOWN, T>>(&self.ctx, id)?;
+        Service::<Registry>::of(&self.ctx).with(|reg| reg.slots.remove(&(id, SHOWN, ty)));
+        Some(moved.0)
     }
 
-    pub fn recall<T: Slot>(&self, id: Id) -> T {
+    pub(crate) fn recall<T: Slot>(&self, id: Id) -> T {
         let open = self.entries.get(&(SHOWN, TypeId::of::<T>(), id)).and_then(|entry| entry.value.downcast_ref::<Wrapped<SHOWN, T>>());
         match open {
             Some(wrapped) => wrapped.0.clone(),
@@ -352,19 +383,16 @@ impl MemoryStage {
         }
     }
 
-    /// Step 17, after `finish` returned: every slot goes back to context data and the owner's registration is
-    /// recorded for eviction.
-    pub fn write_back(self) {
+    /// Step 17, after `finish` returned: every slot goes back to context data and is recorded under its owner.
+    pub(crate) fn write_back(self) {
         if self.peek_only {
             return;
         }
-        let viewport = pass::current_viewport(&self.ctx);
-        let (pass_nr, now) = (pass::pass_nr(&self.ctx, viewport), pass::now(&self.ctx));
+        let frame = pass::frame_nr(&self.ctx, pass::current_viewport(&self.ctx));
         let owner = self.owner;
         let touched = self.touched.into_inner();
         let mut ended = Vec::new();
         Service::<Registry>::of(&self.ctx).with(|reg| {
-            reg.owners.insert(owner, OwnerRecord { viewport, pass: pass_nr, at: now });
             for base in &touched {
                 reg.slots.insert((*base, SHOWN, TypeId::of::<Seen>()), SlotRecord { owner, remove: take_raw::<Seen> });
             }
@@ -386,14 +414,21 @@ impl MemoryStage {
             (entry.write_back)(entry.value, &self.ctx, id);
         }
         for base in touched {
-            store::put(&self.ctx, base, Seen);
+            if store::peek_clone::<Seen>(&self.ctx, base).is_none() {
+                store::put(&self.ctx, base, Seen(frame));
+            }
         }
     }
 }
 
-/// The `Remember` calls are written once over this accessor.
+pub(crate) mod sealed {
+    /// Keeps `StageAccess` to the contexts of this crate.
+    pub trait Sealed {}
+}
+
+/// The `Remember` calls are written once over this accessor. Sealed: only the pipeline's contexts implement it.
 #[doc(hidden)]
-pub trait StageAccess {
+pub trait StageAccess: sealed::Sealed {
     /// The open stage.
     fn stage(&self) -> &MemoryStage;
     /// The open stage, mutably.
@@ -440,7 +475,7 @@ impl<X: StageAccess> Remember for X {
 
     fn saved<T: Savable>(&mut self, key: &SaveKey) -> &mut T {
         face_guard(self.stage());
-        self.stage_mut().saved(store::unique(key.as_str()))
+        self.stage_mut().saved(key)
     }
 
     fn recall<T: Slot>(&self) -> T {
@@ -471,60 +506,53 @@ impl<T: Hash> Hash for Sub<T> {
 /// The runtime sub-id of `base` for `tag`: the one derivation of every id the runtime makes from a component
 /// id (body, children, header, footer, layer, rows, items, popups, the gesture, `memory_at` slots, animation
 /// slots, edge and transform widgets, text and access sub-nodes).
-#[doc(hidden)]
-pub fn sub(base: Id, tag: impl Hash + Debug) -> Id {
+pub(crate) fn sub(base: Id, tag: impl Hash + Debug) -> Id {
     base.with(Sub(tag))
 }
 
 /// The id of a runtime singleton named `name`, optionally under a `scope` such as a viewport.
-#[doc(hidden)]
-pub fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
+pub(crate) fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
     store::unique(name).with(scope)
 }
 
 /// Cross-widget facts, registered in one pass and read in the next. Runtime services only.
-pub struct Facts<T>(PhantomData<T>);
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 layers"))]
+pub(crate) struct Facts<T>(PhantomData<T>);
 
 /// The facts of one viewport: this pass's registrations and last pass's.
 struct FactRecord<T> {
-    pass: u64,
     this: Vec<T>,
     last: Vec<T>,
 }
 
 impl<T> Default for FactRecord<T> {
     fn default() -> Self {
-        FactRecord { pass: 0, this: Vec::new(), last: Vec::new() }
+        FactRecord { this: Vec::new(), last: Vec::new() }
     }
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 layers"))]
 impl<T: Clone + Send + Sync + 'static> Facts<T> {
     /// Registers `fact` for the next pass of the running viewport.
-    #[doc(hidden)]
-    pub fn register(ctx: &Context, fact: T) {
+    pub(crate) fn register(ctx: &Context, fact: T) {
         Self::with_record(ctx, |record| record.this.push(fact));
     }
 
     /// The facts the running viewport's previous pass registered, in registration order.
-    #[doc(hidden)]
-    pub fn of_last_pass(ctx: &Context) -> Vec<T> {
+    pub(crate) fn of_last_pass(ctx: &Context) -> Vec<T> {
         Self::with_record(ctx, |record| record.last.clone())
     }
 
     fn with_record<R>(ctx: &Context, f: impl FnOnce(&mut FactRecord<T>) -> R) -> R {
         let viewport = pass::current_viewport(ctx);
         let pass_nr = pass::pass_nr(ctx, viewport);
-        PerViewport::<FactRecord<T>>::with(ctx, viewport, |record| {
-            if record.pass != pass_nr {
-                if record.pass + 1 == pass_nr {
-                    record.last = std::mem::take(&mut record.this);
-                } else {
-                    record.last.clear();
-                    record.this.clear();
-                }
-                record.pass = pass_nr;
+        let advance = |record: &mut FactRecord<T>, step: PassStep| match step {
+            PassStep::Next => record.last = std::mem::take(&mut record.this),
+            PassStep::Skipped => {
+                record.last.clear();
+                record.this.clear();
             }
-            f(record)
-        })
+        };
+        PerViewport::<Stamped<FactRecord<T>>>::with_pass(ctx, viewport, pass_nr, advance, f)
     }
 }

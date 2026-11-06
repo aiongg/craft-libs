@@ -1,7 +1,7 @@
 //! Raw input in the input hook, key events converted to craft-keymap's key types, `InputOptions`.
 
 use craft_behavior::one_press::split_after_first_press;
-use egui::{Context, Event, Key, Modifiers, Rect, ViewportId};
+use egui::{Context, Event, ViewportId};
 
 pub use egui::RawInput;
 
@@ -52,29 +52,4 @@ pub(crate) fn clear_shortcuts(ctx: &Context) {
 /// Stops the pass's egui drag, so hover reaches other widgets again.
 pub(crate) fn stop_dragging(ctx: &Context) {
     ctx.stop_dragging();
-}
-
-/// The raw input of one frame at `time` seconds on a screen of `screen`; for test fixtures that drive
-/// `Context::run_ui` themselves.
-#[doc(hidden)]
-pub fn frame_input(screen: Rect, time: f64, events: Vec<Event>) -> RawInput {
-    RawInput { screen_rect: Some(screen), time: Some(time), events, ..RawInput::default() }
-}
-
-/// A key press event with `modifiers`, for test fixtures.
-#[doc(hidden)]
-pub fn key_press(key: Key, modifiers: Modifiers) -> Event {
-    Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers }
-}
-
-/// Gives egui back the option the runtime turns off at install: `Cmd` with `=` or `-` zooms the interface.
-#[doc(hidden)]
-pub fn allow_zoom_keys(ctx: &Context) {
-    ctx.options_mut(|options| options.zoom_with_keyboard = true);
-}
-
-/// Sets egui's longest press that still counts as a click, for test fixtures.
-#[doc(hidden)]
-pub fn set_max_click_duration(ctx: &Context, seconds: f64) {
-    ctx.options_mut(|options| options.input_options.max_click_duration = seconds);
 }

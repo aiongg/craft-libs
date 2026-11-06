@@ -9,3 +9,5 @@ pub enum Event {
 pub struct Settings {
     pub width: f32,
 }
+
+pub struct Handle(pub u32);

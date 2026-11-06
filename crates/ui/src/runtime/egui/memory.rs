@@ -2,7 +2,7 @@
 
 use egui::util::IdTypeMap;
 use egui::util::id_type_map::RawKey;
-use egui::{Context, Id, Ui};
+use egui::{Context, Id};
 use std::any::Any;
 use std::hash::Hash;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -26,8 +26,7 @@ pub(crate) fn take<T: Any + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
 }
 
 /// Stores `value` under `id`. The entry it replaces is dropped after the data lock is released.
-#[doc(hidden)]
-pub fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T) {
+pub(crate) fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T) {
     let replaced = ctx.data_mut(|data| {
         let old = take_raw::<T>(data, id);
         data.insert_temp(id, value);
@@ -45,11 +44,6 @@ pub(crate) fn peek_clone<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) ->
     Some(copy)
 }
 
-/// Whether a value of type `T` is stored under `id`. For plain-data markers: it clones the value under the lock.
-pub(crate) fn contains<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id) -> bool {
-    ctx.data(|data| data.get_temp::<T>(id).is_some())
-}
-
 /// Runs `f` on the context's data under its lock; `f` runs no app code and makes no call that reaches the context.
 pub(crate) fn locked<R>(ctx: &Context, f: impl FnOnce(&mut Map) -> R) -> R {
     ctx.data_mut(f)
@@ -58,12 +52,6 @@ pub(crate) fn locked<R>(ctx: &Context, f: impl FnOnce(&mut Map) -> R) -> R {
 /// The id derived from `source` alone, with no parent.
 pub(crate) fn unique(source: impl Hash + std::fmt::Debug) -> Id {
     Id::unique(source)
-}
-
-/// Runs `f` on a child `Ui` of `ui`.
-#[doc(hidden)]
-pub fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
-    ui.scope(f).inner
 }
 
 /// A service's state in context data. Cloning shares the state.

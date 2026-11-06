@@ -5,7 +5,6 @@ use crate::runtime::frame;
 use egui::Context;
 
 /// What `install` takes.
-#[derive(Default)]
 #[non_exhaustive]
 pub struct InstallSpec {
     /// The end hook's ghost-layer painter, called once per pass. The runtime names no contract type, so it
@@ -15,8 +14,9 @@ pub struct InstallSpec {
 
 impl InstallSpec {
     /// A spec with no ghost-layer painter.
+    #[expect(clippy::new_without_default, reason = "`new` takes the shell info and window system once they exist, so the spec has no default")]
     pub fn new() -> Self {
-        Self::default()
+        InstallSpec { frame_layers: None }
     }
 
     /// Sets the end hook's ghost-layer painter.
@@ -54,6 +54,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);
     frame::set_frame_layers(ctx, spec.frame_layers);
+    frame::seed_hooked_passes(ctx);
     plugin::register(ctx);
     Ok(())
 }

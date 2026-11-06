@@ -1,9 +1,8 @@
 //! Memory lifetimes, eviction by owner and the runtime sub-id derivation.
 
-use crate::support::Frames;
-use craft_ui::runtime::egui::memory::put;
-use craft_ui::runtime::memory::{Facts, MemoryStage, dispose_evicted, forget, forget_saved, global, sub};
-use craft_ui::testing::trial;
+use craft_ui::runtime::memory::{Remember, SaveKey};
+use craft_ui::testing::memory::{Stage, dispose_evicted, facts_of_last_pass, forget, forget_saved, global, put, register_fact, sub};
+use craft_ui::testing::{Frames, trial};
 use egui::Id;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -11,6 +10,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 static CTX: Mutex<Option<egui::Context>> = Mutex::new(None);
 static DROPPED: AtomicU32 = AtomicU32::new(0);
 static CALLED_CONTEXT: AtomicU32 = AtomicU32::new(0);
+const PLACE: SaveKey = SaveKey::new("craft_tests.place");
 
 /// A slot whose `Drop` calls a `Context` API: it deadlocks when it runs under an egui lock. Copies made for
 /// reads (`Clone`) are marked and do not count.
@@ -40,9 +40,9 @@ impl Drop for Probe {
 }
 
 fn shown_stage(ui: &egui::Ui, id: Id) {
-    let mut stage = MemoryStage::open(ui.ctx(), id);
-    let _: &mut Probe = stage.shown(id);
-    stage.write_back();
+    let mut stage = Stage::open(ui.ctx(), id);
+    let _: &mut Probe = stage.memory();
+    stage.finish();
 }
 
 /// Skeleton: `frames_state::evicted_slot_drops_once_outside_any_egui_lock`.
@@ -70,25 +70,25 @@ fn sizing_peek_moves_nothing_and_keeps_the_kept_value() {
     let mut frames = Frames::new();
     let id = global("floaty", ());
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        *stage.session::<u32>(id) = 7;
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        *stage.keep::<u32>() = 7;
+        stage.finish();
     });
     frames.frame(vec![], |ui| {
-        let mut sizing = MemoryStage::open_peek(ui.ctx(), id);
-        assert_eq!(*sizing.session::<u32>(id), 7, "a sizing pass reads the kept value");
-        *sizing.session::<u32>(id) = 99;
-        sizing.write_back();
+        let mut sizing = Stage::open_peek(ui.ctx(), id);
+        assert_eq!(*sizing.keep::<u32>(), 7, "a sizing pass reads the kept value");
+        *sizing.keep::<u32>() = 99;
+        sizing.finish();
     });
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert_eq!(*stage.session::<u32>(id), 7, "the sizing pass wrote nothing and moved nothing");
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.keep::<u32>(), 7, "the sizing pass wrote nothing and moved nothing");
+        stage.finish();
     });
 }
 
-/// The lifetimes of 7.2: shown and one-shot entries go with their owner; session and saved ones only through
-/// `forget` and `forget_saved`; a press entry goes when its press ends.
+/// The lifetimes of 7.2, through `Remember`: shown entries go with their owner; session and saved ones only
+/// through `forget` and `forget_saved`; a press entry goes when its press ends.
 #[trial]
 fn lifetimes_follow_their_owner_until_forgotten() {
     let mut frames = Frames::new();
@@ -96,51 +96,161 @@ fn lifetimes_follow_their_owner_until_forgotten() {
     let mut appeared = Vec::new();
     for _ in 0..2 {
         frames.frame(vec![], |ui| {
-            let mut stage = MemoryStage::open(ui.ctx(), id);
-            appeared.push(stage.appeared_at(id));
-            *stage.shown::<u32>(id) += 1;
-            *stage.session::<u32>(id) = 5;
-            *stage.saved::<u32>(id) = 6;
-            *stage.press::<u32>(id) = Some(8);
-            stage.write_back();
+            let mut stage = Stage::open(ui.ctx(), id);
+            appeared.push(stage.appeared());
+            *stage.memory::<u32>() += 1;
+            *stage.memory_at::<u32>("part") += 10;
+            *stage.keep::<u32>() = 5;
+            *stage.saved::<u32>(&PLACE) = 6;
+            *stage.press_slot::<u32>() = Some(8);
+            stage.finish();
         });
     }
     assert_eq!(appeared, vec![true, false], "appeared is true on the first pass only");
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert_eq!(*stage.shown::<u32>(id), 2);
-        assert_eq!(*stage.press::<u32>(id), Some(8), "a press entry lives while its press does");
-        *stage.press::<u32>(id) = None;
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.memory::<u32>(), 2);
+        assert_eq!(*stage.memory_at::<u32>("part"), 20, "memory_at keeps its own slot");
+        assert_eq!(*stage.press_slot::<u32>(), Some(8), "a press entry lives while its press does");
+        *stage.press_slot::<u32>() = None;
+        stage.finish();
     });
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert_eq!(*stage.press::<u32>(id), None, "an ended press leaves no entry");
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.press_slot::<u32>(), None, "an ended press leaves no entry");
+        stage.finish();
     });
     frames.idle(60, |_| {});
     dispose_evicted(&frames.ctx);
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert!(stage.appeared_at(id), "a re-shown component appears again");
-        assert_eq!(*stage.shown::<u32>(id), 0, "the shown entry went with its owner");
-        assert_eq!(*stage.session::<u32>(id), 5, "the session entry stayed");
-        assert_eq!(*stage.saved::<u32>(id), 6, "the saved entry stayed");
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert!(stage.appeared(), "a re-shown component appears again");
+        assert_eq!(*stage.memory::<u32>(), 0, "the shown entry went with its owner");
+        assert_eq!(*stage.memory_at::<u32>("part"), 0, "and the memory_at entry");
+        assert_eq!(*stage.keep::<u32>(), 5, "the session entry stayed");
+        assert_eq!(*stage.saved::<u32>(&PLACE), 6, "the saved entry stayed");
+        stage.finish();
     });
     forget(&frames.ctx, id);
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert_eq!(*stage.session::<u32>(id), 0, "forget removes the session entry");
-        assert_eq!(*stage.saved::<u32>(id), 6, "and not the saved one");
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.keep::<u32>(), 0, "forget removes the session entry");
+        assert_eq!(*stage.saved::<u32>(&PLACE), 6, "and not the saved one");
+        stage.finish();
     });
-    forget_saved(&frames.ctx, id);
+    forget_saved(&frames.ctx, &PLACE);
     frames.frame(vec![], |ui| {
-        let mut stage = MemoryStage::open(ui.ctx(), id);
-        assert_eq!(*stage.saved::<u32>(id), 0, "forget_saved removes the saved entry");
-        stage.write_back();
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.saved::<u32>(&PLACE), 0, "forget_saved removes the saved entry written through Remember::saved");
+        stage.finish();
     });
+}
+
+/// 7.2 `take`: the shown slot is read once.
+#[trial]
+fn take_moves_the_shown_slot_out() {
+    let mut frames = Frames::new();
+    let id = global("taken", ());
+    frames.frame(vec![], |ui| {
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(stage.take::<u32>(), None, "nothing written yet");
+        *stage.memory::<u32>() = 9;
+        stage.finish();
+    });
+    frames.frame(vec![], |ui| {
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(stage.take::<u32>(), Some(9));
+        stage.finish();
+    });
+    frames.frame(vec![], |ui| {
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(stage.take::<u32>(), None, "read once");
+        stage.finish();
+    });
+}
+
+/// Entries written through a stage whose base differs from its owner go with the owner: they stay while the
+/// owner registers and are evicted with it.
+#[trial]
+fn entries_of_a_stage_follow_its_owner_not_its_base() {
+    let mut frames = Frames::new();
+    let (owner, base) = (global("owner", ()), global("popup body", ()));
+    frames.frame(vec![], |ui| {
+        let mut own = Stage::open(ui.ctx(), owner);
+        *own.memory::<u32>() = 1;
+        own.finish();
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        *body.memory::<u32>() = 7;
+        body.finish();
+    });
+    frames.idle(60, |ui| {
+        let own = Stage::open(ui.ctx(), owner);
+        own.finish();
+    });
+    frames.frame(vec![], |ui| {
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        assert_eq!(*body.memory::<u32>(), 7, "the body's entry outlives 60 frames in which only its owner registered");
+        body.finish();
+    });
+    frames.idle(60, |_| {});
+    dispose_evicted(&frames.ctx);
+    frames.frame(vec![], |ui| {
+        let mut body = Stage::open_owned(ui.ctx(), base, owner);
+        assert_eq!(*body.memory::<u32>(), 0, "and it went with its owner");
+        body.finish();
+    });
+}
+
+/// A press entry whose press never ended goes with its dead owner, together with its shown entries.
+#[trial]
+fn a_press_entry_of_a_dead_owner_is_evicted() {
+    let mut frames = Frames::new();
+    let id = global("pressed", ());
+    frames.frame(vec![], |ui| {
+        let mut stage = Stage::open(ui.ctx(), id);
+        *stage.press_slot::<u32>() = Some(3);
+        stage.finish();
+    });
+    frames.idle(60, |_| {});
+    dispose_evicted(&frames.ctx);
+    frames.frame(vec![], |ui| {
+        let mut stage = Stage::open(ui.ctx(), id);
+        assert_eq!(*stage.press_slot::<u32>(), None);
+        stage.finish();
+    });
+}
+
+/// `appeared` is true through both passes of the frame a component first shows in, so a discard pass does not
+/// lose the first-appearance work.
+#[trial]
+fn appeared_holds_through_the_discard_pass_of_the_first_frame() {
+    let mut frames = Frames::new();
+    let id = global("appearing", ());
+    let mut seen = Vec::new();
+    let mut first = true;
+    frames.frame(vec![], |ui| {
+        let stage = Stage::open(ui.ctx(), id);
+        seen.push(stage.appeared());
+        stage.finish();
+        if std::mem::take(&mut first) {
+            ui.ctx().request_discard("test");
+        }
+    });
+    frames.frame(vec![], |ui| {
+        let stage = Stage::open(ui.ctx(), id);
+        seen.push(stage.appeared());
+        stage.finish();
+    });
+    assert_eq!(seen, vec![true, true, false]);
+}
+
+/// A saved key names its crate: a prefix, a dot and a name.
+#[trial]
+fn a_save_key_needs_a_crate_prefix() {
+    for bad in [".place", "place", "craft_tests.", "Craft.place", "craft-tests.place"] {
+        assert!(std::panic::catch_unwind(|| SaveKey::new(bad)).is_err(), "{bad:?} is no save key");
+    }
+    assert_eq!(SaveKey::new("craft_dialogs.export.place").as_str(), "craft_dialogs.export.place");
 }
 
 /// Skeleton: `collide::children_and_items_keyed_like_runtime_regions_keep_their_own_ids`.
@@ -163,13 +273,13 @@ fn facts_registered_in_one_pass_are_read_in_the_next() {
     let mut read = Vec::new();
     for n in 0..3u32 {
         frames.frame(vec![], |ui| {
-            read.push(Facts::<u32>::of_last_pass(ui.ctx()));
-            Facts::register(ui.ctx(), n);
-            Facts::register(ui.ctx(), n + 10);
+            read.push(facts_of_last_pass::<u32>(ui.ctx()));
+            register_fact(ui.ctx(), n);
+            register_fact(ui.ctx(), n + 10);
         });
     }
     assert_eq!(read, vec![vec![], vec![0, 10], vec![1, 11]]);
     // A frame that read no facts skips a pass of the records: what pass 2 registered is not "last pass" later.
     frames.idle(1, |_| {});
-    frames.frame(vec![], |ui| assert!(Facts::<u32>::of_last_pass(ui.ctx()).is_empty()));
+    frames.frame(vec![], |ui| assert!(facts_of_last_pass::<u32>(ui.ctx()).is_empty()));
 }

@@ -11,7 +11,10 @@ pub enum Politeness {
     Polite,
 }
 
+#[non_exhaustive]
 pub struct Newtype(pub f32);
+
+pub struct Opaque(f32);
 
 pub(crate) struct Hidden {
     pub width: f32,

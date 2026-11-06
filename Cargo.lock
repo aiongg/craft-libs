@@ -1703,6 +1703,7 @@ version = "0.1.0"
 dependencies = [
  "craft-behavior",
  "craft-host",
+ "craft-i18n",
  "craft-theme",
  "craft-ui",
  "craft-ui-macros",

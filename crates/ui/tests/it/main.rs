@@ -2,7 +2,6 @@
 
 mod egui_surface;
 mod runtime;
-mod support;
 
 use craft_ui::testing::TRIALS;
 use libtest_mimic::{Arguments, Trial};

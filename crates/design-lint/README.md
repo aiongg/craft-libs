@@ -63,7 +63,7 @@ reason = "document-space drawing"
 | `contract/containers` | egui panels, `Window`, `CollapsingHeader`, `Resize`, `TableBuilder`, `show_rows`, `show_viewport`; `ScrollArea` in every file |
 | `contract/platform` | `cfg(target_os ..)`, wasm `cfg` and `cfg!` (`contract/platform:target`); `copy_text`, `open_url` |
 | `test/layout`, `test/kit`, `test/harness`, `test/cfg-test`, `test/literal-size`, `test/ignored` | integration tests outside `tests/it/` in an egui-linked crate; `egui_kittest` outside the kit; `#[test]` in a `harness = false` target; `#[cfg(test)]` modules in an egui-linked crate; float literals asserted in a test that shows a component or reads tokens (not in layer 0 or 1); `#[ignore]`d tests. They read test code, so the config sets `include-tests` |
-| `api/non-exhaustive` | `pub` enums, struct-like variants and structs with named `pub` fields without `#[non_exhaustive]`, unless on the scope's closed list; private modules, `#[doc(hidden)]` items and test code are not public API |
+| `api/non-exhaustive` | `pub` enums, struct-like variants and structs with `pub` fields without `#[non_exhaustive]`, unless on the scope's closed list; private modules, `#[doc(hidden)]` items and test code are not public API |
 
 Egui paths are resolved through the file's `use` items (one table per file, grouped, renamed and glob imports), so a craft type that shares a name with an egui type is not flagged unless it is imported from egui.
 

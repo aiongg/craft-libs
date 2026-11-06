@@ -55,6 +55,7 @@ pub struct SpanLayout {
 
 impl SpanLayout {
     /// `count` rows of height `row_h` and `width`, with no columns.
+    #[doc(hidden)]
     pub fn new(row_h: f32, count: usize, width: f32) -> Self {
         Self { row_h, count, width, columns: Vec::new() }
     }

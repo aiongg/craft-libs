@@ -3,7 +3,7 @@
 use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
-use crate::runtime::env::{Env, RootEnv, prune_viewports};
+use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::memory;
 use craft_host::Host;
 use egui::{Context, Ui, ViewportId};
@@ -67,43 +67,95 @@ struct FrameState {
 
 /// Records of one runtime service, one per viewport. A viewport egui stops reporting has its record dropped
 /// at once, by the frame loop's end hook.
-pub(crate) struct PerViewport<T>(HashMap<ViewportId, T>);
+pub(crate) struct PerViewport<T> {
+    records: HashMap<ViewportId, T>,
+    pruning: bool,
+}
 
 impl<T> Default for PerViewport<T> {
     fn default() -> Self {
-        PerViewport(HashMap::new())
+        PerViewport { records: HashMap::new(), pruning: false }
     }
+}
+
+/// How a record that follows the passes of its viewport advanced to the running pass.
+pub(crate) enum PassStep {
+    /// The viewport's previous pass left this record.
+    Next,
+    /// A pass or more went by without touching it.
+    Skipped,
+}
+
+/// A record that resets when its viewport's pass number changes.
+#[derive(Default)]
+pub(crate) struct Stamped<T> {
+    pass: u64,
+    value: T,
 }
 
 impl<T: Default + Send + 'static> PerViewport<T> {
     /// Runs `f` on the record of `viewport`, created on first use.
     pub(crate) fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut T) -> R) -> R {
-        Self::register_prune(ctx);
-        Service::<PerViewport<T>>::of(ctx).with(|records| f(records.0.entry(viewport).or_default()))
+        let service = Service::<PerViewport<T>>::of(ctx);
+        if !service.with(|records| std::mem::replace(&mut records.pruning, true)) {
+            Self::register_prune(ctx);
+        }
+        service.with(|records| f(records.records.entry(viewport).or_default()))
     }
 
     fn register_prune(ctx: &Context) {
         fn prune<T: Default + Send + 'static>(ctx: &Context, live: &[ViewportId]) {
-            Service::<PerViewport<T>>::of(ctx).with(|records| records.0.retain(|viewport, _| live.contains(viewport)));
+            Service::<PerViewport<T>>::of(ctx).with(|records| records.records.retain(|viewport, _| live.contains(viewport)));
         }
-        store::with::<FrameState, _>(ctx, |state| {
-            state.prunes.entry(TypeId::of::<T>()).or_insert(prune::<T>);
-        });
+        register_prune(ctx, TypeId::of::<T>(), prune::<T>);
     }
+}
+
+impl<T: Default + Send + 'static> PerViewport<Stamped<T>> {
+    /// Runs `f` on the record of `viewport` for its pass `pass_nr`; `reset` runs first when the pass changed.
+    pub(crate) fn with_pass<R>(
+        ctx: &Context,
+        viewport: ViewportId,
+        pass_nr: u64,
+        reset: impl FnOnce(&mut T, PassStep),
+        f: impl FnOnce(&mut T) -> R,
+    ) -> R {
+        Self::with(ctx, viewport, |record| {
+            if record.pass != pass_nr {
+                reset(&mut record.value, if record.pass + 1 == pass_nr { PassStep::Next } else { PassStep::Skipped });
+                record.pass = pass_nr;
+            }
+            f(&mut record.value)
+        })
+    }
+}
+
+/// Registers the end hook's prune of a service's per-viewport records, once per service type.
+pub(crate) fn register_prune(ctx: &Context, key: TypeId, prune: fn(&Context, &[ViewportId])) {
+    store::with::<FrameState, _>(ctx, |state| {
+        state.prunes.entry(key).or_insert(prune);
+    });
 }
 
 /// Before the pass: from eframe's `App::raw_input_hook`, or before `run_ui` in tests. A call during a pass,
 /// or after a pass whose plugin hooks did not run, is a debug assertion.
 pub fn set_input(ctx: &Context, input: FrameInput) {
     let scale = input.root.scale;
+    let root_passes = pass::pass_nr(ctx, ViewportId::ROOT);
     let hooks_ran = store::with::<FrameState, _>(ctx, |state| {
         debug_assert!(state.passes_open == 0, "set_input was called during a pass");
-        let ran = state.root_passes_hooked == pass::pass_nr(ctx, ViewportId::ROOT);
+        let ran = state.root_passes_hooked == root_passes;
         state.input = Some(input);
         ran
     });
     debug_assert!(hooks_ran, "the runtime plugin's hooks did not run for the previous pass: drive frames with `Context::run_ui` or `run_pass`");
     scale::set_interface_scale(ctx, scale.0);
+}
+
+/// Called by `install`: the passes the context ran before the plugin existed have no hooks to wait for.
+pub(crate) fn seed_hooked_passes(ctx: &Context) {
+    let root_passes = pass::pass_nr(ctx, ViewportId::ROOT);
+    store::with::<FrameState, _>(ctx, |state| state.root_passes_hooked = root_passes);
 }
 
 /// Everything accumulated since the last call, across passes and discarded passes.
@@ -117,28 +169,34 @@ pub(crate) fn set_frame_layers(ctx: &Context, painter: Option<fn(&Context)>) {
 }
 
 /// Adds text to the next `FrameOutput`'s announcements.
-#[doc(hidden)]
-pub fn announce(ctx: &Context, text: String) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 access"))]
+pub(crate) fn announce(ctx: &Context, text: String) {
     store::with::<FrameState, _>(ctx, |state| state.output.announcements.push(text));
 }
 
 /// Marks the chrome toggle in the next `FrameOutput`.
-#[doc(hidden)]
-pub fn request_chrome_toggle(ctx: &Context) {
+#[expect(dead_code, reason = "used by F2 keys")]
+pub(crate) fn request_chrome_toggle(ctx: &Context) {
     store::with::<FrameState, _>(ctx, |state| state.output.toggle_chrome = true);
 }
 
-/// The held input and the runtime's request to end the viewport's egui drag.
+/// The held input, the runtime's request to end the viewport's egui drag and the clock of its running pass.
 #[derive(Default)]
 struct ViewportRecord {
     held: HeldInput,
     press_cancelled: bool,
+    now: f64,
+}
+
+/// The running pass's time in seconds, read once by the begin hook.
+pub(crate) fn clock(ctx: &Context) -> f64 {
+    PerViewport::<ViewportRecord>::with(ctx, pass::current_viewport(ctx), |record| record.now)
 }
 
 /// Records that the runtime cancelled the captured press of the running viewport; the next begin hook ends
 /// egui's drag so hover reaches other widgets again.
-#[doc(hidden)]
-pub fn note_cancelled_press(ctx: &Context) {
+#[expect(dead_code, reason = "used by F2 pointer")]
+pub(crate) fn note_cancelled_press(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.press_cancelled = true);
     ctx.request_repaint();
@@ -170,8 +228,12 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         }
         state.input.clone()
     });
-    // H5: the runtime cancelled a captured press since this viewport's last pass.
-    let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| std::mem::take(&mut record.press_cancelled));
+    // H5: read the clock once; the runtime cancelled a captured press since this viewport's last pass.
+    let now = pass::now(&ctx);
+    let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
+        record.now = now;
+        std::mem::take(&mut record.press_cancelled)
+    });
     if cancelled {
         raw_input::stop_dragging(&ctx);
     }
@@ -179,6 +241,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
     let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
+    Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
 }
 
@@ -192,7 +255,6 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     // Evict shown memory by id and queue the evicted slots (7.2).
     memory::evict(&ctx);
     let live = pass::live_viewports(&ctx);
-    prune_viewports(&ctx, &live);
     let prunes: Vec<fn(&Context, &[ViewportId])> = store::with::<FrameState, _>(&ctx, |state| {
         state.passes_open = state.passes_open.saturating_sub(1);
         state.prunes.values().copied().collect()

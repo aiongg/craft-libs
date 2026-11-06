@@ -5,6 +5,7 @@
 
 pub mod canvas;
 pub mod columns;
+pub mod eviction;
 pub mod item_layout;
 pub mod layout_memory;
 pub mod motion;

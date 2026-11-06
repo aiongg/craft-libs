@@ -112,11 +112,19 @@ impl Script {
 
 /// Which way a language's text, and an interface in it, runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Direction {
     /// Left to right.
     Ltr,
     /// Right to left.
     Rtl,
+}
+
+impl Direction {
+    /// Whether the direction is right to left.
+    pub const fn is_rtl(self) -> bool {
+        matches!(self, Direction::Rtl)
+    }
 }
 
 /// The regional glyph forms Han characters take, as in the Noto CJK face names (SC, TC, HK, JP,
