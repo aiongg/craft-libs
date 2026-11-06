@@ -10,6 +10,7 @@ const USAGE: &str = "usage:
                                                               report literal sizes, named colours, style mutation and crate-wide clippy
                                                               allows (default config: design-lint.toml); --write-baseline records the
                                                               finding counts, --baseline fails only when a count rises
+  craft-design-lint structure [--root <dir>] [--config <path>]  layer map, imports, exceptions, crate graph, features and clones
   craft-design-lint clippy [--write] [--clippy-toml <path>]   print the template, or merge it into clippy.toml
   craft-design-lint check-clippy [--clippy-toml <path>]       fail unless clippy.toml carries the template and no other
                                                               clippy.toml or CLIPPY_CONF_DIR shadows it";
@@ -42,6 +43,9 @@ fn run(args: &[String]) -> Result<ExitCode, Error> {
     };
     if command == "check" {
         return run_check(rest);
+    }
+    if command == "structure" {
+        return craft_design_lint::run_structure(rest);
     }
     let mut write = false;
     let mut clippy_toml = PathBuf::from("clippy.toml");

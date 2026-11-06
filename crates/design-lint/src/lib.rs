@@ -16,6 +16,21 @@ mod markers;
 mod report;
 mod rules;
 
+// --- structure checks (layer map, exceptions, crate graph, clones): one `mod` and `pub use` line per concern ---
+mod clones;
+mod exceptions;
+mod graph;
+mod layers;
+mod resolve;
+mod structure;
+
+pub use clones::{Family, check_clones, load_families};
+pub use exceptions::{Entry, Exceptions, Origin, Site, scan_sites};
+pub use graph::{Metadata, check_features, check_graph};
+pub use layers::{CrateLayers, LayerInfo, LayerMaps, ModuleLayer, Placement};
+pub use structure::{check_structure, exempt_sites, run_structure};
+// --- end of structure checks ---
+
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 

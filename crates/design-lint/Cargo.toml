@@ -12,12 +12,10 @@ publish = false
 proc-macro2 = { version = "1", features = ["span-locations"] }
 quote = "1"
 serde = { workspace = true }
-syn = { version = "2", features = ["full", "visit"] }
+serde_json = { workspace = true }
+syn = { version = "2", features = ["full", "visit", "visit-mut"] }
 toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
 toml_edit = "0.25"
-
-[dev-dependencies]
-serde_json = { workspace = true }
 
 [lints]
 workspace = true
