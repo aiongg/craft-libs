@@ -126,7 +126,7 @@ pub enum VersionAction {
 /// a "…" menu of Open, Review and merge, and Archive while active. The history is the kernel's
 /// [`List`] of [`ListRow`]s (title and the date and
 /// author as the detail line; the dot column painted in the row's leading slot at
-/// `review.version_dot_x`, text from `review.version_text_x`): one Tab stop, Up / Down move,
+/// `ReviewStyle::version_dot_x`, text from `ReviewStyle::version_text_x`): one Tab stop, Up / Down move,
 /// Enter previews, F2 or Rename renames in place (`List::start_rename`), autosave groups are
 /// tree rows that open and close. Save version opens an inline form (Title, Description; Enter
 /// saves, Esc cancels). The branch and footer buttons are Tab stops.
@@ -580,8 +580,8 @@ pub(super) struct Columns {
 }
 
 impl Columns {
-    /// The slot is as wide as puts the label at `review.version_text_x` with the dot centred at
-    /// `review.version_dot_x` (FigCraft's `DOT_X` and `TEXT_X`, `versions.rs:109`).
+    /// The slot is as wide as puts the label at `ReviewStyle::version_text_x` with the dot centred at
+    /// `ReviewStyle::version_dot_x` (FigCraft's `DOT_X` and `TEXT_X`, `versions.rs:109`).
     pub(super) fn new(style: &ReviewStyle, row: &ListRowStyle) -> Self {
         let slot = (2.0 * (style.version_text_x - style.version_dot_x - row.gap)).max(0.0);
         let indent = (style.version_dot_x - row.pad_x - slot / 2.0).max(0.0);

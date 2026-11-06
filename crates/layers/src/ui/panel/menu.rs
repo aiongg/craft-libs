@@ -5,7 +5,7 @@ use craft_theme::LabelColor;
 use craft_ui::docking::panel_menu::PanelCommand;
 use craft_ui::localized::{LabelColorLabels, Labels as _};
 use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt, facts_id};
-use craft_ui::theme::{Tokens, TokensOf as _};
+use craft_ui::style::labels::label_colors;
 use egui::{AsIdSalt, Context, IdSalt, Response, Ui};
 
 use super::LayersPanel;
@@ -198,11 +198,10 @@ enum OpenMenu<Id> {
 
 /// None, a separator, then every label colour with its swatch and a check on `current`.
 fn eye_entries(ui: &Ui, current: Option<LabelColor>) -> Vec<MenuEntry<Option<LabelColor>>> {
-    let tokens = Tokens::of(ui);
     let names = LabelColorLabels::of(ui);
     let mut entries = vec![MenuItem::new(names.name(None), None).into(), MenuEntry::Separator];
     for color in LabelColor::ALL {
-        let item = MenuItem::new(names.name(Some(color)), Some(color)).check(current == Some(color)).tint(tokens.component.list.label(color).swatch);
+        let item = MenuItem::new(names.name(Some(color)), Some(color)).check(current == Some(color)).tint(label_colors(color).swatch);
         entries.push(item.into());
     }
     entries

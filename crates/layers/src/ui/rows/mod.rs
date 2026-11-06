@@ -82,11 +82,11 @@ craft_ui::words! {
 /// - **Row 1**: the blend [`Select`] (Small) with `blend_modes` and
 ///   their separators, then "Opacity:" as a scrub label and a Small
 ///   [`NumberField`] 0 to 100 % with its pop-up slider,
-///   `layers.percent_field_width` of text plus the pop-up arrow wide. A wheel notch over the closed select steps one mode
+///   `percent_field_width` of text plus the pop-up arrow wide. A wheel notch over the closed select steps one mode
 ///   (`Set` each); hovering a mode in the open list reports `BlendHover`. The "Opacity:" label
 ///   hides when `available < label + field + 2 gaps + layers.blend.label_slack +
 ///   layers.blend.min_width`, and the select takes the rest of the row (at least
-///   `layers.blend.floor_width`). The rows are `layers.blend.row_gap` apart.
+///   `blend_floor_width`). The rows are `blend_row_gap` apart.
 /// - **Row 2** (with [`locks`](Self::locks)): "Lock:", five Small toggle
 ///   [`IconButton`]s in [`LockKind::ALL`] order (Lock image pixels
 ///   disables Lock transparent pixels), then "Fill:" and its field as Opacity's, right-aligned in
@@ -325,12 +325,12 @@ fn percent_field(ui: &mut Ui, spec: PercentField<'_, impl AsIdSalt>, numbers: &L
 }
 
 /// The width of the blend select and whether the "Opacity:" label shows, for an `available`
-/// row width, the label's width, the field's whole box (`layers.percent_field_width` and the
+/// row width, the label's width, the field's whole box (`percent_field_width` and the
 /// pop-up arrow), the gap and `style`: the label shows while
-/// `available >= label + field + 2 × gap + slack + min_blend` (`layers.blend.label_slack`, 16;
-/// `layers.blend.min_width`, 80); the select gets
+/// `available >= label + field + 2 × gap + slack + min_blend` (`blend_label_slack`, 16;
+/// `blend_min_width`, 80); the select gets
 /// `available - field - gap - (label + gap + slack when shown)`, at least
-/// `layers.blend.floor_width` (40).
+/// `blend_floor_width` (40).
 pub(crate) fn opacity_row_layout(available: f32, label_width: f32, field_width: f32, gap: f32, style: &LayersStyle) -> (f32, bool) {
     // pc: crates/ui-egui/src/panels/layers.rs:39-46 `opacity_row_layout`.
     let slack = style.blend_label_slack;

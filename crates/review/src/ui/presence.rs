@@ -89,8 +89,8 @@ pub fn paint_pointer(painter: &Painter, tokens: &UiTokens, tip: Pos2, fill: Colo
     painter.add(Shape::closed_line(vec![tip, left, notch, right], Stroke::new(OUTLINE_WIDTH, tokens.color.overlay.halo.to_egui())));
 }
 
-/// The ink that reads on a person's colour `fill`: `review.ink_dark` when its luminance is above
-/// [`DARK_INK_ABOVE`], else `review.ink_light` (FigCraft `live.rs:182`).
+/// The ink that reads on a person's colour `fill`: `ReviewStyle::ink_dark` when its luminance is above
+/// [`DARK_INK_ABOVE`], else `ReviewStyle::ink_light` (FigCraft `live.rs:182`).
 pub(super) fn ink_on(style: &ReviewStyle, fill: Color32) -> Color32 {
     let [r, g, b, _] = fill.to_array();
     let luminance: f32 = [r, g, b].iter().zip(LUMA_WEIGHTS).map(|(channel, weight)| f32::from(*channel) * weight).sum();

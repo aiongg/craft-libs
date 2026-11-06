@@ -242,10 +242,10 @@ pub enum CommentEdit {
 ///   [`AgeStyle::Short`](craft_ui::localized::AgeStyle), then the date through craft-i18n's
 ///   `I18n::dates()`, as `AGE_SHOWN_AS_DATE` describes), the text; a status badge (Accepted:
 ///   thumbs-up; Rejected: thumbs-down; Cancelled: circle-x; Completed: check; colours
-///   `review.status_*` of [`ReviewStyle`]); the checkmark (a toggle on the
+///   `ReviewStyle::status_*` of [`ReviewStyle`]); the checkmark (a toggle on the
 ///   selected card, a mark otherwise); a lock badge; replies under it, each with its own "…"
 ///   ([`PressMenu`]: Edit, Copy text, Delete).
-/// - The selected card has the `review.card_accent` bar, the reply box and "…" (Edit, Set
+/// - The selected card has the `ReviewStyle::card_accent` bar, the reply box and "…" (Edit, Set
 ///   status, Delete). Locked threads and `read_only` hide the editing items.
 /// - Keyboard: Up / Down move between cards (selecting them), Enter focuses the reply box, Esc
 ///   leaves an inline edit; every button is a Tab stop. AccessKit: a list of cards, each named

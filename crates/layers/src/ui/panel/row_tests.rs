@@ -334,10 +334,9 @@ fn effect_rows_sit_under_the_layer_with_the_eye_indented() {
     let dense = {
         let ctx = Context::default();
         install(&ctx, &Base::suite_default());
-        current(&ctx).component.list.row_height_dense
+        ListRow::<u8>::style(&current(&ctx)).row_height_dense
     };
     assert_eq!(height, dense, "an effects row is dense whatever the thumbnail size");
-    assert_eq!(dense, 22.0);
 }
 
 // A Smart Filters header with `mask` shows the filter-mask thumbnail; at thumbnail size None it

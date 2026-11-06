@@ -205,9 +205,9 @@ pub enum RulerScale<'a> {
 /// The ruler's two strides in frames, `(tick, label)`. `label` is the first of
 /// `[1, 2, 5, 10, base/2, base, 2·base, 5·base, 10·base, 15·base, 30·base, 60·base, 120·base,
 /// 300·base, 600·base, 1800·base, 3600·base]` frames whose width at `frame_points` (points per
-/// frame) is at least `label_gap` (`timeline.ruler_label_gap`), so timestamps never touch;
+/// frame) is at least `label_gap` (`ruler_label_gap`), so timestamps never touch;
 /// `tick` is the finest divisor `label / k` (k from 9 down to 1) that leaves ticks at least
-/// `tick_gap` apart (`timeline.ruler_tick_gap`), so every label sits on a tick. Steps past
+/// `tick_gap` apart (`ruler_tick_gap`), so every label sits on a tick. Steps past
 /// `base` saturate (rates are file data).
 // filmcraft: crates/ui-egui/src/panels/timeline/ruler.rs:12 `ruler_steps`.
 pub fn ruler_steps(frame_points: f64, base: i64, label_gap: f32, tick_gap: f32) -> (i64, i64) {

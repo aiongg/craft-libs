@@ -51,7 +51,7 @@ craft_ui::words! {
 
 /// PowerPoint's Compare pane (DeckCraft): "Compared with {name}" (and the by-position note),
 /// Accept All (n) and Reject All (n), then a card per change: a colour bar
-/// (`review.revision_bar_*` in `review.revision_inserted`, `_deleted` or `_changed` of
+/// (`ReviewStyle::revision_bar_*` in `ReviewStyle::revision_inserted`, `_deleted` or `_changed` of
 /// [`ReviewStyle`]), the heading as a [`Link`]
 /// (goes there), Accept and Reject at the right, up to eight detail lines with bullets. With no
 /// changes: "No differences left." and End Review. Every link and button is a Tab stop in reading
