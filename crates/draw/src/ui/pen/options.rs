@@ -48,7 +48,7 @@ pub struct PathOptionsSettings {
     /// own (a layer colour) keep it.
     pub color: Option<[u8; 3]>,
     /// The path line's width in points, within [`THICKNESS_RANGE`](Self::THICKNESS_RANGE);
-    /// `None` uses `bezier.line` for paths and `bezier.draft_line` for the draft.
+    /// `None` uses the line for paths and the draft line for the draft.
     pub thickness: Option<f32>,
 }
 

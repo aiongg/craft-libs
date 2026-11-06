@@ -4,7 +4,7 @@ use craft_ui::controls::slider::{KEY_FILTER, pointer, tap};
 use craft_ui::edit::{EditPolicy, EditResponse, Gesture};
 use craft_ui::localized::{Labels as _, Units};
 use craft_ui::primitives::{FocusRing, Interactive};
-use craft_ui::style::brush::BrushStyle;
+use craft_ui::style::brush::BrushPanelStyle;
 use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
 use egui::accesskit::{Action, ActionData, Role};
 use egui::{AsIdSalt, CornerRadius, IdSalt, Key, Modifiers, PointerButton, Pos2, Sense, Shape, Stroke, Ui, Vec2, vec2};
@@ -114,7 +114,7 @@ impl TipEllipse {
 
     /// The sizes and colors of the widget from `tokens`.
     pub fn style(tokens: &UiTokens) -> TipEllipseStyle {
-        let (b, c) = (BrushStyle::new(tokens), &tokens.color);
+        let (b, c) = (BrushPanelStyle::new(tokens), &tokens.color);
         TipEllipseStyle {
             size: b.ellipse_size,
             disc: b.ellipse_disc,

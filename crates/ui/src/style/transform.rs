@@ -1,5 +1,10 @@
 //! Style of the `transform` family.
 
+use egui::Stroke;
+
+use crate::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
+use crate::theme::{ToEgui as _, UiTokens};
+
 const HIT: f32 = 12.0;
 const ROTATE_REACH: f32 = 36.0;
 const BAND_INNER: f32 = 5.0;
@@ -14,9 +19,25 @@ const PIN_CORE: f32 = 4.0;
 const PIN_TURN: f32 = 18.0;
 const PLANE_CORNER: f32 = 9.0;
 
-/// Transform values that are not semantic tokens.
+/// A transform box's look and reach, from `TransformBox::style`, and the transform tools' shared
+/// geometry (warp, pins, the rotate cursor).
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct TransformStyle {
+    /// The box line: `stroke.thin` of `overlay.line`, bare.
+    pub line: Stroke,
+    /// The 8 handles: [`Handle::style`] `Square`.
+    pub handle: HandleStyle,
+    /// The reference point's lines: `stroke.thin` of `overlay.handle_fill`.
+    pub pivot: Stroke,
+    /// Under them: `overlay.halo`, the thin stroke width wider on each side.
+    pub pivot_halo: Stroke,
+    /// The focus line round the whole box: the focus ring's stroke.
+    pub focus: Stroke,
+    /// Under it: `overlay.halo`, the thin stroke width wider on each side.
+    pub focus_halo: Stroke,
+    /// From the box line to the focus line: the focus ring's offset.
+    pub focus_offset: f32,
     /// Distance from a handle or the reference point within which the pointer takes it.
     pub hit: f32,
     /// Distance from a corner, outside the box, within which the rotate cursor shows.
@@ -53,9 +74,18 @@ pub struct TransformStyle {
 
 impl TransformStyle {
     /// The transform style for `tokens`.
-    pub fn new(tokens: &craft_theme::Tokens) -> Self {
+    pub fn new(tokens: &UiTokens) -> Self {
         let half_handle = tokens.size.handle.sm / 2.0;
+        let (thin, o) = (tokens.stroke.thin, &tokens.color.overlay);
+        let ring = FocusRing::style(tokens);
         Self {
+            line: Stroke::new(thin, o.line.to_egui()),
+            handle: Handle::style(tokens, HandleShape::Square),
+            pivot: Stroke::new(thin, o.handle_fill.to_egui()),
+            pivot_halo: Stroke::new(thin + 2.0 * thin, o.halo.to_egui()),
+            focus: ring.stroke,
+            focus_halo: Stroke::new(ring.stroke.width + 2.0 * thin, o.halo.to_egui()),
+            focus_offset: ring.offset,
             hit: HIT,
             rotate_reach: ROTATE_REACH,
             band_inner: BAND_INNER,

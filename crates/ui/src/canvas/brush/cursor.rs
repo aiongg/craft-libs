@@ -14,7 +14,7 @@ use crate::icons::Icon;
 ///
 /// The rules, in order (Photoshop's Preferences › Cursors; PhotoCraft's `draw_canvas_tool_cursor`):
 /// 1. Caps Lock with [`CursorOptions::caps_lock_precise`]: the precise crosshair
-///    (`cursor.precise_reach`, no gap), whatever else is set.
+///    (the precise reach, no gap), whatever else is set.
 /// 2. Standard: the tool's [`icon`](Self::icon), hotspot at its centre. Precise: the precise
 ///    crosshair.
 /// 3. While [`painting`](Self::painting) with
@@ -22,7 +22,7 @@ use crate::icons::Icon;
 ///    PhotoCraft's 5).
 /// 4. A [`Pixels`](super::BrushTipOutline::Pixels) tip: [`ToolCursor::Hidden`] (the tool
 ///    paints the cell with [`paint_pixels`](Self::paint_pixels)), or the crosshair
-///    `brush.tip_min_crosshair` with no gap when [`centre`](Self::centre) is on or the cell is
+///    `BrushStyle::tip_min_crosshair` with no gap when [`centre`](Self::centre) is on or the cell is
 ///    narrower than 6 points on screen.
 /// 5. Otherwise Normal Brush Tip draws the 50 % outline (`normal_radius`, the `normal` rings),
 ///    Full Size Brush Tip the full reach (`full_radius`, the `full` rings), mapped through the
@@ -31,8 +31,8 @@ use crate::icons::Icon;
 ///    1 point); under a skewed pose or a pixel aspect it is a [`ToolCursor::Outline`] ellipse
 ///    with the mapped axes' lengths; traced rings are a [`ToolCursor::Outline`]. With
 ///    [`inner_ring`](Self::inner_ring) a second ring is added.
-/// 6. An outline whose farthest point is nearer than `brush.tip_min_radius` to the hotspot: the
-///    crosshair `brush.tip_min_crosshair` with no gap.
+/// 6. An outline whose farthest point is nearer than `BrushStyle::tip_min_radius` to the hotspot: the
+///    crosshair `BrushStyle::tip_min_crosshair` with no gap.
 ///
 /// A [`badge`](Self::badge) is drawn centred on the hotspot over whichever of rules 1 to 6 gives a
 /// pointer (the Standard icon carries it in its own slot); a pixel tip's hidden pointer has none.
@@ -90,7 +90,7 @@ impl<'a> BrushCursor<'a> {
 
     /// A mark centred on the hotspot: the + or − of the selection mode (Quick Selection and the
     /// Select and Mask brushes), asked for by the host. Default none. Its size is the cursor
-    /// family's `cursor.badge`.
+    /// family's the badge.
     pub fn badge(mut self, badge: Option<CursorBadge>) -> Self {
         self.badge = badge;
         self

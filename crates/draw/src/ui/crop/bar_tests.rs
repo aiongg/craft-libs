@@ -128,7 +128,7 @@ fn the_bar_reports_the_shield_color_request() {
     assert!(h.state().events.iter().any(|o| o.settings_changed));
 }
 
-// The ratio preset select is `crop.preset_width` wide and the Fill select keeps its name without a colon.
+// The ratio preset select is the preset width wide and the Fill select keeps its name without a colon.
 #[test]
 fn the_preset_select_takes_its_token_width() {
     let h = harness(sides(2.0, 3.0), Vec::new());

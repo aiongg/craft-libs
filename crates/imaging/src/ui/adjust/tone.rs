@@ -78,8 +78,8 @@ pub struct TonePickerResponse {
 /// Point), each a pipette with its tone dot, and the "Unavailable in this color mode" note.
 ///
 /// - A button is `icon_button` Md (28) showing `Icon::Eyedropper`, selected while its picker is
-///   armed, with a tone dot ([`TonePicker::tone`]; radius `adjust.picker_dot` 3.5, centred 5.5 in
-///   from the bottom-trailing corner, 1 pt ring in `field.border`).
+///   armed, with a tone dot ([`TonePicker::tone`]; radius the picker dot 3.5, centred 5.5 in
+///   from the bottom-trailing corner, 1 pt ring in the border).
 /// - Click a disarmed button: arms it (`Some(Some(p))`); click the armed one again: disarms
 ///   (`Some(None)`). Esc while a picker button has focus and a picker is armed disarms it and
 ///   keeps the press (the dialog stays open); otherwise Esc is the dialog's.

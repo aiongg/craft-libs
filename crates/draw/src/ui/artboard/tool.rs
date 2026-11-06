@@ -21,14 +21,14 @@ use craft_ui::localized::Labels as _;
 /// Pointer (Photoshop's rules, [`ArtboardRules::PHOTOSHOP`]):
 /// - A press on a "+" button beside the selected board ([`AddBesideHandles::at`](crate::ui::add_beside::AddBesideHandles::at))
 ///   reports `AddBeside` (⌥: `copy`).
-/// - A press on a handle of the selected board (8: corners first, `handle.hit` reach, through
+/// - A press on a handle of the selected board (8: corners first, the hit reach, through
 ///   `hit_rect`) resizes it ([`resized_rect`](crate::geometry::artboard::resized_rect); ⇧ on a
 ///   corner keeps proportions with [`resized_keep_ratio`](crate::geometry::artboard::resized_keep_ratio),
 ///   also when ⇧ goes down mid-drag; ⌥ about the centre). A locked board does not resize.
 /// - A press inside a board selects it (`Select`) and a drag moves it with its contents
 ///   (`Move`, whole-pixel offsets). A locked board selects but never moves.
 /// - A press on the pasteboard draws a board ([`drawn_rect`](crate::geometry::artboard::drawn_rect));
-///   a drag under `artboard.click_slop` (3 screen points) draws nothing.
+///   a drag under the click slop (3 screen points) draws nothing.
 /// - Esc cancels the drag; ⌘ held is the app's Move tool (a momentary tool on the host).
 ///
 /// Illustrator's rules ([`ArtboardRules::ILLUSTRATOR`]) add: ⇧-click toggles a board in the
@@ -51,7 +51,7 @@ use craft_ui::localized::Labels as _;
 /// Cursor: resize arrows over the selected board's handles, turned with the view
 /// (`resize_cursor`); the pointing hand over a "+" button; the move arrow inside a board.
 ///
-/// Paint: the drag preview (`artboard.preview_line`, 1.5 pt in `accent.solid`), the selected
+/// Paint: the drag preview (the preview line, 1.5 pt in `accent.solid`), the selected
 /// board's 8 handles (`Handle` squares: `overlay.handle_fill`, 1 pt accent edge), and the "+"
 /// buttons ([`AddBesideHandles::paint`](crate::ui::add_beside::AddBesideHandles::paint)) when no
 /// drag runs. Frames and names are the `Pasteboard`'s.

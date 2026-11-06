@@ -259,7 +259,7 @@ fn handles_are_the_token_size_with_a_halo_outside_in_high_contrast_only() {
     assert_eq!(outline.stroke, Stroke::new(thin, o.handle_stroke.to_egui()));
     assert_eq!(Handle::style(&t, HandleShape::Rotate).fill, o.handle_stroke.to_egui());
     assert_ne!(Handle::style(&t, HandleShape::Rotate).cursor, Handle::style(&t, HandleShape::Round).cursor);
-    assert_eq!(Handle::style(&t, HandleShape::Square).hit, hit);
+    assert_eq!(Handle::style(&t, HandleShape::Square).hit, size + 2.0 * hit);
 
     let high = high_contrast_tokens("craft.artcraft", Mode::Dark);
     let drawn = Handle::shapes(&high, HandleShape::Square, pos2(20.3, 20.6), 1.0);

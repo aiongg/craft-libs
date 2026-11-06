@@ -266,13 +266,13 @@ pub struct ScopePanelState {
 /// Photoshop's Histogram panel and Camera Raw's scope in one widget.
 ///
 /// **What the user sees.**
-/// - **Compact View**: the plot alone, `histogram.height` high; a single channel in its colour.
+/// - **Compact View**: the plot alone, the height high; a single channel in its colour.
 /// - **Expanded View**: the Channel row (a `Select` of the set's channels, then Colors when
 ///   offered; the Uncached Refresh icon button at its end), the plot, the Source row (only with
 ///   two or more [`sources`](Self::sources)), and the statistics grid when Show Statistics is on.
-/// - **All Channels View**: Expanded plus one plot per colour channel (`scopes.all_channels_height`
+/// - **All Channels View**: Expanded plus one plot per colour channel (the all channels height
 ///   high, labelled with the channel's name above it).
-/// - The plot is the library [`Histogram`](craft_ui::composites::Histogram) on `field.fill`:
+/// - The plot is the library [`Histogram`](craft_ui::composites::Histogram) on the fill:
 ///   a single channel in its colour (in Expanded and All Channels only with Show Channels in
 ///   Color, else `text.muted`), Colors as overlaid ribbons ([`ChannelOverlay`]), the original
 ///   outlined over it, the host's [`markers`](Self::markers) (sampler ticks), the stale mark.
@@ -280,7 +280,7 @@ pub struct ScopePanelState {
 /// - The statistics grid: two label and value pairs per row: Mean, Std Dev,
 ///   Median, Pixels for the whole histogram (Colors counts the composite), Level, Count,
 ///   Percentile and Cache Level for the hovered level or the selected range, values at
-///   `TypeRole::Mono`, labels `text.muted`, `scopes.statistics_gap` between the pairs
+///   `TypeRole::Mono`, labels `text.muted`, the statistics gap between the pairs
 ///   ([`histogram_statistics`](crate::scopes::histogram_statistics)). Level shows `a` or `a..b`;
 ///   Mean and Std Dev two decimals, Percentile two decimals (PhotoCraft's).
 /// - With [`ScopeFrame::clipping`]: the two warning buttons in the plot's top corners, shadows at

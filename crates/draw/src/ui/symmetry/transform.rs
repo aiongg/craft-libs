@@ -68,7 +68,7 @@ enum Drag {
 
 /// Transform Symmetry, kept by the app while it is open (the menu's Transform Symmetry).
 ///
-/// - A press within `symmetry.hit` screen points of the centre moves it; within the same reach of
+/// - A press within the hit screen points of the centre moves it; within the same reach of
 ///   the rotation handle ([`Symmetry::rotation_handle`]) turns the axes, ⇧ in absolute
 ///   [15°](super::TURN_STEP_DEGREES) steps; a press anywhere else does nothing and never paints
 ///   (the tool claims it).

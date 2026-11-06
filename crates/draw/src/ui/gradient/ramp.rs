@@ -16,8 +16,8 @@ const EVEN_SAMPLES: usize = 64;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GradientRampStyle {
-    /// The checkerboard behind translucent parts: `swatch.checker.a` holds the corners,
-    /// `swatch.checker.b` the other cells.
+    /// The checkerboard behind translucent parts: the checker a holds the corners,
+    /// the checker b the other cells.
     pub checker: [Color32; 2],
     /// Side of a checkerboard cell, as a swatch's: `checker_cell`. The ramp rounds it so
     /// whole cells fill its height.

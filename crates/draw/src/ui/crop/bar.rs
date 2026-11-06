@@ -145,7 +145,7 @@ pub struct CropBarOutput {
 ///
 /// - Order (PhotoCraft's): the preset list (Ratio, W x H x Resolution, the ratio presets, the size
 ///   presets, the user's presets, Front Image, a separator, New Crop Preset…, Delete Crop
-///   Preset…; `crop.preset_width` wide, 140); the W and H
+///   Preset…; the preset width wide, 140); the W and H
 ///   ratio fields (`CellWidth::Sm`, 0 to 99,999 with 3 decimals) with ⇄ between them, or in
 ///   W × H × Resolution mode the W, H and Resolution text fields with the px/in or px/cm select;
 ///   a divider; Clear; the Straighten toggle (`Icon::Ruler`, pressed while armed); the overlay menu

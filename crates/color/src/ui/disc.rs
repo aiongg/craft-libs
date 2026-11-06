@@ -13,6 +13,9 @@ use craft_ui::edit::{EditEvent, EditPolicy, EditResponse, Gesture};
 use craft_ui::primitives::{FocusRing, Interactive};
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
+/// Share of `overlay.handle_fill` the marker spokes draw at, so the disc shows through.
+const SPOKE_SHARE: f32 = 0.63;
+
 /// Segments round the disc and rings out from its centre (VectorCraft's 72 and 8).
 const SEGMENTS: u32 = 72;
 const RINGS: u32 = 8;
@@ -68,7 +71,7 @@ pub struct ColorDiscStyle {
 /// # });
 /// ```
 ///
-/// - Pointer (primary button): a press grabs the nearest marker within twice `size.hit.target`
+/// - Pointer (primary button): a press grabs the nearest marker within `size.hit.target`
 ///   ([`pressed`](ColorDiscResponse::pressed) reports it, for the host to select it); a press
 ///   elsewhere grabs nothing. A drag moves the grabbed marker's hue (the pointer's angle, whole
 ///   degrees) and saturation (its distance over the radius, whole percents, at most 1), one
@@ -184,9 +187,9 @@ impl ColorDisc {
             inset: tokens.space.pad.panel,
             marker: handle,
             marker_selected: handle + 2.0 * tokens.stroke.thin,
-            grab: tokens.size.hit.target * 2.0,
+            grab: tokens.size.hit.target,
             floor: DISC_FLOOR,
-            spoke: Stroke::new(tokens.stroke.thin, tokens.color.overlay.halo.to_egui()),
+            spoke: Stroke::new(tokens.stroke.thin, tokens.color.overlay.handle_fill.faded(SPOKE_SHARE).to_egui()),
             wheel,
         }
     }

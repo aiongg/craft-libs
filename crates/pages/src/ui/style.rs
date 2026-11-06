@@ -156,7 +156,7 @@ pub struct EdgePickerStyle {
     pub side: f32,
     #[allow(missing_docs)]
     pub inset: f32,
-    /// The field inside the inset (`surface.sunken`), the square's border (`field.border`).
+    /// The field inside the inset (`surface.sunken`), the square's border (the border).
     pub fill: Color32,
     /// A chosen line (`stroke.thick`, accent), a line not chosen (`stroke.thin`,
     /// its colour `text.faint`), the line under the pointer

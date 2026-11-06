@@ -113,8 +113,8 @@ pub(super) fn sample(pointer: &ToolPointer, cx: &ToolContext<'_>) -> DraftPoint 
 /// switches to straight segments (each click adds a vertex, a drag draws freehand again), and
 /// releasing ⌥ with the button up closes; ⌥ held at the press subtracts (the operation) until it
 /// is released and pressed again, except with nothing selected, where it starts straight
-/// segments. Between clicks the outline closes on a click within `outline_draft.close` (8 pt) of
-/// the first point (3 or more points), on a click within `outline_draft.same_point` (3 pt) of the last,
+/// segments. Between clicks the outline closes on a click within the close (8 pt) of
+/// the first point (3 or more points), on a click within the same point (3 pt) of the last,
 /// on Enter or on a double-click. Backspace or Delete (no modifier) retract the last vertex (the
 /// last one cancels); the tool keeps those keys from Edit › Clear (`ToolContext::keep_keys`) while
 /// [`OutlineDraft::takes_retract`]. Esc cancels. The outline is dropped when the document changes

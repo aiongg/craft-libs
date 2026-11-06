@@ -1,5 +1,5 @@
 //! Hit tests in screen space: the distance from the pointer to an overlay's screen geometry, in
-//! points, which the overlay compares with its token tolerance (`guide.hit`, `handle.hit`). Lines
+//! points, which the overlay compares with its token tolerance (`size.hit.slop`, `size.hit.target`). Lines
 //! and bands in a rotated view are tested where they are drawn, which a hit rect can't follow.
 //! When two overlays are in reach, the one drawn last takes the press.
 

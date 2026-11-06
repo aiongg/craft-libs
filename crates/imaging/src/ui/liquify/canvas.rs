@@ -310,12 +310,12 @@ fn acts_at_rest(tool: LiquifyTool) -> bool {
 ///   reports Cancel, then a Replay (the workspace adds it from the session).
 /// - The Freeze Lasso: an [`OutlineDraft`] of `DraftKind::Freehand` (`DraftReach::of` the
 ///   tokens); the release closes it into a stroke with
-///   `amount` 1, or 0 when Alt was held at the press; drawn in `liquify.freeze` (thaw:
-///   `liquify.thaw`).
+///   `amount` 1, or 0 when Alt was held at the press; drawn in the freeze (thaw:
+///   the thaw).
 /// - Alt + right-drag, or Control + Alt + drag ([`BrushResize::chord`]; [`BrushResize::takes`]
 ///   accepts the secondary button while Alt is held): a
 ///   [`BrushResize`] with `BrushLevel::Density`, `max_diameter` 15000; horizontal travel sets the
-///   size, vertical the density over `brush.resize_travel`; the outline stays at the anchor; no
+///   size, vertical the density over the resize travel; the outline stays at the anchor; no
 ///   stroke. Each update writes `settings.brush`.
 /// - Hover and paint: the brush outline under the pointer (`BrushCursor` over `BrushTip::round`
 ///   of the size), at the resize's anchor while it runs with the `TipFalloff::from_hardness` of

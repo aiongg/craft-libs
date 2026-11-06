@@ -26,7 +26,7 @@ crate::words! {
         options_title: "navigator.optionsTitle" = "Navigator Panel Options";
         /// The caption of the proxy colour list.
         proxy_color: "navigator.proxyColor" = "Color";
-        /// [`ProxyColor::Default`](super::ProxyColor::Default): the theme's `navigator.proxy`.
+        /// [`ProxyColor::Default`](super::ProxyColor::Default): the theme's proxy colour.
         default_color: "navigator.defaultColor" = "Default";
         red: "navigator.red" = "Red";
         orange: "navigator.orange" = "Orange";

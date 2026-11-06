@@ -81,7 +81,7 @@ pub struct HoverUpdate<'a, R> {
 ///   discarded when it arrives).
 /// - [`HoverQuery::empty_here`] gives the hint and nothing else.
 /// - A shown result that [`covers`](HoverQuery::covers) the point stays shown, with no job.
-/// - Otherwise, once the pointer has rested on one document pixel for `hover.debounce_ms`
+/// - Otherwise, once the pointer has rested on one document pixel for the debounce ms
 ///   (120 ms) and no miss lies within 2 pixels on each axis, one job runs off the UI thread on the
 ///   host's [`Jobs`] ([`JobQueue`]); a job for an older pixel is cancelled. Its answer arrives on a
 ///   later pass: [`HoverAnswer::Found`] becomes the shown result, [`HoverAnswer::Nothing`] a miss

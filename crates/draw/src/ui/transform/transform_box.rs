@@ -14,7 +14,6 @@ use craft_ui::localized::{Labels, Unit, Word, Words};
 use craft_ui::popup_list;
 use craft_ui::primitives::{FocusRing, Handle, HandleShape, HandleStyle};
 use craft_ui::story::{Level, Story, StoryChoice, Surface};
-use craft_ui::style::transform::TransformStyle as TransformGeometry;
 use craft_ui::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use craft_ui::typed_story;
 
@@ -143,39 +142,7 @@ impl TransformLabels {
     }
 }
 
-/// A box's look and reach, from [`TransformBox::style`].
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct TransformStyle {
-    /// The box line: `line` of `overlay.line`, bare.
-    pub line: Stroke,
-    /// The 8 handles: [`Handle::style`] `Square`.
-    pub handle: HandleStyle,
-    /// Distance from a handle or the reference point within which a press takes it.
-    pub hit: f32,
-    /// Distance from a corner within which the rotate pointer shows outside.
-    pub rotate_reach: f32,
-    /// The rotate band of [`RotateZone::Band`], from a corner.
-    pub band_inner: f32,
-    /// Outer edge of the rotate band, from a corner.
-    pub band_outer: f32,
-    /// Farthest a press outside may move and still be a click.
-    pub click_slop: f32,
-    /// The reference point's circle.
-    pub pivot_radius: f32,
-    /// Each arm of its cross, from the centre.
-    pub pivot_arm: f32,
-    /// The reference point's lines: `line` of `overlay.handle_fill`.
-    pub pivot: Stroke,
-    /// Under them: `overlay.halo`, the thin stroke width wider on each side.
-    pub pivot_halo: Stroke,
-    /// The focus line round the whole box: the focus ring's stroke.
-    pub focus: Stroke,
-    /// Under it: `overlay.halo`, the thin stroke width wider on each side.
-    pub focus_halo: Stroke,
-    /// From the box line to the focus line: the focus ring's offset.
-    pub focus_offset: f32,
-}
+pub use craft_ui::style::transform::TransformStyle;
 
 /// What [`TransformBox::show`] reports.
 #[derive(Clone, Debug, PartialEq)]
@@ -451,25 +418,7 @@ impl<'a> TransformBox<'a> {
 
     /// The transform box's look in `tokens`.
     pub fn style(tokens: &UiTokens) -> TransformStyle {
-        let (thin, o) = (tokens.stroke.thin, &tokens.color.overlay);
-        let t = TransformGeometry::new(tokens);
-        let ring = FocusRing::style(tokens);
-        TransformStyle {
-            line: Stroke::new(thin, o.line.to_egui()),
-            handle: Handle::style(tokens, HandleShape::Square),
-            hit: t.hit,
-            rotate_reach: t.rotate_reach,
-            band_inner: t.band_inner,
-            band_outer: t.band_outer,
-            click_slop: t.click_slop,
-            pivot_radius: t.pivot_radius,
-            pivot_arm: t.pivot_arm,
-            pivot: Stroke::new(thin, o.handle_fill.to_egui()),
-            pivot_halo: Stroke::new(thin + 2.0 * thin, o.halo.to_egui()),
-            focus: ring.stroke,
-            focus_halo: Stroke::new(ring.stroke.width + 2.0 * thin, o.halo.to_egui()),
-            focus_offset: ring.offset,
-        }
+        TransformStyle::new(tokens)
     }
 
     /// Gives the box `id` ([`TransformBoxResponse::id`]) the keyboard, as the host does when it

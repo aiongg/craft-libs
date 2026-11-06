@@ -120,7 +120,7 @@ impl LinePress {
         selection_of(self.part).map(|stop| TaggedStop::of(&self.base, stop))
     }
 
-    /// Whether the drag has begun (a move past `gradient_line.click_slop`).
+    /// Whether the drag has begun (a move past the click slop).
     pub fn began(&self) -> bool {
         self.began
     }

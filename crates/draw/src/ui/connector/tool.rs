@@ -23,14 +23,14 @@ use craft_ui::localized::Labels as _;
 /// pass, hands it to `ToolHost::show` and drains [`take_events`](Self::take_events). The tool
 /// never changes the document.
 ///
-/// - Hover: the target under the pointer shows its sites (attach points, `connector.attach` 4 pt
-///   white discs with a `connector.line` 1.5 pt accent ring); the one an end would glue to is the
-///   larger see-through ring (`connector.attach_active` 7, accent at `connector.attach_fill_alpha`
+/// - Hover: the target under the pointer shows its sites (attach points, the attach 4 pt
+///   white discs with the line 1.5 pt accent ring); the one an end would glue to is the
+///   larger see-through ring (the attach active 7, accent at the attach fill alpha
 ///   0.25).
 /// - Draw: a press on a target or on empty canvas starts; the drag previews the route (an accent
 ///   polyline through [`route`](crate::geometry::connector::route), unless
 ///   [`custom_preview`](Self::custom_preview)); the release makes it. A drag under
-///   `connector.click_slop` (4 screen points) makes nothing; one that ends on its start object
+///   the click slop (4 screen points) makes nothing; one that ends on its start object
 ///   commits with `changed: false`. ⇧ turns a free end to 45° steps from the other end
 ///   ([`snap_free_end`](Self::snap_free_end), on by default).
 /// - The selected connector ([`selected`](Self::selected)): its two ends are handles; dragging one
@@ -280,7 +280,7 @@ impl ConnectorTool {
     }
 
     /// The end at `at`: glued to the nearest site of the topmost target containing `at` within
-    /// the reach (`connector.attach_reach` screen points, FigCraft's `ATTACH_PX`), else the side
+    /// the reach (the attach reach screen points, FigCraft's `ATTACH_PX`), else the side
     /// the point is towards, else free. With ⌘ or Ctrl held, a target with no sites takes the
     /// point itself.
     fn end_at(&self, at: Point, view: &CanvasView, style: &ConnectorStyle, modifiers: Modifiers) -> Placed {

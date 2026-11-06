@@ -49,7 +49,7 @@ impl<'a> RulerInput<'a> {
 
 /// The Ruler tool, kept by the app while the tool is picked.
 ///
-/// - Pointer: a press within `measure.hit` screen points of an end grabs it (the protractor's end
+/// - Pointer: a press within the hit screen points of an end grabs it (the protractor's end
 ///   first, then the end, then the start); ⌥-press at an end starts the protractor arm at that
 ///   vertex (when the far end was hit, start and end swap first); elsewhere a new line starts.
 ///   ⇧ moves the point onto the nearest 45° ray about the fixed end (about the vertex for the
@@ -67,7 +67,7 @@ impl<'a> RulerInput<'a> {
 ///   an arrow press or Delete (`Set`; `None` clears). The app stores the value; it is not an
 ///   undo step.
 /// - Look: each arm as the line guide (halo, then line) and a cross at each end
-///   (`measure.handle_arm`), the picked part ringed while the keyboard has it.
+///   (the handle arm), the picked part ringed while the keyboard has it.
 /// - Cursor: the crosshair.
 #[derive(Clone, Debug, Default)]
 pub struct RulerTool {

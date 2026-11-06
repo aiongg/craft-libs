@@ -287,3 +287,17 @@ fn a_click_beside_the_disc_reaches_the_widget_under_it() {
     frame(&mut rig, vec![button(beside, false)]);
     assert!(clicked, "the disc does not sense presses beside itself");
 }
+
+/// The marker spokes are light and translucent so they read on the dark disc.
+#[test]
+fn the_spokes_are_a_translucent_light_line() {
+    let ctx = Context::default();
+    install(&ctx, &Base::suite_default());
+    let mut spoke = None;
+    let mut output = ctx.run_ui(RawInput::default(), |ui| spoke = Some(ColorDisc::style(&Tokens::of(ui)).spoke.color));
+    output.textures_delta.clear();
+    let spoke = spoke.expect("style");
+    let [r, g, b, a] = spoke.to_srgba_unmultiplied();
+    assert!(r > 200 && g > 200 && b > 200, "{spoke:?}");
+    assert!(a > 0 && a < 255, "{spoke:?}");
+}

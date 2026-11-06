@@ -138,7 +138,7 @@ fn channels_color(mask: ChannelMask, tokens: &UiTokens) -> Color32 {
     if mask.is_empty() { data.scope.to_egui() } else { Color32::from_rgb(sum[0], sum[1], sum[2]) }
 }
 
-/// One clipping warning button: a triangle in `rect` (`scopes.warning_size` square, inset `scopes.warning_inset`),
+/// One clipping warning button: a triangle in `rect` (the warning size square, inset the warning inset),
 /// filled with the data colour of `mask` (black when empty), outlined 1 pt in `text.normal` when
 /// `on`, `text.faint` when off; a click toggles `on`. AccessKit: a `CheckBox` named `label`
 /// ("Shadow Clipping Warning (U)"), checked as `on`; its tooltip is `label`. Returns whether it

@@ -83,7 +83,7 @@ fn a_drag_in_layout_draws_a_plane_and_a_tiny_drag_adds_none() {
     assert_eq!(planes(&h).len(), 1, "so is 2 in one direction");
 }
 
-// A corner dropped within `transform.hit` of another plane's corner takes its position, which
+// A corner dropped within the hit of another plane's corner takes its position, which
 // links them.
 #[test]
 fn a_corner_dropped_near_another_planes_corner_snaps_and_links() {

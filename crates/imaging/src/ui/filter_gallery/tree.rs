@@ -32,7 +32,7 @@ pub struct FilterTreeResponse {
 
 /// The middle column: one collapsible folder per category (its open state in egui memory; the
 /// folder of a newly selected filter opens), each a grid of thumbnails, three a row, at the size
-/// `filter_gallery.thumb_width` × `.thumb_height`, with the filter's name under it in the caption
+/// the thumb width × `.thumb_height`, with the filter's name under it in the caption
 /// role; the selected filter's thumbnail has a 2 pt accent ring (`Stroke::W2`), the others a
 /// 1 pt `line.divider` outline. Thumbnails come from a `Thumbnails<GalleryThumb>` cache over the
 /// app's `ThumbSource` (the placeholder while loading).

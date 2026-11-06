@@ -5,7 +5,7 @@
 use egui::{Painter, Stroke};
 use kurbo::{BezPath, ParamCurve as _};
 
-use super::{BezierHit, BezierStyle, EditPath, adjusted, outline};
+use super::{BezierHit, BezierStyle, EditPath, adjusted, looks, outline};
 use craft_ui::canvas::CanvasView;
 use craft_ui::primitives::{Handle, HandleShape};
 
@@ -15,7 +15,7 @@ pub enum SegmentMark {
     /// Its two handles only, no thicker line (PhotoCraft, Photoshop).
     #[default]
     HandlesOnly,
-    /// Its two handles and the segment in `bezier.selected_segment`.
+    /// Its two handles and the segment in the selected segment.
     Line,
 }
 
@@ -35,11 +35,11 @@ pub enum AnchorsShown {
 /// draft, and callable by a host on any path ([`BezierOverlay::highlight`](super::BezierOverlay::highlight)
 /// draws it for a host-chosen hit):
 ///
-/// - a segment: the segment in `bezier.selected_segment` over an `overlay.halo` line
-///   `handle.halo` wider on each side, then a hollow anchor (`bezier.anchor`) at the segment's
+/// - a segment: the segment in the selected segment over an `overlay.halo` line
+///   the halo wider on each side, then a hollow anchor (the anchor) at the segment's
 ///   point at `t`, where a click adds one (gap row 37);
-/// - an anchor: the anchor enlarged to `bezier.close_anchor`;
-/// - a handle's end: the end enlarged to `bezier.close_anchor`.
+/// - an anchor: the anchor enlarged to the close anchor;
+/// - a handle's end: the end enlarged to the close anchor.
 ///
 /// Colours are the path's own or the style's, as the overlay draws that path.
 pub struct HitMark<'a> {
@@ -65,7 +65,7 @@ impl<'a> HitMark<'a> {
         let ppp = painter.ctx().pixels_per_point();
         let color = path.color.unwrap_or(style.color);
         let tolerance = f64::from(style.flatten);
-        let (anchor, _, control) = style.looks(path.color);
+        let (anchor, _, control) = looks(style, path.color);
         let (point, shape, base) = match hit {
             BezierHit::Segment { segment, t, .. } => {
                 if let Some(c) = path.subpaths.get(segment.subpath).and_then(|sub| sub.segment(segment.knot)) {

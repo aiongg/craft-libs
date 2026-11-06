@@ -66,13 +66,13 @@ pub enum NavigatorPreview<'a> {
 /// **What the user sees and does.**
 /// - The zoom row is laid out first, at the bottom of the space; the preview box takes the height
 ///   above it in the same pass (no previous-pass height), at least
-///   `navigator.min_preview`. The box is filled with `surface.canvas`; the document is fitted
-///   inside with `navigator.inset` on each side ([`preview_rect`](super::preview_rect)), over a
-///   checkerboard of `navigator.checker` squares in `Checkerboard`'s colours.
+///   the min preview. The box is filled with `surface.canvas`; the document is fitted
+///   inside with the inset on each side ([`preview_rect`](super::preview_rect)), over a
+///   checkerboard of the checker squares in `Checkerboard`'s colours.
 /// - The proxy is [`proxy_quad`](super::proxy_quad) of the view passed in (the animated one while
 ///   a zoom animation runs), in the [`ProxyColor`](super::ProxyColor) of the settings, 1.5 wide,
 ///   over a 1 pt `overlay.halo` outline, each edge clipped to the box less 1 pt; upright it is a
-///   rectangle with `navigator.proxy_radius` corners.
+///   rectangle with the proxy radius corners.
 /// - Press and drag on the preview: the view centre follows the pointer
 ///   ([`view_center_for`](super::view_center_for)), clamped to the document, every pass. A click
 ///   moves the centre to the clicked point. Esc during the drag puts the view back as it was at

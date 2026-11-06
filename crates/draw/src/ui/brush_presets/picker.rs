@@ -15,7 +15,7 @@ use craft_ui::menu::{MenuEntry, MenuItem, PressMenu};
 use craft_ui::popover::{CloseReason, Popover, PopoverAnchor, PopoverClose, PopoverSize};
 use craft_ui::presets::{PresetEvent, PresetLabels, PresetReorder, PresetRow};
 use craft_ui::primitives::Divider;
-use craft_ui::style::brush::BrushStyle;
+use craft_ui::style::brush::BrushPanelStyle;
 use craft_ui::theme::{Tokens, TokensOf as _, UiTokens};
 use egui::{AsIdSalt, Id, IdSalt, Painter, Rect, Ui, Vec2, vec2};
 
@@ -219,7 +219,7 @@ impl<'a, K: Clone + Eq + Hash + Debug + Send + Sync + 'static> BrushPresetPicker
 
     /// The sizes of the picker from `tokens`.
     pub fn style(tokens: &UiTokens) -> BrushPickerStyle {
-        let b = BrushStyle::new(tokens);
+        let b = BrushPanelStyle::new(tokens);
         BrushPickerStyle {
             size: Vec2::new(b.picker_width, b.picker_height),
             min_size: Vec2::new(b.picker_min_width, b.picker_min_height),

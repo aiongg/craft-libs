@@ -51,7 +51,7 @@ pub struct StrokeEditorStyle {
     pub sample_inset: f32,
     /// The open sample line's distance from the sample's ends.
     pub sample_margin: f32,
-    /// The samples' colour: `text.normal` on `field.fill` (4.5:1 in High contrast).
+    /// The samples' colour: `text.normal` on the fill (4.5:1 in High contrast).
     pub sample_color: Color32,
     /// The opener's sample while the stroke is off: a `text.faint` line crossed by a
     /// `status.bad.fg` slash, `stroke.thin` and `stroke.medium` wide.

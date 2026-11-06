@@ -17,7 +17,7 @@ pub(super) fn tick_snap(modifiers: Modifiers) -> bool {
 #[derive(Clone, Copy, Debug)]
 pub enum Ticks {
     /// PhotoCraft's decimal steps: the labelled step is the smallest of 1, 2, 2.5 and 5 × 10ⁿ
-    /// units that leaves `ruler.step_min` points between labels, in 10 subdivisions. `whole`
+    /// units that leaves the ruler's minimum label step points between labels, in 10 subdivisions. `whole`
     /// keeps the step a whole number of units without 2.5 (pixels).
     Decimal {
         /// Keep the step a whole number of units, without 2.5.

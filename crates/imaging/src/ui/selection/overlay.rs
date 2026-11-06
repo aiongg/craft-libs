@@ -111,7 +111,7 @@ pub struct SelectionOverlayResponse {
 /// Drawing: each segment end moves by the [`offset`](Self::offset), then through the
 /// [`mapped`](Self::mapped) point map, then through the view, so the ants are crisp on device
 /// pixels at any zoom and rotation. While the ants show, the overlay asks for a repaint every
-/// `marquee.tick_ms` (100 ms) unless reduced motion stops the march.
+/// the tick ms (100 ms) unless reduced motion stops the march.
 ///
 /// AccessKit: one graphics object named "Selection", valued with the content bounds in the
 /// document's unit ("120 × 80 at 40, 20", with [`value_in`](Self::value_in)) or "No selection";

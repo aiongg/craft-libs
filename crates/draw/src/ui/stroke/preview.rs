@@ -32,7 +32,7 @@ pub struct StrokePreview<'a> {
 }
 
 impl<'a> StrokePreview<'a> {
-    /// A sample of `value` drawn `width` points wide (`stroke_editor.sample_stroke`, 2.5) in
+    /// A sample of `value` drawn `width` points wide (the sample stroke, 2.5) in
     /// `color` (`text.default`).
     pub fn new(value: &'a StrokeStyle, width: f32, color: Color32) -> Self {
         Self { value, width, color, closed: false, inset: 12.0, margin: 4.0 }
@@ -45,13 +45,13 @@ impl<'a> StrokePreview<'a> {
     }
 
     /// The open line's distance from the rect's left and right edges, in points
-    /// (`stroke_editor.sample_margin`, 4 by default).
+    /// (the sample margin, 4 by default).
     pub fn margin(mut self, margin: f32) -> Self {
         self.margin = margin;
         self
     }
 
-    /// The closed sample's inset from the rect, in points (`stroke_editor.sample_inset`, 12 by
+    /// The closed sample's inset from the rect, in points (the sample inset, 12 by
     /// default).
     pub fn inset(mut self, inset: f32) -> Self {
         self.inset = inset;

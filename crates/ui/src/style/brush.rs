@@ -1,13 +1,7 @@
-//! Style of the `brush` family.
+//! Sizes and colours of the brush picker, preset cards, chip and settings panel.
 
 use craft_theme::{Rgba, Tokens};
 
-/// Screen points of vertical resize travel from level 0 to 1.
-const RESIZE_TRAVEL: f32 = 200.0;
-/// Below this on-screen radius the outline is unreadable and the crosshair shows.
-const TIP_MIN_RADIUS: f32 = 3.0;
-/// Arm of that crosshair.
-const TIP_MIN_CROSSHAIR: f32 = 4.0;
 /// Picker height in rows of the large thumbnail.
 const PICKER_ROWS: f32 = 8.75;
 /// Picker width in large thumbnails.
@@ -45,20 +39,13 @@ const CONTROL_SELECT_CHEVRON: f32 = 10.0;
 /// Radius of the tip ellipse's major axis in large thumbnails.
 const ELLIPSE_RADIUS_SHARE: f32 = 0.7;
 const TIP_GRID_MAX: f32 = 104.0;
-/// Alpha of the resize preview's default tint.
-const PREVIEW_ALPHA: u8 = 110;
 /// Share of `surface.raised` that a preset card's tile keeps, in gamma space.
 const CARD_FILL_SHARE: f32 = 0.9;
 
-/// Brush geometry and colours that the semantic tokens don't name directly.
+/// The brush panels' geometry and colours that the semantic tokens don't name directly. The pointer
+/// and resize gesture are `canvas::brush::BrushStyle`.
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub struct BrushStyle {
-    /// Screen points of vertical resize travel from level 0 to 1.
-    pub resize_travel: f32,
-    /// Below this on-screen radius the outline is unreadable and the crosshair shows.
-    pub tip_min_radius: f32,
-    /// The arm of that crosshair.
-    pub tip_min_crosshair: f32,
+pub struct BrushPanelStyle {
     /// The picker's width before the user drags its grip.
     pub picker_width: f32,
     /// The picker's height before the user drags its grip.
@@ -115,8 +102,6 @@ pub struct BrushStyle {
     pub ellipse_head: [f32; 2],
     /// The grid of tips' greatest height.
     pub tip_grid_max: f32,
-    /// The resize preview's default tint.
-    pub preview_tint: Rgba,
     /// A preset card's tile.
     pub card_fill: Rgba,
     /// The stroke strip's fill.
@@ -129,7 +114,7 @@ pub struct BrushStyle {
     pub ellipse_disc_border: Rgba,
 }
 
-impl BrushStyle {
+impl BrushPanelStyle {
     /// The style for `tokens`.
     pub fn new(tokens: &Tokens) -> Self {
         let (size, space, c) = (&tokens.size, &tokens.space, &tokens.color);
@@ -137,9 +122,6 @@ impl BrushStyle {
         let tip_only_width = thumb + space.gap.inline * 2.0;
         let chip = [thumb, size.control.md];
         Self {
-            resize_travel: RESIZE_TRAVEL,
-            tip_min_radius: TIP_MIN_RADIUS,
-            tip_min_crosshair: TIP_MIN_CROSSHAIR,
             picker_width: thumb * PICKER_WIDTH_THUMBS,
             picker_height: thumb * PICKER_ROWS,
             picker_min_width: PICKER_MIN_WIDTH,
@@ -168,7 +150,6 @@ impl BrushStyle {
             ellipse_dot: size.handle.sm / 2.0,
             ellipse_head: [size.handle.sm, size.handle.md],
             tip_grid_max: TIP_GRID_MAX,
-            preview_tint: c.status.bad.solid.with_alpha(PREVIEW_ALPHA),
             card_fill: darkened(c.surface.raised, CARD_FILL_SHARE),
             strip_fill: c.surface.sunken,
             strip_border: c.line.control_edge,

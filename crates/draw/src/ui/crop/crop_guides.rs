@@ -13,13 +13,13 @@ pub type Polyline = Vec<[f32; 2]>;
 
 /// Golden section: 1/phi.
 const INV_PHI: f32 = 0.618_034;
-/// Target cell side of the Grid guide in screen points: the default of `crop.grid_step`.
+/// Target cell side of the Grid guide in screen points.
 pub const GRID_STEP: f32 = 32.0;
-/// Most Grid guide lines per axis: the default of `crop.grid_max`.
+/// Most Grid guide lines per axis.
 pub const GRID_MAX: usize = 96;
-/// Default shield opacity: `crop.shield_opacity`.
+/// Default shield opacity.
 pub const SHIELD_OPACITY: f32 = 0.75;
-/// Share of the opacity kept during a gesture with Auto Adjust Opacity: `crop.shield_editing`.
+/// Share of the opacity kept during a gesture with Auto Adjust Opacity.
 pub const SHIELD_EDITING: f32 = 0.5;
 
 /// The composition guide drawn inside a crop frame, in Photoshop's menu order.
@@ -88,8 +88,8 @@ impl CropGuide {
         self.guides_with(orientation, w, h, GRID_STEP, GRID_MAX)
     }
 
-    /// [`guides`](Self::guides) with the Grid guide's target cell side (`crop.grid_step`) and
-    /// most lines per axis (`crop.grid_max`) given.
+    /// [`guides`](Self::guides) with the Grid guide's target cell side and
+    /// most lines per axis given.
     pub fn guides_with(self, orientation: u8, w: f32, h: f32, grid_step: f32, grid_max: usize) -> Vec<Polyline> {
         if !(w.is_finite() && h.is_finite()) || w < 1.0 || h < 1.0 {
             return Vec::new();

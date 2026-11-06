@@ -31,7 +31,7 @@ pub(super) fn max_radius(corner: &CornerPoint) -> f64 {
 /// Where `corner`'s widget sits for `radius`: at the arc's centre (`vertex + step * r`), with
 /// `r = radius.max(inset).min(max_radius)` where the inset is `inset_screen / zoom * √2 / |step|`
 /// (measured like a rectangle's: `inset_screen` points along each axis of a right angle), so a
-/// sharp or slightly rounded corner's widget sits `corner.inset` points inside. `None` for a
+/// sharp or slightly rounded corner's widget sits the inset points inside. `None` for a
 /// degenerate corner.
 pub(super) fn widget_at(corner: &CornerPoint, radius: f64, inset_screen: f32, zoom: f64) -> Option<Point> {
     // pc: crates/ui-egui/src/tools/corner_radius.rs:107-120 `widget`, :22 `MIN_INSET`.
@@ -44,7 +44,7 @@ pub(super) fn widget_at(corner: &CornerPoint, radius: f64, inset_screen: f32, zo
 }
 
 /// Whether `corner`'s widget shows: both its sides at least `min_side_screen` points long on the
-/// screen (`corner.min_side`), and its inner angle (`2 * half_angle`, degrees) not wider than
+/// screen (the min side), and its inner angle (`2 * half_angle`, degrees) not wider than
 /// `hide_above` degrees (180 by default; VectorCraft's preference passes 177).
 pub(super) fn shown(corner: &CornerPoint, view: &CanvasView, min_side_screen: f32, hide_above: f64) -> bool {
     // vectorcraft: crates/tools/src/corners.rs:23-25 (`MIN_INSET_PX` 10, `MIN_SIDE_PX` 30);
@@ -75,7 +75,7 @@ pub(super) fn widgets(targets: &[CornerTarget], view: &CanvasView, inset_screen:
 }
 
 /// The widget under the screen point `at`: the nearest within `reach` screen points
-/// (`corner.hit`); of equal distances the earlier (topmost) one.
+/// (the hit); of equal distances the earlier (topmost) one.
 pub(super) fn hit(widgets: &[Widget], at: Pos2, reach: f32) -> Option<usize> {
     // pc: crates/ui-egui/src/tools/corner_radius.rs:209-221 `hit` (7 points).
     let mut best: Option<(usize, f32)> = None;

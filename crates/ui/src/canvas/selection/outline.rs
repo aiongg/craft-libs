@@ -10,11 +10,11 @@ use crate::theme::current;
 /// How a [`SelectionOutline`] strokes its shapes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SelectionOutlineLook {
-    /// A `selection_frame.line` (1 pt) line: VectorCraft's and DesignCraft's selected paths.
+    /// A the line (1 pt) line: VectorCraft's and DesignCraft's selected paths.
     #[default]
     Solid,
-    /// A `selection_frame.outline` (1.5 pt) line in dashes of `selection_frame.dash` with gaps of
-    /// `selection_frame.gap`: CadCraft's selection effect (SELECTIONEFFECT 0).
+    /// A the outline (1.5 pt) line in dashes of the dash with gaps of
+    /// the gap: CadCraft's selection effect (SELECTIONEFFECT 0).
     Dashed,
 }
 

@@ -10,7 +10,7 @@ impl BezierOverlay<'_> {
     /// The part of `paths` under the screen point `at`, answered as the overlay's press would
     /// take it (gap row 40): the handles `handles` shows for `selection` first, then anchors,
     /// then segments; within each kind the nearest within `reach` screen points (pass
-    /// `bezier.hit`), of equal distances the path drawn last. Segments are measured on the
+    /// the hit), of equal distances the path drawn last. Segments are measured on the
     /// screen, so a rotated or flipped view hits where it draws. Above
     /// [`MAX_ANCHORS`](super::MAX_ANCHORS) anchors only handles and segments count, as the overlay
     /// draws no anchors then.

@@ -209,7 +209,7 @@ fn pen_pressure(pointer: &ToolPointer) -> Option<f32> {
 /// - A click fastens a point; ⌥-click adds a straight segment; ⌥-drag draws freehand. Pressing ⌥
 ///   during a drag anchors a point at the pointer and draws freehand from there; releasing it goes
 ///   back to the edges.
-/// - A click within `outline_draft.close` / zoom of the first point (once the outline is longer
+/// - A click within the close / zoom of the first point (once the outline is longer
 ///   than twice that) closes along the edges (⌥ straight); so does a double-click, and Enter
 ///   (⌥ Enter straight).
 ///
@@ -463,7 +463,7 @@ impl<T: EdgeTracer> CanvasTool for SelectToolPass<'_, MagneticLassoTool<T>> {
     }
 
     /// The system crosshair; with `set_precise_cursor`
-    /// `paint` adds the width circle (`width · zoom`, at least `select.width_ring_min`) round it, a 1 pt dark ring
+    /// `paint` adds the width circle (`width · zoom`, at least the width ring min) round it, a 1 pt dark ring
     /// outside a 1 pt light one (`SelectToolStyle::width_ring_dark`, `width_ring_light`).
     fn cursor(&self, cx: &ToolContext<'_>) -> ToolCursor {
         // pc: crates/ui-egui/src/tools/magnetic_lasso_ui.rs:440-449 `cursor`.

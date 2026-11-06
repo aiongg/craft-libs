@@ -56,7 +56,7 @@ fn key_text(modifiers: Modifiers, key: Key) -> Kbd {
 
 /// The overlay menu: a 24 pt icon button (`Icon::Grid`, PhotoCraft's `grid-3x3`) named "Set the
 /// overlay options for the Crop tool" with the current overlay as its value, opening a
-/// [`Menu`](craft_ui::menu::Menu) at least `crop.menu_width` wide (through `min_width`): the six overlays as check rows,
+/// [`Menu`](craft_ui::menu::Menu) at least the menu width (through `min_width`): the six overlays as check rows,
 /// a separator, Auto, Always and Never Show Overlay as check rows, a separator, Cycle Overlay with
 /// the shortcut text O, and Cycle Orientation with ⇧O (enabled for an overlay with more than one
 /// orientation: Triangle, Golden Spiral). A row edits the settings and closes the menu.
@@ -81,7 +81,7 @@ impl<'a> CropOverlayMenu<'a> {
     /// The button, and the menu while it is open. The response is the button's.
     pub fn show(self, ui: &mut Ui) -> Response {
         // pc: crates/ui-egui/src/tools/crop_overlay.rs:285 `options_button` (min width 220, unified
-        // to the gear menu's `crop.menu_width`, lead call 17).
+        // to the gear menu's width, lead call 17).
         let Self { id_salt, settings, labels } = self;
         let labels = labels.unwrap_or_else(|| CropBarLabels::of(ui));
         let labels = &labels;
@@ -131,8 +131,8 @@ pub struct CropOptionsMenuResponse {
 }
 
 /// The gear popover: a 24 pt icon button (`Icon::Settings`) named "Set additional Crop options",
-/// opening a [`Popover`](craft_ui::popover::Popover) `crop.menu_width` wide, at most
-/// `crop.menu_max_width`: Use Classic Mode (shortcut text P), Show Cropped Area (H; shows on and
+/// opening a [`Popover`](craft_ui::popover::Popover) the menu width wide, at most the menu's
+/// greatest width: Use Classic Mode (shortcut text P), Show Cropped Area (H; shows on and
 /// disabled in Classic Mode) and Auto Center Preview (disabled in Classic Mode), a separator,
 /// Enable Crop Shield, then, indented and disabled with the shield off: Color: Match Canvas or
 /// Custom… with the swatch, Opacity (a `SliderRow`, 0–100 %) and Auto Adjust Opacity. The popover

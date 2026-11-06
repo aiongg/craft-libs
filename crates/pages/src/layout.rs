@@ -123,20 +123,18 @@ impl LayoutOptions {
 /// take it as a value.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PageSpacing {
-    /// Between pages, and between rows (token `pages.gap`); unused with
+    /// Between pages, and between rows (the page view's gap); unused with
     /// [`LayoutOptions::page_gaps`] off.
     pub gap: f64,
-    /// Above the first and below the last row (token `pages.margin`).
+    /// Above the first and below the last row (the page view's margin).
     pub margin: f64,
-    /// Kept clear at each side (token `pages.side`; PdfCraft's gutter for its floating
+    /// Kept clear at each side (PdfCraft's gutter for its floating
     /// quick-action bar).
     pub side: f64,
     /// What Hide White Space leaves above and below each page's text area, in points at 100 % zoom:
-    /// it is multiplied by the zoom, as WordCraft's `WHITE_SPACE_PAD` is (`canvas/geometry.rs:17,40`) (token
-    /// `pages.white_space_pad`).
+    /// it is multiplied by the zoom, as WordCraft's `WHITE_SPACE_PAD` is (`canvas/geometry.rs:17,40`).
     pub white_space_pad: f64,
-    /// The seam Hide White Space draws between pages, in screen points at any zoom (token
-    /// `pages.seam`).
+    /// The seam Hide White Space draws between pages, in screen points at any zoom.
     pub seam: f64,
 }
 

@@ -58,7 +58,7 @@ struct MarqueePress {
 ///   `marquee_pixels` of the corners, `square_pixels` when it is square (⇧, or a Fixed Ratio of
 ///   1 : 1), `fixed_size_pixels` for Fixed Size, exactly as the release commits it; the readout
 ///   beside the pointer shows W and H ([`SelectLabels`](super::SelectLabels)).
-/// - A release within `marquee.click_slop` (3 screen points) of the press, or with no area, is a
+/// - A release within the click slop (3 screen points) of the press, or with no area, is a
 ///   click: [`SelectEvent::Deselect`]. With Fixed Size a click places the box there.
 /// - [`MarqueeKind::SingleRow`] and [`MarqueeKind::SingleColumn`] select the pixel row (column)
 ///   under the pointer across the whole document ([`SelectionProbe::size`](super::SelectionProbe::size)),
@@ -289,7 +289,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
 
     /// Sizes (or with Space moves) the marquee, or moves the selection drag; sets the W and H
     /// readout. The marquee runs `MarqueeGesture::{follow, begin_past, size_to}` with the
-    /// `marquee.click_slop` token (`Marquee::style(..).click_slop`), the tool's constraint and its Space flag; no rule is written
+    /// the click slop token (`Marquee::style(..).click_slop`), the tool's constraint and its Space flag; no rule is written
     /// here.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/drag.rs:88-127 (corners and the preview rectangle).

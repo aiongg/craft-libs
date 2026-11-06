@@ -3,7 +3,7 @@
 //!
 //! An edge is a band `width` pixels thick on the pixel boundary nearest to it (one pixel at
 //! 100 %, two up to 200 %, ...), and each of its pixels is black or white by a dash pattern fixed
-//! to the screen: dashes and gaps of `marquee.dash` line widths along the edge, each row of a
+//! to the screen: dashes and gaps of the dash line widths along the edge, each row of a
 //! thicker band shifted `width` pixels against the row beside it, so a dash ends on a slant. The
 //! pattern slides over time (the march).
 //!

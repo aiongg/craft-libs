@@ -152,7 +152,7 @@ pub(super) fn turn_handle(pins: &BlurPins, pin: &BlurPin, band: TiltBand, view: 
 }
 
 /// What a press at screen point `at` grabs: the selected pin's handles first (within
-/// `blur_pins.grab`, the Tilt-Shift lines within `.line_grab`), then its ring (`.ring` ±
+/// the grab, the Tilt-Shift lines within `.line_grab`), then its ring (`.ring` ±
 /// `.ring_band`), then any pin's dot (`.grab`), else [`BlurGrab::New`].
 pub fn grab(pins: &BlurPins, view: &CanvasView, at: egui::Pos2, style: &BlurPinsStyle) -> BlurGrab {
     // pc: crates/ui-egui/src/dialogs/blur_pins.rs:474 `grab`, :468 `line_distance`.

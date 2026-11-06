@@ -10,13 +10,13 @@ use craft_ui::primitives::HandleStyle;
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SymmetryStyle {
-    /// Each axis: `symmetry.line` (1) of `overlay.line` (the accent), bare, no halo.
+    /// Each axis: the line (1) of `overlay.line` (the accent), bare, no halo.
     pub line: Stroke,
     /// A press within this many screen points of the centre or the rotation handle takes it:
-    /// `symmetry.hit` (8).
+    /// the hit (8).
     pub hit: f32,
     /// The rotation handle's distance from the centre as a share of the document's shorter side:
-    /// `symmetry.handle_share` (0.35).
+    /// the handle share (0.35).
     pub handle_share: f64,
     /// The centre anchor and the rotation handle while transforming: the `Handle` primitive's
     /// look (`Handle::style(tokens, HandleShape::Square)` for the centre).

@@ -143,9 +143,9 @@ pub(super) fn marker_x(plot: egui::Rect, level: f64) -> f32 {
 /// Threshold: the image's histogram with a marker at the level, then the Threshold Level row
 /// (1..=255, default 128, whole numbers).
 ///
-/// - The histogram is `adjust.threshold_histogram` (90) high and at most
-///   `adjust.threshold_width` (300) wide, inset 6 at each side, on `field` with a 1 pt
-///   `field.border` frame; the marker is a 1 pt vertical line at `level / 255` in `accent.strong`.
+/// - The histogram is the threshold histogram (90) high and at most
+///   the threshold width (300) wide, inset 6 at each side, on `field` with a 1 pt
+///   the border frame; the marker is a 1 pt vertical line at `level / 255` in `accent.strong`.
 /// - The histogram is the kernel's [`Histogram`](craft_ui::composites::Histogram) (the
 ///   composite's bins, neutral colour); AccessKit names it "Histogram".
 /// - The row behaves as an [`AdjustSliders`](super::AdjustSliders) row.

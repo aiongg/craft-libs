@@ -5,7 +5,7 @@ use egui::Color32;
 use crate::theme::{ToEgui as _, UiTokens};
 
 /// What [`Thumbnails::paint`](super::Thumbnails::paint) draws besides the picture. The
-/// thumbnail's frame is its row's (`list.thumb.border`), not part of this.
+/// thumbnail's frame is its row's (the thumb border), not part of this.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ThumbnailStyle {

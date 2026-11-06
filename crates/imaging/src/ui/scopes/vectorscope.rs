@@ -51,13 +51,13 @@ impl VectorscopeFrame<'_> {
 }
 
 /// The radius of the rings' outer edge in a vectorscope drawn in `rect`: half the shorter side
-/// less `margin` (`scopes.vector_margin`), at least 1.
+/// less `margin` (the vector margin), at least 1.
 fn ring_radius(rect: Rect, margin: f32) -> f32 {
     (rect.width().min(rect.height()) * 0.5 - margin).max(1.0)
 }
 
 /// Where hue `hue` (turns) at `saturation` (0..=1) sits in a vectorscope drawn in `rect`: the
-/// radius is half the shorter side less `margin` (`scopes.vector_margin`), red at the 3 o'clock position when `red_right`, else
+/// radius is half the shorter side less `margin` (the vector margin), red at the 3 o'clock position when `red_right`, else
 /// at −100°, hue turning counter-clockwise. The cloud, the targets and the hover target use it.
 pub fn scope_point(rect: Rect, margin: f32, red_right: bool, hue: f32, saturation: f32) -> Pos2 {
     // pc: crates/ui-egui/src/dialogs/camera_raw_scope_ui.rs:443 `scope_point`.
@@ -81,7 +81,7 @@ fn scope_hue(hue: f32, saturation: f32, level: f32) -> Color32 {
 /// The vectorscope plot, usable alone (EffectCraft, LightCraft) or under [`ScopePanel`](super::ScopePanel).
 ///
 /// **What the user sees.** On `data.scope`, rounded `shape.radius.control`: rings at 0.25, 0.5,
-/// 0.75 and 1 of the radius in `text.faint` × `scopes.vector_ring_alpha`, 0.7 pt; spokes to R, Y,
+/// 0.75 and 1 of the radius in `text.faint` × the vector ring alpha, 0.7 pt; spokes to R, Y,
 /// G, C, B, M in `text.faint` × 0.4, 0.6 pt, each ending in a 2 pt dot and its letter in
 /// `scope_hue(h, 1)` (`data.*`); the skin-tone line at 23° in `text.muted` (unless off); the
 /// rings, spokes and skin-tone line read the dark mode's `text.faint` and `text.muted`, as the

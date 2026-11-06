@@ -266,7 +266,7 @@ fn frame_press_outside_is_the_tools() {
     assert!(h.state().events.is_empty());
 }
 
-// `handle.hit` is a square's side: a press takes a grip within half of it of the grip's centre.
+// `HandleStyle::hit` is a square's side: a press takes a grip within half of it of the grip's centre.
 #[test]
 fn frame_grip_reach_is_half_of_handle_hit() {
     let mut h = harness(|_| {});

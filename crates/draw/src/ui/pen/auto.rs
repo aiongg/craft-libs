@@ -22,7 +22,7 @@ impl PenDraft<'_> {
     /// [`auto_add_delete`](PenDraft::auto_add_delete) is on, the mode is the Pen, no ⇧, ⌥ or ⌘ is
     /// held and no handle is being pulled (`pulling`). Then, by
     /// [`BezierOverlay::hit_test`](super::BezierOverlay::hit_test) on the draft within
-    /// `bezier.hit` (no handles shown): a segment gives [`AutoEdit::Insert`] at the hit's `t`; an
+    /// the hit (no handles shown): a segment gives [`AutoEdit::Insert`] at the hit's `t`; an
     /// anchor that is not the first or the last gives [`AutoEdit::Delete`]; the first and the last
     /// are left to the Pen (the first closes, the last retracts). The pass applies the edit as one
     /// Update of the draft gesture and takes no other action for the press. The hover draws the

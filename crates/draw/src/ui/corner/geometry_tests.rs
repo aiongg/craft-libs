@@ -57,7 +57,7 @@ fn corner_widget_sits_at_the_arc_centre_and_inside_by_the_inset() {
     assert!((off.normalized() - dir).length() < 1e-4);
 }
 
-// A side under `corner.min_side` screen points hides the corner's widget, and zooming in shows it;
+// A side under the min side screen points hides the corner's widget, and zooming in shows it;
 // an inner angle over `hide_above` hides it.
 #[test]
 fn corner_widgets_hide_on_short_sides_and_wide_angles() {

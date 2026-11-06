@@ -110,7 +110,7 @@ impl AdjustStyle {
             degrees_font: tokens.font(TypeRole::Mono),
             degrees_color: c.text.faint.to_egui(),
             picker_dot: tokens.size.handle.sm / 2.0,
-            picker_dot_inset: tokens.size.handle.md - 2.5,
+            picker_dot_inset: tokens.size.handle.sm,
             picker_ring: c.line.control_edge.to_egui(),
             disabled_alpha: DISABLED_ALPHA,
             threshold_histogram: tokens.size.control.md * THRESHOLD_HISTOGRAM_ROWS,

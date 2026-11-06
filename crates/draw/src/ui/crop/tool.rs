@@ -171,7 +171,7 @@ impl<'a> CropInput<'a> {
 ///   otherwise [`key`](CanvasTool::key) returns `false` and the app's tool shortcuts (Dodge, Hand,
 ///   Pen) get the letter. I (Front Image) acts whenever no drag runs.
 /// - Straighten: [`toggle_straighten`](Self::toggle_straighten) (the bar's button) arms one line;
-///   ⌘ (Ctrl) held is a temporary Straighten. The line needs `crop.straighten_min` screen points
+///   ⌘ (Ctrl) held is a temporary Straighten. The line needs the straighten min screen points
 ///   and its ends go through the snap closure; the release levels the frame and fits it to the
 ///   canvas as one box step.
 /// - Keyboard parts: the frame is one Tab stop through the host ([`CanvasTool::parts`]); Page Up

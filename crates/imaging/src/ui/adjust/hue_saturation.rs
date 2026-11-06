@@ -137,12 +137,12 @@ pub(crate) fn lightness_track() -> [Srgba; 3] {
 ///   range thumbs (below).
 /// - **Colorize** (a `Set`): on, Hue wraps into 0..360 (`rem_euclid`) and Saturation becomes at
 ///   least 25; off, a Hue above 180 wraps back by −360.
-/// - **Spectrum bars**: below the rows, as wide as the sliders, `adjust.spectrum_bar` (10) high:
+/// - **Spectrum bars**: below the rows, as wide as the sliders, the spectrum bar (10) high:
 ///   the input hues above (37 samples, every 10°), the host's
 ///   [`adjusted_spectrum`](Self::adjusted_spectrum) below (the same 37 hues after the
 ///   adjustment; the input bar again without it). Not mirrored in RTL (a scale of the image).
 /// - **Range thumbs** (a range shown): between the bars, the fall-off band (`text.faint`) and the
-///   fully-affected band (`text.muted`), `adjust.range_band` (6) high, wrapping across the ends;
+///   fully-affected band (`text.muted`), the range band (6) high, wrapping across the ends;
 ///   four 5 × 12 thumbs (inner two `text.normal`, outer two `surface.sunken`, edge `text.muted`).
 ///   A press within 10 pt of a thumb grabs the nearest; the drag moves it with
 ///   [`HueRangeValue::move_bound`], whole degrees, `Begin`, `Update`, `Commit`. Under the bars a
