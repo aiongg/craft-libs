@@ -92,9 +92,8 @@ impl ToolPill {
         let id = ui.make_persistent_id(id);
         let labels = labels.unwrap_or_else(|| ToolPillLabels::of(ui));
         let tokens = Tokens::of(ui);
-        let rail = &tokens.component.rail;
-        let (side, gap, pad) = (rail.button, rail.gap, rail.pad_y);
-        let inset = tokens.component.tool_pill.inset;
+        let (side, gap, pad) = (tokens.size.rail.button, tokens.space.gap.inline / 2.0, tokens.space.pad.panel);
+        let inset = crate::style::scroll::ScrollStyle::new(&tokens).canvas_width + tokens.space.pad.panel;
         let visible = visible_slots(slots, &[]);
         let count = visible.len() as f32;
         let natural = count * side + (count - 1.0).max(0.0) * gap + 2.0 * pad;

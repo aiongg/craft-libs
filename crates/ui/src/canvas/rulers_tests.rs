@@ -511,7 +511,7 @@ fn the_hosts_zero_point_commands_report_like_the_corner() {
 
 #[test]
 fn left_ruler_labels_sit_at_their_level_positions_in_flipped_and_rotated_views() {
-    let pad = crate::theme::current(&egui::Context::default()).component.ruler.label_pad;
+    let pad = crate::theme::current(&egui::Context::default()).space.gap.tight;
     for (rotation, flip) in [(0.0, true), (30.0, true), (90.0, false), (90.0, true)] {
         let host = Host { rotation, flip, zero: Point::new(100.0, 40.0), ..Host::new() };
         let mut h = harness(host);
@@ -629,7 +629,7 @@ fn the_margin_spans_are_shaded_in_each_strip() {
         let _ = Rulers::new("rulers", &px, &px, names).margins([0.0..50.0, 350.0..400.0], [20.0..40.0]).show(ui, full, &view, None);
     });
     h.run();
-    let shade = crate::theme::current(&h.ctx).component.ruler.margin_shade.to_egui();
+    let shade = crate::theme::current(&h.ctx).color.surface.sunken.to_egui();
     let shades: Vec<ScreenRect> =
         h.output().shapes.iter().filter_map(|s| if let Shape::Rect(r) = &s.shape { (r.fill == shade).then_some(r.rect) } else { None }).collect();
     let (left, top) = (20.0 + SIZE, 20.0 + SIZE);

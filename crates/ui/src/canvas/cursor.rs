@@ -34,6 +34,20 @@ use crate::theme::UiTokens;
 /// The icon sets draw on a box this many units on a side; a tool cursor's hotspot is in these.
 const ICON_UNITS: f32 = 24.0;
 
+pub(super) const CURSOR_CROSSHAIR_GAP: f32 = 2.0;
+pub(super) const CURSOR_BADGE_HALF: f32 = 3.5;
+pub(super) const CURSOR_BADGE_OFFSET: f32 = 12.0;
+pub(super) const CURSOR_BADGE_BESIDE_X: f32 = 30.0;
+pub(super) const CURSOR_BADGE_BESIDE_Y: f32 = 11.0;
+pub(super) const CURSOR_DART_LENGTH: f32 = 16.0;
+pub(super) const CURSOR_DART_HALF_WIDTH: f32 = 7.0;
+pub(super) const CURSOR_SKEW_GAP: f32 = 4.0;
+pub(super) const CURSOR_SKEW_HALF_LENGTH: f32 = 9.0;
+pub(super) const CURSOR_SKEW_HEAD: f32 = 3.5;
+pub(super) const CURSOR_SKEW_BACK: f32 = 2.5;
+const CURSOR_BADGE: f32 = 10.0;
+const CURSOR_ICON: f32 = 16.0;
+
 /// Preferences › Cursors › Painting Cursors.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum PaintingCursor {
@@ -328,16 +342,15 @@ impl CursorHost {
 
     /// The cursor look in `tokens`: line and halo colours, sizes and badge style.
     pub fn style(tokens: &UiTokens) -> CursorStyle {
-        let c = &tokens.component.cursor;
         CursorStyle {
             line: Color32::from_white_alpha(235),
             halo: Color32::from_black_alpha(160),
-            stroke: c.stroke,
-            badge: c.badge,
-            icon: c.icon,
-            badge_beside: vec2(c.badge_beside_x, c.badge_beside_y),
-            precise_reach: c.precise_reach,
-            crosshair: (c.crosshair_reach, c.crosshair_gap),
+            stroke: tokens.stroke.thin,
+            badge: CURSOR_BADGE,
+            icon: CURSOR_ICON,
+            badge_beside: vec2(CURSOR_BADGE_BESIDE_X, CURSOR_BADGE_BESIDE_Y),
+            precise_reach: tokens.size.hit.target,
+            crosshair: (tokens.size.hit.target, CURSOR_CROSSHAIR_GAP),
         }
     }
 

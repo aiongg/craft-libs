@@ -19,13 +19,12 @@ use super::CanvasView;
 use crate::theme::{ToEgui, UiTokens};
 
 /// The look of a guide line drawn on the document (the Shift-click line, the Ruler line and its
-/// protractor arm): a wide halo under a thin line, from the `line_guide` token family.
+/// protractor arm): a wide halo under a thin line, from the semantic tokens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct LineGuideStyle {
-    /// Width of the line in points: `line_guide.width` (1).
+    /// Width of the line in points: `stroke.thin`.
     pub width: f32,
-    /// Width of the halo under it: `line_guide.halo` (3; PhotoCraft drew the Shift-click line's
-    /// 2.5 and the Ruler's 3, unified to 3).
+    /// Width of the halo under it: `stroke.medium + 2 * stroke.thin`.
     pub halo: f32,
     /// The line's colour: `overlay.stroke`.
     pub line: Color32,
@@ -36,8 +35,9 @@ pub struct LineGuideStyle {
 impl LineGuideStyle {
     /// The style from `tokens`.
     pub fn of(tokens: &UiTokens) -> Self {
-        let (g, o) = (&tokens.component.line_guide, &tokens.color.overlay);
-        Self { width: g.width, halo: g.halo, line: o.stroke.to_egui(), halo_color: o.halo.to_egui() }
+        let o = &tokens.color.overlay;
+        let g = crate::style::line_guide::LineGuideStyle::new(tokens);
+        Self { width: tokens.stroke.thin, halo: g.halo, line: o.stroke.to_egui(), halo_color: o.halo.to_egui() }
     }
 }
 

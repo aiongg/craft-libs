@@ -126,7 +126,7 @@ impl SplitViews {
     /// {n}`, counted from 1 in reading order).
     // effectcraft: crates/ui-egui/src/panels/viewer/view.rs:5 `aux_views`, panels/viewers.rs:208 `activate`.
     pub fn show(self, ui: &mut Ui, rect: ScreenRect, mut pane: impl FnMut(&mut Ui, usize, ScreenRect)) -> SplitResponse {
-        let rects = self.layout.rects(Tokens::of(ui).component.split.gap, rect);
+        let rects = self.layout.rects(Tokens::of(ui).space.gap.tight, rect);
         let labels = self.labels.clone().unwrap_or_else(|| SplitLabels::of(ui));
         let base = ui.make_persistent_id(self.id_salt);
         let pressed = ui.input(|i| i.pointer.button_pressed(PointerButton::Primary));
@@ -178,7 +178,7 @@ impl SplitViews {
             ui.painter().rect_stroke(
                 rects[self.active.min(rects.len() - 1)],
                 0.0,
-                egui::Stroke::new(Tokens::of(ui).component.split.active_edge, edge),
+                egui::Stroke::new(Tokens::of(ui).stroke.thin, edge),
                 StrokeKind::Inside,
             );
         }

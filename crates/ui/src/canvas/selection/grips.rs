@@ -41,14 +41,13 @@ crate::words! {
     }
 }
 
-/// How a grip is drawn and hit. Sizes come from `grip.size` (CadCraft's `gripsize` 5 is a half
-/// side, so 10 pt across).
+/// How a grip is drawn and hit. Sizes come from `size.handle.md`.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum GripShape {
-    /// A square `grip.size` across: a vertex, an end point, a dynamic point grip.
+    /// A square `size.handle.md` across: a vertex, an end point, a dynamic point grip.
     Square,
-    /// A rectangle `grip.size` wide and `grip.midpoint_height` high: a polyline segment's
+    /// A rectangle `size.handle.md` wide and half that high: a polyline segment's
     /// midpoint.
     Midpoint,
     /// A triangle pointing along `direction` (document units; drawn as the view maps it): a
@@ -64,13 +63,13 @@ pub enum GripShape {
 /// The state a grip is drawn in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum GripState {
-    /// At rest: `overlay.grip`, or `overlay.grip_dyn` for a [dynamic](Grip::dynamic) grip.
+    /// At rest: blue, or cyan for a [dynamic](Grip::dynamic) grip.
     #[default]
     Cold,
-    /// The pointer is within `grip.warm_pad` of its bounds (`grip.hit_pad` for an arrow or a
-    /// triangle, CadCraft's dynamic grips): `overlay.grip_warm`.
+    /// The pointer is within 2 pt of its bounds (`size.hit.slop` for an arrow or a
+    /// triangle, CadCraft's dynamic grips): pink.
     Warm,
-    /// Picked for editing ([`Grip::hot`]): `overlay.grip_hot`.
+    /// Picked for editing ([`Grip::hot`]): red.
     Hot,
 }
 
@@ -87,7 +86,7 @@ pub struct Grip {
     /// Whether the host has made it hot (CadCraft's ⇧-click list, the grip being edited).
     pub hot: bool,
     /// Whether it is a dynamic grip (CadCraft's arrows, triangles and dynamic points): its cold
-    /// fill is `overlay.grip_dyn`.
+    /// fill is cyan.
     pub dynamic: bool,
 }
 
@@ -157,13 +156,13 @@ pub struct GripSetResponse {
 /// and hit-tests them and reports clicks and drags; what a grip does (stretch, move, a menu) is
 /// the host's.
 ///
-/// - Look: filled `overlay.grip`, `overlay.grip_warm` or `overlay.grip_hot` by [`GripState`],
-///   outlined 1 pt (`grip.stroke`) in `overlay.grip_stroke`. Every grip is drawn.
+/// - Look: filled blue, pink or red by [`GripState`],
+///   outlined `stroke.thin` in dark blue. Every grip is drawn.
 /// - Pointer, through the host's canvas response and [`Claim`](crate::canvas::Claim) first: the
-///   hit area is a grip's bounds expanded by `grip.hit_pad`; a press there takes the grip; a
+///   hit area is a grip's bounds expanded by `size.hit.slop`; a press there takes the grip; a
 ///   release without a drag is a [`GripClick`] with ⇧ as held; a drag after the press reports
-///   [`GripDrag`] events. Warm follows the pointer within the bounds expanded by `grip.warm_pad`
-///   (`grip.hit_pad` for arrows and triangles).
+///   [`GripDrag`] events. Warm follows the pointer within the bounds expanded by 2 pt
+///   (`size.hit.slop` for arrows and triangles).
 /// - Keys (one Tab stop through [`PartFocus`](crate::canvas::PartFocus)): Page Down and Page Up
 ///   pick the next and previous grip, Home and End the first and last; the arrows move the picked
 ///   grip by [`steps`](Self::steps), one `Set` per press; Enter is a click, ⇧+Enter a ⇧-click.

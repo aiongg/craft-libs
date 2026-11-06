@@ -6,7 +6,7 @@ use kurbo::{Point, Size};
 
 use super::{NavigatorLabels, NavigatorOptions, NavigatorSettings, ProxyColor, preview_rect, proxy_quad, view_center_for, zoom_to_document_rect};
 use crate::canvas::CanvasView;
-use crate::theme::{FontFamilies, ToEgui as _, UiTokens};
+use crate::theme::{FontFamilies, UiTokens};
 
 const DOC: Size = Size::new(2000.0, 1500.0);
 
@@ -104,11 +104,11 @@ fn tokens() -> UiTokens {
 #[test]
 fn proxy_color_choice_overrides_the_token() {
     let tokens = tokens();
-    let navigator = &tokens.component.navigator;
-    assert_eq!(ProxyColor::Default.color(&tokens), navigator.proxy.to_egui());
+    assert_eq!(ProxyColor::Default.color(&tokens), Color32::from_rgb(255, 84, 84));
     let named = &ProxyColor::ALL[1..];
-    for (color, token) in named.iter().zip(&navigator.proxy_colors) {
-        assert_eq!(color.color(&tokens), token.to_egui(), "{color:?}");
+    let palette = [(255, 84, 84), (255, 160, 60), (255, 214, 64), (92, 214, 110), (84, 160, 255), (176, 124, 255), (200, 200, 200)];
+    for (color, (r, g, b)) in named.iter().zip(palette) {
+        assert_eq!(color.color(&tokens), Color32::from_rgb(r, g, b), "{color:?}");
     }
     let shown: Vec<Color32> = named.iter().map(|c| c.color(&tokens)).collect();
     assert!(shown.iter().enumerate().all(|(i, a)| shown[i + 1..].iter().all(|b| a != b)), "the named colours differ");

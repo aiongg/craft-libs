@@ -125,8 +125,8 @@ fn the_style_follows_the_tokens() {
     // Dashed and Dots use the guides' values.
     let ctx = egui::Context::default();
     install(&ctx, &Base::suite_default());
-    let guide = tokens_in_mode(&ctx, Mode::Light).component.guide;
-    assert_eq!((s.dash, s.gap, s.dot_gap, s.dot_radius), (guide.dash, guide.gap, guide.dot_gap, guide.dot_radius));
+    let stroke = tokens_in_mode(&ctx, Mode::Light).stroke;
+    assert_eq!((s.dash, s.gap, s.dot_gap), (stroke.dash, stroke.dash_gap, stroke.dash_gap));
 }
 
 #[test]

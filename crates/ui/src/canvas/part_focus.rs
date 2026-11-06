@@ -156,13 +156,13 @@ impl<'a> PartFocus<'a> {
         PartFocusResponse { id, focused, pick, keyboard: focused && FocusRing::visible(&ctx) }
     }
 
-    /// Draws the focus ring round a part's screen `rect`, over an `overlay.halo` ring `handle.halo`
+    /// Draws the focus ring round a part's screen `rect`, over an `overlay.halo` ring `stroke.thin`
     /// wider on each side so it reads on any image. The overlay calls it while
     /// [`keyboard`](PartFocusResponse::keyboard).
     pub fn ring(painter: &Painter, rect: Rect) {
         let tokens = current(painter.ctx());
         let style = FocusRing::style(&tokens);
-        let halo = tokens.component.handle.halo;
+        let halo = tokens.stroke.thin;
         let under = rect.expand(style.offset - halo);
         painter.add(RectShape::stroke(
             under,

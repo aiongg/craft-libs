@@ -54,9 +54,9 @@ pub enum BeforeAfterMode {
     After,
     /// Only the before picture (LightCraft's Show Original).
     Original,
-    /// Two panes in a row, before at the reading start, `before_after.gap_side` apart.
+    /// Two panes in a row, before at the reading start, `space.pad.panel` apart.
     SideBySide,
-    /// Two panes, before above, `before_after.gap_stacked` apart.
+    /// Two panes, before above, `space.pad.dialog` apart.
     Stacked,
     /// One picture wiped by a vertical divider, before on the reading-start side (FigCraft's
     /// Overlay).
@@ -146,15 +146,15 @@ crate::words! {
 
 /// A before and after view of the host's two pictures with a draggable, keyboard-operable divider.
 ///
-/// - Layout ([`panes`](Self::panes)): two panes split the area minus `before_after.gap_side`
-///   across (side by side) or `before_after.gap_stacked` down (stacked); before is at the reading
+/// - Layout ([`panes`](Self::panes)): two panes split the area minus `space.pad.panel`
+///   across (side by side) or `space.pad.dialog` down (stacked); before is at the reading
 ///   start, so it is on the right in a right-to-left interface. A wipe or a single view has one
 ///   pane, the whole area. With [`captions`](Self::captions) each pane gives up a caption strip at
-///   its top (`type.label` line height plus `before_after.caption_gap`).
+///   its top (`type.label` line height plus `space.gap.tight`).
 /// - Painting ([`show`](Self::show)): the host's painter runs for before, then after, each with a
-///   painter clipped to [`BeforeAfterPane::clip`]; then the divider line (`before_after.line`
+///   painter clipped to [`BeforeAfterPane::clip`]; then the divider line (`stroke.thick`
 ///   over an `overlay.halo` halo, the full height or width of the shown picture), the knob
-///   (`before_after.knob` across, `accent.strong`, a two-way arrow in `text.on_strong`) at the
+///   (`size.control.md - space.gap.tight` across, `accent.strong`, a two-way arrow in `text.on_strong`) at the
 ///   line's middle, and the captions (`type.label`, `text.muted`) above each pane, or at the two
 ///   ends of the picture's top in a wipe.
 /// - Divider, wipes only: a press on the picture (or only near the line, with
@@ -205,7 +205,7 @@ impl BeforeAfter {
     }
 
     /// Whether a press anywhere on the picture moves the divider (FigCraft's compare); true by
-    /// default. Off, only a press within `before_after.knob` / 2 of the line does, so the host's
+    /// default. Off, only a press within half the knob's diameter of the line does, so the host's
     /// own drag (LightCraft's loupe pans) keeps the rest.
     pub fn drag_anywhere(mut self, on: bool) -> Self {
         self.drag_anywhere = on;

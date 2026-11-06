@@ -12,7 +12,41 @@ use crate::localized::Labels as _;
 use crate::menu::{MenuEntry, MenuItem, PressMenu};
 use crate::primitives::{Gap, Surface, SurfaceKind};
 use crate::theme::{ToEgui, Tokens, TokensOf};
-use craft_theme::SelectionBarTokens;
+
+const GRIP_DOT_DIAMETER: f32 = 1.0;
+const GRIP_PITCH: f32 = 4.0;
+/// The bar's width, in `size.control.md`, until the first pass has measured it.
+const FIRST_WIDTH_IN_CONTROLS: f32 = 14.0;
+
+/// The bar's measures, from the semantic tokens.
+#[derive(Clone, Copy)]
+pub(super) struct BarMetrics {
+    height: f32,
+    gap_above: f32,
+    gap_below: f32,
+    inset: f32,
+    first_width: f32,
+    grip_width: f32,
+    grip_height: f32,
+    grip_dot: f32,
+    grip_pitch: f32,
+}
+
+impl BarMetrics {
+    pub(super) fn of(tokens: &craft_theme::Tokens) -> Self {
+        Self {
+            height: tokens.size.bar.options,
+            gap_above: tokens.space.gap.stack,
+            gap_below: tokens.space.pad.panel,
+            inset: tokens.space.gap.stack,
+            first_width: tokens.size.control.md * FIRST_WIDTH_IN_CONTROLS,
+            grip_width: tokens.size.icon.sm,
+            grip_height: tokens.size.icon.md,
+            grip_dot: GRIP_DOT_DIAMETER,
+            grip_pitch: GRIP_PITCH,
+        }
+    }
+}
 
 /// The position the user dragged the bar to, relative to the canvas's top left.
 #[derive(Clone, Copy, Default)]
@@ -26,8 +60,8 @@ enum More {
 }
 
 /// `at` moved as little as needed for a bar `width` wide to sit inside `canvas`.
-fn inside(at: Pos2, width: f32, canvas: Rect, bar: &SelectionBarTokens) -> Pos2 {
-    let SelectionBarTokens { height, inset, .. } = *bar;
+fn inside(at: Pos2, width: f32, canvas: Rect, bar: &BarMetrics) -> Pos2 {
+    let BarMetrics { height, inset, .. } = *bar;
     let x = at.x.min(canvas.max.x - width - inset).max(canvas.min.x + inset);
     let y = at.y.min(canvas.max.y - height - inset).max(canvas.min.y + inset);
     pos2(x, y)
@@ -35,8 +69,8 @@ fn inside(at: Pos2, width: f32, canvas: Rect, bar: &SelectionBarTokens) -> Pos2 
 
 /// The bar's top left corner next to `selection`: below it, or above it when `above`; on the
 /// other side when that does not fit, and at the canvas's bottom when neither does.
-pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool, bar: &SelectionBarTokens) -> Pos2 {
-    let SelectionBarTokens { height, gap_above, gap_below, inset, .. } = *bar;
+pub(super) fn place(canvas: Rect, selection: Rect, width: f32, above: bool, bar: &BarMetrics) -> Pos2 {
+    let BarMetrics { height, gap_above, gap_below, inset, .. } = *bar;
     let x = (selection.center().x - width / 2.0).clamp(canvas.min.x + inset, (canvas.max.x - width - inset).max(canvas.min.x + inset));
     let gap = if above { gap_above } else { gap_below };
     let over = selection.min.y - height - gap;
@@ -159,7 +193,7 @@ impl SelectionBar {
 
         let labels = self.labels.clone().unwrap_or_else(|| SelectionBarLabels::of_ctx(&ctx));
         let tokens = Tokens::of(ui);
-        let bar = tokens.component.selection_bar;
+        let bar = BarMetrics::of(&tokens);
         let width = ctx.memory(|m| m.area_rect(self.id)).map_or(bar.first_width, |r| r.width());
         let pinned = ctx.data(|d| d.get_temp::<Pin>(pin_id)).map(|p| p.0).or(self.pinned);
         let at = match pinned {

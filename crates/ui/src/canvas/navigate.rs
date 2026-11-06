@@ -33,7 +33,7 @@ use crate::edit::CancelReason;
 use crate::focus::key_owner::{canvas_keys_free, claimed_presses};
 use crate::localized::Labels;
 use crate::theme::{ToEgui, UiTokens};
-use craft_theme::{CanvasTokens, TypeRole};
+use craft_theme::TypeRole;
 
 /// The navigation preferences, with Photoshop's defaults. The app stores them (craft-settings)
 /// and shows them in its Preferences; every navigation piece reads them from here.
@@ -943,11 +943,11 @@ impl RotateView {
         (rad.is_finite() && rad != 0.0 && deg.is_finite()).then_some(deg)
     }
 
-    /// The compass's rect in the canvas's top-right corner: `canvas.compass` points square,
-    /// `canvas.compass_margin` from the edges.
+    /// The compass's rect in the canvas's top-right corner: `size.thumb.md` points square,
+    /// `space.gap.stack` from the edges.
     // pc: crates/ui-egui/src/canvas/rotate_view.rs:217 `compass_rect`.
     pub fn compass_rect(canvas: ScreenRect, tokens: &UiTokens) -> ScreenRect {
-        let CanvasTokens { compass, compass_margin, .. } = tokens.component.canvas;
+        let (compass, compass_margin) = (tokens.size.thumb.md, tokens.space.gap.stack);
         ScreenRect::from_min_size(Pos2::new(canvas.right() - compass_margin - compass, canvas.top() + compass_margin), ScreenVec::splat(compass))
     }
 

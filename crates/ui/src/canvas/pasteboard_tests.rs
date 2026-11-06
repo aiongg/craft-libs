@@ -127,7 +127,7 @@ fn the_menu_keys_open_the_colour_menu_from_the_focused_canvas() {
 }
 
 // An active artboard's edge is a 1 pt `accent.solid` outline and another board's is
-// `overlay.artboard`; the other's colour is never drawn on it.
+// black at alpha 90; the other's colour is never drawn on it.
 #[test]
 fn artboard_edges_are_accent_when_active_and_overlay_otherwise() {
     use egui::Shape;
@@ -138,7 +138,7 @@ fn artboard_edges_are_accent_when_active_and_overlay_otherwise() {
         let mut colors = None;
         let output = ctx.run_ui(input, |ui| {
             let tokens = <crate::theme::Tokens as crate::theme::TokensOf>::of(ui);
-            colors = Some((tokens.color.accent.solid.to_egui(), tokens.color.overlay.artboard.to_egui(), tokens.component.pasteboard.outline_width));
+            colors = Some((tokens.color.accent.solid.to_egui(), Color32::from_black_alpha(90), tokens.stroke.thin));
             let _ = Pasteboard::new("pb", &boards).show(ui, &view());
         });
         let strokes: Vec<egui::Stroke> = output
