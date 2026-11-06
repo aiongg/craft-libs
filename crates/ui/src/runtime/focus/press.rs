@@ -3,10 +3,10 @@
 
 use super::{Act, State, StopKey};
 use crate::runtime::egui::focus as egui_focus;
-use craft_behavior::PartRef;
 use crate::runtime::pointer;
-use craft_behavior::focus::{PressFocus, classify_press};
+use craft_behavior::PartRef;
 use craft_behavior::Winner;
+use craft_behavior::focus::{PressFocus, classify_press};
 use egui::{Context, Id};
 
 /// What won a primary press at the begin hook.

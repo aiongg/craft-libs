@@ -1,9 +1,9 @@
 //! Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime converts egui's events once per
 //! pass and feeds them to a [`PressMachine`].
 
-use craft_keymap::Mods;
 use crate::sense::Sense;
 use bitflags::bitflags;
+use craft_keymap::Mods;
 use emath::{Pos2, Vec2};
 
 /// A pointer button.

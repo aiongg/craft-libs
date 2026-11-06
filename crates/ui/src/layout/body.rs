@@ -1,6 +1,5 @@
 //! `BodyLayout` and the layout of a body: the physical egui layout, the measured placement of `Row` End and
 //! Center, and the `Grid` cursor.
-#![cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::Env;
@@ -79,6 +78,7 @@ impl BodyLayout {
 }
 
 /// The cells of a body: step 6 of a child in flow asks for its rect here.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 pub(crate) struct Cells {
     cursor: Option<GridCursor>,
 }
@@ -86,6 +86,7 @@ pub(crate) struct Cells {
 impl Cells {
     /// The rect a child of measured `size` takes in flow: the next cell of a `Grid` body, else the next
     /// allocation of the body's layout.
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
     pub(crate) fn place(&mut self, ui: &mut Ui, size: Vec2) -> Rect {
         match &mut self.cursor {
             Some(cursor) => {
@@ -98,15 +99,18 @@ impl Cells {
     }
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 fn column_id(grid: Id, index: usize) -> Id {
     sub(grid, ("column", index))
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 fn row_id(grid: Id, index: usize) -> Id {
     sub(grid, ("row", index))
 }
 
 /// What the grid measured last pass; each entry is read as a placement that used it.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
     let rows = layout_memory::read(ctx, sub(grid, "rows")).map_or(0, |count| count.x as usize);
     GridMeasure::new(
@@ -121,6 +125,7 @@ fn last_measure(ctx: &egui::Context, grid: Id, columns: usize) -> GridMeasure {
 /// `Row` with `End` or `Center` places its block from the size it took last pass, and `Grid` places its
 /// cells from last pass's widest child per column and tallest per row. A change of those sizes asks for one
 /// discard pass under the tolerance rule.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the body step"))]
 pub(crate) fn run_body<R>(ui: &mut Ui, id: Id, layout: &BodyLayout, gap: Vec2, body: impl FnOnce(&mut Ui, &mut Cells) -> R) -> R {
     let rtl = Env::of(ui).direction.is_rtl();
     let ctx = ui.ctx().clone();

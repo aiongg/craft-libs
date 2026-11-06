@@ -9,9 +9,7 @@ use crate::runtime::env::ArenaId;
 use crate::runtime::memory::sub;
 use crate::runtime::pointer;
 use craft_behavior::focus::{PressFocus, classify_press};
-use craft_behavior::{
-    CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressPhase, PressState, Sense,
-};
+use craft_behavior::{CanvasTransform, Cursor, CursorIcon, CursorPriority, HitLevel, HitPriority, PartKey, PressPhase, PressState, Sense};
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2};
 

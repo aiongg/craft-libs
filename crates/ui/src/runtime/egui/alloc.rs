@@ -3,6 +3,7 @@
 use egui::{Rect, Ui, Vec2};
 
 /// Takes `size` in the parent's layout and returns its rect. Registers no widget.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn space(ui: &mut Ui, size: Vec2) -> Rect {
     ui.allocate_space(size).1
 }

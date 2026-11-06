@@ -175,7 +175,7 @@ pub(crate) fn announce(ctx: &Context, text: String) {
 }
 
 /// Marks the chrome toggle in the next `FrameOutput`.
-#[expect(dead_code, reason = "used by F2 keys")]
+#[expect(dead_code, reason = "used by the pipeline (F3)")]
 pub(crate) fn request_chrome_toggle(ctx: &Context) {
     store::with::<FrameState, _>(ctx, |state| state.output.toggle_chrome = true);
 }
@@ -195,6 +195,7 @@ pub(crate) fn clock(ctx: &Context) -> f64 {
 
 /// Records that the runtime cancelled the captured press of the running viewport; the next begin hook ends
 /// egui's drag so hover reaches other widgets again.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn note_cancelled_press(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.press_cancelled = true);
@@ -214,7 +215,8 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
         raw_input::request_repaint_of(ctx, viewport);
     }
     // H2: click options.
-    let slop = store::with::<FrameState, _>(ctx, |state| state.input.as_ref().map_or_else(|| RootEnv::default().hit.slop, |input| input.root.hit.slop));
+    let slop =
+        store::with::<FrameState, _>(ctx, |state| state.input.as_ref().map_or_else(|| RootEnv::default().hit.slop, |input| input.root.hit.slop));
     raw_input::set_click_options(ctx, slop);
 }
 

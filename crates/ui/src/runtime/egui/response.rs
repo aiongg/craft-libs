@@ -5,6 +5,7 @@ use egui::response::Flags;
 use egui::{Id, LayerId, Pos2, Rect, Response, Ui, Vec2};
 
 /// egui's sense for a library sense: `FOCUS` makes the widget a focus stop.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
     let mut mapped = egui::Sense::hover();
     if sense.contains(Sense::CLICK) {
@@ -20,12 +21,14 @@ pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
 }
 
 /// A root's egui widget over `rect`, clipped by the caller.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn widget(ui: &Ui, id: Id, rect: Rect, sense: Sense) -> Response {
     ui.interact(rect, id, to_egui(sense))
 }
 
 /// What a member's `Response` reports, from the arena's resolution.
 #[derive(Clone, Copy, Debug, Default)]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) struct MemberView {
     pub hovered: bool,
     /// The member holds the open press.
@@ -40,10 +43,12 @@ pub(crate) struct MemberView {
 }
 
 /// A member's `Response`, built from egui's public fields. It registers no egui widget.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn member(ui: &Ui, id: Id, rect: Rect, enabled: bool, view: MemberView) -> Response {
     member_on(ui.ctx(), ui.layer_id(), ui.clip_rect(), id, rect, enabled, view)
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 fn member_on(ctx: &egui::Context, layer_id: LayerId, clip: Rect, id: Id, rect: Rect, enabled: bool, view: MemberView) -> Response {
     let mut flags = Flags::empty();
     let hovered = enabled && view.hovered;
@@ -84,6 +89,7 @@ fn member_on(ctx: &egui::Context, layer_id: LayerId, clip: Rect, id: Id, rect: R
 /// Removes egui's click and drag flags from the root's `Response` unless the root's own shapes won the press:
 /// a press on a member belongs to the member, and a press the press-target rule refused belongs to the widget
 /// egui chose.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn keep_press_flags(response: &mut Response, own: bool) {
     if !own {
         response.flags.remove(

@@ -109,8 +109,8 @@ impl ValueDrag {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use craft_keymap::Mods;
     use crate::press::{PointerButton, PressStart};
+    use craft_keymap::Mods;
     use emath::{Vec2, pos2};
 
     fn drag(from: Pos2, to: Pos2, mods: Mods) -> PressState {

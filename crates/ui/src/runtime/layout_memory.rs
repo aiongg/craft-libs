@@ -1,5 +1,4 @@
 //! Layout memory: sizes one pass measures and the next pass places by, and the one discard pass a change asks for.
-#![cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
 
 use crate::runtime::egui::{pass, sizing};
 use crate::runtime::frame::{self, PerViewport};
@@ -11,6 +10,7 @@ use std::collections::HashMap;
 #[derive(Clone, Copy, Debug)]
 enum Value {
     Size(Vec2),
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
     Tween(SizeTween),
 }
 
@@ -76,6 +76,7 @@ pub(crate) fn read(ctx: &Context, id: Id) -> Option<Vec2> {
 }
 
 /// The size entry under `id` without a placement using it.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
 pub(crate) fn peek(ctx: &Context, id: Id) -> Option<Vec2> {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| memory.entries.get(&id).and_then(|entry| entry.value).map(|value| value.at(moment.now)))
@@ -107,6 +108,7 @@ pub(crate) fn record(ctx: &Context, id: Id, real: Vec2) {
 
 /// Starts a size tween under `id` that readers evaluate at their clock. It asks for no discard pass: the
 /// size changes by design while it runs.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
 pub(crate) fn tween(ctx: &Context, id: Id, from: Vec2, to: Vec2, duration: f64) {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| {
@@ -117,6 +119,7 @@ pub(crate) fn tween(ctx: &Context, id: Id, from: Vec2, to: Vec2, duration: f64) 
 }
 
 /// Whether a tween under `id` has not reached its end.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
 pub(crate) fn is_animating(ctx: &Context, id: Id) -> bool {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| {

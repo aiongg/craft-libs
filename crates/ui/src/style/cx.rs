@@ -1,15 +1,15 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink};
-use craft_host::target::Os;
 use super::look::{StyleColor, SurfaceKind};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale, StyleValue};
-use craft_i18n::Direction;
 use craft_behavior::ControlMetrics;
+use craft_host::target::Os;
+use craft_i18n::Direction;
 use craft_theme::{BySize, ControlSize, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
 use egui::{Color32, Context, CornerRadius};
 use std::any::{Any, TypeId};
@@ -69,6 +69,7 @@ fn egui_color(c: Rgba) -> Color32 {
 impl<'a> StyleCx<'a> {
     /// A style context for the scope the pipeline or an app colour hook runs in.
     #[expect(clippy::too_many_arguments, reason = "one argument per input the style cache key covers")]
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn new(
         ctx: &'a Context,
         tokens: &'a UiTokens,
@@ -85,6 +86,7 @@ impl<'a> StyleCx<'a> {
     }
 
     /// The same context with another variant.
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn with_variant(&self, variant: Variant) -> StyleCx<'a> {
         StyleCx { variant, ..*self }
     }

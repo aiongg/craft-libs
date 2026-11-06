@@ -57,9 +57,9 @@ pub use press::{
     PressState, PressStep, count_clicks,
 };
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
+pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use value::Value;
 pub use value_drag::ValueDrag;
 pub use wheel::{Wheel, WheelPhase, WheelTaker, WheelUnit};

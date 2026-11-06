@@ -31,6 +31,7 @@ impl LayerMap {
     }
 
     /// A screen-space movement as the layer sees it.
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub(crate) fn delta_to_layer(self, delta: Vec2) -> Vec2 {
         delta / self.0.scaling
     }

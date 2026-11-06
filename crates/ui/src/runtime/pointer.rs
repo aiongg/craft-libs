@@ -7,8 +7,8 @@ use crate::runtime::egui::areas::{self, Layer};
 use crate::runtime::egui::{input, pass};
 use crate::runtime::frame::{PerViewport, Stamped};
 use craft_behavior::{
-    Buttons, MultiTouch, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner,
-    count_clicks, resolve,
+    Buttons, MultiTouch, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressStart, ResolveFor, Shape, Winner, count_clicks,
+    resolve,
 };
 use craft_keymap::Mods;
 use craft_theme::HitSizes;
@@ -71,8 +71,10 @@ pub(crate) struct PassPointer {
     /// The primary events, presses carrying their click counts.
     pub events: Vec<PointerEvent>,
     pub hover: Option<Pos2>,
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub primary_down: bool,
     pub press_targets: PressTargets,
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub focus_lost: bool,
 }
 
@@ -171,7 +173,7 @@ pub fn frame(ctx: &Context) -> PointerFrame {
     })
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2d"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 /// Ends every captured press of the running viewport at its next lifecycle run in this pass (Escape, a part
 /// turning disabled). The next begin hook ends egui's own drag so hover reaches other widgets again.
 pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
@@ -181,6 +183,7 @@ pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
 }
 
 /// Why captured presses end in the running pass: a cancel a service requested, else the window losing focus.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
@@ -189,12 +192,12 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
 }
 
 /// Writes `shapes` into the running pass's shape record under `layer`.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn record_shapes(ctx: &Context, layer: Layer, shapes: impl IntoIterator<Item = Shape<Id>>) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().extend(shapes));
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2d"))]
 /// The winner of a press at `at` among last pass's shapes on the topmost layer under it: what the focus
 /// service classifies the press by (8.3, H7). Shapes of transformed bodies lie on their own layers.
 pub(crate) fn press_winner(ctx: &Context, at: Pos2) -> Option<Winner<Id>> {
