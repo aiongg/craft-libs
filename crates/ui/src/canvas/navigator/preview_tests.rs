@@ -10,7 +10,7 @@ use kurbo::{Point, Size};
 use super::{Navigator, ProxyColor};
 use crate::canvas::{CanvasView, NavigationOptions, ZoomLadder};
 use crate::localized::LocaleNumbers;
-use crate::theme::{Base, ToEgui as _, Tokens, TokensOf as _, UiTokens, install};
+use crate::theme::{Base, Tokens, TokensOf as _, UiTokens, install};
 
 const DOC: Size = Size::new(2000.0, 1500.0);
 
@@ -190,7 +190,7 @@ fn navigator_proxy_follows_the_animated_view() {
     h.run_steps(2);
     let blue = ProxyColor::Blue.color(&tokens);
     assert!(!stroked(&h, blue).is_empty() && stroked(&h, red).is_empty());
-    assert_eq!(blue, tokens.component.navigator.proxy_colors[4].to_egui());
+    assert_eq!(blue, egui::Color32::from_rgb(84, 160, 255));
 }
 
 fn wheel(h: &mut Harness<'_, Host>, at: Pos2, lines: f32) {

@@ -282,7 +282,7 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
     if response.is_pointer_button_down_on()
         && let Some(press) = ctx.input(|i| i.pointer.press_origin())
         && response.drag_started()
-        && hit::point(press, view.to_screen(point)) <= tokens.component.handle.hit / 2.0
+        && hit::point(press, view.to_screen(point)) <= tokens.size.hit.target / 2.0
     {
         Claim::take(&ctx, response.id, marker);
     }
@@ -299,7 +299,7 @@ fn show_document(ui: &mut Ui, args: &mut PlainArgs) {
     ui.data_mut(|d| d.insert_temp(key, point));
 
     let painter = ui.painter_at(view.rect);
-    let line = Stroke::new(tokens.component.guide.width, tokens.color.overlay.guide.to_egui());
+    let line = Stroke::new(tokens.stroke.thin, tokens.color.overlay.guide.to_egui());
     let visible = view.visible();
     crisp(&painter, view.to_screen(Point::new(visible.x0, point.y)), view.to_screen(Point::new(visible.x1, point.y)), line);
     crisp(&painter, view.to_screen(Point::new(point.x, visible.y0)), view.to_screen(Point::new(point.x, visible.y1)), line);

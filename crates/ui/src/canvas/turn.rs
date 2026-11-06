@@ -5,8 +5,12 @@
 use egui::{Color32, Context, CursorIcon, Id, LayerId, Order, Painter, Pos2, Shape, Stroke, Vec2, vec2};
 
 use super::CanvasView;
+use super::cursor::{
+    CURSOR_BADGE_BESIDE_X, CURSOR_BADGE_BESIDE_Y, CURSOR_BADGE_HALF, CURSOR_BADGE_OFFSET, CURSOR_CROSSHAIR_GAP, CURSOR_DART_HALF_WIDTH,
+    CURSOR_DART_LENGTH, CURSOR_SKEW_BACK, CURSOR_SKEW_GAP, CURSOR_SKEW_HALF_LENGTH, CURSOR_SKEW_HEAD,
+};
 use crate::theme::{ToEgui, current};
-use craft_theme::CursorTokens;
+use crate::style::transform::TransformStyle;
 
 /// Who draws the pointer: the system or the canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -47,8 +51,8 @@ const DART_NOTCH: f32 = 0.65;
 /// direction `toward` from the pointer (the corner's bisector into the box, as the view shows it).
 /// egui has no rotate cursor.
 ///
-/// The arc is `transform.turn_radius` across, an `overlay.stroke` line `transform.turn_line` wide
-/// over an `overlay.halo` line `transform.turn_halo` wider on each side; the arrowheads are
+/// The arc is 12 points in radius, an `overlay.stroke` line `stroke.medium` wide
+/// over an `overlay.halo` line `stroke.thin` wider on each side; the arrowheads are
 /// `overlay.stroke` outlined in the halo. It draws on the tooltip layer, above the canvas and its
 /// overlays. Nothing for a zero `toward`.
 pub fn turn_cursor(ctx: &Context, at: Pos2, toward: Vec2) {
@@ -65,17 +69,18 @@ pub fn turn_cursor_with(ctx: &Context, at: Pos2, toward: Vec2, ink: PointerInk) 
     }
     ink.hide_system(ctx);
     let tokens = current(ctx);
-    let (t, o) = (&tokens.component.transform, &tokens.color.overlay);
+    let o = &tokens.color.overlay;
+    let (turn_radius, turn_line, turn_halo) = (TransformStyle::new(&tokens).turn_radius, tokens.stroke.medium, tokens.stroke.thin);
     let (color, halo) = (o.stroke.to_egui(), o.halo.to_egui());
     let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, Id::NULL.with("craft_ui::canvas::turn_cursor")));
     let u = toward / len;
-    let r = t.turn_radius;
+    let r = turn_radius;
     let centre = at + u * r;
     let mid = (-u.y).atan2(-u.x);
     let on_arc = |a: f32| centre + vec2(a.cos(), a.sin()) * r;
     let points: Vec<Pos2> = (0..=ARC_SEGMENTS).map(|i| on_arc(mid - HALF_SWEEP + 2.0 * HALF_SWEEP * i as f32 / ARC_SEGMENTS as f32)).collect();
-    painter.add(Shape::line(points.clone(), Stroke::new(t.turn_line + 2.0 * t.turn_halo, halo)));
-    painter.add(Shape::line(points, Stroke::new(t.turn_line, color)));
+    painter.add(Shape::line(points.clone(), Stroke::new(turn_line + 2.0 * turn_halo, halo)));
+    painter.add(Shape::line(points, Stroke::new(turn_line, color)));
     // Each arrowhead points along the arc, away from its middle; sized to the arc as PhotoCraft's.
     let head = r * HEAD_PER_RADIUS;
     for (a, sign) in [(mid - HALF_SWEEP, -1.0f32), (mid + HALF_SWEEP, 1.0)] {
@@ -89,28 +94,31 @@ pub fn turn_cursor_with(ctx: &Context, at: Pos2, toward: Vec2, ink: PointerInk) 
                 tip - tangent * HEAD_BACK * head - normal * HEAD_HALF_WIDTH * head,
             ],
             color,
-            Stroke::new(t.turn_halo, halo),
+            Stroke::new(turn_halo, halo),
         ));
     }
 }
 
-/// The ink of the cursors drawn here: `overlay.stroke` lines `handle.stroke` wide over an
-/// `overlay.halo` line `handle.halo` wider on each side.
+/// The ink of the cursors drawn here: `overlay.stroke` lines `stroke.thin` wide over an
+/// `overlay.halo` line `stroke.thin` wider on each side.
 struct Ink {
     color: Color32,
     halo: Color32,
     line: f32,
     halo_line: f32,
-    geometry: CursorTokens,
+    outline: f32,
+    thick_outline: f32,
+    crosshair_reach: f32,
 }
 
 impl Ink {
     fn of(ctx: &Context) -> Self {
         let tokens = current(ctx);
-        let (h, o) = (&tokens.component.handle, &tokens.color.overlay);
+        let o = &tokens.color.overlay;
         let halo = o.halo.to_egui();
-        let halo_line = h.stroke + 2.0 * h.halo;
-        Ink { color: o.stroke.to_egui(), halo, line: h.stroke, halo_line, geometry: tokens.component.cursor }
+        let thin = tokens.stroke.thin;
+        let halo_line = thin + 2.0 * thin;
+        Ink { color: o.stroke.to_egui(), halo, line: thin, halo_line, outline: thin, thick_outline: tokens.stroke.medium, crosshair_reach: tokens.size.hit.target }
     }
 
     /// A segment: the halo line, then the ink line.
@@ -139,7 +147,7 @@ fn screen_dir(view: &CanvasView, v: kurbo::Vec2, fallback: Vec2) -> Vec2 {
 pub fn distort_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo::Vec2, pointer: PointerInk) {
     pointer.hide_system(ctx);
     let (ink, painter) = (Ink::of(ctx), tooltip_painter(ctx, "craft_ui::canvas::distort_cursor"));
-    let (length, half_width) = (ink.geometry.dart_length, ink.geometry.dart_half_width);
+    let (length, half_width) = (CURSOR_DART_LENGTH, CURSOR_DART_HALF_WIDTH);
     let u = screen_dir(view, doc_dir, vec2(-1.0, -1.0).normalized());
     let perp = vec2(-u.y, u.x);
     let base = at - u * length;
@@ -148,7 +156,7 @@ pub fn distort_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo
     for triangle in [vec![at, left, notch], vec![at, notch, right]] {
         painter.add(Shape::convex_polygon(triangle, ink.color, Stroke::NONE));
     }
-    painter.add(Shape::closed_line(vec![at, left, notch, right], Stroke::new(ink.geometry.dart_outline, ink.halo)));
+    painter.add(Shape::closed_line(vec![at, left, notch, right], Stroke::new(ink.thick_outline, ink.halo)));
 }
 
 /// Paints PhotoCraft's Skew pointer at screen point `at`, hiding the system pointer for this
@@ -157,19 +165,18 @@ pub fn distort_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo
 pub fn skew_cursor(ctx: &Context, at: Pos2, view: &CanvasView, doc_dir: kurbo::Vec2, pointer: PointerInk) {
     pointer.hide_system(ctx);
     let (ink, painter) = (Ink::of(ctx), tooltip_painter(ctx, "craft_ui::canvas::skew_cursor"));
-    let g = ink.geometry;
     let u = screen_dir(view, doc_dir, vec2(1.0, 0.0));
     let perp = vec2(-u.y, u.x);
-    for (offset, dir) in [(g.skew_gap, 1.0f32), (-g.skew_gap, -1.0)] {
+    for (offset, dir) in [(CURSOR_SKEW_GAP, 1.0f32), (-CURSOR_SKEW_GAP, -1.0)] {
         let centre = at + perp * offset;
-        let end = centre + u * (dir * g.skew_half_length);
-        ink.segment(&painter, centre - u * (dir * g.skew_half_length), end);
+        let end = centre + u * (dir * CURSOR_SKEW_HALF_LENGTH);
+        ink.segment(&painter, centre - u * (dir * CURSOR_SKEW_HALF_LENGTH), end);
         let head = vec![
-            end + u * (dir * g.skew_head),
-            end - u * (dir * g.skew_back) + perp * g.skew_head,
-            end - u * (dir * g.skew_back) - perp * g.skew_head,
+            end + u * (dir * CURSOR_SKEW_HEAD),
+            end - u * (dir * CURSOR_SKEW_BACK) + perp * CURSOR_SKEW_HEAD,
+            end - u * (dir * CURSOR_SKEW_BACK) - perp * CURSOR_SKEW_HEAD,
         ];
-        painter.add(Shape::convex_polygon(head, ink.color, Stroke::new(g.skew_head_outline, ink.halo)));
+        painter.add(Shape::convex_polygon(head, ink.color, Stroke::new(ink.outline, ink.halo)));
     }
 }
 
@@ -225,13 +232,13 @@ pub fn selection_cursor(ctx: &Context, at: Pos2, badge: SelectionBadge, pointer:
         PointerInk::System => ctx.set_cursor_icon(CursorIcon::Crosshair),
         PointerInk::Painted => {
             ctx.set_cursor_icon(CursorIcon::None);
-            let (reach, gap) = (ink.geometry.crosshair_reach, ink.geometry.crosshair_gap);
+            let (reach, gap) = (ink.crosshair_reach, CURSOR_CROSSHAIR_GAP);
             for d in [vec2(1.0, 0.0), vec2(-1.0, 0.0), vec2(0.0, 1.0), vec2(0.0, -1.0)] {
                 ink.segment(&painter, at + d * gap, at + d * reach);
             }
         }
     }
-    let offset = ink.geometry.badge_offset;
+    let offset = CURSOR_BADGE_OFFSET;
     paint_badge(&ink, &painter, at + vec2(offset, offset), badge);
 }
 
@@ -246,12 +253,12 @@ pub fn selection_badge_at(ctx: &Context, at: Pos2, badge: SelectionBadge) {
 /// pointer is the host's.
 pub fn selection_badge_beside_pointer(ctx: &Context, at: Pos2, badge: SelectionBadge) {
     let ink = Ink::of(ctx);
-    let (x, y) = (ink.geometry.badge_beside_x, ink.geometry.badge_beside_y);
+    let (x, y) = (CURSOR_BADGE_BESIDE_X, CURSOR_BADGE_BESIDE_Y);
     paint_badge(&ink, &tooltip_painter(ctx, "craft_ui::canvas::selection_cursor"), at + vec2(x, y), badge);
 }
 
 fn paint_badge(ink: &Ink, painter: &Painter, at: Pos2, badge: SelectionBadge) {
-    for [a, b] in badge.glyph(at, ink.geometry.badge_half) {
+    for [a, b] in badge.glyph(at, CURSOR_BADGE_HALF) {
         ink.segment(painter, a, b);
     }
 }

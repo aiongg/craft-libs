@@ -29,6 +29,11 @@ use crate::typed_story;
 
 use ants::Ants;
 
+/// How fast the ants march, in line widths per second.
+const SPEED: f32 = 10.0;
+/// Milliseconds between the ants' repaints.
+const TICK_MS: u32 = 100;
+
 /// Opacity of the light line under an outline being drawn (PhotoCraft's alpha 140 of 255).
 const DRAWING_HALO_ALPHA: f32 = 0.55;
 
@@ -60,28 +65,28 @@ pub struct MarqueeStyle {
     /// The ants' band and the band look's line: `overlay.marquee`.
     pub light: Color32,
     /// The ants' dashes, the band's dashes and the line of an outline being drawn:
-    /// `overlay.marquee_dash`.
+    /// black.
     pub dark: Color32,
-    /// Length of the ants' dashes and gaps, in line widths: `marquee.dash`.
+    /// Length of the ants' dashes and gaps, in line widths: `stroke.dash`.
     pub dash: f32,
-    /// How fast the ants march, in line widths per second: `marquee.speed`.
+    /// How fast the ants march, in line widths per second.
     pub speed: f32,
-    /// Milliseconds between the ants' repaints: `marquee.tick_ms`.
+    /// Milliseconds between the ants' repaints.
     pub tick_ms: u32,
     /// Whether the ants march: off with reduced motion.
     pub march: bool,
-    /// The band look's line: 1 point of `overlay.marquee`.
+    /// The band look's line: `stroke.thin` of `overlay.marquee`.
     pub band_line: Stroke,
-    /// Dash length of the band look: `marquee.band_dash`.
+    /// Dash length of the band look: `stroke.dash_gap`.
     pub band_dash: f32,
-    /// Gap between the band look's dashes: `marquee.band_gap`.
+    /// Gap between the band look's dashes: `stroke.dash_gap`.
     pub band_gap: f32,
-    /// The drawing look's light line: `marquee.drawing_halo` points of `overlay.marquee` at 0.55
+    /// The drawing look's light line: `stroke.thick + 2 * stroke.thin` points of `overlay.marquee` at 0.55
     /// opacity.
     pub drawing_halo: Stroke,
-    /// The drawing look's dark line: 1 point of `overlay.marquee_dash`.
+    /// The drawing look's dark line: `stroke.thin` of black.
     pub drawing_line: Stroke,
-    /// Farthest a press may move and still be a click, in points: `marquee.click_slop`.
+    /// Farthest a press may move and still be a click, in points: `size.hit.slop`.
     pub click_slop: f32,
 }
 
@@ -179,21 +184,21 @@ impl Marquee {
 
     /// The marquee look in `tokens`.
     pub fn style(tokens: &UiTokens) -> MarqueeStyle {
-        let (m, o) = (&tokens.component.marquee, &tokens.color.overlay);
-        let (light, dark) = (o.marquee.to_egui(), o.marquee_dash.to_egui());
+        let (light, dark) = (tokens.color.overlay.marquee.to_egui(), Color32::BLACK);
+        let thin = tokens.stroke.thin;
         MarqueeStyle {
             light,
             dark,
-            dash: m.dash,
-            speed: m.speed,
-            tick_ms: m.tick_ms,
+            dash: tokens.stroke.dash,
+            speed: SPEED,
+            tick_ms: TICK_MS,
             march: !tokens.appearance.reduced_motion,
-            band_line: Stroke::new(1.0, light),
-            band_dash: m.band_dash,
-            band_gap: m.band_gap,
-            drawing_halo: Stroke::new(m.drawing_halo, light.gamma_multiply(DRAWING_HALO_ALPHA)),
-            drawing_line: Stroke::new(1.0, dark),
-            click_slop: m.click_slop,
+            band_line: Stroke::new(thin, light),
+            band_dash: tokens.stroke.dash_gap,
+            band_gap: tokens.stroke.dash_gap,
+            drawing_halo: Stroke::new(tokens.stroke.thick + 2.0 * thin, light.gamma_multiply(DRAWING_HALO_ALPHA)),
+            drawing_line: Stroke::new(thin, dark),
+            click_slop: tokens.size.hit.slop,
         }
     }
 
@@ -584,7 +589,7 @@ pub struct MarqueeResponse {
 /// The press-drag-release gesture of a marquee tool.
 ///
 /// The press on the canvas takes the canvas's [`Claim`], so run it before the host's tool input
-/// and skip that input while [`Claim::owner`] is set. Past `marquee.click_slop` it begins; ⇧ makes
+/// and skip that input while [`Claim::owner`] is set. Past `size.hit.slop` it begins; ⇧ makes
 /// the marquee square (a circle) and ⌥ draws it from the centre, each only when pressed after the
 /// press or released and pressed again; Space held moves the whole marquee; Esc cancels. A press
 /// released inside the slop is a click, with no event; with [`Constraint::Size`] the gesture begins at the

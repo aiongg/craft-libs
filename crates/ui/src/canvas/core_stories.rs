@@ -404,7 +404,7 @@ fn show_split(ui: &mut Ui, args: &mut SplitArgs) {
     };
     let (full, _) = ui.allocate_exact_size(vec2(ui.available_width().clamp(240.0, 720.0), 360.0), Sense::hover());
     let ppp = ui.pixels_per_point();
-    let rects = layout.rects(Tokens::of(ui).component.split.gap, full);
+    let rects = layout.rects(Tokens::of(ui).space.gap.tight, full);
     if last != Some(args.layout) || panes.len() != rects.len() {
         panes = rects
             .iter()

@@ -20,7 +20,10 @@ use kurbo::{Point, Rect};
 use super::CanvasId;
 use super::view::CanvasView;
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
-use craft_theme::TypeRole;
+use craft_theme::{Rgba, TypeRole};
+
+/// The edge of an artboard that is not the active one.
+const INACTIVE_ARTBOARD_EDGE: Rgba = Rgba([0, 0, 0, 90]);
 
 /// The pasteboard's colour (Preferences › Interface › Standard Screen Mode › Color).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -77,7 +80,7 @@ pub struct PageFrame {
     /// The page's own fill under the document (an artboard's background), or `None` for none.
     pub fill: Option<Color32>,
     /// An artboard's edge: `Some(true)` for the active board (a 1 pt `accent.solid` edge, its name
-    /// in `text.normal`), `Some(false)` for another board (a 1 pt `overlay.artboard` edge outside,
+    /// in `text.normal`), `Some(false)` for another board (a 1 pt black edge outside, alpha 90,,
     /// name in `text.muted`); `None` for a plain page (only the border preference draws).
     pub active: Option<bool>,
 }
@@ -122,7 +125,7 @@ pub struct PasteboardStyle {
     pub name_font: FontId,
     #[allow(missing_docs)]
     pub name_color: Color32,
-    /// Space between a page's top edge and its name: `pasteboard.name_gap`.
+    /// Space between a page's top edge and its name: `space.gap.inline`.
     pub name_gap: f32,
 }
 
@@ -179,8 +182,8 @@ impl<'a> Pasteboard<'a> {
         PasteboardStyle {
             fill: color.fill().unwrap_or_else(|| colors.surface.canvas.to_egui()),
             shadow: tokens.shadow.floating,
-            outline: Stroke::new(tokens.component.pasteboard.outline_width, colors.line.border.to_egui()),
-            name_gap: tokens.component.pasteboard.name_gap,
+            outline: Stroke::new(tokens.stroke.thin, colors.line.border.to_egui()),
+            name_gap: tokens.space.gap.inline,
             name_font: tokens.font(TypeRole::Caption),
             name_color: colors.text.muted.to_egui(),
         }
@@ -305,16 +308,16 @@ fn clip(r: Rect, canvas: Rect) -> Option<Rect> {
     (c.x1 > c.x0 && c.y1 > c.y0).then_some(c)
 }
 
-/// Draws an artboard's edge round `quad` (`bounds` when the view is axis-aligned): `pasteboard.outline_width`
-/// (1) outside, in `accent.solid` when `active`, else `overlay.artboard` (black at alpha 90); and
+/// Draws an artboard's edge round `quad` (`bounds` when the view is axis-aligned): `stroke.thin`
+/// outside, in `accent.solid` when `active`, else black at alpha 90; and
 /// returns its name's colour, `text.normal` when active, else `text.muted`.
 fn artboard_edge(painter: &egui::Painter, quad: &[Pos2; 4], bounds: egui::Rect, aligned: bool, active: bool, ui: &Ui) -> Color32 {
     // pc: crates/ui-egui/src/canvas/artboard_ui.rs:98-101 `draw_frames` (accent for the active board,
     // black at alpha 90 outside otherwise; the name in `text` or `text_dim`).
     let tokens = Tokens::of(ui);
     let (edge, name) =
-        if active { (tokens.color.accent.solid, tokens.color.text.normal) } else { (tokens.color.overlay.artboard, tokens.color.text.muted) };
-    let stroke = Stroke::new(tokens.component.pasteboard.outline_width, edge.to_egui());
+        if active { (tokens.color.accent.solid, tokens.color.text.normal) } else { (INACTIVE_ARTBOARD_EDGE, tokens.color.text.muted) };
+    let stroke = Stroke::new(tokens.stroke.thin, edge.to_egui());
     if aligned {
         painter.rect_stroke(bounds, 0.0, stroke, StrokeKind::Outside);
     } else {

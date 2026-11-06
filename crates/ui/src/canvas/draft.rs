@@ -32,7 +32,7 @@ pub enum DraftKind {
 }
 
 /// How near a press must be to close an outline, in screen points. [`DraftReach::of`] reads both
-/// from the kernel's `outline_draft` tokens (`close` 8 and `same_point` 3, PhotoCraft's); a tool
+/// from `size.hit.target` (close) and `size.hit.slop` (same point); a tool
 /// with its own reach (Select and Mask's Polygonal Lasso closes within 6) builds the struct from
 /// its own tokens. The draft divides them by [`DraftPoint::zoom`].
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,11 +47,9 @@ pub struct DraftReach {
 }
 
 impl DraftReach {
-    /// The reach in `tokens`: `outline_draft.close` and `outline_draft.same_point`.
+    /// The reach in `tokens`: `size.hit.target` and `size.hit.slop`.
     pub fn of(tokens: &UiTokens) -> Self {
-        // pc: crates/ui-egui/src/tools/lasso_ui.rs:48 (`SAME_POINT` 3), :170 (the close grab, 8).
-        let t = &tokens.component.outline_draft;
-        Self { close: f64::from(t.close), same_point: f64::from(t.same_point) }
+        Self { close: f64::from(tokens.size.hit.target), same_point: f64::from(tokens.size.hit.slop) }
     }
 }
 

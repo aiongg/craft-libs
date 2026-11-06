@@ -4,7 +4,7 @@ use egui::{Context, Event, PointerButton, Rect, pos2};
 use egui_kittest::Harness;
 
 use super::SelectionBar;
-use super::selection_bar::place;
+use super::selection_bar::{BarMetrics, place};
 use crate::theme::{Base, install};
 
 const CANVAS: Rect = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 600.0));
@@ -34,8 +34,8 @@ fn host(selection: Option<Rect>, above: bool) -> Harness<'static, Host> {
     h
 }
 
-fn bar() -> craft_theme::SelectionBarTokens {
-    Base::suite_default().shown(craft_theme::Mode::Light).resolved.tokens.component.selection_bar
+fn bar() -> BarMetrics {
+    BarMetrics::of(&Base::suite_default().shown(craft_theme::Mode::Light).resolved.tokens)
 }
 
 fn selection(min: (f32, f32), max: (f32, f32)) -> Rect {

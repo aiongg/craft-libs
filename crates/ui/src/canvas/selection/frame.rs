@@ -68,15 +68,15 @@ pub struct SelectionFrameResponse {
 /// # }
 /// ```
 ///
-/// - Look: the box line `selection_frame.line` (1 pt) in [`color`](Self::color) (the layer colour), else
-///   `overlay.line`; with [`key_object`](Self::key_object) `selection_frame.key_line` (3 pt);
-///   with [`centre_mark`](Self::centre_mark) a filled square `selection_frame.centre` (3.5 pt) at
+/// - Look: the box line `stroke.thin` in [`color`](Self::color) (the layer colour), else
+///   `overlay.line`; with [`key_object`](Self::key_object) `stroke.thick`;
+///   with [`centre_mark`](Self::centre_mark) a filled 3.5 pt square at
 ///   the centre; grips are [`Handle`](crate::primitives::Handle)s
-///   ([`HandleShape::Square`](crate::primitives::HandleShape::Square), `handle.size` 7) filled
+///   ([`HandleShape::Square`](crate::primitives::HandleShape::Square), `size.handle.md`) filled
 ///   `overlay.handle_fill` and outlined in the frame's colour, each grown by
-///   [`grow`](Self::grow) steps of `selection_frame.grow_step`.
+///   [`grow`](Self::grow) steps of 1 pt.
 /// - Pointer, through the host's canvas response and [`Claim`](crate::canvas::Claim) first: a
-///   press within half of `handle.hit` (the side of the square a handle takes) of a grip's
+///   press within half of `size.hit.target` (the side of the square a handle takes) of a grip's
 ///   centre, or of half its grown size if that is more, takes that corner or edge; a press inside takes the
 ///   inside; a press outside is not the frame's. A drag begins on the first move and follows
 ///   [`quad::drag`](crate::canvas::quad::drag) with the [rules](Self::rules) (resize only by
@@ -154,7 +154,7 @@ impl<'a> SelectionFrame<'a> {
         self
     }
 
-    /// Draws the box with `selection_frame.key_line` (3 pt): the key object Align aligns to
+    /// Draws the box with `stroke.thick`: the key object Align aligns to
     /// (DesignCraft 3 pt, VectorCraft 2.5 pt).
     pub fn key_object(mut self, key: bool) -> Self {
         self.key_object = key;
@@ -175,7 +175,7 @@ impl<'a> SelectionFrame<'a> {
         self
     }
 
-    /// Grows each grip by `steps` × `selection_frame.grow_step`: VectorCraft's Selection & Anchor
+    /// Grows each grip by `steps` × 1 pt: VectorCraft's Selection & Anchor
     /// Display › Size, which the host passes as its size minus 3 (its default, 3, adds nothing).
     pub fn grow(mut self, steps: u8) -> Self {
         self.grow = steps;
@@ -353,7 +353,7 @@ impl<'a> SelectionFrame<'a> {
     }
 
     /// The distance from a grip's centre within which a press takes it: half the square
-    /// `handle.hit` names, or half the grip's grown side if that is larger.
+    /// `size.hit.target` names, or half the grip's grown side if that is larger.
     fn reach(&self, style: &SelectionFrameStyle) -> f32 {
         style.handle.hit.max(style.handle.size + f32::from(self.grow) * style.grow_step) / 2.0
     }
@@ -547,7 +547,7 @@ impl<'a> SelectionFrame<'a> {
             }
             None => {
                 let ring = FocusRing::style(&current(ui.ctx()));
-                let halo = current(ui.ctx()).component.handle.halo;
+                let halo = current(ui.ctx()).stroke.thin;
                 let focus_halo = Stroke::new(ring.stroke.width + 2.0 * halo, current(ui.ctx()).color.overlay.halo.to_egui());
                 let line = outset(&corners, width / 2.0 + ring.offset + ring.stroke.width / 2.0);
                 painter.add(Shape::closed_line(line.to_vec(), focus_halo));

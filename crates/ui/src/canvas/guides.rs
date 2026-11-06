@@ -15,6 +15,11 @@ use kurbo::{Point, Rect, Vec2};
 
 use craft_theme::{Rgba, TypeRole, contrast_ratio};
 
+/// The colour of the selected guide.
+const SELECTED_GUIDE: Rgba = Rgba::rgb(0, 0, 255);
+/// The colour of smart guides and their distances.
+const SMART_GUIDE: Rgba = Rgba::rgb(255, 0, 255);
+
 use super::claim::PrimaryPress;
 use super::units::tick_snap;
 use super::{CanvasView, Claim, Readout, RulerUnits, crisp_shape, hit, resize_cursor};
@@ -119,7 +124,7 @@ pub struct Guide {
     /// Where the guide runs along its length; `None` across the whole view (PhotoCraft).
     pub span: Option<Range<f64>>,
     /// The host's colour for this guide, in place of `overlay.guide` (PhotoCraft's New Guide
-    /// colour and preferences). The selected guide is `overlay.guide_selected` whatever it is.
+    /// colour and preferences). The selected guide is blue whatever it is.
     pub color: Option<Color32>,
     /// How the line is drawn.
     pub line: GuideLine,
@@ -181,27 +186,27 @@ pub struct GuidesResponse {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GuideStyle {
-    /// Line width: `guide.width`.
+    /// Line width: `stroke.thin`.
     pub width: f32,
-    /// Distance from a guide within which the pointer takes it: `guide.hit`.
+    /// Distance from a guide within which the pointer takes it: `size.hit.slop`.
     pub hit: f32,
-    /// A dashed guide's dashes and gaps: `guide.dash`, `guide.gap`.
+    /// A dashed guide's dashes and gaps: `stroke.dash`, `stroke.dash_gap`.
     pub dash: f32,
     /// A dashed guide's gap length, in screen points.
     pub gap: f32,
-    /// A dotted guide's dot spacing and radius: `guide.dot_gap`, `guide.dot_radius`.
+    /// A dotted guide's dot spacing: `stroke.dash_gap`.
     pub dot_gap: f32,
     /// A dotted guide's dot radius, in screen points.
     pub dot_radius: f32,
     /// `overlay.guide`.
     pub color: Color32,
-    /// The selected guide: `overlay.guide_selected`.
+    /// The selected guide: blue.
     pub selected: Color32,
-    /// Smart guides and distances: `overlay.smart_guide`.
+    /// Smart guides and distances: magenta.
     pub smart: Color32,
-    /// A distance's end caps: `guide.measure_cap`.
+    /// A distance's end caps.
     pub measure_cap: f32,
-    /// Around a distance's label: `guide.measure_pad_x`, `guide.measure_pad_y`.
+    /// Around a distance's label: `space.pad.control` and `space.gap.tight`.
     pub measure_pad: ScreenVec,
     /// A distance label's corners: `shape.radius.control`.
     pub measure_radius: CornerRadius,
@@ -211,7 +216,7 @@ pub struct GuideStyle {
     pub measure_text: Color32,
     /// The lines beside the focused guide: the focus ring's stroke.
     pub focus: Stroke,
-    /// Under each focus line, so it reads on any image: `overlay.halo`, `handle.halo` wider than
+    /// Under each focus line, so it reads on any image: `overlay.halo`, `stroke.thin` wider than
     /// the line on each side.
     pub focus_halo: Stroke,
     /// From the guide's edge to the focus lines: the focus ring's offset.
@@ -248,7 +253,7 @@ struct Pass<'p> {
     canvas: &'p Response,
     view: &'p CanvasView,
     style: GuideStyle,
-    /// `ruler.step_min`, for the snap to the ticks.
+    /// the ruler's least tick step, for the snap to the ticks.
     step_min: f32,
     /// The x and y units.
     units: (&'p RulerUnits, &'p RulerUnits),
@@ -326,7 +331,7 @@ struct Release {
 ///
 /// - The host shows them before its tool input and skips the tool while
 ///   [`claimed`](GuidesResponse::claimed); objects that beat guides (DesignCraft) come first.
-/// - A press within `guide.hit` of an unlocked guide takes it ([`Claim`]); past 0.5 points it
+/// - A press within `size.hit.slop` of an unlocked guide takes it ([`Claim`]); past 0.5 points it
 ///   drags, and the release commits where it is, or removes the guide over a ruler or outside the
 ///   [bounds](Self::bounds). A release within 0.5 points is a click, which selects. A press
 ///   off the guides deselects, whatever the tool. Esc cancels a drag.
@@ -438,23 +443,24 @@ impl<'a> Guides<'a> {
 
     /// The guide look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GuideStyle {
-        let (g, o) = (&tokens.component.guide, &tokens.color.overlay);
-        let halo = tokens.component.handle.halo;
+        let o = &tokens.color.overlay;
+        let g = crate::style::guide::GuideStyle::new(tokens);
+        let halo = tokens.stroke.thin;
         let ring = FocusRing::style(tokens);
-        let smart: Rgba = o.smart_guide;
+        let smart: Rgba = SMART_GUIDE;
         let text = readable_on(smart.to_egui());
         GuideStyle {
-            width: g.width,
-            hit: g.hit,
-            dash: g.dash,
-            gap: g.gap,
-            dot_gap: g.dot_gap,
+            width: tokens.stroke.thin,
+            hit: tokens.size.hit.slop,
+            dash: tokens.stroke.dash,
+            gap: tokens.stroke.dash_gap,
+            dot_gap: tokens.stroke.dash_gap,
             dot_radius: g.dot_radius,
             color: o.guide.to_egui(),
-            selected: o.guide_selected.to_egui(),
+            selected: SELECTED_GUIDE.to_egui(),
             smart: smart.to_egui(),
             measure_cap: g.measure_cap,
-            measure_pad: vec2(g.measure_pad_x, g.measure_pad_y),
+            measure_pad: vec2(tokens.space.pad.control, tokens.space.gap.tight),
             measure_radius: tokens.radius.control,
             measure_role: TypeRole::Caption,
             measure_text: text,
@@ -510,7 +516,7 @@ impl<'a> Guides<'a> {
             canvas,
             view,
             style: Guides::style(&tokens),
-            step_min: tokens.component.ruler.step_min,
+            step_min: crate::style::ruler::RulerStyle::new(&tokens).step_min,
             units,
             segments: self.guides.iter().map(|g| segment(view, visible, g.orientation, g.position, g.span.as_ref())).collect(),
             visible,
@@ -1089,7 +1095,7 @@ pub struct Measure {
 /// guides and Alt distances): `SmartGuides::new(&lines, &measures).show(ui, &view)`.
 ///
 /// Drawing only: the host computes what aligns and how far apart things are. Lines are 1 point
-/// of `overlay.smart_guide`, crisp; extensions dashed; distances get `guide.measure_cap` end
+/// of magenta, crisp; extensions dashed; distances get end
 /// caps and a label pill; [`color`](SmartGuides::color) replaces that colour (an app's "Smart
 /// Guide Color" preference) and [`bounds`](SmartGuides::bounds) outlines the moving object (the
 /// Move tool's bounds) in `accent.solid`. Not in the AccessKit tree: they are hints during a gesture, whose
@@ -1107,7 +1113,7 @@ impl<'a> SmartGuides<'a> {
         Self { lines, measures, color: None, bounds: None }
     }
 
-    /// The colour of the lines and distances, instead of `overlay.smart_guide`. The label text
+    /// The colour of the lines and distances, instead of magenta. The label text
     /// stays black or white, whichever contrasts more with it.
     pub fn color(mut self, color: Color32) -> Self {
         self.color = Some(color);

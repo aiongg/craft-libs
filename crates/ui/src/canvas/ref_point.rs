@@ -15,13 +15,16 @@ use crate::story::{Level, Story, StoryArgs, Surface};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 use crate::typed_story;
 
+/// Side of an unpicked point's dot.
+const DOT: f32 = 3.5;
+
 /// The size of a [`ReferencePoint`].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum RefSize {
-    /// `ref_point.compact` points square, for an options bar.
+    /// `size.icon.sm` points square, for an options bar.
     #[default]
     Compact,
-    /// `ref_point.large` points square, for a dialog; with [`growth`](ReferencePoint::growth) arrows.
+    /// `3 * size.control.md` points square, for a dialog; with [`growth`](ReferencePoint::growth) arrows.
     Large,
 }
 
@@ -29,11 +32,11 @@ pub enum RefSize {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ReferencePointStyle {
-    /// Side of the whole picker: `ref_point.compact` or `ref_point.large`.
+    /// Side of the whole picker: `size.icon.sm` or `3 * size.control.md`.
     pub side: f32,
-    /// Side of an unpicked point's dot: `ref_point.dot` (the large picker draws it twice as wide).
+    /// Side of an unpicked point's dot: the dot constant (the large picker draws it twice as wide).
     pub dot: f32,
-    /// Side of the picked point's dot: `ref_point.dot` (compact) or twice that (large).
+    /// Side of the picked point's dot: the dot constant (compact) or twice that (large).
     pub picked_dot: f32,
     /// The picker's fill: `surface.sunken`.
     pub fill: Color32,
@@ -128,17 +131,17 @@ impl ReferencePoint {
 
     /// The picker look in `tokens`, for a picker of `size`.
     pub fn style(tokens: &UiTokens, size: RefSize) -> ReferencePointStyle {
-        let (r, c) = (&tokens.component.ref_point, &tokens.color);
+        let c = &tokens.color;
         let (side, scale) = match size {
-            RefSize::Compact => (r.compact, 1.0),
-            RefSize::Large => (r.large, 2.0),
+            RefSize::Compact => (tokens.size.icon.sm, 1.0),
+            RefSize::Large => (tokens.size.control.md * 3.0, 2.0),
         };
         ReferencePointStyle {
             side,
-            dot: r.dot,
-            picked_dot: r.dot * scale,
+            dot: DOT,
+            picked_dot: DOT * scale,
             fill: c.surface.sunken.to_egui(),
-            border: Stroke::new(1.0, c.line.control_edge.to_egui()),
+            border: Stroke::new(tokens.stroke.thin, c.line.control_edge.to_egui()),
             radius: tokens.radius.control,
             dot_color: c.text.muted.to_egui(),
             picked: c.accent.text.to_egui(),

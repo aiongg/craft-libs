@@ -11,21 +11,21 @@ use crate::dialog::{
     ColorRequest, Dialog, DialogId, DialogResult, DialogStack, DialogState, Footer, InitialFocus, Outcome, StackDialog, Width, dialog_id,
 };
 use crate::localized::SharedLabels as _;
-use crate::theme::{ToEgui as _, Tokens, TokensOf as _, UiTokens};
+use crate::theme::{Tokens, TokensOf as _, UiTokens};
 
 /// The [`ColorRequest::key`] of Panel Options' Custom… colour.
 pub const NAVIGATOR_PROXY_COLOR_KEY: &str = "navigator.proxyColor";
 
 /// The proxy rectangle's colour (Panel Options › Color).
 ///
-/// `Default` is the theme's `navigator.proxy` (PhotoCraft's and Photoshop's light red,
+/// `Default` is [`DEFAULT_PROXY_COLOR`](super::style::DEFAULT_PROXY_COLOR) (PhotoCraft's and Photoshop's light red,
 /// `rgb(255, 84, 84)`); the named colours are fixed data the same in every theme, chosen to read on
 /// the dark preview box (Photoshop's exact list was not available, so the hues follow
 /// PhotoCraft's Button Mode names); `Custom` is a colour from the app's picker, kept as 8-bit sRGB
 /// (as `GuideColor::Custom`). Serialised by variant name, `Custom` as `{"Custom": [r, g, b]}`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum ProxyColor {
-    /// The theme's `navigator.proxy` colour.
+    /// The default proxy colour.
     #[default]
     Default,
     #[allow(missing_docs)]
@@ -74,22 +74,19 @@ impl ProxyColor {
         }
     }
 
-    /// The colour drawn: `Default` reads `navigator.proxy` from `tokens`; the named ones are the
-    /// lead's data (red 255/84/84, orange 255/160/60, yellow 255/214/64, green 92/214/110, blue
-    /// 84/160/255, violet 176/124/255, gray 200/200/200); `Custom`
-    /// is its own value.
-    pub fn color(self, tokens: &UiTokens) -> Color32 {
-        let navigator = &tokens.component.navigator;
-        let named = |index: usize| navigator.proxy_colors[index].to_egui();
+    /// The colour drawn: `Default` is the default proxy colour; the named ones are fixed data (red
+    /// 255/84/84, orange 255/160/60, yellow 255/214/64, green 92/214/110, blue 84/160/255, violet
+    /// 176/124/255, gray 200/200/200); `Custom` is its own value.
+    pub fn color(self, _tokens: &UiTokens) -> Color32 {
         match self {
-            ProxyColor::Default => navigator.proxy.to_egui(),
-            ProxyColor::Red => named(0),
-            ProxyColor::Orange => named(1),
-            ProxyColor::Yellow => named(2),
-            ProxyColor::Green => named(3),
-            ProxyColor::Blue => named(4),
-            ProxyColor::Violet => named(5),
-            ProxyColor::Gray => named(6),
+            ProxyColor::Default => super::style::DEFAULT_PROXY_COLOR,
+            ProxyColor::Red => Color32::from_rgb(255, 84, 84),
+            ProxyColor::Orange => Color32::from_rgb(255, 160, 60),
+            ProxyColor::Yellow => Color32::from_rgb(255, 214, 64),
+            ProxyColor::Green => Color32::from_rgb(92, 214, 110),
+            ProxyColor::Blue => Color32::from_rgb(84, 160, 255),
+            ProxyColor::Violet => Color32::from_rgb(176, 124, 255),
+            ProxyColor::Gray => Color32::from_rgb(200, 200, 200),
             ProxyColor::Custom([r, g, b]) => Color32::from_rgb(r, g, b),
         }
     }

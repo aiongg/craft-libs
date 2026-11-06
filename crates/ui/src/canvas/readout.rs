@@ -12,13 +12,14 @@ use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ReadoutStyle {
-    /// From the pointer to the readout's corner: `readout.offset_x`, `readout.offset_y`.
+    /// From the pointer to the readout's corner: `size.control.md` less `space.gap.row` across and
+    /// less `space.gap.tight` down.
     pub offset: Vec2,
-    /// Around the rows: `readout.pad_x`, `readout.pad_y`.
+    /// Around the rows: `space.gap.stack` across and `space.gap.row` down.
     pub pad: Vec2,
-    /// Between the widest label and the widest value: `readout.col_gap`.
+    /// Between the widest label and the widest value: `space.gap.section`.
     pub col_gap: f32,
-    /// Between rows: `readout.row_gap`.
+    /// Between rows: `stroke.thin`.
     pub row_gap: f32,
     /// `surface.raised`.
     pub fill: Color32,
@@ -68,7 +69,7 @@ impl ReadoutLayout {
 /// `W:` and `H:` (PhotoCraft's transformation values):
 /// `Readout::new("marquee-size").row("W:", w).row("H:", h).show(ctx, pointer)`.
 ///
-/// It floats above everything at the pointer plus `readout.offset`, kept on screen, and takes no
+/// It floats above everything at the pointer plus its offset, kept on screen, and takes no
 /// input. Labels and values are the host's translated text; the host decides whether to show it
 /// (PhotoCraft's Show Transformation Values). In AccessKit it is a tooltip node holding the rows'
 /// text.
@@ -98,14 +99,15 @@ impl Readout {
 
     /// The readout look in `tokens`.
     pub fn style(tokens: &UiTokens) -> ReadoutStyle {
-        let (r, c) = (&tokens.component.readout, &tokens.color);
+        let (c, space) = (&tokens.color, &tokens.space);
+        let control = tokens.size.control.md;
         ReadoutStyle {
-            offset: vec2(r.offset_x, r.offset_y),
-            pad: vec2(r.pad_x, r.pad_y),
-            col_gap: r.col_gap,
-            row_gap: r.row_gap,
+            offset: vec2(control - space.gap.row, control - space.gap.tight),
+            pad: vec2(space.gap.stack, space.gap.row),
+            col_gap: space.gap.section,
+            row_gap: tokens.stroke.thin,
             fill: c.surface.raised.to_egui(),
-            border: Stroke::new(1.0, c.line.border.to_egui()),
+            border: Stroke::new(tokens.stroke.thin, c.line.border.to_egui()),
             radius: tokens.radius.control,
             role: TypeRole::Label,
             label: c.text.muted.to_egui(),

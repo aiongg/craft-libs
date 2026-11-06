@@ -127,11 +127,11 @@ impl ScrollbarNames {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct ScrollbarStyle {
-    /// Thickness of a bar and side of the corner square: `scroll.canvas_width`.
+    /// Thickness of a bar and side of the corner square: `size.icon.sm`.
     pub width: f32,
-    /// Between a bar's edge and its thumb: `scroll.thumb_inset`.
+    /// Between a bar's edge and its thumb: `space.gap.tight`.
     pub inset: f32,
-    /// Shortest thumb: `scroll.thumb_min`.
+    /// Shortest thumb.
     pub thumb_min: f32,
     /// The tracks and the corner: `surface.chrome`.
     pub track: Color32,
@@ -185,10 +185,11 @@ impl CanvasScrollbars {
 
     /// The bars' look in `tokens`.
     pub fn style(tokens: &UiTokens) -> ScrollbarStyle {
-        let (c, s) = (&tokens.color, &tokens.component.scroll);
+        let c = &tokens.color;
+        let s = crate::style::scroll::ScrollStyle::new(tokens);
         ScrollbarStyle {
             width: s.canvas_width,
-            inset: s.thumb_inset,
+            inset: tokens.space.gap.tight,
             thumb_min: s.thumb_min,
             track: c.surface.chrome.to_egui(),
             thumb: c.text.faint.to_egui(),

@@ -7,6 +7,12 @@ use super::guides::dashes;
 use super::{CanvasView, GuideLine, crisp_shape};
 use crate::theme::{ToEgui, Tokens, TokensOf, UiTokens};
 
+/// A page's margin guide colour when the host gives none: InDesign's magenta.
+pub const DEFAULT_PAGE_MARGINS: craft_theme::Rgba = craft_theme::Rgba::rgb(255, 56, 255);
+/// A page's column guide colour when the host gives none: InDesign's violet.
+pub const DEFAULT_PAGE_COLUMNS: craft_theme::Rgba = craft_theme::Rgba::rgb(166, 40, 255);
+/// A page's baseline grid colour when the host gives none: InDesign's light blue.
+pub const DEFAULT_PAGE_BASELINE: craft_theme::Rgba = craft_theme::Rgba::rgb(140, 205, 230);
 /// Most lines the grid draws along one axis.
 pub const MAX_LINES: usize = 10_000;
 /// Most crossing dots the grid draws.
@@ -18,11 +24,11 @@ pub enum GridLine {
     #[default]
     #[allow(missing_docs)]
     Solid,
-    /// Dashes of `guide.dash` with gaps of `guide.gap`.
+    /// Dashes of `stroke.dash` with gaps of `stroke.dash_gap`.
     Dashed,
-    /// Dots `guide.dot_gap` apart, of radius `guide.dot_radius`.
+    /// Dots `stroke.dash_gap` apart, of the guides' dot radius.
     Dots,
-    /// A `grid.crossing` square at each crossing of two lines where either is major; no lines.
+    /// A `stroke.medium` square at each crossing of two lines where either is major; no lines.
     Crossings,
 }
 
@@ -40,21 +46,21 @@ impl From<GuideLine> for GridLine {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GridStyle {
-    /// Line width: `grid.width`.
+    /// Line width: `stroke.thin`.
     pub width: f32,
-    /// Minor lines' share of the colour's alpha: `grid.minor_alpha`.
+    /// Minor lines' share of the colour's alpha.
     pub minor_alpha: f32,
-    /// Smallest step in screen points at which an axis draws: `grid.min_step`.
+    /// Smallest step in screen points at which an axis draws.
     pub min_step: f32,
-    /// Side of a crossing dot: `grid.crossing`.
+    /// Side of a crossing dot: `stroke.medium`.
     pub crossing: f32,
-    /// Smallest major spacing in screen points at which crossings draw: `grid.crossing_min`.
+    /// Smallest major spacing in screen points at which crossings draw.
     pub crossing_min: f32,
-    /// Dashes and gaps of the Dashed style: `guide.dash`, `guide.gap`.
+    /// Dashes and gaps of the Dashed style: `stroke.dash`, `stroke.dash_gap`.
     pub dash: f32,
     /// The gap length of the Dashed style, in screen points.
     pub gap: f32,
-    /// Dot spacing and radius of the Dots style: `guide.dot_gap`, `guide.dot_radius`.
+    /// Dot spacing of the Dots style: `stroke.dash_gap`.
     pub dot_gap: f32,
     /// The dot radius of the Dots style, in screen points.
     pub dot_radius: f32,
@@ -164,17 +170,17 @@ impl CanvasGrid {
 
     /// The grid look in `tokens`.
     pub fn style(tokens: &UiTokens) -> GridStyle {
-        let (g, guide) = (&tokens.component.grid, &tokens.component.guide);
+        let g = crate::style::grid::GridStyle::new(tokens);
         GridStyle {
-            width: g.width,
+            width: tokens.stroke.thin,
             minor_alpha: g.minor_alpha,
             min_step: g.min_step,
-            crossing: g.crossing,
+            crossing: tokens.stroke.medium,
             crossing_min: g.crossing_min,
-            dash: guide.dash,
-            gap: guide.gap,
-            dot_gap: guide.dot_gap,
-            dot_radius: guide.dot_radius,
+            dash: tokens.stroke.dash,
+            gap: tokens.stroke.dash_gap,
+            dot_gap: tokens.stroke.dash_gap,
+            dot_radius: crate::style::guide::GuideStyle::new(tokens).dot_radius,
             color: tokens.color.overlay.grid.to_egui(),
         }
     }

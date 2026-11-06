@@ -99,19 +99,19 @@ pub struct RulersResponse {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct RulerStyle {
-    /// Thickness of a strip and side of the corner: `ruler.size`.
+    /// Thickness of a strip and side of the corner: `size.icon.sm`.
     pub size: f32,
-    /// The labels' font: the UI face at `ruler.label`.
+    /// The labels' font: the UI face at `typography.caption.size`.
     pub font: FontId,
-    /// Between the characters of the left ruler's labels: `ruler.label_pitch`.
+    /// Between the characters of the left ruler's labels: the label pitch.
     pub label_pitch: f32,
-    /// Between a tick and its label: `ruler.label_pad`.
+    /// Between a tick and its label: `space.gap.tight`.
     pub label_pad: f32,
-    /// Least distance between labelled ticks: `ruler.step_min`.
+    /// Least distance between labelled ticks: the least tick step.
     pub step_min: f32,
-    /// Length of the tick halfway between labelled ticks: `ruler.tick_mid`.
+    /// Length of the tick halfway between labelled ticks: the mid tick length.
     pub tick_mid: f32,
-    /// Length of the other minor ticks: `ruler.tick_minor`.
+    /// Length of the other minor ticks: the minor tick length.
     pub tick_minor: f32,
     /// The strips and the corner: `surface.chrome`.
     pub fill: Color32,
@@ -121,7 +121,7 @@ pub struct RulerStyle {
     pub label: Color32,
     /// The pointer's marker and the cross hairs of a zero point drag: 1 point of `text.normal`.
     pub marker: Stroke,
-    /// The margin part of a strip, where the text part keeps `fill`: `ruler.margin_shade`.
+    /// The margin part of a strip, where the text part keeps `fill`: `surface.sunken`.
     pub margin_shade: Color32,
 }
 
@@ -150,8 +150,8 @@ impl RulerNames {
 pub struct RulerTick {
     /// Ruler units from the zero point.
     pub value: f64,
-    /// Along the strip's depth: `ruler.size` for a labelled tick, `ruler.tick_mid` halfway between
-    /// two, `ruler.tick_minor` for the rest.
+    /// Along the strip's depth: `size.icon.sm` for a labelled tick, the mid tick length halfway between
+    /// two, the minor tick length for the rest.
     pub length: f32,
     /// A labelled tick's number, written by [`RulerUnits::tick_label`].
     pub label: Option<String>,
@@ -164,7 +164,7 @@ pub enum TickRule<'a> {
     /// host's custom table.
     Metric,
     /// Inches: a label every inch (every 2, 5, 10 … inches when smaller), subdivided by the
-    /// first of these counts, finest first, that keeps the ticks `ruler.step_min` / 10 points
+    /// first of these counts, finest first, that keeps the ticks the least tick step / 10 points
     /// apart, the spacing of the metric rule's tenths ([`INCH_SIXTEENTHS`], [`INCH_EIGHTHS`]).
     Inches(&'a [u32]),
 }
@@ -334,27 +334,28 @@ impl<'a> Rulers<'a> {
 
     /// The canvas's rect inside the rulers of the area `full`.
     pub fn content_rect(tokens: &UiTokens, full: ScreenRect) -> ScreenRect {
-        let size = tokens.component.ruler.size;
+        let size = tokens.size.icon.sm;
         ScreenRect::from_min_max(full.min + vec2(size, size), full.max)
     }
 
     /// The ruler look in `tokens`.
     pub fn style(tokens: &UiTokens) -> RulerStyle {
-        let (r, c) = (&tokens.component.ruler, &tokens.color);
+        let c = &tokens.color;
+        let r = crate::style::ruler::RulerStyle::new(tokens);
         let family = tokens.families().family(craft_theme::FontSlot::Ui).clone();
         RulerStyle {
-            size: r.size,
-            font: FontId::new(r.label, family),
+            size: tokens.size.icon.sm,
+            font: FontId::new(tokens.typography.caption.size, family),
             label_pitch: r.label_pitch,
-            label_pad: r.label_pad,
+            label_pad: tokens.space.gap.tight,
             step_min: r.step_min,
             tick_mid: r.tick_mid,
             tick_minor: r.tick_minor,
             fill: c.surface.chrome.to_egui(),
-            tick: Stroke::new(1.0, c.text.faint.to_egui()),
+            tick: Stroke::new(tokens.stroke.thin, c.text.faint.to_egui()),
             label: c.text.muted.to_egui(),
-            marker: Stroke::new(1.0, c.text.normal.to_egui()),
-            margin_shade: r.margin_shade.to_egui(),
+            marker: Stroke::new(tokens.stroke.thin, c.text.normal.to_egui()),
+            margin_shade: c.surface.sunken.to_egui(),
         }
     }
 
@@ -676,7 +677,7 @@ fn show_canvas(ui: &mut Ui, args: &mut CanvasArgs) {
 
     let tokens = Tokens::of(ui);
     let document_name = crate::story::StoryLabels::of(ui).document;
-    let canvas = super::story::document_in(ui, args.view, &document_name, tokens.component.ruler.size);
+    let canvas = super::story::document_in(ui, args.view, &document_name, tokens.size.icon.sm);
     let (response, view, full) = (&canvas.response, &canvas.view, canvas.full);
 
     let key = ui.scope_id().with("rulers-story");
