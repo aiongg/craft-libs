@@ -10,7 +10,6 @@ use crate::controls::Button;
 use crate::direction;
 use crate::localized::Labels as _;
 use crate::theme::{Tokens, TokensOf};
-use craft_theme::ControlSize;
 
 crate::words! {
     /// The labels of the buttons a footer names itself, English by default; a footer the host gave
@@ -427,8 +426,8 @@ impl<'a> Footer<'a> {
         }
         self.resolve_enabled();
         let tokens = Tokens::of(ui);
-        let gap = tokens.component.dialog.button_gap;
-        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.component.button.height.get(ControlSize::Md)));
+        let gap = tokens.space.gap.inline;
+        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.size.control.md));
         // The leading `Ui` is made first so that AccessKit lists it first; it is filled once the
         // trailing side's width is known.
         let mut lead = ui.new_child(UiBuilder::new().max_rect(rect));
@@ -467,7 +466,7 @@ impl<'a> Footer<'a> {
     /// Draws the [`below`](Footer::below) content, a button gap under the footer's last row.
     fn show_below(&mut self, ui: &mut Ui) {
         if let Some(below) = self.below.take() {
-            let gap = Tokens::of(ui).component.dialog.button_gap;
+            let gap = Tokens::of(ui).space.gap.inline;
             ui.add_space(gap);
             below(ui);
         }
@@ -478,18 +477,19 @@ impl<'a> Footer<'a> {
     pub(super) fn show_side(mut self, ui: &mut Ui, cx: FooterCx, body: impl FnOnce(&mut Ui)) -> FooterRun {
         self.resolve_labels(ui);
         let tokens = Tokens::of(ui);
-        let t = tokens.component.dialog;
+        let side_min = crate::style::dialog::DialogStyle::new(&tokens).side_min;
+        let button_gap = tokens.space.gap.inline;
         let mut labels: Vec<(ButtonRole, String)> = Vec::new();
         labels.extend(self.ok.get(&self.labels.ok).map(|l| (ButtonRole::Default, l)));
         let reset = self.alt_reset(ui).map(str::to_owned);
         labels.extend(self.cancel.get(&self.labels.cancel).map(|l| (ButtonRole::Cancel, reset.clone().unwrap_or(l))));
         let extras_from = labels.len();
         labels.extend(self.extras.iter().map(|l| (ButtonRole::Alternate, l.clone())));
-        let width = labels.iter().fold(t.side_min, |w, (_, label)| w.max(Button::new(label.as_str()).natural_width(ui)));
+        let width = labels.iter().fold(side_min, |w, (_, label)| w.max(Button::new(label.as_str()).natural_width(ui)));
 
         let room = ui.available_rect_before_wrap();
         let (start, end, forward) = (direction::start_x(ui, room), direction::end_x(ui, room), direction::forward(ui));
-        let body_end = end - forward * (width + t.button_gap);
+        let body_end = end - forward * (width + button_gap);
         let span = |a: f32, b: f32| a.min(b)..=a.max(b);
         let mut body_ui =
             ui.new_child(UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(span(start, body_end), room.y_range())).layout(direction::column(ui)));
@@ -500,7 +500,7 @@ impl<'a> Footer<'a> {
         let mut column = ui.new_child(
             UiBuilder::new().max_rect(egui::Rect::from_x_y_ranges(span(end - forward * width, end), room.y_range())).layout(direction::column(ui)),
         );
-        column.spacing_mut().item_spacing.y = t.button_gap;
+        column.spacing_mut().item_spacing.y = button_gap;
         let mut run = FooterRun::default();
         for (index, (role, label)) in labels.iter().enumerate() {
             let variant = if *role == ButtonRole::Default { craft_theme::ButtonVariant::Primary } else { craft_theme::ButtonVariant::Secondary };

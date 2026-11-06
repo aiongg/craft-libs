@@ -131,7 +131,7 @@ fn lines(ui: &mut Ui, count: usize) {
 /// The bare frame inline: the surface, the title row with its rule, a body.
 fn show_frame(ui: &mut Ui, args: &mut FrameArgs) {
     let tokens = crate::theme::current(ui.ctx());
-    let (min, max) = args.width.width().range(&tokens.component.dialog, 2000.0);
+    let (min, max) = args.width.width().range(&tokens, 2000.0);
     let mut frame = DialogFrame::new("story-frame", "Tool Options").roomy(args.roomy).width(min, max);
     if args.close_box {
         frame = frame.close_label(DialogLabels::of(ui).close);

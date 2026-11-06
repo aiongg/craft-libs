@@ -173,7 +173,7 @@ impl StackDialog for UpdatePromptDialog {
             &mut (),
             |ui, ()| {
                 subject.head(ui, &labels.version_line.replace("{running}", &self.running_version).replace("{version}", &version));
-                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                ui.add_space(current(ui.ctx()).space.pad.dialog);
                 if let Some(status) = status {
                     Notice::new(status.as_str()).tone(Tone::Warn).id_salt("status").show(ui);
                 }
@@ -378,7 +378,7 @@ impl StackDialog for UpdateCheckDialog {
             &mut (),
             |ui, ()| {
                 subject.head(ui, &format!("v{running}"));
-                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                ui.add_space(current(ui.ctx()).space.pad.dialog);
                 match status {
                     Status::Checking => {
                         ui.horizontal(|ui| {
@@ -447,7 +447,7 @@ impl UpdateCheckDialog {
             &mut (),
             |ui, ()| {
                 subject.head(ui, &labels.version_line.replace("{running}", running).replace("{version}", &version));
-                ui.add_space(current(ui.ctx()).component.dialog.pad);
+                ui.add_space(current(ui.ctx()).space.pad.dialog);
                 if !self_updating {
                     Notice::new(labels.cannot_auto_update.as_str()).tone(Tone::Warn).id_salt("cannot-update").show(ui);
                 }

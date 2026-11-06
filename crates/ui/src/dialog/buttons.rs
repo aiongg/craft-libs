@@ -1,7 +1,7 @@
 //! The role-based button row every dialog footer uses: [`ButtonRole`], [`Platform`], the order
 //! rules ([`ButtonRole::slot`], [`order`]) and [`FooterButtons`].
 
-use craft_theme::{ButtonVariant, ControlSize};
+use craft_theme::ButtonVariant;
 use egui::os::OperatingSystem;
 use egui::{AsIdSalt, Context, Id, IdSalt, Key, Modifiers, Response, Sense, Ui, vec2};
 
@@ -79,7 +79,7 @@ impl FooterButton {
         Self { role, label: label.into(), min_width: 0.0, enabled: true }
     }
 
-    /// A least width above `dialog.button_min`.
+    /// A least width above `DialogStyle::button_min`.
     pub fn min_width(mut self, width: f32) -> Self {
         self.min_width = width;
         self
@@ -122,8 +122,8 @@ pub struct FooterButtonsResponse {
     pub responses: Vec<Response>,
 }
 
-/// A row of role buttons at the trailing edge, in the platform's order, `dialog.button_gap` apart
-/// and at least `dialog.button_min` wide. The row is laid out in reading order, so Tab, arrow
+/// A row of role buttons at the trailing edge, in the platform's order, `space.gap.inline` apart
+/// and at least `DialogStyle::button_min` wide. The row is laid out in reading order, so Tab, arrow
 /// keys and AccessKit visit the buttons in the order they appear.
 ///
 /// - The [`Default`](ButtonRole::Default) button is the primary one and is described as the
@@ -170,23 +170,23 @@ impl FooterButtons {
     pub fn show(self, ui: &mut Ui) -> FooterButtonsResponse {
         let tokens = Tokens::of(ui);
         let id = ui.make_persistent_id(self.id_salt);
-        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.component.button.height.get(ControlSize::Md)));
+        let (_, rect) = ui.allocate_space(vec2(ui.available_width(), tokens.size.control.md));
         let (shown, _) =
-            measure::trailing_row(ui, id.with("row"), rect, Sense::hover(), tokens.component.dialog.button_gap, 0.0, |row| self.place(row, id));
+            measure::trailing_row(ui, id.with("row"), rect, Sense::hover(), tokens.space.gap.inline, 0.0, |row| self.place(row, id));
         shown
     }
 
     /// Adds the buttons to `row`, a row in reading order (the footer's trailing row).
     pub(super) fn place(&self, row: &mut Ui, id: Id) -> FooterButtonsResponse {
-        let min = Tokens::of(row).component.dialog.button_min;
+        let min = crate::style::dialog::DialogStyle::new(&Tokens::of(row)).button_min;
         let platform = self.platform.unwrap_or_else(|| Platform::of(row.ctx()));
         let roles: Vec<(ButtonRole, ())> = self.buttons.iter().map(|b| (b.role, ())).collect();
         self.place_in(row, id, order(&roles, platform), min)
     }
 
-    /// The width of a button column: the longest label, at least `dialog.side_min`.
+    /// The width of a button column: the longest label, at least `DialogStyle::side_min`.
     pub fn column_width(&self, ui: &Ui) -> f32 {
-        let side_min = Tokens::of(ui).component.dialog.side_min;
+        let side_min = crate::style::dialog::DialogStyle::new(&Tokens::of(ui)).side_min;
         self.buttons.iter().fold(side_min, |w, b| w.max(Button::new(b.label.as_str()).natural_width(ui)))
     }
 
@@ -194,7 +194,7 @@ impl FooterButtons {
     /// [`column_width`](FooterButtons::column_width) wide: the side column of a dialog.
     pub fn place_column(&self, column: &mut Ui, id: Id) -> FooterButtonsResponse {
         let width = self.column_width(column);
-        column.spacing_mut().item_spacing.y = Tokens::of(column).component.dialog.side_gap;
+        column.spacing_mut().item_spacing.y = Tokens::of(column).space.gap.tight;
         self.place_in(column, id, (0..self.buttons.len()).collect(), width)
     }
 

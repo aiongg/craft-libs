@@ -74,9 +74,9 @@ pub struct FullWindowCanvasOutput {
 ///     .show(ui);
 /// ```
 ///
-/// - **Look.** The rest of the body on `full_window.canvas.fill`; the image through
+/// - **Look.** The rest of the body on `surface.canvas`; the image through
 ///   [`RasterDisplay`](crate::canvas::RasterDisplay) over the [checkerboard](Self::checkerboard),
-///   with a 1 pt `full_window.canvas.outline` outside it; then each [`RasterOverlay`] in the order
+///   with a `line.divider` outline outside it; then each [`RasterOverlay`] in the order
 ///   given; then the [`painter`](Self::painter) marks; then the tool's own painting and cursor.
 /// - **View.** [`FullWindowView`] fits the image on the first pass and keeps fitting it until the
 ///   user zooms or pans. The wheel, pinch and two-finger scroll follow the user's

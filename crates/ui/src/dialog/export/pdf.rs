@@ -34,6 +34,9 @@ use crate::localized::{LocaleNumbers, SharedLabels as _};
 use crate::primitives::Text;
 use crate::theme::{ToEgui as _, Tokens, TokensOf as _, role_format};
 
+/// Rows of the settings page beside the section list.
+const CONTENT_ROWS: f32 = 12.0;
+
 /// Which artboards to write.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum PdfArtboards {
@@ -392,7 +395,11 @@ impl StackDialog for PdfExportDialog {
         let labels = PdfExportLabels::shared_ctx(ctx);
         let numbers = LocaleNumbers::of_ctx(ctx);
         let tokens = crate::theme::current(ctx);
-        let export_tokens = tokens.component.export;
+        let pane_gap = tokens.space.pad.panel;
+        let dialog_width = super::super::large_dialog_width(ctx, &tokens);
+        let list_width = dialog_width / 4.0;
+        let content_width = dialog_width - list_width - pane_gap;
+        let content_height = CONTENT_ROWS * tokens.size.control.md;
         let error_text = self.blocked(&labels);
         let base = self.presets().into_iter().find(|preset| preset.name == self.preset).map(|preset| preset.settings).unwrap_or_default();
         let changed = summary::changes(&labels, &self.settings, &base);
@@ -407,7 +414,7 @@ impl StackDialog for PdfExportDialog {
         let Self { app, settings, preset, naming, profiles, flatteners, unit, document_bleed, artboards, switches, state, .. } = self;
         let shown = Dialog::with_id(id, labels.title.as_str())
             .stack(stack)
-            .width(Width::Fixed(export_tokens.pdf_width))
+            .width(Width::Fixed(dialog_width))
             .footer(Footer::standard().ok(labels.save.as_str()).ok_enabled(!saving && error_text.is_none()))
             .show(ctx, state, &mut (), |ui, ()| {
                 ui.vertical(|ui| {
@@ -415,12 +422,12 @@ impl StackDialog for PdfExportDialog {
                     ui.add_space(tokens.space.gap.section);
                     ui.horizontal_top(|ui| {
                         ui.vertical(|ui| {
-                            ui.set_width(export_tokens.pdf_list_width);
-                            section = section_list(ui, section, &labels, tokens.component.field.height.md);
+                            ui.set_width(list_width);
+                            section = section_list(ui, section, &labels, tokens.size.control.md);
                         });
-                        ui.add_space(export_tokens.pdf_gap);
+                        ui.add_space(pane_gap);
                         ui.vertical(|ui| {
-                            ui.set_width(export_tokens.pdf_content_width);
+                            ui.set_width(content_width);
                             ui.add(Text::new(section_title(&labels, section)).role(TypeRole::Title));
                             ui.add_space(tokens.space.gap.row);
                             let mut sections = Sections {
@@ -439,7 +446,7 @@ impl StackDialog for PdfExportDialog {
                             };
                             egui::ScrollArea::vertical()
                                 .id_salt(("pdf-section", section))
-                                .max_height(export_tokens.pdf_content_height)
+                                .max_height(content_height)
                                 .auto_shrink([false, false])
                                 .show(ui, |ui| {
                                     sections.show(ui, section);

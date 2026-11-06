@@ -170,7 +170,7 @@ fn a_dialog_is_dragged_no_further_than_the_window() {
 
 #[test]
 fn width_classes_set_the_frame_width_within_the_window() {
-    // The frame is the content width plus `dialog.pad` on each side.
+    // The frame is the content width plus `space.pad.dialog` on each side.
     for (width, expected) in [
         (Width::Compact, 274.0),
         (Width::Standard, 454.0),
@@ -732,7 +732,7 @@ fn a_footer_keeps_its_gap_to_the_bottom_of_a_capped_resizable_dialog() {
     });
     harness.run();
     let gap = frame.get().bottom() - harness.get_by_label("OK").rect().bottom();
-    let pad = crate::theme::current(&harness.ctx).component.dialog.pad;
+    let pad = crate::theme::current(&harness.ctx).space.pad.dialog;
     assert!((gap - pad).abs() < 0.5, "footer to frame bottom {gap}, pad {pad}, frame {:?}", frame.get());
 }
 
@@ -777,7 +777,7 @@ fn the_title_rule_sits_the_title_height_under_the_pad_whatever_the_close_box() {
     for (i, close) in [false, true].into_iter().enumerate() {
         for _ in 0..2 {
             let output = ctx.run_ui(egui::RawInput::default(), |ui| {
-                let d = crate::theme::current(ui.ctx()).component.dialog;
+                let tokens = crate::theme::current(ui.ctx());
                 let gap = ui.spacing().item_spacing.y;
                 let mut frame = DialogFrame::new("frame", "New Document");
                 if close {
@@ -786,9 +786,9 @@ fn the_title_rule_sits_the_title_height_under_the_pad_whatever_the_close_box() {
                 let mut body_top = 0.0;
                 let r = frame.show(ui, |ui| body_top = ui.cursor().top());
                 // The body starts after the rule (one point), an item gap and the body gap.
-                at[i] = body_top - r.rect.top() - 1.0 - gap - d.body_gap;
+                at[i] = body_top - r.rect.top() - 1.0 - gap - tokens.space.gap.stack;
                 if !close {
-                    expected = d.pad + r.title_height + gap + d.title_gap;
+                    expected = tokens.space.pad.dialog + r.title_height + gap + tokens.space.gap.inline;
                 }
             });
             output.drop_without_applying_deltas();

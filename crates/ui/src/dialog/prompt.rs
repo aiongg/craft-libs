@@ -201,7 +201,7 @@ impl<'a> Prompt<'a> {
             }
         });
         let mut dialog = Dialog::with_id(id, title)
-            .width(Width::Fixed(crate::theme::current(ctx).component.dialog.width_alert))
+            .width(Width::Fixed(crate::style::dialog::DialogStyle::new(&crate::theme::current(ctx)).width_alert))
             .footer(footer)
             .initial_focus(InitialFocus::DefaultButton)
             .answers();

@@ -1740,7 +1740,7 @@ impl ParamDialog {
     }
 
     /// The preview pane: zoom buttons and the zoom percentage over a well as wide as the dialog and
-    /// `dialog.preview_pane` high, the image at the zoom in it (100% when the dialog opens), a
+    /// the preview pane height high, the image at the zoom in it (100% when the dialog opens), a
     /// checkerboard under transparency. The pointer drags the view along an axis the image
     /// overflows, and a click centres the view on the point clicked.
     // pc: crates/ui-egui/src/dialogs/filter_preview_ui.rs (the pane only; the worker stays in the app).
@@ -1772,7 +1772,7 @@ impl ParamDialog {
         if !zoom_below {
             zoom_row(ui, &mut zoom);
         }
-        let [least, height] = tokens.component.dialog.preview_pane;
+        let [least, height] = crate::style::dialog::DialogStyle::new(&tokens).preview_pane;
         let (well, response) = ui.allocate_exact_size(vec2(ui.available_width().max(least), height), Sense::click_and_drag());
         if zoom_below {
             zoom_row(ui, &mut zoom);
@@ -1811,7 +1811,7 @@ impl ParamDialog {
             se: reaches(visible.right_bottom(), inner.right_bottom(), corners.se),
         };
         if frame.is_some() {
-            painter.add(Shape::rect_filled(inner, well_corners, tokens.component.dialog.preview_fill.to_egui()));
+            painter.add(Shape::rect_filled(inner, well_corners, crate::style::dialog::DialogStyle::new(&tokens).preview_fill.to_egui()));
         }
         painter.extend(checkerboard(visible, corners, swatch.checker, swatch.checker_cell));
         let uv = Rect::from_min_max(

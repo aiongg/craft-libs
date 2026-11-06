@@ -180,7 +180,7 @@ fn side_body_without_scrolling_has_no_scroll_area() {
     assert!(fixed.query_by_role(Role::ScrollBar).is_none(), "no scroll area, no bar");
 }
 
-// `SideWidth::Narrow` reads `full_window.side.width_narrow`.
+// `SideWidth::Narrow` is the narrow side width.
 #[test]
 fn narrow_side_column_takes_its_token_width() {
     let mut narrow = harness(App { width: Some(SideWidth::Narrow), ..App::default() });

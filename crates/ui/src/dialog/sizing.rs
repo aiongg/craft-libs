@@ -673,8 +673,8 @@ impl<'a> AnchorGrid<'a> {
     pub fn show(self, ui: &mut Ui) -> Response {
         let tokens = Tokens::of(ui);
         let labels = SizingLabels::shared(ui);
-        let dialog_tokens = tokens.component.dialog;
-        let side = dialog_tokens.anchor_cell;
+        let mark_radius = crate::style::dialog::DialogStyle::new(&tokens).anchor_mark_radius;
+        let side = tokens.size.control.sm;
         let scale = side / PC_ANCHOR_CELL;
         let (_, grid) = ui.allocate_space(vec2(side * 3.0, side * 3.0));
         let group = ui.new_child(
@@ -687,14 +687,14 @@ impl<'a> AnchorGrid<'a> {
         let ids = (0..Anchor::ALL.len()).map(|i| (Interactive::id_in(&group, ("anchor", i)), true)).collect();
         let mut radios = RadioSelection::new(ids, Anchor::ALL.iter().position(|a| a == self.anchor));
         radios.report_size(ui, group.unique_id());
-        let selected_fill = StateColors { fill: tokens.component.segmented.selected.fill.to_egui(), border: None };
+        let selected_fill = StateColors { fill: tokens.color.state.hover.to_egui(), border: None };
         let sensed: Vec<_> = Anchor::ALL
             .iter()
             .enumerate()
             .map(|(i, cell)| {
                 let (column, row) = cell.cell();
                 let rect = Rect::from_min_size(grid.min + vec2(column as f32 * side, row as f32 * side), vec2(side, side))
-                    .shrink(dialog_tokens.anchor_inset);
+                    .shrink(tokens.stroke.thin);
                 Interactive::new(("anchor", i), Role::RadioButton, labels.anchor_cell(*cell))
                     .position_in_set(i)
                     .surface(SurfaceKind::Sunken)
@@ -716,7 +716,7 @@ impl<'a> AnchorGrid<'a> {
                 let center = response.rect.center();
                 if selected == Some(i) {
                     let half = 4.0 * scale;
-                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), dialog_tokens.anchor_mark_radius, mark);
+                    ui.painter().rect_filled(Rect::from_center_size(center, vec2(2.0 * half, 2.0 * half)), mark_radius, mark);
                 } else if self.arrows
                     && let Some((dx, dy)) = arrow_direction(*self.anchor, Anchor::ALL[i], self.delta)
                 {

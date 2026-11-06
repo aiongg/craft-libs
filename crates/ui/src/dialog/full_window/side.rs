@@ -13,19 +13,18 @@ use crate::direction;
 use crate::localized::SharedLabels as _;
 use crate::patterns::panel::ScrollBarLabels;
 use crate::theme::{Tokens, TokensOf as _};
-use craft_theme::ControlSize;
 
 type Leading<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
 
 /// How wide a [`FullWindowSide`] is.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum SideWidth {
-    /// `full_window.side.width` (300): Liquify, Content-Aware Fill, Filter Gallery, Wide Angle.
+    /// The standard width: Liquify, Content-Aware Fill, Filter Gallery, Wide Angle.
     #[default]
     Standard,
-    /// `full_window.side.width_wide` (350): Select and Mask's Properties.
+    /// The wide width: Select and Mask's Properties.
     Wide,
-    /// `full_window.side.width_narrow`: a column that carries only the footer buttons (Vanishing
+    /// The narrow width: a column that carries only the footer buttons (Vanishing
     /// Point).
     Narrow,
 }
@@ -86,14 +85,14 @@ pub struct FullWindowSideOutput {
 /// - **Place.** An `egui::Panel` at the end edge of what is left of the dialog's body (the right
 ///   edge, the left in a right-to-left interface); a second column shown after it stacks inwards
 ///   beside it. Call it after the options bar and the tool strip, before the canvas.
-/// - **Look.** `full_window.side.fill`, a 1 pt `full_window.side.divider` on the inner edge; the
+/// - **Look.** The panel surface fill, a divider line on the inner edge; the
 ///   optional [`PanelHeader`](crate::composites::PanelHeader) at the top (no menu); the body
-///   padded by `full_window.side.pad_x` and `pad_y`.
+///   padded by `space.pad.panel`.
 /// - **Body.** Scrolls vertically when taller than the room; the footer stays in view.
 ///   [`scrolls(false)`](FullWindowSide::scrolls) leaves the scroll area out for a pane that
 ///   bounds itself.
 /// - **Footer.** Placed with [`FullWindowFx::buttons`] in the full padded width, at the bottom or
-///   top, `full_window.footer.gap` from the body; the leading slot at the reading start, laid out first, and the buttons in the rest of the
+///   top, `space.gap.inline` from the body; the leading slot at the reading start, laid out first, and the buttons in the rest of the
 ///   row (they overflow towards the leading slot when the rest is narrower than they are). Only one
 ///   column of a dialog has the footer.
 /// - **Keyboard and AccessKit.** A `Group` named by [`name`](FullWindowSide::name), else the header
@@ -159,7 +158,7 @@ impl<'a> FullWindowSide<'a> {
         let FullWindowSide { id_salt, width, header, name, scrolls, footer } = self;
         let tokens = Tokens::of(ui);
         let style = FullWindowStyle::of(&tokens);
-        let button_height = tokens.component.button.height.get(ControlSize::Md);
+        let button_height = tokens.size.control.md;
         let id = ui.make_persistent_id(id_salt);
         let name = name.or_else(|| header.clone()).unwrap_or_else(|| FullWindowLabels::shared(ui).side.clone());
         let scroll_bar_label = ScrollBarLabels::name(ui);

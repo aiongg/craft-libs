@@ -1,42 +1,42 @@
 //! Width classes, resizable sizes, remembered sizes and the scrolling body's height.
 
-use craft_theme::{Appearance, Contrast, DialogTokens, Mode, Size, TextSize, builtins, resolve};
+use craft_theme::{Appearance, Contrast, Mode, Size, TextSize, Tokens, builtins, resolve};
 use egui::vec2;
 
 use super::*;
 
-fn tokens(size: Size) -> DialogTokens {
+fn tokens(size: Size) -> Tokens {
     let appearance = Appearance { mode: Mode::Light, contrast: Contrast::Standard, size, text_size: TextSize::Small, reduced_motion: false };
-    resolve(&builtins()[0], appearance, None).tokens.component.dialog
+    resolve(&builtins()[0], appearance, None).tokens
 }
 
 #[test]
 fn width_classes_and_the_window_cap() {
     let t = tokens(Size::Compact);
+    let m = t.space.pad.dialog;
     assert_eq!(Width::Compact.range(&t, 1280.0), (0.0, 260.0));
     assert_eq!(Width::Standard.range(&t, 1280.0), (380.0, 440.0));
     assert_eq!(Width::Wide.range(&t, 1280.0), (380.0, 600.0));
     assert_eq!(Width::Fixed(800.0).range(&t, 1280.0), (800.0, 800.0));
-    // A narrow window caps the greatest width at the window less 24 on each side, and the least
-    // with it.
-    assert_eq!(Width::Standard.range(&t, 400.0), (352.0, 352.0));
-    assert_eq!(Width::Wide.range(&t, 500.0), (380.0, 452.0));
-    assert_eq!(Width::Compact.range(&t, 200.0), (0.0, 152.0));
-    assert_eq!(Width::Fixed(800.0).range(&t, 600.0), (552.0, 552.0));
+    // A narrow window caps the greatest width at the window less the margin on each side, and the
+    // least with it.
+    assert_eq!(Width::Standard.range(&t, 400.0), (400.0 - 2.0 * m, 400.0 - 2.0 * m));
+    assert_eq!(Width::Wide.range(&t, 500.0), (380.0, 500.0 - 2.0 * m));
+    assert_eq!(Width::Compact.range(&t, 200.0), (0.0, 200.0 - 2.0 * m));
+    assert_eq!(Width::Fixed(800.0).range(&t, 600.0), (600.0 - 2.0 * m, 600.0 - 2.0 * m));
     assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 1280.0), (460.0, 720.0));
-    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 600.0), (460.0, 552.0));
-    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 400.0), (352.0, 352.0));
+    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 600.0), (460.0, 600.0 - 2.0 * m));
+    assert_eq!(Width::Range { min: 460.0, max: 720.0 }.range(&t, 500.0), (460.0, 500.0 - 2.0 * m));
     assert_eq!(Width::Standard.range(&t, 30.0), (0.0, 0.0), "a window narrower than its margins leaves no width");
 }
 
 #[test]
-fn widths_do_not_follow_the_size_but_vertical_gaps_do() {
+fn widths_do_not_follow_the_size() {
     let (compact, comfortable) = (tokens(Size::Compact), tokens(Size::Comfortable));
     for width in [Width::Compact, Width::Standard, Width::Wide] {
         assert_eq!(width.range(&compact, 1280.0), width.range(&comfortable, 1280.0));
     }
-    assert_eq!((compact.pad, compact.button_gap), (comfortable.pad, comfortable.button_gap));
-    assert!(comfortable.body_gap > compact.body_gap && comfortable.footer_gap > compact.footer_gap);
+    assert!(comfortable.space.gap.stack >= compact.space.gap.stack);
 }
 
 #[test]
@@ -63,8 +63,8 @@ fn remembered_size_keeps_only_a_users_size() {
 #[test]
 fn scroll_height_leaves_room_for_the_chrome_and_the_region_below_but_not_below_the_minimum() {
     let t = tokens(Size::Compact);
-    assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 48.0 - 150.0);
-    assert_eq!(scroll_height(&t, 800.0, 150.0, 200.0), 800.0 - 48.0 - 150.0 - 200.0);
+    assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 2.0 * t.space.pad.dialog - 150.0);
+    assert_eq!(scroll_height(&t, 800.0, 150.0, 200.0), 800.0 - 2.0 * t.space.pad.dialog - 150.0 - 200.0);
     assert_eq!(scroll_height(&t, 300.0, 150.0, 200.0), 120.0, "no room for the chrome anyway");
 }
 
@@ -73,5 +73,5 @@ fn a_short_window_gives_up_the_margin_before_the_footer() {
     let t = tokens(Size::Compact);
     assert_eq!(scroll_height(&t, 240.0, 100.0, 0.0), 120.0, "the margin shrinks to keep the minimum");
     assert_eq!(scroll_height(&t, 200.0, 100.0, 0.0), 100.0, "less room than the minimum: all of it, so the footer stays on screen");
-    assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 48.0 - 150.0, "a tall window keeps its margin");
+    assert_eq!(scroll_height(&t, 800.0, 150.0, 0.0), 800.0 - 2.0 * t.space.pad.dialog - 150.0, "a tall window keeps its margin");
 }

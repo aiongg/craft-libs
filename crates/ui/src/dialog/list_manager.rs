@@ -19,6 +19,8 @@ use crate::primitives::{Content, Text};
 use crate::text::text_width;
 use crate::theme::{ToEgui, Tokens, TokensOf, role_format};
 
+const LIST_ROWS: f32 = 7.0;
+
 crate::words! {
     /// The list manager's standard button words, English by default; the app's own actions
     /// bring their labels.
@@ -250,9 +252,10 @@ impl StackDialog for ListManagerDialog {
         let cancel_label = DialogLabels::of_ctx(ctx).cancel;
         let id = self.id;
         let Self { title, name_label, entries, actions, empty, note, searchable, name, pressed, state, .. } = self;
-        let sizes = crate::theme::current(ctx).component.list_manager;
-        let list_size = vec2(sizes.list[0], sizes.list[1]);
-        let (column_gap, button_width) = (sizes.column_gap, sizes.button_width);
+        let tokens = crate::theme::current(ctx);
+        let dialog = crate::style::dialog::DialogStyle::new(&tokens);
+        let list_size = vec2(dialog.width_standard * 0.75, LIST_ROWS * tokens.size.control.md);
+        let (column_gap, button_width) = (tokens.space.pad.panel, dialog.width_standard / 4.0);
         let width = list_size.x + column_gap + button_width;
         let mut chosen: Option<usize> = None;
         let mut cancelled = false;

@@ -162,7 +162,7 @@ impl StackDialog for PropertiesDialog {
                         *shown_tab = tab;
                     }
                 }
-                ui.add_space(Tokens::of(ui).component.dialog.pad);
+                ui.add_space(Tokens::of(ui).space.pad.dialog);
             }
             let Some(tab) = tabs.get(*shown_tab) else { return };
             FormGrid::new(id.with(("rows", *shown_tab))).show(ui, |form| {

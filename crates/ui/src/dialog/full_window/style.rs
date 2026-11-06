@@ -1,5 +1,5 @@
-//! [`FullWindowStyle`]: the full-window regions' sizes and colours from the `full_window.*`
-//! tokens, with the panel, canvas, divider and text colours they derive from.
+//! [`FullWindowStyle`]: the full-window regions' sizes and colours, computed from the semantic
+//! tokens and the regions' own constants.
 
 use egui::{Color32, Stroke, Vec2};
 
@@ -10,68 +10,61 @@ use crate::theme::{ToEgui, UiTokens};
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct FullWindowStyle {
-    /// A [`SideWidth::Standard`](super::SideWidth::Standard) column: `full_window.side.width`
-    /// (PhotoCraft 300; Liquify's 292 and Filter Gallery's 290 are replaced).
+    /// A [`SideWidth::Standard`](super::SideWidth::Standard) column.
     pub side_width: f32,
-    /// A [`SideWidth::Wide`](super::SideWidth::Wide) column: `full_window.side.width_wide`
-    /// (Select and Mask's Properties, 350).
+    /// A [`SideWidth::Wide`](super::SideWidth::Wide) column.
     pub side_width_wide: f32,
-    /// A [`SideWidth::Narrow`](super::SideWidth::Narrow) column: `full_window.side.width_narrow`
-    /// (Vanishing Point's, which carries only OK and Cancel).
+    /// A [`SideWidth::Narrow`](super::SideWidth::Narrow) column, which carries only OK and Cancel.
     pub side_width_narrow: f32,
-    /// The padding inside a side column, x then y: `full_window.side.pad_x`, `pad_y` (14, 12).
+    /// The padding inside a side column, x then y.
     pub side_pad: Vec2,
-    /// A side column's fill: `full_window.side.fill` (`surface.panel`).
+    /// A side column's fill.
     pub side_fill: Color32,
-    /// The 1 pt line on a side column's inner edge: `full_window.side.divider` (`line.divider`).
+    /// The line on a side column's inner edge.
     pub side_divider: Stroke,
-    /// The gap between footer buttons and above the footer row: `full_window.footer.gap`
-    /// (`space.gap.inline`, 8).
+    /// The gap between footer buttons and above the footer row.
     pub footer_gap: f32,
-    /// The canvas region's fill: `full_window.canvas.fill` (`surface.canvas`).
+    /// The canvas region's fill.
     pub canvas_fill: Color32,
-    /// The room kept on each side of a fitted image: `full_window.canvas.margin` (20).
+    /// The room kept on each side of a fitted image.
     pub canvas_margin: f32,
-    /// The 1 pt outline outside the image: `full_window.canvas.outline` (`line.divider`).
+    /// The outline outside the image.
     pub canvas_outline: Stroke,
-    /// The zoom bar's height: `full_window.zoom_bar.height` (30).
+    /// The zoom bar's height.
     pub zoom_bar_height: f32,
-    /// The zoom bar's padding, x then y: `full_window.zoom_bar.pad` (10 × 3).
+    /// The zoom bar's padding, x then y.
     pub zoom_bar_pad: Vec2,
-    /// The zoom bar's fill: `full_window.side.fill`, as PhotoCraft fills it with the dock colour.
+    /// The zoom bar's fill.
     pub zoom_bar_fill: Color32,
-    /// The zoom bar's progress bar length: `full_window.progress.width` (90). Its thickness is
-    /// the library `Progress`'s own, as PhotoCraft's 6 pt bar is.
+    /// The zoom bar's progress bar length. Its thickness is the library `Progress`'s own.
     pub progress_width: f32,
-    /// The zoom bar's note and other hints: `text.faint`.
+    /// The zoom bar's note and other hints.
     pub note: Color32,
-    /// A preview's error line: `status.bad.fg`.
+    /// A preview's error line.
     pub error: Color32,
 }
 
 impl FullWindowStyle {
     /// The style for the installed theme.
     pub fn of(tokens: &UiTokens) -> Self {
-        // new: the `full_window.*` family (step7-workspaces.md "Proposed tokens"); every field
-        // above names its leaf. The note and error colours are the semantic `text.faint` and
-        // `status.bad.fg`.
-        let (w, c) = (&tokens.component.full_window, &tokens.color);
-        let hairline = |colour: craft_theme::Rgba| Stroke::new(1.0, colour.to_egui());
+        let (t, c) = (tokens, &tokens.color);
+        let dialog = crate::style::dialog::DialogStyle::new(tokens);
+        let hairline = |colour: craft_theme::Rgba| Stroke::new(t.stroke.thin, colour.to_egui());
         FullWindowStyle {
-            side_width: w.side_width,
-            side_width_wide: w.side_width_wide,
-            side_width_narrow: w.side_width_narrow,
-            side_pad: Vec2::new(w.side_pad_x, w.side_pad_y),
-            side_fill: w.side_fill.to_egui(),
-            side_divider: hairline(w.side_divider),
-            footer_gap: w.footer_gap,
-            canvas_fill: w.canvas_fill.to_egui(),
-            canvas_margin: w.canvas_margin,
-            canvas_outline: hairline(w.canvas_outline),
-            zoom_bar_height: w.zoom_bar_height,
-            zoom_bar_pad: Vec2::new(w.zoom_bar_pad_x, w.zoom_bar_pad_y),
-            zoom_bar_fill: w.side_fill.to_egui(),
-            progress_width: w.progress_width,
+            side_width: dialog.width_standard * 2.0 / 3.0,
+            side_width_wide: dialog.width_standard * 4.0 / 5.0,
+            side_width_narrow: dialog.width_compact * 5.0 / 6.0,
+            side_pad: Vec2::splat(t.space.pad.panel),
+            side_fill: c.surface.panel.to_egui(),
+            side_divider: hairline(c.line.divider),
+            footer_gap: t.space.gap.inline,
+            canvas_fill: c.surface.canvas.to_egui(),
+            canvas_margin: t.space.pad.dialog,
+            canvas_outline: hairline(c.line.divider),
+            zoom_bar_height: t.size.control.md,
+            zoom_bar_pad: Vec2::new(t.space.gap.stack, t.space.gap.tight),
+            zoom_bar_fill: c.surface.panel.to_egui(),
+            progress_width: t.size.control.md * 3.0,
             note: c.text.faint.to_egui(),
             error: c.status.bad.fg.to_egui(),
         }
