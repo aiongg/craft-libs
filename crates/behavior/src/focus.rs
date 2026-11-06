@@ -1,0 +1,276 @@
+//! Pure focus rules (spec 9.3, 9.4, 8.3): key ownership, focus after removal, the Escape order and the
+//! focus-on-press kinds. The runtime's focus service feeds them facts and applies the result.
+
+/// What a focus scope is.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ScopeKind {
+    /// A window.
+    Window,
+    /// A pane, an F6 stop.
+    Pane,
+    /// A dialog.
+    Dialog,
+    /// A popup.
+    Popup,
+    /// A menu.
+    Menu,
+    /// A group of controls.
+    Group,
+}
+
+/// What Escape does in a scope that has no more specific taker.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum CancelRule {
+    /// Close the scope.
+    Close,
+    /// Clear the scope's content first, close on the next Escape.
+    ClearThenClose,
+    /// Do nothing.
+    Ignore,
+}
+
+/// A key class: the input of key ownership.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum OwnerClass {
+    /// A control that takes its own keys.
+    Widget,
+    /// A text run.
+    Text,
+    /// A shortcut recorder.
+    Recorder,
+    /// The app's shortcuts.
+    App,
+    /// A popup that takes keys.
+    Popup,
+    /// A popup that leaves keys to what is below.
+    PassivePopup,
+    /// A menu: arrows move through its entries and Escape closes the innermost.
+    Menu,
+    /// A dialog: Tab stays inside, Enter submits, Escape cancels.
+    Dialog,
+}
+
+/// Who owns the keys of one pass.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum KeyOwner {
+    /// A modal layer is above the focus: no component owns keys.
+    Blocked,
+    /// The highest class present.
+    Class(OwnerClass),
+}
+
+/// Key ownership, in the order blocked, `Menu`, `Recorder`, `Dialog`, `Text`, `Popup` and `PassivePopup`,
+/// `Widget`, `App`. `present` lists the classes that have a claim this pass, in any order.
+pub fn key_owner(blocked: bool, present: &[OwnerClass]) -> KeyOwner {
+    if blocked {
+        return KeyOwner::Blocked;
+    }
+    const ORDER: [&[OwnerClass]; 7] = [
+        &[OwnerClass::Menu],
+        &[OwnerClass::Recorder],
+        &[OwnerClass::Dialog],
+        &[OwnerClass::Text],
+        &[OwnerClass::Popup, OwnerClass::PassivePopup],
+        &[OwnerClass::Widget],
+        &[OwnerClass::App],
+    ];
+    ORDER
+        .iter()
+        .find_map(|rank| rank.iter().find(|class| present.contains(class)))
+        .map_or(KeyOwner::Class(OwnerClass::App), |class| KeyOwner::Class(*class))
+}
+
+/// The stop that takes focus when `focused` is no longer registered: the one after it in last pass's order
+/// that is still registered, else the one before. `None` leaves the scope's initial stop to decide.
+pub fn after_removal<'a, T: PartialEq>(last_order: &'a [T], focused: &T, registered: impl Fn(&T) -> bool) -> Option<&'a T> {
+    let at = last_order.iter().position(|stop| stop == focused)?;
+    let after = last_order[at + 1..].iter().find(|stop| registered(stop));
+    after.or_else(|| last_order[..at].iter().rev().find(|stop| registered(stop)))
+}
+
+/// What the Escape of one pass reaches first.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum EscapeStep {
+    /// A captured press is cancelled; nothing else sees this Escape.
+    CancelPress,
+    /// The focused component has something to undo.
+    Component,
+    /// Focus returns from a row's child to the row.
+    BackToRow,
+    /// The scope clears its content and stays open.
+    ClearScope,
+    /// The scope closes.
+    CloseScope,
+    /// Nothing takes it.
+    Ignore,
+}
+
+/// The facts the Escape order reads.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct EscapeFacts {
+    /// A press is captured on any egui layer.
+    pub press_captured: bool,
+    /// The focused component has an open draft, a gesture or its own open popup.
+    pub component_undoable: bool,
+    /// Focus is on a row's child.
+    pub in_row_child: bool,
+    /// The scope has content to clear.
+    pub scope_clearable: bool,
+}
+
+impl EscapeFacts {
+    /// No fact set.
+    pub const fn new() -> Self {
+        EscapeFacts { press_captured: false, component_undoable: false, in_row_child: false, scope_clearable: false }
+    }
+
+    /// A press is captured.
+    pub const fn press_captured(mut self, on: bool) -> Self {
+        self.press_captured = on;
+        self
+    }
+
+    /// The focused component has something to undo.
+    pub const fn component_undoable(mut self, on: bool) -> Self {
+        self.component_undoable = on;
+        self
+    }
+
+    /// Focus is on a row's child.
+    pub const fn in_row_child(mut self, on: bool) -> Self {
+        self.in_row_child = on;
+        self
+    }
+
+    /// The scope has content to clear.
+    pub const fn scope_clearable(mut self, on: bool) -> Self {
+        self.scope_clearable = on;
+        self
+    }
+}
+
+/// The order of Escape for the top egui layer that is not exiting: a captured press, the focused component,
+/// a row's child, then the scope's rule.
+pub fn escape_step(facts: EscapeFacts, rule: CancelRule) -> EscapeStep {
+    if facts.press_captured {
+        EscapeStep::CancelPress
+    } else if facts.component_undoable {
+        EscapeStep::Component
+    } else if facts.in_row_child {
+        EscapeStep::BackToRow
+    } else {
+        match rule {
+            CancelRule::Close => EscapeStep::CloseScope,
+            CancelRule::ClearThenClose if facts.scope_clearable => EscapeStep::ClearScope,
+            CancelRule::ClearThenClose => EscapeStep::CloseScope,
+            CancelRule::Ignore => EscapeStep::Ignore,
+        }
+    }
+}
+
+/// The sense of the shape that wins a press, as far as focus on press reads it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PressShape {
+    /// The shape senses `TAKE_FOCUS`.
+    pub takes_focus: bool,
+    /// The shape senses `KEEP_FOCUS`.
+    pub keeps_focus: bool,
+}
+
+impl PressShape {
+    /// A shape that senses a press and neither takes nor keeps focus.
+    pub const CONTROL: PressShape = PressShape { takes_focus: false, keeps_focus: false };
+    /// A shape that takes key focus.
+    pub const TAKES: PressShape = PressShape { takes_focus: true, keeps_focus: false };
+    /// A shape that leaves focus and any draft where they are.
+    pub const KEEPS: PressShape = PressShape { takes_focus: false, keeps_focus: true };
+}
+
+/// How a primary press moves key focus (8.3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PressFocus {
+    /// Kind 1: focus moves to the winning shape's component.
+    Take,
+    /// Kind 2: focus and any draft stay.
+    Keep,
+    /// Kind 3: the control acts; a focused text part commits and focus moves to its enclosing pane.
+    Release,
+    /// Kind 4: no shape claims the press; a focused text part commits and focus is surrendered.
+    Unclaimed,
+}
+
+impl PressFocus {
+    /// Whether a focused text part with a draft commits it in the press pass.
+    pub const fn commits_draft(self) -> bool {
+        matches!(self, PressFocus::Release | PressFocus::Unclaimed)
+    }
+}
+
+/// The kind of a press from the shape that wins it, `None` when no shape senses it. A shape that senses
+/// both counts as keeping focus.
+pub fn classify_press(winner: Option<PressShape>) -> PressFocus {
+    match winner {
+        None => PressFocus::Unclaimed,
+        Some(shape) if shape.keeps_focus => PressFocus::Keep,
+        Some(shape) if shape.takes_focus => PressFocus::Take,
+        Some(_) => PressFocus::Release,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn ownership_follows_the_documented_order() {
+        use OwnerClass::*;
+        assert_eq!(key_owner(true, &[Menu]), KeyOwner::Blocked);
+        assert_eq!(key_owner(false, &[App, Widget, Text, Dialog, Recorder, Menu]), KeyOwner::Class(Menu));
+        assert_eq!(key_owner(false, &[App, Widget, Text, Dialog]), KeyOwner::Class(Dialog));
+        assert_eq!(key_owner(false, &[App, Widget, PassivePopup, Text]), KeyOwner::Class(Text));
+        assert_eq!(key_owner(false, &[App, Widget, PassivePopup]), KeyOwner::Class(PassivePopup));
+        assert_eq!(key_owner(false, &[App, Widget]), KeyOwner::Class(Widget));
+        assert_eq!(key_owner(false, &[]), KeyOwner::Class(App));
+    }
+
+    #[test]
+    fn focus_after_removal_prefers_the_next_registered_stop_then_the_previous() {
+        let order = [1, 2, 3, 4];
+        assert_eq!(after_removal(&order, &2, |s| *s != 2), Some(&3));
+        assert_eq!(after_removal(&order, &2, |s| *s != 2 && *s != 3 && *s != 4), Some(&1));
+        assert_eq!(after_removal(&order, &4, |s| *s != 4), Some(&3));
+        assert_eq!(after_removal(&order, &2, |_| false), None);
+        assert_eq!(after_removal(&order, &9, |_| true), None);
+    }
+
+    #[test]
+    fn escape_goes_to_the_press_then_the_component_then_the_row_then_the_scope() {
+        let all = EscapeFacts::new().press_captured(true).component_undoable(true).in_row_child(true);
+        assert_eq!(escape_step(all, CancelRule::Close), EscapeStep::CancelPress);
+        assert_eq!(escape_step(all.press_captured(false), CancelRule::Close), EscapeStep::Component);
+        assert_eq!(escape_step(all.press_captured(false).component_undoable(false), CancelRule::Close), EscapeStep::BackToRow);
+        let idle = EscapeFacts::new();
+        assert_eq!(escape_step(idle, CancelRule::Close), EscapeStep::CloseScope);
+        assert_eq!(escape_step(idle.scope_clearable(true), CancelRule::ClearThenClose), EscapeStep::ClearScope);
+        assert_eq!(escape_step(idle, CancelRule::ClearThenClose), EscapeStep::CloseScope);
+        assert_eq!(escape_step(idle, CancelRule::Ignore), EscapeStep::Ignore);
+    }
+
+    #[test]
+    fn presses_classify_by_the_winning_shape() {
+        assert_eq!(classify_press(Some(PressShape::TAKES)), PressFocus::Take);
+        assert_eq!(classify_press(Some(PressShape::KEEPS)), PressFocus::Keep);
+        assert_eq!(classify_press(Some(PressShape::CONTROL)), PressFocus::Release);
+        assert_eq!(classify_press(None), PressFocus::Unclaimed);
+        assert!(PressFocus::Release.commits_draft() && PressFocus::Unclaimed.commits_draft());
+        assert!(!PressFocus::Keep.commits_draft() && !PressFocus::Take.commits_draft());
+    }
+}

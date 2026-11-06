@@ -1,0 +1,258 @@
+//! The key table (spec 9.2): the one place that maps a key press to an intent and modifiers to `MoveMods`.
+//! Pure functions over craft-keymap's `Key` and `Mods`, where `cmd` is Ctrl on Windows and Linux and Cmd on
+//! macOS and `ctrl` is the Control key on macOS only.
+
+use crate::intent::{Granularity, Intent, MoveMods, NavMove};
+use craft_keymap::{Key, Mods};
+
+/// The operating system whose key rows apply.
+// F2-MERGE: craft-host `target` (`craft-host::target::Os`), which no F2 track owns.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum Os {
+    /// macOS.
+    Mac,
+    /// Windows.
+    Windows,
+    /// Linux and every other system.
+    #[default]
+    Linux,
+}
+
+/// What the focused stop is, as far as the table's rows differ.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct KeyRole {
+    /// A value control with a reset value and no text part: Delete resets it.
+    pub resettable: bool,
+    /// A `Multi` or `Cells` collection: Space toggles the lead.
+    pub multi: bool,
+    /// A reorderable collection: Alt+Up and Alt+Down move the lead item.
+    pub reorderable: bool,
+    /// A collection with `CollectionProps.rename`.
+    pub rename: bool,
+    /// `FocusPolicy.pages`: Ctrl+Tab switches pages.
+    pub pages: bool,
+    /// The component reads arrow nudges: arrows are not moves.
+    pub nudge: bool,
+}
+
+impl KeyRole {
+    /// A role with no special rows.
+    pub const fn new() -> KeyRole {
+        KeyRole { resettable: false, multi: false, reorderable: false, rename: false, pages: false, nudge: false }
+    }
+
+    /// Delete resets the control.
+    pub const fn resettable(mut self, on: bool) -> Self {
+        self.resettable = on;
+        self
+    }
+
+    /// Space toggles the lead.
+    pub const fn multi(mut self, on: bool) -> Self {
+        self.multi = on;
+        self
+    }
+
+    /// Alt+Up and Alt+Down move the lead item.
+    pub const fn reorderable(mut self, on: bool) -> Self {
+        self.reorderable = on;
+        self
+    }
+
+    /// Rename has its key.
+    pub const fn rename(mut self, on: bool) -> Self {
+        self.rename = on;
+        self
+    }
+
+    /// Ctrl+Tab switches pages.
+    pub const fn pages(mut self, on: bool) -> Self {
+        self.pages = on;
+        self
+    }
+
+    /// Arrows are nudges, not moves.
+    pub const fn nudge(mut self, on: bool) -> Self {
+        self.nudge = on;
+        self
+    }
+}
+
+/// What a drop of a dragged payload does with it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum DropOperation {
+    /// Move the payload.
+    Move,
+    /// Copy the payload (Alt, Option on macOS).
+    Copy,
+    /// Link to the payload (Ctrl+Shift, Cmd+Option on macOS).
+    Link,
+}
+
+/// The drop operation the held modifiers pick.
+pub fn drop_operation(os: Os, mods: Mods) -> DropOperation {
+    let link = match os {
+        Os::Mac => mods.cmd && mods.alt,
+        Os::Windows | Os::Linux => mods.cmd && mods.shift,
+    };
+    if link {
+        DropOperation::Link
+    } else if mods.alt {
+        DropOperation::Copy
+    } else {
+        DropOperation::Move
+    }
+}
+
+fn is_arrow(key: Key) -> bool {
+    matches!(key, Key::Up | Key::Down | Key::Left | Key::Right)
+}
+
+/// The intent a key press has for a stop of `role`, if any. `Enter` and `Space` as activation are not rows:
+/// they follow the focused component's `KeyUse`.
+pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
+    let mac = os == Os::Mac;
+    let plain = mods.is_none();
+    let only = |m: Mods| mods == m;
+    let shifted = |m: Mods| mods == Mods { shift: true, ..m };
+    match key {
+        Key::Delete | Key::Backspace if plain && role.resettable => return Some(Intent::Reset),
+        Key::Space if plain && role.multi => return Some(Intent::Toggle),
+        Key::Menu if plain && !mac => return Some(Intent::ContextMenu),
+        Key::F10 if only(Mods::SHIFT) => return Some(Intent::ContextMenu),
+        Key::F2 if plain && role.rename && !mac => return Some(Intent::Rename),
+        Key::Enter if plain && role.rename && mac => return Some(Intent::Rename),
+        Key::Down if mac && role.rename && only(Mods::CMD) => return Some(Intent::Activate),
+        Key::Enter if only(Mods::CMD) => return Some(Intent::SubmitForce),
+        Key::Up if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(false)),
+        Key::Down if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(true)),
+        Key::Down if only(Mods::ALT) => return Some(Intent::Open),
+        Key::PageUp if !mac && only(Mods::CMD) => return Some(Intent::switch_page(false)),
+        Key::PageDown if !mac && only(Mods::CMD) => return Some(Intent::switch_page(true)),
+        Key::OpenBracket | Key::OpenCurlyBracket if mac && shifted(Mods::CMD) => return Some(Intent::switch_page(false)),
+        Key::CloseBracket | Key::CloseCurlyBracket if mac && shifted(Mods::CMD) => return Some(Intent::switch_page(true)),
+        Key::Tab if role.pages => {
+            let ctrl = if mac { Mods::CTRL } else { Mods::CMD };
+            if only(ctrl) {
+                return Some(Intent::switch_page(true));
+            }
+            if shifted(ctrl) {
+                return Some(Intent::switch_page(false));
+            }
+        }
+        _ => {}
+    }
+    if role.nudge && is_arrow(key) {
+        return None;
+    }
+    movement(mac, key, mods)
+}
+
+/// The move rows: arrows, Home, End and the page keys, and the deletes.
+fn movement(mac: bool, key: Key, mods: Mods) -> Option<Intent> {
+    let by_word = if mac { mods.alt } else { mods.cmd };
+    let lead = mods.cmd;
+    let moved = |mv: NavMove, by: Granularity| Some(Intent::Move(mv, MoveMods::new(mods.shift, lead, by)));
+    let word_or_unit = if by_word { Granularity::Word } else { Granularity::Unit };
+    // The Control key on macOS belongs to the OS (Ctrl+arrow switches spaces).
+    let mac_control = mac && mods.ctrl;
+    let plain_alt_free = !mods.alt || (mac && by_word);
+    match key {
+        Key::Left | Key::Right if mac && mods.cmd && !mods.alt => {
+            moved(if key == Key::Left { NavMove::Start } else { NavMove::End }, Granularity::Line)
+        }
+        Key::Left if plain_alt_free && !mac_control => moved(NavMove::Back, word_or_unit),
+        Key::Right if plain_alt_free && !mac_control => moved(NavMove::Forward, word_or_unit),
+        Key::Up | Key::Down if mac && mods.cmd && !mods.alt => {
+            moved(if key == Key::Up { NavMove::Start } else { NavMove::End }, Granularity::Document)
+        }
+        Key::Up if !mods.alt => moved(NavMove::Up, Granularity::Unit),
+        Key::Down if !mods.alt => moved(NavMove::Down, Granularity::Unit),
+        Key::Home | Key::End if !mac || !mods.cmd => {
+            let by = if mods.cmd { Granularity::Document } else { Granularity::Line };
+            moved(if key == Key::Home { NavMove::Start } else { NavMove::End }, by)
+        }
+        Key::PageUp if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageUp, Granularity::Unit),
+        Key::PageDown if !mods.alt && !mods.cmd && !mods.ctrl => moved(NavMove::PageDown, Granularity::Unit),
+        Key::Delete | Key::Backspace if !mods.alt || mac => {
+            let by = if by_word { Granularity::Word } else { Granularity::Unit };
+            Some(Intent::delete(key == Key::Delete, by))
+        }
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const NONE: Mods = Mods::NONE;
+
+    fn check(os: Os, key: Key, mods: Mods, role: KeyRole, want: Option<Intent>) {
+        assert_eq!(intent(os, key, mods, role), want, "{os:?} {key:?} {mods:?} {role:?}");
+    }
+
+    #[test]
+    fn table_rows_follow_the_role_and_the_os() {
+        let list = KeyRole::new().reorderable(true).multi(true);
+        let any = KeyRole::new();
+        let rename = KeyRole::new().rename(true);
+        let pages = KeyRole::new().pages(true);
+        let nudge = KeyRole::new().nudge(true);
+        let reset = KeyRole::new().resettable(true);
+        let alt_mods = Mods::ALT;
+        let word = |extend, lead| MoveMods::new(extend, lead, Granularity::Word);
+        for os in [Os::Linux, Os::Windows] {
+            check(os, Key::Down, alt_mods, list, Some(Intent::move_item(true)));
+            check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
+            check(os, Key::Down, alt_mods, any, Some(Intent::Open));
+            check(os, Key::Up, alt_mods, any, None);
+            check(os, Key::Space, NONE, list, Some(Intent::Toggle));
+            check(os, Key::Space, NONE, any, None);
+            check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
+            check(os, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
+            check(os, Key::F2, NONE, rename, Some(Intent::Rename));
+            check(os, Key::F2, NONE, any, None);
+            check(os, Key::Menu, NONE, any, Some(Intent::ContextMenu));
+            check(os, Key::Tab, Mods::CMD, pages, Some(Intent::switch_page(true)));
+            check(os, Key::Tab, Mods { shift: true, ..Mods::CMD }, pages, Some(Intent::switch_page(false)));
+            check(os, Key::Tab, Mods::CMD, any, None);
+            check(os, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Back, word(false, true))));
+            check(os, Key::End, NONE, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, false, Granularity::Line))));
+            check(os, Key::Home, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Document))));
+            check(os, Key::Delete, NONE, reset, Some(Intent::Reset));
+            check(os, Key::Delete, NONE, any, Some(Intent::delete(true, Granularity::Unit)));
+            check(os, Key::Backspace, Mods::CMD, any, Some(Intent::delete(false, Granularity::Word)));
+        }
+        check(Os::Mac, Key::PageDown, Mods::CTRL, any, None);
+        check(Os::Mac, Key::PageDown, Mods::CMD, any, None);
+        check(Os::Mac, Key::Enter, Mods::CMD, any, Some(Intent::SubmitForce));
+        check(Os::Mac, Key::Enter, NONE, rename, Some(Intent::Rename));
+        check(Os::Mac, Key::Down, Mods::CMD, rename, Some(Intent::Activate));
+        check(Os::Mac, Key::Menu, NONE, any, None);
+        check(Os::Mac, Key::CloseBracket, Mods { shift: true, ..Mods::CMD }, any, Some(Intent::switch_page(true)));
+        check(Os::Mac, Key::Tab, Mods::CTRL, pages, Some(Intent::switch_page(true)));
+        check(Os::Mac, Key::Left, Mods::ALT, any, Some(Intent::Move(NavMove::Back, word(false, false))));
+        check(Os::Mac, Key::Left, Mods::CMD, any, Some(Intent::Move(NavMove::Start, MoveMods::new(false, true, Granularity::Line))));
+        check(Os::Mac, Key::Down, Mods::CMD, any, Some(Intent::Move(NavMove::End, MoveMods::new(false, true, Granularity::Document))));
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            check(os, Key::F10, Mods::SHIFT, any, Some(Intent::ContextMenu));
+            check(os, Key::F10, NONE, any, None);
+            check(os, Key::Right, Mods::SHIFT, any, Some(Intent::Move(NavMove::Forward, MoveMods::new(true, false, Granularity::Unit))));
+            check(os, Key::Left, NONE, nudge, None);
+            check(os, Key::PageUp, NONE, any, Some(Intent::Move(NavMove::PageUp, MoveMods::PLAIN)));
+        }
+    }
+
+    #[test]
+    fn drops_pick_their_operation_by_the_held_modifiers() {
+        assert_eq!(drop_operation(Os::Linux, Mods::ALT), DropOperation::Copy);
+        assert_eq!(drop_operation(Os::Linux, NONE), DropOperation::Move);
+        assert_eq!(drop_operation(Os::Windows, Mods { cmd: true, shift: true, ..NONE }), DropOperation::Link);
+        assert_eq!(drop_operation(Os::Mac, Mods { cmd: true, alt: true, ..NONE }), DropOperation::Link);
+        assert_eq!(drop_operation(Os::Mac, Mods::ALT), DropOperation::Copy);
+    }
+}

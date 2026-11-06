@@ -10,3 +10,6 @@ use egui::{Context, Ui};
 pub(crate) fn show_area<R>(ctx: &Context, name: &'static str, body: impl FnOnce(&mut Ui) -> R) -> R {
     egui::Area::new(unique(name)).show(ctx, body).inner
 }
+
+/// An egui layer, as the runtime's shape records name it.
+pub type LayerKey = egui::LayerId;

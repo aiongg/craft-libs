@@ -73,3 +73,65 @@ fn flatten(shape: Shape, out: &mut Vec<Shape>) {
         other => out.push(other),
     }
 }
+
+/// Shows a focusable egui widget of `id` at the `Ui` cursor, as the sensing core of a component root does.
+pub(crate) fn focusable_widget(ui: &mut Ui, id: egui::Id) -> Rect {
+    let rect = Rect::from_min_size(ui.cursor().min, ui.spacing().interact_size);
+    ui.advance_cursor_after_rect(rect);
+    ui.interact(rect, id, egui::Sense::click());
+    rect
+}
+
+/// The egui layer `ui` paints on.
+pub(crate) fn layer_of(ui: &Ui) -> egui::LayerId {
+    ui.layer_id()
+}
+
+/// A pointer press or release of the primary button at `pos`.
+pub(crate) fn primary_button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
+}
+
+/// A key release event.
+pub(crate) fn key_release(key: Key, modifiers: Modifiers) -> Event {
+    Event::Key { key, physical_key: Some(key), pressed: false, repeat: false, modifiers }
+}
+
+/// The actions the focus trials request.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum AccessActionKind {
+    /// AccessKit `Click`.
+    Click,
+    /// AccessKit `Increment`.
+    Increment,
+    /// AccessKit `Expand`, an action with no intent of its own.
+    Expand,
+}
+
+impl AccessActionKind {
+    /// Whether `action` is this one.
+    pub fn is(self, action: &craft_behavior::AccessRequest) -> bool {
+        action.action == self.action()
+    }
+
+    fn action(self) -> accesskit::Action {
+        match self {
+            AccessActionKind::Click => accesskit::Action::Click,
+            AccessActionKind::Increment => accesskit::Action::Increment,
+            AccessActionKind::Expand => accesskit::Action::Expand,
+        }
+    }
+}
+
+/// An AccessKit action request for the node of `target`.
+pub(crate) fn access_request(kind: AccessActionKind, target: egui::Id) -> Event {
+    let action = kind.action();
+    let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
+    Event::AccessKitActionRequest(accesskit::ActionRequest { action, target_tree: accesskit::TreeId::ROOT, target_node, data: None })
+}
+
+/// A globally unique id named by `name`.
+pub(crate) fn named_id(name: &str) -> egui::Id {
+    crate::runtime::egui::memory::unique(("focus-trial", name))
+}
