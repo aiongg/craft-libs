@@ -32,6 +32,10 @@ mod motion;
 mod notices;
 mod overlay;
 mod paint;
+
+// Panels family.
+mod panels;
+
 mod parity;
 mod pickers;
 mod popover;
