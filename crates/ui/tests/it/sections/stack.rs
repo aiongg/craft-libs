@@ -79,7 +79,7 @@ fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothi
     let (mut fixture, seen) = scene();
     focus_section(&mut fixture, TITLES[0]);
     fixture.key(Key::ArrowUp, Modifiers::ALT);
-    assert!(seen.borrow().moves.is_empty(), "the first section cannot move up");
+    assert!(seen.borrow().moves.is_empty(), "the first section cannot move up: {:?} {:?}", seen.borrow().moves, seen.borrow().order);
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     assert_eq!(seen.borrow().moves, [(0, 1)], "Alt+Down moves the first section one place toward the end");
     assert_eq!(seen.borrow().order, [1, 0, 2]);
