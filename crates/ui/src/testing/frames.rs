@@ -57,7 +57,7 @@ impl Frames {
 
     /// Installs the runtime on the context.
     pub fn install(&mut self) {
-        let installed = install(&self.ctx, InstallSpec::new());
+        let installed = install(&self.ctx, InstallSpec::new().frame_layers(Some(crate::contract::ghost::paint)));
         debug_assert!(installed.is_ok(), "the context takes the runtime once");
     }
 

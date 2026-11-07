@@ -294,6 +294,10 @@ fn reuse_or_new<V: Value>(held: &Option<Arc<V>>, v: V) -> Arc<V> {
     }
 }
 
+/// The pass a component's value step last ran in.
+#[derive(Clone, Default)]
+struct LastDrawn(u64);
+
 /// Step 4, value: the shown value is the running gesture's proposal, else the binding's value. The one shown copy is
 /// replaced only when the binding differs from it. A gesture ends here when `cancel_all` ran, or when the app changed the
 /// value under it.
@@ -303,6 +307,10 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
     let slot = gesture_key(id);
     let (serial, all_reason) = crate::runtime::edit::latest(stage.ctx());
     let mut cancelled = None;
+    // A component not drawn for a pass loses its press at the end hook; its running gesture ends here, the first pass it is
+    // drawn again.
+    let pass_nr = crate::runtime::pointer::pass_of(stage.ctx());
+    let removed = std::mem::replace(&mut stage.shown::<LastDrawn>(slot).0, pass_nr).saturating_add(1) < pass_nr;
     if stage.shown::<Gesture<V<C>>>(slot).is_running() {
         // `(given, value)` of a single-valued binding the app owns.
         let host = comp.bind().and_then(|bind| match bind.get() {
@@ -311,6 +319,7 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
         });
         let gesture = stage.shown::<Gesture<V<C>>>(slot);
         let reason = match all_reason.filter(|_| serial > gesture.cancel_seen) {
+            _ if removed => Some(CancelReason::Removed),
             Some(reason) => Some(reason),
             None => {
                 // A given source: the app changed it when it differs from last pass's given value and from the last value

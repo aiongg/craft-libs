@@ -30,6 +30,11 @@ impl LayerMap {
         self.0.inverse() * point
     }
 
+    /// The screen position of a position in the layer.
+    pub(crate) fn to_screen(self, point: Pos2) -> Pos2 {
+        self.0 * point
+    }
+
     /// A screen-space movement as the layer sees it.
     pub(crate) fn delta_to_layer(self, delta: Vec2) -> Vec2 {
         delta / self.0.scaling
@@ -39,6 +44,11 @@ impl LayerMap {
 /// The mapping of `layer` to the screen, `None` for a layer with no transform.
 pub(crate) fn layer_map(ctx: &Context, layer: LayerId) -> Option<LayerMap> {
     ctx.layer_transform_to_global(layer).map(LayerMap)
+}
+
+/// How high `layer` stands: layers of a higher rank lie over those of a lower one.
+pub(crate) fn layer_rank(layer: LayerId) -> u8 {
+    layer.order as u8
 }
 
 /// The topmost layer under a screen position.

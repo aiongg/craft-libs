@@ -5,7 +5,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::commands::{self, CommandInput, Fired};
-use crate::runtime::{access, cursor, focus, keys, layout_memory, memory, motion, pointer, wheel};
+use crate::runtime::{access, cursor, drag, focus, keys, layout_memory, memory, motion, pointer, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -300,6 +300,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     // H5: the pointer snapshot, before any component runs.
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::fallback(&ctx)));
     pointer::begin(&ctx, frame_hit(&ctx));
+    drag::begin(&ctx);
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
     let env = Env::from_root(&ctx, &input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
@@ -308,8 +309,9 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
     focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
     // Lead-1: an Escape over a captured press cancels the press and reaches no component.
-    if keys::begin(&ctx, pointer::press_captured(&ctx)) {
+    if keys::begin(&ctx, pointer::press_captured(&ctx) || drag::running(&ctx)) {
         pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
+        drag::cancel(&ctx, craft_behavior::CancelReason::Escape);
     }
     wheel::begin(&ctx);
     // H7: shortcuts the owner allows, through the gate.
@@ -320,6 +322,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
 /// The end hook.
 pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
+    drag::end_pass(&ctx);
     cursor::end_pass(&ctx);
     commands::end(&ctx);
     access::end_live_pass(&ctx);

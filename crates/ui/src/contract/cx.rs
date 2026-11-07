@@ -11,16 +11,18 @@ use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::motion::{Driver, Drives};
+use crate::runtime::egui::areas;
+use crate::runtime::drag::{self, DragPreview, DropTarget};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
-    CancelReason, Cursor, CursorIcon, CursorPriority, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
+    CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
     PressCancel, PressPhase, PressState, Proposal, Roving, Sense, Value, Wheel,
 };
 use craft_i18n::WordSet;
 use craft_keymap::Chord;
 use craft_theme::Flags;
-use egui::{Context, Id, Rect, Response, Ui, Vec2};
+use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -171,6 +173,17 @@ pub trait Pointer {
     fn cursor(&mut self, cursor: impl Into<Cursor>, priority: CursorPriority);
     /// Ends every captured press of this viewport.
     fn cancel_press(&mut self, reason: PressCancel);
+    /// Starts the drag session with `payload`; the context holds one session at a time, and a running one stays.
+    fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview);
+    /// The active drag payload of type `P` and the pointer position in this component's egui layer space (8.3), from any
+    /// viewport.
+    fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)>;
+    /// Registers `target` over this component's rect for this pass, in `update`. Returns the drop released over it this
+    /// pass, when it was the topmost accepting target under the pointer last pass and accepts now.
+    fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
+    /// The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
+    /// drag was cancelled and when no target took it.
+    fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>;
 }
 
 impl Pointer for CxCore<'_> {
@@ -216,6 +229,31 @@ impl Pointer for CxCore<'_> {
         frame::note_cancelled_press(&self.ctx);
         self.press_cancel = Some(reason);
     }
+
+    fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview) {
+        drag::start(&self.ctx, self.id, Arc::new(payload), preview);
+    }
+
+    fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
+        let (payload, at) = drag::dragging::<P>(&self.ctx)?;
+        Some((payload, areas::layer_map(&self.ctx, self.response.layer_id).map_or(at, |map| map.to_layer(at))))
+    }
+
+    fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        let (payload, at) = self.dragging::<P>()?;
+        if !self.rect.contains(at) {
+            return None;
+        }
+        let op = drag::current_operation(&self.ctx);
+        let drop = target.accept(&payload, at, op)?;
+        let ordinal = drag::next_ordinal(&self.ctx, self.id);
+        drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop));
+        drag::take_drop::<P>(&self.ctx, self.id, ordinal, op).then_some(drop)
+    }
+
+    fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {
+        drag::ended::<P>(&self.ctx, self.id)
+    }
 }
 
 impl<C: Component> Pointer for Cx<'_, C> {
@@ -249,6 +287,22 @@ impl<C: Component> Pointer for Cx<'_, C> {
 
     fn cancel_press(&mut self, reason: PressCancel) {
         self.core.cancel_press(reason);
+    }
+
+    fn start_drag<P: Clone + Send + Sync + 'static>(&mut self, payload: P, preview: DragPreview) {
+        self.core.start_drag(payload, preview);
+    }
+
+    fn dragging<P: Send + Sync + 'static>(&self) -> Option<(Arc<P>, Pos2)> {
+        self.core.dragging::<P>()
+    }
+
+    fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        self.core.drop_target(target)
+    }
+
+    fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation> {
+        self.core.drag_ended::<P>()
     }
 }
 

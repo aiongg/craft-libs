@@ -14,7 +14,6 @@ pub(crate) fn frame_nr(ctx: &Context, viewport: ViewportId) -> u64 {
 
 /// The root viewport's frame number: the key of every once-per-frame service, because child viewports'
 /// passes run inside the root's frame.
-#[expect(dead_code, reason = "used by the pipeline (F3)")]
 pub(crate) fn root_frame_nr(ctx: &Context) -> u64 {
     ctx.cumulative_frame_nr_for(ViewportId::ROOT)
 }

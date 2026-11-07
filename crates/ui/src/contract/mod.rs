@@ -1,6 +1,7 @@
 //! The component traits, context types, `PaintUi`, `Looks`, the pipeline and its step functions, the label, body and item steps, the mount and overlay hosts and `contract::tooltip`.
 
 mod cx;
+pub mod ghost;
 mod looks;
 mod paint_ui;
 mod props;
@@ -36,6 +37,8 @@ use run::ShowAt;
 use std::hash::Hash;
 use std::ops::Deref;
 
+pub use craft_behavior::DropOperation;
+pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget};
 pub(crate) use run::measure_under;
 pub(crate) use steps::take_reveal;
 

@@ -159,6 +159,11 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
     PerViewport::<Shapes>::with(ctx, viewport, |shapes| shapes.last = std::mem::take(&mut shapes.this));
 }
 
+/// The running viewport's pass number.
+pub(crate) fn pass_of(ctx: &Context) -> u64 {
+    pass::pass_nr(ctx, pass::current_viewport(ctx))
+}
+
 /// What the begin hook read of the running pass.
 pub(crate) fn pass_pointer(ctx: &Context) -> PassPointer {
     let viewport = pass::current_viewport(ctx);
