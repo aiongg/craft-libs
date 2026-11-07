@@ -20,3 +20,11 @@ pub use title_row::{HeaderAction, HeaderStrength, TitleOutput, TitleRow, TitleRo
 pub use words::SectionWords;
 
 pub use panel::{Panel, PanelOutput, PanelStyle};
+
+// Reorderable sections.
+mod layout;
+mod reorderable;
+
+pub use layout::{SectionEvent, SectionKey, SectionLayout, SectionState};
+pub use reorderable::{ReorderableSections, ReorderableSectionsOutput, SectionCommand, SectionSpec};
+pub use words::ReorderableWords;
