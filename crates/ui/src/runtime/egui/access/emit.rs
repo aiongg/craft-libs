@@ -63,6 +63,7 @@ pub(crate) struct FaceFacts<'a> {
     pub name: &'a str,
     pub flags: Flags,
     pub numeric: Option<&'a Numeric>,
+    pub expanded: Option<bool>,
 }
 
 /// The id of the sub-node of `part` below the component `id`.
@@ -322,7 +323,7 @@ pub(crate) fn fill_sub(ctx: &Context, decl: &SubDecl<'_>) {
     }
     let flags = node.flags | decl.face.as_ref().map_or(Flags::empty(), |face| face.flags);
     let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
-    let expanded = expanded_of(flags, None);
+    let expanded = expanded_of(flags, decl.face.as_ref().and_then(|face| face.expanded));
     super::register_parent(ctx, id, decl.parent);
     ctx.accesskit_node_builder(id, |out| {
         out.set_role(role);

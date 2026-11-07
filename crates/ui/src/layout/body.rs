@@ -86,9 +86,8 @@ struct Cursors(HashMap<Id, GridCursor>);
 /// The rect a child of measured `size` takes in flow in `ui`: the next cell of the `Grid` body that encloses it
 /// directly, else the next allocation of `ui`'s layout.
 pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
-    let cell = Env::of(ui)
-        .grid
-        .and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&grid).map(|cursor| cursor.cell(size))));
+    let cell =
+        Env::of(ui).grid.and_then(|grid| Service::<Cursors>::of(ui.ctx()).with(|cursors| cursors.0.get_mut(&grid).map(|cursor| cursor.cell(size))));
     match cell {
         Some(cell) => {
             alloc::advance_past(ui, cell);

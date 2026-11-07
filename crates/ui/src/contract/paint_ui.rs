@@ -63,9 +63,19 @@ impl PaintUi<'_> {
         let row = sub(id, "field");
         let env = Env::of(self.ui);
         let mut child = child;
-        let control_min = child.measure_in(&*self.ui, craft_behavior::Proposal::Min).x;
-        let input =
-            LabelIn { scope: row, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size, control_min };
+        let control_min = run::measure_under(&mut child, &*self.ui, Some(id), craft_behavior::Proposal::Min, Some((self.enabled, self.size))).x;
+        let input = LabelIn {
+            scope: row,
+            owner: self.id,
+            parent: Some(self.id),
+            row: rect,
+            room: rect.width(),
+            text: &label,
+            side: &side,
+            enabled: self.enabled,
+            size: self.size,
+            control_min,
+        };
         let control = label::run(&mut *self.ui, &env, &input);
         let output = self.child_with(id, control, child, None);
         scope::finish(self.ui.ctx(), row, None);

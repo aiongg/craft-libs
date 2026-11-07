@@ -185,7 +185,14 @@ fn a_grid_body_places_children_by_column() {
     let mut frames = Frames::new();
     frames.idle(5, |ui| {
         in_region(ui, Rect::from_min_size(ORIGIN, Vec2::new(400.0, 300.0)), |ui| {
-            let sizes = [Vec2::new(30.0, 10.0), Vec2::new(40.0, 14.0), Vec2::new(20.0, 10.0), Vec2::new(30.0, 10.0), Vec2::new(WIDEST_CHILD, 10.0), Vec2::new(20.0, 10.0)];
+            let sizes = [
+                Vec2::new(30.0, 10.0),
+                Vec2::new(40.0, 14.0),
+                Vec2::new(20.0, 10.0),
+                Vec2::new(30.0, 10.0),
+                Vec2::new(WIDEST_CHILD, 10.0),
+                Vec2::new(20.0, 10.0),
+            ];
             rects.borrow_mut().clear();
             Grid::new(&COLUMNS).id_salt("grid").show(ui, |ui, _| {
                 for size in sizes {
@@ -195,7 +202,10 @@ fn a_grid_body_places_children_by_column() {
         });
     });
     let rects = rects.borrow();
-    assert!((rects[0].min.x - rects[3].min.x).abs() < SAME && (rects[1].min.x - rects[4].min.x).abs() < SAME, "children of one column share an x: {rects:?}");
+    assert!(
+        (rects[0].min.x - rects[3].min.x).abs() < SAME && (rects[1].min.x - rects[4].min.x).abs() < SAME,
+        "children of one column share an x: {rects:?}"
+    );
     assert!(rects[1].min.x >= rects[0].min.x + FIRST_COLUMN, "the first column is 100 points wide: {rects:?}");
     assert!(rects[2].min.x >= rects[1].min.x + WIDEST_CHILD, "the second column is as wide as its widest child: {rects:?}");
     assert!(rects[3].min.y >= rects[1].max.y, "the second row starts under the tallest child of the first: {rects:?}");
@@ -215,4 +225,23 @@ fn a_stack_shows_its_children_one_under_another() {
     });
     let rects = rects.borrow();
     assert!(rects[0].max.y <= rects[1].min.y && (rects[0].min.x - rects[1].min.x).abs() < SAME, "one under another: {rects:?}");
+}
+
+#[trial]
+fn a_content_sized_scrolling_stack_is_as_tall_as_its_room_and_scrolls() {
+    let (rect, extent) = (Cell::new(Rect::NOTHING), Cell::new(0.0));
+    let mut frames = Frames::new();
+    frames.idle(5, |ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = Stack::new().scroll(Scroll::vertical()).id_salt("stack").show(ui, |ui, _| {
+                for _ in 0..40 {
+                    Block::new(LINE).show(ui);
+                }
+                extent.set(ui.min_rect().height());
+            });
+            rect.set(out.output.rect);
+        });
+    });
+    assert!(extent.get() > VIEW.y, "the content is taller than the room: {}", extent.get());
+    assert!((rect.get().height() - VIEW.y).abs() < NEAR, "a content-sized scrolling body takes the room's height, not zero: {:?}", rect.get());
 }

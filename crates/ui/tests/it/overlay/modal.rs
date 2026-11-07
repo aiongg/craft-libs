@@ -3,9 +3,9 @@
 use super::kit::{Go, Leaf, Opened, Opener, Seen};
 use craft_ui::contract::{Overlay, Props as _, Show as _, Trigger};
 use craft_ui::runtime::commands::{FireSource, fire};
+use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
 use craft_ui::testing::focus::is_focused;
-use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Id, Pos2, Rect, Ui, Vec2};

@@ -3,12 +3,12 @@
 
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
-use super::{overlay, tooltip};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
     TipFn, Validity,
 };
 use super::{Inner, ItemFn};
+use super::{overlay, tooltip};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::access::{Politeness, Role, scope};
@@ -73,6 +73,12 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// The roving rules of the body's members, when the shape's body forms one group.
     fn roving(&self, _comp: &C) -> Option<Roving> {
+        None
+    }
+
+    /// Whether a collapsible container is open, reported as its node's expanded state; `None` for a shape that does
+    /// not collapse.
+    fn expanded(&self, _comp: &C) -> Option<bool> {
         None
     }
 
@@ -234,6 +240,7 @@ fn blank_core<'a>(
         reveal: None,
         press_cancel: None,
         scroll_moves: Vec::new(),
+        value_parts: Vec::new(),
         root_sense: Sense::empty(),
         roving_arrival: None,
     }
@@ -352,7 +359,8 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         group: steps::member_group(&ctx, env.roving, id),
         body_roving: p.hooks.roving(comp),
     });
-    if !inert {
+    // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel.
+    if !inert && p.hooks.shape() != ShapeKind::Body {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());
     }
     // 8 sense
@@ -390,6 +398,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     // The focus service holds last pass's registration: a part that is not in this pass's results is not active.
     cx.core.active = focus::active_part(&ctx, id).filter(|part| results.contains_key(&(part.key, part.index)));
     cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
+    cx.core.value_parts = parts.decls.iter().filter(|(_, extras)| extras.value).map(|(decl, _)| (decl.key, decl.index)).collect();
     cx.core.results = results;
     cx.core.root_sense = root_sense;
     cx.core.press = press;
@@ -444,7 +453,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     // 14 content, then `paint_over`
     if p.trace.mark(Step::Content) {
         if C::ROLE == Role::Merged {
-            scope::begin(&ctx, id, scope::Kind::Merge);
+            scope::begin(&ctx, id, id, scope::Kind::Merge);
         }
         p.hooks.content(comp, ui, env, cx, &values);
     }
@@ -455,7 +464,18 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) });
+    steps::report(
+        comp,
+        cx,
+        &steps::ReportIn {
+            node,
+            decls: &parts.decls,
+            sense: own,
+            live: p.hooks.live(comp),
+            expanded: p.hooks.expanded(comp),
+            group: steps::member_group(&ctx, env.roving, id),
+        },
+    );
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -505,6 +525,13 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
     trace.mark(Step::Measure);
+    // A control in a label scope reports its narrowest width: the label step decides next frame whether the row fits
+    // the label beside it.
+    if shape == ShapeKind::Leaf && !sizing && scope::in_label(&ctx) {
+        let input = MeasureIn { ui: &*ui, env: &env, proposal: Proposal::Min, room: None };
+        let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
+        scope::record_control_min(&ctx, min.x);
+    }
     let size = hooks.sized(&comp, ui, size);
     let inert = !steps::guard(size, shape);
     if inert && size != Vec2::ZERO {
@@ -522,7 +549,11 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         mixed,
         // A cancel step 4 raised over a document that moved is reported, not applied: the app's value stays. One that
         // carries the value the gesture began with restores it at step 11.
-        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) { 0 } else { cancelled.len() },
+        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) {
+            0
+        } else {
+            cancelled.len()
+        },
         events: cancelled,
         validity: Validity::Ok,
     };
@@ -674,5 +705,5 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = super::Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take() }
+    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take(), expanded: access.expanded }
 }

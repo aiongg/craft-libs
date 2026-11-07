@@ -6,13 +6,13 @@ use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
+use crate::runtime::drag::{self, DragPreview, DropTarget};
+use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::motion::{Driver, Drives};
-use crate::runtime::egui::areas;
-use crate::runtime::drag::{self, DragPreview, DropTarget};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
@@ -89,6 +89,8 @@ pub struct CxCore<'a> {
     pub(crate) press_cancel: Option<PressCancel>,
     /// The visible range each scroll part moved to this pass, from step 8's results.
     pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
+    /// The parts that show the value, whose double click resets it like the root's.
+    pub(crate) value_parts: Vec<(PartKey, Option<u64>)>,
     /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
@@ -1108,6 +1110,7 @@ pub(crate) struct PartExtras {
     pub drag_cursor: Option<CursorIcon>,
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
+    pub value: bool,
 }
 
 impl PartBuilder<'_> {
@@ -1169,6 +1172,13 @@ impl PartBuilder<'_> {
     /// The part's tooltip.
     pub fn tooltip(self, tooltip: impl Into<Tooltip>) -> Self {
         self.declared.tooltip = Some(tooltip.into());
+        self
+    }
+
+    /// The part shows the component's value: a double click on it resets the value, as one on the root does. A
+    /// stepper button or a scroll thumb is no value part.
+    pub fn value_part(self) -> Self {
+        self.declared.value = true;
         self
     }
 
@@ -1237,8 +1247,14 @@ impl<C: Component> PartsCx<'_, C> {
         let min_thumb = crate::style::scroll_bar_look(self.measure.tokens).min_thumb;
         let (at, len) = craft_behavior::scroll::thumb(&span, track_length(rect, axis), min_thumb);
         let thumb = thumb_rect(rect, axis, rtl, at, len);
-        self.part(key, rect).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Body, 0)).pointer_only("Page Up and Page Down scroll the region");
-        self.part(key.at(THUMB), thumb).sense(Sense::DRAG).priority(HitPriority::new(HitLevel::Body, 1)).pointer_only("Page Up and Page Down scroll the region");
+        self.part(key, rect)
+            .sense(Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Body, 0))
+            .pointer_only("Page Up and Page Down scroll the region");
+        self.part(key.at(THUMB), thumb)
+            .sense(Sense::DRAG)
+            .priority(HitPriority::new(HitLevel::Body, 1))
+            .pointer_only("Page Up and Page Down scroll the region");
         self.scrolls.push(ScrollDecl { key, axis, rtl, track: rect, thumb, span, min_thumb });
     }
 }

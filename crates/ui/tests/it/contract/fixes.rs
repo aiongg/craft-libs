@@ -5,7 +5,8 @@ use super::kit::{PartSpec, PlainStyle, Probe, Seen};
 use craft_behavior::{Proposal, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, Looks, Sizing, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
+    Common, Component, Container, ContainerProps, Cx, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
+    Sizing,
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::runtime::{InstallSpec, install};

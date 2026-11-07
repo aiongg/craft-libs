@@ -2,7 +2,7 @@
 
 mod kit;
 
-use self::kit::{Dial, Field, LabelledDial, RESET, Seen};
+use self::kit::{Dial, Field, LabelledDial, RESET, Seen, Wide};
 use craft_i18n::Direction;
 use craft_ui::contract::{FieldLabel, FieldLabelRole, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::env::RootEnv;
@@ -203,4 +203,25 @@ fn double_clicking_a_value_component_resets_it_and_a_single_click_does_not() {
     assert_eq!(value, START, "one click leaves the value");
     double_click(&mut frames, at, &mut |ui| show(ui, &mut value));
     assert_eq!(value, RESET, "a double click on the control's root restores the reset value");
+}
+
+#[trial]
+fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
+    let mut frames = Frames::new();
+    let rect = std::cell::Cell::new(Rect::NOTHING);
+    let mut at = |frames: &mut Frames, width: f32, count: usize| {
+        let row = Rect::from_min_size(ROW_A.min, Vec2::new(width, 60.0));
+        frames.idle(count, |ui| {
+            Field::new("Opacity", SideLabel::new()).id_salt("fill").show_at(ui, row, |ui, _| {
+                rect.set(Wide::new().show(ui).rect);
+            });
+        });
+        rect.get()
+    };
+    let wide = at(&mut frames, 300.0, 6);
+    assert!(wide.min.x > ROW_A.min.x + 20.0, "a wide row keeps the label beside a control that fills its width: {wide:?}");
+    let narrow = at(&mut frames, 80.0, 4);
+    assert!(narrow.min.y > ROW_A.min.y + 5.0, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
+    let again = at(&mut frames, 300.0, 4);
+    assert!(again.min.x > ROW_A.min.x + 20.0, "the label returns beside the control when the row widens: {again:?}");
 }

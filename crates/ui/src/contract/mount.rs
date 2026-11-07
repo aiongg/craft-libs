@@ -1,16 +1,16 @@
 //! The mount host (16.2): where steps 6 to 16 of a container run. `Inline` runs in the parent's `Ui`; the others
 //! open a `Ui` of their own and call `pass` once for each pass that `Ui` gets.
 
-use super::body::{Placement, placement_id};
+use super::body::placement_of;
 use super::container::PaneEdge;
-use super::run::{Host, ShowAt};
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
+use super::run::{Host, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{memory as store, viewports};
+use crate::runtime::egui::viewports;
 use crate::runtime::env::Env;
 use crate::runtime::layout_memory;
-use crate::runtime::memory::sub;
+use crate::runtime::memory::{SaveKey, sub};
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host for `props.mount`.
@@ -18,9 +18,9 @@ pub(super) fn host(props: &ContainerProps) -> Box<dyn Host> {
     match &props.mount {
         Mount::Inline => Box::new(InlineHost),
         Mount::Pane(pane) => Box::new(PaneHost(*pane)),
-        Mount::Layer(overlay) => Box::new(LayerHost(overlay.clone())),
+        Mount::Layer(overlay) => Box::new(LayerHost(overlay.clone(), props.save.clone())),
         Mount::FullWindow => Box::new(FullWindowHost),
-        Mount::Viewport { fallback } => Box::new(ViewportHost(LayerHost(fallback.clone()))),
+        Mount::Viewport { fallback } => Box::new(ViewportHost(LayerHost(fallback.clone(), props.save.clone()))),
     }
 }
 
@@ -46,22 +46,30 @@ impl Host for PaneHost {
             PaneEdge::Bottom => (Edge::Bottom, false),
             _ => (Edge::Center, false),
         };
-        let last = layout_memory::read(parent.ctx(), id).map(|size| if along_x { size.x } else { size.y });
-        panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
+        let ctx = parent.ctx().clone();
+        // The pane's extent is its own memory, seeded from the size the pane first took and kept until the user
+        // resizes it: the body's size does not carry it, since a filling body takes what the pane gives.
+        let extent = sub(id, "pane_extent");
+        let last = layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y });
+        let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             let installed = Env::install_for(ui, env.clone());
             pass(ui, None);
             Env::restore(&ui.ctx().clone(), installed);
         });
+        if last.is_none() && edge != Edge::Center && outer.is_positive() {
+            layout_memory::record(&ctx, extent, outer.size());
+        }
     }
 }
 
 /// A layer through the overlay host, at the container's placement: the overlay's own place until the user moves it.
-struct LayerHost(Overlay);
+/// The placement lives in the container's saved slot when it has a `SaveKey`, else in shown memory.
+struct LayerHost(Overlay, Option<SaveKey>);
 
 impl Host for LayerHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        let placement: Placement = store::peek_clone(&ctx, placement_id(id)).unwrap_or_default();
+        let placement = placement_of(&ctx, id, self.1.as_ref());
         let mut overlay = self.0.clone();
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));

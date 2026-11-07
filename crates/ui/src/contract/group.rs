@@ -17,8 +17,10 @@ pub trait GroupKind: 'static {
 #[non_exhaustive]
 pub struct GroupState<M> {
     /// The group's pick this frame (step 9).
+    #[doc(hidden)]
     pub selected: Option<M>,
     /// Each member's value, id and enabled state, in the order they registered.
+    #[doc(hidden)]
     pub members: Vec<(M, Id, bool)>,
 }
 
@@ -59,6 +61,9 @@ impl<G: GroupKind> EnvValue for GroupHandle<G> {
 
 impl<G: GroupKind> GroupHandle<G> {
     /// The handle of the group whose registrations are `state`.
+    ///
+    /// For the group form's own code, not for members or body code.
+    #[doc(hidden)]
     pub fn new(state: Arc<Mutex<GroupState<G::Member>>>) -> Self {
         GroupHandle { state: Some(state), kind: PhantomData }
     }
@@ -82,21 +87,33 @@ impl<G: GroupKind> GroupHandle<G> {
     }
 
     /// The enabled member registered with `id` last pass.
+    ///
+    /// For the group form's own code, not for members or body code.
+    #[doc(hidden)]
     pub fn member(&self, id: Id) -> Option<G::Member> {
         self.with(|state| state.members.iter().find(|(_, member, enabled)| *member == id && *enabled).map(|(value, ..)| value.clone()))
     }
 
     /// The id of the enabled member registered with `value` last pass.
+    ///
+    /// For the group form's own code, not for members or body code.
+    #[doc(hidden)]
     pub fn member_id(&self, value: &G::Member) -> Option<Id> {
         self.with(|state| state.members.iter().find(|(member, _, enabled)| member == value && *enabled).map(|(_, id, _)| *id))
     }
 
     /// Sets the pick.
+    ///
+    /// For the group form's own code, not for members or body code.
+    #[doc(hidden)]
     pub fn select(&self, value: Option<G::Member>) {
         self.with(|state| state.selected = value);
     }
 
     /// Forgets the registrations: members register again as the body shows them.
+    ///
+    /// For the group form's own code, not for members or body code.
+    #[doc(hidden)]
     pub fn begin_registration(&self) {
         self.with(|state| state.members.clear());
     }

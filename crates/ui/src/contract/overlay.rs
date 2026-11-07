@@ -345,7 +345,8 @@ impl Overlay {
 
     /// A floating panel: a window-rank layer with no scope.
     pub fn floating() -> Overlay {
-        let mut overlay = Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
+        let mut overlay =
+            Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
@@ -515,7 +516,8 @@ pub(crate) fn popup_shown(ctx: &Context, owner: Id) -> bool {
 /// Step 10: the open state of every popup `owner` registered, with the closes `request_close` queued applied.
 pub(crate) fn open_map(stage: &mut MemoryStage, owner: Id) -> HashMap<Id, bool> {
     let ctx = stage.ctx().clone();
-    let popups: Vec<Id> = with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
+    let popups: Vec<Id> =
+        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
     popups
         .into_iter()
         .map(|popup| {
@@ -537,7 +539,8 @@ pub(crate) fn apply_closes(ctx: &Context, closed: Vec<(Id, CloseReason)>) {
 /// Step 15: writes the open slots of the popups `owner` registered, then forgets the queued changes.
 pub(crate) fn write_open(stage: &mut MemoryStage, owner: Id) {
     let ctx = stage.ctx().clone();
-    let popups: Vec<Id> = with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
+    let popups: Vec<Id> =
+        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
     for popup in popups {
         let open = open_now(stage, popup);
         stage.shown::<OpenSlot>(popup).0 = open;
@@ -660,7 +663,8 @@ impl<'a> OverlayUi<'a> {
             (Place::Anchored { anchor: Anchor::Point(at), .. }, None) => Rect::from_min_max(*at, *at),
             _ => self.anchor,
         };
-        let layer = Layer { id: popup.id, overlay: &overlay, anchor: self.to_screen * anchor_local, env: &self.env, exiting: !open, fade: presence.t };
+        let layer =
+            Layer { id: popup.id, overlay: &overlay, anchor: self.to_screen * anchor_local, env: &self.env, exiting: !open, fade: presence.t };
         let resolved = self.resolved;
         let mut result = None;
         let mut requested = false;

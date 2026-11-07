@@ -101,9 +101,9 @@ pub enum Pad {
 #[non_exhaustive]
 pub enum Sizing {
     /// The available rect.
-    #[default]
     Fill,
     /// The size its content took last pass.
+    #[default]
     Content,
 }
 
@@ -373,7 +373,7 @@ impl ContainerProps {
             mount: Mount::Inline,
             surface: None,
             pad: Pad::None,
-            sizing: Sizing::Fill,
+            sizing: Sizing::Content,
             layout: BodyLayout::Stack,
             header: None,
             scroll: None,

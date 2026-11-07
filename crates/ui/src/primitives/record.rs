@@ -52,6 +52,8 @@ pub(crate) struct FaceRecord {
     pub role: crate::runtime::access::Role,
     /// The face's numeric value, from its `access`.
     pub numeric: Option<crate::runtime::access::Numeric>,
+    /// The face's explicit expanded state, `false` when closed.
+    pub expanded: Option<bool>,
 }
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover
