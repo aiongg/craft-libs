@@ -12,6 +12,8 @@ pub(crate) struct Edit<'a> {
     /// The buffer; `None` shows `text` read-only.
     pub text: &'a mut String,
     pub read_only: bool,
+    /// Whether the widget senses focus and input; a disabled one declares neither to AccessKit.
+    pub enabled: bool,
     pub multiline: bool,
     pub password: bool,
     pub hint: Option<&'a str>,
@@ -41,7 +43,7 @@ pub(crate) struct Shown {
 
 /// Runs the widget at `edit.rect`.
 pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
-    let Edit { id, rect, text, read_only, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } = edit;
+    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } = edit;
     let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
     let font_id = font.resolve(ui.style());
     let had_focus = ui.memory(|memory| memory.has_focus(id));
@@ -70,6 +72,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                 let mut edit = if multiline { egui::TextEdit::multiline($buffer) } else { egui::TextEdit::singleline($buffer) };
                 edit = edit
                     .id(id)
+                    .interactive(enabled)
                     .frame(egui::Frame::NONE)
                     .desired_width(rect.width())
                     .min_size(rect.size())

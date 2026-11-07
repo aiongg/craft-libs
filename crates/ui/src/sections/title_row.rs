@@ -77,7 +77,6 @@ pub struct TitleRowStyle {
 /// A title with an optional subtitle, a lead (a disclosure bound to the container's open state, or a check box
 /// bound to its gate) and action parts.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(exempt(case = "stories", reason = "The title row is shown by a container's header; the sections family writes its stories."))]
 pub struct TitleRow<'a> {
     #[common]
     common: Common,
@@ -210,7 +209,7 @@ impl Component for TitleRow<'_> {
         match &self.lead {
             Lead::None => {}
             Lead::Disclosure(_) => {
-                ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false));
+                ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(cx.resolved.label.to_owned()));
                 flow = flow.take_start(side).1;
             }
             Lead::Check(_) => {

@@ -1,6 +1,6 @@
-//! Stories of the sections family: `GroupBox`.
+//! Stories of the sections family: `GroupBox` and `TitleRow`.
 
-use super::GroupBox;
+use super::{GroupBox, TitleRow};
 use crate::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, Validity};
 use crate::controls::check::Checkbox;
 use crate::controls::slider::Slider;
@@ -48,4 +48,20 @@ fn group_box_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn group_box_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_on = |on: &bool| if *on { Validity::Refuse(Message::new("Not available")) } else { Validity::Ok };
     GroupBox::new("Grid", Some(Bind::bound(data.value("gate", true)).check(refuse_on))).show(ui, |ui, _| body(ui)).into()
+}
+
+#[story(TitleRow<'static>, covers = [Default])]
+fn title_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    TitleRow::new("Layers").disclosure(Bind::bound(data.value("open", false))).show(ui).edit.into()
+}
+
+#[story(TitleRow<'static>, covers = [Mixed], drive = Drive::Never)]
+fn title_row_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    TitleRow::new("Grid").gate(Bind::bound_mixed(data.value("mixed", Mixed::Mixed))).show(ui).edit.into()
+}
+
+#[story(TitleRow<'static>, covers = [Invalid], drive = Drive::Never)]
+fn title_row_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_on = |on: &bool| if *on { Validity::Refuse(Message::new("Not available")) } else { Validity::Ok };
+    TitleRow::new("Grid").gate(Bind::bound(data.value("gate", true)).check(refuse_on)).show(ui).edit.into()
 }

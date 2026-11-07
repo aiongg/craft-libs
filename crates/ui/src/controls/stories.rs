@@ -1,6 +1,7 @@
 //! Stories of the value controls: `Checkbox`, `Slider`, `RadioGroup` and `Radio`.
 
 use super::check::Checkbox;
+use super::disclosure::Disclosure;
 use super::radio::{Radio, RadioGroup};
 use super::slider::{Slider, THUMB};
 use crate::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, Validity};
@@ -101,4 +102,20 @@ fn radio_group_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(Radio<u8>, covers = [Default])]
 fn radio(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     spread(ui, RadioGroup::new("Size", Bind::bound(data.value("size", 1u8)))).1.map(StoryOutput::from).unwrap_or_default()
+}
+
+#[story(Disclosure<'static>, covers = [Default])]
+fn disclosure(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Disclosure::new(Bind::bound(data.value("open", false))).label("Details").show(ui).into()
+}
+
+#[story(Disclosure<'static>, covers = [Mixed], drive = Drive::Never)]
+fn disclosure_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Disclosure::new(Bind::bound_mixed(data.value("mixed", Mixed::Mixed))).label("Details").show(ui).into()
+}
+
+#[story(Disclosure<'static>, covers = [Invalid], drive = Drive::Never)]
+fn disclosure_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_open = |open: &bool| if *open { Validity::Refuse(Message::new("Nothing to show")) } else { Validity::Ok };
+    Disclosure::new(Bind::bound(data.value("open", true)).check(refuse_open)).label("Details").show(ui).into()
 }

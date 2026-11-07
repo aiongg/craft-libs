@@ -15,23 +15,25 @@ impl ParityState for Text {
 
 const ID: &str = "composites/section-label/default";
 
+fn section_label(text: &str) -> parity::Scene<Text> {
+    parity::scene(Text(text.to_owned()), |ui, state| wrapped_text(ui, &state.0))
+}
+
+/// A story shown with an arg the capture does not have differs from the capture in that arg, and the report says
+/// which line each side has; the report is text and the replay does not fail on the difference.
 #[trial]
-fn replay_compares_a_story_with_its_capture_and_reports_the_differences_as_text() {
-    let mut harness = parity::harness(Text("Blend mode".to_owned()), |ui, state| wrapped_text(ui, &state.0));
-    let replay: Replay = parity::replay(ID, &mut harness);
+fn replay_reports_a_known_difference_from_its_capture_as_text() {
+    let replay: Replay = parity::replay(ID, &mut section_label("Other text"));
     assert!(!replay.missing, "{replay}");
-    // The legacy tree nests the label in generic containers the new shell does not add, so the replay differs; the
-    // report names those lines and the shared script sections (Tab walk, drive) match.
-    assert!(replay.differences.iter().any(|line| line.contains("Label")), "{replay}");
-    assert!(replay.differences.iter().all(|line| !line.contains("drive:") && !line.contains("tab")), "{replay}");
-    println!("{replay}");
+    assert!(!replay.identical(), "{replay}");
+    assert!(replay.differences.iter().any(|line| line.starts_with("- ") && line.contains("Blend mode")), "{replay}");
+    assert!(replay.differences.iter().any(|line| line.starts_with("+ ") && line.contains("Other text")), "{replay}");
+    assert!(replay.to_string().contains("differing lines"), "{replay}");
 }
 
 #[trial]
 fn replay_matching_runs_only_the_stories_the_track_has_migrated() {
-    let replays = parity::replay_matching("section-label", |id| {
-        (id == ID).then(|| parity::harness(Text("Blend mode".to_owned()), |ui, state| wrapped_text(ui, &state.0)))
-    });
+    let replays = parity::replay_matching("section-label", |id| (id == ID).then(|| section_label("Blend mode")));
     assert_eq!(replays.len(), 1, "one story of the filter is migrated: {replays:?}");
     assert!(!parity::captured_ids("section-label").is_empty());
 }

@@ -73,7 +73,8 @@ pub fn analyze_with_markers(src: &str, include_tests: bool, deny_unused: bool, e
 pub(crate) struct FilePlace {
     /// The file may change the style and the interface scale (`style-mutation`).
     pub style_writer: bool,
-    /// `test/literal-size` covers test code, so `literal-size/*` skips `#[cfg(test)]` items and, when `test_file`, the whole file.
+    /// `test/literal-size` covers test code, so `literal-size/*` skips `#[cfg(test)]` items and, when `test_file` (a file under
+    /// `tests/` or a crate's `src/testing/`), the whole file.
     pub tests_scoped: bool,
     pub test_file: bool,
 }

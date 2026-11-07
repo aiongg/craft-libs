@@ -358,6 +358,8 @@ pub struct SelectableStyle {
 
 /// Read-only text the user can focus, select and copy.
 #[derive(crate::contract::Component)]
+#[component(exempt(case = "stories", reason = "Read-only text has no mixed or invalid state."))]
+#[component(exempt(case = "values", reason = "Read-only text has no value a drive can change."))]
 pub struct SelectableText<'a> {
     #[common]
     common: Common,

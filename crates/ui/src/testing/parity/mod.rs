@@ -11,18 +11,18 @@
 mod script;
 mod tree;
 
-/// A node of a kittest harness and the trait that walks them, for the AccessKit adapter that reads them.
-pub(crate) use egui_kittest::Node as KitNode;
-pub(crate) use egui_kittest::kittest::NodeT as KitNodeT;
 pub(crate) use tree::Line;
 
-use egui_kittest::Harness;
+use super::Fixture;
+use egui::Vec2;
+use std::cell::RefCell;
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::rc::Rc;
 
 /// What a story's script reads and compares besides the tree: the story's args as `(name, text)` pairs, written the
 /// way the capture wrote them (`Text("Blend mode")`, `Bool(false)`).
-pub trait ParityState: Clone {
+pub trait ParityState: Clone + 'static {
     /// The args in their fixed order.
     fn args(&self) -> Vec<(String, String)>;
 }
@@ -34,38 +34,47 @@ impl ParityState for () {
     }
 }
 
-/// The frame length every step runs at, so animations advance by the same amount on every run.
-const STEP_DT: f32 = 1.0 / 60.0;
+/// The size of the surface a story is shown on, in points. A fixture's frames run at the capture's step length.
+const SURFACE: Vec2 = Vec2::new(640.0, 1200.0);
 
-/// The size of the surface a story is shown on, in points.
-const SURFACE: [f32; 2] = [640.0, 1200.0];
+/// A story shown by a fixture at the capture's surface size, with the state its args are read from.
+pub struct Scene<S> {
+    fixture: Fixture,
+    state: Rc<RefCell<S>>,
+}
 
-/// A harness for a story: the runtime installed, the capture's surface size and frame length. `app` shows the story.
-// TK-MERGE: TK-a (the fixture builds this harness, with the suite's fonts and the story's theme and scale)
-pub fn harness<'a, S: ParityState + 'a>(state: S, app: impl FnMut(&mut egui::Ui, &mut S) + 'a) -> Harness<'a, S> {
-    Harness::builder()
-        .allow_missing_glyphs()
-        .with_size(egui::Vec2::from(SURFACE))
-        .with_step_dt(STEP_DT)
-        .with_accessibility_check(false)
-        .with_context_setup(|ctx| {
-            let installed = crate::install(ctx, crate::testing::install_spec());
-            debug_assert!(installed.is_ok(), "the context takes the runtime once");
-        })
-        .build_ui_state(app, state)
+impl<S: ParityState> Scene<S> {
+    /// The story's args now.
+    fn state(&self) -> S {
+        self.state.borrow().clone()
+    }
+
+    /// The AccessKit tree of the latest frame, as text lines.
+    fn tree(&self) -> tree::Tree {
+        tree::tree(self.fixture.tree())
+    }
+}
+
+/// A scene for a story: the fixture's runtime, the capture's surface size. `app` shows the story.
+pub fn scene<S: ParityState>(state: S, mut app: impl FnMut(&mut egui::Ui, &mut S) + 'static) -> Scene<S> {
+    let state = Rc::new(RefCell::new(state));
+    let shown = state.clone();
+    let mut fixture = Fixture::new(move |ui| app(ui, &mut shown.borrow_mut()));
+    fixture.room(SURFACE);
+    Scene { fixture, state }
 }
 
 /// The story as text: its id, args and tree at rest, then the script's steps. The same format the capture has.
-pub fn record<S: ParityState>(id: &str, harness: &mut Harness<'_, S>) -> String {
+pub fn record<S: ParityState>(id: &str, scene: &mut Scene<S>) -> String {
     use std::fmt::Write as _;
-    script::settle(harness);
+    script::settle(scene);
     let mut out = String::new();
     let _ = writeln!(out, "story {id}");
     let _ = writeln!(out, "args");
-    out.push_str(&tree::args(harness.state()));
+    out.push_str(&tree::args(&scene.state()));
     let _ = writeln!(out, "tree");
-    out.push_str(&tree::tree(harness).text());
-    script::run(harness, &mut out);
+    out.push_str(&scene.tree().text());
+    script::run(scene, &mut out);
     out
 }
 
@@ -148,19 +157,19 @@ impl fmt::Display for Replay {
     }
 }
 
-/// Replays the story shown by `harness` as the legacy story `id` and compares it with the capture.
-pub fn replay<S: ParityState>(id: &str, harness: &mut Harness<'_, S>) -> Replay {
+/// Replays the story shown by `scene` as the legacy story `id` and compares it with the capture.
+pub fn replay<S: ParityState>(id: &str, scene: &mut Scene<S>) -> Replay {
     let Ok(captured) = std::fs::read_to_string(capture_file(id)) else {
         return Replay { id: id.to_owned(), missing: true, differences: Vec::new() };
     };
-    let replayed = record(id, harness);
+    let replayed = record(id, scene);
     Replay { id: id.to_owned(), missing: false, differences: line_diff(&captured, &replayed) }
 }
 
-/// Replays every captured story whose id contains `filter` for which `harness_of` returns a harness (it returns
-/// `None` for a story the track has not migrated).
-pub fn replay_matching<'a, S: ParityState>(filter: &str, mut harness_of: impl FnMut(&str) -> Option<Harness<'a, S>>) -> Vec<Replay> {
-    captured_ids(filter).into_iter().filter_map(|id| harness_of(&id).map(|mut harness| replay(&id, &mut harness))).collect()
+/// Replays every captured story whose id contains `filter` for which `scene_of` returns a scene (it returns `None`
+/// for a story the track has not migrated).
+pub fn replay_matching<S: ParityState>(filter: &str, mut scene_of: impl FnMut(&str) -> Option<Scene<S>>) -> Vec<Replay> {
+    captured_ids(filter).into_iter().filter_map(|id| scene_of(&id).map(|mut scene| replay(&id, &mut scene))).collect()
 }
 
 /// The lines only in `old` as `- ` and only in `new` as `+ `, in order, from their longest common subsequence.

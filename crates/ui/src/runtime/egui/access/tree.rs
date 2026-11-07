@@ -229,6 +229,21 @@ impl AccessTree {
 }
 
 impl AccessTree {
+    /// The root node, when the frame made a tree.
+    pub(crate) fn root_key(&self) -> Option<NodeKey> {
+        self.update.tree.as_ref().map(|tree| NodeKey(tree.root.0))
+    }
+
+    /// The node AccessKit reports as focused.
+    pub(crate) fn focused_key(&self) -> NodeKey {
+        NodeKey(self.update.focus.0)
+    }
+
+    /// The AccessKit data of a node by key.
+    pub(crate) fn data_of(&self, key: NodeKey) -> Option<&Node> {
+        self.lookup(NodeId(key.0))
+    }
+
     /// Every node.
     pub fn keys(&self) -> Vec<NodeKey> {
         self.update.nodes.iter().map(|(key, _)| NodeKey(key.0)).collect()

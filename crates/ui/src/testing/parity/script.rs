@@ -9,11 +9,11 @@
 use std::fmt::Write as _;
 
 use crate::runtime::egui::access::{Action, Role};
-use egui::Key;
-use egui_kittest::Harness;
+use crate::runtime::egui::fixture::AccessActionKind;
+use egui::{Key, Modifiers};
 
-use super::ParityState;
 use super::tree::{self as dump, Line, Tree};
+use super::{ParityState, Scene};
 
 /// Frames run after each input.
 const FRAMES: usize = 8;
@@ -50,22 +50,22 @@ const SELECTION_ROLES: [Role; 17] = [
 
 /// Runs frames until animations at the story's first frame have advanced the same amount on
 /// every run.
-pub fn settle<S>(harness: &mut Harness<'_, S>) {
-    harness.run_steps(FRAMES);
+pub fn settle<S: ParityState>(scene: &mut Scene<S>) {
+    scene.fixture.idle(FRAMES);
 }
 
-struct Recorder<'a, 'b, S> {
-    harness: &'a mut Harness<'b, S>,
+struct Recorder<'a, S> {
+    scene: &'a mut Scene<S>,
     out: &'a mut String,
     tree: Tree,
     args: S,
 }
 
-impl<S: ParityState> Recorder<'_, '_, S> {
+impl<S: ParityState> Recorder<'_, S> {
     /// Runs the frames of a step and prints what changed since the last step.
     fn report(&mut self, step: &str) {
-        settle(self.harness);
-        let tree = dump::tree(self.harness);
+        settle(self.scene);
+        let tree = self.scene.tree();
         let mut changes = Vec::new();
         let focus = |t: &Tree| t.focused().map(Line::title);
         if focus(&self.tree) != focus(&tree) {
@@ -75,7 +75,7 @@ impl<S: ParityState> Recorder<'_, '_, S> {
                 focus(&tree).unwrap_or_else(|| "none".into())
             ));
         }
-        changes.extend(dump::args_diff(&self.args, self.harness.state()));
+        changes.extend(dump::args_diff(&self.args, &self.scene.state()));
         changes.extend(self.tree.diff(&tree));
         if changes.is_empty() {
             let _ = writeln!(self.out, "  {step}: no change");
@@ -86,7 +86,7 @@ impl<S: ParityState> Recorder<'_, '_, S> {
             }
         }
         self.tree = tree;
-        self.args = self.harness.state().clone();
+        self.args = self.scene.state();
     }
 
     /// The path of the node `target` now has, when it is still in the tree: the same path with
@@ -98,10 +98,10 @@ impl<S: ParityState> Recorder<'_, '_, S> {
 
     fn click(&mut self, target: &Line) {
         let Some(path) = self.find(target) else { return self.gone("click") };
-        match dump::node_at(self.harness, &path) {
-            Some(node) if node.rect().is_finite() => node.click(),
-            _ => return self.unreachable("click"),
-        }
+        let Some(at) = self.tree.line(&path).and_then(|line| self.scene.fixture.target(line.key)).filter(|at| at.rect.is_finite()) else {
+            return self.unreachable("click");
+        };
+        self.scene.fixture.click(&at);
         self.report("click");
     }
 
@@ -110,13 +110,13 @@ impl<S: ParityState> Recorder<'_, '_, S> {
         let Some(path) = self.find(target) else { return self.gone(&format!("{key:?}")) };
         let focused = self.tree.line(&path).is_some_and(|l| l.focused);
         if !focused {
-            if let Some(node) = dump::node_at(self.harness, &path) {
-                node.focus();
+            if let Some(at) = self.tree.line(&path).and_then(|line| self.scene.fixture.target(line.key)) {
+                self.scene.fixture.access(AccessActionKind::Focus, &at);
             }
-            settle(self.harness);
-            self.tree = dump::tree(self.harness);
+            settle(self.scene);
+            self.tree = self.scene.tree();
         }
-        self.harness.key_press(key);
+        self.scene.fixture.key(key, Modifiers::NONE);
         self.report(&format!("{key:?}"));
     }
 
@@ -130,23 +130,23 @@ impl<S: ParityState> Recorder<'_, '_, S> {
 }
 
 /// Records the Tab walk and the per-node steps onto `out`.
-pub fn run<S: ParityState>(harness: &mut Harness<'_, S>, out: &mut String) {
-    let tree = dump::tree(harness);
-    let args = harness.state().clone();
-    let mut rec = Recorder { harness, out, tree, args };
+pub fn run<S: ParityState>(scene: &mut Scene<S>, out: &mut String) {
+    let tree = scene.tree();
+    let args = scene.state();
+    let mut rec = Recorder { scene, out, tree, args };
     rec.tab_walk();
     rec.drive();
 }
 
-impl<S: ParityState> Recorder<'_, '_, S> {
+impl<S: ParityState> Recorder<'_, S> {
     fn tab_walk(&mut self) {
         let _ = writeln!(self.out, "tab");
         let _ = writeln!(self.out, "  start: {}", self.tree.focused().map_or_else(|| "none".into(), Line::title));
         let mut seen: Vec<String> = Vec::new();
         for n in 1..=MAX_TABS {
-            self.harness.key_press(Key::Tab);
-            settle(self.harness);
-            let tree = dump::tree(self.harness);
+            self.scene.fixture.key(Key::Tab, Modifiers::NONE);
+            settle(self.scene);
+            let tree = self.scene.tree();
             let now = tree.focused().map(|l| (l.path.clone(), l.title()));
             let _ = writeln!(self.out, "  {n}: {}", now.as_ref().map_or("none", |(_, t)| t));
             let changes = self.tree.diff(&tree);
@@ -154,7 +154,7 @@ impl<S: ParityState> Recorder<'_, '_, S> {
                 let _ = writeln!(self.out, "    {change}");
             }
             self.tree = tree;
-            self.args = self.harness.state().clone();
+            self.args = self.scene.state();
             match now {
                 Some((path, _)) if seen.contains(&path) => {
                     let _ = writeln!(self.out, "  cycle after {} nodes", seen.len());
@@ -185,6 +185,7 @@ impl<S: ParityState> Recorder<'_, '_, S> {
             .map(|l| Line {
                 depth: l.depth,
                 path: l.path.clone(),
+                key: l.key,
                 text: l.text.clone(),
                 focused: false,
                 role: l.role,

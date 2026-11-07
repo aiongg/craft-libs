@@ -51,7 +51,7 @@ impl Fixture {
             frames: Frames::new(),
             show: Box::new(show),
             root: RootEnv::default(),
-            room: Vec2::from([400.0, 300.0]),
+            room: Vec2::new(400.0, 300.0),
             tree: AccessTree::none(),
             shown: Rect::NOTHING,
             data: Rc::default(),
@@ -194,7 +194,8 @@ impl Fixture {
         &self.tree
     }
 
-    fn target(&self, node: NodeKey) -> Option<Target> {
+    /// The node by key, with its bounds, when the latest tree has it.
+    pub fn target(&self, node: NodeKey) -> Option<Target> {
         Some(Target { node, rect: self.tree.bounds_of(node)? })
     }
 

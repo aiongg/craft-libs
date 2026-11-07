@@ -105,7 +105,10 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
             let place = scope.map_or_else(FilePlace::default, |s| FilePlace {
                 style_writer: s.allows(rules::STYLE_MUTATION, &shown),
                 tests_scoped: true,
-                test_file: is_test_path(file.strip_prefix(&base).unwrap_or(&file)),
+                test_file: {
+                    let relative = file.strip_prefix(&base).unwrap_or(&file);
+                    is_test_path(relative) || is_testing_module(relative)
+                },
             });
             let marked = markers::analyze_with_extra(&src, config.include_tests, config.deny_unused, &exempt, &extra, place);
             report.markers += marked.markers;
@@ -143,6 +146,12 @@ fn is_test_path(relative: &Path) -> bool {
     let in_test_dir = relative.parent().is_some_and(|p| p.components().any(|c| matches!(c.as_os_str().to_str(), Some("tests" | "benches"))));
     let name = relative.file_name().and_then(|n| n.to_str()).unwrap_or_default();
     in_test_dir || name == "tests.rs" || name.ends_with("_test.rs") || name.ends_with("_tests.rs")
+}
+
+/// A crate's `src/testing/` module: the test kit behind feature `testing`, which literal sizes may fill like `tests/`.
+fn is_testing_module(relative: &Path) -> bool {
+    let parts: Vec<_> = relative.components().filter_map(|c| c.as_os_str().to_str()).collect();
+    parts.windows(2).any(|pair| pair == ["src", "testing"])
 }
 
 fn area_of(base: &Path, file: &Path) -> String {

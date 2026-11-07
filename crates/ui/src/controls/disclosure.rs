@@ -58,7 +58,6 @@ pub struct DisclosureStyle {
 
 /// A button bound to an open state, with the expanded state. A face shown by a title row or a tree row has no node.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(exempt(case = "stories", reason = "The controls family writes the disclosure stories."))]
 pub struct Disclosure<'a> {
     #[common]
     common: Common,

@@ -1,7 +1,7 @@
-//! Reads a kittest node's AccessKit data into the parity tree's lines.
+//! Reads a node's AccessKit data into the parity tree's lines.
 
-use super::{Action, Role, Toggled};
-use crate::testing::parity::{KitNode as Node, KitNodeT as _, Line};
+use super::{AccessTree, Action, NodeKey, Role, Toggled};
+use crate::testing::parity::Line;
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
@@ -31,62 +31,63 @@ pub(crate) fn child_path(parent: &str, index: usize) -> String {
     if parent == "r" { format!("r.{index}") } else { format!("{parent}.{index}") }
 }
 
-pub(crate) fn paths_of(node: &Node<'_>, path: &str, paths: &mut HashMap<String, String>) {
-    paths.insert(format!("{:?}", node.accesskit_node().id()), path.to_owned());
-    for (i, child) in node.children().enumerate() {
-        paths_of(&child, &child_path(path, i), paths);
+/// The path of every node below `key`, by AccessKit node number.
+pub(crate) fn paths_of(tree: &AccessTree, key: NodeKey, path: &str, paths: &mut HashMap<u64, String>) {
+    paths.insert(key.raw(), path.to_owned());
+    for (i, child) in tree.children_of(key).into_iter().enumerate() {
+        paths_of(tree, child, &child_path(path, i), paths);
     }
 }
 
-pub(crate) fn line_of(node: &Node<'_>, path: &str, depth: usize, paths: &HashMap<String, String>) -> Line {
-    let ak = node.accesskit_node();
-    let data = ak.data();
-    let name = ak.label().unwrap_or_default();
-    let mut text = format!("{:?} {name:?}", ak.role());
+pub(crate) fn line_of(tree: &AccessTree, key: NodeKey, path: &str, depth: usize, paths: &HashMap<u64, String>) -> Option<Line> {
+    let data = tree.data_of(key)?;
+    let name = data.label().unwrap_or_default().to_owned();
+    let mut text = format!("{:?} {name:?}", data.role());
     let mut put = |label: &str, value: String| {
         let _ = write!(text, " {label}={value}");
     };
-    if let Some(value) = ak.value() {
+    if let Some(value) = data.value() {
         put("value", format!("{value:?}"));
     }
-    if let Some(description) = ak.description() {
+    if let Some(description) = data.description() {
         put("description", format!("{description:?}"));
     }
-    if let Some(placeholder) = ak.placeholder() {
+    if let Some(placeholder) = data.placeholder() {
         put("placeholder", format!("{placeholder:?}"));
     }
     if let Some(shortcut) = data.keyboard_shortcut() {
         put("shortcut", format!("{shortcut:?}"));
     }
-    if let Some(n) = ak.numeric_value() {
+    if let Some(n) = data.numeric_value() {
         let range = |n: Option<f64>| n.map_or_else(|| "-".to_owned(), |n| format!("{n}"));
-        put("number", format!("{n} in {}..{} step {}", range(ak.min_numeric_value()), range(ak.max_numeric_value()), range(ak.numeric_value_step())));
+        put(
+            "number",
+            format!("{n} in {}..{} step {}", range(data.min_numeric_value()), range(data.max_numeric_value()), range(data.numeric_value_step())),
+        );
     }
-    let related: [(&str, Vec<&str>); 2] = [
-        ("labelled_by", ak.labelled_by().map(|n| paths.get(&format!("{:?}", n.id())).map_or("?", String::as_str)).collect()),
-        ("controls", ak.controls().map(|n| paths.get(&format!("{:?}", n.id())).map_or("?", String::as_str)).collect()),
-    ];
-    for (label, targets) in related {
+    let targets =
+        |ids: &[accesskit::NodeId]| -> Vec<String> { ids.iter().map(|id| paths.get(&id.0).map_or("?", String::as_str).to_owned()).collect() };
+    for (label, targets) in [("labelled_by", targets(data.labelled_by())), ("controls", targets(data.controls()))] {
         if !targets.is_empty() {
             put(label, format!("[{}]", targets.join(",")));
         }
     }
     let mut flags: Vec<String> = Vec::new();
-    if ak.is_hidden() {
+    if data.is_hidden() {
         flags.push("hidden".into());
     }
-    if ak.is_disabled() {
+    if data.is_disabled() {
         flags.push("disabled".into());
     }
-    if ak.is_read_only()
-        && matches!(ak.role(), Role::TextInput | Role::MultilineTextInput | Role::SearchInput | Role::PasswordInput | Role::NumberInput)
+    if data.is_read_only()
+        && matches!(data.role(), Role::TextInput | Role::MultilineTextInput | Role::SearchInput | Role::PasswordInput | Role::NumberInput)
     {
         flags.push("read-only".into());
     }
-    if ak.is_required() {
+    if data.is_required() {
         flags.push("required".into());
     }
-    if let Some(toggled) = ak.toggled() {
+    if let Some(toggled) = data.toggled() {
         flags.push(match toggled {
             Toggled::False => "unchecked".into(),
             Toggled::True => "checked".into(),
@@ -96,10 +97,10 @@ pub(crate) fn line_of(node: &Node<'_>, path: &str, depth: usize, paths: &HashMap
     if let Some(expanded) = data.is_expanded() {
         flags.push(if expanded { "expanded" } else { "collapsed" }.into());
     }
-    if let Some(selected) = ak.is_selected() {
+    if let Some(selected) = data.is_selected() {
         flags.push(if selected { "selected" } else { "unselected" }.into());
     }
-    if let Some(popup) = ak.has_popup() {
+    if let Some(popup) = data.has_popup() {
         flags.push(format!("popup:{popup:?}"));
     }
     if !flags.is_empty() {
@@ -110,15 +111,16 @@ pub(crate) fn line_of(node: &Node<'_>, path: &str, depth: usize, paths: &HashMap
         let names: Vec<String> = actions.iter().map(|a| format!("{a:?}")).collect();
         let _ = write!(text, " actions=[{}]", names.join(","));
     }
-    Line {
+    Some(Line {
         depth,
         path: path.to_owned(),
+        key,
         text,
-        focused: ak.is_focused(),
-        role: ak.role(),
+        focused: tree.focused_key() == key,
+        role: data.role(),
         name,
-        hidden: ak.is_hidden(),
-        disabled: ak.is_disabled(),
+        hidden: data.is_hidden(),
+        disabled: data.is_disabled(),
         actions,
-    }
+    })
 }

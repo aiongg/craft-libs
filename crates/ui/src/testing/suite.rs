@@ -333,12 +333,12 @@ fn leaf_degenerate_rects() -> Result<(), Failed> {
         Rect::ZERO,
         Rect::from_min_max(Pos2::new(nan, nan), Pos2::new(nan, nan)),
         Rect::from_min_max(Pos2::ZERO, Pos2::new(f32::INFINITY, f32::INFINITY)),
-        Rect::from_min_size(Pos2::ZERO, Vec2::from([1.0e9; 2])),
-        Rect::from_min_size(Pos2::new(5.0, 5.0), Vec2::from([1.0; 2])),
+        Rect::from_min_size(Pos2::ZERO, Vec2::splat(1.0e9)),
+        Rect::from_min_size(Pos2::new(5.0, 5.0), Vec2::splat(1.0)),
     ];
     for rect in rects {
         let mut fixture = Fixture::new(move |ui| {
-            Block::new(Vec2::from([40.0, 20.0])).show_at(ui, rect);
+            Block::new(Vec2::new(40.0, 20.0)).show_at(ui, rect);
         });
         fixture.idle(3);
     }

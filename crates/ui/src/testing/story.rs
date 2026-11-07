@@ -4,7 +4,7 @@ use super::Fixture;
 use crate::contract::{EditResponse, Inner};
 use craft_behavior::{EditEvent, PartKey, Value};
 use egui::{Id, Response, Ui};
-use std::any::Any;
+use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
 /// A state a registered type must show in some story.
@@ -113,30 +113,45 @@ pub static STORIES: [StoryRegistration];
 /// The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
 #[derive(Default)]
 pub struct StoryData {
-    values: HashMap<&'static str, Erased>,
+    values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
 }
 
-struct Erased {
-    value: Box<dyn Any + Send + Sync>,
-    copy: fn(&(dyn Any + Send + Sync)) -> Box<dyn Any + Send + Sync>,
-    same: fn(&(dyn Any + Send + Sync), &(dyn Any + Send + Sync)) -> bool,
+/// A story value with its type erased: it copies and compares itself.
+trait Shown {
+    fn copy(&self) -> Box<dyn Shown>;
+    fn same(&self, other: &dyn Shown) -> bool;
+    fn any(&self) -> &dyn Any;
+    fn any_mut(&mut self) -> &mut dyn Any;
 }
 
-impl Erased {
-    fn new<T: Value>(init: T) -> Self {
-        Erased {
-            value: Box::new(init),
-            copy: |value| Box::new(value.downcast_ref::<T>().expect("a story value keeps its type").clone()),
-            same: |a, b| matches!((a.downcast_ref::<T>(), b.downcast_ref::<T>()), (Some(a), Some(b)) if a == b),
-        }
+impl<T: Value> Shown for T {
+    fn copy(&self) -> Box<dyn Shown> {
+        Box::new(self.clone())
+    }
+
+    fn same(&self, other: &dyn Shown) -> bool {
+        other.any().downcast_ref::<T>() == Some(self)
+    }
+
+    fn any(&self) -> &dyn Any {
+        self
+    }
+
+    fn any_mut(&mut self) -> &mut dyn Any {
+        self
     }
 }
 
 impl StoryData {
-    /// The value named `name`, created from `init` on first use.
+    /// The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
+    /// values.
+    #[allow(clippy::unreachable, reason = "the slot key holds the type, so the downcast cannot fail")]
     pub fn value<T: Value>(&mut self, name: &'static str, init: T) -> &mut T {
-        let slot = self.values.entry(name).or_insert_with(|| Erased::new(init));
-        slot.value.downcast_mut::<T>().expect("a story value keeps its type")
+        let slot = self.values.entry((name, TypeId::of::<T>())).or_insert_with(|| Box::new(init));
+        match slot.any_mut().downcast_mut::<T>() {
+            Some(value) => value,
+            None => unreachable!("a slot's value has the type its key names"),
+        }
     }
 
     /// The names of the values that differ from `before`; a value added since counts as changed.
@@ -144,8 +159,8 @@ impl StoryData {
         let mut names: Vec<_> = self
             .values
             .iter()
-            .filter(|(name, now)| !before.values.iter().any(|(old, was)| old == *name && (now.same)(&*was.value, &*now.value)))
-            .map(|(name, _)| *name)
+            .filter(|(key, now)| !before.values.iter().any(|(old, was)| old == *key && now.same(&**was)))
+            .map(|((name, _), _)| *name)
             .collect();
         names.sort_unstable();
         names
@@ -153,15 +168,13 @@ impl StoryData {
 
     /// A copy of every value.
     pub fn snapshot(&self) -> StorySnapshot {
-        StorySnapshot {
-            values: self.values.iter().map(|(name, e)| (*name, Erased { value: (e.copy)(&*e.value), copy: e.copy, same: e.same })).collect(),
-        }
+        StorySnapshot { values: self.values.iter().map(|(key, value)| (*key, value.copy())).collect() }
     }
 }
 
 /// The values of a [`StoryData`] at one moment.
 pub struct StorySnapshot {
-    values: Vec<(&'static str, Erased)>,
+    values: Vec<((&'static str, TypeId), Box<dyn Shown>)>,
 }
 
 /// The kind of an edit event.
