@@ -36,11 +36,11 @@ fn dashes(shapes: &[Shape]) -> Vec<Vec<Pos2>> {
 #[trial]
 fn a_dashed_line_keeps_its_gap_and_continues_its_pattern_round_a_corner() {
     let path = [pos2(0.0, 0.0), pos2(22.0, 0.0), pos2(22.0, 40.0)];
-    let (dash, gap, phase) = (6.0, 4.0, 2.0);
+    let (dash, gap, phase) = (6.0, 4.0, 1.0);
     let found = dashes(&dashed(&path, 1.0, dash, gap, phase, Color32::from_gray(200)));
     assert!(found.len() >= 4, "the line is cut into dashes: {}", found.len());
     let spans: Vec<(f32, f32)> = found.iter().map(|points| (along(&path, points[0]), along(&path, *points.last().unwrap()))).collect();
-    assert!((spans[1].0 - (dash - phase + gap)).abs() < 0.01, "the phase shifts the pattern: {spans:?}");
+    assert!((spans[1].0 - (phase + dash + gap)).abs() < 0.01, "the phase shifts the pattern: {spans:?}");
     for pair in spans.windows(2) {
         assert!((pair[1].0 - pair[0].1 - gap).abs() < 0.01, "a gap of {gap} between {pair:?}");
     }
