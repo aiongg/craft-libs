@@ -236,6 +236,7 @@ fn blank_core<'a>(
         scroll_moves: Vec::new(),
         value_parts: Vec::new(),
         own_reset_parts: Vec::new(),
+        toggles: Vec::new(),
         reset_part: None,
         root_sense: Sense::empty(),
         roving_arrival: None,
@@ -465,6 +466,13 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.active = cx.core.focus.part.filter(|part| results.contains_key(&(part.key, part.index)));
     cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
     cx.core.value_parts = parts.decls.iter().filter(|(_, extras)| extras.value).map(|(decl, _)| (decl.key, decl.index)).collect();
+    cx.core.toggles = parts
+        .decls
+        .iter()
+        .filter_map(|(decl, extras)| {
+            extras.toggles.map(|popup| super::cx::Toggle { part: PartRef { key: decl.key, index: decl.index }, popup, open: false })
+        })
+        .collect();
     cx.core.own_reset_parts = parts.decls.iter().filter(|(_, extras)| extras.own_reset).map(|(decl, _)| (decl.key, decl.index)).collect();
     cx.core.results = results;
     cx.core.root_sense = root_sense;
@@ -503,6 +511,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.trace.mark(Step::Update);
     steps::gesture_gate(cx);
     steps::update_inputs(&mut cx.core);
+    overlay::drive_toggles(cx);
     steps::edit_intents(comp, cx);
     steps::scrub_by_label(comp, cx);
     comp.update(cx);

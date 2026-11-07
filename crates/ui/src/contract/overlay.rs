@@ -608,6 +608,61 @@ impl<C: Component> Overlays for Cx<'_, C> {
     }
 }
 
+/// Step 9, before `update`: what the component's parts declared with `PartBuilder::toggles`. A click on the part
+/// toggles its popup, AccessKit Expand and Collapse on its sub-node open and close it, Alt+Down opens the popup of
+/// the focused toggling part (else the first one that is closed), and Alt+Up closes the open ones. Each toggle keeps
+/// the popup's open state for the part's `expanded`.
+pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
+    if cx.core.toggles.is_empty() {
+        return;
+    }
+    let mut toggles = std::mem::take(&mut cx.core.toggles);
+    let active = focus::active_part(&cx.core.ctx, cx.core.id);
+    let mut handled = false;
+    for toggle in &toggles {
+        let popup = cx.popup(toggle.popup);
+        let part = toggle.part;
+        let named = |request: &craft_behavior::AccessRequest| {
+            request.target == Some(part) && matches!(request.action, craft_behavior::AccessAction::Expand | craft_behavior::AccessAction::Collapse)
+        };
+        while let Some(request) = cx.core.intents.take_access_where(named) {
+            if request.action == craft_behavior::AccessAction::Expand {
+                popup.open(cx);
+            } else {
+                popup.close(cx);
+            }
+            handled = true;
+        }
+        if cx.core.results.get(&(part.key, part.index)).is_some_and(|result| result.press.phase.is_click()) {
+            queue(&cx.core.ctx, popup.id, OpenOp::Toggle);
+            handled = true;
+        }
+    }
+    let mut open = Vec::with_capacity(toggles.len());
+    for toggle in &toggles {
+        let popup = cx.popup(toggle.popup);
+        open.push(popup.is_open(cx));
+    }
+    if open.contains(&true) {
+        if cx.core.intents.take(Intent::Close) {
+            for (toggle, _) in toggles.iter().zip(&open).filter(|(_, open)| **open) {
+                cx.popup(toggle.popup).close(cx);
+            }
+        }
+        // An open popup keeps Alt+Down: nothing opens beside it.
+        cx.core.intents.take(Intent::Open);
+    } else if cx.core.intents.take(Intent::Open) && !handled {
+        let target = active.and_then(|part| toggles.iter().find(|toggle| toggle.part == part)).or(toggles.first());
+        if let Some(toggle) = target {
+            cx.popup(toggle.popup).open(cx);
+        }
+    }
+    for toggle in &mut toggles {
+        toggle.open = cx.popup(toggle.popup).is_open(cx);
+    }
+    cx.core.toggles = toggles;
+}
+
 impl PopupHandle {
     /// Toggles or opens the popup from `trigger` at step 9, as the pass's pending open change.
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {

@@ -3,8 +3,9 @@
 
 use craft_ui::buttons::SplitButton;
 use craft_ui::contract::{Entry, Role, Show as _};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -12,15 +13,17 @@ struct Rig {
     fixture: Fixture,
     clicks: Rc<Cell<u32>>,
     chosen: Rc<Cell<Option<u8>>>,
+    id: Rc<Cell<Option<Id>>>,
 }
 
 fn rig() -> Rig {
-    let (clicks, chosen) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(None)));
-    let (shown_clicks, shown_chosen) = (clicks.clone(), chosen.clone());
+    let (clicks, chosen, id) = (Rc::new(Cell::new(0)), Rc::new(Cell::new(None)), Rc::new(Cell::new(None)));
+    let (shown_clicks, shown_chosen, shown_id) = (clicks.clone(), chosen.clone(), id.clone());
     let mut fixture = Fixture::new(move |ui| {
         let entries =
             [Entry::new(7u8, "Colour").checked(true), Entry::separator(), Entry::new(8, "Duotone").enabled(false), Entry::new(9, "Grayscale")];
         let out = SplitButton::new("Trace", &entries).show(ui);
+        shown_id.set(Some(out.response.id));
         if craft_ui::testing::contract::clicked(&out.response) {
             shown_clicks.set(shown_clicks.get() + 1);
         }
@@ -29,7 +32,7 @@ fn rig() -> Rig {
         }
     });
     fixture.settle();
-    Rig { fixture, clicks, chosen }
+    Rig { fixture, clicks, chosen, id }
 }
 
 impl Rig {
@@ -41,6 +44,25 @@ impl Rig {
         self.fixture.key(key, modifiers);
         self.fixture.idle(2);
     }
+}
+
+/// AccessKit Expand on the arrow's sub-node opens the menu and Collapse closes it, and the sub-node reports which.
+#[trial]
+fn expand_and_collapse_on_the_arrow_open_and_close_the_menu() {
+    let mut rig = rig();
+    let id = rig.id.get().expect("the button showed");
+    let arrow = |rig: &Rig| rig.fixture.part(id, craft_behavior::PartKey::new("arrow")).expect("the arrow has a node");
+    assert_eq!(rig.fixture.tree().expanded_of(arrow(&rig).node), Some(false), "the closed menu's arrow is expandable");
+    let target = arrow(&rig);
+    rig.fixture.access(AccessActionKind::Expand, &target);
+    rig.fixture.idle(4);
+    assert!(rig.menu_shown(), "Expand opens the menu");
+    assert_eq!(rig.fixture.tree().expanded_of(arrow(&rig).node), Some(true), "the arrow reports it open");
+    let target = arrow(&rig);
+    rig.fixture.access(AccessActionKind::Collapse, &target);
+    rig.fixture.idle(30);
+    assert!(!rig.menu_shown(), "Collapse closes it");
+    assert_eq!(rig.fixture.tree().expanded_of(arrow(&rig).node), Some(false), "the arrow reports it closed");
 }
 
 /// Enter on the focused button runs the action and leaves the menu closed.
