@@ -1,7 +1,7 @@
 //! Stories of `TitleRow`.
 
 use super::{HeaderStrength, TitleRow};
-use crate::contract::{Bind, Props as _, Show as _, Validity};
+use crate::contract::{Bind, Show as _, Validity};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};

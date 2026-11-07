@@ -4,7 +4,7 @@
 
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Role, Styled as _, WordSetCx as _,
+    Role, Styled as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::UnitKind;

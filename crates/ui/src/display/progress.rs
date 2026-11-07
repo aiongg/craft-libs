@@ -45,7 +45,7 @@ enum Amount {
 /// than the bar is thick unless it is empty. While the extent is unknown a segment moves along the track; where
 /// motion is off the segment stands still and is drawn as dashes, so it cannot be mistaken for a fill. AccessKit
 /// reports a progress indicator with the fraction as its value, none while the extent is unknown.
-#[derive(crate::contract::Component)]
+#[derive(Clone, crate::contract::Component)]
 pub struct Progress {
     #[common]
     common: Common,
@@ -150,7 +150,7 @@ impl Component for Progress {
         let flow = Flow::new(track, cx.flow.is_rtl());
         let color = cx.resolve(&cx.style.fill);
         let draw = ui.draw();
-        draw.fill(&PaintShape::Rect(track, cx.style.radius), cx.resolve(&cx.style.track.groove));
+        draw.fill(&PaintShape::Rect(track, cx.style.radius), cx.resolve(&cx.style.track.unfilled));
         for (from, to) in spans {
             let span = flow.span(from * width, (to - from) * width);
             if span.width() > 0.0 {

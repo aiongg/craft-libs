@@ -5,7 +5,8 @@ use crate::overlay::kit::{Opened, Opener, PlainStyle, Seen};
 use craft_behavior::DropOperation;
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{
-    Bind, Common, Component, Cx, DropMark, DropTarget, MeasureCx, OsFiles, Overlay, Props as _, Role, Show as _, ShowContainer as _, Trigger,
+    Bind, Common, Component, Cx, DropMark, DropTarget, MeasureCx, OsFiles, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
+    Trigger,
 };
 use craft_ui::popover::DropVeil;
 use craft_ui::style::StyleCx;

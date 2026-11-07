@@ -129,7 +129,7 @@ impl<'a> Section<'a> {
 
     fn update_header(&mut self, change: impl FnOnce(HeaderRegion) -> HeaderRegion) {
         let header = change(self.props.header.unwrap_or_default());
-        self.props = self.props.header(header);
+        self.props.header = Some(header);
     }
 
     /// The action parts at the end of the header, in reading order.

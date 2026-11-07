@@ -32,7 +32,7 @@ fn a_text_measures_the_same_width_at_every_scale() {
         let mut fixture = Fixture::new(|ui| {
             Text::new("Layers").show(ui);
         });
-        fixture.scale(Scale(scale));
+        fixture.scale(Scale::new(scale));
         fixture.settle();
         fixture.shown().width()
     };

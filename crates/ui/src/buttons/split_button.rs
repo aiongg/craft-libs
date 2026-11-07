@@ -3,7 +3,7 @@
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
     Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi,
-    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _,
+    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};

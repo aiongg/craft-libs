@@ -169,7 +169,7 @@ impl FooterBar {
             Content::Buttons(buttons) => {
                 let roles: Vec<DialogRole> = buttons.iter().map(|button| button.role).collect();
                 let mut picked = None;
-                let (ctx, owner) = (ui.ctx().clone(), ui.id());
+                let (ctx, owner) = (ui.ctx().clone(), ui.scope_id());
                 let lettered = letters_reach_footer(&ctx);
                 for at in display_order(&roles, crate::runtime::windows::os_of(ui.ctx()) == Os::Windows) {
                     let button = &buttons[at];

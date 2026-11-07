@@ -335,6 +335,7 @@ pub(crate) fn seed_area(ctx: &Context, layer: LayerId, at: Pos2, room: Vec2) {
 }
 
 /// The width of the widest layer above the background, 0 when there is none.
+#[cfg(feature = "testing")]
 pub(crate) fn widest_layer(ctx: &Context) -> f32 {
     ctx.memory(|memory| {
         memory

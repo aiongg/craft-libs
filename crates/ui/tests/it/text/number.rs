@@ -1,10 +1,11 @@
 //! The number field's own logic: stepping, the range on typed values, presets and the label scrub across a pointer warp.
 
 use crate::label::kit::Field;
+use craft_behavior::EditEvent;
 use craft_behavior::{Mixed, NumberCodec, Reader};
 use craft_host::target::ShellInfo;
 use craft_host::{AppInfo, Host};
-use craft_ui::contract::{Bind, EditEvent, Entry, Props as _, Role, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::input::key_press;
@@ -12,7 +13,7 @@ use craft_ui::testing::pointer::{click, moved, press};
 use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Fixture, Frames, trial};
 use craft_ui::text::{NumberField, NumberPick};
-use egui::{Event, Key, Modifiers, MouseWheelUnit, Pos2, Rect, Ui, Vec2};
+use egui::{Event, Key, Modifiers, MouseWheelSource, MouseWheelUnit, Pos2, Rect, TouchPhase, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::ops::RangeInclusive;
 use std::rc::Rc;
@@ -77,7 +78,13 @@ impl Rig {
     fn wheel(&mut self, dy: f32, modifiers: Modifiers) {
         let at = self.rect.get().center();
         self.frame(vec![moved(at)]);
-        self.frame(vec![Event::MouseWheel { unit: MouseWheelUnit::Line, delta: Vec2::new(0.0, dy), modifiers }]);
+        self.frame(vec![Event::MouseWheel {
+            unit: MouseWheelUnit::Line,
+            delta: Vec2::new(0.0, dy),
+            phase: TouchPhase::Move,
+            source: MouseWheelSource::Wheel,
+            modifiers,
+        }]);
         self.idle(3);
     }
 }
@@ -305,11 +312,8 @@ fn typed(host: Option<Arc<Host>>, kind: Option<UnitKind>, text: &str) -> Option<
     })
 }
 
-/// How a trial sets up its field.
-type Configure = for<'a> fn(NumberField<'a>) -> NumberField<'a>;
-
 /// A field set up by `configure` under `host`'s locale, with `text` typed over its value and committed.
-fn typed_with(host: Option<Arc<Host>>, text: &str, configure: Configure) -> Option<f64> {
+fn typed_with(host: Option<Arc<Host>>, text: &str, configure: impl for<'a> Fn(NumberField<'a>) -> NumberField<'a>) -> Option<f64> {
     let mut frames = Frames::new();
     if let Some(host) = host {
         frames.host(host);

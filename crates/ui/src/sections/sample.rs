@@ -1,7 +1,7 @@
 //! The body the sections stories put in their boxes.
 
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Show as _};
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::value_drag::Slider;
 use egui::Ui;

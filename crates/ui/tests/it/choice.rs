@@ -299,7 +299,7 @@ fn draft_segment(translated: bool) -> Option<Target> {
     let mut fixture = Fixture::new(move |ui| {
         let entries = [Entry::new(1u8, DRAFT), Entry::new(2, "Final")];
         let mut pick = 1u8;
-        let show = |ui: &mut Ui| {
+        let mut show = |ui: &mut Ui| {
             Segmented::new("Stage", Bind::bound(&mut pick), &entries).show(ui);
         };
         if translated {

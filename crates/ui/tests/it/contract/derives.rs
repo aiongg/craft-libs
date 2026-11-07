@@ -179,23 +179,23 @@ static ROWS: std::sync::Mutex<Vec<(usize, egui::Rect)>> = std::sync::Mutex::new(
 fn each_shape_has_an_entry_that_shows_an_instance() {
     use super::kit::{Panel, RowProbe, Rows, Table};
     use craft_behavior::ItemSource;
-    use craft_ui::contract::{Entry, ItemFn};
+    use craft_ui::contract::{ItemFn, ShowEntry};
     let mut frames = Frames::new();
     let room = egui::Rect::from_min_size(egui::Pos2::new(10.0, 10.0), Vec2::new(100.0, 60.0));
     let mut shown = Vec::new();
     frames.frame(vec![], |ui| {
         for probe in probes() {
             match (probe.type_name(), probe.entry) {
-                (name, Entry::Leaf(entry)) if name.ends_with("::Manual") => {
+                (name, ShowEntry::Leaf(entry)) if name.ends_with("::Manual") => {
                     shown.push((name, entry(ui, room, Box::new(Manual { common: Common::new() })).is_some()));
                     shown.push(("wrong box", entry(ui, room, Box::new(0u8)).is_none()));
                 }
-                (name, Entry::Container(entry)) if name.contains("::Panel<") => {
+                (name, ShowEntry::Container(entry)) if name.contains("::Panel<") => {
                     let mut body_ran = false;
                     let response = entry(ui, room, Box::new(Panel::new()), &mut |_, _| body_ran = true);
                     shown.push((name, response.is_some() && body_ran));
                 }
-                (name, Entry::Collection(entry)) if name.ends_with("kit::Table") => {
+                (name, ShowEntry::Collection(entry)) if name.ends_with("kit::Table") => {
                     let source: Box<dyn ItemSource<usize>> = Box::new(Rows(3));
                     let mut item: Box<ItemFn<'static, Table>> = Box::new(|key, _| RowProbe::new(*key, &ROWS));
                     shown.push((name, entry(ui, Box::new(Table::new(20.0)), &source, &mut item).is_some()));

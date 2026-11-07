@@ -1,7 +1,7 @@
 //! Stories of `Kbd`.
 
 use super::Kbd;
-use crate::contract::{Props as _, Show as _};
+use crate::contract::Show as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

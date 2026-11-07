@@ -153,14 +153,11 @@ impl AccessTree {
 
     /// The row and column indexes and counts of a node by key.
     pub fn grid_of(&self, key: NodeKey) -> GridPlace {
-        self.lookup(NodeId(key.0)).map_or_else(GridPlace::default, |node| {
-            let data = node.data();
-            GridPlace {
-                row_index: data.row_index(),
-                row_count: data.row_count(),
-                column_index: data.column_index(),
-                column_count: data.column_count(),
-            }
+        self.lookup(NodeId(key.0)).map_or_else(GridPlace::default, |node| GridPlace {
+            row_index: node.row_index(),
+            row_count: node.row_count(),
+            column_index: node.column_index(),
+            column_count: node.column_count(),
         })
     }
 
@@ -241,12 +238,12 @@ impl AccessTree {
 
     /// The toggled state of a node by key.
     pub fn toggled_of(&self, key: NodeKey) -> Option<accesskit::Toggled> {
-        self.lookup(NodeId(key.0))?.data().toggled()
+        self.lookup(NodeId(key.0))?.toggled()
     }
 
     /// The expanded state of a node by key.
     pub fn expanded_of(&self, key: NodeKey) -> Option<bool> {
-        self.lookup(NodeId(key.0))?.data().is_expanded()
+        self.lookup(NodeId(key.0))?.is_expanded()
     }
 
     /// The nearest ancestor of `id` that screen readers see: AccessKit's consumer drops generic containers.

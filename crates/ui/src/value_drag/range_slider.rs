@@ -369,14 +369,14 @@ impl Component for RangeSlider<'_> {
             let reach = |thumb: Rect| (thumb.center().x - flow.start_x()).abs();
             let both = thumbs[0].2 && thumbs[1].2;
             let fill = (both && self.fill).then(|| Fill { color: cx.resolve(&style.track.filled), from: reach(thumbs[0].1), to: reach(thumbs[1].1) });
-            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.groove), fill);
+            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.unfilled), fill);
         }
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
         for (key, thumb, shown) in thumbs {
             let drawn = Rect::from_center_size(thumb.center(), Vec2::new(style.thumb_width, style.thumb_height));
             let shape = PaintShape::Rect(drawn, style.thumb_corner);
-            draw.fill(&shape, if shown { cx.resolve_part(key, &style.thumb) } else { cx.resolve(&style.track.groove) });
+            draw.fill(&shape, if shown { cx.resolve_part(key, &style.thumb) } else { cx.resolve(&style.track.unfilled) });
             draw.stroke(&shape, StrokeWidth::Thin, cx.resolve_part(key, &style.thumb_edge));
         }
     }

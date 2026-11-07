@@ -6,7 +6,7 @@ use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, WordSetCx as _,
+    Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{IconSpec, Span, TextRun};
@@ -272,9 +272,10 @@ impl Component for TitleRow<'_> {
         let title = TextRun::new(self.title_text(cx.resolved.label)).role(cx.style.text.role).elide();
         let elided = cx.layout_at(&title, placed.title.width()).elided;
         let sense = if matches!(self.lead, Lead::Disclosure(_)) { Sense::CLICK } else { Sense::HOVER };
+        let tooltip = cx.resolved.label.to_owned();
         let part = cx.part(TITLE, band).sense(sense);
         if elided {
-            part.tooltip(cx.resolved.label.to_owned());
+            part.tooltip(tooltip);
         }
         self.placed = Some(placed);
     }

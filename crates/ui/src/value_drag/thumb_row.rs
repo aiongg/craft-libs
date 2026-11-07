@@ -407,7 +407,7 @@ impl<const N: usize> RowRules<'_, N> {
         let steps = ValueSteps::new(values[i], bounds.0, bounds.1, small, small * LARGE_STEPS);
         match Self::stepped(op, &steps) {
             StepResult::Set(next) => scale.snap(next).clamp(bounds.0, bounds.1),
-            StepResult::Ignored => values[i],
+            _ => values[i],
         }
     }
 

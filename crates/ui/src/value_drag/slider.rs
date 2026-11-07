@@ -301,12 +301,12 @@ impl Component for Slider<'_> {
         if !faced {
             let reach = (thumb.center().x - flow.start_x()).abs();
             let fill = value.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: reach });
-            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.groove), fill);
+            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.unfilled), fill);
         }
         let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
         let (fill, edge) = (
-            if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.groove) },
+            if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.unfilled) },
             cx.resolve_part(THUMB, &style.thumb_edge),
         );
         let knob = match self.thumb {

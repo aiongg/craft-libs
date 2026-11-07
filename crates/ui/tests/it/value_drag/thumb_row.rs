@@ -203,7 +203,6 @@ fn dragged(thumbs: fn() -> [Thumb; 2], alt: bool) -> [Mixed<f64>; 2] {
     }
     frames.frame(vec![release(from + Vec2::new(BY, 0.0))], &mut show);
     frames.idle(2, &mut show);
-    drop(show);
     value.into_inner()
 }
 

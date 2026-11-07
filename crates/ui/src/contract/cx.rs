@@ -1168,8 +1168,9 @@ impl<'a> BodyCx<'a> {
         let placed = label::leaf(ui, &env, &at, &mut child);
         let control = Rect::from_min_size(placed.control.min, Vec2::new(placed.control.width(), ideal.y));
         let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
+        let bottom = control.bottom().max(placed.label.bottom());
         placed.finish(ui.ctx());
-        alloc::space(ui, Vec2::new(avail.width(), (control.bottom().max(placed.label.bottom()) - row.top()).max(ideal.y)));
+        alloc::space(ui, Vec2::new(avail.width(), (bottom - row.top()).max(ideal.y)));
         output
     }
 }

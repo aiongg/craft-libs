@@ -26,7 +26,7 @@ pub type CollectionEntry = fn(&mut Ui, Box<dyn Any>, &dyn Any, &mut dyn Any) -> 
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
-pub enum Entry {
+pub enum ShowEntry {
     /// `show_at`.
     Leaf(LeafEntry),
     /// `show_at` with a body.
@@ -97,7 +97,7 @@ pub struct Probe {
     /// The keys the focused component keeps.
     pub keys: KeyUse,
     /// How to show an instance.
-    pub entry: Entry,
+    pub entry: ShowEntry,
     /// A leaf the `Canvas` body shows.
     pub canvas_control: bool,
     /// The type's `SHOWS_LABEL`: whether it paints its label as visible text.
@@ -134,7 +134,7 @@ impl Probe {
         overlay: bool,
         exempt: &'static [Exemption],
     ) -> Self {
-        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Leaf(show_leaf::<T>))
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, ShowEntry::Leaf(show_leaf::<T>))
     }
 
     /// The probe of the container `T`.
@@ -145,7 +145,7 @@ impl Probe {
         overlay: bool,
         exempt: &'static [Exemption],
     ) -> Self {
-        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Container(show_container::<T>))
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, ShowEntry::Container(show_container::<T>))
     }
 
     /// The probe of the collection `T`.
@@ -156,7 +156,7 @@ impl Probe {
         overlay: bool,
         exempt: &'static [Exemption],
     ) -> Self {
-        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Collection(show_collection::<T>))
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, ShowEntry::Collection(show_collection::<T>))
     }
 
     const fn of<T: Component + 'static>(
@@ -165,7 +165,7 @@ impl Probe {
         module: &'static str,
         overlay: bool,
         exempt: &'static [Exemption],
-        entry: Entry,
+        entry: ShowEntry,
     ) -> Self {
         Probe {
             crate_name,
