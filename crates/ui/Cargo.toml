@@ -56,6 +56,10 @@ log = "0.4"
 smallvec = { workspace = true }
 linkme = "0.3"
 serde = { workspace = true }
+# `patterns::preferences::SettingsDocument` turns an app's settings struct into a draft table and back; `toml_edit` gives
+# the struct's field order, which a `toml::Table` sorts away.
+toml = { version = "1.1", default-features = false, features = ["std", "parse", "serde"] }
+toml_edit = { version = "0.25", features = ["serde"] }
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
 
