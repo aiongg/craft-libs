@@ -47,6 +47,7 @@ pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, Me
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::{ColumnCommands, request_rename};
+pub(crate) use items::{Move, lead_position, request_move};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};

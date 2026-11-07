@@ -33,6 +33,7 @@ mod request;
 
 pub use header::ColumnCommands;
 pub use request::request_rename;
+pub(crate) use request::{Move, lead_position, request_move};
 
 use drag::Drags;
 use header::{Header, HeaderMemory};
@@ -458,6 +459,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
+        self.requested_moves(comp, cx, &layout, view);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &props, lead_at, header_held);
@@ -465,6 +467,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.requested_rename(comp, cx, &props, &layout, view);
         self.type_ahead(comp, cx, &layout, view, lead_at);
+        request::record_lead(&cx.core.ctx, cx.core.id, self.lead.key.as_ref().and_then(|key| self.index_of(key)));
         self.layout = Some(layout);
     }
 
@@ -1079,6 +1082,29 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let before = Rename { key: key.clone(), name: draft.clone() };
         self.events.push(CollectionEvent::Rename(EditEvent::begin(gesture, Mixed::Same(before), cx.core.label_arc(), None)));
         self.renaming = Renaming { key: Some(key), draft, gesture, focused: false };
+    }
+
+    /// The lead and view moves a component asked for (`request_move`).
+    fn requested_moves(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32) {
+        for mv in request::take_moves(&cx.core.ctx, cx.core.id) {
+            match mv {
+                Move::Lead(at) if at < self.source.len() && layout.shown(at) => {
+                    self.move_lead(at, LeadSource::Keys);
+                    self.pick(comp, at, false, false);
+                    self.reveal_with(layout, at, view);
+                }
+                Move::Lead(_) => {}
+                Move::Reveal { top, bottom } => {
+                    let (top, bottom) = (f64::from(top), f64::from(bottom));
+                    if top < self.offset {
+                        self.offset = top;
+                    } else if bottom > self.offset + f64::from(view) {
+                        self.offset = bottom - f64::from(view);
+                    }
+                    self.offset = self.offset.clamp(0.0, self.max_offset(view));
+                }
+            }
+        }
     }
 
     /// A rename requested from outside (`request_rename`): the lead moves to the item, the item is revealed and its
