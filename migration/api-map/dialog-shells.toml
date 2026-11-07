@@ -431,3 +431,320 @@ note = "Type `any_modal` is replaced; the type entry above has the details."
 old = "craft_ui::dialog::FullWindowFx"
 new = "craft_ui::dialog::FooterCx"
 note = "Type `FullWindowFx` is replaced; the type entry above has the details."
+
+# Prompts: one entry per public type and per renamed, removed or reshaped setter.
+
+[[type]]
+name = "Prompt"
+old = "craft_ui::dialog::prompt::Prompt"
+new = "craft_ui::dialog::Prompt"
+status = "replaced"
+note = "A pattern on `Dialog::prompt`: `Prompt::new(title, message).answers([FooterButton::new(label, DialogRole::Accept).letter('Y'), ..]).opened(Bind::bound(&mut open)).show(ui)`. It takes no `Context`, id or stack; the output is `PromptOutput { response, closed, picked }` with the answer as an index in the order given."
+
+[[type]]
+name = "StandardPrompt"
+old = "craft_ui::dialog::prompts::StandardPrompt"
+new = "craft_ui::dialog::StandardPrompt"
+status = "replaced"
+note = "Still a `StackDialog` on the host. App texts are `Label`s the scope's catalog translates, so `arg` is gone; the \"Don't show again\" choice is reported in `PromptAnswer::skip` and the app stores it (craft-ui has no craft-settings dependency)."
+
+[[type]]
+name = "PromptKind"
+old = "craft_ui::dialog::prompts::PromptKind"
+new = "craft_ui::dialog::PromptKind"
+status = "moved"
+
+[[type]]
+name = "PromptChoice"
+old = "craft_ui::dialog::prompts::PromptChoice"
+new = "craft_ui::dialog::PromptChoice"
+status = "moved"
+
+[[type]]
+name = "PromptAnswer"
+old = "craft_ui::dialog::prompts::PromptAnswer"
+new = "craft_ui::dialog::PromptAnswer"
+status = "moved"
+note = "Adds `skip`: the box was ticked with a Proceed answer."
+
+[[type]]
+name = "PromptLabels"
+old = "craft_ui::dialog::prompts::PromptLabels"
+new = "craft_ui::dialog::PromptLabels"
+status = "replaced"
+note = "A `words!` set with ids `prompt.camelCase` (`prompt.confirmDelete.title` is `prompt.confirmDeleteTitle`); `of_ctx` is `Env::words::<PromptLabels>()`. It also holds the shared `cancel` and `ok` words."
+
+[[type]]
+name = "Alert"
+old = "craft_ui::dialog::alert::Alert"
+new = "craft_ui::dialog::Alert"
+status = "replaced"
+note = "A pattern: `Alert::new(title, message).opened(Bind::bound(&mut open)).show(ui)`; `PromptOutput::picked` is `Some(0)` the pass it closes. It takes no id or stack."
+
+[[type]]
+name = "UnsavedChangesDialog"
+old = "craft_ui::dialog::unsaved::UnsavedChangesDialog"
+new = "craft_ui::dialog::UnsavedChangesDialog"
+status = "replaced"
+note = "The same `StackDialog`; it is a configuration of `Prompt` and `show` takes `&mut Ui`."
+
+[[type]]
+name = "UnsavedAnswer"
+old = "craft_ui::dialog::unsaved::UnsavedAnswer"
+new = "craft_ui::dialog::UnsavedAnswer"
+status = "moved"
+
+[[type]]
+name = "UnsavedLabels"
+old = "craft_ui::dialog::unsaved::UnsavedLabels"
+new = "craft_ui::dialog::UnsavedLabels"
+status = "replaced"
+note = "A `words!` set; read it with `Env::words::<UnsavedLabels>()` instead of `of_ctx`."
+
+[[type]]
+name = "RecoveryDialog"
+old = "craft_ui::dialog::recovery::RecoveryDialog"
+new = "craft_ui::dialog::RecoveryDialog"
+status = "replaced"
+note = "The same `StackDialog`, on `Prompt`; `show` takes `&mut Ui`. Escape and the close action are `DialogResult::Cancel`."
+
+[[type]]
+name = "RecoveredDocument"
+old = "craft_ui::dialog::recovery::RecoveredDocument"
+new = "craft_ui::dialog::RecoveredDocument"
+status = "replaced"
+note = "Built with `RecoveredDocument::new(key, name, age: Duration)` and `.blocked(reason)`; `saved: SystemTime` is `age`, how long before the listing the copy was autosaved. The blocked reason shows as a warning line under the message."
+
+[[type]]
+name = "RecoveryAnswer"
+old = "craft_ui::dialog::recovery::RecoveryAnswer"
+new = "craft_ui::dialog::RecoveryAnswer"
+status = "moved"
+
+[[type]]
+name = "RecoveryLabels"
+old = "craft_ui::dialog::recovery::RecoveryLabels"
+new = "craft_ui::dialog::RecoveryLabels"
+status = "replaced"
+note = "A `words!` set; it holds its own minute, hour and day count words until `localized::relative_age` has a home in the new crate."
+
+[[type]]
+name = "accelerator_labels"
+old = "craft_ui::dialog::prompt::accelerator_labels"
+new = "craft_ui::dialog::accelerator_labels"
+status = "replaced"
+note = "`accelerator_labels(&[(label, Option<char>)], os: Os) -> Vec<String>`: letters are `char`s and the platform is `craft_host::target::Os`."
+
+[[type]]
+name = "FooterButtons"
+old = "craft_ui::dialog::buttons::FooterButtons"
+new = ""
+status = "removed"
+note = "`Dialog::buttons([FooterButton..])` and `FooterBar::buttons`; the footer places the buttons in the platform's order."
+
+[[type]]
+name = "FooterButtonsResponse"
+old = "craft_ui::dialog::buttons::FooterButtonsResponse"
+new = ""
+status = "removed"
+note = "`DialogOutput::picked` is the index of the clicked button."
+
+[[type]]
+name = "FooterButton"
+old = "craft_ui::dialog::buttons::FooterButton"
+new = "craft_ui::sections::FooterButton"
+status = "replaced"
+note = "`FooterButton::new(label, DialogRole)`, with `.letter(char)` and `.enabled(bool)`; `min_width` is gone."
+
+[[type]]
+name = "ButtonRole"
+old = "craft_ui::dialog::buttons::ButtonRole"
+new = ""
+status = "replaced"
+note = "`craft_ui::sections::DialogRole`: Default is `Accept`, Alternate is `Other`, Cancel is `Cancel`; `Destructive` is new."
+
+[[type]]
+name = "Clicked"
+old = "craft_ui::dialog::buttons::Clicked"
+new = ""
+status = "removed"
+note = "`DialogOutput::picked` (an index) and `DialogOutput::closed`."
+
+[[type]]
+name = "Platform"
+old = "craft_ui::dialog::buttons::Platform"
+new = ""
+status = "replaced"
+note = "`craft_host::target::Os`; `Platform::of(ctx)` is `runtime::windows::os_of`."
+
+[[type]]
+name = "order"
+old = "craft_ui::dialog::buttons::order"
+new = ""
+status = "removed"
+note = "The footer orders its buttons by role for the platform."
+
+[[type]]
+name = "Footer"
+old = "craft_ui::dialog::footer::Footer"
+new = ""
+status = "removed"
+note = "`Dialog::buttons(..)` and `Dialog::footer(|ui, fx| ..)`; the standard OK and Cancel rows are the app's `FooterButton`s."
+
+[[type]]
+name = "FooterFx"
+old = "craft_ui::dialog::footer::FooterFx"
+new = ""
+status = "removed"
+note = "`FooterCx`, the footer closure's context."
+
+[[type]]
+name = "DialogLabels"
+old = "craft_ui::dialog::footer::DialogLabels"
+new = ""
+status = "removed"
+note = "The shared words are `PromptLabels::cancel` and `PromptLabels::ok`."
+
+[[type]]
+name = "Reset"
+old = "craft_ui::dialog::footer::Reset"
+new = ""
+status = "removed"
+note = "Not ported: a reset button is the form dialogs' footer content."
+
+[[setter]]
+type = "Prompt"
+old = "new(id, title, message)"
+new = "new(title, message)"
+
+[[setter]]
+type = "Prompt"
+old = "answer(ButtonRole, label, Option<Key>)"
+new = "answers([FooterButton::new(label, DialogRole).letter(char)])"
+note = "The answers come as `FooterButton`s in one call; a role may repeat."
+
+[[setter]]
+type = "Prompt"
+old = "escape(ButtonRole)"
+new = "escape(DialogRole)"
+
+[[setter]]
+type = "Prompt"
+old = "stack(&DialogStack)"
+new = ""
+note = "Removed: modal layers stack in the overlay host."
+
+[[setter]]
+type = "Prompt"
+old = "below(|ui| ..)"
+new = "extras(|ui| ..)"
+
+[[setter]]
+type = "Prompt"
+old = "disable(ButtonRole)"
+new = "answers([FooterButton::new(..).enabled(false)]) and enter(false)"
+note = "A disabled answer takes no click or letter; `enter(false)` stops Enter giving the Accept answer."
+
+[[setter]]
+type = "Prompt"
+old = "tone(Tone, String)"
+new = "tone(Tone, impl Into<Label>)"
+
+[[setter]]
+type = "Prompt"
+old = "lines(impl IntoIterator<Item = impl Into<String>>)"
+new = "lines(impl IntoIterator<Item = Label>)"
+note = "One text each, in the dialog's own scroll."
+
+[[setter]]
+type = "Prompt"
+old = "details(label, text)"
+new = "details(label, text)"
+note = "Labels, not strings."
+
+[[setter]]
+type = "Prompt"
+old = "show(ctx) -> Option<ButtonRole>"
+new = "opened(Bind::bound(&mut open)).show(ui) -> PromptOutput"
+note = "`picked` is the answer's index in the order given."
+
+[[setter]]
+type = "Prompt"
+old = "id()"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "StandardPrompt"
+old = "arg(name, value)"
+new = ""
+note = "Removed: the app fills its own placeholders before it passes a `Label`."
+
+[[setter]]
+type = "StandardPrompt"
+old = "noun(one, other)"
+new = "noun(Count)"
+note = "A `craft_i18n::Count` with `{n}`."
+
+[[setter]]
+type = "StandardPrompt"
+old = "dont_show_again(key)"
+new = "dont_show_again()"
+note = "The app stores the choice from `PromptAnswer::skip`."
+
+[[setter]]
+type = "StandardPrompt"
+old = "skipped(ctx, key)"
+new = ""
+note = "Removed: the app reads its own stored choice."
+
+[[setter]]
+type = "StandardPrompt"
+old = "button(PromptChoice, impl Into<String>, Option<Key>)"
+new = "button(PromptChoice, impl Into<Label>, Option<char>)"
+
+[[setter]]
+type = "StandardPrompt"
+old = "title(..), message(..), paragraph(..), details(..), tone(..), warnings(..)"
+new = "title(..), message(..), paragraph(..), details(..), tone(..), warnings(..)"
+note = "Texts are `Label`s; `warnings` takes `Label`s."
+
+[[setter]]
+type = "Alert"
+old = "new(id, title, message)"
+new = "new(title, message)"
+
+[[setter]]
+type = "Alert"
+old = "ok_label(String)"
+new = "ok_label(impl Into<Label>)"
+
+[[setter]]
+type = "Alert"
+old = "stack(&DialogStack)"
+new = ""
+note = "Removed."
+
+[[setter]]
+type = "Alert"
+old = "show(ctx) -> bool"
+new = "opened(Bind::bound(&mut open)).show(ui) -> PromptOutput"
+note = "`picked == Some(0)` the pass it closes."
+
+[[setter]]
+type = "RecoveredDocument"
+old = "saved: SystemTime"
+new = "age: Duration"
+note = "How long before the listing the copy was autosaved."
+
+[[setter]]
+type = "FooterButton"
+old = "new(role, label)"
+new = "new(label, role)"
+note = "The label comes first."
+
+[[setter]]
+type = "FooterButton"
+old = "min_width(f32)"
+new = ""
+note = "Removed: buttons size from their content."
