@@ -189,15 +189,16 @@ impl<K: Clone + Send + Sync + 'static> PresetFooter<'_, K> {
         shown.push(FooterAction::new(IconId::new("trash"), words.delete_button.clone()).enabled(can_delete));
         slots.push(Slot::Delete);
 
+        let mut leading = leading;
         let row = Row::new().fill().align(RowAlign::End).show(ui, |ui, _| {
-            if let Some(add) = leading {
+            if let Some(add) = leading.take() {
                 add(ui);
             }
             let edit = slider.then(|| ThumbnailSlider::new(words.thumb_size.clone(), zoom.reborrowed(), range).show(ui));
             if let Some(n) = count {
                 Text::new(words.count.text(n as u64, &env.format().integer(n as u64))).show(ui);
             }
-            (edit, FooterBar::actions(shown).show_footer(ui))
+            (edit, FooterBar::actions(shown.clone()).show_footer(ui))
         });
         let (zoom_edit, footer) = row.inner.unzip();
         let mut events = Vec::new();
