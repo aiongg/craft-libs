@@ -1,5 +1,6 @@
 //! `TextureStore` and `TextureLoader`: revisions, eviction, region updates and background jobs.
 
+use craft_behavior::PixelSize;
 use craft_host::ManualJobs;
 use craft_host::queue::Cancel;
 use craft_ui::primitives::{
@@ -46,7 +47,7 @@ fn a_new_revision_keeps_the_texture_and_the_same_revision_uploads_nothing() {
     next_frame(&mut frames);
     let second = store.put(&ctx, 1, Revision::new(2), square(LARGE, shade(90)));
     assert_eq!(first.id, second.id, "the texture is updated in place");
-    assert_eq!(second.size, [LARGE as u32, LARGE as u32]);
+    assert_eq!(second.size, PixelSize::new(LARGE as u32, LARGE as u32));
     assert_eq!(store.state(&ctx, &1, Revision::new(2)), TextureState::Ready(second));
     assert!(matches!(store.state(&ctx, &1, Revision::new(3)), TextureState::Loading { stand_in: Some(shown), .. } if shown == second));
     assert_eq!(store.statistics(&ctx).entries, 1);
@@ -93,7 +94,7 @@ fn a_region_update_changes_part_of_a_texture_without_a_new_id() {
     // Twice the device limit wide, so the texture is reduced by the whole factor 2.
     let side = texture_side(&ctx) as usize;
     let whole = store.put(&ctx, 1, Revision::new(1), ColorImage::filled([2 * side, 4], shade(0)));
-    assert_eq!(whole.size, [side as u32, 2]);
+    assert_eq!(whole.size, PixelSize::new(side as u32, 2));
     next_frame(&mut frames);
 
     let patch = || square(2, shade(255));
@@ -197,7 +198,7 @@ fn a_result_of_an_older_revision_is_discarded() {
     jobs.run_all();
     let state = Cell::new(TextureState::Missing);
     frame(&mut frames, || state.set(loader.ask(&ctx, &2, Revision::new(2), Priority::NEAR).expect("settled")));
-    let size = [LARGE as u32, LARGE as u32];
+    let size = PixelSize::new(LARGE as u32, LARGE as u32);
     assert!(matches!(state.into_inner(), TextureState::Ready(texture) if texture.size == size), "the revision-2 result is stored");
     assert_eq!(runs.load(Ordering::Relaxed), 3);
 }
@@ -214,4 +215,23 @@ fn a_panicking_job_is_stored_as_a_failure() {
     let state = Cell::new(TextureState::Missing);
     frame(&mut frames, || state.set(loader.ask(&ctx, &1, Revision::new(1), Priority::VISIBLE).expect("settled")));
     assert!(matches!(state.into_inner(), TextureState::Failed { failure, .. } if failure == LoadFailure::Panicked));
+}
+
+#[trial]
+fn without_a_host_a_job_runs_off_the_calling_thread() {
+    let mut frames = Frames::new();
+    let ctx = frames.ctx.clone();
+    let loader = TextureLoader::<u32>::in_context(&ctx, "no-host", LoaderOptions::new());
+    let (sender, receiver) = std::sync::mpsc::channel();
+    frame(&mut frames, || {
+        let state = loader.request(&ctx, &1, Revision::new(1), Priority::VISIBLE, || {
+            move |_: &Cancel| {
+                sender.send(std::thread::current().id()).ok();
+                Ok(LoadedPicture::Blank)
+            }
+        });
+        assert!(matches!(state, TextureState::Loading { .. }), "the request returns before the picture exists");
+    });
+    let ran_on = receiver.recv_timeout(std::time::Duration::from_secs(10)).expect("the job runs");
+    assert_ne!(ran_on, std::thread::current().id(), "the job does not run on the UI thread");
 }

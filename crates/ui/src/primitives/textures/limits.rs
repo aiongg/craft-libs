@@ -1,6 +1,7 @@
 //! The device texture limit in one place: the largest side a texture may have, how much a large image is reduced
 //! to fit it, and `fit_image` for any image past the limit.
 
+use craft_behavior::PixelSize;
 use egui::{Color32, ColorImage, Context};
 
 /// The largest texture side the library uploads.
@@ -14,8 +15,8 @@ pub fn texture_side(ctx: &Context) -> u32 {
 
 /// How many document pixels per side one texel of the base texture holds for a document of `size` with textures at
 /// most `side` per side: 1 when it fits.
-pub fn texture_factor(size: [u32; 2], side: u32) -> u32 {
-    size[0].max(size[1]).div_ceil(side.max(1)).max(1)
+pub fn texture_factor(size: PixelSize, side: u32) -> u32 {
+    size.width.max(size.height).div_ceil(side.max(1)).max(1)
 }
 
 /// `image` reduced to at most `max_side` texels per side, or unchanged when it fits. The image is reduced by the
@@ -54,7 +55,8 @@ pub fn reduce_image(image: &ColorImage, factor: u32) -> ColorImage {
     ColorImage::new([rw, rh], pixels)
 }
 
-/// An image size in texels as `u32`, saturating.
-pub(super) fn texels(size: [usize; 2]) -> [u32; 2] {
-    size.map(|n| u32::try_from(n).unwrap_or(u32::MAX))
+/// An image size in texels, saturating.
+pub(super) fn texels(size: [usize; 2]) -> PixelSize {
+    let [width, height] = size.map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+    PixelSize::new(width, height)
 }

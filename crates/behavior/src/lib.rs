@@ -34,6 +34,9 @@ pub mod nav;
 pub mod one_press;
 pub mod overlay;
 pub mod part;
+
+pub mod pixel_size;
+
 pub mod press;
 pub mod quantity;
 pub mod role_rule;
@@ -82,6 +85,9 @@ pub use marquee::{MarqueeMode, MarqueeSelect};
 pub use motion::{MotionKind, MotionMode, Playback};
 pub use nav::{Arrows, Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
 pub use part::{PartKey, PartRef};
+
+pub use pixel_size::PixelSize;
+
 pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
     PressState, PressStep, count_clicks,

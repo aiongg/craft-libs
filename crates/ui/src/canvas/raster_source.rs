@@ -1,6 +1,8 @@
 //! `RasterSource`, the document composite a raster display reads, and `PixelRect`, the whole-pixel rectangle it
 //! reads by.
 
+use crate::primitives::Revision;
+use craft_behavior::PixelSize;
 use egui::ColorImage;
 
 /// A rectangle of whole document pixels, `x0..x1` by `y0..y1` (exclusive ends).
@@ -24,8 +26,8 @@ impl PixelRect {
     }
 
     /// The whole of a document of `size` pixels.
-    pub fn of_size(size: [u32; 2]) -> Self {
-        Self::new(0, 0, i32::try_from(size[0]).unwrap_or(i32::MAX), i32::try_from(size[1]).unwrap_or(i32::MAX))
+    pub fn of_size(size: PixelSize) -> Self {
+        Self::new(0, 0, i32::try_from(size.width).unwrap_or(i32::MAX), i32::try_from(size.height).unwrap_or(i32::MAX))
     }
 
     /// Width in pixels, 0 when inverted.
@@ -66,11 +68,11 @@ impl PixelRect {
 /// compositor, a PDF page renderer, a video frame).
 pub trait RasterSource {
     /// The document's size in pixels.
-    fn size(&self) -> [u32; 2];
+    fn size(&self) -> PixelSize;
 
-    /// Changes whenever the pixels or the size change. A new revision with no damage reported since the last frame
-    /// re-reads everything.
-    fn revision(&self) -> u64;
+    /// Changes whenever the pixels or the size change; the `Revision` the texture stores key their pictures by. A new
+    /// revision with no damage reported since the last frame re-reads everything.
+    fn revision(&self) -> Revision;
 
     /// Writes the composite of `region` into `out` (sRGBA, unmultiplied), one texel per `factor` pixels each way
     /// (`factor` is a power of two for a detail texture and `texture_factor` of `primitives::textures` for the base

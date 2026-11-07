@@ -175,13 +175,18 @@ impl HostBuilder {
     }
 }
 
+/// The jobs a host runs when its builder sets none, and what a library feature runs its background work on when no
+/// host is installed: [`ThreadJobs`] on native targets. On wasm32 it is [`InlineJobs`]; a [`queue::JobQueue`] there
+/// has no lanes (`QueueOptions::default_lanes` is 0), so its owner runs one job per pass with `run_inline` and no
+/// job runs inside the call that queued it.
 #[cfg(not(target_arch = "wasm32"))]
-fn default_jobs() -> Arc<dyn Jobs> {
+pub fn default_jobs() -> Arc<dyn Jobs> {
     Arc::new(ThreadJobs)
 }
 
+/// The jobs a host runs when its builder sets none; see the native definition.
 #[cfg(target_arch = "wasm32")]
-fn default_jobs() -> Arc<dyn Jobs> {
+pub fn default_jobs() -> Arc<dyn Jobs> {
     Arc::new(InlineJobs)
 }
 
