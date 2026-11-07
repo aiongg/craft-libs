@@ -7,6 +7,9 @@ pub(crate) mod body;
 mod buttons;
 mod callsites;
 mod canvas;
+
+// Canvas controls family.
+mod canvas_controls;
 mod choice;
 mod collection;
 mod commands;
@@ -46,8 +49,8 @@ mod presets;
 mod prompts;
 mod rails;
 mod runtime;
-mod shell;
 mod sections;
+mod shell;
 
 mod style;
 mod table;

@@ -245,7 +245,10 @@ fn the_keyboard_move_mode_reports_keyboard_changes_and_enter_commits_while_escap
 
 /// The props of a viewport mount of `overlay`, opened as an undecorated tool window, whose header is the move band.
 fn viewport_props(overlay: Overlay) -> ContainerProps {
-    ContainerProps::new().mount(Mount::viewport_with(overlay, WindowSpec::tool())).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
+    ContainerProps::new()
+        .mount(Mount::viewport_with(overlay, WindowSpec::tool()))
+        .sizing(Sizing::Content)
+        .header(HeaderRegion::new().band(DragBand::Move))
 }
 
 #[trial]

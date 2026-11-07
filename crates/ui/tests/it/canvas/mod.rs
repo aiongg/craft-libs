@@ -1,7 +1,7 @@
 //! `Canvas` (20.6): a press away from every canvas control's parts reaches the tool.
 
-mod tool;
 mod readout;
+mod tool;
 
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
