@@ -1247,7 +1247,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal(), layer.exiting);
         }
         if let (Some(policy), true) = (scope, real) {
-            focus::push_scope_from(ctx, layer.id, policy, None, opener);
+            focus::push_scope_from(ctx, layer.id, policy, None, opener, layer.exiting);
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
         if let (OverlayFit::Resizable, Some(least)) = (overlay.fit, overlay.min_size) {

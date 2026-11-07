@@ -296,7 +296,7 @@ impl State {
         let mut at = inside.scope;
         while let Some(id) = at {
             let scope = self.last_scopes.get(&id)?;
-            if !self.scopes.contains_key(&id) && scope.policy.restore {
+            if self.scopes.get(&id).is_none_or(|now| now.closing) && scope.policy.restore {
                 return scope.opener.and_then(|opener| self.stops.iter().find(|rec| rec.stop.key() == opener).cloned());
             }
             at = scope.parent;
