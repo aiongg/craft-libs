@@ -1234,7 +1234,8 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     }
     let validity = validity_message(cx);
     if let (Some(message), Some(text)) = (validity_of(cx), &validity) {
-        scope::register_message(ctx, message, text.clone());
+        let tone = message.effective_tone(matches!(cx.validity, Validity::Warn(_)));
+        scope::register_message(ctx, message, tone, text.clone());
     }
     let tooltip_text = resolved.tooltip.map(|tooltip| core.env.resolve(&tooltip.spec().text));
     let tooltip = tooltip_text.as_ref().map(Label::as_str);
@@ -1297,21 +1298,24 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access::set_focus(ctx, id);
     }
     let mut seen = Vec::new();
-    let row = core.env.facts_of(id).map(|facts| facts.position);
+    let facts = core.env.facts_of(id);
     for node in &mut access.nodes {
-        // A cell of an item row knows its row and, by its repeat, its column.
-        if let (
-            Some(row),
-            Some(column),
-            Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell),
-        ) = (row, node.part.index, node.role)
-        {
-            node.grid = access::GridPlace {
-                row_index: node.grid.row_index.or(Some(row.index)),
-                column_index: node.grid.column_index.or(Some(column as usize)),
-                ..node.grid
-            };
-        }
+        // A cell of an item row knows its row; its column is the position of its column key among the columns the
+        // collection shows, or, for a cell keyed by position, its repeat index.
+        let (Some(facts), Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell)) =
+            (facts, node.role)
+        else {
+            continue;
+        };
+        let column = match &node.column {
+            Some(key) => facts.columns.iter().position(|column| column == key),
+            None => node.part.index.map(|index| index as usize),
+        };
+        node.grid = access::GridPlace {
+            row_index: node.grid.row_index.or(Some(facts.position.index)),
+            column_index: node.grid.column_index.or(column),
+            ..node.grid
+        };
     }
     for node in &access.nodes {
         seen.push(node.part);

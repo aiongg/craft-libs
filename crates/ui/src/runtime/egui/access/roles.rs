@@ -43,6 +43,8 @@ impl Role {
     pub const TAB_PANEL: Role = Role::Node(accesskit::Role::TabPanel);
     /// A menu.
     pub const MENU: Role = Role::Node(accesskit::Role::Menu);
+    /// A region of navigation links.
+    pub const NAVIGATION: Role = Role::Node(accesskit::Role::Navigation);
     /// A menu bar.
     pub const MENU_BAR: Role = Role::Node(accesskit::Role::MenuBar);
     /// A menu item.

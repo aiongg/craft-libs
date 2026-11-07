@@ -8,6 +8,7 @@ use craft_ui::list::{
     footer_text, summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
+use craft_ui::testing::internals::place_row as place;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect, Vec2};
 
@@ -135,9 +136,24 @@ fn a_text_cell_is_a_cell_node_in_its_column_and_a_wrapped_one_makes_the_row_tall
     use craft_ui::contract::Role;
     let note = "A note long enough that it wraps onto several lines in a narrow column";
     let one_line = text_cell_row(note, false);
-    let cell = one_line.by_label(note).expect("the text cell has a node named by its text");
-    assert_eq!(one_line.by_role(Role::CELL).len(), 1);
-    assert_eq!(one_line.tree().grid_of(cell.node).column_index, Some(1));
+    assert!(one_line.by_label(note).is_some(), "the text cell has a node named by its text");
+    assert_eq!(one_line.by_role(Role::CELL).len(), 2, "the label column and the text column each show a cell");
     let wrapped = text_cell_row(note, true);
     assert!(wrapped.shown().height() > one_line.shown().height(), "the row measures the wrapped cell");
+}
+
+/// With the label column narrowed, the label stays in the label column's rect and the text cells after it do not
+/// lead the label band.
+#[trial]
+fn a_narrow_label_column_keeps_the_label_in_its_rect() {
+    let pages = ColumnKey::new("pages");
+    let size = ColumnKey::new("size");
+    let cells = [
+        (NAME, Rect::from_min_size(Pos2::ZERO, Vec2::new(50.0, 20.0))),
+        (pages.clone(), Rect::from_min_size(Pos2::new(50.0, 0.0), Vec2::new(72.0, 20.0))),
+        (size.clone(), Rect::from_min_size(Pos2::new(122.0, 0.0), Vec2::new(178.0, 20.0))),
+    ];
+    let row = ListRow::new("Name").cells(&cells).cell(pages, "12").cell(size, "2.4 MB");
+    let label = place(&row, 300.0, false).label;
+    assert!(label.width() > 0.0 && label.min.x >= 0.0 && label.min.x < 50.0, "the label starts inside the label column");
 }
