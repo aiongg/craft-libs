@@ -192,7 +192,7 @@ pub(crate) fn register_doc(ctx: &Context, key: DocKey, id: Id) {
 /// scroll owner to reveal it. The one public path to programmatic focus.
 pub fn request(ctx: &Context, target: FocusTarget) {
     with(ctx, |state| state.pending = Some(target));
-    ctx.request_repaint();
+    crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
 /// Applies `target` now, for an AccessKit `Focus` action, which moves focus in the pass that carries it.

@@ -6,14 +6,16 @@ use crate::contract::kit::{Probe, Seen};
 use crate::windows_kit::Windows;
 use craft_behavior::CanvasTransform;
 use craft_host::target::{Caps, ShellInfo};
-use craft_ui::contract::SaveKey;
+use craft_ui::contract::{Bind, SaveKey};
+use craft_ui::controls::check::Checkbox;
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
 use craft_ui::runtime::InstallSpec;
+use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::windows::NoWindows;
 use craft_ui::testing::{Frames, pointer, trial};
 use craft_window::restore::Store;
-use egui::{Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportId, ViewportInfo};
+use egui::{Key, Modifiers, Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex};
 
@@ -230,4 +232,52 @@ fn the_os_closing_a_viewport_mount_window_closes_the_container() {
         frame();
     }
     assert_eq!(ran.get(), after_close, "the body no longer runs once the window was closed");
+}
+
+/// The body of a viewport mount runs under its own window's facts, not the parent window's.
+#[trial]
+fn a_viewport_mount_body_reads_its_own_windows_facts() {
+    let windows = Windows::new();
+    windows.root_info(ViewportInfo { focused: Some(true), ..ViewportInfo::default() });
+    windows.child_info(ViewportInfo { focused: Some(false), ..ViewportInfo::default() });
+    let seen = Cell::new(None);
+    for _ in 0..3 {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
+                if ui.ctx().viewport_id() != ViewportId::ROOT {
+                    seen.set(Some((cx.env.shell().window.active, cx.env.shell().window.kind)));
+                }
+                Block::new(BODY).show(ui);
+            });
+        });
+    }
+    assert_eq!(seen.get(), Some((false, craft_host::target::WindowKind::Tool)), "the unfocused tool window's own facts");
+}
+
+/// A dialog mounted in an OS window keeps the dialog's dismissal rules: Escape with the focus inside closes it.
+#[trial]
+fn escape_closes_a_dialog_mounted_in_an_os_window() {
+    let windows = Windows::new();
+    let ran = Cell::new(0);
+    let frame = |child: Vec<egui::Event>| {
+        windows.frame(vec![], child, |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::dialog())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                ran.set(ran.get() + 1);
+                let mut on = false;
+                Checkbox::new(Bind::bound(&mut on)).label("Snap").show(ui);
+            });
+        });
+    };
+    for _ in 0..30 {
+        frame(vec![]);
+    }
+    frame(vec![key_press(Key::Escape, Modifiers::NONE)]);
+    frame(vec![]);
+    let after_close = ran.get();
+    for _ in 0..3 {
+        frame(vec![]);
+    }
+    assert_eq!(ran.get(), after_close, "Escape closed the dialog in its window: the body no longer runs");
 }

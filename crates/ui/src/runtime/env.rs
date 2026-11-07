@@ -446,6 +446,17 @@ impl Env {
         Env { scoped: Arc::new(scoped) }
     }
 
+    /// This env's container scope on top of `root`, the root env of the viewport the scope now runs in: the scale,
+    /// active state, window facts and OS are the viewport's, everything else stays.
+    pub(crate) fn rebase(&self, root: &Env) -> Env {
+        self.derive(|s| {
+            s.scale = root.scale;
+            s.active = root.active;
+            s.shell = root.shell.clone();
+            s.os = root.os;
+        })
+    }
+
     /// Installs `env` for `ui` and everything below it; `restore` puts back what it replaced.
     pub(crate) fn install_for(ui: &Ui, env: Env) -> Installed {
         let viewport = pass::current_viewport(ui.ctx());

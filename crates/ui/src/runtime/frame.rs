@@ -267,7 +267,7 @@ pub(crate) fn clock(ctx: &Context) -> f64 {
 pub(crate) fn note_cancelled_press(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.press_cancelled = true);
-    ctx.request_repaint();
+    crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
 /// The input hook: egui runs it before it pushes the viewport, so every step reads only `RawInput` and

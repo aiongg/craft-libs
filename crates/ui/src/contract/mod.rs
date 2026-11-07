@@ -52,6 +52,7 @@ pub use registry::REGISTRATIONS;
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
+use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
 pub use craft_behavior::Input;
 use craft_behavior::{ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
@@ -283,6 +284,11 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
 
     /// Fills the footer region.
     fn footer(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
+
+    /// The container closed, and why: a layer's dismissal rule, a close the body or footer asked for with
+    /// `BodyCx::request_close_as`, `overlay::request_close`, or the OS closing its window. Called once for a close,
+    /// at step 15 or, for a dismissal rule, right after the pass.
+    fn closed(&mut self, _why: CloseReason) {}
 }
 
 /// A component that shows an item per visible entry of a source.

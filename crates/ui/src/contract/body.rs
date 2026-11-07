@@ -15,6 +15,7 @@ use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{Driver, Presence, spec};
+use crate::runtime::overlay::CloseReason;
 use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
@@ -92,6 +93,13 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
         Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => Some(overlay),
         _ => None,
     }
+}
+
+/// The instance id of the `window` command scope a movable or resizable layer container holds (16.3), whatever
+/// scope its own commands use: the container's id when it publishes the window scope itself, else a sub-id.
+fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
+    let overlay = overlay_of(props)?;
+    (overlay.movable || overlay.resize.grips).then(|| if props.command_scope == Some(WindowCommand::SCOPE) { id } else { sub(id, "window") })
 }
 
 /// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit.
@@ -179,6 +187,8 @@ pub(super) struct BodyHooks<'b> {
     gate: Option<bool>,
     gate_at_read: Option<bool>,
     close: bool,
+    /// Why the container closes this pass, the first reason given.
+    reason: Option<CloseReason>,
     /// The container is closed and its layer is fading out: the body shows as it was and nothing is written.
     exiting: bool,
     offset: ScrollPos,
@@ -246,11 +256,9 @@ impl BodyHooks<'_> {
     /// and focus leaving the container ends the mode. The mode holds its chords through the key stage, so no
     /// component under focus sees them.
     fn window_keys<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
-        if props.command_scope != Some(WindowCommand::SCOPE) {
-            return;
-        }
         let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
-        let started = commands::take_for_instance(&ctx, Some(id), WindowCommand::from_ref).map(|(command, _)| command);
+        let Some(window) = window_instance(props, id) else { return };
+        let started = commands::take_for_instance(&ctx, Some(window), WindowCommand::from_ref).map(|(command, _)| command);
         let slot = placement_slot(&mut *cx.core.memory, id, self.save.as_ref()).clone();
         let mut mode = self.mode.clone();
         if let Some(command) = started {
@@ -314,6 +322,7 @@ impl<'b> BodyHooks<'b> {
             gate: None,
             gate_at_read: None,
             close: false,
+            reason: None,
             exiting: false,
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
@@ -471,14 +480,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         mounted.host
     }
 
-    fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, _why: crate::runtime::overlay::CloseReason) {
+    fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, why: CloseReason) {
         self.close = true;
         self.open = false;
+        comp.closed(why);
         self.write_open(comp, cx);
     }
 
-    /// The layer's own scope is the overlay host's (one scope per layer); `Inline`, `Pane` and `FullWindow`
-    /// containers push `props.focus`.
+    /// The scope of a layer, full-window or viewport mount is the host's (one scope per layer, from `Overlay.focus`;
+    /// a full-window mount's overlay carries `props.focus`); `Inline` and `Pane` containers push `props.focus`.
     fn focus(&self, comp: &C) -> Option<FocusPolicy> {
         let props = comp.props(Internal::new());
         if matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. }) {
@@ -486,6 +496,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 props.focus == FocusPolicy::NONE,
                 "a layer or viewport mount takes its focus scope from `Overlay.focus`, not `ContainerProps.focus`"
             );
+            return None;
+        }
+        if matches!(props.mount, Mount::FullWindow) {
             return None;
         }
         (props.focus != FocusPolicy::NONE).then_some(props.focus)
@@ -520,13 +533,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let initially_open = collapse.is_none_or(|collapse| collapse.initially_open);
         let save = props.save.clone();
         self.save = save.clone();
-        let layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. });
-        self.layer = layer;
+        // The overlay host decides a layer's Escape; so does a full-window mount's.
+        self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.remembered = layout_memory::read(&ctx, id);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
-        if !matches!(props.mount, Mount::Inline | Mount::Pane(_)) && crate::runtime::overlay::take_close(&ctx, id).is_some() {
+        if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
+            && let Some(why) = crate::runtime::overlay::take_close(&ctx, id)
+        {
             self.close = true;
+            self.reason = Some(why);
         }
         self.open_bound = comp.open().is_some();
         self.open = match comp.open() {
@@ -711,6 +727,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The OS asked a viewport mount's window to close: the container closes at step 15.
         if matches!(props.mount, Mount::Viewport { .. }) && crate::runtime::windows::take_close_request(cx.core.memory.ctx(), cx.core.id) {
             self.close = true;
+            self.reason = self.reason.or(Some(CloseReason::Requested));
         }
         if scroll.is_some() {
             if let Some(range) = cx.scroll_moved(SCROLL_Y) {
@@ -786,10 +803,17 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let surface_slot = ui.painter().add(Shape::Noop);
         self.gate = cx.shown.as_deref().and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
         self.gate_at_read = self.gate;
+        let window = window_instance(&props, id).filter(|window| *window != id);
         if let Some(scope) = props.command_scope {
             commands::register_instance(&ctx, scope, id);
         }
+        if let Some(window) = window {
+            commands::register_instance(&ctx, WindowCommand::SCOPE, window);
+        }
         let region_env = env.derive(|scoped| {
+            if let Some(window) = window {
+                scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
+            }
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
             scoped.grid = None;
@@ -805,7 +829,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let (resolved, env_view) = (cx.core.resolved, cx.core.env);
         let mut open = self.open;
         let mut gate = self.gate;
-        let mut close = false;
+        let mut close: Option<CloseReason> = None;
         // B1 header
         if props.header.is_some() {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut());
@@ -813,7 +837,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let installed = Env::install_for(&header_ui, region_env.clone());
             comp.header(&mut header_ui, &mut bcx);
             Env::restore(&ctx, installed);
-            close |= bcx.close_requested();
+            close = close.or(bcx.close_requested());
             self.header_size = Some(self.region_size(&header_ui));
         }
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
@@ -942,7 +966,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 None => run(ui, body_rect, &mut bcx),
             };
-            close |= bcx.close_requested();
+            close = close.or(bcx.close_requested());
             if let Some(size) = &mut self.body_size {
                 *size += label_extra;
             }
@@ -961,12 +985,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let installed = Env::install_for(&footer_ui, region_env.clone());
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);
-            close |= bcx.close_requested();
+            close = close.or(bcx.close_requested());
             self.footer_size = Some(self.region_size(&footer_ui));
         }
         self.open = open;
         self.gate = gate;
-        self.close |= close;
+        if close.is_some() {
+            self.close = true;
+            self.reason = self.reason.or(close);
+        }
         // The scroll bars, over the body.
         if is_open && scroll.is_some() {
             let look = scroll_bar_look(&env.tokens);
@@ -1032,6 +1059,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false)
         {
             self.close = true;
+            self.reason = self.reason.or(Some(CloseReason::Escape));
         }
         if self.exiting {
             // The container closed already; the fade only keeps its body on screen.
@@ -1040,6 +1068,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         if self.close {
             self.open = false;
+            comp.closed(self.reason.take().unwrap_or(CloseReason::Requested));
         }
         self.write_open(comp, cx);
         if self.offset != self.offset_at_read {

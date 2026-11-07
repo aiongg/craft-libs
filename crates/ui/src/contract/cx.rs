@@ -13,6 +13,7 @@ use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::motion::{Driver, Drives};
+use crate::runtime::overlay::CloseReason;
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
@@ -935,7 +936,7 @@ pub struct BodyCx<'a> {
     pub(crate) memory: &'a mut MemoryStage,
     open: &'a mut bool,
     gate: Option<&'a mut bool>,
-    close: bool,
+    close: Option<CloseReason>,
 }
 
 impl<'a> BodyCx<'a> {
@@ -949,7 +950,7 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
     ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory, open, gate, close: false }
+        BodyCx { id, env, resolved, rect, memory, open, gate, close: None }
     }
 
     /// Whether the body is open.
@@ -968,12 +969,18 @@ impl<'a> BodyCx<'a> {
         self.gate.as_deref_mut()
     }
 
-    /// Asks the container to close: step 15 closes it.
+    /// Asks the container to close, as `CloseReason::Requested`: step 15 closes it.
     pub fn request_close(&mut self) {
-        self.close = true;
+        self.request_close_as(CloseReason::Requested);
     }
 
-    pub(crate) fn close_requested(&self) -> bool {
+    /// Asks the container to close and tells it why (an OK button is `Activated`, Enter is `Enter`): step 15
+    /// closes it and `Container::closed` gets `why`. The first request of a pass keeps its reason.
+    pub fn request_close_as(&mut self, why: CloseReason) {
+        self.close.get_or_insert(why);
+    }
+
+    pub(crate) fn close_requested(&self) -> Option<CloseReason> {
         self.close
     }
 }

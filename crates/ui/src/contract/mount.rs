@@ -3,7 +3,7 @@
 
 use super::body::placement_of;
 use super::container::PaneEdge;
-use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
+use super::overlay::{self, FloatPlace, Layer, Outside, Overlay, Place};
 use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::areas;
@@ -13,7 +13,7 @@ use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
-use crate::runtime::overlay::CloseReason;
+use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::runtime::windows::{self, ViewportOpen, WindowHost};
 use craft_host::target::WindowKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
@@ -44,8 +44,8 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
             (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), props.save.clone(), exiting, fade)), exiting },
             (None, _) => closed(),
         },
-        Mount::FullWindow => match layer(&Overlay::floating()) {
-            (Some(fade), exiting) => Mounted { host: Box::new(FullWindowHost { exiting, fade }), exiting },
+        Mount::FullWindow => match layer(&full_window_overlay(props.focus)) {
+            (Some(fade), exiting) => Mounted { host: Box::new(FullWindowHost { focus: props.focus, exiting, fade, dismissed: None }), exiting },
             (None, _) => closed(),
         },
         Mount::Viewport { fallback } => {
@@ -56,8 +56,12 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
                 };
             }
             if open {
-                let viewport =
-                    ViewportHost { focus: fallback.focus, title: title.clone(), save: props.save.as_ref().map(|key| key.as_str().to_owned()) };
+                let viewport = ViewportHost {
+                    overlay: fallback.clone(),
+                    title: title.clone(),
+                    save: props.save.as_ref().map(|key| key.as_str().to_owned()),
+                    dismissed: None,
+                };
                 Mounted { host: Box::new(viewport), exiting: false }
             } else {
                 closed()
@@ -154,10 +158,21 @@ impl Host for LayerHost {
     }
 }
 
+/// The overlay of a full-window mount: a modal rank with no backdrop (the dialog covers the window) and the
+/// container's focus policy as its scope, so the layer stack gives it the key class, blocking and dismissal rules
+/// of a modal.
+fn full_window_overlay(focus: FocusPolicy) -> Overlay {
+    let mut overlay = Overlay::modal().fit(overlay::OverlayFit::Content).focus(focus);
+    overlay.rank = Rank::modal(Backdrop::None);
+    overlay
+}
+
 /// Over the whole window, on a layer of its own.
 struct FullWindowHost {
+    focus: FocusPolicy,
     exiting: bool,
     fade: f32,
+    dismissed: Option<CloseReason>,
 }
 
 impl Host for FullWindowHost {
@@ -167,40 +182,68 @@ impl Host for FullWindowHost {
         }
         let ctx = parent.ctx().clone();
         let window = ctx.content_rect();
-        let overlay = Overlay::floating().place(Place::Float(FloatPlace::at(window.min)));
+        let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade };
-        overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window))));
+        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window))));
+        self.dismissed = out.dismissed;
+    }
+
+    fn dismissed(&self) -> Option<CloseReason> {
+        self.dismissed
     }
 }
 
-/// An OS viewport of the integration; the fallback layer is `LayerHost`.
+/// An OS viewport of the integration; the fallback layer is `LayerHost`. The fallback overlay's rank, key class,
+/// focus scope and dismissal rules (but for outside presses, which an OS window has no outside for) apply to the
+/// window as they do to the layer: the window is an entry of its viewport's layer stack.
 struct ViewportHost {
-    /// The fallback overlay's focus policy: the viewport's root scope.
-    focus: FocusPolicy,
+    overlay: Overlay,
     title: Label,
     /// The key the window's placement is saved under.
     save: Option<String>,
+    dismissed: Option<CloseReason>,
 }
 
 impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        let focus = self.focus;
+        let focus = self.overlay.focus;
+        let mut window_rules = self.overlay.clone();
+        window_rules.dismiss.outside = Outside::Keep;
         let title = env.view().resolve(&self.title);
-        let open =
-            ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind: WindowKind::Tool };
+        // A modal fallback is a dialog window, anything else a tool window.
+        let kind = if self.overlay.rank.is_modal() { WindowKind::Dialog } else { WindowKind::Tool };
+        let open = ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind };
+        let dismissed = &mut self.dismissed;
         windows::show_viewport(&ctx, &open, |ui| {
-            let installed = Env::install_for(ui, env.clone());
+            // The container's scope on the child viewport's own root: its scale, active state and window facts.
+            let scoped_env = Env::root_of(&ctx).map_or_else(|| env.clone(), |root| env.rebase(&root));
+            let installed = Env::install_for(ui, scoped_env.clone());
             let window = ui.max_rect();
-            let scoped = focus != FocusPolicy::NONE && !ui.is_sizing_pass();
+            let real = !ui.is_sizing_pass();
+            let scoped = focus != FocusPolicy::NONE && real;
             if scoped {
                 crate::runtime::focus::push_scope(&ctx, id, focus, None);
             }
+            if real {
+                crate::runtime::overlay::begin_layer(&ctx, id);
+            }
             pass(ui, Some(ShowAt::Rect(window)));
+            if real {
+                crate::runtime::overlay::end_layer(&ctx);
+            }
             if scoped {
                 crate::runtime::focus::pop_scope(&ctx);
             }
+            if real {
+                let layer = Layer { id, owner: id, overlay: &window_rules, anchor: Rect::ZERO, env: &scoped_env, exiting: false, fade: 1.0 };
+                *dismissed = overlay::host_window(&ctx, &layer, window).dismissed;
+            }
             Env::restore(&ctx, installed);
         });
+    }
+
+    fn dismissed(&self) -> Option<CloseReason> {
+        self.dismissed
     }
 }

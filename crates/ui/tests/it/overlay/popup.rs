@@ -159,3 +159,24 @@ fn a_press_trigger_opens_on_the_press() {
     let shown = [frame(&mut frames, vec![]), frame(&mut frames, vec![])];
     assert!(shown[1], "the popup opens while the button is still down");
 }
+
+#[trial]
+fn a_hover_popup_closes_after_a_grace_period_with_the_pointer_on_neither() {
+    let mut frames = Frames::new();
+    let (opened, content) = (Opened::default(), RefCell::new(Seen::default()));
+    let mut show = |ui: &mut Ui| {
+        opened.shown.set(false);
+        Opener::new(&opened, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![moved(OPENER.center())], &mut show);
+    frames.advance(1.0);
+    frames.idle(3, &mut show);
+    assert!(opened.shown.get(), "hovering the opener opens the popup after the dwell");
+    frames.frame(vec![moved(Pos2::new(700.0, 500.0))], &mut show);
+    frames.idle(2, &mut show);
+    assert!(opened.shown.get(), "the pointer on neither the opener nor the popup does not close it at once");
+    frames.advance(1.0);
+    frames.idle(3, &mut show);
+    assert!(!opened.shown.get(), "it closes once the grace period passed");
+}
