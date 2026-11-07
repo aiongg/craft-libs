@@ -162,6 +162,16 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::role_violations`: re-export of `craft_behavior::role_rule::role_violations`.
 - `craft_behavior::wheel_step`: re-export of `craft_behavior::nav::wheel_step`.
 
+## `craft_behavior::anchor`
+
+`Anchor9`: the nine points of a box.
+
+- `craft_behavior::anchor::Anchor9`: `pub enum Anchor9`. The nine points of a box: its corners, edge midpoints and centre, row by row from the top left.
+  - `pub const ALL: [Anchor9; 9] = [`. Every point, row by row from the top left.
+  - `pub fn uv(self) -> (f64, f64)`. Where the point sits in the box: 0 to 1 across from the left edge and down from the top.
+  - `pub fn cell(self) -> (usize, usize)`. The point's column and row in the 3 by 3 grid, counted from the top left.
+  - `pub fn from_cell(column: usize, row: usize) -> Anchor9`. The point in column `column` and row `row`; each is limited to 0 to 2.
+
 ## `craft_behavior::arrangement`
 
 `Arrangement`: a custom placement for a body, in logical coordinates.
@@ -386,6 +396,127 @@ Pure focus rules (spec 9.3, 9.4, 8.3): key ownership, focus after removal, the E
 - `craft_behavior::focus::escape_step`: `pub fn escape_step(facts: EscapeFacts, rule: CancelRule) -> EscapeStep`. The order of Escape for the top egui layer that is not exiting: a captured press, the focused component,
 - `craft_behavior::focus::key_owner`: `pub fn key_owner(blocked: bool, present: &[OwnerClass]) -> KeyOwner`. Key ownership, in the order blocked, `Menu`, `Recorder`, `Dialog`, `Text`, `Popup` and `PassivePopup`,
 - `craft_behavior::focus::route_escapes`: `pub fn route_escapes(escapes: usize, press_captured: bool) -> EscapeRouting`. Routes `escapes` Escapes of one pass: with a press captured, the first one is the press's (`escape_step`'s
+
+## `craft_behavior::geometry`
+
+Pure canvas geometry in document units: the transform box, snapping, the outline draft, the selection operation, the marquee rules and direction locking.
+
+- `craft_behavior::geometry::draft::DraftKind`: `pub enum DraftKind`. Which tool's rules an [`OutlineDraft`] follows.
+- `craft_behavior::geometry::draft::DraftReach`: `pub struct DraftReach`. How near a press must be to close an outline, in screen points.
+  - `pub fn new(close: f64, same_point: f64) -> Self`. A reach closing within `close` screen points of the first vertex and treating a press within `same_point` of the last vertex as the same click.
+- `craft_behavior::geometry::draft::DraftPoint`: `pub struct DraftPoint`. One pointer sample for an [`OutlineDraft`].
+  - `pub fn new(at: Point, mods: Mods, zoom: f64) -> Self`. A sample at `at` (document units) with `mods` held, at `zoom` screen points per unit.
+- `craft_behavior::geometry::draft::DraftEvent`: `pub enum DraftEvent`. What a call on an [`OutlineDraft`] did.
+- `craft_behavior::geometry::draft::OutlineDraft`: `pub struct OutlineDraft`. The pointer state machine of an outline being drawn, shared by every lasso.
+  - `pub fn new(kind: DraftKind, reach: DraftReach) -> Self`. An empty draft following `kind`'s rules, closing within `reach`.
+  - `pub fn kind(&self) -> DraftKind`. The rules this draft follows.
+  - `pub fn set_reach(&mut self, reach: DraftReach)`. Changes the close radii; an open outline keeps its points.
+  - `pub fn for_document(&mut self, key: u64) -> Option<DraftEvent>`. Records `key` as the active document's.
+  - `pub fn press(&mut self, at: DraftPoint, has_selection: bool) -> Option<DraftEvent>`. The primary button went down at `at`; `has_selection` is whether the document has a selection (a path tool passes false: it has nothing to subtract from).
+  - `pub fn drag(&mut self, at: DraftPoint) -> Option<DraftEvent>`. The pointer moved to `at` with the button down.
+  - `pub fn hover(&mut self, at: DraftPoint) -> Option<DraftEvent>`. The pointer moved to `at` with the button up: only the rubber band follows (hover moves never become vertices).
+  - `pub fn release(&mut self, at: DraftPoint) -> Option<DraftEvent>`. The primary button went up at `at`.
+  - `pub fn mods_changed(&mut self, mods: Mods) -> Option<DraftEvent>`. The held modifiers changed.
+  - `pub fn retract(&mut self) -> Option<DraftEvent>`. Removes the last vertex while [`takes_retract`](Self::takes_retract); removing the only one cancels the outline.
+  - `pub fn close(&mut self) -> Option<DraftEvent>`. Closes an open outline (Enter, a double-click): [`DraftEvent::Closed`] with 3 or more points, else [`DraftEvent::Cancelled`].
+  - `pub fn cancel(&mut self) -> Option<DraftEvent>`. Drops an open outline: [`DraftEvent::Cancelled`]; `None` with no outline.
+  - `pub fn points(&self) -> &[Point]`. The outline's points so far, in document units; empty with no outline.
+  - `pub fn straight(&self) -> &[usize]`. Indices into [`points`](Self::points) whose incoming segment is straight.
+  - `pub fn rubber_band(&self) -> Option<[Point; 2]>`. The rubber band from the last vertex to the pointer while straight segments are on and the button is up, for the tool to paint; `None` otherwise.
+  - `pub fn hits_start(&self, at: DraftPoint) -> bool`. Whether a press at `at` would close the outline (the tool's close cursor or ring): the same test as [`press`](Self::press).
+  - `pub fn is_open(&self) -> bool`. Whether an outline is open.
+  - `pub fn is_down(&self) -> bool`. Whether the primary button is down on an open outline.
+  - `pub fn takes_retract(&self) -> bool`. Whether [`retract`](Self::retract) acts: an outline is open and the button is up (between clicks).
+- `craft_behavior::geometry::draft::turn_to_45`: `pub fn turn_to_45(from: Point, point: Point) -> Point`. `point` turned about `from` to the nearest multiple of 45°, keeping its distance.
+- `craft_behavior::geometry::geom::NEAR_W`: `pub const NEAR_W: f64 = 0.5;`. The least homogeneous depth `w` a projected point keeps: points at or behind a perspective camera would flip through infinity and draw long lines across the view.
+- `craft_behavior::geometry::geom::point_in_polygon`: `pub fn point_in_polygon(p: Point, points: &[Point]) -> bool`. Whether `p` is inside the polygon `points` (closed implicitly) by the nonzero winding rule, so a self-crossing outline is filled where it winds.
+- `craft_behavior::geometry::geom::clip_segment`: `pub fn clip_segment(a: Point, b: Point, rect: Rect) -> Option<(Point, Point)>`. The part of segment `a`–`b` inside `rect` (Liang–Barsky), or `None` when none is.
+- `craft_behavior::geometry::geom::angle_deg`: `pub fn angle_deg(v: Vec2) -> f64`. `v`'s angle from the x axis in degrees, −180 to 180, positive towards +y (clockwise on a y-down screen).
+- `craft_behavior::geometry::geom::project_clipped`: `pub fn project_clipped(m: &Homography, points: &[Point]) -> Vec<Point>`. The closed polygon `points` through `m`, cut at `w = NEAR_W` before the perspective divide, so only the part in front of the camera is drawn; empty when none of it is.
+- `craft_behavior::geometry::lock::LOCK_HYSTERESIS_DEGREES`: `pub const LOCK_HYSTERESIS_DEGREES: f64 = 8.0;`. Extra angle in degrees the pointer must pass the half-way line between two directions by before a locked direction switches, so it doesn't flicker near the diagonal.
+- `craft_behavior::geometry::lock::Directions`: `pub enum Directions`. The directions ⇧ locks a move to.
+  - `pub const fn count(self) -> u32`. How many evenly spaced directions: 4 or 8.
+- `craft_behavior::geometry::lock::lock_direction`: `pub fn lock_direction(d: Vec2, previous: Option<Vec2>, directions: Directions) -> Vec2`. `d` locked to the nearest of `directions` evenly spaced directions (0° = right, document y down).
+- `craft_behavior::geometry::marquee::MarqueeRect`: `pub struct MarqueeRect`. The two corners of a marquee in document space, as dragged: not ordered, not rounded.
+  - `pub fn rect(&self) -> Rect`. The rectangle between the corners, with `x0 <= x1` and `y0 <= y1`.
+- `craft_behavior::geometry::marquee::Constraint`: `pub enum Constraint`. The options bar's marquee style.
+  - `pub fn corners(self, start: Point, end: Point, square: bool, centre: bool) -> (Point, Point)`. The corners of the marquee dragged from `start` to `end`: the style applied, ⇧ (`square`) making it square when free, ⌥ (`centre`) drawing it from the centre.
+- `craft_behavior::geometry::marquee::fixed_size_pixels`: `pub fn fixed_size_pixels(a: Point, b: Point, size: (f64, f64)) -> Rect`. The pixel rectangle of a fixed-size marquee between the corners `a` and `b`: exactly `size` `(w, h)` in whole pixels (at least 1 × 1).
+- `craft_behavior::geometry::marquee::marquee_pixels`: `pub fn marquee_pixels(a: Point, b: Point) -> Rect`. The pixel rectangle a marquee between two corners selects: both edges snapped outwards to whole pixels, so every pixel the marquee touches is in.
+- `craft_behavior::geometry::marquee::square_pixels`: `pub fn square_pixels(r: Rect, start: Point, end: Point) -> Rect`. A square marquee's pixel rectangle `r`, as [`marquee_pixels`] returns it, with equal sides.
+- `craft_behavior::geometry::marquee::MarqueeGesture`: `pub struct MarqueeGesture`. The rules of a marquee drag: the click slop, ⇧ and ⌥ counted only when pressed after the press (or released and pressed again), Space moving the whole marquee, and the options bar's [`Constraint`].
+  - `pub fn press(screen: Pos2, at: Point, mods: Mods) -> Self`. A press at `screen` (screen points) and `at` (document units, snapped by the host) with `mods` held: they choose the selection mode, not square or centre.
+  - `pub fn press_mods(&self) -> Mods`. The mods held at the press, for the host's selection mode (add, subtract).
+  - `pub fn pointer(&self) -> Pos2`. The pointer on screen as last followed.
+  - `pub fn has_begun(&self) -> bool`. The gesture left the click slop (or began at the press with [`Constraint::Size`]).
+  - `pub fn follow(&mut self, screen: Option<Pos2>, mods: Mods)`. The pass's mods and pointer (`None` keeps the last one): records ⇧ and ⌥ being released since the press.
+  - `pub fn begin_past(&mut self, slop: f32, constraint: Constraint) -> bool`. Begins the gesture once the pointer is more than `slop` screen points from the press, or at once with [`Constraint::Size`].
+  - `pub fn square_and_centre(&self) -> (bool, bool)`. ⇧ (square) and ⌥ (from the centre) for the marquee: held now, and either not held at the press or released since.
+  - `pub fn size_to(&mut self, at: Point, space: bool, constraint: Constraint) -> MarqueeRect`. Sizes the marquee to the pointer's document point `at` (the host's snap applied): with `space` held the whole marquee moves by the pointer's step instead.
+- `craft_behavior::geometry::quad::SKEW_LIMIT`: `pub const SKEW_LIMIT: f64 = 89.0;`. The skew fields' reach in degrees: a skew of ±90° would flatten the box (PhotoCraft's).
+- `craft_behavior::geometry::quad::BoxState`: `pub struct BoxState`. A transform box: its four corners clockwise from the top left (as the box was before any transform) and its reference point, in document space.
+- `craft_behavior::geometry::quad::BoxPart`: `pub enum BoxPart`. A part of a box under the pointer or picked from the keyboard.
+- `craft_behavior::geometry::quad::TransformMode`: `pub enum TransformMode`. Edit › Transform's modes.
+- `craft_behavior::geometry::quad::ScaleRule`: `pub enum ScaleRule`. What a plain corner or edge drag does.
+- `craft_behavior::geometry::quad::BoxAllow`: `pub struct BoxAllow`. What the box's content allows.
+- `craft_behavior::geometry::quad::BoxDrag`: `pub enum BoxDrag`. What a drag of a box part does ([`BoxRules::drag_kind`]).
+- `craft_behavior::geometry::quad::BoxRules`: `pub struct BoxRules`. How drags change a box.
+  - `pub fn resize_only() -> BoxRules`. The rules of a box that only resizes and moves: a selection frame (CadCraft's and GridCraft's rectangle selections).
+  - `pub fn effective_mode(&self) -> TransformMode`. The mode drags follow: a mode the content refuses scales as Free Transform does.
+  - `pub fn allows(&self, part: BoxPart) -> bool`. Whether a drag of `part` changes the box: in Distort only the corners, the inside and the reference point; in Skew everything but the outside; the outside only where rotating is allowed.
+  - `pub fn drag_modifiers(&self, part: BoxPart, mods: Mods) -> Mods`. The modifiers a drag of `part` acts on, from the keys held: ⌘ is dropped on a corner or edge the content refuses to distort or skew, and the legacy scale rule ([`ScaleRule::Free`]) or an unlinked aspect ratio turns ⇧ over on corners and edges.
+  - `pub fn drag_kind(&self, part: BoxPart, mods: Mods) -> Option<BoxDrag>`. What a drag of `part` with `mods` held (as the host has them, before [`drag_modifiers`](Self::drag_modifiers)) does to the box, or `None` where the rules refuse the part ([`allows`](Self::allows)).
+- `craft_behavior::geometry::quad::drag`: `pub fn drag(start: &BoxState, last: &BoxState, part: BoxPart, from: Point, to: Point, mods: Mods, rules: &BoxRules) -> BoxState`. The box after dragging `part` from `from` to `to` (document points) with `mods` held, from the box at the press, `start`.
+- `craft_behavior::geometry::quad::Parts`: `pub struct Parts`. A box read as the options bar shows it: the starting rect scaled by `w` and `h`, skewed by `skew_h` and `skew_v` and turned by `angle`, about the reference point.
+  - `pub fn from_rect(r: Rect) -> Self`. The box of `r`, the reference point at its centre.
+  - `pub fn moved(&self, by: Vec2) -> Self`. The box and its reference point moved by `by`.
+  - `pub fn is_parallelogram(&self) -> bool`. Whether the box is still an affine image of its rect (opposite sides parallel), so W and H describe it; a distorted or perspective box is not.
+  - `pub fn affine_from(&self, rect: Rect) -> Option<Affine>`. The affine map taking `rect`'s corners to the box; `None` once the box is distorted out of a parallelogram (Distort, Perspective), when a host maps through the quad instead.
+  - `pub fn parts(&self, rect: Rect, skew_v: f64) -> Parts`. The box read as the options bar shows it, `rect` being the box before the transform and `skew_v` the V skew the host keeps (degrees).
+  - `pub fn with_parts(&self, rect: Rect, skew_v: f64, mut to: Parts) -> Self`. The box with the options bar's fields set to `to`: W and H scale it along its own axes, the angle turns it and the skews lean it, each about the reference point, which stays put.
+  - `pub fn signed_scale(&self, rect: Rect, skew_v: f64) -> (f64, f64)`. The signed W and H factors of the box ([`parts`](Self::parts)): a mirrored side reads negative.
+  - `pub fn with_signed_scale(&self, rect: Rect, skew_v: f64, w: f64, h: f64) -> Self`. The box with W and H set to the signed factors `w` and `h`, the angle and skews kept.
+  - `pub fn linked_scale(now: (f64, f64), axis: usize, typed: f64) -> (f64, f64)`. The signed factors `(w, h)` after the side on `axis` (0: W, 1: H) is set to `typed` with W and H linked, from the factors `now`.
+  - `pub fn point_at(&self, at: Anchor9) -> Point`. One of the box's nine points, through the box's own frame (a distorted box's centre is where its diagonals' frame puts it).
+  - `pub fn anchor_of_pivot(&self) -> Option<Anchor9>`. The point of the nine the reference point is on, within 0.05 document units; `None` for a reference point placed elsewhere.
+  - `pub fn part_at(&self, p: Point, tol: f64) -> BoxPart`. The part at `p`: the nearest of the corners, edge midpoints and reference point within `tol` (on a small box their reaches overlap), else inside or outside the box.
+  - `pub fn contains(&self, p: Point) -> bool`. Whether `p` is inside the box (even-odd, so a folded box has holes).
+  - `pub fn angle(&self) -> f64`. The direction of the top edge in degrees, clockwise in document space (y down): the rotate readout.
+  - `pub fn scaled_about_pivot(&self, kx: f64, ky: f64) -> Self`. Scaled by `kx` and `ky` along the box's own axes about the reference point.
+  - `pub fn turned_about_pivot(&self, radians: f64) -> Self`. Turned by `radians` about the reference point.
+- `craft_behavior::geometry::quad::Homography`: `pub struct Homography([f64; 9]);`. A projective map of the plane: the unit square onto a box, so a box scales along its own axes whatever its shape.
+  - `pub fn from_rows(rows: [[f64; 3]; 3]) -> Homography`. The map with these rows of (x, y, w) coefficients, applied to (x, y, 1).
+  - `pub fn row(&self, i: usize) -> [f64; 3]`. Row `i` (0 to 2) of the matrix: the coefficients of x, y and the constant.
+  - `pub fn unit_to_quad(q: [Point; 4]) -> Option<Homography>`. The map taking (0, 0), (1, 0), (1, 1), (0, 1) to `q`'s corners; `None` for a degenerate box.
+  - `pub fn apply(&self, p: Point) -> Point`. `p` of the unit square, carried to the box.
+  - `pub fn inverse(&self) -> Option<Homography>`. The map back from the box to the unit square; `None` when the map is singular.
+- `craft_behavior::geometry::quad::bisector`: `pub fn bisector(screen: &BoxState, i: usize) -> emath::Vec2`. Corner `i` of `screen`'s unit bisector, pointing into the box; zero for a collapsed corner.
+- `craft_behavior::geometry::quad::outset`: `pub fn outset(corners: &[emath::Pos2; 4], by: f32) -> [emath::Pos2; 4]`. The closed polygon `corners` moved `by` points outward, each corner along its mitre (kept within four times `by` at a sharp corner).
+- `craft_behavior::geometry::selection_op::SelectionOperation`: `pub enum SelectionOperation`. How a selection made by a click or a drag combines with the current one: the rule the Channels panel's ⌘-click, a mask thumbnail's ⌘-click and the selection tools share (Photoshop's).
+  - `pub const ALL: [SelectionOperation; 4] =`. Every operation, in Photoshop's options-bar order.
+  - `pub fn from_mods(mods: Mods) -> SelectionOperation`. The operation `mods` ask for: Shift and Alt `Intersect`, Shift `Add`, Alt `Subtract`, else `New`.
+  - `pub fn resolve(bar: SelectionOperation, mods: Mods, has_selection: bool) -> SelectionOperation`. The operation a selection tool's gesture uses (Photoshop's): the options bar's `bar`, overridden by `mods` as [`from_mods`](Self::from_mods) reads them (⇧ add, ⌥ subtract, ⇧⌥ intersect).
+  - `pub fn badge(self) -> Option<CursorBadge>`. The badge beside the selection pointer: `Add` a plus, `Subtract` a minus, `Intersect` a cross, `New` none.
+  - `pub const fn name(self) -> &'static str`. The operation's stable name for commands and settings: `"new"`, `"add"`, `"subtract"`, `"intersect"` (PhotoCraft's `select.loadSelection` operation values).
+- `craft_behavior::geometry::snap::SNAP_PX`: `pub const SNAP_PX: f64 = 8.0;`. Screen points within which a position snaps (Photoshop).
+- `craft_behavior::geometry::snap::SnapKind`: `pub enum SnapKind`. What a target is, so an app can filter (Snap To › Guides only) and the lines can be drawn in the smart-guide colour or the plain one.
+  - `pub fn is_smart(self) -> bool`. Drawn as a smart guide (magenta) rather than snapped silently.
+- `craft_behavior::geometry::snap::SnapTarget`: `pub struct SnapTarget`. One snap position on one axis.
+- `craft_behavior::geometry::snap::SnapLine`: `pub struct SnapLine`. The line the UI draws for a snap that happened.
+- `craft_behavior::geometry::snap::SnapOptions`: `pub struct SnapOptions`. View › Snap To and View › Show › Smart Guides, as the app stores them.
+- `craft_behavior::geometry::snap::SnapGesture`: `pub enum SnapGesture`. How the host snaps a tool's pointer.
+- `craft_behavior::geometry::snap::SnapTargets`: `pub struct SnapTargets`. The snap targets of one gesture.
+  - `pub fn new() -> Self`. No targets.
+  - `pub fn add(&mut self, target: SnapTarget)`. Add one target.
+  - `pub fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind)`. Add a rectangle's four edges as `edge` targets and its two centre lines as `center` targets, each spanning the rectangle.
+  - `pub fn with_document(`. Guides as full-height targets, grid lines of `spacing` from `origin` over `bounds`, the document bounds and centre: what every app has.
+  - `pub fn filtered(&self, keep: impl Fn(SnapKind) -> bool) -> SnapTargets`. Only the targets `keep` accepts (Snap To with one kind off).
+  - `pub fn is_empty(&self) -> bool`. Whether there is no target.
+  - `pub fn nearest(&self, vertical: bool, value: f64, tolerance: f64) -> Option<SnapTarget>`. The nearest target on one axis within `tolerance` of `value`.
+  - `pub fn snap_point(&self, point: Point, tolerance: f64) -> (Point, Vec<SnapLine>)`. `point` snapped on each axis independently, with the lines to draw.
+  - `pub fn snap_rect(&self, rect: Rect, tolerance: f64) -> (Vec2, Vec<SnapLine>)`. The offset that moves `rect` so its nearest edge or centre meets a target on each axis, with the lines to draw.
+  - `pub fn snap_axis(&self, vertical: bool, value: f64, tolerance: f64) -> (f64, Option<SnapLine>)`. `value` on one axis snapped to the nearest target within `tolerance`, for a guide drag or a ruler's snap closure.
+- `craft_behavior::geometry::snap::union`: `pub fn union(rects: impl IntoIterator<Item = Rect>) -> Option<Rect>`.
 
 ## `craft_behavior::grid`
 
