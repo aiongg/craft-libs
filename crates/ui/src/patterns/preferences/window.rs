@@ -26,9 +26,6 @@ use std::sync::Arc;
 const OK_AT: usize = 0;
 const APPLY_AT: usize = 1;
 
-/// The share of the screen the window opens at until the user resizes it.
-const OPENING_SHARE: f32 = 0.75;
-
 /// What the window keeps between passes; the host owns it and binds it with [`PreferencesWindow::new`].
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
@@ -153,7 +150,6 @@ impl<'a> PreferencesWindow<'a> {
         let buttons = [ok, apply, FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
 
         let mut open = true;
-        let screen = ui.ctx().content_rect().size();
         let session = RefCell::new(Session {
             host: &mut *host,
             state,
@@ -167,7 +163,6 @@ impl<'a> PreferencesWindow<'a> {
             .collection_body()
             .modeless()
             .resizable(true)
-            .overlay(|overlay| overlay.size(screen * OPENING_SHARE))
             .close_on_enter(can_ok)
             .close_guard(|at, cx| match at {
                 OK_AT => session.borrow_mut().apply(cx),
