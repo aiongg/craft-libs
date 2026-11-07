@@ -1,6 +1,7 @@
 //! The pure logic of the list family.
 
 use craft_behavior::{DisplayOrder as _, SelectionChange, SelectionModel as _};
+use craft_i18n::Format;
 use craft_ui::contract::CollectionEvent;
 use craft_ui::list::{
     EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, LogEvent, OpenSet, Severity, UndoMark, UndoWords, footer_text,
@@ -34,9 +35,11 @@ fn the_log_shows_newest_first_at_or_above_the_level() {
 #[trial]
 fn a_repeated_event_shows_its_count_and_a_future_event_is_new() {
     let words = EventWords::english();
+    let format = Format::from_tag("en-US");
     let events = log();
-    assert_eq!(events[2].message_with_count(&words), "Disk almost full  (\u{d7}3)");
-    assert_eq!(events[1].message_with_count(&words), "Out of memory");
+    assert_eq!(events[2].message_with_count(&words, &format), "Disk almost full  (\u{d7}3)");
+    assert_eq!(events[1].message_with_count(&words, &format), "Out of memory");
+    assert_eq!(events[2].message_with_count(&words, &Format::from_tag("ar-EG")), "Disk almost full  (\u{d7}\u{663})");
     assert_eq!(events[1].age_seconds(5_000), 0);
     assert_eq!(events[1].age_seconds(70_000), 60);
     assert_eq!(events[2].details_line(&words, "2 min ago"), "Warning \u{b7} Auto-save \u{b7} 2 min ago");
@@ -53,10 +56,11 @@ fn sample() -> Vec<Finding> {
 #[trial]
 fn the_summary_counts_errors_and_warnings() {
     let words = FindingsWords::english();
-    assert_eq!(summary_text(&words, &[]), "No errors");
-    assert_eq!(summary_text(&words, &sample()), "1 error, 2 warnings");
-    assert_eq!(summary_text(&words, &sample()[1..]), "0 errors, 2 warnings");
-    assert_eq!(summary_text(&words, &sample()[..1]), "1 error, 0 warnings");
+    assert_eq!(summary_text(&words, &Format::from_tag("en-US"), &[]), "No errors");
+    assert_eq!(summary_text(&words, &Format::from_tag("en-US"), &sample()), "1 error, 2 warnings");
+    assert_eq!(summary_text(&words, &Format::from_tag("en-US"), &sample()[1..]), "0 errors, 2 warnings");
+    assert_eq!(summary_text(&words, &Format::from_tag("en-US"), &sample()[..1]), "1 error, 0 warnings");
+    assert_eq!(summary_text(&words, &Format::from_tag("ar-EG"), &sample()), "\u{661} error, \u{662} warnings");
 }
 
 #[trial]

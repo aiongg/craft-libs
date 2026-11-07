@@ -14,6 +14,7 @@ use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 use craft_host::target::{Os, ShellInfo};
 pub use craft_i18n::Direction;
+use craft_i18n::Format;
 pub use craft_i18n::{Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_theme::{
     AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
@@ -269,6 +270,8 @@ pub struct Scoped {
     pub ink: Ink,
     /// The built-in text of the scope.
     pub(crate) words: Arc<Words>,
+    /// How the scope writes numbers: the host's catalog format, else the system region's.
+    pub(crate) format: Arc<Format>,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -350,6 +353,11 @@ impl Env {
         self.words.set::<L>()
     }
 
+    /// How the scope writes numbers: locale digits, separators and grouping.
+    pub fn format(&self) -> &Format {
+        &self.format
+    }
+
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
         let tokens = root_tokens(ctx, root);
@@ -382,6 +390,7 @@ impl Env {
                 row: None,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
+                format: host_format(ctx, host.as_ref()),
                 host,
                 values: root.values.clone(),
             }),
@@ -634,6 +643,11 @@ impl<'a> EnvView<'a> {
         self.scoped.words.set::<L>()
     }
 
+    /// How the scope writes numbers: locale digits, separators and grouping.
+    pub fn format(&self) -> &'a Format {
+        &self.scoped.format
+    }
+
     /// `label` with a `Word` replaced by its text in the scope's language.
     pub(crate) fn resolve(&self, label: &Label) -> Label {
         label.resolved(&self.scoped.words)
@@ -739,6 +753,18 @@ fn host_words(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Words> {
         cached.host = host.map(Arc::downgrade);
         cached.words = Some(Arc::clone(&words));
         words
+    })
+}
+
+/// The number format of `host`'s catalogs, else the system region's with the locale's digits, built once.
+fn host_format(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Format> {
+    if let Some(i18n) = host.and_then(|host| host.i18n_shared()) {
+        return i18n.format();
+    }
+    #[derive(Default)]
+    struct System(Option<Arc<Format>>);
+    Service::<System>::of(ctx).with(|system| {
+        Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale))))
     })
 }
 

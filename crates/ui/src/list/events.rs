@@ -11,6 +11,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Metrics, Selection, SpanLayout};
+use craft_i18n::Format;
 use craft_theme::variant::Tone;
 use egui::Ui;
 use serde::{Deserialize, Serialize};
@@ -87,10 +88,10 @@ impl LogEvent {
     }
 
     /// The message with its repeat count: "Disk almost full  (\u{d7}3)".
-    pub fn message_with_count(&self, words: &EventWords) -> String {
+    pub fn message_with_count(&self, words: &EventWords, format: &Format) -> String {
         match self.count {
             0 | 1 => self.message.clone(),
-            n => words.repeated.fill(&[("message", self.message.as_str()), ("count", n.to_string().as_str())]),
+            n => words.repeated.fill(&[("message", self.message.as_str()), ("count", format.integer(n).as_str())]),
         }
     }
 
@@ -101,8 +102,8 @@ impl LogEvent {
 
     /// The event as a list row: its level icon, its message with the repeat count and, at the end, `age` in the
     /// caption role. A screen reader reads the message, the level and the age. `striped` is `ItemCx::row.striped`.
-    pub fn row(&self, age: &str, words: &EventWords, striped: bool) -> ListRow<'static> {
-        let message = self.message_with_count(words);
+    pub fn row(&self, age: &str, words: &EventWords, format: &Format, striped: bool) -> ListRow<'static> {
+        let message = self.message_with_count(words, format);
         let name = words.row_name.fill(&[("level", self.level.word(words)), ("message", message.as_str()), ("age", age)]);
         let age = age.to_owned();
         ListRow::new(message).accessible_name(name).icon(IconSpec::svg(self.level.icon())).tone(self.level.tone()).striped(striped).trailing(age)

@@ -20,7 +20,7 @@ use craft_behavior::{
     Axis, CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape,
     Mixed, PartKey, PartRef, PressCancel, PressPhase, PressState, Proposal, Roving, ScrollSpan, Sense, Value, Wheel,
 };
-use craft_i18n::WordSet;
+use craft_i18n::{Format, WordSet};
 use craft_keymap::Chord;
 use craft_theme::Flags;
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
@@ -894,6 +894,9 @@ pub trait WordSetCx {
 
     /// The word set `L` in the language of the scope; built once per installed `Words`.
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>;
+
+    /// How the scope writes numbers: locale digits, separators and grouping.
+    fn format(&self) -> &Format;
 }
 
 impl WordSetCx for CxCore<'_> {
@@ -903,6 +906,10 @@ impl WordSetCx for CxCore<'_> {
 
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.env.words()
+    }
+
+    fn format(&self) -> &Format {
+        self.env.format()
     }
 }
 
@@ -914,6 +921,10 @@ impl<C: Component> WordSetCx for Cx<'_, C> {
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.core.words()
     }
+
+    fn format(&self) -> &Format {
+        self.core.format()
+    }
 }
 
 impl<C: Component> WordSetCx for MeasureCx<'_, C> {
@@ -923,6 +934,10 @@ impl<C: Component> WordSetCx for MeasureCx<'_, C> {
 
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.env.words()
+    }
+
+    fn format(&self) -> &Format {
+        self.env.format()
     }
 }
 
@@ -1043,6 +1058,10 @@ impl WordSetCx for BodyCx<'_> {
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.env.words()
     }
+
+    fn format(&self) -> &Format {
+        self.env.format()
+    }
 }
 
 impl<K> WordSetCx for ItemCx<'_, '_, K> {
@@ -1053,6 +1072,10 @@ impl<K> WordSetCx for ItemCx<'_, '_, K> {
 
     fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.env.words()
+    }
+
+    fn format(&self) -> &Format {
+        self.env.format()
     }
 }
 
