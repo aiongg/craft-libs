@@ -78,3 +78,11 @@ pub use export::{
     FormatOptionsWords, JpegFormat, JpegOptions, JpegPreset, OutputPathOutput, OutputPathRow, OutputPathWords, SizeEstimate, TargaOptions,
     TiffOptions, export_file_name, jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
 };
+
+// Save PDF.
+mod pdf_export;
+
+pub use pdf_export::{
+    PdfArtboards, PdfExportDialog, PdfExportOutput, PdfExportResult, PdfExportWords, PdfPresetEvent, PdfSection, RangeError, apply_standard,
+    check_range, differences,
+};
