@@ -250,7 +250,14 @@ fn activate_on_click_reports_the_clicked_tile() {
 #[trial]
 fn a_focused_group_header_collapses_opens_and_picks_by_key() {
     let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "First"), TileGroup::new(6, 6, "Second").open(false)]));
-    let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(true), plain);
+    let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(), plain);
+    let opened = |seen: &Rc<RefCell<Seen>>| -> Vec<(usize, bool)> {
+        seen.borrow()
+            .grid
+            .iter()
+            .filter_map(|event| if let GridEvent::GroupOpen { group, open } = event { Some((*group, *open)) } else { None })
+            .collect()
+    };
     let header = |fixture: &Fixture, label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} is a node"));
     let target = header(&fixture, "First");
     fixture.click(&target);
@@ -258,7 +265,7 @@ fn a_focused_group_header_collapses_opens_and_picks_by_key() {
     seen.borrow_mut().grid.clear();
     fixture.key(Key::ArrowLeft, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(seen.borrow().grid, [GridEvent::GroupOpen { group: 0, open: false }], "Left closes the open group");
+    assert_eq!(opened(&seen), [(0, false)], "Left closes the open group");
     seen.borrow_mut().grid.clear();
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
@@ -271,5 +278,5 @@ fn a_focused_group_header_collapses_opens_and_picks_by_key() {
     seen.borrow_mut().grid.clear();
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(seen.borrow().grid, [GridEvent::GroupOpen { group: 1, open: true }], "Right opens the closed group");
+    assert_eq!(opened(&seen), [(1, true)], "Right opens the closed group");
 }

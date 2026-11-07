@@ -494,7 +494,7 @@ fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<Ref
                 &Names,
                 &mut |key, _| ListRow::new(NAMES[*key]),
             );
-            sink.borrow_mut().extend(out.response.events.iter().filter_map(|event| match event {
+            sink.borrow_mut().extend(out.events.iter().filter_map(|event| match event {
                 CollectionEvent::Activate(key) => Some(*key),
                 _ => None,
             }));
