@@ -8,12 +8,12 @@
 use crate::choice::Switch;
 use crate::contract::{
     Bind, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry, ItemOutput, MeasureCx,
-    Outcome, PaintUi, Props as _, Role, SelectMode, Show as _, ShowCollection as _, Sizing,
+    Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing,
 };
 use crate::pickers::Select;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Selection, SpanLayout};
 use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
@@ -241,7 +241,9 @@ impl Component for LayerRow<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(0.0, cx.style.height)
+        let height = cx.style.height;
+        let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
+        Vec2::new((indent + NAME_IN_HEIGHTS + 1.0 + SELECT_IN_HEIGHTS) * height, height)
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -303,5 +305,5 @@ fn layer_stack_many(ui: &mut egui::Ui, data: &mut StoryData) -> StoryOutput {
 #[story(LayerRow<'static>, covers = [Default], drive = Drive::Never)]
 fn layer_row(ui: &mut egui::Ui, _: &mut StoryData) -> StoryOutput {
     let (layer, modes) = (Layer::new("Background"), modes());
-    LayerRow::new(&layer, &modes).show(ui).into()
+    show_as_only_item(ui, LayerRow::new(&layer, &modes)).into()
 }

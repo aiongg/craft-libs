@@ -115,8 +115,11 @@ fn reachable(subject: &Subject) -> Flags {
     if probe.overlay {
         flags |= Flags::OPEN;
     }
-    if matches!(probe.shape, crate::contract::ShapeKind::Items) {
+    if matches!(probe.shape, crate::contract::ShapeKind::Items) || super::nodes::is_row_role(probe.role) {
         flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET;
+    }
+    if super::nodes::is_menu_item_role(probe.role) {
+        flags |= Flags::LEAD;
     }
     if !matches!(probe.shape, crate::contract::ShapeKind::Leaf) {
         flags |= Flags::EXPANDED;

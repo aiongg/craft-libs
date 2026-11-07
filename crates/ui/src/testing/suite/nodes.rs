@@ -30,6 +30,16 @@ pub(super) fn focus_within(fixture: &Fixture, root: NodeKey) -> bool {
 /// The roles of the rows of a collection: list items, list box options, tree items and table rows.
 const ROW_ROLES: [Role; 4] = [Role::LIST_ITEM, Role::LIST_BOX_OPTION, Role::TREE_ITEM, Role::ROW];
 
+/// Whether `role` is a row of a collection, which the item step gives `LEAD`, `DRAGGING` and `DROP_TARGET`.
+pub(super) fn is_row_role(role: Role) -> bool {
+    ROW_ROLES.contains(&role)
+}
+
+/// Whether `role` is a menu entry, which shows `LEAD` on the entry the menu rests on.
+pub(super) fn is_menu_item_role(role: Role) -> bool {
+    [Role::MENU_ITEM, Role::MENU_ITEM_CHECK_BOX, Role::MENU_ITEM_RADIO].contains(&role)
+}
+
 /// The rows of the collection below `root`, top to bottom. A node with no place in a set, such as a header row, is
 /// not a row.
 pub(super) fn rows(fixture: &Fixture, root: NodeKey) -> Vec<Target> {
