@@ -1,9 +1,9 @@
 //! `PanelMenu`: the rows of a dock panel's menu (the button at the end of a group's tab strip and a tab's context
 //! menu): the host's rows, then the dock's group rows.
 
-use super::words::PanelMenuWords;
 use super::MenuItem;
-use crate::contract::Show as _;
+use super::words::PanelMenuWords;
+use crate::contract::{BodyCx, Remember as _, Show as _};
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
@@ -67,18 +67,18 @@ impl PanelMenu {
     }
 
     /// Shows the rows in the menu body `ui` and returns the dock row picked this pass.
-    pub fn show(&self, ui: &mut Ui) -> Option<GroupItem> {
+    pub fn show(&self, ui: &mut Ui, cx: &mut BodyCx<'_>) -> Option<GroupItem> {
         let mut picked = None;
-        Self::rows(ui, &self.host, &mut picked);
+        Self::rows(ui, cx, &self.host, &mut picked);
         if !self.host.is_empty() && !self.group.is_empty() {
             Divider::horizontal().show(ui);
         }
-        Self::rows(ui, &self.group, &mut picked);
+        Self::rows(ui, cx, &self.group, &mut picked);
         picked
     }
 
-    fn rows(ui: &mut Ui, rows: &[PanelRow], picked: &mut Option<GroupItem>) {
-        for row in rows {
+    fn rows(ui: &mut Ui, cx: &mut BodyCx<'_>, rows: &[PanelRow], picked: &mut Option<GroupItem>) {
+        for (at, row) in rows.iter().enumerate() {
             match row {
                 PanelRow::Command(command) => {
                     MenuItem::command(command.clone()).show(ui);
@@ -89,7 +89,9 @@ impl PanelMenu {
                     }
                 }
                 PanelRow::Submenu(label, rows) => {
-                    super::popup::submenu_rows(ui, label.clone(), |ui| Self::rows(ui, rows, picked));
+                    let mut open = *cx.memory_at::<bool>(("submenu", at));
+                    super::popup::submenu_rows(ui, label.clone(), &mut open, |ui, cx| Self::rows(ui, cx, rows, picked));
+                    *cx.memory_at::<bool>(("submenu", at)) = open;
                 }
                 PanelRow::Separator => {
                     Divider::horizontal().show(ui);

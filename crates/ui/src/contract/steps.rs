@@ -1282,6 +1282,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         scrolls: input.scrolls,
         access: &access,
         popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
+        popups_by_part: !core.toggles.is_empty(),
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
@@ -1367,6 +1368,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             scrolls: (false, false),
             access: &access,
             popups: &[],
+            popups_by_part: false,
         },
     );
 }

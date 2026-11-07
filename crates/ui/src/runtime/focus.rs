@@ -388,6 +388,26 @@ pub(crate) fn scope_chain(ctx: &Context, rec: &StopRec) -> Vec<Id> {
     })
 }
 
+/// Whether focus sits inside a menu and arrived by keyboard.
+pub(crate) fn keyboard_in_menu(ctx: &Context) -> bool {
+    focused_rec(ctx).is_some_and(|rec| menu_scope(ctx, &rec).is_some()) && with(ctx, |state| state.visible)
+}
+
+/// The innermost menu scope `rec` sits in: plain typed text inside a menu goes to its container.
+pub(crate) fn menu_scope(ctx: &Context, rec: &StopRec) -> Option<Id> {
+    with(ctx, |state| {
+        let mut at = rec.scope;
+        while let Some(id) = at {
+            let scope = state.last_scopes.get(&id)?;
+            if scope.policy.kind == craft_behavior::ScopeKind::Menu {
+                return Some(id);
+            }
+            at = scope.parent;
+        }
+        None
+    })
+}
+
 /// Whether the focused stop sits inside `scope` or a scope opened from inside it; `None` when nothing is focused.
 pub(crate) fn focus_in_scope(ctx: &Context, scope: Id) -> Option<bool> {
     let rec = focused_rec(ctx)?;

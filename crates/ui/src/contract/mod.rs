@@ -39,6 +39,7 @@ pub use container::{
     Sizing, ThemeScope,
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
+pub(crate) use cx::SeenPress;
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
@@ -47,8 +48,8 @@ pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, Scrub, SideLa
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
 pub use paint_ui::PaintUi;
-pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 pub(crate) use props::StopProps;
+pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 #[doc(hidden)]
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;

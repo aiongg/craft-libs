@@ -672,7 +672,7 @@ impl PopupHandle {
         let resting = core.response.hovered() || core.focus.visible;
         let toggled = match trigger {
             Trigger::Click => core.activation.is_some(),
-            Trigger::Press => core.press.phase.is_press(),
+            Trigger::Press => core.memory.shown::<super::SeenPress>(sub(self.id, "press")).began(&core.press.phase),
             Trigger::Context => core.intents.take(Intent::ContextMenu),
             Trigger::Hover => self.dwell(&ctx, core.memory, "dwell", resting, super::tooltip::DELAY),
             Trigger::Hold => self.dwell(&ctx, core.memory, "dwell", core.press.phase.is_press(), HOLD),

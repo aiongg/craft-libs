@@ -97,7 +97,6 @@ struct LevelState {
     marks: bool,
     icons: bool,
     keyboard: bool,
-    keyboard_now: bool,
     pending: Option<Id>,
     close: bool,
     submenu: bool,
@@ -146,7 +145,7 @@ impl MenuLevel {
 
     /// Starts a pass over the level: the rows that registered last pass get their letters, and the rows of this pass
     /// register again.
-    fn begin(&self, submenu: bool) {
+    fn begin(&self, submenu: bool, keyboard: bool) {
         self.with(|state| {
             let letters = {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
@@ -155,8 +154,7 @@ impl MenuLevel {
             state.shown = state.now.iter().zip(letters).map(|(row, letter)| Assigned { id: row.id, letter, enabled: row.enabled }).collect();
             state.marks = state.now.iter().any(|row| row.mark);
             state.icons = state.now.iter().any(|row| row.icon);
-            state.keyboard = state.keyboard_now;
-            state.keyboard_now = false;
+            state.keyboard = keyboard;
             state.now.clear();
             state.submenu = submenu;
         });
@@ -176,7 +174,7 @@ impl MenuLevel {
     }
 
     /// The enabled row `typed` runs.
-    fn target(&self, typed: char) -> Option<Id> {
+    pub(crate) fn target(&self, typed: char) -> Option<Id> {
         let typed = typed.to_ascii_uppercase();
         self.with(|state| state.shown.iter().find(|row| row.enabled && row.letter == Some(typed)).map(|row| row.id))
     }
@@ -189,16 +187,12 @@ impl MenuLevel {
         self.with(|state| state.icons)
     }
 
-    /// Whether a row of the level held keyboard focus in the last pass: the mnemonics show.
+    /// Whether the keyboard drives a menu: the mnemonics show.
     fn keyboard(&self) -> bool {
         self.with(|state| state.keyboard)
     }
 
-    fn note_keyboard(&self) {
-        self.with(|state| state.keyboard_now = true);
-    }
-
-    fn set_pending(&self, id: Id) {
+    pub(crate) fn set_pending(&self, id: Id) {
         self.with(|state| state.pending = Some(id));
     }
 
@@ -229,7 +223,7 @@ impl MenuLevel {
 /// The level a menu container puts into its body's env: the rows of the body register with it.
 pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
-    level.begin(submenu);
+    level.begin(submenu, crate::runtime::focus::keyboard_in_menu(&cx.core.ctx));
     values.set(level);
 }
 
@@ -449,7 +443,9 @@ impl Component for MenuItem<'_> {
         let gap = cx.gap();
         let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
         let width = step(columns.mark) + step(columns.icon) + label.x + step(columns.detail) + step(columns.trail);
-        Vec2::new(width, label.y.max(cx.icon()))
+        let padding = cx.style.metrics.padding;
+        let room = cx.room.map(|room| (room - padding.start - padding.end).max(0.0));
+        Vec2::new(room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
     }
 
     fn sense(&self) -> Sense {
@@ -486,9 +482,6 @@ impl Component for MenuItem<'_> {
             mark: self.marked_row(command.as_deref()),
             icon: self.lead_icon(command.as_deref()).is_some(),
         });
-        if cx.focus_visible() {
-            level.note_keyboard();
-        }
         let mut ran = enabled && cx.activation().is_some();
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
@@ -496,19 +489,6 @@ impl Component for MenuItem<'_> {
                 NavMove::Forward => forward = true,
                 NavMove::Back => back = true,
                 _ => {}
-            }
-        }
-        if let Some(text) = cx.intents().take_text() {
-            let mut chars = text.chars();
-            if let (Some(typed), None) = (chars.next(), chars.next()) {
-                match level.target(typed) {
-                    Some(id) if id == cx.id => ran = true,
-                    Some(id) => {
-                        level.set_pending(id);
-                        frame::request_repaint(&ctx);
-                    }
-                    None => {}
-                }
             }
         }
         if enabled && level.take_pending(cx.id) {
