@@ -69,7 +69,6 @@ fn egui_color(c: Rgba) -> Color32 {
 impl<'a> StyleCx<'a> {
     /// A style context for the scope the pipeline or an app colour hook runs in.
     #[expect(clippy::too_many_arguments, reason = "one argument per input the style cache key covers")]
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn new(
         ctx: &'a Context,
         tokens: &'a UiTokens,
@@ -86,7 +85,6 @@ impl<'a> StyleCx<'a> {
     }
 
     /// The same context with another variant.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn with_variant(&self, variant: Variant) -> StyleCx<'a> {
         StyleCx { variant, ..*self }
     }

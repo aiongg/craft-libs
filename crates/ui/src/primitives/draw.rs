@@ -54,7 +54,6 @@ pub struct Draw<'a> {
 }
 
 impl<'a> Draw<'a> {
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub(crate) fn new(painter: &'a Painter, record: &'a RefCell<PaintRecord>, env: DrawEnv<'a>) -> Self {
         Draw { painter, record, env }
     }

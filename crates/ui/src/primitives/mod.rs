@@ -15,7 +15,7 @@ mod surface;
 mod text;
 pub mod textures;
 
-pub use content::{ContentPainter, ContentPainterCx, DocRun, DocText};
+pub use content::{ContentPainterCx, DocRun, DocText};
 pub use draw::{Draw, PaintShape, StrokeWidth};
 pub use focus_ring::{FocusKind, FocusRing};
 pub use handle::{Handle, HandleShape};
@@ -28,7 +28,6 @@ pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
 pub use text::{ChordText, LayoutRun, Span, TextLayout, TextRun, Wrap};
 
-#[cfg_attr(not(feature = "testing"), expect(unused_imports, reason = "used by the pipeline (F3)"))]
 pub(crate) use draw::DrawEnv;
-#[cfg_attr(not(feature = "testing"), expect(unused_imports, reason = "used by the pipeline (F3)"))]
-pub(crate) use record::{PaintRecord, face_id};
+pub(crate) use text::TextEnv;
+pub(crate) use record::{FaceRecord, PaintRecord, face_id};

@@ -6,7 +6,7 @@ mod column_group;
 mod label;
 mod slot;
 
-pub use arrange::{Placed, Show, arrange};
+pub use arrange::{Placed, arrange};
 pub use body::{BodyLayout, RowAlign};
 pub use column_group::ColumnGroup;
 pub use label::{place_label, record_control_baseline};

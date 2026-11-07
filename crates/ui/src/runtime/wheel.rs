@@ -18,13 +18,11 @@ struct State {
     shares: Vec<(Id, Wheel)>,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F3 step 4"))]
 /// Registers a taker for next pass's split.
 pub(crate) fn register(ctx: &Context, taker: WheelTaker<Id>) {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| state.this.push(taker));
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F3 step 4"))]
 /// The innermost non-gated taker of last pass whose view meets `rect`: where a reveal request goes.
 pub(crate) fn nearest_scroll_owner(ctx: &Context, rect: Rect) -> Option<Id> {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| {
@@ -81,7 +79,6 @@ pub(crate) fn begin(ctx: &Context) {
     });
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F3 step 4"))]
 /// The component's share of this pass's wheel, once.
 pub(crate) fn take(ctx: &Context, id: Id) -> Option<Wheel> {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| {

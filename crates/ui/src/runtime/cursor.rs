@@ -12,7 +12,6 @@ struct State {
     record: Option<Cursor>,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F3 step 16"))]
 /// Requests `cursor` for the running pass of this viewport.
 pub(crate) fn request(ctx: &Context, cursor: Cursor, priority: CursorPriority) {
     PerViewport::<State>::with(ctx, pass::current_viewport(ctx), |state| state.requests.push((cursor, priority)));

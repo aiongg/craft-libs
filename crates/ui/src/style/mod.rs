@@ -23,7 +23,6 @@ pub use state::StateSet;
 pub use surface::{SurfaceEdge, SurfaceStyle};
 pub use tokens::UiTokens;
 
-#[cfg_attr(not(feature = "testing"), expect(unused_imports, reason = "the style step of the pipeline (F3) is the caller"))]
 pub(crate) use cache::resolve_style;
 pub(crate) use paint::{ink_color, rule_look};
 pub(crate) use surface::surface_style;

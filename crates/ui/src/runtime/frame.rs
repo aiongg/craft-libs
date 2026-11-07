@@ -67,6 +67,7 @@ struct FrameState {
     /// How many root-viewport passes the begin hook has run for: egui counts a pass when it ends.
     root_passes_hooked: u64,
     prunes: HashMap<TypeId, fn(&Context, &[ViewportId])>,
+    sweeps: HashMap<TypeId, fn(&Context)>,
     frame_layers: Option<fn(&Context)>,
 }
 
@@ -142,6 +143,13 @@ pub(crate) fn register_prune(ctx: &Context, key: TypeId, prune: fn(&Context, &[V
     });
 }
 
+/// Registers a sweep the end hook runs for the running viewport's pass, once per service type.
+pub(crate) fn register_end_sweep(ctx: &Context, key: TypeId, sweep: fn(&Context)) {
+    store::with::<FrameState, _>(ctx, |state| {
+        state.sweeps.entry(key).or_insert(sweep);
+    });
+}
+
 /// Before the pass: from eframe's `App::raw_input_hook`, or before `run_ui` in tests. A call during a pass,
 /// or after a pass whose plugin hooks did not run, is a debug assertion.
 pub fn set_input(ctx: &Context, input: FrameInput) {
@@ -200,6 +208,11 @@ pub(crate) fn set_frame_layers(ctx: &Context, painter: Option<fn(&Context)>) {
     store::with::<FrameState, _>(ctx, |state| state.frame_layers = painter);
 }
 
+/// Whether decision records are kept for the debug inspector.
+pub(crate) fn inspecting(ctx: &Context) -> bool {
+    store::with::<FrameState, _>(ctx, |state| state.input.as_ref().is_some_and(|input| input.inspect))
+}
+
 /// Adds text to the next `FrameOutput`'s announcements.
 pub(crate) fn announce(ctx: &Context, text: String) {
     store::with::<FrameState, _>(ctx, |state| state.output.announcements.push(text));
@@ -226,7 +239,6 @@ pub(crate) fn clock(ctx: &Context) -> f64 {
 
 /// Records that the runtime cancelled the captured press of the running viewport; the next begin hook ends
 /// egui's drag so hover reaches other widgets again.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn note_cancelled_press(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<ViewportRecord>::with(ctx, viewport, |record| record.press_cancelled = true);
@@ -274,13 +286,17 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
     pointer::begin(&ctx, frame_hit(&ctx));
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
-    let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
+    let env = Env::from_root(&ctx, &input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());
     Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
     // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
     focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
     keys::begin(&ctx);
+    // Lead-1: an Escape over a captured press cancels the press and reaches no component.
+    if pointer::press_captured(&ctx) && keys::take_escape(&ctx) {
+        pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
+    }
     wheel::begin(&ctx);
 }
 
@@ -293,6 +309,10 @@ pub(crate) fn end_pass(ui: &mut Ui) {
         paint_frame_layers(&ctx);
     }
     focus::end(&ctx);
+    let sweeps: Vec<fn(&Context)> = store::with::<FrameState, _>(&ctx, |state| state.sweeps.values().copied().collect());
+    for sweep in sweeps {
+        sweep(&ctx);
+    }
     // Evict shown memory by id and queue the evicted slots (7.2).
     memory::evict(&ctx);
     layout_memory::end_hook(&ctx);

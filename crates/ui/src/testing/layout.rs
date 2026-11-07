@@ -1,11 +1,13 @@
 //! The layout services the trials check: bodies, measured blocks, the label column, `measure_slot` and
 //! `arrange`, with placeholder children that take a given size.
 
-use crate::layout::{BodyLayout, Show, run_body};
+use crate::contract::{Common, Component, Cx, Internal, MeasureCx, Meta, Role, shape};
+use crate::layout::{BodyLayout, run_body};
+use crate::style::{ComponentStyle, StyleCx};
 use crate::runtime::egui::fixture;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
-use craft_behavior::Proposal;
+use craft_behavior::{Metrics, Sense};
 use egui::{Id, Rect, Response, Ui, Vec2};
 
 /// Runs a body laid out by `layout` under `key` and places one child per entry of `sizes` in flow, as step 6
@@ -59,24 +61,62 @@ pub fn reordered_fonts() -> egui::FontDefinitions {
     fixture::reordered_fonts()
 }
 
-/// A placeholder child of a fixed size.
-pub struct Block(Vec2);
+/// A placeholder child of a fixed size: a leaf that measures `size`, senses nothing and paints nothing.
+pub struct Block {
+    common: Common,
+    size: Vec2,
+}
 
 impl Block {
     /// A child that takes `size`.
     pub const fn new(size: Vec2) -> Self {
-        Block(size)
+        Block { common: Common::new(), size }
     }
 }
 
-impl crate::layout::arrange::sealed::Sealed for Block {}
+/// The style of a `Block`: no padding.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BlockStyle;
 
-impl Show for Block {
-    fn measure_in(&mut self, _: &mut Ui, _: Id, _: Proposal) -> Vec2 {
-        self.0
+impl ComponentStyle for BlockStyle {
+    fn metrics(&self) -> Metrics {
+        Metrics::new()
+    }
+}
+
+impl Meta for Block {
+    type Shape = shape::Leaf;
+    type StyleKey = ();
+
+    fn style_key(&self) {}
+
+    fn common(&self, _: Internal) -> &Common {
+        &self.common
     }
 
-    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Response {
-        fixture::placeholder(ui, id, rect)
+    fn common_mut(&mut self, _: Internal) -> &mut Common {
+        &mut self.common
+    }
+}
+
+impl Component for Block {
+    const ROLE: Role = Role::None;
+    type Style = BlockStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: ()) -> BlockStyle {
+        BlockStyle
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        self.size
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.core.response
     }
 }

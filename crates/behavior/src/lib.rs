@@ -16,6 +16,7 @@ pub mod hit;
 pub mod input;
 pub mod intent;
 pub mod item_layout;
+pub mod item_source;
 pub mod keys;
 pub mod label_column;
 pub mod layout_memory;
@@ -45,6 +46,7 @@ pub use hit::{HitLevel, HitPriority, HitShape, ResolveFor, Shape, Winner, resolv
 pub use input::Input;
 pub use intent::{AccessRequest, EditCommand, Granularity, Intent, MoveMods, NavMove, TextPos};
 pub use item_layout::{FreeLayout, ItemLayout, SpanLayout};
+pub use item_source::ItemSource;
 pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
