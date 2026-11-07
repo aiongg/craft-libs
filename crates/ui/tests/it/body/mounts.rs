@@ -5,10 +5,17 @@ use super::kit::Slab;
 use crate::contract::kit::{Probe, Seen};
 use craft_behavior::CanvasTransform;
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
-use craft_ui::testing::layout::Block;
+use craft_ui::testing::layout::{Block, in_region};
 use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
+
+/// What the pointer drags a layer by, and the most its position may differ from the drag.
+const MOVE: Vec2 = Vec2::new(40.0, 30.0);
+const GROW: Vec2 = Vec2::new(30.0, 20.0);
+const SLACK: f32 = 1.5;
+/// The body the layers show.
+const BODY: Vec2 = Vec2::new(120.0, 60.0);
 
 fn layer_props(overlay: Overlay) -> ContainerProps {
     ContainerProps::new().mount(Mount::Layer(overlay)).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
@@ -19,7 +26,7 @@ fn show_layer(rect: &Cell<Rect>, overlay: &Overlay) -> impl FnMut(&mut Ui) {
     let overlay = overlay.clone();
     move |ui| {
         let out = Slab::new(layer_props(overlay.clone())).id_salt("layer").show(ui, |ui, _| {
-            Block::new(Vec2::new(120.0, 60.0)).show(ui);
+            Block::new(BODY).show(ui);
         });
         rect.set(out.output.rect);
     }
@@ -33,12 +40,12 @@ fn a_layer_container_moves_by_its_header_band() {
     let mut show = show_layer(&rect, &overlay);
     frames.idle(4, &mut show);
     let before = rect.get();
-    assert!(before.width() > 0.0, "the layer shows its body: {before:?}");
+    assert!(before.is_positive(), "the layer shows its body: {before:?}");
     let header = Pos2::new(before.center().x, before.min.y + 8.0);
-    pointer::drag(&mut frames, header, Vec2::new(40.0, 30.0), &mut show);
+    pointer::drag(&mut frames, header, MOVE, &mut show);
     frames.idle(2, &mut show);
     let moved = rect.get().min - before.min;
-    assert!((moved - Vec2::new(40.0, 30.0)).abs().max_elem() < 1.5, "the layer followed the pointer: {moved:?}");
+    assert!((moved - MOVE).abs().max_elem() < SLACK, "the layer followed the pointer: {moved:?}");
 }
 
 #[trial]
@@ -49,11 +56,11 @@ fn a_resizable_layer_resizes_by_its_corner_grip() {
     let mut show = show_layer(&rect, &overlay);
     frames.idle(4, &mut show);
     let before = rect.get();
-    pointer::drag(&mut frames, before.max - Vec2::splat(1.0), Vec2::new(30.0, 20.0), &mut show);
+    pointer::drag(&mut frames, before.max - Vec2::splat(1.0), GROW, &mut show);
     frames.idle(2, &mut show);
     let grown = rect.get().size() - before.size();
-    assert!((grown - Vec2::new(30.0, 20.0)).abs().max_elem() < 1.5, "the layer grew by the drag: {grown:?}");
-    assert!((rect.get().min - before.min).abs().max_elem() < 1.5, "the opposite corner stayed: {:?} {before:?}", rect.get());
+    assert!((grown - GROW).abs().max_elem() < SLACK, "the layer grew by the drag: {grown:?}");
+    assert!((rect.get().min - before.min).abs().max_elem() < SLACK, "the opposite corner stayed: {:?} {before:?}", rect.get());
 }
 
 #[trial]
@@ -62,7 +69,7 @@ fn a_zoomed_canvas_body_hits_its_members_in_canvas_space() {
     let body = Cell::new(Rect::NOTHING);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
-        ui.scope_builder(egui::UiBuilder::new().max_rect(Rect::from_min_size(Pos2::new(20.0, 20.0), Vec2::new(400.0, 300.0))), |ui| {
+        in_region(ui, Rect::from_min_size(Pos2::new(20.0, 20.0), Vec2::new(400.0, 300.0)), |ui| {
             let props = ContainerProps::new().arena(true).transform(CanvasTransform::new(2.0, Vec2::ZERO));
             Slab::new(props).id_salt("canvas").show(ui, |ui, cx| {
                 body.set(cx.rect);
@@ -88,10 +95,10 @@ fn a_viewport_mount_shows_its_body_in_the_fallback_layer_under_test() {
         let props = ContainerProps::new().mount(Mount::viewport(Overlay::new())).sizing(Sizing::Content);
         let out = Slab::new(props).id_salt("window").show(ui, |ui, _| {
             ran.set(ran.get() + 1);
-            Block::new(Vec2::new(120.0, 60.0)).show(ui);
+            Block::new(BODY).show(ui);
         });
         rect.set(out.output.rect);
     });
     assert!(ran.get() > 0, "the body ran in the fallback layer");
-    assert!(screen.contains_rect(rect.get()) && rect.get().width() >= 120.0, "the fallback layer sits inside the window: {:?}", rect.get());
+    assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
 }

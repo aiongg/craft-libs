@@ -4,11 +4,13 @@
 use crate::contract::kit::PlainStyle;
 use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, Role};
 use craft_ui::style::StyleCx;
+use craft_ui::testing::layout::allocate;
 use egui::{Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
 
 /// The rects the regions of a `Slab` took.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct Regions {
     pub header: Option<Rect>,
     pub footer: Option<Rect>,
@@ -53,14 +55,14 @@ impl Component for Slab<'_> {
 
 impl Container for Slab<'_> {
     fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let (_, rect) = ui.allocate_space(self.header);
+        let rect = allocate(ui, self.header);
         if let Some(regions) = self.regions {
             regions.borrow_mut().header = Some(rect);
         }
     }
 
     fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let (_, rect) = ui.allocate_space(self.footer);
+        let rect = allocate(ui, self.footer);
         if let Some(regions) = self.regions {
             regions.borrow_mut().footer = Some(rect);
         }

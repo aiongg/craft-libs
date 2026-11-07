@@ -8,7 +8,7 @@ use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Pad, PartsCx, S
 use crate::layout;
 use crate::primitives::{ScrollBar, Surface};
 use crate::runtime::access::Role;
-use crate::runtime::egui::{access, alloc, areas, child, response};
+use crate::runtime::egui::{access, alloc, areas, child, response, style};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, sub};
@@ -532,7 +532,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     let builder = UiBuilder::new().max_rect(at).layout(child::column_layout(rtl)).scope_id(body_id);
                     if node { access::with_parent(builder, id) } else { builder }
                 });
-                body_ui.spacing_mut().item_spacing = gap;
+                style::set_item_spacing(&mut body_ui, gap);
                 let installed = Env::install_for(&body_ui, body_env.clone());
                 match props.scroll {
                     Some(scroll) => {
@@ -543,7 +543,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let min_x = if rtl { at.max.x - width + x } else { at.min.x - x };
                         let max = Rect::from_min_size(Pos2::new(min_x, at.min.y - off.y as f32), Vec2::new(width, height));
                         let layout_of = *body_ui.layout();
-                        let mut region_ui = alloc::child(&mut body_ui, UiBuilder::new().id_salt("scroll_region").layout(layout_of).max_rect(max));
+                        let mut region_ui = alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| body(ui, bcx));
                         self.extent = Some(region_ui.min_rect().size());
