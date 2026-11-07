@@ -2,11 +2,13 @@
 
 mod access;
 pub(crate) mod body;
-mod collection;
 mod callsites;
+mod canvas;
+mod collection;
 mod commands;
 mod contract;
 mod controls;
+mod docking;
 mod drag;
 mod egui_surface;
 mod examples;
