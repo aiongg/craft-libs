@@ -1,7 +1,7 @@
 //! The grid's outline: the tiles the app gives with a header row before each group's first tile. The item step sees
 //! this source, so a header is a row it can put the lead on, and the layout places the rows by the same positions.
 
-use super::layout::{Slot, TileGroup, group_spans, outline_position, slot_at};
+use super::layout::{Slot, TileGroup, group_spans, headers_through, outline_position, slot_at};
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, SizeHint};
 use std::borrow::Cow;
 use std::hash::{Hash, Hasher};
@@ -75,6 +75,10 @@ impl<K: Clone + PartialEq> DisplayOrder<K> for Outline<'_, K> {
 
     fn section_stop(&self, at: usize) -> bool {
         self.is_section(at)
+    }
+
+    fn section_stops_before(&self, at: usize) -> usize {
+        at.checked_sub(1).map_or(0, |before| headers_through(&self.starts, before))
     }
 
     fn enabled(&self, at: usize) -> bool {

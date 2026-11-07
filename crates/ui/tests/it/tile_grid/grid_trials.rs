@@ -2,7 +2,7 @@
 //! hidden tiles, and ratings, checks and activation each have one route.
 
 use craft_behavior::{DisplayOrder, ItemSource, Selection, SizeHint};
-use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, ShowCollection as _};
+use craft_ui::contract::{ActivateOn, Bind, CollectionEvent, Role, ShowCollection as _};
 use craft_ui::list::{ThumbAspect, ToggleState};
 use craft_ui::testing::access::focused_key;
 use craft_ui::testing::{Fixture, trial};
@@ -301,7 +301,12 @@ fn group_headers_are_rows_of_the_outline_with_their_own_keys() {
 fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
     let groups: &'static [TileGroup<usize>] = Box::leak(Box::new([TileGroup::new(100, 0, 6, "First"), TileGroup::new(101, 6, 6, "Second")]));
     let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(), plain);
-    let header = fixture.by_label("Second").expect("the header is a node");
+    let headings = fixture.tree().with_role(Role::HEADING);
+    let header = headings
+        .into_iter()
+        .find(|key| fixture.tree().name_of(*key) == Some("Second"))
+        .and_then(|key| fixture.target(key))
+        .expect("the header is a heading node");
     fixture.click(&header);
     fixture.idle(2);
     assert!(fixture.focused().is_some(), "the click focused the grid: {:?}", seen.borrow().grid);

@@ -569,7 +569,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 flags.set(crate::style::Flags::EXPANDED, state.open);
                 flags.set(crate::style::Flags::DRAGGING, state.dragging);
                 flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
-                let mut position = SetPosition::new(at).of(len).columns(columns.len());
+                let mut position = SetPosition::new(at - self.source.section_stops_before(at))
+                    .of(len - self.source.section_stops_before(len))
+                    .columns(columns.len());
                 if tree {
                     position = position.level(self.source.depth(at) + 1);
                 }

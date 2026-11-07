@@ -65,6 +65,12 @@ pub trait DisplayOrder<K> {
         false
     }
 
+    /// How many section stops (`section_stop`) come before entry `at`. They are not members of the set of items, so
+    /// the positions an item reports to assistive technology do not count them.
+    fn section_stops_before(&self, _at: usize) -> usize {
+        0
+    }
+
     /// Whether entry `at` can take the lead.
     fn enabled(&self, _at: usize) -> bool {
         true
