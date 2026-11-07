@@ -594,13 +594,13 @@ impl Component for Tile<'_> {
             band_text: TextLook::new(TypeRole::Caption, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             band_icon: IconLook::new(sizes.glyph, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             mark: IconLook::new(sizes.glyph, ink(c(text.faint))),
-            flag: IconLook::new(sizes.glyph, fixed(text.normal)),
+            flag: IconLook::new(sizes.glyph, fixed(text.normal)).on(fixed(colors.surface.sunken)),
             face: IconLook::new(
                 sizes.face,
                 Stateful::new(c(text.muted)).off(States::new(c(text.muted), c(text.muted), c(text.muted), c(text.disabled))),
             )
             .on(fixed(colors.surface.sunken)),
-            pill_icon: IconLook::new(sizes.glyph, fixed(colors.surface.panel)),
+            pill_icon: IconLook::new(sizes.glyph, fixed(colors.surface.panel)).on(fixed(text.muted)),
             placeholder: c(colors.surface.sunken),
             dim: c(colors.surface.scrim.faded(DIM_VEIL)),
             veil,
