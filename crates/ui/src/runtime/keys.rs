@@ -241,7 +241,7 @@ pub(crate) fn take_nav(ctx: &Context) -> NavKeys {
 
 /// The begin hook's intents: the pass's key events, AccessKit requests and claimed chords, routed to the
 /// focused component (or to the component that owns a requested node).
-pub(crate) fn begin(ctx: &Context) {
+pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let os = raw_input::os(ctx);
     let target = focus::focused_rec(ctx);
     let (batch, nodes) = current(ctx, |stage| {
@@ -268,7 +268,8 @@ pub(crate) fn begin(ctx: &Context) {
     for command in &batch.clips {
         push(&mut routed, focused, Intent::Edit(*command), false);
     }
-    for _ in 0..batch.escapes {
+    let escapes = craft_behavior::focus::route_escapes(batch.escapes, press_captured);
+    for _ in 0..escapes.to_components {
         push(&mut routed, focused, Intent::Cancel, false);
     }
     let claimed = batch.claimed.iter().filter_map(|chord| focused.map(|id| (id, *chord))).collect::<Vec<_>>();
@@ -281,6 +282,7 @@ pub(crate) fn begin(ctx: &Context) {
         stage.activated = activated;
         stage.menu = batch.menu;
     });
+    escapes.cancels_press
 }
 
 fn push(routed: &mut HashMap<Option<Id>, Routed>, target: Option<Id>, intent: Intent, horizontal: bool) {
@@ -482,20 +484,6 @@ fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
             }
             None => false,
         }
-    })
-}
-
-/// Takes the pass's first Escape from every component's intents: a captured press cancels first, so no
-/// component sees this Escape as `Cancel`.
-pub(crate) fn take_escape(ctx: &Context) -> bool {
-    current(ctx, |stage| {
-        for routed in stage.routed.values_mut() {
-            if let Some(at) = routed.items.iter().position(|item| matches!(item.intent, Intent::Cancel)) {
-                routed.items.remove(at);
-                return true;
-            }
-        }
-        false
     })
 }
 

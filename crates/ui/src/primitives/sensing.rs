@@ -162,10 +162,17 @@ struct ArenaState {
 struct Arenas {
     by_root: HashMap<Id, ArenaState>,
     swept: u64,
+    /// The end sweep is registered; the runtime layer below cannot register it at install.
+    sweep_registered: bool,
 }
 
 fn with_arena<R>(ctx: &Context, arena: ArenaId, pass_nr: u64, f: impl FnOnce(&mut ArenaState) -> R) -> R {
     PerViewport::<Arenas>::with(ctx, pass::current_viewport(ctx), |arenas| {
+        if !arenas.sweep_registered {
+            arenas.sweep_registered = true;
+            crate::runtime::frame::register_end_sweep(ctx, std::any::TypeId::of::<Arenas>(), sweep_undrawn);
+            pointer::register_drag_probe(ctx, any_dragging);
+        }
         if arenas.swept != pass_nr {
             arenas.swept = pass_nr;
             arenas.by_root.retain(|_, state| state.pass + 2 >= pass_nr);
@@ -272,7 +279,6 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     let ctx = ui.ctx();
     let arena = ArenaId::new(spec.id);
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
-    crate::runtime::frame::register_end_sweep(ctx, std::any::TypeId::of::<Arenas>(), sweep_undrawn);
     let (clip, layer) = (ui.clip_rect(), ui.layer_id());
     let last_union = with_arena(ctx, arena, pass_nr, |state| {
         rotate(state, pass_nr);
@@ -437,31 +443,37 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
     if cancelled {
         crate::runtime::frame::note_cancelled_press(ctx);
     }
-    pointer::note_captured(ctx, arena.0, outcome.dragging);
     outcome
 }
 
-/// The end hook's sweep: a press whose owner was not drawn in the pass ends, so a removed owner never keeps the
-/// pointer captured. egui's own drag ends at the next begin hook.
+/// The end hook's sweep: a press whose root, or whose member owner, was not drawn in the pass ends, so a removed
+/// owner never keeps the pointer captured. egui's own drag ends at the next begin hook.
 fn sweep_undrawn(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
-    let gone: Vec<Id> = PerViewport::<Arenas>::with(ctx, viewport, |arenas| {
-        let mut gone = Vec::new();
-        for (root, state) in &mut arenas.by_root {
-            if state.pass != pass_nr && state.machine.target().is_some() {
+    let gone = PerViewport::<Arenas>::with(ctx, viewport, |arenas| {
+        let mut gone = false;
+        for state in arenas.by_root.values_mut() {
+            let orphaned = |state: &ArenaState| {
+                state.machine.target().is_some_and(|target| {
+                    state.pass != pass_nr
+                        || (state.root.is_some_and(|root| root.id != target.owner) && !state.members.iter().any(|member| member.id == target.owner))
+                })
+            };
+            if orphaned(state) {
                 state.machine = PressMachine::default();
-                gone.push(*root);
+                gone = true;
             }
         }
         gone
     });
-    for root in &gone {
-        pointer::note_captured(ctx, *root, false);
-    }
-    if !gone.is_empty() {
+    if gone {
         crate::runtime::frame::note_cancelled_press(ctx);
     }
+}
+
+fn any_dragging(ctx: &Context) -> bool {
+    PerViewport::<Arenas>::with(ctx, pass::current_viewport(ctx), |arenas| arenas.by_root.values().any(|state| state.machine.dragging()))
 }
 
 /// The arena's outcome of the running pass, idle when the root has not run yet.

@@ -7,10 +7,8 @@ use craft_i18n::Direction;
 use std::hash::{Hash, Hasher};
 
 /// A `'static` key of the instance inputs a style depends on: unique per component type, so two components that
-/// share a `Style` type have separate cache entries.
+/// share a `Style` type have separate cache entries. A component with no inputs declares a unit struct.
 pub trait StyleKey: Copy + Eq + Hash + Send + Sync + 'static {}
-
-impl StyleKey for () {}
 
 /// The text and icon colour that reads on a surface, resolved at step 12.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]

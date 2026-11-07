@@ -176,6 +176,23 @@ pub fn escape_step(facts: EscapeFacts, rule: CancelRule) -> EscapeStep {
     }
 }
 
+/// How the Escapes that arrived in one pass split between the captured press and the components.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EscapeRouting {
+    /// The first Escape cancels the captured press and reaches no component.
+    pub cancels_press: bool,
+    /// The Escapes components see as `Cancel`.
+    pub to_components: usize,
+}
+
+/// Routes `escapes` Escapes of one pass: with a press captured, the first one is the press's (`escape_step`'s
+/// first case) and the rest go to the components, in the order they arrived.
+pub fn route_escapes(escapes: usize, press_captured: bool) -> EscapeRouting {
+    let first = escapes > 0 && escape_step(EscapeFacts::new().press_captured(press_captured), CancelRule::Ignore) == EscapeStep::CancelPress;
+    EscapeRouting { cancels_press: first, to_components: escapes - usize::from(first) }
+}
+
 /// How a primary press moves key focus (8.3).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
@@ -222,6 +239,14 @@ mod tests {
         assert_eq!(key_owner(false, &[App, Widget, PassivePopup]), KeyOwner::Class(PassivePopup));
         assert_eq!(key_owner(false, &[App, Widget]), KeyOwner::Class(Widget));
         assert_eq!(key_owner(false, &[]), KeyOwner::Class(App));
+    }
+
+    #[test]
+    fn escape_over_a_captured_press_is_the_presss_and_the_rest_go_on() {
+        assert_eq!(route_escapes(0, true), EscapeRouting { cancels_press: false, to_components: 0 });
+        assert_eq!(route_escapes(1, true), EscapeRouting { cancels_press: true, to_components: 0 });
+        assert_eq!(route_escapes(2, true), EscapeRouting { cancels_press: true, to_components: 1 });
+        assert_eq!(route_escapes(2, false), EscapeRouting { cancels_press: false, to_components: 2 });
     }
 
     #[test]

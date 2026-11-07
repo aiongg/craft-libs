@@ -4,25 +4,29 @@ mod cx;
 mod looks;
 mod paint_ui;
 mod props;
+mod registry;
 mod run;
 mod shell;
 mod steps;
 mod values;
 
 pub use crate::runtime::access::{Access, Role};
-pub use crate::runtime::memory::{Remember, SaveKey, Savable, Slot};
-pub use cx::{
-    Activation, BodyCx, Cx, CxCore, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx,
-};
+pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
+pub use cx::{Activation, BodyCx, Cx, CxCore, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use looks::Looks;
 pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
+#[doc(hidden)]
+#[cfg(feature = "testing")]
+pub use registry::CANVAS_CONTROLS;
+#[doc(hidden)]
+pub use registry::CanvasControl;
 pub use shell::{CollectionProps, ContainerProps, OverlayUi};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
-use craft_behavior::{ItemLayout, ItemSource, Proposal, ScrollPos, Sense, SelectionModel};
 pub use craft_behavior::Input;
+use craft_behavior::{ItemLayout, ItemSource, Proposal, ScrollPos, SelectionModel, Sense};
 use egui::{Id, IdSalt, Rect, Ui, Vec2};
 use run::ShowAt;
 use std::hash::Hash;
@@ -326,12 +330,7 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
     }
 
     /// Shows the container with rich tooltip content.
-    fn show_with_tip<R>(
-        self,
-        ui: &mut Ui,
-        body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R,
-        tip: impl FnOnce(&mut Ui),
-    ) -> Inner<Self::Output, R> {
+    fn show_with_tip<R>(self, ui: &mut Ui, body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R, tip: impl FnOnce(&mut Ui)) -> Inner<Self::Output, R> {
         run::show_container(self, ui, ShowAt::Flow, body, Some(Box::new(tip)))
     }
 
@@ -350,12 +349,7 @@ pub trait ShowContainer: Container + sealed::ShowContainer {
 /// Shows a collection's items.
 pub trait ShowCollection: Collection + sealed::ShowCollection {
     /// Shows the visible items of `source`, one `item` call each.
-    fn show_items<'r>(
-        self,
-        ui: &mut Ui,
-        source: &dyn ItemSource<Self::Key>,
-        item: &mut ItemFn<'r, Self>,
-    ) -> Self::Output {
+    fn show_items<'r>(self, ui: &mut Ui, source: &dyn ItemSource<Self::Key>, item: &mut ItemFn<'r, Self>) -> Self::Output {
         run::show_items(self, ui, source, item)
     }
 }

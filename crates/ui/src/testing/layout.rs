@@ -3,10 +3,10 @@
 
 use crate::contract::{Common, Component, Cx, Internal, MeasureCx, Meta, Role, shape};
 use crate::layout::{BodyLayout, run_body};
-use crate::style::{ComponentStyle, StyleCx};
 use crate::runtime::egui::fixture;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
+use crate::style::{ComponentStyle, StyleCx, StyleKey};
 use craft_behavior::{Metrics, Sense};
 use egui::{Id, Rect, Response, Ui, Vec2};
 
@@ -74,6 +74,12 @@ impl Block {
     }
 }
 
+/// The style key of a `Block`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct BlockKey;
+
+impl StyleKey for BlockKey {}
+
 /// The style of a `Block`: no padding.
 #[derive(Clone, Debug, PartialEq)]
 pub struct BlockStyle;
@@ -86,9 +92,11 @@ impl ComponentStyle for BlockStyle {
 
 impl Meta for Block {
     type Shape = shape::Leaf;
-    type StyleKey = ();
+    type StyleKey = BlockKey;
 
-    fn style_key(&self) {}
+    fn style_key(&self) -> BlockKey {
+        BlockKey
+    }
 
     fn common(&self, _: Internal) -> &Common {
         &self.common
@@ -104,7 +112,7 @@ impl Component for Block {
     type Style = BlockStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: ()) -> BlockStyle {
+    fn style(_: &StyleCx<'_>, _: BlockKey) -> BlockStyle {
         BlockStyle
     }
 

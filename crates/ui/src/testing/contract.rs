@@ -22,3 +22,8 @@ pub fn canvas_controls(ctx: &Context) -> Vec<&'static str> {
 pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect> {
     crate::contract::take_reveal(ctx, owner)
 }
+
+/// An edit response with no event, for a trial component that has no `cx.edit_response()` to call.
+pub fn edit_response<T>(response: egui::Response) -> crate::contract::EditResponse<T> {
+    crate::contract::EditResponse::new(response)
+}

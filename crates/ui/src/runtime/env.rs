@@ -96,6 +96,11 @@ pub struct AppValues {
 impl AppValues {
     /// Sets the value of type `T`.
     pub fn set<T: EnvValue>(&mut self, value: T) -> &mut Self {
+        debug_assert!(
+            !T::AFFECTS_STYLE || value.style_hash().is_some(),
+            "{} sets AFFECTS_STYLE but gives no style hash: use `#[env(style)]`",
+            std::any::type_name::<T>()
+        );
         match value.style_hash().filter(|_| T::AFFECTS_STYLE) {
             Some(hash) => self.style.insert(TypeId::of::<T>(), hash),
             None => self.style.remove(&TypeId::of::<T>()),
@@ -177,6 +182,13 @@ impl Default for RootEnv {
 }
 
 impl RootEnv {
+    /// The default root of `ctx`, built once so its sizes keep one identity for the token cache.
+    pub(crate) fn fallback(ctx: &Context) -> RootEnv {
+        #[derive(Default)]
+        struct Fallback(Option<RootEnv>);
+        Service::<Fallback>::of(ctx).with(|fallback| fallback.0.get_or_insert_with(RootEnv::default).clone())
+    }
+
     /// A root with every value at its default.
     pub fn new() -> Self {
         Self::default()
@@ -321,7 +333,7 @@ impl Env {
         let found = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| {
             stack::nearest(ui, |node| envs.entries.get(&node).cloned()).or_else(|| envs.root.clone())
         });
-        let env = found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::default(), None, scale::pixels_per_point(ctx)));
+        let env = found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)));
         if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
     }
 
@@ -409,32 +421,57 @@ impl Drop for Restore<'_> {
 
 /// The tokens the root resolves to, cached by the inputs that determine them.
 fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
+    /// The newest few inputs; an app swaps its sizes rarely.
+    const KEPT: usize = 4;
     #[derive(Default)]
     struct Cache {
         entries: Vec<(TokenInputs, Arc<UiTokens>)>,
     }
-    let inputs = TokenInputs { sizes: Arc::as_ptr(&root.sizes) as usize, mode: root.mode, contrast: root.contrast, density: root.density, text_size: root.text_size, reduced: root.motion != MotionMode::Full };
+    let inputs = TokenInputs {
+        sizes: root.sizes.clone(),
+        mode: root.mode,
+        contrast: root.contrast,
+        density: root.density,
+        text_size: root.text_size,
+        reduced: root.motion != MotionMode::Full,
+    };
     let service = Service::<Cache>::of(ctx);
-    if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| *key == inputs).map(|(_, tokens)| tokens.clone())) {
+    if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
-    let appearance = Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: inputs.reduced };
+    let appearance =
+        Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: inputs.reduced };
     let themes = builtins();
     let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
     let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
-    service.with(|cache| cache.entries.push((inputs, tokens.clone())));
+    service.with(|cache| {
+        if cache.entries.len() == KEPT {
+            cache.entries.remove(0);
+        }
+        cache.entries.push((inputs, tokens.clone()));
+    });
     tokens
 }
 
 /// What the resolved root tokens depend on. The sizes are compared by identity, as `set_input` does.
-#[derive(Clone, Copy, PartialEq)]
 struct TokenInputs {
-    sizes: usize,
+    sizes: Arc<AppSizes>,
     mode: Mode,
     contrast: Contrast,
     density: Size,
     text_size: TextSize,
     reduced: bool,
+}
+
+impl TokenInputs {
+    fn same(&self, other: &TokenInputs) -> bool {
+        Arc::ptr_eq(&self.sizes, &other.sizes)
+            && self.mode == other.mode
+            && self.contrast == other.contrast
+            && self.density == other.density
+            && self.text_size == other.text_size
+            && self.reduced == other.reduced
+    }
 }
 
 /// What component code sees: everything in `Env` except tokens, size, enabled, read-only, arena, transform

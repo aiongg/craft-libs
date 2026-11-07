@@ -73,7 +73,8 @@ pub struct EditResponse<T> {
 }
 
 impl<T> EditResponse<T> {
-    /// An edit response with no event.
+    /// An edit response with no event; `cx.edit_response()` builds the real ones.
+    #[doc(hidden)]
     pub fn new(response: Response) -> Self {
         EditResponse { response, value: PhantomData }
     }

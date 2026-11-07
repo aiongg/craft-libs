@@ -82,8 +82,8 @@ struct Memory {
     press_targets: PressTargets,
     /// A cancel a service requested for the running pass.
     requested: Option<(u64, PressCancel)>,
-    /// The roots whose press is captured by a drag.
-    captured: std::collections::HashSet<Id>,
+    /// Whether any arena of the viewport holds a dragging press; sensing registers it, as the layer above.
+    drag_probe: Option<fn(&Context) -> bool>,
 }
 
 /// What one root registered on one layer: its shapes and its egui widgets.
@@ -193,20 +193,15 @@ pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
     PerViewport::<Memory>::with(ctx, viewport, |memory| memory.requested = Some((pass_nr, reason)));
 }
 
-/// Records whether the press of the root `root` is captured by a drag.
-pub(crate) fn note_captured(ctx: &Context, root: Id, captured: bool) {
-    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| {
-        if captured {
-            memory.captured.insert(root);
-        } else {
-            memory.captured.remove(&root);
-        }
-    });
+/// Registers how the viewport tells that a press is captured by a drag. Sensing owns the arenas' machines.
+pub(crate) fn register_drag_probe(ctx: &Context, probe: fn(&Context) -> bool) {
+    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.drag_probe = Some(probe));
 }
 
 /// Whether a press of the running viewport is captured by a drag: Escape cancels it before anything else.
 pub(crate) fn press_captured(ctx: &Context) -> bool {
-    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| !memory.captured.is_empty())
+    let probe = PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.drag_probe);
+    probe.is_some_and(|probe| probe(ctx))
 }
 
 /// Why captured presses end in the running pass: a cancel a service requested, else the window losing focus.

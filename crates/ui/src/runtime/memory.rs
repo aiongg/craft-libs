@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A value kept in memory. `Clone` is required because egui's temp store clones on insert; large caches hold `Arc`s.
 pub trait Slot: Clone + Default + Send + Sync + 'static {}
@@ -167,9 +168,13 @@ pub(crate) fn evict(ctx: &Context) {
                 moved.extend(store::locked(ctx, |data| (rec.remove)(data, key.0)));
             }
         }
+        QUEUED.fetch_add(moved.len(), Ordering::Release);
         reg.graveyard.extend(moved);
     });
 }
+
+/// Slots queued for disposal across all contexts, so a run with nothing queued takes no lock.
+static QUEUED: AtomicUsize = AtomicUsize::new(0);
 
 /// Removes the session slots under `id` (all types). The only way a session slot goes.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
@@ -210,7 +215,11 @@ pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: 
 
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
 pub(crate) fn dispose_evicted(ctx: &Context) {
+    if QUEUED.load(Ordering::Acquire) == 0 {
+        return;
+    }
     let queue = Service::<Registry>::of(ctx).with(|reg| std::mem::take(&mut reg.graveyard));
+    QUEUED.fetch_sub(queue.len(), Ordering::AcqRel);
     drop(queue);
 }
 

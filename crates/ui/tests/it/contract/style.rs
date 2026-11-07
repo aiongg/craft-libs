@@ -306,7 +306,7 @@ impl Component for Holder<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Counted> {
-        EditResponse::new(cx.response.clone())
+        craft_ui::testing::contract::edit_response(cx.response.clone())
     }
 }
 

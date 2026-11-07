@@ -3,6 +3,9 @@
 //! The craft UI library: runtime, style, fonts, primitives, the component contract, layout,
 //! components, patterns and the shell (layers 2 to 7).
 
+// The derives' output names the crate as `craft_ui`, here as in every other crate.
+extern crate self as craft_ui;
+
 pub mod bars;
 pub mod buttons;
 pub mod canvas;
@@ -37,3 +40,9 @@ pub mod testing;
 pub mod text;
 pub mod tile_grid;
 pub mod value_drag;
+
+#[doc(hidden)]
+pub mod __private {
+    #[cfg(feature = "testing")]
+    pub use linkme;
+}

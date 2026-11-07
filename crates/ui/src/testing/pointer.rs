@@ -85,3 +85,8 @@ pub fn drag(frames: &mut Frames, from: Pos2, by: Vec2, show: &mut impl FnMut(&mu
 pub fn cancel_captured_presses(ctx: &egui::Context) {
     crate::runtime::pointer::cancel_press(ctx, craft_behavior::PressCancel::Escape);
 }
+
+/// Whether a drag holds the pointer in the running viewport, as Escape reads it.
+pub fn press_captured(ctx: &egui::Context) -> bool {
+    crate::runtime::pointer::press_captured(ctx)
+}

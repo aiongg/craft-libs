@@ -91,6 +91,11 @@ impl<'a> StyleCx<'a> {
 
     /// An app value set by a scope. Its hash is part of the style cache key.
     pub fn env<T: StyleValue>(&self) -> T {
+        debug_assert!(
+            T::AFFECTS_STYLE,
+            "{} is read by style but does not set AFFECTS_STYLE, so cached styles would go stale",
+            std::any::type_name::<T>()
+        );
         self.values.get::<T>()
     }
 

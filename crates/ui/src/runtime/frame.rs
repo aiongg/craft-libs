@@ -283,7 +283,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         raw_input::stop_dragging(&ctx);
     }
     // H5: the pointer snapshot, before any component runs.
-    let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
+    let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::fallback(&ctx)));
     pointer::begin(&ctx, frame_hit(&ctx));
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
     let env = Env::from_root(&ctx, &input.root, input.host, scale::pixels_per_point(&ctx));
@@ -292,9 +292,8 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     drop(Env::install_for(ui, env));
     // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
     focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
-    keys::begin(&ctx);
     // Lead-1: an Escape over a captured press cancels the press and reaches no component.
-    if pointer::press_captured(&ctx) && keys::take_escape(&ctx) {
+    if keys::begin(&ctx, pointer::press_captured(&ctx)) {
         pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
     }
     wheel::begin(&ctx);

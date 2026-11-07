@@ -12,8 +12,7 @@ use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
-    Cursor, CursorIcon, CursorPriority, Flow, HitLevel, HitPriority, HitShape, PartRef, PressCancel, PressState, Proposal, Roving, Sense,
-    Wheel,
+    Cursor, CursorIcon, CursorPriority, Flow, HitLevel, HitPriority, HitShape, PartRef, PressCancel, PressState, Proposal, Roving, Sense, Wheel,
 };
 use craft_keymap::Chord;
 use craft_theme::Flags;
@@ -621,7 +620,8 @@ impl PartBuilder<'_> {
         self
     }
 
-    /// Focus on the part excludes the component's own stop.
+    /// The part joins the exclusive hit list, written per egui layer and read next frame. The list feeds only the
+    /// Windows hit-test sink; presses inside the app on the part follow the press-target rule.
     pub fn exclusive(self) -> Self {
         self.declared.exclusive = true;
         self

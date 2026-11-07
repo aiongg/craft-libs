@@ -7,6 +7,7 @@ use egui::{Context, Id};
 use std::collections::HashMap;
 
 /// A rule a component broke that the pipeline reports instead of panicking.
+#[doc(hidden)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct Finding {
@@ -52,6 +53,9 @@ pub(crate) fn steps_of(ctx: &Context, id: Id) -> Vec<&'static str> {
 
 /// Reports a finding.
 pub(crate) fn finding(ctx: &Context, finding: Finding) {
+    if !recording(ctx) {
+        return;
+    }
     Service::<Log>::of(ctx).with(|log| {
         if !log.findings.contains(&finding) {
             log.findings.push(finding);
@@ -68,6 +72,9 @@ pub(crate) fn findings(ctx: &Context) -> Vec<Finding> {
 /// Records that the canvas control `type_name` showed in this pass, so the canvas-control cases can check that a
 /// press away from its parts reaches the tool.
 pub(crate) fn canvas_control(ctx: &Context, type_name: &'static str) {
+    if !recording(ctx) {
+        return;
+    }
     Service::<Log>::of(ctx).with(|log| {
         if !log.canvas_controls.contains(&type_name) {
             log.canvas_controls.push(type_name);

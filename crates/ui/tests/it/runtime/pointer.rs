@@ -382,6 +382,30 @@ fn a_requested_cancel_ends_a_captured_press() {
     assert_eq!(cancels, 1, "one cancel: {phases:?}");
 }
 
+/// 8.2: a member deleted mid-drag, with its root still shown, ends the press instead of leaving the pointer captured.
+#[trial]
+fn a_member_removed_mid_drag_ends_the_press() {
+    let node = rect(140.0, 140.0, 140.0, 50.0);
+    let with_member = ProbeRoot::new("graph", rect(100.0, 100.0, 600.0, 400.0), Sense::empty()).arena().member(ProbeMember::new(
+        "node",
+        node,
+        Sense::CLICK | Sense::DRAG,
+    ));
+    let without = ProbeRoot::new("graph", rect(100.0, 100.0, 600.0, 400.0), Sense::empty()).arena();
+    let (mut show_with, _) = scene(vec![with_member]);
+    let (mut show_without, _) = scene(vec![without]);
+    let mut frames = Frames::new();
+    settle(&mut frames, &mut show_with);
+    let from = Pos2::new(210.0, 165.0);
+    frames.frame(vec![pointer::moved(from)], &mut show_with);
+    frames.frame(vec![pointer::press(from)], &mut show_with);
+    frames.frame(vec![pointer::moved(from + Vec2::new(30.0, 0.0))], &mut show_with);
+    frames.frame(vec![pointer::moved(from + Vec2::new(60.0, 0.0))], &mut show_with);
+    assert!(craft_ui::testing::pointer::press_captured(&frames.ctx), "control: the drag holds the pointer");
+    frames.idle(1, &mut show_without);
+    assert!(!craft_ui::testing::pointer::press_captured(&frames.ctx), "the removed member's press ended");
+}
+
 /// An egui layer over the pointer takes the hover: the arena's part under it reads idle.
 #[trial]
 fn a_layer_over_the_pointer_takes_the_hover_from_the_arena() {
