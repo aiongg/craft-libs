@@ -9,7 +9,7 @@ const ORANGE: Rgba = Rgba([0xff, 0x88, 0x00, 0xff]);
 const TRANSLUCENT: Rgba = Rgba([0x10, 0x20, 0x30, 0x80]);
 
 fn parse(text: &str) -> Option<Rgba> {
-    HexCodec.parse(text, &TRANSLUCENT).ok()
+    HexCodec::default().parse(text, &TRANSLUCENT).ok()
 }
 
 /// Six digits, three digits, with or without the hash and in either case read as the same colour, and the colour
@@ -35,8 +35,9 @@ fn hex_text_with_alpha_wins_and_other_text_is_refused() {
 /// A colour formats as `#rrggbb` and reads back as itself; a translucent one keeps its alpha.
 #[trial]
 fn a_colour_round_trips_through_its_text() {
-    assert_eq!(HexCodec.format(&ORANGE), "#ff8800");
+    assert_eq!(HexCodec::default().format(&ORANGE), "#ff8800");
     for colour in [ORANGE, TRANSLUCENT] {
-        assert_eq!(HexCodec.parse(&HexCodec.format(&colour), &ORANGE), Ok(colour));
+        let codec = HexCodec::default();
+        assert_eq!(codec.parse(&codec.format(&colour), &ORANGE), Ok(colour));
     }
 }
