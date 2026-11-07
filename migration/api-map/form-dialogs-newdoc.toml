@@ -1,0 +1,167 @@
+# API map of "Form dialogs 2: new document": old path to new path and setter renames.
+
+family = "Form dialogs 2: new document"
+new_module = "craft_ui::patterns::form_dialogs"
+
+[[type]]
+name = "NewDocumentDialog"
+old = "craft_ui::dialog::new_document::NewDocumentDialog"
+new = "craft_ui::patterns::form_dialogs::NewDocumentDialog"
+status = "moved"
+note = "A pattern on `Dialog`: `NewDocumentDialog::new()` with setters, `show(ui) -> NewDocumentOutput { response, closed, result: Option<DocumentOptions>, pick_color: Option<ColorRequest> }`. The settings the details column shows are a `Bind<DocumentOptions>` (`options`); the app answers a colour request by setting `BackgroundContents::Custom` in it. A `DialogHost` owns `HostedNewDocument`."
+
+[[type]]
+name = "HostedNewDocument"
+old = ""
+new = "craft_ui::patterns::form_dialogs::HostedNewDocument"
+status = "replaced"
+note = "The `StackDialog` form: `HostedNewDocument::new(|dialog| dialog.clipboard(size))` with `options`, `pick_color`, `set_color(key, Srgba)` and `cancel_color`, over an embedded `HostRequests`."
+
+[[type]]
+name = "DocumentOptions"
+old = "craft_ui::dialog::new_document::DocumentOptions"
+new = "craft_ui::patterns::form_dialogs::DocumentOptions"
+status = "moved"
+note = "`size` is `craft_behavior::PixelSize` (width and height only); the resolution is the field `pixels_per_inch`; `unit` and `resolution_unit` are `UnitKind` (`SizeUnit` and `ResolutionUnit` are gone). `#[non_exhaustive]`: start from `DocumentOptions::default()`. Serde stores the units by stable key."
+
+[[type]]
+name = "DocumentPreset"
+old = "craft_ui::dialog::new_document::DocumentPreset"
+new = "craft_ui::patterns::form_dialogs::DocumentPreset"
+status = "moved"
+note = "Same fields; the built-in names are word ids looked up in `PresetWords` by the preset's `id`, with `name` as the English fallback. `turned(Orientation)` is new."
+
+[[type]]
+name = "PresetCategory"
+old = "craft_ui::dialog::new_document::PresetCategory"
+new = "craft_ui::patterns::form_dialogs::PresetCategory"
+status = "moved"
+note = "`PresetCategory::new(id, title, presets)`; `standard()` and `default_recent()` (was `NewDocumentDialog::default_recent`) are the built-in data."
+
+[[type]]
+name = "ColorMode"
+old = "craft_ui::dialog::new_document::ColorMode"
+new = "craft_ui::patterns::form_dialogs::ColorMode"
+status = "moved"
+
+[[type]]
+name = "BitDepth"
+old = "craft_ui::dialog::new_document::BitDepth"
+new = "craft_ui::patterns::form_dialogs::BitDepth"
+status = "moved"
+
+[[type]]
+name = "BackgroundContents"
+old = "craft_ui::dialog::new_document::BackgroundContents"
+new = "craft_ui::patterns::form_dialogs::BackgroundContents"
+status = "moved"
+
+[[type]]
+name = "Orientation"
+old = "craft_ui::dialog::new_document::Orientation"
+new = "craft_ui::patterns::form_dialogs::Orientation"
+status = "moved"
+note = "`Orientation::of(PixelSize)` takes the new pixel size."
+
+[[type]]
+name = "size_line"
+old = "craft_ui::dialog::new_document::size_line"
+new = "craft_ui::patterns::form_dialogs::size_line"
+status = "moved"
+note = "`size_line(&DocumentOptions, &NewDocumentWords, &Units) -> String`; the resolution is written by `Units` (`300 ppi`)."
+
+[[type]]
+name = "push_recent"
+old = "craft_ui::dialog::new_document::push_recent"
+new = "craft_ui::patterns::form_dialogs::push_recent"
+status = "moved"
+
+[[type]]
+name = "BACKGROUND_COLOR_KEY"
+old = "craft_ui::dialog::new_document::BACKGROUND_COLOR_KEY"
+new = "craft_ui::patterns::form_dialogs::BACKGROUND_COLOR_KEY"
+status = "moved"
+
+[[type]]
+name = "NewDocumentLabels"
+old = "craft_ui::dialog::new_document::NewDocumentLabels"
+new = ""
+status = "removed"
+note = "Replaced by `NewDocumentWords` (and `PresetWords` for the built-in preset names), read with `Env::words`."
+
+[[type]]
+name = "NewDocumentWords"
+old = ""
+new = "craft_ui::patterns::form_dialogs::NewDocumentWords"
+status = "replaced"
+note = "The words of New Document: `words!` rows under `newDocument.*`; templates are `WordTemplate` (`fill(&[(name, text)])`)."
+
+[[type]]
+name = "ColorProfiles"
+old = ""
+new = "craft_ui::patterns::form_dialogs::ColorProfiles"
+status = "replaced"
+note = "`ColorProfiles::new(mode, working, others)`: what `NewDocumentDialog::profiles(mode, working, others)` took as three arguments."
+
+[[type]]
+name = "preset_name_error"
+old = ""
+new = "craft_ui::patterns::form_dialogs::preset_name_error"
+status = "replaced"
+note = "The preset-name rule the Save Preset row applies: `preset_name_error(saved, name) -> Option<NameError>`."
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "categories(Vec<PresetCategory>)"
+new = "categories(Vec<PresetCategory>)"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "clipboard(PixelSize)"
+new = "clipboard(PixelSize)"
+note = "The new `PixelSize` has no resolution; the Clipboard card uses the screen resolution."
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "background_color([f32; 3])"
+new = "background_color(Srgba)"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "resolutions(print_ppi, screen_ppi)"
+new = "print_resolution(f64) and screen_resolution(f64)"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "profiles(mode, working, others)"
+new = "profiles(Vec<ColorProfiles>)"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "recent_defaults(Vec<DocumentPreset>)"
+new = "recent_defaults(Vec<DocumentPreset>)"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "NewDocumentDialog::default_recent()"
+new = "PresetCategory::default_recent()"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "options() -> &DocumentOptions"
+new = "options(Bind<DocumentOptions>) on the pattern; HostedNewDocument::options() -> &DocumentOptions"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "pick_color() -> Option<ColorRequest>"
+new = "NewDocumentOutput::pick_color; HostedNewDocument::pick_color()"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "set_color(key, Srgba)"
+new = "HostedNewDocument::set_color(key, Srgba), or set BackgroundContents::Custom in the bound options"
+
+[[setter]]
+type = "NewDocumentDialog"
+old = "cancel_color()"
+new = "HostedNewDocument::cancel_color()"

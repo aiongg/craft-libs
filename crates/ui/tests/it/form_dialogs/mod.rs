@@ -13,3 +13,5 @@ mod size_model;
 mod option;
 
 mod sizing;
+
+mod new_document;
