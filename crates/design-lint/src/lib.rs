@@ -113,6 +113,9 @@ fn check_with(config: &Config, root: &Path, scope: Option<&dyn RuleScope>) -> Re
             for mut finding in marked.findings {
                 finding.path.clone_from(&shown);
                 finding.area.clone_from(&area);
+                if config.warn.iter().any(|w| rules::selector_matches(w, finding.rule)) {
+                    finding.severity = Severity::Warning;
+                }
                 report.findings.push(finding);
             }
         }

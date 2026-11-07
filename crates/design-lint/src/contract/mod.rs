@@ -8,16 +8,22 @@ mod allocate;
 mod containers;
 mod egui_import;
 mod egui_widget;
+mod entry;
 mod keys;
 mod layers;
 mod memory;
 mod motion;
 mod non_exhaustive;
+mod pipeline_only;
 mod platform;
 mod pointer;
+mod props;
 mod scope;
+mod shape;
 mod sites;
+mod style;
 mod test_rules;
+mod types;
 
 use std::path::Path;
 
@@ -27,7 +33,7 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 18] = [
+pub(crate) const IDS: [&str; 35] = [
     egui_import::ID,
     allocate::ID,
     egui_widget::ID,
@@ -46,12 +52,29 @@ pub(crate) const IDS: [&str; 18] = [
     test_rules::LITERAL_SIZE,
     test_rules::IGNORED,
     non_exhaustive::ID,
+    pipeline_only::ID,
+    props::RESERVED,
+    props::HAND_SETTER,
+    props::OWN_FIELD,
+    props::SHADOW,
+    props::LITERAL_SIZE,
+    style::STATE_PICK,
+    style::MATCH_STATE,
+    style::STATES_FIELD,
+    style::SIZE_ARM,
+    style::TOKEN_READ,
+    style::INSTANCE_SETTER,
+    style::TO_EGUI,
+    entry::ID,
+    shape::SHADOW,
+    shape::WIDGET,
+    shape::OVERLAY_FLAG,
 ];
 
 type Check = fn(&Cx<'_>, &mut Vec<Finding>);
 
 /// REGISTRY: add a rule by adding its `check` here and its ids to [`IDS`].
-const REGISTRY: [Check; 13] = [
+const REGISTRY: [Check; 18] = [
     egui_import::check,
     allocate::check,
     egui_widget::check,
@@ -65,6 +88,11 @@ const REGISTRY: [Check; 13] = [
     platform::check,
     test_rules::check,
     non_exhaustive::check,
+    pipeline_only::check,
+    props::check,
+    style::check,
+    entry::check,
+    shape::check,
 ];
 
 /// One file as the rules see it.
@@ -73,6 +101,7 @@ pub(crate) struct Cx<'a> {
     pub scope: &'a dyn RuleScope,
     pub file: &'a syn::File,
     pub sites: Vec<Site>,
+    pub types: types::Types,
 }
 
 impl Cx<'_> {
@@ -123,7 +152,7 @@ pub fn analyze_contract(src: &str, path: &Path, scope: &dyn RuleScope, include_t
 }
 
 pub(crate) fn analyze_file(file: &syn::File, path: &Path, scope: &dyn RuleScope, include_tests: bool) -> Vec<Finding> {
-    let cx = Cx { path, scope, file, sites: sites::collect(file, include_tests) };
+    let cx = Cx { path, scope, file, sites: sites::collect(file, include_tests), types: types::collect(file) };
     let mut out = Vec::new();
     for check in REGISTRY {
         check(&cx, &mut out);

@@ -49,6 +49,8 @@ fn places(key: &str) -> Vec<Place> {
         "contract/layers" => vec![place("craft-ui", &["runtime", "egui", "areas"])],
         "contract/motion:clock" => vec![place("craft-ui", &["runtime", "motion"])],
         "contract/platform:target" => vec![place("craft-platform", &[]), place("craft-host", &["target"])],
+        "behavior/pipeline-only" => vec![place("craft-ui", &["contract"]), place("craft-ui", &["primitives"]), place("craft-ui", &["edit"])],
+        k if k.starts_with("style/") => vec![place("craft-ui", &["style"])],
         "test/kit" => vec![place("craft-ui", &["testing"])],
         _ => Vec::new(),
     }

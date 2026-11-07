@@ -28,6 +28,8 @@ rules = ["literal-size"] # ids or families; omit for every rule except parse
 reason = "document-space drawing"
 ```
 
+`warn = ["props/shadow"]` in `[lint]` reports the named rules (ids or families) as warnings, so an app's config can phase a rule in; craft-libs leaves it empty, so `props/shadow` is an error there.
+
 `parse` findings are never exempt. An exemption that matches no checked file or silences no finding is reported as `exemption/unused`. The report lists every exemption with its rules and reason.
 
 ## Rules
@@ -64,6 +66,12 @@ reason = "document-space drawing"
 | `contract/platform` | `cfg(target_os ..)`, wasm `cfg` and `cfg!` (`contract/platform:target`); `copy_text`, `open_url` |
 | `test/layout`, `test/kit`, `test/harness`, `test/cfg-test`, `test/literal-size`, `test/ignored` | integration tests outside `tests/it/` in an egui-linked crate; `egui_kittest` outside the kit; `#[test]` in a `harness = false` target; `#[cfg(test)]` modules in an egui-linked crate; float literals asserted in a test that shows a component or reads tokens (not in layer 0 or 1); `#[ignore]`d tests. They read test code, so the config sets `include-tests` |
 | `api/non-exhaustive` | `pub` enums, struct-like variants and structs with `pub` fields without `#[non_exhaustive]`, unless on the scope's closed list; private modules, `#[doc(hidden)]` items and test code are not public API |
+| `behavior/pipeline-only` | in layers 5 to 7, a `use` of the behaviours the pipeline runs: `PressMachine` and the other press-lifecycle types, `Gesture`, the focus-scope builders, `TypingRun`. Allowed in `craft_ui::{contract, primitives, edit}` |
+| `props/reserved-setter`, `props/hand-setter` | in layers 5 to 8, an inherent builder method on a component named like a `Props` setter; one that only stores its argument in one field |
+| `props/own-field`, `props/shadow`, `props/literal-size` | a component's own `enabled`, `id_salt` or `tooltip` field; a `#[prop]` field whose setter is named like a `Props` setter (an error; `warn` makes it a warning); a `#[prop]` field of type `f32` or `Vec2` (also in an `Option`) |
+| `style/state-pick`, `style/match-state`, `style/states-field`, `style/size-arm`, `style/token-read`, `style/instance-setter`, `style/to-egui` | in layers 5 to 8: an `if` on response state that picks a colour; a `match` arm on a `State` variant; `States<_>` or `*_hover`, `*_pressed`, `selected_*` fields in a `*Style` or `*Look` struct; a `match` arm on a `ControlSize` variant; `.tokens()`, `.token_group()`, `Tokens::of` outside a function that takes a `StyleCx` or is named `style`; a by-value builder named `style`, `look`, `colors` and the like or taking a `*Style` or `*Look`; `.to_egui()` inside such a style function. Allowed in `craft_ui::style` |
+| `contract/entry` | in layers 5 and 6 (not layer 8): an inherent `pub fn show`, `show_at`, `show_in` or `ui` on a `pub` type that the file does not make a `Component` or `Pattern`; a `pub fn` taking `&mut Ui` and returning a `*Response` |
+| `contract/shadow`, `contract/widget`, `contract/overlay-flag` | an inherent `show`, `show_at`, `show_in`, `show_with_tip` or `show_at_with_tip` on a component; `impl egui::Widget`; an `overlay` override on a type without `#[component(overlay)]`. Derive output is the only allowed place, so no file is |
 
 Egui paths are resolved through the file's `use` items (one table per file, grouped, renamed and glob imports), so a craft type that shares a name with an egui type is not flagged unless it is imported from egui.
 

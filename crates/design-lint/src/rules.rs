@@ -21,8 +21,7 @@ pub const TOOLTIP: &str = "tooltip/stock";
 pub const INNER_ALLOW: &str = "clippy/inner-allow";
 pub const PARSE: &str = "parse";
 
-/// Every rule id the checker emits, including the marker and exemption rules.
-pub const RULES: [&str; 33] = [
+const OLDER: [&str; 15] = [
     VEC2,
     ADD_SPACE,
     CORNER_RADIUS,
@@ -38,26 +37,26 @@ pub const RULES: [&str; 33] = [
     crate::markers::INVALID,
     crate::markers::UNUSED,
     crate::UNUSED_EXEMPTION,
-    // The egui-ban and API-shape rules (`contract/*`, `test/*`, `api/*`); `check_with_scope` runs them.
-    crate::contract::IDS[0],
-    crate::contract::IDS[1],
-    crate::contract::IDS[2],
-    crate::contract::IDS[3],
-    crate::contract::IDS[4],
-    crate::contract::IDS[5],
-    crate::contract::IDS[6],
-    crate::contract::IDS[7],
-    crate::contract::IDS[8],
-    crate::contract::IDS[9],
-    crate::contract::IDS[10],
-    crate::contract::IDS[11],
-    crate::contract::IDS[12],
-    crate::contract::IDS[13],
-    crate::contract::IDS[14],
-    crate::contract::IDS[15],
-    crate::contract::IDS[16],
-    crate::contract::IDS[17],
 ];
+
+const SCOPED: usize = crate::contract::IDS.len();
+
+/// Every rule id the checker emits, including the marker and exemption rules and the scoped rules
+/// (`contract/*`, `test/*`, `api/*`, `behavior/*`, `props/*`, `style/*`) that `check_with_scope` runs.
+pub const RULES: [&str; OLDER.len() + SCOPED] = {
+    let mut all = [""; OLDER.len() + SCOPED];
+    let mut i = 0;
+    while i < OLDER.len() {
+        all[i] = OLDER[i];
+        i += 1;
+    }
+    let mut j = 0;
+    while j < SCOPED {
+        all[OLDER.len() + j] = crate::contract::IDS[j];
+        j += 1;
+    }
+    all
+};
 
 /// `selector` is the rule id itself or its family (`literal-size` matches `literal-size/vec2`).
 pub(crate) fn selector_matches(selector: &str, rule: &str) -> bool {

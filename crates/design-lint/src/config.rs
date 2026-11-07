@@ -19,6 +19,8 @@ pub struct Config {
     pub deny_unused: bool,
     /// Path-wide allowances, each with a reason.
     pub exempt: Vec<Exemption>,
+    /// Rule ids or families reported as warnings instead of errors (an app's config for `props/shadow`).
+    pub warn: Vec<String>,
 }
 
 /// A path-wide allowance: findings of `rules` under `path` are not reported.
@@ -71,12 +73,14 @@ struct RawLint {
     include_tests: bool,
     #[serde(default, rename = "deny-unused")]
     deny_unused: bool,
+    #[serde(default)]
+    warn: Vec<String>,
 }
 
 impl Config {
     /// A config that checks `paths` and skips tests.
     pub fn new(paths: impl IntoIterator<Item = impl Into<PathBuf>>) -> Self {
-        Self { paths: paths.into_iter().map(Into::into).collect(), include_tests: false, deny_unused: false, exempt: Vec::new() }
+        Self { paths: paths.into_iter().map(Into::into).collect(), include_tests: false, deny_unused: false, exempt: Vec::new(), warn: Vec::new() }
     }
 
     /// Reads a `design-lint.toml` file.
@@ -106,6 +110,9 @@ impl Config {
             }
             exempt.push(Exemption { path: e.path, rules: e.rules, reason: reason.to_owned() });
         }
-        Ok(Self { paths: raw.lint.paths, include_tests: raw.lint.include_tests, deny_unused: raw.lint.deny_unused, exempt })
+        if let Some(unknown) = raw.lint.warn.iter().find(|r| !crate::RULES.iter().any(|known| selector_matches(r, known))) {
+            return Err(fail(format!("`warn` names unknown rule `{unknown}`")));
+        }
+        Ok(Self { paths: raw.lint.paths, include_tests: raw.lint.include_tests, deny_unused: raw.lint.deny_unused, exempt, warn: raw.lint.warn })
     }
 }

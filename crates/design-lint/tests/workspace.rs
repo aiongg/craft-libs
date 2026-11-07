@@ -37,4 +37,12 @@ fn scope_reads_layer_map_manifests_and_spec_allowances() {
     assert!(scope.harness_free(Path::new("crates/ui/tests/it/egui_surface.rs")));
     assert!(!scope.harness_free(Path::new("crates/design-lint/tests/workspace.rs")));
     assert!(scope.is_closed("StateMix"));
+    // Rules whose only allowed location is derive output, which is not source text, allow no file.
+    for key in ["props/shadow", "props/hand-setter", "contract/shadow", "contract/widget", "contract/overlay-flag", "contract/entry"] {
+        assert!(!scope.allows(key, alloc), "{key}");
+    }
+    assert!(scope.allows("style/token-read", Path::new("crates/ui/src/style/mod.rs")));
+    assert!(!scope.allows("style/token-read", Path::new("crates/ui/src/buttons/mod.rs")));
+    assert!(scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/edit/mod.rs")));
+    assert!(!scope.allows("behavior/pipeline-only", Path::new("crates/ui/src/buttons/mod.rs")));
 }
