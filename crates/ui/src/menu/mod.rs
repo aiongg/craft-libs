@@ -2,7 +2,7 @@
 
 pub mod bar;
 mod edit;
-mod item;
+pub(crate) mod item;
 mod panel;
 mod popup;
 pub mod search;

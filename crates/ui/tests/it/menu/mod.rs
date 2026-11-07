@@ -58,10 +58,11 @@ fn a_typed_letter_runs_a_row_of_a_menu_opened_by_the_pointer() {
     fixture.settle();
     let opener = fixture.by_label("File").expect("the opener has a node");
     fixture.click(&opener);
-    fixture.idle(4);
+    // The closed menu fades out before its nodes leave the tree.
+    fixture.idle(30);
     assert!(menu_shown(&fixture), "a press of the opener opens the menu");
     fixture.type_text("a");
-    fixture.idle(4);
+    fixture.idle(30);
     assert_eq!(ran.get(), Some("Save As"));
     assert!(!menu_shown(&fixture), "running a row closes the menu");
 }
@@ -81,11 +82,14 @@ fn rest_on(fixture: &mut Fixture, row: &str) {
     fixture.frame(vec![Event::PointerMoved(at)]);
     fixture.advance(0.5);
     fixture.idle(6);
+    // The layer of a submenu that closed fades out before it leaves the tree.
+    fixture.settle();
 }
 
 #[trial]
 fn resting_on_a_second_submenu_row_closes_the_first_submenu() {
-    let submenu = |label: &str, inner: &str| PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::Float, inner.to_owned()))]);
+    let submenu =
+        |label: &str, inner: &str| PanelRow::Submenu(label.to_owned().into(), vec![PanelRow::Item(Entry::new(GroupItem::Float, inner.to_owned()))]);
     let mut fixture = Fixture::new(move |ui| {
         let opener = Button::new("Panel").show(ui);
         Menu::new("Panel").opened_by(&opener, Trigger::Press).show(ui, |ui, _| {

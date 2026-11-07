@@ -181,6 +181,10 @@ struct Regions {
     footer: Rect,
 }
 
+/// The scope a container with a reorder band joins in its regions' command chain: no command belongs to it, so the
+/// chain tells `commands::focus_within` that focus is inside the container.
+const REORDER_SCOPE: commands::CommandScope = commands::CommandScope::new("reorder");
+
 /// Registers the container as an instance of its command scope and of the window scope of its window.
 fn register_instances(ctx: &Context, props: &ContainerProps, id: Id, window: Option<Id>) {
     if let Some(scope) = props.command_scope {
@@ -942,6 +946,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
     }
 
+    fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+        self.reorder_keys(comp.props(Internal::new()), cx);
+    }
+
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         use super::Pointer as _;
         let props = comp.props(Internal::new());
@@ -962,7 +970,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             self.access_scroll(props, cx);
         }
-        self.reorder_keys(props, cx);
+        // AccessKit Expand, Collapse and Click reach a collapsible container as an activation: it folds or unfolds.
+        if props.collapse.is_some() && cx.activation().is_some_and(|activation| activation.by_key) {
+            self.open = !self.open;
+        }
         if !layer {
             return;
         }
@@ -1035,6 +1046,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
             scoped.grid = None;
+            if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
+                scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
+            }
             if let Some(theme) = &props.theme {
                 scoped.tokens = theme.tokens().clone();
             }
@@ -1063,7 +1077,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 owner: id,
                 parent: node.then_some(id),
                 row: regions.body,
-                room: if self.sizing(&props) == Sizing::Content { room.x } else { regions.body.width() },
+                room: if self.sizing(&props) == Sizing::Content {
+                    layout::ambient_room(&ctx).map_or(room.x, |offered| room.x.max(offered))
+                } else {
+                    regions.body.width()
+                },
                 text: resolved.label_value,
                 side,
                 help: props.help.as_ref(),
@@ -1149,13 +1167,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let mut region_ui =
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
-                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
+                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
+                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                        });
                         let extent = region_ui.min_rect().size();
                         self.extent = Some(extent);
                         Some((extent + inset).min(at.size()))
                     }
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
+                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
                         None
                     }
                 };
@@ -1195,8 +1215,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
                     .with_field_message(field_message.clone());
-                // The first control sits at the end edge, as in a header's trailing region.
-                let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
+                // The controls run in reading order, so their roving order is their order on the line; the region is
+                // as wide as they measured, so the last one sits at the end edge.
+                let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
                 let builder = UiBuilder::new().max_rect(regions.end).layout(layout).scope_id(sub(id, "end"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut end_ui = alloc::child(ui, builder);
@@ -1395,6 +1416,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 /// Runs `body` in a column group named `labels` under the container `id` when `shared` is set, so the labelled
 /// rows directly inside share the widest label. Otherwise the body runs behind a barrier: the labelled rows of a
 /// nested container read no group of the container around it.
-fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, body: impl FnOnce(&mut Ui) -> R) -> R {
-    if shared { ColumnGroup::scope(ui, sub(id, "labels"), |ui, _| body(ui)) } else { ColumnGroup::barrier(ui, body) }
+fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, room: f32, body: impl FnOnce(&mut Ui) -> R) -> R {
+    if shared {
+        ColumnGroup::scope(ui, sub(id, "labels"), |ui, group| {
+            group.offer(room);
+            body(ui)
+        })
+    } else {
+        ColumnGroup::barrier(ui, body)
+    }
 }

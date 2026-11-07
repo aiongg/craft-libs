@@ -6,7 +6,7 @@ use crate::primitives::{IconSpec, TextRun};
 use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::Flow;
 use craft_theme::{
-    Variant,
+    Stateful, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Rect, Vec2, pos2};
@@ -73,9 +73,18 @@ pub(super) fn surface(cx: &StyleCx<'_>, parts: &VariantParts) -> SurfaceLook {
     }
 }
 
-/// The look of a control that is on: the soft accent fill inside an accent edge, with accent text.
+/// The look of a control that is on: the selection fill with the theme's paired `text.on_selected`, inside the soft
+/// accent edge.
 pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
-    cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look()
+    let soft = cx.with_variant(Variant::look(Emphasis::Soft, Tone::Accent)).variant_look();
+    let colors = &cx.tokens.color;
+    let c = |rgba| cx.color(rgba);
+    let (selected, hover, ink) = (c(colors.state.selected), c(colors.state.selected_hover), c(colors.text.on_selected));
+    VariantParts {
+        fill: Stateful::new(selected).off(States::new(selected, hover, hover, soft.fill.off.disabled)),
+        text: Stateful::new(ink).off(States::new(ink, ink, ink, soft.text.off.disabled)),
+        ..soft
+    }
 }
 
 /// The focus ring of a button.

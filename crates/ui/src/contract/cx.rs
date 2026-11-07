@@ -87,6 +87,8 @@ pub struct CxCore<'a> {
     pub(crate) injected: Option<FireSource>,
     /// The activation leaves the layer chain open (`Cx::keep_open`).
     pub(crate) keep_open: bool,
+    /// An AccessKit click named a part this pass: the response reports it as a click, as a pointer click on the part does.
+    pub(crate) part_clicked: bool,
     /// For an arena root: the member activated this pass.
     pub(crate) activated_member: Option<Id>,
     pub(crate) press: PressState,

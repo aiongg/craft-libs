@@ -816,6 +816,13 @@ impl Intents {
         }
     }
 
+    /// Whether an AccessKit click names some part of the component; reads without taking.
+    pub(crate) fn any_access_click(&self) -> bool {
+        self.items.iter().any(|(item, taken)| {
+            !taken && matches!(item, Intent::Access(request) if request.target.is_some() && request.action == accesskit::Action::Click)
+        })
+    }
+
     /// Whether an AccessKit click names `part`; reads without taking.
     pub(crate) fn access_click(&self, part: PartRef) -> bool {
         self.items.iter().any(|(item, taken)| {

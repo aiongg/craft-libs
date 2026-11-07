@@ -693,7 +693,8 @@ impl ListRow<'_> {
 
     /// The offsets from the reading start of the row of the label column's near edge and of what lies past its
     /// far edge, and the toggle cells and text cells with whether each leads. A cell leads when it displays before
-    /// the label column. Without a label column the label band is empty and every cell leads.
+    /// the label column. A row without columns keeps the whole width for the label band; a row whose columns are all
+    /// claimed has an empty label band and every cell leads.
     fn bands(&self, cells_of: &[(ColumnKey, Rect)], rect: Rect, rtl: bool) -> Bands {
         let start = if rtl { rect.right() } else { rect.left() };
         let span = |cell: Rect| {
@@ -706,6 +707,7 @@ impl ListRow<'_> {
                 let (near, far) = span(cells_of[at].1);
                 (near, (rect.width() - far).max(0.0))
             }
+            None if cells_of.is_empty() => (0.0, 0.0),
             None => {
                 let end = cells_of.iter().map(|(_, cell)| span(*cell).1).fold(0.0, f32::max);
                 (end, (rect.width() - end).max(0.0))
@@ -1027,17 +1029,18 @@ impl Component for ListRow<'_> {
         }
         let selected =
             cx.resolved.selected == Some(true) || cx.env.facts_of(cx.resolved.id).is_some_and(|facts| facts.flags.contains(Flags::SELECTED));
-        // The item step adds the row index and, from the column key, the column index.
+        // The item step adds the row index; the column index is the cell's position among the row's columns.
+        let column_of = |key: &ColumnKey| self.cells.iter().position(|(column, _)| column == key);
         if let Some(column) = self.label_column(&self.cells) {
             let node = access.node(LABEL_CELL, Role::CELL);
             node.name = Name::Text(label.to_owned());
-            node.column(column.clone());
+            node.grid.column_index = column_of(column);
             node.flags.set(Flags::SELECTED, selected);
         }
         for (at, toggle) in self.toggles.iter().enumerate() {
             let cell = access.node(TOGGLE_CELL.at(at as u64), Role::CELL);
             cell.name = Name::Text(label.to_owned());
-            cell.column(toggle.column.clone());
+            cell.grid.column_index = column_of(&toggle.column);
             cell.flags.set(Flags::SELECTED, selected);
             let role = if toggle.check_box { Role::CHECK_BOX } else { Role::BUTTON };
             let node = access.node(TOGGLE.at(at as u64), role);
@@ -1048,7 +1051,7 @@ impl Component for ListRow<'_> {
             let Some(position) = self.cells.iter().position(|(column, _)| *column == text.column) else { continue };
             let node = access.node(TEXT_CELL.at(position as u64), Role::CELL);
             node.name = Name::Text(text.text.as_str().to_owned());
-            node.column(text.column.clone());
+            node.grid.column_index = Some(position);
             node.flags.set(Flags::SELECTED, selected);
         }
         for (at, thumb) in self.extras.iter().enumerate() {

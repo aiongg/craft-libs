@@ -8,20 +8,20 @@
 use crate::choice::Switch;
 use crate::contract::{
     Bind, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Entry, ItemOutput, MeasureCx,
-    Outcome, PaintUi, Props as _, Role, SelectMode, Show as _, ShowCollection as _, Sizing,
+    Outcome, PaintUi, Props as _, Role, SelectMode, ShowCollection as _, Sizing,
 };
 use crate::pickers::Select;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
-use crate::testing::{Drive, StoryData, StoryOutput, story};
-use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Selection, SpanLayout};
+use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
+use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SpanLayout};
 use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 use std::convert::Infallible;
 
 /// The name band is this many control heights wide.
 const NAME_IN_HEIGHTS: f32 = 5.0;
-/// The blend-mode select is this many control heights wide.
+/// The blend-mode select takes the rest of the row and is at least this many control heights wide.
 const SELECT_IN_HEIGHTS: f32 = 5.0;
 /// Each level of a group indents its rows by this many control heights.
 const INDENT_IN_HEIGHTS: f32 = 1.0;
@@ -226,6 +226,11 @@ fn band(flow: &Flow, row: Rect, at: f32, length: f32) -> Rect {
     Rect::from_min_max(Pos2::new(span.left(), row.top()), Pos2::new(span.right(), row.bottom()))
 }
 
+/// The name band: at least `NAME_IN_HEIGHTS` control heights, wider when the name's text needs it.
+fn name_width(text: f32, style: &LayerRowStyle) -> f32 {
+    (NAME_IN_HEIGHTS * style.height).max(text + 2.0 * style.pad)
+}
+
 impl Component for LayerRow<'_> {
     const ROLE: Role = Role::TREE_ITEM;
     type Style = LayerRowStyle;
@@ -241,7 +246,11 @@ impl Component for LayerRow<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(0.0, cx.style.height)
+        let height = cx.style.height;
+        let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
+        let name = name_width(cx.layout(&crate::primitives::TextRun::new(self.layer.name.as_str())).size().x, cx.style);
+        let select = cx.child("blend", &mut Select::new("Blend mode", Bind::kept(), self.modes), Proposal::Ideal).x;
+        Vec2::new((indent + 1.0) * height + name + select.max(SELECT_IN_HEIGHTS * height), height)
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -250,12 +259,14 @@ impl Component for LayerRow<'_> {
         let row = cx.rect;
         let flow = Flow::new(row, rtl);
         let start = self.layer.depth as f32 * INDENT_IN_HEIGHTS * height;
-        let name = band(&flow, row, start, NAME_IN_HEIGHTS * height);
-        ui.draw()
-            .text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &crate::primitives::TextRun::new(self.layer.name.as_str()).elide());
-        let switch = band(&flow, row, start + NAME_IN_HEIGHTS * height, height);
+        let run = crate::primitives::TextRun::new(self.layer.name.as_str());
+        let name_width = name_width(ui.draw().layout(&run, f32::INFINITY).size().x, cx.style);
+        let name = band(&flow, row, start, name_width);
+        ui.draw().text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &run.elide());
+        let switch = band(&flow, row, start + name_width, height);
         ui.child("visible", switch, Switch::new(Bind::kept()).label("Visible"));
-        let select = band(&flow, row, start + (NAME_IN_HEIGHTS + 1.0) * height, SELECT_IN_HEIGHTS * height);
+        let select_at = start + name_width + height;
+        let select = band(&flow, row, select_at, (row.width() - select_at).max(0.0));
         ui.child("blend", select, Select::new("Blend mode", Bind::kept(), self.modes));
     }
 
@@ -303,5 +314,5 @@ fn layer_stack_many(ui: &mut egui::Ui, data: &mut StoryData) -> StoryOutput {
 #[story(LayerRow<'static>, covers = [Default], drive = Drive::Never)]
 fn layer_row(ui: &mut egui::Ui, _: &mut StoryData) -> StoryOutput {
     let (layer, modes) = (Layer::new("Background"), modes());
-    LayerRow::new(&layer, &modes).show(ui).into()
+    show_as_only_item(ui, LayerRow::new(&layer, &modes)).into()
 }

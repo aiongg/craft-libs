@@ -3,7 +3,9 @@
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{NavShape, Roving, Sense};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{
+    BodyCx, Common, Component, Container, ContainerProps, Cx, EndRegion, Props as _, Role, Show as _, ShowContainer as _, Sizing,
+};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::{egui_focused, key_release};
 use craft_ui::testing::input::key_press;
@@ -43,9 +45,9 @@ impl Component for Ended<'_> {
 
 impl Container for Ended<'_> {
     fn end(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let commit = Button::new("Commit").id_salt("commit").show(ui);
-        Button::new("Cancel").id_salt("cancel").show(ui);
-        self.end_at.set(commit.rect);
+        Button::new("Commit").id_salt("commit").show(ui);
+        let last = Button::new("Cancel").id_salt("cancel").show(ui);
+        self.end_at.set(last.rect);
     }
 }
 
@@ -57,17 +59,17 @@ fn tab(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
 #[trial]
 fn an_end_regions_buttons_sit_at_the_end_edge_and_join_the_roving_group() {
     let mut frames = Frames::new();
-    let (commit, before, after) = (Cell::new(Rect::NOTHING), Cell::new(Id::NULL), Cell::new(Id::NULL));
+    let (last, before, after) = (Cell::new(Rect::NOTHING), Cell::new(Id::NULL), Cell::new(Id::NULL));
     let mut show = |ui: &mut Ui| {
         before.set(Button::new("Before").id_salt("before").show_at(ui, Rect::from_min_size(Pos2::new(10.0, 60.0), egui::vec2(60.0, 20.0))).id);
-        let props = ContainerProps::new().end(EndRegion::new()).roving(Roving::new(NavShape::Flat));
-        Ended { common: Common::new(), props, end_at: &commit }.id_salt("ended").show_at(ui, AREA, |ui, _| {
+        let props = ContainerProps::new().sizing(Sizing::Fill).end(EndRegion::new()).roving(Roving::new(NavShape::Flat));
+        Ended { common: Common::new(), props, end_at: &last }.id_salt("ended").show_at(ui, AREA, |ui, _| {
             Button::new("Body").id_salt("body").show(ui);
         });
         after.set(Button::new("After").id_salt("after").show_at(ui, Rect::from_min_size(Pos2::new(10.0, 90.0), egui::vec2(60.0, 20.0))).id);
     };
     frames.idle(4, &mut show);
-    assert!(AREA.max.x - commit.get().max.x < 40.0, "the first end button sits against the line's end edge: {:?}", commit.get());
+    assert!(AREA.max.x - last.get().max.x < last.get().width(), "the last end button sits against the line's end edge: {:?}", last.get());
     craft_ui::runtime::focus::request(&frames.ctx, craft_ui::runtime::focus::FocusTarget::Id(before.get()));
     frames.frame(Vec::new(), &mut show);
     tab(&mut frames, &mut show);

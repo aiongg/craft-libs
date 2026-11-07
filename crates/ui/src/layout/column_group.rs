@@ -21,7 +21,7 @@ struct Open(Vec<Frame>);
 
 enum Frame {
     /// A group: rows report their widths and read the widest of last pass.
-    Group { id: Id, widest: HashMap<ColumnKey, f32> },
+    Group { id: Id, widest: HashMap<ColumnKey, f32>, room: Option<f32> },
     /// No group: rows inside read none, whatever group is open outside.
     Barrier,
 }
@@ -38,10 +38,10 @@ impl ColumnGroup {
     pub fn scope<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> R {
         let ctx = ui.ctx().clone();
         let id = sub(ui.scope_id(), key);
-        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new() }));
+        Service::<Open>::run(&ctx, |open| open.0.push(Frame::Group { id, widest: HashMap::new(), room: None }));
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
-        if let Some(Frame::Group { id, widest }) = Service::<Open>::run(&ctx, |open| open.0.pop()) {
+        if let Some(Frame::Group { id, widest, .. }) = Service::<Open>::run(&ctx, |open| open.0.pop()) {
             for (column, width) in &widest {
                 layout_memory::record(&ctx, sub(id, column), Vec2::new(*width, 0.0));
             }
@@ -57,6 +57,20 @@ impl ColumnGroup {
         let result = rows(ui);
         Service::<Open>::run(&ctx, |open| open.0.pop());
         result
+    }
+
+    /// Records the width the group's container was offered. A row that sits directly in the group decides whether
+    /// its label stacks against that width, not against the width the container shrank to last pass, so a row that
+    /// needs more than last pass's content widens it instead of stacking.
+    pub(crate) fn offer(&mut self, width: f32) {
+        let id = self.id;
+        Service::<Open>::run(&self.ctx, |open| {
+            if let Some(Frame::Group { room, .. }) =
+                open.0.iter_mut().rev().find(|frame| matches!(frame, Frame::Group { id: group, .. } if *group == id))
+            {
+                *room = Some(width);
+            }
+        });
     }
 
     /// The width every row gives column `column`: the widest content of last pass. `content` is this row's own
@@ -77,10 +91,19 @@ pub(crate) fn ambient_width(ctx: &Context, column: &ColumnKey, content: f32) -> 
     Some(shared_width(ctx, id, column, content))
 }
 
+/// The width the innermost open frame's container was offered, `None` when no group is open or a barrier is, or the
+/// container recorded none.
+pub(crate) fn ambient_room(ctx: &Context) -> Option<f32> {
+    Service::<Open>::run(ctx, |open| match open.0.last() {
+        Some(Frame::Group { room, .. }) => *room,
+        _ => None,
+    })
+}
+
 fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
     Service::<Open>::run(ctx, |open| {
         let found = open.0.iter_mut().rev().find_map(|frame| match frame {
-            Frame::Group { id, widest } if *id == group => Some(widest),
+            Frame::Group { id, widest, .. } if *id == group => Some(widest),
             _ => None,
         });
         if let Some(widest) = found {

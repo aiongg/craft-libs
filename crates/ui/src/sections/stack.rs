@@ -6,7 +6,7 @@ use super::section::SectionOutput;
 use crate::contract::reorder::{self, Gap};
 use crate::contract::{
     Common, Component, Container, ContainerProps, Cx, DragPreview, DropMark, DropOperation, DropTarget, ListDrag, NoValue, Outcome, Pointer as _,
-    ReorderMove, Role, ShowContainer, Sizing,
+    ReorderMove, Role, Sizing,
 };
 use crate::runtime::access::SetPosition;
 use crate::style::{ComponentStyle, StyleCx};
@@ -71,12 +71,15 @@ struct Seen<K> {
     nudged: Option<bool>,
 }
 
-/// The closure that shows the section of a key.
-type Each<'a, K> = Box<dyn FnMut(&mut Ui, &K, StackSlot) -> SectionOutput + 'a>;
+/// The shared record of the sections a pass showed, which the stack reads when it finishes.
+type SeenRows<K> = Arc<Mutex<Vec<Seen<K>>>>;
 
 /// Sections in the order of `order`, each shown by the caller's closure as a `Section::in_stack`. Dragging a header
 /// or pressing Alt+Up or Alt+Down in a section moves it among the others; the stack reports the move and the app
 /// applies it. A section is moved, never copied.
+///
+/// The stack is a container: show it with `ShowContainer::show` and fill its body with [`StackRows::each`] from
+/// `rows()`.
 #[derive(crate::contract::Component)]
 #[component(container, probe(SectionStack<'static, u8>))]
 pub struct SectionStack<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> {
@@ -85,40 +88,44 @@ pub struct SectionStack<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync
     #[container]
     props: ContainerProps,
     order: &'a [K],
-    each: Option<Each<'a, K>>,
-    seen: Arc<Mutex<Vec<Seen<K>>>>,
+    seen: SeenRows<K>,
     moves: Vec<EditEvent<ReorderMove<K>>>,
 }
 
+/// The body of a stack: shows each section of the order and tells the stack where they are and what their headers did.
+pub struct StackRows<'a, K> {
+    order: &'a [K],
+    seen: SeenRows<K>,
+}
+
+impl<K: Clone + std::hash::Hash> StackRows<'_, K> {
+    /// Shows the section of every key in order; `each` shows one as a `Section::in_stack(slot)`.
+    pub fn each(&self, ui: &mut Ui, mut each: impl FnMut(&mut Ui, &K, StackSlot) -> SectionOutput) {
+        let mut rows = Vec::with_capacity(self.order.len());
+        for (index, key) in self.order.iter().enumerate() {
+            let slot = StackSlot { position: SetPosition::new(index).of(self.order.len()), salt: slot_hash(key) };
+            let out = each(ui, key, slot);
+            rows.push(Seen { key: key.clone(), rect: out.response.rect, grabbed: out.grabbed, nudged: out.nudged });
+        }
+        *self.seen.lock().unwrap_or_else(PoisonError::into_inner) = rows;
+    }
+}
+
 impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> SectionStack<'a, K> {
-    /// A stack of the sections for `order`; `each` shows the section of a key.
-    pub fn new(order: &'a [K], each: impl FnMut(&mut Ui, &K, StackSlot) -> SectionOutput + 'a) -> Self {
+    /// A stack of the sections for `order`.
+    pub fn new(order: &'a [K]) -> Self {
         SectionStack {
             common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Fill),
+            props: ContainerProps::new().sizing(Sizing::FillWidth),
             order,
-            each: Some(Box::new(each)),
             seen: Arc::new(Mutex::new(Vec::new())),
             moves: Vec::new(),
         }
     }
 
-    /// Shows every section in order and returns the moves the user made.
-    pub fn show(mut self, ui: &mut Ui) -> SectionStackOutput<K> {
-        let (order, seen) = (self.order, Arc::clone(&self.seen));
-        let mut each = self.each.take();
-        let shown = ShowContainer::show(self, ui, move |ui, _| {
-            // `each` is taken out of the stack only here, once, so it is present for the one pass the body runs.
-            let Some(each) = each.as_mut() else { return };
-            let mut rows = Vec::with_capacity(order.len());
-            for (index, key) in order.iter().enumerate() {
-                let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: slot_hash(key) };
-                let out = each(ui, key, slot);
-                rows.push(Seen { key: key.clone(), rect: out.response.rect, grabbed: out.grabbed, nudged: out.nudged });
-            }
-            *seen.lock().unwrap_or_else(PoisonError::into_inner) = rows;
-        });
-        shown.output
+    /// The body the stack shows: pass it the closure that shows each section.
+    pub fn rows(&self) -> StackRows<'a, K> {
+        StackRows { order: self.order, seen: Arc::clone(&self.seen) }
     }
 
     /// Starts a drag from a grabbed header, takes a drop over the sections and turns a nudge into a move.

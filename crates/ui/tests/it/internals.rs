@@ -1,9 +1,14 @@
-//! Row geometry and footer order, checked without a frame.
+//! Row geometry, footer order, reorder arithmetic and the submenu pointer triangle, checked without a frame.
 
+use craft_behavior::Axis;
+use craft_ui::contract::DropMark;
 use craft_ui::list::ListRow;
 use craft_ui::sections::DialogRole;
-use craft_ui::testing::internals::{footer_order, place_row as place, row_indent_steps};
+use craft_ui::testing::internals::{
+    footer_order, place_row as place, pointer_heads_toward, reorder_gap_at, reorder_move_all_to, reorder_move_to, row_indent_steps,
+};
 use craft_ui::testing::trial;
+use egui::{Pos2, Rect, pos2, vec2};
 
 #[trial]
 fn optional_items_drop_out_before_the_label_gets_too_narrow() {
@@ -53,4 +58,40 @@ fn accept_is_last_off_windows_and_first_on_windows() {
     let roles = [DialogRole::Accept, DialogRole::Cancel, DialogRole::Other];
     assert_eq!(footer_order(&roles, false), vec![2, 1, 0]);
     assert_eq!(footer_order(&roles, true), vec![0, 1, 2]);
+}
+
+fn column(count: usize) -> Vec<Rect> {
+    (0..count).map(|n| Rect::from_min_size(Pos2::new(0.0, n as f32 * 20.0), vec2(100.0, 20.0))).collect()
+}
+
+#[trial]
+fn a_moved_item_leaves_first() {
+    assert_eq!(reorder_move_to(1, 3), 2);
+    assert_eq!(reorder_move_to(3, 1), 1);
+    assert_eq!(reorder_move_to(2, 2), 2);
+    assert_eq!(reorder_move_all_to(&[0, 1], 4), 2);
+}
+
+#[trial]
+fn the_gap_follows_the_pointer_along_the_axis() {
+    let rects = column(3);
+    let at = |y: f32| reorder_gap_at(&rects, Axis::Y, pos2(50.0, y)).map(|gap| gap.insert);
+    assert_eq!((at(2.0), at(30.0), at(500.0)), (Some(0), Some(2), Some(3)));
+    assert_eq!(reorder_gap_at(&[], Axis::Y, Pos2::ZERO).map(|gap| gap.insert), None);
+}
+
+#[trial]
+fn the_gap_line_lies_on_the_edge_of_the_next_item() {
+    let gap = reorder_gap_at(&column(2), Axis::Y, pos2(50.0, 500.0)).expect("a gap");
+    assert_eq!(gap.mark, DropMark::line(pos2(0.0, 40.0), pos2(100.0, 40.0)));
+}
+
+#[trial]
+fn the_pointer_heads_for_the_submenu_inside_the_triangle_to_its_near_edge() {
+    let submenu = Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 100.0));
+    let from = pos2(0.0, 50.0);
+    assert!(pointer_heads_toward(from, pos2(50.0, 50.0), submenu));
+    assert!(pointer_heads_toward(from, pos2(50.0, 30.0), submenu));
+    assert!(!pointer_heads_toward(from, pos2(50.0, 200.0), submenu));
+    assert!(!pointer_heads_toward(from, pos2(-20.0, 50.0), submenu));
 }

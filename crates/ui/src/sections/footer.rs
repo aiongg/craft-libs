@@ -262,8 +262,8 @@ impl<P: Clone + Send + Sync + 'static> DropAction<P> {
         Env::of(ui).get::<Accepting>().0
     }
 
-    fn takes_drops(&self) -> bool {
-        self.common.enabled.unwrap_or(true) || self.takes_disabled
+    fn takes_drops(&self, enabled: bool) -> bool {
+        enabled || self.takes_disabled
     }
 }
 
@@ -302,7 +302,7 @@ impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let live = self.takes_drops();
+        let live = self.takes_drops(cx.resolved.enabled);
         // Decided before the child shows, so its look follows the drag in the same pass.
         self.over = live && cx.dragging::<P>().is_some_and(|(payload, at)| cx.rect.contains(at) && (self.accepts)(&payload));
         let target = OnSlot { rect: cx.rect, live, accepts: &*self.accepts };

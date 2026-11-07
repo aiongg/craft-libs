@@ -9,7 +9,7 @@ use craft_ui::runtime::focus::{EditSet, KeyUse};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::Stop;
 use craft_ui::testing::focus::{claim, intents_of, register_stop, take_claimed, widget};
-use craft_ui::testing::input::key_press;
+use craft_ui::testing::input::{key_press, key_repeat};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -445,7 +445,7 @@ fn a_held_enter_that_opened_a_modal_does_not_answer_it() {
     frames.idle(2, &mut show);
     focus(&mut frames, "field", &mut show);
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
-    let repeat = || Event::Key { key: Key::Enter, physical_key: Some(Key::Enter), pressed: true, repeat: true, modifiers: Modifiers::NONE };
+    let repeat = || key_repeat(Key::Enter, Modifiers::NONE);
     for _ in 0..4 {
         frames.idle(3, &mut show);
         frames.frame(vec![repeat()], &mut show);

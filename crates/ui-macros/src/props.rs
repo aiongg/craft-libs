@@ -10,6 +10,7 @@ use syn::{Attribute, DeriveInput, Field, GenericArgument, Ident, LitStr, Meta, P
 struct Prop {
     into: bool,
     flag: bool,
+    boxed: bool,
     name: Option<Ident>,
     func: Option<TypeParamBound>,
 }
@@ -34,6 +35,8 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
             prop.into = true;
         } else if meta.path.is_ident("flag") {
             prop.flag = true;
+        } else if meta.path.is_ident("boxed") {
+            prop.boxed = true;
         } else if meta.path.is_ident("name") {
             let name: LitStr = meta.value()?.parse()?;
             prop.name = Some(name.parse().map_err(|_| syn::Error::new(name.span(), "`name` is the setter's identifier"))?);
@@ -43,7 +46,9 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
         } else if meta.path.is_ident("quantity") {
             read_quantity(&meta)?;
         } else {
-            return Err(meta.error("unknown `prop` option; expected `into`, `flag`, `name = \"..\"`, `func = \"..\"` or `quantity = \"..\"`"));
+            return Err(
+                meta.error("unknown `prop` option; expected `into`, `flag`, `boxed`, `name = \"..\"`, `func = \"..\"` or `quantity = \"..\"`")
+            );
         }
         Ok(())
     })?;
@@ -80,6 +85,22 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
             #(#docs)*
             pub fn #name(mut self) -> Self {
                 #body
+                self
+            }
+        });
+    } else if prop.boxed {
+        let object = wrapped(ty, "Option").and_then(|inner| wrapped(inner, "Box")).and_then(|boxed| match boxed {
+            Type::TraitObject(object) => Some(object),
+            _ => None,
+        });
+        let Some(object) = object else {
+            return Err(syn::Error::new_spanned(ty, "`boxed` is for an `Option<Box<dyn Trait>>` field: the setter takes any `T: Trait`"));
+        };
+        let bounds = &object.bounds;
+        return Ok(quote! {
+            #(#docs)*
+            pub fn #name<T: #bounds>(mut self, value: T) -> Self {
+                self.#field_name = ::core::option::Option::Some(::std::boxed::Box::new(value));
                 self
             }
         });

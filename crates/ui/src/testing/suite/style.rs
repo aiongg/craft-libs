@@ -11,7 +11,9 @@ use crate::style::{StyleColor, SurfaceKind, SurfaceLook};
 use crate::testing::fixture::Fixture;
 use crate::testing::style::{StyleLooks, StyleSeen, themes_at, tokens, with_cx};
 use craft_behavior::Input;
-use craft_theme::{Contrast, ControlSize, Flags, Mode, Resolve, Rgba, State, StateMix, Stateful, contrast_ratio, text_contrast_min};
+use craft_theme::{
+    Appearance, ColorToken, Contrast, ControlSize, Flags, Mode, Resolve, Rgba, Size, State, StateMix, Stateful, TextSize, TokenRef, builtins, explain,
+};
 use std::sync::Arc;
 
 pub(super) const CASES: &[Case] = &[
@@ -115,8 +117,11 @@ fn reachable(subject: &Subject) -> Flags {
     if probe.overlay {
         flags |= Flags::OPEN;
     }
-    if matches!(probe.shape, crate::contract::ShapeKind::Items) {
+    if matches!(probe.shape, crate::contract::ShapeKind::Items) || super::nodes::is_row_role(probe.role) {
         flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET;
+    }
+    if super::nodes::is_menu_item_role(probe.role) {
+        flags |= Flags::LEAD;
     }
     if !matches!(probe.shape, crate::contract::ShapeKind::Leaf) {
         flags |= Flags::EXPANDED;
@@ -170,15 +175,19 @@ fn flag_sets<'a>(looks: impl Iterator<Item = &'a Stateful<crate::style::StyleCol
 /// measured for text.
 const MEASURED: [(State, StateMix); 2] = [(State::Rest, StateMix::new(0.0, 0.0, 0.0)), (State::Rest, StateMix::new(0.0, 0.0, 1.0))];
 
-/// The opaque surfaces a translucent fill can sit on.
-const GROUNDS: [SurfaceKind; 6] =
-    [SurfaceKind::Background, SurfaceKind::Canvas, SurfaceKind::Chrome, SurfaceKind::Panel, SurfaceKind::Raised, SurfaceKind::Sunken];
+/// The opaque surfaces a translucent fill can sit on: the chrome surfaces of the pair table. The canvas holds the
+/// document, whose colours no theme pairs with the interface's inks.
+const GROUNDS: [SurfaceKind; 5] = [SurfaceKind::Background, SurfaceKind::Chrome, SurfaceKind::Panel, SurfaceKind::Raised, SurfaceKind::Sunken];
 
 /// Text and icon colours against what they are painted on at rest, with the `on` axis off and on and under each
 /// reachable `when` mask, for every variant the type lists and every built-in theme at both contrasts, against the
-/// theme's text minimum (`text_contrast_min`). Hover, pressed and disabled states are not measured. The ink is measured
+/// theme's pair table. Hover, pressed and disabled states are not measured. The ink is measured
 /// against the style's surface fill, composited over each of `GROUNDS` when it is not opaque; a style without a surface
 /// fill, or a fully transparent one, is measured against each of `GROUNDS`.
+///
+/// An ink on a ground that the pair table does not list fails the component: it must use a paired ink. A listed pair
+/// passes: its minimum is the theme's, and a pair below it is a finding about the theme, which the theme's own
+/// tests report, not about the component.
 fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String> {
     let reachable = reachable(subject);
     for source in sources(subject)? {
@@ -189,8 +198,8 @@ fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String>
 
 fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Result<(), String> {
     for contrast in [Contrast::Standard, Contrast::High] {
-        let min = text_contrast_min(contrast);
         for (theme, tokens) in themes_at(contrast) {
+            let table = PairTable::of(&theme, contrast);
             let Some(first) = looks_in(subject, source, &tokens, craft_theme::Variant::SECONDARY) else {
                 continue;
             };
@@ -215,13 +224,22 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                                 }
                                 None => grounds.iter().map(|(name, ground)| (format!("{name} ground"), *ground)).collect(),
                             };
-                            for (name, ground) in under {
-                                let ratio = contrast_ratio(Rgba::from(paint), Rgba::from(ground));
-                                if ratio < min {
-                                    return Err(format!(
-                                        "{theme} {contrast:?} {variant:?}: {what} {paint:?} on {name} {ground:?} in {state:?} with {flags:?} has contrast {ratio:.2}, under {min}"
-                                    ));
-                                }
+                            let ink = Rgba::from(paint);
+                            let opaque_fill = fill.is_some_and(|fill| fill.a() == 255);
+                            // An ink on a fill of its own must pair with that fill. On a ground the style does not choose
+                            // (no fill, or a translucent one, or an ink painted on a part's own fill) the ink must
+                            // be a foreground of the table.
+                            let unpaired = if opaque_fill {
+                                under.iter().find(|(_, ground)| !table.lists(ink, Rgba::from(*ground)))
+                            } else {
+                                (!table.has_ink(ink)).then_some(&under[0])
+                            };
+                            if let Some((name, ground)) = unpaired {
+                                return Err(format!(
+                                    "{theme} {contrast:?} {variant:?}: {what} {paint:?} ({}) on {name} {ground:?} ({}) in {state:?} with {flags:?} is no pair of the theme's table, so the component needs a paired ink",
+                                    table.names(ink),
+                                    table.names(Rgba::from(*ground))
+                                ));
                             }
                         }
                     }
@@ -230,4 +248,49 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
         }
     }
     Ok(())
+}
+
+/// The colour pairs a built-in theme declares at one contrast, as colours.
+struct PairTable {
+    pairs: Vec<(Rgba, Rgba)>,
+    colors: Vec<(String, Rgba)>,
+}
+
+impl PairTable {
+    /// The built-in theme `theme` (`<name>.<mode>`) at `contrast`.
+    fn of(theme: &str, contrast: Contrast) -> Self {
+        let (name, mode) = theme.rsplit_once('.').unwrap_or((theme, "light"));
+        let mode = if mode == "light" { Mode::Light } else { Mode::Dark };
+        let id = format!("craft.{name}");
+        let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
+        let Some(def) = builtins().iter().find(|def| def.id.as_str() == id) else {
+            return PairTable { pairs: Vec::new(), colors: Vec::new() };
+        };
+        let explained = explain(def, appearance, None);
+        let colors = &explained.resolved.tokens.color;
+        let pairs = explained
+            .pairs
+            .iter()
+            .filter_map(|report| match (report.pair.fg, report.pair.bg) {
+                (TokenRef::Color(fg), TokenRef::Color(bg)) => Some((colors.get(fg), colors.get(bg))),
+                _ => None,
+            })
+            .collect();
+        let colors = ColorToken::ALL.iter().map(|&token| (token.path().to_owned(), colors.get(token))).collect();
+        PairTable { pairs, colors }
+    }
+
+    fn has_ink(&self, ink: Rgba) -> bool {
+        self.pairs.iter().any(|(fg, _)| *fg == ink)
+    }
+
+    fn lists(&self, ink: Rgba, ground: Rgba) -> bool {
+        self.pairs.contains(&(ink, ground))
+    }
+
+    /// The tokens with colour `color`, for messages.
+    fn names(&self, color: Rgba) -> String {
+        let names: Vec<&str> = self.colors.iter().filter(|(_, value)| *value == color).map(|(name, _)| name.as_str()).collect();
+        if names.is_empty() { "no token".to_owned() } else { names.join("/") }
+    }
 }

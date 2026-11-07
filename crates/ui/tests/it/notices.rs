@@ -2,10 +2,9 @@
 
 use craft_behavior::PartKey;
 use craft_theme::variant::Tone;
-use craft_ui::contract::toast::ToastHost;
 use craft_ui::contract::{CommandSet, Props as _, Show as _};
 use craft_ui::notices::{
-    Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsStatus,
+    Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsStatus, ToastStack,
 };
 use craft_ui::runtime::commands::FireSource;
 use craft_ui::runtime::focus::{FocusTarget, request};
@@ -69,14 +68,14 @@ fn messages(frames: &Frames) -> Vec<String> {
 #[trial]
 fn the_queue_keeps_three_cards_and_drops_the_oldest_without_an_action() {
     let mut frames = Frames::new();
-    frames.idle(2, |ui| ToastHost::show(ui));
+    frames.idle(2, |ui| ToastStack::show(ui));
     for text in ["a", "b", "c", "d"] {
         toast::post(&frames.ctx, Toast::new(text));
     }
     assert_eq!(messages(&frames), ["b", "c", "d"], "the oldest plain card went");
 
     let mut frames = Frames::new();
-    frames.idle(2, |ui| ToastHost::show(ui));
+    frames.idle(2, |ui| ToastStack::show(ui));
     toast::post(&frames.ctx, Toast::new("a").action(ToastAction::new("Undo")));
     for text in ["b", "c", "d"] {
         toast::post(&frames.ctx, Toast::new(text));
@@ -85,7 +84,7 @@ fn the_queue_keeps_three_cards_and_drops_the_oldest_without_an_action() {
 }
 
 fn host() -> Fixture {
-    let mut fixture = Fixture::new(|ui| ToastHost::show(ui));
+    let mut fixture = Fixture::new(|ui| ToastStack::show(ui));
     fixture.settle();
     fixture
 }
@@ -162,7 +161,7 @@ fn centred_actions_that_do_not_fit_side_by_side_stack() {
 #[trial]
 fn a_posted_notice_keeps_its_tone_and_offers_dont_show_again() {
     let mut frames = Frames::new();
-    frames.idle(2, |ui| ToastHost::show(ui));
+    frames.idle(2, |ui| ToastStack::show(ui));
     let notice = PostedNotice::new("Heads up").lines(vec!["ICO is limited".to_owned()]).tone(Tone::Warn).dismiss_key("warn.ico");
     NoticeCenter::new().post(&frames.ctx, &notice, &[]).expect("not silenced");
     let cards = toast::cards(&frames.ctx);

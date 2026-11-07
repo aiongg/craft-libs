@@ -1,7 +1,7 @@
 //! `Bar`: the end region, scroll, status liveness and the bar items that share its roving group.
 
 use craft_ui::bars::{AlignBar, Bar, BarItem, BarItems, BarKind, DistributeButtons, StatusItem, StatusReadout, StatusValues};
-use craft_ui::buttons::IconButton;
+use craft_ui::buttons::{Button, IconButton};
 use craft_ui::contract::{Bind, Politeness, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::runtime::frame::take_output;
@@ -52,7 +52,7 @@ fn tab_from_the_last_control_reaches_commit_at_the_end_edge() {
     assert!(last.rect.right() <= cancel.rect.left() && cancel.rect.right() <= commit.rect.left(), "cancel then commit follow the members");
     let bar = fixture.by_role(craft_ui::contract::Role::GROUP);
     let edge = bar.iter().map(|bar| bar.rect.right()).fold(f32::MIN, f32::max);
-    assert!((edge - commit.rect.right()).abs() < 24.0, "Commit sits at the bar's end edge");
+    assert!((edge - commit.rect.right()).abs() < commit.rect.width(), "Commit sits at the bar's end edge");
 }
 
 /// A bar narrower than its members scrolls to the focused one.
@@ -79,12 +79,14 @@ fn bar_items_and_a_button_are_one_tab_stop() {
             BarItems::new(vec![BarItem::new(EditCommands::Undo), BarItem::new(EditCommands::Redo)]).show(ui);
             IconButton::new(craft_behavior::IconId::new("check")).label("Extra").show(ui);
         });
+        Button::new("After").show(ui);
     });
     fixture.settle();
     tab(&mut fixture);
     let first = fixture.focused();
     tab(&mut fixture);
     assert_ne!(fixture.focused(), first, "the second Tab leaves the bar");
+    assert!(focused_is(&fixture, "After"), "the second Tab reaches the control after the bar");
     assert!(!focused_is(&fixture, "Extra") && !focused_is(&fixture, "Redo"), "no member past the first is a Tab stop");
 }
 

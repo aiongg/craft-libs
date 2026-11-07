@@ -192,8 +192,8 @@ impl FooterRegion {
     }
 }
 
-/// An end region, filled by `Container::end`: a column of controls at the line's end edge, beside the body and outside
-/// its scroll region. Its stops join the body's roving group.
+/// An end region, filled by `Container::end`: controls in reading order at the line's end edge, beside the body and
+/// outside its scroll region. Its stops join the body's roving group.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct EndRegion;

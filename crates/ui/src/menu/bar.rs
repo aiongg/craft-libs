@@ -36,7 +36,7 @@ use crate::runtime::words::common::CommonWords;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::fit::{FitItem, FitKeep, fit_items};
-use craft_behavior::{Axis, Flow, Intent, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_behavior::{Arrows, Axis, Flow, Intent, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
 use craft_keymap::mnemonic;
 use craft_theme::Stateful;
@@ -366,7 +366,7 @@ impl Component for MenuBar<'_> {
             let (cell, _) = flow.take_start(more);
             cx.part(MORE, cell).sense(Sense::CLICK | Sense::FOCUS).focusable().toggles_at("menu", fit.shown).on_press();
         }
-        cx.roving(Roving::new(NavShape::Flat));
+        cx.roving(Roving::new(NavShape::Flat).arrows(Arrows::Horizontal));
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -394,7 +394,14 @@ impl Component for MenuBar<'_> {
                 MenuKey::Focus => Self::focus_key(cx, &slots, found, opened),
             }
         }
-        if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Close) {
+        while let Some((mv, _)) = cx.intents().take_move() {
+            // Down on a focused title opens its menu; the bar's roving group leaves Up and Down to the part.
+            let title = cx.active_part().and_then(|part| slots.iter().copied().find(|slot| Self::slot_part(*slot) == part));
+            if let (NavMove::Down, Some(slot), true) = (mv, title, opened.is_none()) {
+                Self::open_only(cx, &slots, found, slot);
+            }
+        }
+        if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Cancel) {
             focus::give_back_bar(&cx.core.ctx);
         }
         let mut state = cx.memory::<BarState>().clone();

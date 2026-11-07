@@ -15,6 +15,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::AccessRequest`: re-export of `craft_behavior::intent::AccessRequest`.
 - `craft_behavior::Applied`: re-export of `craft_behavior::value::Applied`.
 - `craft_behavior::Arrangement`: re-export of `craft_behavior::arrangement::Arrangement`.
+- `craft_behavior::Arrows`: re-export of `craft_behavior::nav::Arrows`.
 - `craft_behavior::Axis`: re-export of `craft_behavior::flow::Axis`.
 - `craft_behavior::Buttons`: re-export of `craft_behavior::press::Buttons`.
 - `craft_behavior::CancelReason`: re-export of `craft_behavior::value::CancelReason`.
@@ -551,6 +552,7 @@ The motion level an animation runs at.
 
 The navigation core (spec 9.5): shapes, the key-free outline, stepping, roving groups, type-ahead and
 
+- `craft_behavior::nav::Arrows`: `pub enum Arrows { All, Horizontal, Vertical }`. Which arrow keys a roving group moves its lead with.
 - `craft_behavior::nav::LARGE_STEPS`: `pub const LARGE_STEPS: f64`. How many small steps one large step is, when a control sets no large step of its own.
 - `craft_behavior::nav::Letters`: `pub enum Letters { None, TypeAhead }`. Whether a roving group matches typed letters to entries.
 - `craft_behavior::nav::NavOutline`: `pub trait NavOutline`. Positions, not keys: the key-free part of `DisplayOrder`.
@@ -573,12 +575,13 @@ The navigation core (spec 9.5): shapes, the key-free outline, stepping, roving g
   - `pub const fn wrap(mut self, on: bool) -> Self`. Sets whether moves wrap.
   - `pub const fn column(mut self, column: usize) -> Self`. Sets the lead cell's column.
 - `craft_behavior::nav::NavStep`: `pub enum NavStep { Stay, Moved(usize), Expand(usize), Collapse(usize), Column(usize), Unhandled }`. What one move did.
-- `craft_behavior::nav::Roving`: `pub struct Roving { pub shape: NavShape, pub wrap: bool, pub home_end: bool, pub page: Option<usize>, pub letters: Letters }`. A roving group's rules: one Tab stop whose members take moves.
+- `craft_behavior::nav::Roving`: `pub struct Roving { pub shape: NavShape, pub wrap: bool, pub home_end: bool, pub page: Option<usize>, pub letters: Letters, pub arrows: Arrows }`. A roving group's rules: one Tab stop whose members take moves.
   - `pub const fn new(shape: NavShape) -> Roving`. A group of `shape` with Home and End, no wrap, no paging and no letters.
   - `pub const fn wrap(mut self, on: bool) -> Self`. Whether moves wrap.
   - `pub const fn home_end(mut self, on: bool) -> Self`. Whether Home and End move to the ends.
   - `pub const fn page(mut self, rows: Option<usize>) -> Self`. Rows a Page key covers.
   - `pub const fn letters(mut self, letters: Letters) -> Self`. Whether letters pick entries.
+  - `pub const fn arrows(mut self, arrows: Arrows) -> Self`. The arrows the group takes.
   - `pub const fn state(&self, lead: Option<usize>) -> NavState`. The state a step over this group starts from, at `lead`.
   - `pub const fn takes(&self, mv: NavMove) -> bool`. Whether the group handles `mv`: Page moves only with a page size, Start and End only with Home and End.
 - `craft_behavior::nav::STEP_SHARE`: `pub const STEP_SHARE: f64`. The share of a value's span that one small step is, when a control sets no step.
@@ -1123,7 +1126,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `fn commit(&mut self)`. Commits the proposed value.
   - `fn cancel(&mut self, reason: CancelReason)`. Cancels the running gesture.
 - `craft_ui::contract::EditResponse`: `pub struct EditResponse<T> { pub response: Response, pub event: Option<EditEvent<T>>, pub submitted: bool, pub escaped: bool, pub validity: Validity<T>, pub shown: Option<Mixed<Arc<T>>> }`. The output of a component that edits a value. Only `cx.edit_response()` builds it.
-- `craft_ui::contract::EndRegion`: `pub struct EndRegion`. An end region, filled by `Container::end`: a column of controls at the line's end edge, beside the body and outside
+- `craft_ui::contract::EndRegion`: `pub struct EndRegion`. An end region, filled by `Container::end`: controls in reading order at the line's end edge, beside the body and
   - `pub const fn new() -> Self`. An end region.
 - `craft_ui::contract::Entry`: `pub struct Entry<T>`. A row of entries: an item that reports its value when picked, or a separator between groups of items.
   - `pub fn new(value: T, label: impl Into<Label>) -> Self`. An entry reporting `value` when picked, shown as `label`: enabled and unchecked, without an icon.
@@ -1459,10 +1462,12 @@ The shapes of component: which show trait applies.
 
 ## `craft_ui::contract::toast`
 
-The toast host (15.5): one layer per viewport that shows each queued toast as a `Notice` in `NoticeLayout::Card`.
+The toast host (15.5): one layer per viewport that lays out the queued toasts and tracks their holds and ends. A
 
-- `craft_ui::contract::toast::ToastHost`: `pub struct ToastHost`. The layer that shows the toast queue of a viewport. The shell calls `show` once per pass.
-  - `pub fn show(ui: &Ui)`. Shows every queued toast of the running viewport, oldest at the top, in the viewport's end corner. A card the
+- `craft_ui::contract::toast::CardOutcome`: `pub struct CardOutcome { pub hovered: bool, pub end: Option<ToastEnd> }`. What a drawn card reports back to the host.
+  - `pub fn new(hovered: bool, end: Option<ToastEnd>) -> Self`. A card the pointer rests on when `hovered`, which the user ended as `end`.
+- `craft_ui::contract::toast::ToastHost`: `pub struct ToastHost`. The layer that shows the toast queue of a viewport. The window root calls `show` once per pass.
+  - `pub fn show(ui: &Ui, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome)`. Lays out every queued toast of the running viewport, oldest at the top, in the viewport's end corner, and
 
 ## `craft_ui::contract::tooltip`
 
@@ -2604,17 +2609,23 @@ Key events and the egui input options, for trials that drive frames themselves.
 - `craft_ui::testing::input::allow_zoom_keys`: `pub fn allow_zoom_keys(ctx: &Context)`. Gives egui back the option the runtime turns off at install: `Cmd` with `=` or `-` zooms the interface.
 - `craft_ui::testing::input::key_press`: `pub fn key_press(key: Key, modifiers: Modifiers) -> Event`. A key press event with `modifiers`.
 - `craft_ui::testing::input::key_reached`: `pub fn key_reached(ctx: &Context, key: Key) -> bool`. Whether a press of `key` is still in this pass's input: no component claimed it.
+- `craft_ui::testing::input::key_repeat`: `pub fn key_repeat(key: Key, modifiers: Modifiers) -> Event`. The auto-repeat event of a held `key`.
 - `craft_ui::testing::input::max_click_dist`: `pub fn max_click_dist(ctx: &Context) -> f32`. egui's longest movement that still counts as a click.
 - `craft_ui::testing::input::set_max_click_duration`: `pub fn set_max_click_duration(ctx: &Context, seconds: f64)`. Sets egui's longest press that still counts as a click.
 - `craft_ui::testing::input::text`: `pub fn text(text: &str) -> Event`. An event of typed `text`.
 
 ## `craft_ui::testing::internals`
 
-Crate-private logic the trials check without a frame: the geometry of a row and the order of footer buttons.
+Crate-private logic the trials check without a frame: the geometry of a row, the order of footer buttons, the
 
 - `craft_ui::testing::internals::footer_order`: `pub fn footer_order(roles: &[DialogRole], windows: bool) -> Vec<usize>`. The indexes of `roles` in display order.
 - `craft_ui::testing::internals::place_row`: `pub fn place_row(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement`. Where the parts of `row` lie in a rect of `width`, under fixed sizes.
+- `craft_ui::testing::internals::pointer_heads_toward`: `pub fn pointer_heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool`. Whether the pointer at `now`, having come from `from`, heads for `submenu`.
+- `craft_ui::testing::internals::reorder_gap_at`: `pub fn reorder_gap_at(rects: &[Rect], axis: Axis, at: Pos2) -> Option<Gap>`. The gap nearest `at` among `rects` that lie in order along `axis`.
+- `craft_ui::testing::internals::reorder_move_all_to`: `pub fn reorder_move_all_to(places: &[usize], insert: usize) -> usize`. The index the first of `places` ends at when the group moves to the gap before item `insert`.
+- `craft_ui::testing::internals::reorder_move_to`: `pub fn reorder_move_to(from: usize, insert: usize) -> usize`. The index an item ends at when it moves from `from` to the gap before item `insert`.
 - `craft_ui::testing::internals::row_indent_steps`: `pub fn row_indent_steps(row: &ListRow<'_>) -> usize`. The indent steps of `row`.
+- `craft_ui::testing::internals::Gap`: `pub struct Gap { pub insert: usize, pub mark: DropMark }`. The gap a drop would land in.
 - `craft_ui::testing::internals::RowPlacement`: `pub struct RowPlacement { pub label: Rect, pub items: Vec<Option<Rect>>, pub disclosure: Option<Rect>, pub min_label: f32 }`. A row's parts placed by [`placement_under_fixed_sizes`].
 
 ## `craft_ui::testing::layout`

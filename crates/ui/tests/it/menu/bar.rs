@@ -8,7 +8,7 @@ use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
 use craft_ui::menu::search::{HelpEntry, search_order};
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -93,6 +93,7 @@ fn a_press_on_a_title_opens_its_menu_and_a_release_on_a_row_runs_it() {
     rig.fixture.idle(3);
     assert!(rig.open("Save"), "the menu is open while the press is still held");
     let save = rig.fixture.by_label("Save").expect("the Save row");
+    rig.fixture.frame(vec![pointer::moved(save.center())]);
     rig.fixture.release(&save);
     rig.fixture.settle();
     assert_eq!(*rig.ran.borrow(), ["Save"]);
@@ -135,6 +136,16 @@ fn running_a_row_returns_focus_to_the_component_that_held_it() {
     rig.fixture.settle();
     assert_eq!(*rig.ran.borrow(), ["Save"]);
     assert_eq!(rig.fixture.focused(), rig.button.get());
+}
+
+#[trial]
+fn enter_and_space_on_a_focused_title_open_its_menu() {
+    for key in [Key::Enter, Key::Space] {
+        let mut rig = rig(Direction::Ltr);
+        rig.key(Key::F10);
+        rig.key(key);
+        assert!(rig.open("Save"), "{key:?} on the focused File title opens its menu");
+    }
 }
 
 #[trial]

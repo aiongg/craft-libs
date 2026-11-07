@@ -193,11 +193,13 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         }
     }
 
-    /// The width of the whole path with every crumb and separator; the bar fills the room it is given.
+    /// The width of the whole path with every crumb and separator, at most the room the parent offers: a path that
+    /// does not fit overflows behind the ellipsis instead of widening the bar past its room.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let crumbs: f32 = (0..self.crumbs.len()).map(|at| self.natural(at, cx)).sum();
         let joints = self.crumbs.len().saturating_sub(1) as f32 * cx.style.joint;
-        Vec2::new(crumbs + joints, cx.style.height)
+        let whole = crumbs + joints;
+        Vec2::new(cx.room.map_or(whole, |room| whole.min(room)), cx.style.height)
     }
 
     fn fills(&self) -> Option<Axis> {

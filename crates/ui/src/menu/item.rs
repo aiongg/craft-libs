@@ -1,7 +1,9 @@
 //! `MenuItem` (11.4, 12.3): one row of a menu, and the level it shares with the rows around it.
 
+use super::popup::MenuStep;
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Styled as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role,
+    Styled as _,
 };
 use crate::display::Kbd;
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextLayout, TextRun, glyph};
@@ -12,7 +14,7 @@ use crate::runtime::frame;
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, IconId, Metrics, NavMove, PartKey, Sense};
 use craft_keymap::mnemonic;
-use craft_theme::{Rgba, Stateful, States};
+use craft_theme::{Rgba, States};
 use egui::{Id, Pos2, Rect, Response, Vec2, pos2};
 use std::borrow::Cow;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -41,15 +43,9 @@ enum Mark {
     Radio(bool),
 }
 
-impl Mark {
-    fn on(self) -> bool {
-        matches!(self, Mark::Check(true) | Mark::Radio(true))
-    }
-}
-
 /// Whether the pointer at `now`, having come from `from`, heads for `submenu`: it lies inside the triangle from
 /// `from` to the submenu's edge nearer to it.
-fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
+pub(crate) fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
     let near = if from.x <= submenu.center().x { submenu.min.x } else { submenu.max.x };
     let (a, b) = (pos2(near, submenu.min.y), pos2(near, submenu.max.y));
     let side = |p: Pos2, q: Pos2, r: Pos2| (p.x - r.x) * (q.y - r.y) - (q.x - r.x) * (p.y - r.y);
@@ -72,7 +68,6 @@ struct Assigned {
     id: Id,
     mnemonic: Option<(char, usize)>,
     enabled: bool,
-    checked: bool,
 }
 
 /// The one open submenu of a level.
@@ -93,6 +88,8 @@ struct LevelState {
     /// The row a typed letter runs in this pass.
     run: Option<Id>,
     close: bool,
+    /// The Left or Right key a row of a top-level level left unhandled.
+    step: Option<MenuStep>,
     submenu: bool,
     open_submenu: Option<OpenSubmenu>,
     active: Option<Id>,
@@ -156,12 +153,7 @@ impl MenuLevel {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
                 mnemonic::assign(&labels)
             };
-            state.shown = state
-                .now
-                .iter()
-                .zip(letters)
-                .map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled, checked: row.mark.is_some_and(Mark::on) })
-                .collect();
+            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
             state.marks = state.now.iter().any(|row| row.mark.is_some());
             state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
@@ -202,7 +194,7 @@ impl MenuLevel {
         self.with(|state| state.icons)
     }
 
-    fn values(&self) -> bool {
+    pub(crate) fn values(&self) -> bool {
         self.with(|state| state.values)
     }
 
@@ -226,17 +218,21 @@ impl MenuLevel {
         })
     }
 
-    /// The checked row of a value menu: the lead starts on it when the menu opens.
-    pub(crate) fn checked_row(&self) -> Option<Id> {
-        self.with(|state| state.shown.iter().find(|row| row.checked).map(|row| row.id))
-    }
-
     fn is_submenu(&self) -> bool {
         self.with(|state| state.submenu)
     }
 
     fn request_close(&self) {
         self.with(|state| state.close = true);
+    }
+
+    fn request_step(&self, step: MenuStep) {
+        self.with(|state| state.step = Some(step));
+    }
+
+    /// The Left or Right key a row of this top-level level left unhandled.
+    pub(crate) fn take_step(&self) -> Option<MenuStep> {
+        self.with(|state| state.step.take())
     }
 
     /// Whether a row asked its submenu level to close.
@@ -536,7 +532,7 @@ impl Component for MenuItem<'_> {
         let text = &tokens.color.text;
         let c = |rgba: Rgba| cx.color(rgba);
         let surface = SurfaceLook::new(crate::list::row_surface(cx)).radius(UiTokens::corner(tokens.shape.radius.sm));
-        let ink = |base: Rgba| Stateful::new(c(base)).off(States::new(c(base), c(base), c(base), c(text.disabled)));
+        let ink = |base: Rgba| crate::list::row_ink(cx, base).off(States::new(c(base), c(base), c(base), c(text.disabled)));
         let control = cx.control();
         MenuItemStyle {
             surface,
@@ -601,6 +597,10 @@ impl Component for MenuItem<'_> {
         }
         if back && level.is_submenu() {
             level.request_close();
+        } else if !level.is_submenu() && (back || (forward && !self.submenu)) {
+            let rtl = cx.flow.is_rtl();
+            level.request_step(if back != rtl { MenuStep::Prev } else { MenuStep::Next });
+            frame::request_repaint(&ctx);
         }
         let now = frame::clock(&ctx);
         let moving = ctx.input(|input| input.pointer.delta() != Vec2::ZERO);
@@ -728,6 +728,7 @@ impl Component for MenuItem<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let level = cx.env.get::<MenuLevel>();
+        access.name(Name::Text(mnemonic::marked(cx.resolved.label).0));
         match self.mark(cx.command.as_deref(), &level) {
             Some(Mark::Radio(_)) => {
                 access.role(Role::MENU_ITEM_RADIO);
@@ -768,19 +769,4 @@ fn glyph_span(layout: &TextLayout, at: usize) -> Option<(f32, f32)> {
 struct Rest {
     since: Option<f64>,
     focused: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_pointer_heads_for_the_submenu_inside_the_triangle_to_its_near_edge() {
-        let submenu = Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 100.0));
-        let from = pos2(0.0, 50.0);
-        assert!(heads_toward(from, pos2(50.0, 50.0), submenu));
-        assert!(heads_toward(from, pos2(50.0, 30.0), submenu));
-        assert!(!heads_toward(from, pos2(50.0, 200.0), submenu));
-        assert!(!heads_toward(from, pos2(-20.0, 50.0), submenu));
-    }
 }

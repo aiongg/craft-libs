@@ -8,6 +8,9 @@ use egui::{Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
+/// The digits the trial types into the number field.
+const TYPED: &str = "42";
+
 /// Tab focuses the number field first, as it is first on screen: typed digits and Enter set the number, and the unit
 /// is left as it was.
 #[trial]
@@ -25,8 +28,8 @@ fn tab_focuses_the_number_field_first() {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);
     fixture.key(Key::A, Modifiers::COMMAND);
-    fixture.type_text("42");
+    fixture.type_text(TYPED);
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(4);
-    assert_eq!(width.get(), Some(42.0));
+    assert_eq!(width.get(), TYPED.parse().ok());
 }
