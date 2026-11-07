@@ -531,3 +531,61 @@ old = ""
 new = "craft_ui::docking::stack::section_heights"
 status = "replaced"
 note = "The legacy accordion section sizing in `render::dock` and `render::mod` (private); a closed section is its title row, open ones share the rest."
+
+[[setter]]
+type = "Monitor"
+old = "Monitor { name, rect, scale }"
+new = "Monitor::new(name, rect, scale)"
+
+[[setter]]
+type = "Permissions"
+old = "Permissions { movable, floatable, closable, accepts_tabs, accepts_splits }"
+new = "Permissions::new(movable, floatable, closable, accepts_tabs, accepts_splits)"
+
+[[setter]]
+type = "Permissions"
+old = "Permissions { accepts_splits: true, ..Permissions::PROTECTED }"
+new = "Permissions::new(false, false, false, false, true)"
+
+# dock-columns-a: dock columns, iconic columns and flyouts.
+[[type]]
+name = "open_flyout"
+old = "craft_ui::docking::open_flyout"
+new = ""
+status = "replaced"
+note = "`IconicColumn::open(panel)` asks for the flyout of a panel; the host passes it to the column, and `IconicColumnOutput::flyout` reports every change."
+
+[[type]]
+name = "close_flyout"
+old = "craft_ui::docking::close_flyout"
+new = ""
+status = "replaced"
+note = "A flyout closes by Escape, a press outside, a drag that begins on the column, or its icon; `IconicColumnOutput::flyout` reports `Some(None)`. The host stops passing `open`."
+
+[[type]]
+name = "flyout"
+old = "craft_ui::docking::flyout"
+new = ""
+status = "replaced"
+note = "`IconicColumnOutput::flyout` holds the change of the open flyout; the host keeps the panel shown."
+
+[[type]]
+name = "DockColumn"
+old = ""
+new = "craft_ui::docking::DockColumn"
+status = "replaced"
+note = "A column of a side dock: the column bar over the stacked groups. Replaces the hand-rolled column bar, collapse button and group stacking of the dock renderer."
+
+[[type]]
+name = "IconicColumn"
+old = ""
+new = "craft_ui::docking::IconicColumn"
+status = "replaced"
+note = "A column collapsed to icons with the flyouts its icons open. Replaces the hand-rolled icon cell, icon grip and Auto-Collapse check box (a checked row of the column menu)."
+
+[[type]]
+name = "Flyout"
+old = ""
+new = "craft_ui::docking::Flyout"
+status = "replaced"
+note = "The popup beside an iconic column, built on `Overlay::popover` and hung from the icon's part."

@@ -29,6 +29,17 @@ pub use splitter::{Splitter, SplitterStyle};
 pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
 
+mod dock_column;
+mod flyout;
+mod iconic;
+
+pub use dock_column::{
+    ColumnGesture, ColumnSizes, DockColumn, DockColumnOutput, DockColumnStyle, GroupSize, GroupView, drag_divider, fit_widths, group_heights,
+    stacked, width_bounds,
+};
+pub use flyout::Flyout;
+pub use iconic::{IconicColumn, IconicColumnOutput, IconicColumnStyle, IconicSizes};
+
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
     Focus as _, Name, Numeric, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
