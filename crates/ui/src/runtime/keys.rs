@@ -862,6 +862,7 @@ fn route_access(
 #[derive(Clone, Debug, Default)]
 pub struct Intents {
     items: Vec<(Intent, bool)>,
+    took_arrow_move: bool,
     nudge: Option<(Vec2, Mods)>,
     set_value: Option<(Option<PartRef>, f64)>,
     whole_reset: bool,
@@ -931,9 +932,17 @@ impl Intents {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Move(..)))?;
         self.items[at].1 = true;
         match self.items[at].0 {
-            Intent::Move(mv, mods) => Some((mv, mods)),
+            Intent::Move(mv, mods) => {
+                self.took_arrow_move |= matches!(mv, NavMove::Back | NavMove::Forward | NavMove::Up | NavMove::Down);
+                Some((mv, mods))
+            }
             _ => None,
         }
+    }
+
+    /// Whether `take_move` took an arrow move this pass: the run step checks that the component declared `moves`.
+    pub(crate) fn took_arrow_move(&self) -> bool {
+        self.took_arrow_move
     }
 
     /// Takes the next move that scrolls (page up or down, start, end): what a focused component that does not

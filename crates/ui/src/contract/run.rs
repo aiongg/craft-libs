@@ -609,6 +609,11 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::edit_intents(comp, cx);
     steps::scrub_by_label(comp, cx);
     comp.update(cx);
+    debug_assert!(
+        !cx.core.intents.took_arrow_move() || p.hooks.key_role(comp).moves || text_keys.unwrap_or(C::KEYS).moves,
+        "`{}` takes arrow moves with `take_move` and must declare `moves` in its `KeyUse` or `KeyRole`",
+        std::any::type_name::<C>()
+    );
     p.hooks.updated(comp, cx);
     steps::record_context(&cx.core);
     if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
