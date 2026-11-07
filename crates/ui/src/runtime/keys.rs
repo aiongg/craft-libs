@@ -378,13 +378,17 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
     let mut consumed = vec![false; batch.presses.len()];
+    let dropdown = target.as_ref().and_then(|rec| Dropdown::of(ctx, rec));
     if let Some(rec) = &target {
         for (press, taken) in batch.presses.iter().zip(&mut consumed) {
-            *taken = route_press(ctx, os, rec, press, &mut routed, &mut activated);
+            *taken = route_press(ctx, os, rec, press, dropdown, &mut routed, &mut activated);
         }
         for text in &batch.texts {
             let typed = rec.stop.role.type_ahead && !text.trim().is_empty();
-            if matches!(rec.stop.keys.owner, OwnerClass::Text) || typed {
+            let to_list = dropdown.filter(|dropdown| !dropdown.text && !text.trim().is_empty());
+            if let Some(dropdown) = to_list {
+                push(&mut routed, Some(dropdown.list), Intent::Text(Arc::from(text.as_str())), false);
+            } else if matches!(rec.stop.keys.owner, OwnerClass::Text) || typed {
                 routed.entry(Some(rec.stop.id)).or_default().items.push(Item { intent: Intent::Text(Arc::from(text.as_str())), horizontal: false });
             }
         }
@@ -413,11 +417,14 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         }
         push(&mut routed, focused, Intent::Cancel, false);
     }
-    let claimed = batch
-        .claimed
-        .iter()
-        .filter_map(|chord| captures.iter().find(|(_, held)| held == chord).map(|(owner, _)| *owner).or(focused).map(|id| (id, *chord)))
-        .collect::<Vec<_>>();
+    // A text opener's list keys arrive as claimed chords, withheld from its text part: they go to the list.
+    let mut claimed = Vec::new();
+    for chord in &batch.claimed {
+        match dropdown.and_then(|dropdown| dropdown.intent_of(chord)) {
+            Some(intent) => push(&mut routed, dropdown.map(|dropdown| dropdown.list), intent, false),
+            None => claimed.extend(captures.iter().find(|(_, held)| held == chord).map(|(owner, _)| *owner).or(focused).map(|id| (id, *chord))),
+        }
+    }
     for request in &batch.access {
         route_access(ctx, request, &nodes, &mut routed, &mut activated);
     }
@@ -431,6 +438,9 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
             stage.shortcuts.layout = stage.layout.clone();
         }
         stage.pasted = pasted;
+        if let (Some(_), Some(rec)) = (dropdown.filter(|dropdown| dropdown.text), &target) {
+            stage.claims.extend(LIST_KEYS.iter().filter(|key| dropdown_intent(**key, true).is_some()).map(|key| (rec.stop.id, Chord::plain(*key))));
+        }
     });
     escapes.cancels_press
 }
@@ -512,13 +522,57 @@ pub(crate) fn pasted_text(ctx: &Context, id: Id) -> Option<Arc<str>> {
     current(ctx, |stage| stage.pasted.as_ref().filter(|(owner, _)| *owner == id).map(|(_, text)| Arc::clone(text)))
 }
 
-/// One key press of the focused component: the table's row, else the activation keys, else a nudge. Returns
-/// whether the component's intents took the press.
+/// The collection of an open `KeepAnchor` dropdown whose opener has the key focus.
+#[derive(Clone, Copy)]
+struct Dropdown {
+    /// The collection inside the dropdown's layer.
+    list: Id,
+    /// The opener is a text owner: its typing and caret keys stay with it, and Tab goes to the list.
+    text: bool,
+}
+
+/// The keys an opener hands to its dropdown's list. Left, Right and Space stay with the opener.
+const LIST_KEYS: [Key; 8] = [Key::Up, Key::Down, Key::PageUp, Key::PageDown, Key::Home, Key::End, Key::Enter, Key::Tab];
+
+impl Dropdown {
+    fn of(ctx: &Context, opener: &StopRec) -> Option<Dropdown> {
+        let list = focus::registration::dropdown_target(ctx, opener.stop.key())?;
+        Some(Dropdown { list, text: matches!(opener.stop.keys.owner, OwnerClass::Text) })
+    }
+
+    /// The intent a claimed chord of the opener becomes for the list.
+    fn intent_of(self, chord: &Chord) -> Option<Intent> {
+        chord.mods.is_none().then(|| dropdown_intent(chord.key, self.text)).flatten()
+    }
+}
+
+/// The list intent of a plain key the opener hands on: vertical moves and Page keys, Home and End (a text opener
+/// keeps them for its caret), and Enter as the activation. A text opener's Tab accepts the lead too: there Tab is
+/// not the way to the next stop while the list is open.
+fn dropdown_intent(key: Key, text: bool) -> Option<Intent> {
+    let moved = |mv| Some(Intent::Move(mv, MoveMods::PLAIN));
+    match key {
+        Key::Up => moved(NavMove::Up),
+        Key::Down => moved(NavMove::Down),
+        Key::PageUp => moved(NavMove::PageUp),
+        Key::PageDown => moved(NavMove::PageDown),
+        Key::Home if !text => moved(NavMove::Start),
+        Key::End if !text => moved(NavMove::End),
+        Key::Enter => Some(Intent::Activate),
+        Key::Tab if text => Some(Intent::Activate),
+        _ => None,
+    }
+}
+
+/// One key press of the focused component: the table's row, else the activation keys, else a nudge. The keys of
+/// an open dropdown's list (`LIST_KEYS`) go to the dropdown's collection first. Returns whether the component's
+/// intents took the press.
 fn route_press(
     ctx: &Context,
     os: Os,
     rec: &StopRec,
     press: &Press,
+    dropdown: Option<Dropdown>,
     routed: &mut HashMap<Option<Id>, Routed>,
     activated: &mut HashMap<Id, Id>,
 ) -> bool {
@@ -526,6 +580,13 @@ fn route_press(
     let id = Some(stop.id);
     let horizontal = matches!(press.key, Key::Left | Key::Right);
     let plain = press.mods.is_none();
+    if let Some(dropdown) = dropdown
+        && plain
+        && let Some(intent) = dropdown_intent(press.key, dropdown.text)
+    {
+        push(routed, Some(dropdown.list), intent, false);
+        return true;
+    }
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
             // Up, Down, Page, Home and End leave a row's children: the collection takes the move.

@@ -8,6 +8,9 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::Response;
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The style of a popup list: the surface comes from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -16,12 +19,14 @@ pub struct PopupListStyle {
     metrics: Metrics,
 }
 
-/// A list popup under a field the app owns (a combo, a history picker). The body is the caller's `List`.
+/// A list popup under a field the app owns (a combo, a history picker). The body is the caller's `List::options`.
 ///
 /// - The popup is at least as wide as its opener and capped to a share of the viewport.
-/// - The opener keeps the keyboard focus; the list takes the arrow keys while the popup is open.
+/// - The opener keeps the keyboard focus. While the popup is open the host hands the opener's list keys (Up, Down,
+///   Page, Home, End, Enter and type-ahead on an opener that is not a text field) to the list.
 /// - Activating a row closes the popup with `CloseReason::Activated`; Escape and a press outside close it too.
 /// - Open state: the caller's binding. The output's `closed` says why it closed in this pass.
+/// - The popup is a group; the caller's `List::options` is the listbox inside it.
 ///
 /// Components that own their list (`Select`, completions) open it from their overlay hook instead.
 #[derive(crate::contract::Component, crate::contract::Props)]
@@ -38,9 +43,7 @@ pub struct PopupList<'a> {
 impl<'a> PopupList<'a> {
     /// A popup list named `label`, open while `open` is true.
     pub fn new(label: impl Into<Label>, open: Bind<'a, bool>) -> Self {
-        let mut overlay = Overlay::dropdown();
-        overlay.dismiss = overlay.dismiss.on_activate(true);
-        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).collection_body().mount(Mount::Layer(overlay));
+        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).collection_body().mount(Mount::Layer(Overlay::dropdown()));
         PopupList { common: Common::new(), props, open, closed: None }.label(label)
     }
 
@@ -57,7 +60,7 @@ impl<'a> PopupList<'a> {
 }
 
 impl Component for PopupList<'_> {
-    const ROLE: Role = Role::LIST_BOX;
+    const ROLE: Role = Role::GROUP;
     type Style = PopupListStyle;
     type Output = PopoverOutput;
 

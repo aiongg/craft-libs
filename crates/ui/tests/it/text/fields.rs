@@ -83,7 +83,7 @@ impl Completer for Prefixes {
     }
 }
 
-/// The completion list takes Up, Down and Tab while it is open, and the caret does not move.
+/// The completion list gets Up, Down and Tab from the field while it is open, and the caret does not move.
 #[trial]
 fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move() {
     let mut rig = Rig::new("");
@@ -115,7 +115,7 @@ fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move()
         frame(&mut rig, vec![key_press(key, Modifiers::NONE)]);
         frame(&mut rig, vec![]);
     }
-    assert_eq!(caret(&rig.frames.ctx, widget), before, "a claimed Up or Down does not also move the caret");
+    assert_eq!(caret(&rig.frames.ctx, widget), before, "Up and Down go to the list and do not also move the caret");
     let focus = craft_ui::testing::focus::egui_focused(&rig.frames.ctx);
     frame(&mut rig, vec![key_press(Key::Tab, Modifiers::NONE)]);
     for _ in 0..4 {
@@ -134,25 +134,56 @@ fn completing(rig: &mut Rig, events: Vec<Event>) {
     });
 }
 
-/// Enter accepts the highlighted candidate in the pass it arrives, replacing the range the completer named, and the
+/// The names of the option nodes the completion list shows, sorted.
+fn option_names(rig: &mut Rig) -> Vec<String> {
+    let tree = rig.frames.tree();
+    let mut names: Vec<String> = tree.with_role(UiRole::LIST_BOX_OPTION).iter().filter_map(|key| tree.name_of(*key)).map(str::to_owned).collect();
+    names.sort_unstable();
+    names
+}
+
+/// Down moves the highlighted row and Enter accepts it into the draft, replacing the range the completer named; the
 /// list's rows are option nodes named by their candidates.
 #[trial]
-fn completion_accepts_in_the_pass_of_the_key_and_lists_option_nodes() {
+fn completion_down_moves_the_highlight_and_enter_accepts_it() {
     let mut rig = Rig::new("");
     rig.focus();
     completing(&mut rig, vec![Event::Text("al".into())]);
     for _ in 0..4 {
         completing(&mut rig, vec![]);
     }
-    let tree = rig.frames.tree();
-    let options = tree.with_role(UiRole::LIST_BOX_OPTION);
-    let mut names: Vec<_> = options.iter().filter_map(|key| tree.name_of(*key)).collect();
-    names.sort_unstable();
-    assert_eq!(names, ["alpha", "alps"], "one option node per candidate");
+    assert_eq!(option_names(&mut rig), ["alpha", "alps"], "one option node per candidate");
     completing(&mut rig, vec![key_press(Key::ArrowDown, Modifiers::NONE)]);
     completing(&mut rig, vec![]);
     completing(&mut rig, vec![key_press(Key::Enter, Modifiers::NONE)]);
-    assert_eq!(rig.text, "alps", "the candidate replaced the typed prefix in the pass of Enter");
+    for _ in 0..3 {
+        completing(&mut rig, vec![]);
+    }
+    assert_eq!(rig.text, "alps", "the highlighted candidate replaced the typed prefix");
+    assert!(option_names(&mut rig).is_empty(), "accepting closes the list");
+}
+
+/// Escape hides the open list through its dropdown and leaves the draft as typed; typing again shows it again.
+#[trial]
+fn escape_hides_the_completion_list_and_keeps_the_draft() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    completing(&mut rig, vec![Event::Text("al".into())]);
+    for _ in 0..4 {
+        completing(&mut rig, vec![]);
+    }
+    assert_eq!(option_names(&mut rig).len(), 2, "typing opens the list");
+    completing(&mut rig, vec![key_press(Key::Escape, Modifiers::NONE)]);
+    for _ in 0..4 {
+        completing(&mut rig, vec![]);
+    }
+    assert!(option_names(&mut rig).is_empty(), "Escape hides the list");
+    assert_eq!(rig.text, "al", "and the draft stays as typed");
+    completing(&mut rig, vec![Event::Text("p".into())]);
+    for _ in 0..4 {
+        completing(&mut rig, vec![]);
+    }
+    assert_eq!(option_names(&mut rig), ["alps"], "a changed draft shows the list again");
 }
 
 /// A number field parses through its codec, rejects text that is no number and keeps the value.

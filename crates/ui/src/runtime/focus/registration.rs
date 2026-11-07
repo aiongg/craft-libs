@@ -1,9 +1,9 @@
 //! The registrations of the focus service: a stop and a roving group. The types are `pub` so the testing kit can
 //! name them; the module is crate-private, so no other path reaches them.
 
-use super::{KeyUse, Roving, StopKey};
+use super::{Initial, KeyUse, Roving, StopKey, with};
 use craft_behavior::{KeyRole, PartRef};
-use egui::Id;
+use egui::{Context, Id};
 
 /// A stop as registered at step 7 of the pipeline.
 #[derive(Clone, Debug)]
@@ -125,4 +125,27 @@ impl Group {
         self.owner = Some(owner);
         self
     }
+}
+
+/// The collection a dropdown's opener hands its list keys to: the stop with the collection's key role that is
+/// registered inside the focus scope of the innermost open `KeepAnchor` layer opened from the stop `opener`.
+/// `None` while no such layer is open.
+pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<Id> {
+    with(ctx, |state| {
+        let layer =
+            *state.last_scope_order.iter().rev().find(|id| {
+                state.last_scopes.get(*id).is_some_and(|scope| scope.policy.initial == Initial::KeepAnchor && scope.opener == Some(opener))
+            })?;
+        let inside = |rec: &super::StopRec| {
+            let mut at = rec.scope;
+            while let Some(scope) = at {
+                if scope == layer {
+                    return true;
+                }
+                at = state.last_scopes.get(&scope).and_then(|record| record.parent);
+            }
+            false
+        };
+        state.last_stops.iter().find(|rec| rec.stop.role.type_ahead && inside(rec)).map(|rec| rec.stop.id)
+    })
 }
