@@ -11,7 +11,8 @@ new_module = "craft_ui::patterns::presets"
 name = "PresetBrowser"
 old = "craft_ui::presets::PresetBrowser"
 new = "craft_ui::patterns::presets::PresetBrowser"
-status = "pending"
+status = "moved"
+note = "A pattern: `new(label, Bind<PresetState<K>>, &[PresetRow<K>])` in place of `new(id_salt, label, &mut state, rows)`; pass `Bind::bound(&mut state)` so the browser can write the view, zoom, open groups and search text. `show(ui)` returns `PresetOutput` and takes no thumbnail closure: paint with the `thumb` setter or each row's `preview`. The grid is a `TileGrid`, the list a tree `List`."
 
 [[type]]
 name = "PresetPicker"
@@ -296,3 +297,172 @@ new = "icon(IconId)"
 type = "PresetState"
 old = "thumb_in(&RangeInclusive<f32>)"
 new = "zoom_in(&TileZoom)"
+
+[[type]]
+name = "PresetReorder"
+old = "craft_ui::presets::PresetReorder"
+new = "craft_ui::patterns::presets::PresetReorder"
+status = "moved"
+note = "`items()`, `items_and_groups()`, `nest(levels)` as before; `accepts` takes the item step's drop test `Fn(&ListDrag<K>, &K, usize) -> bool` in place of `Fn(&Move<K>, Modifiers)`. A drop never goes into a group (the contract's reorder is flat); `PresetEvent::MoveTo` names a group."
+
+[[type]]
+name = "PresetStyle"
+old = "craft_ui::presets::PresetStyle"
+new = ""
+status = "removed"
+note = "The look is the look of `TileGrid`, `Tile`, `List` and `ListRow`; the 31 fields have no counterpart."
+
+[[type]]
+name = "view"
+old = "craft_ui::presets::view"
+new = ""
+status = "removed"
+note = "The browser's own virtualised column, keys, lead ring and drop halo are the item step of `TileGrid` and `List`."
+
+[[type]]
+name = "toolbar"
+old = "craft_ui::presets::toolbar"
+new = ""
+status = "removed"
+note = "The toolbar is a `Bar` with `TextField::search` and a `Segmented` view switch, shown by `PresetBrowser::toolbar(true)`."
+
+[[type]]
+name = "rename"
+old = "craft_ui::presets::rename"
+new = ""
+status = "removed"
+note = "Rename is the collection's in-place editor (F2 or a double click on the name); the commit is `PresetEvent::Rename`. There is no rename bar."
+
+[[type]]
+name = "ThumbPainter"
+old = ""
+new = "craft_ui::patterns::presets::ThumbPainter"
+status = "replaced"
+note = "The closure type of `PresetBrowser::thumb`: `Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>)` in place of `FnMut(&Painter, Rect, ThumbInfo<'_, K>)`."
+
+[[type]]
+name = "PresetItemCommands"
+old = ""
+new = "craft_ui::patterns::presets::PresetItemCommands"
+status = "replaced"
+note = "The commands of the context menu's rows (Delete, Delete Group); the old menu had no commands."
+
+[[setter]]
+type = "PresetBrowser"
+old = "new(id_salt, label, &mut state, rows)"
+new = "new(label, Bind::bound(&mut state), rows)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "selected(Option<&K>)"
+new = "selected(K)"
+note = "No call for no selection."
+
+[[setter]]
+type = "PresetBrowser"
+old = "cell_shape(CellShape)"
+new = "cell_shape(CellShape)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "flush(bool)"
+new = ""
+note = "Not built: `TileGrid` has no gapless mode."
+
+[[setter]]
+type = "PresetBrowser"
+old = "thumb_range(RangeInclusive<f32>)"
+new = "thumb_range(TileZoom)"
+note = "The zoom the footer's slider spans, in place of points."
+
+[[setter]]
+type = "PresetBrowser"
+old = "default_open(DefaultOpen)"
+new = "default_open(DefaultOpen)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "reorder(PresetReorder)"
+new = "reorder(PresetReorder)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "labels(PresetLabels)"
+new = ""
+note = "The words come from the scope's `PresetWords`."
+
+[[setter]]
+type = "PresetBrowser"
+old = "can_rename(Fn(&K) -> bool)"
+new = "can_rename(Fn(&K) -> bool)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "can_delete(Fn(&K) -> bool)"
+new = "can_delete(Fn(&K) -> bool)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "can_move(Fn(&K) -> bool)"
+new = ""
+note = "Not built: the context menu has no Move to row (no submenu route for a family); drag reorders, and `PresetEvent::MoveTo` stays for a host that moves by its own menu."
+
+[[setter]]
+type = "PresetBrowser"
+old = "extra_items(impl IntoIterator<Item = MenuEntry<String>>)"
+new = "extra_items(impl IntoIterator<Item = Entry<String>>)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "context_menu(bool)"
+new = "context_menu(bool)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "toolbar(bool)"
+new = "toolbar(bool)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "start_rename(K)"
+new = ""
+note = "Not built: a collection starts a rename only from F2 or the rename command, not for a key from code."
+
+[[setter]]
+type = "PresetBrowser"
+old = "view_lock(PresetView)"
+new = "view_lock(PresetView)"
+
+[[setter]]
+type = "PresetBrowser"
+old = "max_height(f32)"
+new = ""
+note = "Size props are gone: the browser takes the room its container gives it."
+
+[[setter]]
+type = "PresetBrowser"
+old = "min_height(f32)"
+new = ""
+note = "Size props are gone: the browser takes the room its container gives it."
+
+[[setter]]
+type = "PresetBrowser"
+old = "shrink_to_content(bool)"
+new = ""
+note = "Size props are gone: the browser takes the room its container gives it."
+
+[[setter]]
+type = "PresetBrowser"
+old = "footer(PresetFooterOptions)"
+new = "footer(impl FnOnce(PresetFooter) -> PresetFooter)"
+note = "The browser makes the footer with its zoom bound to the slider and the count of presets; the closure adds the host's buttons."
+
+[[setter]]
+type = "PresetBrowser"
+old = "show(ui, thumb)"
+new = "thumb(Fn(&ContentPainterCx, Rect, ThumbInfo<K>)) then show(ui)"
+
+[[setter]]
+type = "PresetReorder"
+old = "accepts(Fn(&Move<K>, Modifiers) -> bool)"
+new = "accepts(Fn(&ListDrag<K>, &K, usize) -> bool)"
