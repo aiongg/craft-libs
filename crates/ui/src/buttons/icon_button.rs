@@ -135,7 +135,7 @@ impl Component for IconButton<'_> {
             let triangle = PaintShape::Polygon(vec![corner, Pos2::new(end, bottom - cx.style.mark), Pos2::new(end + reach, bottom)]);
             draw.fill(&triangle, cx.style.mark_color);
         }
-        let marked = cx.command().is_some_and(|command| command.marked);
+        let marked = cx.command.as_ref().is_some_and(|command| command.marked);
         if self.badge.is_some() || marked {
             let radius = cx.style.marker / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };
