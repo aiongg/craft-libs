@@ -1097,7 +1097,7 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
             intent => (intent, false),
         })
         .collect();
-    Intents { items, nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
+    Intents { items, took_arrow_move: false, nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
