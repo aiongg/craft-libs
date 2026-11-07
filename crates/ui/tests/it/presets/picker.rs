@@ -84,7 +84,8 @@ fn deleted_from_menu(label: &str, key: u32) -> bool {
     fixture.frame(vec![pointer::secondary(at, true)]);
     fixture.frame(vec![pointer::secondary(at, false)]);
     fixture.idle(3);
-    let delete = fixture.by_label("Delete").expect("the menu's Delete row");
+    let names: Vec<String> = fixture.tree().keys().into_iter().filter_map(|key| fixture.tree().name_of(key).map(str::to_owned)).collect();
+    let delete = fixture.by_label("Delete").unwrap_or_else(|| panic!("the menu's Delete row among {names:?}"));
     fixture.click(&delete);
     fixture.idle(3);
     let reported = seen.borrow().contains(&PresetEvent::Delete(key));
