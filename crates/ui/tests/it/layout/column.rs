@@ -48,5 +48,5 @@ fn a_hidden_label_row_in_a_label_column_starts_its_control_in_the_control_column
     });
     let (named, hidden) = (named.borrow().rect.min.x, hidden.borrow().rect.min.x);
     assert!((named - hidden).abs() < 0.5, "the hidden row's control lines up with the named row's: {named} vs {hidden}");
-    assert!(hidden > ROW.min.x + 1.0, "the control does not start at the row start");
+    assert!(hidden > ROW.min.x + 1.0, "the control does not start at the row start: named {named}, hidden {hidden}, row {}", ROW.min.x);
 }
