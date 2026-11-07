@@ -107,20 +107,20 @@ hayro-syntax = { path = "vendor/hayro-syntax" }
 hayro-jbig2 = { path = "vendor/hayro-jbig2" }
 hayro-cmap = { path = "vendor/hayro-cmap" }
 hayro-postscript = { path = "vendor/hayro-postscript" }
-ecolor = { path = "/home/iong/.cache/egui-perf3/crates/ecolor" }
-emath = { path = "/home/iong/.cache/egui-perf3/crates/emath" }
-epaint = { path = "/home/iong/.cache/egui-perf3/crates/epaint" }
-epaint_default_fonts = { path = "/home/iong/.cache/egui-perf3/crates/epaint_default_fonts" }
-egui = { path = "/home/iong/.cache/egui-perf3/crates/egui" }
-egui-winit = { path = "/home/iong/.cache/egui-perf3/crates/egui-winit" }
-egui-wgpu = { path = "/home/iong/.cache/egui-perf3/crates/egui-wgpu" }
-egui_glow = { path = "/home/iong/.cache/egui-perf3/crates/egui_glow" }
-egui_extras = { path = "/home/iong/.cache/egui-perf3/crates/egui_extras" }
-egui_kittest = { path = "/home/iong/.cache/egui-perf3/crates/egui_kittest" }
-egui_system_font_provider = { path = "/home/iong/.cache/egui-perf3/crates/egui_system_font_provider" }
-eframe = { path = "/home/iong/.cache/egui-perf3/crates/eframe" }
-egui_demo_lib = { path = "/home/iong/.cache/egui-perf3/crates/egui_demo_lib" }
-egui_inspection = { path = "/home/iong/.cache/egui-perf3/crates/egui_inspection" }
+ecolor = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+emath = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+epaint = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+epaint_default_fonts = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui-winit = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui-wgpu = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_glow = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_extras = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_kittest = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_system_font_provider = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+eframe = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_demo_lib = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
+egui_inspection = { git = "https://github.com/aiongg/egui.git", rev = "4b93a86c52348eb53e883c9b6b9f59c573608e07" }
 winit = { git = "https://github.com/storytold/winit.git", rev = "a517b3846ee8457d84ee4975110bfda6797c44dc" }
 
 # symphonia's FLAC decoder restores LPC samples as `residual + (prediction as i32)`. In a valid
