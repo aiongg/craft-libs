@@ -13,6 +13,10 @@ mod model;
 mod panel_menu;
 mod state;
 
+// The picker and the named row.
+mod named;
+mod picker;
+
 pub use browser::{FooterSetup, PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
 pub use event::{PresetEvent, PresetOutput};
 pub use files::{PresetExport, PresetFileEvent, PresetFileFailure, PresetFileRequest, PresetFiles};
@@ -23,4 +27,6 @@ pub use model::{
 };
 pub use panel_menu::{PresetCommands, PresetMenuAction, PresetPanelMenu};
 pub use state::{DefaultOpen, PresetState, PresetView, default_is_open};
+pub use named::{NameCheck, NamedPresetCommands, NamedPresetEvent, NamedPresetOutput, NamedPresetRow};
+pub use picker::{PickerField, PresetPicker, PresetPickerOutput, PresetPickerStyle};
 pub use words::PresetWords;

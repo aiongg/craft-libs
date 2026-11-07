@@ -5,3 +5,6 @@ mod model;
 
 // The browser's reorder rules.
 mod browser;
+
+// The picker.
+mod picker;
