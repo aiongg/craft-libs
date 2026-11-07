@@ -518,6 +518,8 @@ note = "The style is built by the component's style hook."
 
 [[setter]]
 type = "SmartGuides"
+old = "color(Color32)"
+new = "color(DataColor)"
 
 # canvas-controls-b: marquee, outlines, line preview, grids
 

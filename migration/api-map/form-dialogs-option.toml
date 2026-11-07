@@ -42,7 +42,7 @@ note = "`label` is a `Label`; the standard actions take `&ListManagerWords`; `to
 name = "ListManagerChoice"
 old = "craft_ui::dialog::list_manager::ListManagerChoice"
 new = "craft_ui::patterns::form_dialogs::ListManagerChoice"
-status = "same"
+status = "moved"
 
 [[type]]
 name = "ActionEnabled"
