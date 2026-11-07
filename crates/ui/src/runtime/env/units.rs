@@ -4,7 +4,7 @@
 use craft_behavior::quantity::{Reader, is_unit_spelling};
 use craft_i18n::{Format, WordSet as _};
 use std::ops::RangeInclusive;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 craft_ui::words! {
     /// The unit words: `{n}` is where the number goes.
@@ -87,11 +87,13 @@ impl UnitKind {
 pub struct Units {
     format: Arc<Format>,
     words: Arc<UnitWords>,
+    /// The readers built so far, one slot per `reader` argument (see `reader_slot`); shared by clones.
+    readers: Arc<[OnceLock<Reader>; UnitKind::ALL.len() + 1]>,
 }
 
 impl Units {
     pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>) -> Units {
-        Units { format, words }
+        Units { format, words, readers: Arc::default() }
     }
 
     fn template(&self, kind: UnitKind) -> &str {
@@ -163,14 +165,22 @@ impl Units {
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
     /// the unit spellings that convert to `kind`, in the user's language and in English.
     pub fn reader(&self, kind: Option<UnitKind>) -> Reader {
+        self.readers[Self::reader_slot(kind)].get_or_init(|| self.build_reader(kind)).clone()
+    }
+
+    /// The index of the reader for `kind` in `readers`: 0 for plain numbers, then one per unit kind.
+    fn reader_slot(kind: Option<UnitKind>) -> usize {
+        kind.map_or(0, |kind| 1 + UnitKind::ALL.iter().position(|other| *other == kind).unwrap_or(0))
+    }
+
+    fn build_reader(&self, kind: Option<UnitKind>) -> Reader {
         let (decimal, group) = self.format.separators();
         let mut reader = Reader::new().decimal(decimal);
         if let Some(group) = group {
             reader = reader.group(group);
         }
         let Some(kind) = kind else { return reader };
-        let english = UnitWords::english();
-        let english = Units { format: self.format.clone(), words: Arc::new(english) };
+        let english = Units::new(self.format.clone(), Arc::new(UnitWords::english()));
         for other in UnitKind::ALL {
             let factor = match (kind.millimetres(), other.millimetres()) {
                 (Some(of), Some(per)) => per / of,
