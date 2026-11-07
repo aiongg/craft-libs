@@ -5,9 +5,10 @@ use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
-use crate::runtime::egui::{access, alloc};
+use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
+use crate::style::Ink;
 use craft_behavior::PartRef;
 use craft_theme::ControlSize;
 use egui::{Id, Rect, Response, Ui};
@@ -19,6 +20,8 @@ use std::hash::Hash;
 pub struct PaintUi<'a> {
     pub(crate) ui: &'a mut Ui,
     pub(crate) env: &'a Env,
+    /// The ink of the component's own surface, which `draw` paints text and rules in.
+    pub(crate) ink: Ink,
     pub(crate) id: Id,
     pub(crate) rect: Rect,
     pub(crate) record: &'a RefCell<PaintRecord>,
@@ -36,7 +39,7 @@ pub struct PaintUi<'a> {
 impl PaintUi<'_> {
     /// The content-paint API: text, rules, surfaces and shapes, recorded for the later steps.
     pub fn draw(&self) -> Draw<'_> {
-        Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.env.ink })
+        Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
     }
 
     /// Shows a child component at a physical rect, with id `cx.key(key)`. The child `Ui` is pinned left to
@@ -55,7 +58,7 @@ impl PaintUi<'_> {
         let scope = sub(self.id, "children");
         let parent = &mut *self.ui;
         let kids = self.kids.get_or_insert_with(|| {
-            let builder = egui::UiBuilder::new().layout(egui::Layout::left_to_right(egui::Align::Min)).scope_id(scope).max_rect(self.rect);
+            let builder = egui::UiBuilder::new().layout(child::pinned_layout()).scope_id(scope).max_rect(self.rect);
             alloc::child(parent, access::with_parent(builder, self.id))
         });
         let ctx = kids.ctx().clone();

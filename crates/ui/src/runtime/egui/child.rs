@@ -15,6 +15,12 @@ pub(crate) fn row_layout(right_to_left: bool, wrap: bool) -> Layout {
     layout.with_main_wrap(wrap)
 }
 
+/// The layout of the children `PaintUi` builds: left to right with items on the top line, never mirrored, because
+/// children sit at physical rects the composite computed.
+pub(crate) fn pinned_layout() -> Layout {
+    Layout::left_to_right(Align::Min)
+}
+
 /// Runs `body` in a child `Ui` with an explicit layout and returns what it produced with the rect the child
 /// took in `ui`. `rect` bounds the child; `None` gives it the rest of the parent.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]

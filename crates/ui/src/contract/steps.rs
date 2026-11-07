@@ -5,13 +5,13 @@ use super::cx::{CxCore, Decls, MeasureCx};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, ValueOf};
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::commands::ResolvedCommand;
-use crate::runtime::egui::{memory as store, pass, response};
+use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
-use crate::style::{ComponentStyle, Flags, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
+use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{KeyRole, MotionMode, PartRef, Proposal, Roving, Sense};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
@@ -83,8 +83,9 @@ struct Runs {
 
 const ALL: Runs = Runs { leaf: true, body: true, item: true };
 
-/// The one step table: each step and the shapes that run it (1.6). `run` asks it before each step, so a shape's
-/// omission is a row here and not a branch in `run`.
+/// The one step table: which shapes run each step (1.6). It gates only a step a shape omits, which today is the
+/// content step of a leaf. The order the steps run in is the order of the `Trace::mark` calls in `run`, not the order
+/// of the rows.
 const TABLE: [(Step, Runs); 17] = [
     (Step::Env, ALL),
     (Step::Style, ALL),
@@ -114,13 +115,33 @@ pub(crate) fn runs(step: Step, shape: ShapeKind) -> bool {
     })
 }
 
-/// Runs the step if the table says `shape` runs it, and records it.
-pub(crate) fn mark(ctx: &Context, id: Id, shape: ShapeKind, step: Step) -> bool {
-    let run = runs(step, shape);
-    if run {
-        inspect::step(ctx, id, step.name());
+/// The step record of one show. `recording` is read once per run, so a release frame with the inspector off
+/// takes no lock per step; a sizing pass records nothing.
+#[derive(Clone, Copy)]
+pub(crate) struct Trace<'a> {
+    ctx: &'a Context,
+    id: Id,
+    shape: ShapeKind,
+    recording: bool,
+}
+
+impl<'a> Trace<'a> {
+    pub(crate) fn new(ctx: &'a Context, id: Id, shape: ShapeKind, recording: bool) -> Self {
+        Trace { ctx, id, shape, recording }
     }
-    run
+
+    pub(crate) fn recording(&self) -> bool {
+        self.recording
+    }
+
+    /// Records that `step` runs, and returns whether the shape runs it.
+    pub(crate) fn mark(&self, step: Step) -> bool {
+        let run = runs(step, self.shape);
+        if run && self.recording {
+            inspect::step(self.ctx, self.id, step.name());
+        }
+        run
+    }
 }
 
 /// What step 1 resolves.
@@ -224,13 +245,11 @@ pub(crate) fn id<C: Component>(ui: &Ui, source: &IdSource, register: bool, advan
     };
     if register {
         crate::runtime::memory::register_owner(ctx, id);
-        let repeated = PerViewport::<Stamped<IdPass>>::with_pass(ctx, viewport, pass_nr, |pass, _| *pass = IdPass::default(), |pass| !pass.seen.insert(id));
+        let repeated =
+            PerViewport::<Stamped<IdPass>>::with_pass(ctx, viewport, pass_nr, |pass, _| *pass = IdPass::default(), |pass| !pass.seen.insert(id));
         if repeated {
             log::warn!("{} was shown twice with the id {id:?} in one pass", std::any::type_name::<C>());
-            inspect::finding(
-                ctx,
-                inspect::Finding { rule: "duplicate-id", component: std::any::type_name::<C>(), subject: format!("{id:?}") },
-            );
+            inspect::finding(ctx, inspect::Finding { rule: "duplicate-id", component: std::any::type_name::<C>(), subject: format!("{id:?}") });
         }
     }
     id
@@ -282,17 +301,19 @@ pub(crate) struct MeasureIn<'a> {
     pub room: Option<f32>,
 }
 
-/// Step 5, measure: content size plus padding, then `max(min_size)`.
+/// Step 5, measure: content size plus padding, then `max(min_size)`. `extent` is what the shape adds to the
+/// content: a body's remembered size or a collection's content size.
 pub(crate) fn measure<C: Component>(
     comp: &mut C,
     input: &MeasureIn<'_>,
     style: &C::Style,
     resolved: &Resolved<'_>,
     value: Option<&ValueOf<C>>,
+    extent: Vec2,
 ) -> Vec2 {
     let metrics = style.metrics();
     let cx = measure_cx::<C>(input, style, resolved, value);
-    let content = comp.measure(&cx);
+    let content = comp.measure(&cx) + extent;
     let padding = Vec2::new(metrics.padding.start + metrics.padding.end, metrics.padding.top + metrics.padding.bottom);
     (content + padding).max(metrics.min_size)
 }
@@ -322,7 +343,8 @@ pub(crate) fn measure_cx<'a, C: Component>(
 /// The size guard: finite and at most `MAX_EXTENT` on both sides. A leaf or collection also needs both sides
 /// above zero; a zero size from a leaf means nothing to show.
 pub(crate) fn guard(size: Vec2, shape: ShapeKind) -> bool {
-    let sane = size.x.is_finite() && size.y.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= super::MAX_EXTENT && size.y <= super::MAX_EXTENT;
+    let sane =
+        size.x.is_finite() && size.y.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= super::MAX_EXTENT && size.y <= super::MAX_EXTENT;
     sane && (shape == ShapeKind::Body || size.x > 0.0 && size.y > 0.0)
 }
 
@@ -358,6 +380,7 @@ pub(crate) struct StopsIn<'a> {
 
 pub(crate) fn register_stops(input: &StopsIn<'_>) {
     let ctx = input.ctx;
+    debug_assert!(input.parts.rovings.len() <= 1, "a component declares one roving group; a second would be dropped");
     let group = (!input.parts.rovings.is_empty()).then(|| sub(input.id, "roving"));
     if let (Some(group), Some(roving)) = (group, input.parts.rovings.first()) {
         focus::register_group(ctx, Group::new(group, *roving).rtl(input.rtl));
@@ -380,7 +403,11 @@ pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsS
         if decl.sense.intersects(Sense::CLICK | Sense::DRAG) && !extras.focusable && extras.pointer_only.is_none() {
             inspect::finding(
                 ctx,
-                inspect::Finding { rule: "pointer-part-without-keyboard-path", component, subject: format!("{:?}", PartRef { key: decl.key, index: decl.index }) },
+                inspect::Finding {
+                    rule: "pointer-part-without-keyboard-path",
+                    component,
+                    subject: format!("{:?}", PartRef { key: decl.key, index: decl.index }),
+                },
             );
         }
     }
@@ -467,13 +494,13 @@ fn ease(core: &mut CxCore<'_>, targets: [bool; 3]) -> StateMix {
         eased.mix
     };
     if moving {
-        core.ctx.request_repaint();
+        repaint::request(&core.ctx);
     }
     StateMix::new(mix[0], mix[1], mix[2])
 }
 
-/// Step 12, state: flags first, then `state`; animates hover, press and on.
-pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool) {
+/// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
+pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inherited: Ink) {
     let core = &mut cx.core;
     let mut flags = comp.flags();
     if open {
@@ -507,7 +534,14 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool) {
     };
     let t = ease(core, [hovered, pressed, flags.intersects(Flags::ON)]);
     core.state = StateSet::new(state, flags, t);
+    core.ink = surface_ink(cx.style.surface(), state, inherited);
     core.stated = true;
+}
+
+/// The ink the surface reads in: the surface kind of the state (`kind_down` while pressed), else `inherited`.
+pub(crate) fn surface_ink(look: Option<&crate::style::SurfaceLook>, state: State, inherited: Ink) -> Ink {
+    let kind = look.and_then(|look| if state == State::Pressed { look.kind_down.or(look.kind) } else { look.kind });
+    kind.map_or(inherited, |kind| kind.ink())
 }
 
 /// Step 13, paint, the pipeline's part before `C::paint`: the root surface and the state fill.
@@ -575,7 +609,7 @@ pub(crate) fn settle<C: Component>(cx: &mut Cx<'_, C>) {
         && let Some(owner) = wheel::nearest_scroll_owner(&cx.core.ctx, rect)
     {
         store::Service::<Reveals>::of(&cx.core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect }));
-        cx.core.ctx.request_repaint();
+        repaint::request(&cx.core.ctx);
     }
 }
 
