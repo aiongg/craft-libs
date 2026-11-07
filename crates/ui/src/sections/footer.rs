@@ -5,18 +5,21 @@ use crate::buttons::{Button, IconButton};
 use crate::contract::StopProps as _;
 use crate::contract::{
     Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, Outcome, Pad, Pointer as _,
-    Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    PopupKind, Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing, TooltipSpec, WordSetCx as _,
 };
 use crate::primitives::IconSpec;
 use crate::runtime::access::Name;
-use crate::runtime::env::Label;
+use crate::runtime::env::{Env, EnvValue, Label};
 use crate::runtime::focus;
 use crate::runtime::keys;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, NavShape, OwnerClass, Roving, Sense};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Key};
-use craft_theme::Variant;
+use craft_theme::{
+    Variant,
+    variant::{Emphasis, Tone},
+};
 use egui::{Context, Pos2, Rect, Response, Ui};
 use std::any::Any;
 use std::fmt;
@@ -47,8 +50,16 @@ pub struct FooterBar {
 /// The payload a dropped-on action reports, type-erased so actions of different payload types share one footer.
 type Dropped = Arc<dyn Any + Send + Sync>;
 
-/// Shows an action's drop slot around its button and returns the button's response and the payload dropped on it.
-type DropShow = dyn Fn(&mut Ui, &FooterAction) -> (Response, Option<Dropped>) + Send + Sync;
+/// What showing an action's drop slot reports: the button's response, the payload dropped on it and whether an
+/// accepted drag is over it.
+struct DropShown {
+    response: Response,
+    dropped: Option<Dropped>,
+    over: bool,
+}
+
+/// Shows an action's drop slot around its button.
+type DropShow = dyn Fn(&mut Ui, &FooterAction) -> DropShown + Send + Sync;
 
 /// An icon action of a panel footer: an `IconButton` named by its label.
 #[derive(Clone)]
@@ -56,6 +67,12 @@ pub struct FooterAction {
     icon: IconSpec<'static>,
     label: Label,
     enabled: bool,
+    pressed: bool,
+    tone: Option<Tone>,
+    popup: Option<PopupKind>,
+    expanded: Option<bool>,
+    takes_drops_disabled: bool,
+    drop_hint: Option<Label>,
     drops: Option<Arc<DropShow>>,
 }
 
@@ -65,6 +82,12 @@ impl fmt::Debug for FooterAction {
             .field("icon", &self.icon)
             .field("label", &self.label)
             .field("enabled", &self.enabled)
+            .field("pressed", &self.pressed)
+            .field("tone", &self.tone)
+            .field("popup", &self.popup)
+            .field("expanded", &self.expanded)
+            .field("takes_drops_disabled", &self.takes_drops_disabled)
+            .field("drop_hint", &self.drop_hint)
             .field("accepts_drops", &self.drops.is_some())
             .finish()
     }
@@ -73,31 +96,101 @@ impl fmt::Debug for FooterAction {
 impl FooterAction {
     /// An action showing `icon`, named `label`.
     pub fn new(icon: impl Into<IconSpec<'static>>, label: impl Into<Label>) -> Self {
-        FooterAction { icon: icon.into(), label: label.into(), enabled: true, drops: None }
+        FooterAction {
+            icon: icon.into(),
+            label: label.into(),
+            enabled: true,
+            pressed: false,
+            tone: None,
+            popup: None,
+            expanded: None,
+            takes_drops_disabled: false,
+            drop_hint: None,
+            drops: None,
+        }
     }
 
-    /// Whether a click or the keyboard can activate the action. A disabled action that accepts drops still takes an
-    /// accepted drop: Delete with nothing selected still deletes a dragged row.
+    /// Whether a click or the keyboard can activate the action. A disabled action takes no drop unless
+    /// [`takes_drops_disabled`](FooterAction::takes_drops_disabled) says so.
     #[must_use]
     pub fn enabled(mut self, on: bool) -> Self {
         self.enabled = on;
         self
     }
 
-    /// Lets drags carrying a `P` that `accepts` takes drop on the action. The action shows the drop outline while
-    /// such a drag is over it, and the drop comes back in [`FooterOutput::dropped`].
+    /// Whether the action shows the host's state, as the on look: Button Mode while the panel is in it, Record
+    /// while recording. A click is reported as usual; the host changes its state or ignores the click.
     #[must_use]
-    pub fn accepts_drops<P: Clone + Send + Sync + 'static>(mut self, accepts: fn(&P) -> bool) -> Self {
+    pub fn pressed(mut self, on: bool) -> Self {
+        self.pressed = on;
+        self
+    }
+
+    /// Tints the icon in the tone's status colour for an alert state (Record while recording is `Bad`).
+    #[must_use]
+    pub fn tone(mut self, tone: Tone) -> Self {
+        self.tone = Some(tone);
+        self
+    }
+
+    /// The kind of popup the action opens: the action reports it, and a mark shows at its end-bottom corner.
+    #[must_use]
+    pub fn popup(mut self, kind: PopupKind) -> Self {
+        self.popup = Some(kind);
+        self
+    }
+
+    /// Whether the popup the action opens is open, as the host knows it.
+    #[must_use]
+    pub fn expanded(mut self, open: bool) -> Self {
+        self.expanded = Some(open);
+        self
+    }
+
+    /// Whether a disabled action takes drops: Delete with nothing selected still deletes a dragged row. The action
+    /// shows and reports enabled while an accepted drag is over it.
+    #[must_use]
+    pub fn takes_drops_disabled(mut self, on: bool) -> Self {
+        self.takes_drops_disabled = on;
+        self
+    }
+
+    /// The hint [`FooterOutput::drop_hint`] reports while an accepted drag is over the action.
+    #[must_use]
+    pub fn drop_hint(mut self, hint: impl Into<Label>) -> Self {
+        self.drop_hint = Some(hint.into());
+        self
+    }
+
+    /// Lets drags carrying a `P` that `accepts` takes drop on the action. The action shows the drop outline while
+    /// such a drag is over it, and the drop comes back in [`FooterOutput::dropped`]. `accepts` may capture: a caller
+    /// checks that the drag comes from its own list.
+    #[must_use]
+    pub fn accepts_drops<P: Clone + Send + Sync + 'static>(mut self, accepts: impl Fn(&P) -> bool + Send + Sync + 'static) -> Self {
+        let accepts: Arc<dyn Fn(&P) -> bool + Send + Sync> = Arc::new(accepts);
         self.drops = Some(Arc::new(move |ui, action| {
-            let shown = DropAction::new(accepts).show(ui, |ui, _| action.icon_button().show(ui));
+            let accepts = Arc::clone(&accepts);
+            let slot = DropAction::new(move |payload: &P| accepts(payload)).enabled(action.enabled).takes_disabled(action.takes_drops_disabled);
+            let shown = slot.show(ui, |ui, _| action.icon_button(DropAction::<P>::accepting(ui)).show(ui));
             let response = shown.inner.unwrap_or_else(|| shown.output.response.clone());
-            (response, shown.output.dropped.map(|payload| Arc::new(payload) as Dropped))
+            DropShown { response, dropped: shown.output.dropped.map(|payload| Arc::new(payload) as Dropped), over: shown.output.over }
         }));
         self
     }
 
-    fn icon_button(&self) -> IconButton<'static> {
-        IconButton::new(self.icon.clone()).label(self.label.clone()).enabled(self.enabled)
+    /// The button, enabled when the action is or when `accepting` lifts it for an accepted drag over it.
+    fn icon_button(&self, accepting: bool) -> IconButton<'static> {
+        let mut button = IconButton::new(self.icon.clone()).label(self.label.clone()).enabled(self.enabled || accepting).selected(self.pressed);
+        if let Some(tone) = self.tone {
+            button = button.variant(Variant::look(Emphasis::Ghost, tone));
+        }
+        if let Some(kind) = self.popup {
+            button = button.popup(kind);
+        }
+        if let Some(open) = self.expanded {
+            button = button.expanded(open);
+        }
+        button
     }
 }
 
@@ -117,6 +210,8 @@ pub struct DropActionOutput<P> {
     pub response: Response,
     /// The payload dropped on the slot this pass.
     pub dropped: Option<P>,
+    /// Whether a drag the slot accepts is over it.
+    pub over: bool,
 }
 
 impl<P> Outcome for DropActionOutput<P> {
@@ -127,7 +222,18 @@ impl<P> Outcome for DropActionOutput<P> {
     }
 }
 
-/// A container that is as large as its one child and takes drops of payload type `P` over that child.
+/// Whether an accepted drag is over the enclosing drop slot, which the slot's body reads to show its child enabled.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct Accepting(bool);
+
+impl EnvValue for Accepting {
+    fn root() -> Self {
+        Accepting(false)
+    }
+}
+
+/// A container that is as large as its one child and takes drops of payload type `P` over that child. A slot that is
+/// not enabled takes nothing, unless it takes drops while disabled.
 #[derive(crate::contract::Component)]
 #[component(container, probe(DropAction<u8>))]
 pub struct DropAction<P: Clone + Send + Sync + 'static> {
@@ -135,29 +241,58 @@ pub struct DropAction<P: Clone + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
-    accepts: fn(&P) -> bool,
+    accepts: Arc<dyn Fn(&P) -> bool + Send + Sync>,
+    enabled: bool,
+    takes_disabled: bool,
+    over: bool,
     dropped: Option<P>,
 }
 
 impl<P: Clone + Send + Sync + 'static> DropAction<P> {
     /// A slot that takes the payloads `accepts` takes.
-    pub fn new(accepts: fn(&P) -> bool) -> Self {
+    pub fn new(accepts: impl Fn(&P) -> bool + Send + Sync + 'static) -> Self {
         let props = ContainerProps::new().pad(Pad::None).sizing(Sizing::Content);
-        DropAction { common: Common::new(), props, accepts, dropped: None }
+        DropAction { common: Common::new(), props, accepts: Arc::new(accepts), enabled: true, takes_disabled: false, over: false, dropped: None }
+    }
+
+    /// Whether the child is enabled. A slot that is not takes no drop, unless it
+    /// [takes drops while disabled](DropAction::takes_disabled).
+    #[must_use]
+    pub fn enabled(mut self, on: bool) -> Self {
+        self.enabled = on;
+        self
+    }
+
+    /// Whether the slot takes drops while it is not enabled.
+    #[must_use]
+    pub fn takes_disabled(mut self, on: bool) -> Self {
+        self.takes_disabled = on;
+        self
+    }
+
+    /// Whether a drag the enclosing slot accepts is over it: a body shows its child enabled then, as the slot takes
+    /// the drop whatever the child's own state.
+    pub fn accepting(ui: &Ui) -> bool {
+        Env::of(ui).get::<Accepting>().0
+    }
+
+    fn live(&self) -> bool {
+        self.enabled || self.takes_disabled
     }
 }
 
 /// Where a drop on the slot lands: the slot itself.
-struct OnSlot<P> {
+struct OnSlot<'a, P> {
     rect: Rect,
-    accepts: fn(&P) -> bool,
+    live: bool,
+    accepts: &'a (dyn Fn(&P) -> bool + Send + Sync),
 }
 
-impl<P: Clone + Send + Sync + 'static> DropTarget<P> for OnSlot<P> {
+impl<P: Clone + Send + Sync + 'static> DropTarget<P> for OnSlot<'_, P> {
     type Drop = P;
 
     fn accept(&self, payload: &P, _: Pos2, _: DropOperation) -> Option<P> {
-        (self.accepts)(payload).then(|| payload.clone())
+        (self.live && (self.accepts)(payload)).then(|| payload.clone())
     }
 
     fn mark(&self, _: &P) -> DropMark {
@@ -181,12 +316,19 @@ impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let target = OnSlot { rect: cx.rect, accepts: self.accepts };
+        let live = self.live();
+        // Decided before the child shows, so its look follows the drag in the same pass.
+        self.over = live && cx.dragging::<P>().is_some_and(|(payload, at)| cx.rect.contains(at) && (self.accepts)(&payload));
+        let target = OnSlot { rect: cx.rect, live, accepts: &*self.accepts };
         self.dropped = cx.drop_target(&target);
     }
 
+    fn content_env(&self, _: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
+        values.set(Accepting(self.over));
+    }
+
     fn finish(self, cx: Cx<'_, Self>) -> DropActionOutput<P> {
-        DropActionOutput { response: cx.response.clone(), dropped: self.dropped }
+        DropActionOutput { response: cx.response.clone(), dropped: self.dropped, over: self.over }
     }
 }
 
@@ -202,6 +344,8 @@ pub struct FooterOutput {
     pub picked: Option<usize>,
     /// The drop an action took this pass.
     pub dropped: Option<FooterDrop>,
+    /// The hint of the action an accepted drag is over, when it has one.
+    pub drop_hint: Option<Label>,
     /// The response of each action, in the order given; a caller opens a menu from one with `Menu::opened_by`.
     pub responses: Vec<Response>,
 }
@@ -265,6 +409,7 @@ pub struct FooterButton {
     role: DialogRole,
     letter: Option<char>,
     enabled: bool,
+    disabled_reason: Option<Label>,
 }
 
 impl FooterButton {
@@ -275,7 +420,7 @@ impl FooterButton {
 
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
-        FooterButton { label: label.into(), role, letter: None, enabled: true }
+        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None }
     }
 
     /// The letter that activates the button while its dialog holds focus and no text part owns the keys. The
@@ -291,6 +436,18 @@ impl FooterButton {
     pub const fn enabled(mut self, on: bool) -> Self {
         self.enabled = on;
         self
+    }
+
+    /// Why the button is disabled: the tooltip it shows while it is.
+    #[must_use]
+    pub fn disabled_reason(mut self, reason: impl Into<Label>) -> Self {
+        self.disabled_reason = Some(reason.into());
+        self
+    }
+
+    /// Whether the button can be activated.
+    pub(crate) const fn is_enabled(&self) -> bool {
+        self.enabled
     }
 }
 
@@ -326,21 +483,15 @@ impl FooterBar {
         }
     }
 
-    /// A footer bar of icon actions, in the given order. Show it with `show_content`.
+    /// A footer bar of icon actions, in the given order. Show it with `show_footer`.
     pub fn actions(actions: impl IntoIterator<Item = FooterAction>) -> Self {
         FooterBar { content: Content::Actions(actions.into_iter().collect()), ..FooterBar::body() }
     }
 
     /// A footer bar of dialog buttons, in the order of the platform's dialog convention. Show it with
-    /// `show_content`.
+    /// `show_footer`.
     pub fn buttons(buttons: impl IntoIterator<Item = FooterButton>) -> Self {
         FooterBar { content: Content::Buttons(buttons.into_iter().collect()), ..FooterBar::body() }
-    }
-
-    /// Shows the bar with the actions or buttons it was made with and returns the index, in the order they were
-    /// given, of the one clicked this pass.
-    pub fn show_content(self, ui: &mut Ui) -> Option<usize> {
-        self.show_footer(ui).picked
     }
 
     /// Shows the bar with the actions or buttons it was made with and reports what happened to them.
@@ -353,13 +504,16 @@ impl FooterBar {
                 for (at, action) in actions.iter().enumerate() {
                     let response = match &action.drops {
                         Some(drops) => {
-                            let (response, dropped) = drops(ui, action);
-                            if let Some(payload) = dropped {
+                            let slot = drops(ui, action);
+                            if let Some(payload) = slot.dropped {
                                 shown.dropped = Some(FooterDrop { index: at, payload });
                             }
-                            response
+                            if slot.over {
+                                shown.drop_hint = action.drop_hint.clone().or(shown.drop_hint.take());
+                            }
+                            slot.response
                         }
-                        None => action.icon_button().show(ui),
+                        None => action.icon_button(false).show(ui),
                     };
                     if crate::contract::clicked(&response) {
                         shown.picked = Some(at);
@@ -373,6 +527,12 @@ impl FooterBar {
                 let mut shown = Shown::default();
                 let (ctx, owner) = (ui.ctx().clone(), ui.scope_id());
                 let lettered = letters_reach_footer(&ctx);
+                // Labels are resolved in the scope's language before the letters decorate them.
+                let env = Env::of(ui);
+                let resolved: Vec<Label> = buttons.iter().map(|button| env.view().resolve(&button.label)).collect();
+                let lettering: Vec<(&str, Option<char>)> =
+                    resolved.iter().zip(buttons).map(|(label, button)| (label.as_str(), button.letter)).collect();
+                let labels = crate::dialog::accelerator_labels(&lettering, crate::runtime::windows::os_of(&ctx));
                 // Initial focus lands on the first enabled Accept button on every OS.
                 let default_at = buttons.iter().position(|button| button.role == DialogRole::Accept && button.enabled);
                 for at in display_order(&roles, crate::runtime::windows::os_of(ui.ctx()) == Os::Windows) {
@@ -382,7 +542,10 @@ impl FooterBar {
                         DialogRole::Destructive => Variant::DANGER,
                         DialogRole::Cancel | DialogRole::Other => Variant::SECONDARY,
                     };
-                    let mut widget = Button::new(button.label.clone()).variant(variant).enabled(button.enabled);
+                    let mut widget = Button::new(labels[at].clone()).variant(variant).enabled(button.enabled);
+                    if let Some(reason) = button.disabled_reason.clone().filter(|_| !button.enabled) {
+                        widget = widget.tooltip(TooltipSpec::new(reason.clone()).disabled_text(reason));
+                    }
                     if let Some(letter) = button.letter {
                         widget = widget.access_key(letter.to_ascii_uppercase());
                     }
@@ -404,7 +567,7 @@ impl FooterBar {
             }
         });
         let inner = shown.inner.unwrap_or_default();
-        FooterOutput { response: shown.output, picked: inner.picked, dropped: inner.dropped, responses: inner.responses }
+        FooterOutput { response: shown.output, picked: inner.picked, dropped: inner.dropped, drop_hint: inner.drop_hint, responses: inner.responses }
     }
 }
 
@@ -413,6 +576,7 @@ impl FooterBar {
 struct Shown {
     picked: Option<usize>,
     dropped: Option<FooterDrop>,
+    drop_hint: Option<Label>,
     responses: Vec<Response>,
 }
 

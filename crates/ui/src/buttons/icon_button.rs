@@ -1,13 +1,13 @@
 //! `IconButton`: a square ghost button that shows only an icon.
 
 use super::face::{self, tinted};
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role, Styled as _};
+use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, PopupKind, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
 use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::{
-    Srgba, Variant,
+    Srgba, States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Color32, Pos2, Response, Vec2};
@@ -40,6 +40,10 @@ pub struct IconButtonStyle {
     badge: f32,
     /// The ring around the badge dot.
     badge_edge: StyleColor,
+    /// The popup mark at the end-bottom corner: its side, which is also its inset from the corner.
+    mark: f32,
+    /// The popup mark's colour.
+    mark_color: StyleColor,
 }
 
 /// A square button showing only an icon. Its label is its accessible name; a tooltip is the caller's. A selected
@@ -57,12 +61,18 @@ pub struct IconButton<'a> {
     /// is the user's content, so it has no contrast pair.
     #[prop(into)]
     badge: Option<Srgba>,
+    /// The kind of popup the button opens: AccessKit reports it, and a mark shows at the end-bottom corner.
+    #[prop(into)]
+    popup: Option<PopupKind>,
+    /// Whether the popup the button opens is open, as the host knows it.
+    #[prop(into)]
+    expanded: Option<bool>,
 }
 
 impl<'a> IconButton<'a> {
     /// An icon button showing `icon`; `label` it with the accessible name.
     pub fn new(icon: impl Into<IconSpec<'a>>) -> Self {
-        IconButton { common: Common::new(), icon: icon.into(), focusable: true, badge: None }
+        IconButton { common: Common::new(), icon: icon.into(), focusable: true, badge: None, popup: None, expanded: None }
     }
 
     /// An icon button bound to `command`: its label, enabled state and activation follow the command.
@@ -85,13 +95,19 @@ impl Component for IconButton<'_> {
         let mut surface = face::surface(cx, &off);
         surface.fill = off.fill.clone().on(on.fill.off);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
+        // The on fill is the soft accent fill, which the theme pairs with its normal text and not with the accent
+        // text; the glyph reads in the normal text while on.
+        let normal = cx.color(cx.tokens.color.text.normal);
+        let on_ink = States { rest: normal, hover: normal, pressed: normal, disabled: on.text.off.disabled };
         IconButtonStyle {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
-            glyph: IconLook::new(control.icon, off.text.clone().on(on.text.off)),
+            glyph: IconLook::new(control.icon, off.text.clone().on(on_ink)),
             badge: control.icon * BADGE_RATIO,
             badge_edge: cx.color(cx.tokens.color.line.mark),
+            mark: cx.tokens.space.gap.tight,
+            mark_color: cx.color(cx.tokens.color.text.faint),
         }
     }
 
@@ -111,12 +127,32 @@ impl Component for IconButton<'_> {
         let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph.side));
         let draw = ui.draw();
         draw.icon(glyph, &tinted(&self.icon, cx.resolve(&cx.style.glyph.color)));
+        if self.popup.is_some() {
+            let (end, bottom) = if cx.flow.is_rtl() {
+                (cx.rect.left() + cx.style.mark, cx.rect.bottom() - cx.style.mark)
+            } else {
+                (cx.rect.right() - cx.style.mark, cx.rect.bottom() - cx.style.mark)
+            };
+            let reach = if cx.flow.is_rtl() { cx.style.mark } else { -cx.style.mark };
+            let corner = Pos2::new(end, bottom);
+            let triangle = PaintShape::Polygon(vec![corner, Pos2::new(end, bottom - cx.style.mark), Pos2::new(end + reach, bottom)]);
+            draw.fill(&triangle, cx.style.mark_color);
+        }
         if let Some(badge) = self.badge {
             let radius = cx.style.badge / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };
             let centre = Pos2::new(x, glyph.bottom() - radius);
             draw.data_fill(&PaintShape::Circle(centre, radius), DataColor::new(Color32::from(badge)));
             draw.stroke(&PaintShape::Circle(centre, radius), StrokeWidth::Thin, cx.style.badge_edge);
+        }
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(kind) = self.popup {
+            access.has_popup(kind);
+        }
+        if let Some(open) = self.expanded {
+            access.expanded(open);
         }
     }
 
