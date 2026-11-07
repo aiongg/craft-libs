@@ -184,15 +184,17 @@ impl MarqueeTool {
         (rect.width() > 0.0 && rect.height() > 0.0).then_some(rect)
     }
 
-    /// Follows the pointer: the gesture records the keys and the slop, and once begun sizes the
-    /// marquee to the pointer.
-    fn advance(&mut self, pointer: &ToolPointer, cx: &ToolContext<'_>) {
-        let slop = Marquee::style(cx.tokens).click_slop;
+    /// Follows the pointer: the gesture records the keys, and once begun sizes the marquee to the
+    /// pointer. `begins` starts the gesture: the first `drag` (the press arena has separated it from
+    /// a click) and, for a fixed size, the press.
+    fn advance(&mut self, pointer: &ToolPointer, begins: bool) {
         let (constraint, kind) = (self.constraint, self.kind);
         let Some(press) = self.press.as_mut() else { return };
         press.gesture.follow(Some(pointer.screen), pointer.modifiers);
         press.last = pointer.doc;
-        press.gesture.begin_past(slop, constraint);
+        if begins {
+            press.gesture.begin();
+        }
         if press.gesture.has_begun() && matches!(kind, MarqueeKind::Rectangle | MarqueeKind::Ellipse) {
             press.corners = Some(press.gesture.size_to(pointer.doc, press.space, constraint));
         }
@@ -282,15 +284,14 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
             last: pointer.doc,
             corners: None,
         });
-        tool.advance(pointer, cx);
+        tool.advance(pointer, matches!(tool.constraint, Constraint::Size(..)));
         tool.show_readout(cx);
         ToolAction::Claimed
     }
 
     /// Sizes (or with Space moves) the marquee, or moves the selection drag; sets the W and H
-    /// readout. The marquee runs `MarqueeGesture::{follow, begin_past, size_to}` with the
-    /// the click slop token (`Marquee::style(..).click_slop`), the tool's constraint and its Space flag; no rule is written
-    /// here.
+    /// readout. The marquee runs `MarqueeGesture::{follow, begin, size_to}` with the tool's
+    /// constraint and its Space flag; no rule is written here.
     fn drag(&mut self, pointer: &ToolPointer, cx: &mut ToolContext<'_>) {
         // pc: crates/ui-egui/src/canvas/drag.rs:88-127 (corners and the preview rectangle).
         let tool = &mut *self.tool;
@@ -300,7 +301,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
             }
             return;
         }
-        tool.advance(pointer, cx);
+        tool.advance(pointer, true);
         tool.show_readout(cx);
     }
 
@@ -313,7 +314,7 @@ impl CanvasTool for SelectToolPass<'_, MarqueeTool> {
             tool.events.push(inside.end(pointer.doc, pointer.modifiers, cx.view.zoom));
             return;
         }
-        tool.advance(pointer, cx);
+        tool.advance(pointer, false);
         let Some(press) = tool.press else { return };
         let rect = tool.pixels(press.size);
         tool.press = None;
