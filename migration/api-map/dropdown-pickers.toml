@@ -11,7 +11,57 @@ new_module = "craft_ui::pickers"
 name = "Select"
 old = "craft_ui::controls::select::Select"
 new = "craft_ui::pickers::Select"
-status = "pending"
+status = "moved"
+note = "A `Component` shown with `Show::show`; the output is `EditResponse<T>`. `Select::new(label, Bind<T>, &[Entry<T>])`: the options are `Entry` values (`Entry::new(value, label).icon(..).enabled(..)`, `Entry::separator()`), and the value comes back from the binding, never an index. The popup is `List::options` on `Overlay::dropdown()` and focus stays on the field."
+
+[[type]]
+name = "SelectOption"
+old = "craft_ui::controls::select::SelectOption"
+new = ""
+status = "replaced"
+note = "Use `craft_ui::contract::Entry<T>`: `Entry::new(value, label)`."
+
+[[type]]
+name = "SelectStyle"
+old = "craft_ui::controls::select::SelectStyle"
+new = "craft_ui::pickers::SelectStyle"
+status = "moved"
+note = "A `ComponentStyle` built from the tokens; the legacy `SelectStyle::style(tokens, size)` and its public fields are gone."
+
+[[type]]
+name = "SelectText"
+old = "craft_ui::controls::preview_select::SelectText"
+new = ""
+status = "removed"
+note = "Not ported. A select shows its face text always; a preview-only select needs a thumb painter (`Select::decorate`) and a face without text, which the contract does not offer yet."
+
+[[type]]
+name = "LineStyle"
+old = "craft_ui::controls::preview_select::LineStyle"
+new = ""
+status = "removed"
+note = "A stroke-style value of the host's own: show its preview in a row with `Select::decorate` and `ListRow::thumb`."
+
+[[type]]
+name = "LineWeights"
+old = "craft_ui::controls::preview_select::LineWeights"
+new = ""
+status = "removed"
+note = "Goes with `LineStyle`: the host's thumb painter owns the weights."
+
+[[type]]
+name = "paint_line_style"
+old = "craft_ui::controls::preview_select::paint_line_style"
+new = ""
+status = "removed"
+note = "The host paints a line preview inside the thumb painter of `Select::decorate`."
+
+[[type]]
+name = "Shortcut"
+old = "craft_ui::controls::option_list::Shortcut"
+new = ""
+status = "removed"
+note = "The option-list row helpers (`paint_row`, `Shortcut`, `Leading`) are the option look of `ListRow::option()`; a shortcut text is `ListRow::trailing(..)` from `Select::decorate`."
 
 [[type]]
 name = "ComboBox"
@@ -45,7 +95,128 @@ new = "craft_ui::pickers::IconPicker"
 status = "pending"
 
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+
+[[setter]]
+type = "Select"
+old = "new(id_salt, label, value: &mut T)"
+new = "new(label, Bind<T>, &[Entry<T>])"
+note = "The id comes from `Props::id_salt`; the value is a `Bind`."
+
+[[setter]]
+type = "Select"
+old = "option(value, text)"
+new = "Entry::new(value, text)"
+note = "In the slice given to `Select::new`."
+
+[[setter]]
+type = "Select"
+old = "option_icon(value, icon, text)"
+new = "Entry::new(value, text).icon(icon)"
+
+[[setter]]
+type = "Select"
+old = "option_enabled(bool)"
+new = "Entry::enabled(bool)"
+
+[[setter]]
+type = "Select"
+old = "option_closed_text(text)"
+new = ""
+note = "Not ported: the closed box shows the entry's label."
+
+[[setter]]
+type = "Select"
+old = "option_tooltip(text)"
+new = ""
+note = "Not ported: the contract has no tooltip on an option row."
+
+[[setter]]
+type = "Select"
+old = "option_shortcut(Kbd)"
+new = "decorate(|value, row| row.trailing(text))"
+note = "The shortcut is the row's trailing text."
+
+[[setter]]
+type = "Select"
+old = "separator()"
+new = "Entry::separator()"
+
+[[setter]]
+type = "Select"
+old = "group(text)"
+new = ""
+note = "Not ported: `Entry` has no group heading."
+
+[[setter]]
+type = "Select"
+old = "rows(count, value, text)"
+new = ""
+note = "Not ported: a long generated list has no source type yet; build the `Entry` slice."
+
+[[setter]]
+type = "Select"
+old = "searchable(label, clear_label)"
+new = "searchable()"
+note = "A flag; the field's name and clear label are built-in words."
+
+[[setter]]
+type = "Select"
+old = "header_menu(label, entries, picked)"
+new = ""
+note = "Not ported yet: it waits for `Menu`."
+
+[[setter]]
+type = "Select"
+old = "wheel_steps(bool)"
+new = ""
+note = "Removed: the wheel steps the pick while the field is focused or armed."
+
+[[setter]]
+type = "Select"
+old = "width(f32)"
+new = ""
+note = "Removed: the field is as wide as its widest entry and the popup is as wide as its widest row."
+
+[[setter]]
+type = "Select"
+old = "fit(bool)"
+new = ""
+note = "Removed: the width is always the widest entry."
+
+[[setter]]
+type = "Select"
+old = "row_content(Vec2, paint)"
+new = "decorate(|value, row| row.thumb(ThumbSize::Small, paint))"
+note = "The thumbnail is sized by a token step, not a point size. The closed box does not show it."
+
+[[setter]]
+type = "Select"
+old = "text_shown(SelectText)"
+new = ""
+note = "Not ported."
+
+[[setter]]
+type = "Select"
+old = "highlighted(&mut Option<T>)"
+new = ""
+note = "Not ported: a hover preview needs the hovered row, which the list reports only as a lead move."
+
+[[setter]]
+type = "Select"
+old = "placeholder(text)"
+new = "placeholder(impl Into<Label>)"
+
+[[setter]]
+type = "Select"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Select"
+old = "policy(EditPolicy)"
+new = "Bind::policy(EditPolicy)"
+
+[[setter]]
+type = "Select"
+old = "enabled(bool)"
+new = "enabled(bool)"

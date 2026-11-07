@@ -1,7 +1,5 @@
-//! Value controls: `Disclosure` and `Select`.
+//! Value controls: `Disclosure`.
 
 pub mod disclosure;
-pub mod select;
 #[cfg(feature = "testing")]
 mod stories;
-mod words;
