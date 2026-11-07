@@ -858,7 +858,6 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
 /// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied. A reveal request goes to
 /// the nearest scroll owner; anything queued for the next pass requests a repaint.
 pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
-    // F5-LATER: open and gate changes.
     let adopted = std::mem::take(&mut cx.core.paint.borrow_mut().adopted);
     for event in adopted.into_iter().filter_map(|adopted| adopted.take::<ValueOf<C>>()) {
         cx.absorb(&event);

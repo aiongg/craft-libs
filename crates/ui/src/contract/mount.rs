@@ -55,6 +55,7 @@ impl Host for PaneHost {
 }
 
 /// An egui layer at the container's placement, centred in the window until the user moves it.
+// F5-MERGE: F5a replaces this stand-in with a call to the overlay host; the placement slot and the focus scope stay here.
 struct LayerHost;
 
 impl Host for LayerHost {
