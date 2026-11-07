@@ -23,7 +23,10 @@ const SHORTCUTS: [&str; 12] = [
 ];
 
 /// `Ui` text shortcuts. Only calls on a receiver named `ui` count: components and builders have their own `label`.
-const UI_TEXT: [&str; 6] = ["label", "heading", "monospace", "colored_label", "code", "small"];
+const UI_TEXT: [&str; 8] = ["label", "heading", "monospace", "colored_label", "code", "small", "text_edit_singleline", "text_edit_multiline"];
+
+/// Egui text types the library crates do not build outside `runtime::egui`.
+const TEXT_TYPES: [&str; 2] = ["RichText", "Label"];
 
 const WIDGETS: [&str; 5] = ["Button", "TextEdit", "DragValue", "Slider", "ComboBox"];
 
@@ -34,7 +37,15 @@ fn is_token(idents: &[String]) -> bool {
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     cx.flag_methods(out, ID, ID, "is an egui widget shortcut; the contract's parts draw widgets", |name, _| SHORTCUTS.contains(&name));
-    for site in &cx.sites {
+    // Tools (crates with no layer-map entry) draw with egui directly; only library modules are judged here.
+    let library = cx.scope.layer(cx.path).is_some();
+    for site in cx.sites.iter().filter(|_| library) {
+        if let Kind::Path { .. } = &site.kind
+            && let Some(path) = site.egui_path()
+            && path.iter().any(|s| TEXT_TYPES.contains(&s.as_str()))
+        {
+            cx.flag(out, ID, ID, site, format!("`{}` builds egui text; the contract's parts draw text", path.join("::")));
+        }
         if let Kind::Method { name, receiver, .. } = &site.kind
             && UI_TEXT.contains(&name.as_str())
             && receiver.last().is_some_and(|r| r == "ui")
