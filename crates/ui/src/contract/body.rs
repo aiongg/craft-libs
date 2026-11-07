@@ -181,6 +181,10 @@ struct Regions {
     footer: Rect,
 }
 
+/// The scope a container with a reorder band joins in its regions' command chain: no command belongs to it, so the
+/// chain tells `commands::focus_within` that focus is inside the container.
+const REORDER_SCOPE: commands::CommandScope = commands::CommandScope::new("reorder");
+
 /// Registers the container as an instance of its command scope and of the window scope of its window.
 fn register_instances(ctx: &Context, props: &ContainerProps, id: Id, window: Option<Id>) {
     if let Some(scope) = props.command_scope {
@@ -942,6 +946,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
     }
 
+    fn sensed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+        self.reorder_keys(comp.props(Internal::new()), cx);
+    }
+
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         use super::Pointer as _;
         let props = comp.props(Internal::new());
@@ -962,7 +970,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             self.access_scroll(props, cx);
         }
-        self.reorder_keys(props, cx);
         if !layer {
             return;
         }
@@ -1035,6 +1042,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
             scoped.grid = None;
+            if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
+                scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
+            }
             if let Some(theme) = &props.theme {
                 scoped.tokens = theme.tokens().clone();
             }
@@ -1195,8 +1205,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if props.end.is_some() {
                 let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
                     .with_field_message(field_message.clone());
-                // The first control sits at the end edge, as in a header's trailing region.
-                let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
+                // The controls run in reading order, so their roving order is their order on the line; the region is
+                // as wide as they measured, so the last one sits at the end edge.
+                let layout = if rtl { Layout::right_to_left(Align::Center) } else { Layout::left_to_right(Align::Center) };
                 let builder = UiBuilder::new().max_rect(regions.end).layout(layout).scope_id(sub(id, "end"));
                 let builder = if node { access::with_parent(builder, id) } else { builder };
                 let mut end_ui = alloc::child(ui, builder);
