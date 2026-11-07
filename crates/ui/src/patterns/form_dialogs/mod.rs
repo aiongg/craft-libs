@@ -27,3 +27,10 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod new_document;
+
+pub use new_document::{
+    BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument, NameError,
+    NewDocumentDialog, NewDocumentOutput, NewDocumentWords, Orientation, PresetCategory, PresetWords, preset_name_error, push_recent, size_line,
+};
