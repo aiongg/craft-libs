@@ -174,9 +174,9 @@ note = "`Custom` and `CustomDrop` carry the index of the host action in the orde
 [[type]]
 name = "PresetFooterOptions"
 old = "craft_ui::presets::PresetFooterOptions"
-new = ""
-status = "removed"
-note = "The browser takes a `PresetFooter` (`PresetBrowser::footer`)."
+new = "craft_ui::patterns::presets::PresetFooterOptions"
+status = "moved"
+note = "The host's footer choices as a value: `PresetBrowser::footer` takes it and `PresetFooter::options` too. It has no `count`: the browser and `PresetFooter::count` give it. `leading` takes an `Fn`."
 
 [[type]]
 name = "PresetFooterOutput"
@@ -282,8 +282,29 @@ note = "The words come from the scope's `PresetWords`."
 [[setter]]
 type = "PresetFooter"
 old = "action(FooterAction)"
-new = "action(FooterAction)"
+new = "options(PresetFooterOptions::action(FooterAction))"
 note = "A `FooterAction` has no id: events name the action by its index."
+
+[[setter]]
+type = "PresetFooter"
+old = "slider(bool)"
+new = "options(PresetFooterOptions::slider(bool))"
+
+[[setter]]
+type = "PresetFooter"
+old = "leading(impl FnOnce(&mut Ui))"
+new = "options(PresetFooterOptions::leading(impl Fn(&mut Ui)))"
+note = "The footer runs it each time its region runs."
+
+[[setter]]
+type = "PresetFooter"
+old = "can_delete(bool)"
+new = "options(PresetFooterOptions::can_delete(bool))"
+
+[[setter]]
+type = "PresetFooter"
+old = "new_group(bool)"
+new = "options(PresetFooterOptions::new_group(bool))"
 
 [[setter]]
 type = "PresetRow"
@@ -457,8 +478,8 @@ note = "Size props are gone: the browser takes the room its container gives it."
 [[setter]]
 type = "PresetBrowser"
 old = "footer(PresetFooterOptions)"
-new = "footer(impl FnOnce(PresetFooter) -> PresetFooter)"
-note = "The browser makes the footer with its zoom bound to the slider and the count of presets; the closure adds the host's buttons."
+new = "footer(PresetFooterOptions)"
+note = "The browser makes the footer with its zoom bound to the slider and the count of presets; the options add the host's buttons. `count` is not an option: the browser counts."
 
 [[setter]]
 type = "PresetBrowser"
@@ -596,17 +617,6 @@ new = "can_rename(Fn(&K) -> bool)"
 type = "PresetPicker"
 old = "can_delete(Fn(&K) -> bool)"
 new = "can_delete(Fn(&K) -> bool)"
-
-[[setter]]
-type = "PresetPicker"
-old = ""
-new = "can_move(Fn(&K) -> bool)"
-
-[[setter]]
-type = "PresetPicker"
-old = ""
-new = "row_menu(bool)"
-note = "Whether the browser's row menu (Rename, Move to, Delete) opens in the popover; on by default."
 
 [[setter]]
 type = "PresetPicker"

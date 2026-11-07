@@ -1,9 +1,11 @@
 //! The browser's reorder rules: where a dragged preset or group may land.
 
-use craft_ui::contract::ListDrag;
-use craft_ui::patterns::presets::{PresetReorder, PresetRow};
-use craft_ui::testing::trial;
-use egui::Id;
+use craft_ui::contract::{Bind, ListDrag, Show as _};
+use craft_ui::patterns::presets::{PresetBrowser, PresetEvent, PresetReorder, PresetRow, PresetState};
+use craft_ui::testing::{Fixture, pointer, trial};
+use egui::{Id, Key, Modifiers};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 const A: u32 = 1;
 const A_ONE: u32 = 2;
@@ -62,4 +64,35 @@ fn the_hosts_test_refuses_a_landing() {
     let rules = PresetReorder::<u32>::items().accepts(|drag, over, _| drag.grabbed != A_ONE || *over != B_ONE);
     assert!(!rules.allows(&rows, &drag(A_ONE), &B_ONE, 5));
     assert!(rules.allows(&rows, &drag(A_ONE), &INNER_ONE, 3));
+}
+
+const AMBER: u32 = 101;
+const CORAL: u32 = 102;
+
+/// A secondary click on a preset that is not the selected one opens the row menu for that preset, and the menu's
+/// Rename renames it.
+#[trial]
+fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
+    let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
+    let seen = Rc::new(RefCell::new(Vec::new()));
+    let reported = seen.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let rows = vec![PresetRow::item(AMBER, "Amber", 0), PresetRow::item(CORAL, "Coral", 0)];
+        let mut view = state.borrow_mut();
+        let out = PresetBrowser::new("Swatches", Bind::bound(&mut *view), &rows).selected(AMBER).show(ui);
+        reported.borrow_mut().extend(out.events);
+    });
+    fixture.settle();
+    let at = fixture.by_label("Coral").expect("the preset's tile").rect.center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.settle();
+    let rename = fixture.by_label("Rename…").expect("a secondary click on a preset opens the row menu");
+    fixture.click(&rename);
+    fixture.idle(3);
+    fixture.type_text("Plum");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    assert!(seen.borrow().contains(&PresetEvent::Rename { key: CORAL, text: "Plum".to_owned() }), "events: {:?}", seen.borrow());
 }
