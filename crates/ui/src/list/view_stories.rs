@@ -58,17 +58,21 @@ fn list_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 fn findings(count: usize) -> Vec<Finding> {
-    let all = [
-        Finding::new(Severity::Info, "Layer 3 has no name"),
-        Finding::new(Severity::Warning, "The font Avenir is missing").detail("page 2"),
-        Finding::new(Severity::Error, "Page 2 overflows its frame"),
-    ];
-    all.into_iter().cycle().take(count).collect()
+    (0..count)
+        .map(|n| {
+            let id = n as u64;
+            match n % 3 {
+                0 => Finding::new(id, Severity::Info, format!("Layer {} has no name", n + 1)),
+                1 => Finding::new(id, Severity::Warning, format!("Font {} is missing", n + 1)).detail(format!("page {}", n + 1)),
+                _ => Finding::new(id, Severity::Error, format!("Page {} overflows its frame", n + 1)),
+            }
+        })
+        .collect()
 }
 
 fn findings_list(ui: &mut Ui, findings: &[Finding]) -> StoryOutput {
     let source = Findings::new(findings);
-    FindingsList::new("Findings").show_items(ui, &source, &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>())).into()
+    FindingsList::new("Findings").show_items(ui, &source, &mut |key, icx| findings[*key as usize].row(&icx.words::<FindingsWords>())).into()
 }
 
 #[story(FindingsList<'static>, covers = [Default, Many], drive = Drive::Never)]
@@ -111,7 +115,7 @@ fn event_list(ui: &mut Ui, count: usize) -> StoryOutput {
         .show_items(ui, &log, &mut |_, icx| {
             let Some(event) = log.event(icx.at) else { return ListRow::spacer() };
             let age = format!("{} min ago", event.age_seconds(NOW_MS) / 60);
-            event.row(&age, &icx.words::<EventWords>(), icx.at % 2 == 1)
+            event.row(&age, &icx.words::<EventWords>(), icx.row.striped)
         })
         .into()
 }

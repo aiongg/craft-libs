@@ -19,6 +19,7 @@ use crate::primitives::{ContentPainterCx, Draw, IconSpec, PaintShape, RuleKind, 
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, Ink, StyleColor, StyleCx, SurfaceLook, UiTokens};
 use craft_behavior::{ColumnKey, Flow, IconId, Metrics, Mixed, NavShape, PartKey, PressPhase, Proposal, Roving, Sense};
+use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Rgba, RowStyle, Stateful, States, TypeRole, over};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
@@ -35,8 +36,6 @@ pub enum ThumbSize {
     Medium,
     /// `size.thumb.lg`.
     Large,
-    /// A side in points, for a thumbnail that follows a slider (a preset browser's list view).
-    Px(u16),
 }
 
 impl ThumbSize {
@@ -50,7 +49,6 @@ impl ThumbSize {
             ThumbSize::Small => words.thumb_small.clone(),
             ThumbSize::Medium => words.thumb_medium.clone(),
             ThumbSize::Large => words.thumb_large.clone(),
-            ThumbSize::Px(_) => words.thumb_custom.clone(),
         }
     }
 }
@@ -87,6 +85,8 @@ pub enum RowEvent {
     Open {
         /// The state the click asks for.
         open: bool,
+        /// The change reaches every descendant too (Alt held).
+        all: bool,
     },
     /// The link glyph before an extra thumbnail was clicked: `linked` is the state it asks for.
     #[non_exhaustive]
@@ -135,9 +135,6 @@ impl ItemOutput<RowEvent> for RowOutput {
 /// Paints into a thumbnail's rect through the content painter, which is clipped to it.
 pub type ThumbPaint<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
 
-/// What a trailing item shows in the rect the row gives it: it shows its components with `PaintUi::child`.
-pub type TrailingPaint<'a> = Box<dyn FnOnce(&mut PaintUi<'_>, Rect) + 'a>;
-
 /// A thumbnail after the first: its painter and the link glyph before it.
 pub(super) struct Thumb<'a> {
     pub paint: Option<ThumbPaint<'a>>,
@@ -145,11 +142,10 @@ pub(super) struct Thumb<'a> {
     pub link: Option<(bool, Label)>,
 }
 
-/// A trailing item: its width in control heights, whether it drops out for room, and what it shows.
-pub(super) struct Trailing<'a> {
-    pub heights: f32,
+/// A trailing item: a caption-role text as wide as it measures, and whether it drops out for room.
+pub(super) struct Trailing {
+    pub text: Label,
     pub optional: bool,
-    pub paint: Option<TrailingPaint<'a>>,
 }
 
 /// One row of a list.
@@ -165,6 +161,11 @@ pub struct ListRow<'a> {
     #[style_key]
     #[prop]
     pub(super) ink: RowInk,
+    /// The tone of the icon: the status colour for a severity, the row's ink for `Neutral`. A selected row's icon
+    /// reads in the colour that reads on the selection.
+    #[style_key]
+    #[prop]
+    pub(super) tone: Tone,
     /// The layer form, for lists of layers and channels: dividers under the row and at each toggle cell's edge,
     /// the accent tint on the hover and an outline on the selected row.
     #[style_key]
@@ -213,13 +214,13 @@ pub struct ListRow<'a> {
     #[prop]
     pub(super) icon: Option<IconSpec<'a>>,
     pub(super) thumb: ThumbSize,
-    pub(super) thumb_side: Option<Vec2>,
+    pub(super) thumb_aspect: f32,
     pub(super) first: Option<ThumbPaint<'a>>,
     pub(super) extras: Vec<Thumb<'a>>,
     /// The thumbnail the row's editing is aimed at: framed with corner brackets whether or not the row is selected.
     #[prop(name = "thumb_target")]
     pub(super) target: Option<ThumbTarget>,
-    pub(super) trailing: Vec<Trailing<'a>>,
+    pub(super) trailing: Vec<Trailing>,
     /// The row's depth in a tree, which indents it; `None` for a row of a flat list.
     /// The row is at `depth` levels of a tree: indented by it, an `AccessKit` tree item.
     #[prop]
@@ -240,6 +241,7 @@ impl<'a> ListRow<'a> {
             common: Common::new(),
             strong: false,
             ink: RowInk::Normal,
+            tone: Tone::Neutral,
             layer: false,
             striped: false,
             italic: false,
@@ -257,7 +259,7 @@ impl<'a> ListRow<'a> {
             toggles: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
-            thumb_side: None,
+            thumb_aspect: 1.0,
             first: None,
             extras: Vec::new(),
             target: None,
@@ -298,17 +300,17 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = size;
-        self.thumb_side = None;
+        self.thumb_aspect = 1.0;
         self.first = Some(Box::new(paint));
         self
     }
 
-    /// A thumbnail `side` wide and high, for a gradient or other strip that is not square: its height sets the
-    /// row's height as for any thumbnail.
+    /// A thumbnail as high as `size` and `aspect` times as wide, for a gradient or other strip that is not square:
+    /// its height sets the row's height as for any thumbnail. `ThumbSize::None` draws none.
     #[must_use]
-    pub fn thumb_sized(mut self, side: Vec2, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
-        self = self.thumb(ThumbSize::Px(side.y.round().clamp(0.0, f32::from(u16::MAX)) as u16), paint);
-        self.thumb_side = Some(side);
+    pub fn thumb_aspect(mut self, size: ThumbSize, aspect: f32, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        self = self.thumb(size, paint);
+        self.thumb_aspect = aspect.max(f32::EPSILON);
         self
     }
 
@@ -331,18 +333,18 @@ impl<'a> ListRow<'a> {
         self
     }
 
-    /// An item at the trailing end, `heights` control heights wide, that always shows. The first item added is the
-    /// outermost.
+    /// A text at the trailing end, in the caption role and `text.muted`, as wide as it measures, that always shows.
+    /// The first item added is the outermost.
     #[must_use]
-    pub fn trailing(mut self, heights: f32, show: impl FnOnce(&mut PaintUi<'_>, Rect) + 'a) -> Self {
-        self.trailing.push(Trailing { heights, optional: false, paint: Some(Box::new(show)) });
+    pub fn trailing(mut self, text: impl Into<Label>) -> Self {
+        self.trailing.push(Trailing { text: text.into(), optional: false });
         self
     }
 
-    /// An item at the trailing end that drops out when the label would get narrower than its least width with it.
+    /// A text at the trailing end that drops out when the label would get narrower than its least width with it.
     #[must_use]
-    pub fn optional(mut self, heights: f32, show: impl FnOnce(&mut PaintUi<'_>, Rect) + 'a) -> Self {
-        self.trailing.push(Trailing { heights, optional: true, paint: Some(Box::new(show)) });
+    pub fn optional(mut self, text: impl Into<Label>) -> Self {
+        self.trailing.push(Trailing { text: text.into(), optional: true });
         self
     }
 }
@@ -401,7 +403,6 @@ impl Sizes {
             ThumbSize::Small => self.thumbs[0],
             ThumbSize::Medium => self.thumbs[1],
             ThumbSize::Large => self.thumbs[2],
-            ThumbSize::Px(side) => f32::from(side),
         }
     }
 
@@ -425,6 +426,7 @@ pub struct ListRowStyle {
     #[style(metrics)]
     metrics: Metrics,
     text: Stateful<StyleColor>,
+    icon: Stateful<StyleColor>,
     detail: Stateful<StyleColor>,
     thumb_edge: StyleColor,
     thumb_radius: CornerRadius,
@@ -466,7 +468,7 @@ impl ListRow<'_> {
     fn leading(&self, sizes: &Sizes) -> Option<f32> {
         let side = sizes.side(self.thumb);
         if self.shows_thumbs(sizes) {
-            let first = self.thumb_side.map_or(side, |size| size.x);
+            let first = side * self.thumb_aspect;
             let between = |extra: &Thumb<'_>| if extra.link.is_some() { sizes.icon } else { sizes.gap };
             Some(first + self.extras.iter().map(|extra| first + between(extra)).sum::<f32>())
         } else {
@@ -474,10 +476,10 @@ impl ListRow<'_> {
         }
     }
 
-    /// The thumbnail height and width of this row.
+    /// The thumbnail width and height of this row.
     fn thumb_size(&self, sizes: &Sizes) -> Vec2 {
         let side = sizes.side(self.thumb);
-        self.thumb_side.unwrap_or(Vec2::splat(side))
+        Vec2::new(side * self.thumb_aspect, side)
     }
 
     /// The levels of indent: a leaf inside a group indents one more level, past its parent's disclosure column.
@@ -489,8 +491,14 @@ impl ListRow<'_> {
         }
     }
 
-    fn item_widths(&self, sizes: &Sizes) -> Vec<(f32, bool)> {
-        self.trailing.iter().map(|item| (item.heights * sizes.row, item.optional)).collect()
+    /// The widths of the trailing items, as `text_width` measures their texts.
+    fn item_widths(&self, text_width: &dyn Fn(&TextRun<'_>) -> f32) -> Vec<(f32, bool)> {
+        self.trailing.iter().map(|item| (text_width(&trailing_run(item)), item.optional)).collect()
+    }
+
+    /// The indent a row asks for before it gives way to the label's least width.
+    fn indent_full(&self, sizes: &Sizes) -> f32 {
+        (self.steps() + usize::from(self.clipped)) as f32 * sizes.icon
     }
 
     /// The offsets from the reading start of the row of the cells that lead and that trail the label band.
@@ -514,24 +522,23 @@ impl ListRow<'_> {
         (lead, trail, cells)
     }
 
-    fn place(&self, sizes: &Sizes, rect: Rect, rtl: bool) -> Placed {
-        self.place_in(&self.cells, sizes, rect, rtl)
+    fn place(&self, sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
+        self.place_in(&self.cells, sizes, items, rect, rtl)
     }
 
-    fn place_in(&self, cells_of: &[(ColumnKey, Rect)], sizes: &Sizes, rect: Rect, rtl: bool) -> Placed {
+    fn place_in(&self, cells_of: &[(ColumnKey, Rect)], sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
         let (lead, trail, cells) = self.bands(cells_of, rect, rtl);
         let flow = Flow::new(rect, rtl);
         let band_width = (rect.width() - lead - trail).max(0.0);
         let band = flow.span(lead, band_width);
         let inner = Flow::new(band, rtl);
-        let items = self.item_widths(sizes);
         let leading = self.leading(sizes);
         let leading_width = leading.map_or(0.0, |side| side + sizes.gap);
         let disclosure = if self.group.is_some() { sizes.icon } else { 0.0 };
         let marker = if self.clipped { sizes.icon } else { 0.0 };
         let column = disclosure + marker;
         let base = sizes.pad;
-        let indent_full = (self.steps() + usize::from(self.clipped)) as f32 * sizes.icon;
+        let indent_full = self.indent_full(sizes);
         let end = band_width - sizes.trailing_pad;
         let required: f32 = items.iter().filter(|(_, optional)| !optional).map(|(width, _)| width + sizes.gap).sum();
         let mut used = required;
@@ -636,6 +643,10 @@ impl Component for ListRow<'_> {
             surface,
             metrics: Metrics::new().min_size(Vec2::new(0.0, sizes.row)).gap(sizes.gap),
             text: ink(base),
+            icon: match key.tone {
+                Tone::Neutral => ink(base),
+                tone => Stateful::new(cx.tone(tone)).on(States::new(on_selected, on_selected, on_selected, on_selected)),
+            },
             detail: ink(text.faint),
             thumb_edge: c(colors.line.border),
             thumb_radius: UiTokens::corner(tokens.shape.radius.sm),
@@ -659,11 +670,13 @@ impl Component for ListRow<'_> {
             .filter_map(|toggle| self.cells.iter().find(|(column, _)| *column == toggle.column))
             .map(|(_, cell)| cell.width())
             .sum();
-        let probe = self.place_in(&[], sizes, Rect::from_min_size(Pos2::ZERO, Vec2::new(room, height)), rtl);
+        let widths = self.item_widths(&|run| cx.layout_at(run, f32::INFINITY).size().x);
+        let probe = self.place_in(&[], sizes, &widths, Rect::from_min_size(Pos2::ZERO, Vec2::new(room, height)), rtl);
         let probe_min = probe.min_width + toggles;
+        let band = cx.room.map_or(f32::INFINITY, |_| (probe.label.width() - toggles).max(0.0));
         let wrapped = self.lines.as_ref().map_or(0.0, |text| {
             let run = TextRun::new(text.as_str()).role(TypeRole::Caption).wrap(Wrap::Wrap);
-            sizes.gap + cx.layout(&run).size().y
+            sizes.gap + cx.layout_at(&run, band).size().y
         });
         let detail = if self.detail.is_some() { sizes.detail_line } else { 0.0 };
         let text = sizes.label_line + detail + wrapped;
@@ -672,7 +685,7 @@ impl Component for ListRow<'_> {
             return Vec2::new(probe_min, height);
         }
         let label = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.role)).size().x;
-        Vec2::new(probe_min - sizes.min_label + label.max(sizes.min_label), height)
+        Vec2::new(probe_min - sizes.min_label + label.max(sizes.min_label) + self.indent_full(sizes), height)
     }
 
     fn sense(&self) -> Sense {
@@ -683,7 +696,8 @@ impl Component for ListRow<'_> {
         if self.spacer {
             return;
         }
-        let placed = self.place(&cx.style.sizes, rect, cx.flow.is_rtl());
+        let widths = self.item_widths(&|run| cx.layout_at(run, f32::INFINITY).size().x);
+        let placed = self.place(&cx.style.sizes, &widths, rect, cx.flow.is_rtl());
         for (at, cell) in &placed.toggles {
             let toggle = &self.toggles[*at];
             let mut flags = Flags::empty();
@@ -716,7 +730,7 @@ impl Component for ListRow<'_> {
         let thumbs = placed.first.into_iter().chain(placed.extras.iter().map(|(thumb, _)| *thumb));
         for (at, thumb) in thumbs.enumerate() {
             let sense = if self.thumb_drags && at > 0 { Sense::CLICK | Sense::DRAG } else { Sense::CLICK };
-            cx.part(THUMB.at(at as u64), thumb).sense(sense).pointer_only("Enter on the row takes the same action");
+            cx.part(THUMB.at(at as u64), thumb).sense(sense).pointer_only("A thumbnail is a pointer target; the keys act on the row");
         }
     }
 
@@ -732,7 +746,7 @@ impl Component for ListRow<'_> {
         if let Some(open) = self.group
             && cx.part(DISCLOSURE).press.phase.is_click()
         {
-            self.event = Some(RowEvent::Open { open: !open });
+            self.event = Some(RowEvent::Open { open: !open, all: cx.part(DISCLOSURE).press.mods.alt });
         }
         let thumbs = self.shows_thumbs(&cx.style.sizes);
         for (at, thumb) in self.extras.iter().enumerate().filter(|_| thumbs) {
@@ -801,7 +815,8 @@ impl Component for ListRow<'_> {
         let sizes = &style.sizes;
         let rtl = cx.env.direction().is_rtl();
         let rect = cx.rect;
-        let placed = self.place(sizes, rect, rtl);
+        let widths = self.item_widths(&|run| ui.draw().layout(run, f32::INFINITY).size().x);
+        let placed = self.place(sizes, &widths, rect, rtl);
         self.label_rect = placed.label;
         {
             let draw = ui.draw();
@@ -827,16 +842,17 @@ impl Component for ListRow<'_> {
                 draw_clip_arrow(&draw, slot, rtl, ink);
             }
             if let Some(slot) = placed.icon
-                && let Some(icon) = &self.icon
+                && let Some(icon) = self.icon.as_mut()
             {
+                icon.color.get_or_insert(cx.resolve(&style.icon));
                 draw.icon(Rect::from_center_size(slot.center(), Vec2::splat(sizes.icon)), icon);
             }
         }
         self.paint_thumbs(ui, cx, &placed, ink);
         self.paint_text(&ui.draw(), cx, placed.label);
-        for (item, slot) in self.trailing.iter_mut().zip(placed.items) {
-            if let (Some(slot), Some(show)) = (slot, item.paint.take()) {
-                show(ui, slot);
+        for (item, slot) in self.trailing.iter().zip(placed.items) {
+            if let Some(slot) = slot {
+                ui.draw().text(slot, &trailing_run(item));
             }
         }
     }
@@ -940,6 +956,11 @@ impl ListRow<'_> {
     }
 }
 
+/// The run of a trailing item.
+fn trailing_run(item: &Trailing) -> TextRun<'_> {
+    TextRun::spans(vec![Span::new(item.text.as_str()).muted()]).role(TypeRole::Caption)
+}
+
 /// The down-right clipping mark: a stem down from the top, then a leg toward the reading end with an arrowhead.
 fn draw_clip_arrow(draw: &Draw<'_>, slot: Rect, rtl: bool, ink: StyleColor) {
     let side = slot.width().min(slot.height());
@@ -997,8 +1018,11 @@ impl Component for RowThumb<'_> {
     }
 }
 
-/// Where the label, the trailing items and the disclosure of `row` lie in a rect of `width` under fixed sizes: the
-/// geometry trials read it.
+/// The width of a character of a trailing text under fixed sizes.
+const FIXED_ADVANCE: f32 = 10.0;
+
+/// Where the label, the trailing items and the disclosure of `row` lie in a rect of `width` under fixed sizes, where
+/// each character of a trailing text is `FIXED_ADVANCE` wide: the geometry trials read it.
 pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement {
     let sizes = Sizes {
         row: 20.0,
@@ -1013,7 +1037,8 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
         label_line: 16.0,
         detail_line: 12.0,
     };
-    let placed = row.place(&sizes, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, sizes.row)), rtl);
+    let items = row.item_widths(&|run| FIXED_ADVANCE * run.full_text().chars().count() as f32);
+    let placed = row.place(&sizes, &items, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, sizes.row)), rtl);
     RowPlacement { label: placed.label, items: placed.items, disclosure: placed.disclosure, min_label: sizes.min_label }
 }
 

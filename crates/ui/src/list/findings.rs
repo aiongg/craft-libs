@@ -11,6 +11,7 @@ use crate::contract::{
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{DisplayOrder, Flow, IconId, Insets, ItemSource, Metrics, Selection, Sense, SpanLayout};
+use craft_theme::variant::Tone;
 use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
 
@@ -35,12 +36,23 @@ impl Severity {
             Severity::Error => IconId::new("error"),
         }
     }
+
+    /// The tone of the severity's icon.
+    fn tone(self) -> Tone {
+        match self {
+            Severity::Info => Tone::Info,
+            Severity::Warning => Tone::Warn,
+            Severity::Error => Tone::Bad,
+        }
+    }
 }
 
 /// One finding: how serious it is, what it says and, optionally, where.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Finding {
+    /// The app's id for the finding; it keeps the selection while findings come and go.
+    pub id: u64,
     /// How serious the finding is.
     pub severity: Severity,
     /// What it says.
@@ -50,9 +62,9 @@ pub struct Finding {
 }
 
 impl Finding {
-    /// A finding of `severity` that says `text`.
-    pub fn new(severity: Severity, text: impl Into<String>) -> Self {
-        Finding { severity, text: text.into(), detail: None }
+    /// The finding `id` of `severity` that says `text`.
+    pub fn new(id: u64, severity: Severity, text: impl Into<String>) -> Self {
+        Finding { id, severity, text: text.into(), detail: None }
     }
 
     /// Where the finding is.
@@ -62,8 +74,8 @@ impl Finding {
         self
     }
 
-    /// The finding as a list row: its severity icon, text and detail line. A screen reader reads the severity word,
-    /// the text and the detail.
+    /// The finding as a list row: its severity icon, text and detail line. A screen reader reads the text, the
+    /// detail and the severity word.
     pub fn row(&self, words: &FindingsWords) -> ListRow<'static> {
         let level = match self.severity {
             Severity::Info => words.info.as_str(),
@@ -71,10 +83,10 @@ impl Finding {
             Severity::Error => words.error.as_str(),
         };
         let name = match &self.detail {
-            Some(detail) => format!("{level}: {}, {detail}", self.text),
-            None => format!("{level}: {}", self.text),
+            Some(detail) => format!("{}, {detail}, {level}", self.text),
+            None => format!("{}, {level}", self.text),
         };
-        let row = ListRow::new(self.text.clone()).icon(IconSpec::svg(self.severity.icon())).accessible_name(name);
+        let row = ListRow::new(self.text.clone()).icon(IconSpec::svg(self.severity.icon())).tone(self.severity.tone()).accessible_name(name);
         match &self.detail {
             Some(detail) => row.detail(detail.clone()),
             None => row,
@@ -93,7 +105,7 @@ pub fn summary_text(words: &FindingsWords, findings: &[Finding]) -> String {
     words.counts.fill(&[("errors", &count(&words.errors, errors)), ("warnings", &count(&words.warnings, warnings))])
 }
 
-/// The findings of a slice as an item source; the key of a finding is its position.
+/// The findings of a slice as an item source, keyed by `Finding::id`.
 #[derive(Clone, Copy, Debug)]
 pub struct Findings<'a>(&'a [Finding]);
 
@@ -104,17 +116,17 @@ impl<'a> Findings<'a> {
     }
 }
 
-impl DisplayOrder<usize> for Findings<'_> {
+impl DisplayOrder<u64> for Findings<'_> {
     fn len(&self) -> usize {
         self.0.len()
     }
 
-    fn key(&self, at: usize) -> usize {
-        at
+    fn key(&self, at: usize) -> u64 {
+        self.0[at].id
     }
 
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.0.len()).then_some(*key)
+    fn index_of(&self, key: &u64) -> Option<usize> {
+        self.0.iter().position(|finding| finding.id == *key)
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -122,7 +134,7 @@ impl DisplayOrder<usize> for Findings<'_> {
     }
 }
 
-impl ItemSource<usize> for Findings<'_> {}
+impl ItemSource<u64> for Findings<'_> {}
 
 /// The style of the list: it has no look of its own beyond its container's surface.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -143,7 +155,7 @@ pub struct FindingsList<'a> {
     items: CollectionProps,
     /// The selection the caller owns.
     #[prop]
-    selection: Option<Bind<'a, Selection<usize>>>,
+    selection: Option<Bind<'a, Selection<u64>>>,
 }
 
 impl<'a> FindingsList<'a> {
@@ -162,7 +174,7 @@ impl<'a> FindingsList<'a> {
 impl Component for FindingsList<'_> {
     const ROLE: Role = Role::LIST;
     type Style = FindingsListStyle;
-    type Output = CollectionResponse<usize, RowEvent>;
+    type Output = CollectionResponse<u64, RowEvent>;
 
     fn style(_: &StyleCx<'_>, _: FindingsListStyleKey) -> FindingsListStyle {
         FindingsListStyle::default()
@@ -174,9 +186,9 @@ impl Component for FindingsList<'_> {
 }
 
 impl Collection for FindingsList<'_> {
-    type Key = usize;
+    type Key = u64;
     type ItemLayout = SpanLayout;
-    type Selection = Selection<usize>;
+    type Selection = Selection<u64>;
     type Item<'r> = ListRow<'r>;
     type ItemEvent = RowEvent;
 
@@ -184,11 +196,11 @@ impl Collection for FindingsList<'_> {
         &self.items
     }
 
-    fn selection(&mut self) -> Option<BindMut<'_, Selection<usize>>> {
+    fn selection(&mut self) -> Option<BindMut<'_, Selection<u64>>> {
         self.selection.as_mut().map(Bind::reborrow)
     }
 
-    fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
+    fn item_layout(&self, source: &dyn ItemSource<u64>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
         SpanLayout::sized(source, width, cx.control().height)
     }
 
@@ -254,6 +266,8 @@ pub struct FindingsSummaryStyle {
     metrics: Metrics,
     text: StyleColor,
     icon: f32,
+    good: StyleColor,
+    bad: StyleColor,
 }
 
 /// The line over a list of findings: an icon that says whether there are errors, then the counts.
@@ -274,8 +288,12 @@ impl<'a> FindingsSummary<'a> {
         summary_text(words, self.findings)
     }
 
+    fn has_errors(&self) -> bool {
+        self.findings.iter().any(|finding| finding.severity == Severity::Error)
+    }
+
     fn icon(&self) -> IconId {
-        if self.findings.iter().any(|finding| finding.severity == Severity::Error) { Severity::Error.icon() } else { IconId::new("success") }
+        if self.has_errors() { Severity::Error.icon() } else { IconId::new("success") }
     }
 }
 
@@ -290,6 +308,8 @@ impl Component for FindingsSummary<'_> {
             metrics: Metrics::new().padding(Insets::horizontal(control.pad_x)).gap(control.gap),
             text: cx.color(cx.tokens.color.text.normal),
             icon: control.icon,
+            good: cx.tone(Tone::Good),
+            bad: cx.tone(Tone::Bad),
         }
     }
 
@@ -308,7 +328,8 @@ impl Component for FindingsSummary<'_> {
         let (glyph, rest) = Flow::new(cx.content_rect, rtl).take_start(cx.style.icon);
         let (_, rest) = rest.take_start(cx.style.metrics.gap);
         let draw = ui.draw();
-        draw.icon(Rect::from_center_size(glyph.center(), Vec2::splat(cx.style.icon)), &IconSpec::svg(self.icon()));
+        let tone = if self.has_errors() { cx.style.bad } else { cx.style.good };
+        draw.icon(Rect::from_center_size(glyph.center(), Vec2::splat(cx.style.icon)), &IconSpec::svg(self.icon()).color(tone));
         let words = cx.words::<FindingsWords>();
         draw.text(rest.rect(), &TextRun::new(self.text(&words)).color(cx.style.text).elide());
     }
