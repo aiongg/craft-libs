@@ -68,7 +68,7 @@ name = "Link"
 old = "craft_ui::controls::link::Link"
 new = "craft_ui::buttons::Link"
 status = "moved"
-note = "A `Component`; the caller reads `clicked()`. Opening the URL needs `Cx::open_url` (not in the contract yet)."
+note = "A `Component`; the caller reads `clicked()`. Opening the URL is `Cx::open_url`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 

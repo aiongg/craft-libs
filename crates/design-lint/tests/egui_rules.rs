@@ -107,6 +107,15 @@ fn sub_permissions_are_separate_keys() {
 }
 
 #[test]
+fn url_opening_is_matched_by_the_egui_path_not_the_method_name() {
+    let findings = analyze_contract(&fixture("reject", "contract-platform.rs"), Path::new("src/ui/a.rs"), &scope(), false);
+    let urls = findings.iter().filter(|f| f.message.contains("opens a URL")).count();
+    assert_eq!(urls, 3, "`ctx.open_url`, `ui.ctx().open_url` and the `egui::OpenUrl` path");
+    let own = "fn f(cx: &mut Cx<'_, Link>, link: Link) { cx.open_url(url, true); link.open_url(url); }";
+    assert!(rules_at(own, "src/ui/a.rs", &scope()).is_empty());
+}
+
+#[test]
 fn layer_zero_unit_tests_may_assert_literals() {
     let src = fixture("reject", "test-literal-size.rs");
     let layered = StaticScope::new().egui_linked("crates/x").layer("crates/x/tests", 0);

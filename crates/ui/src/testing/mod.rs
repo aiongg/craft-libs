@@ -32,7 +32,7 @@ pub mod text;
 pub mod wheel;
 pub mod windows;
 
-pub use crate::contract::{Exemption, Probe, Registration};
+pub use crate::contract::{Exemption, PatternProbe, Probe, Registration};
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;

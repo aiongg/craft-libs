@@ -34,18 +34,21 @@ fn top_level_files(dir: &Path) -> Vec<PathBuf> {
     files
 }
 
-/// The registered types of craft-ui: module, name, shape and purpose, sorted.
+/// The registered types of craft-ui, components and patterns: module, name, shape (`Pattern` for a pattern) and
+/// purpose, sorted.
 fn registered_rows() -> Vec<(String, String, String, String)> {
-    let mut rows: Vec<_> = super::registered()
+    let shown = |name: &'static str| name.rsplit_once("::").map_or(name, |(_, last)| last).to_owned();
+    let registered = super::registered();
+    let components = registered
         .iter()
         .filter_map(|registration| registration.probe())
         .filter(|probe| !KIT_MODULES.contains(&probe.module))
-        .map(|probe| {
-            let name = probe.type_name();
-            let shown = name.rsplit_once("::").map_or(name, |(_, last)| last);
-            (probe.module.to_owned(), shown.to_owned(), format!("{:?}", probe.shape), probe.purpose.replace('|', "\\|"))
-        })
-        .collect();
+        .map(|probe| (probe.module.to_owned(), shown(probe.type_name()), format!("{:?}", probe.shape), probe.purpose.replace('|', "\\|")));
+    let patterns = registered
+        .iter()
+        .filter_map(|registration| registration.pattern_probe())
+        .map(|probe| (probe.module.to_owned(), shown(probe.type_name()), "Pattern".to_owned(), probe.purpose.replace('|', "\\|")));
+    let mut rows: Vec<_> = components.chain(patterns).collect();
     rows.sort();
     rows.dedup();
     rows

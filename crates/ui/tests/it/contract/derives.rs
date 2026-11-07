@@ -4,7 +4,7 @@ use super::kit::PlainStyle;
 use craft_behavior::Metrics;
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Tokens, Variant};
 use craft_ui::contract::{
-    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Props, Role, ShapeKind, Show as _, register_contract, shape,
+    Common, Component, Cx, EditResponse, Internal, MeasureCx, Meta, Pattern, Props, Role, ShapeKind, Show as _, register_contract, shape,
 };
 use craft_ui::style::{ComponentStyle, FocusLook, StyleCx, StyleKey, SurfaceLook, TokenGroup};
 use craft_ui::testing::style::{tokens, with_cx};
@@ -110,6 +110,17 @@ impl Component for Manual {
 }
 
 register_contract!(Manual; overlay, exempt(case = "sizes", reason = "hand-written"));
+
+/// A row of tools: a pattern assembles components and has no contract shape of its own.
+#[derive(Pattern)]
+struct ToolRow;
+
+/// A pattern whose impl is written by hand.
+struct Handwritten;
+
+impl Pattern for Handwritten {}
+
+register_contract!(Handwritten; pattern);
 
 /// Every probe linked into this binary, the integration binary's own fixtures included.
 fn probes() -> Vec<Probe> {
@@ -294,4 +305,14 @@ fn two_token_groups_with_one_path_are_a_debug_assertion() {
         });
     }));
     assert_eq!(read.is_err(), cfg!(debug_assertions));
+}
+
+#[trial]
+fn a_pattern_registers_as_a_pattern_and_has_no_component_probe() {
+    let _ = (ToolRow, Handwritten);
+    let patterns: Vec<_> = craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.pattern_probe().copied()).collect();
+    let row = patterns.iter().find(|pattern| pattern.type_name().ends_with("ToolRow")).expect("the derive registers the pattern");
+    assert_eq!(row.purpose, "A row of tools: a pattern assembles components and has no contract shape of its own");
+    assert!(patterns.iter().any(|pattern| pattern.type_name().ends_with("Handwritten")), "`register_contract!(Type; pattern)` registers too");
+    assert!(named("ToolRow").is_empty() && named("Handwritten").is_empty(), "a pattern has no component probe");
 }

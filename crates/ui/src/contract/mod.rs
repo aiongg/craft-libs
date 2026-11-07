@@ -36,7 +36,7 @@ pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
     Sizing, ThemeScope,
 };
-pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
+pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::ColumnCommands;
@@ -49,7 +49,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
+pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, PatternProbe, Probe, Registration};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;
@@ -195,6 +195,15 @@ impl<O, R> Deref for Inner<O, R> {
 /// The most a component may measure on either side, in points.
 pub const MAX_EXTENT: f32 = 32_768.0;
 
+/// A type that only assembles components: a composition with no contract shape of its own (24.4).
+///
+/// A pattern has no pipeline, no style, no sense and no props of the contract. It shows components, and the
+/// AccessKit node of its root container is the pattern's node. `#[derive(Pattern)]` writes this impl and registers
+/// the type, so the components index lists it and the suite runs the cases that apply to what it shows: the
+/// container and collection cases of its contents, and the role and name checks of every node. A type is a
+/// `Component` or a `Pattern`, never both: a type with its own sensing, painting, popups or focus is a component.
+pub trait Pattern {}
+
 /// The core trait: every UI type is a `Component`.
 pub trait Component: Meta + Sized {
     /// The AccessKit role.
@@ -205,11 +214,21 @@ pub trait Component: Meta + Sized {
     const INPUT: Input = Input::Pointer;
     /// Keys the focused component keeps from egui and the shortcut dispatcher.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
+    /// Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
+    /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
+    /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
+    const SHOWS_LABEL: bool = true;
 
     /// The style type.
     type Style: ComponentStyle;
     /// `Response`, `EditResponse<T>` or a richer type.
     type Output: Outcome;
+
+    /// Whether this instance paints its label as visible text; `SHOWS_LABEL` unless an instance prop decides, as
+    /// `icon_only` does. It reads props only, never the paint record.
+    fn shows_label(&self) -> bool {
+        Self::SHOWS_LABEL
+    }
 
     /// Pure function of the resolved context and the key.
     fn style(cx: &StyleCx<'_>, key: Self::StyleKey) -> Self::Style;

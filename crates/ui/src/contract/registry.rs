@@ -3,8 +3,8 @@
 //! the macro's body depends on craft-ui's own `testing` feature, so a derive carries no `cfg`.
 
 use super::{
-    BodyCx, Collection, Component, Container, ItemFn, Meta, Outcome, ShapeKind, Show as _, ShowCollection as _, ShowContainer as _, ShowShape,
-    ValueOf, shape,
+    BodyCx, Collection, Component, Container, ItemFn, Meta, Outcome, Pattern, ShapeKind, Show as _, ShowCollection as _, ShowContainer as _,
+    ShowShape, ValueOf, shape,
 };
 use crate::runtime::access::Role;
 use crate::runtime::focus::KeyUse;
@@ -100,6 +100,8 @@ pub struct Probe {
     pub entry: Entry,
     /// A leaf the `Canvas` body shows.
     pub canvas_control: bool,
+    /// The type's `SHOWS_LABEL`: whether it paints its label as visible text.
+    pub shows_label: bool,
     /// The type declares `#[component(overlay)]`.
     pub overlay: bool,
     /// The shared cases the type is exempt from.
@@ -162,6 +164,7 @@ impl Probe {
             keys: T::KEYS,
             entry,
             canvas_control: T::CANVAS_CONTROL,
+            shows_label: T::SHOWS_LABEL,
             overlay,
             exempt,
             purpose: "",
@@ -192,6 +195,34 @@ fn carries_value<T: Component + 'static>() -> bool {
     TypeId::of::<ValueOf<T>>() != TypeId::of::<super::NoValue>()
 }
 
+/// What the suite knows about one registered pattern type: where it lives and what it is.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct PatternProbe {
+    /// The package that declares the type, as `CARGO_PKG_NAME` spells it.
+    pub crate_name: &'static str,
+    /// The crate target that declares the type, as `CARGO_CRATE_NAME` spells it.
+    pub crate_target: &'static str,
+    /// The module path of the declaration.
+    pub module: &'static str,
+    /// The first sentence of the type's doc comment.
+    pub purpose: &'static str,
+    name: fn() -> &'static str,
+}
+
+impl PatternProbe {
+    /// The probe of the pattern `T`, declared in `module` of the crate target `crate_target` of package `crate_name`.
+    pub const fn of<T: Pattern + 'static>(crate_name: &'static str, crate_target: &'static str, module: &'static str, purpose: &'static str) -> Self {
+        PatternProbe { crate_name, crate_target, module, purpose, name: std::any::type_name::<T> }
+    }
+
+    /// The type's name, with its type arguments.
+    pub fn type_name(&self) -> &'static str {
+        (self.name)()
+    }
+}
+
 /// One entry of the suite's registration list.
 #[doc(hidden)]
 #[derive(Clone, Copy, Debug)]
@@ -199,6 +230,8 @@ fn carries_value<T: Component + 'static>() -> bool {
 pub enum Registration {
     /// A component type, as `#[derive(Component)]` or `register_contract!` registers it.
     Component(Probe),
+    /// A pattern type, as `#[derive(Pattern)]` registers it.
+    Pattern(PatternProbe),
 }
 
 impl Registration {
@@ -207,10 +240,16 @@ impl Registration {
         Registration::Component(probe)
     }
 
+    /// The registration of a pattern type.
+    pub const fn pattern(probe: PatternProbe) -> Self {
+        Registration::Pattern(probe)
+    }
+
     /// The package the registered item belongs to.
     pub fn crate_name(&self) -> &'static str {
         match self {
             Registration::Component(probe) => probe.crate_name,
+            Registration::Pattern(probe) => probe.crate_name,
         }
     }
 
@@ -218,6 +257,7 @@ impl Registration {
     pub fn crate_target(&self) -> &'static str {
         match self {
             Registration::Component(probe) => probe.crate_target,
+            Registration::Pattern(probe) => probe.crate_target,
         }
     }
 
@@ -225,6 +265,15 @@ impl Registration {
     pub fn probe(&self) -> Option<&Probe> {
         match self {
             Registration::Component(probe) => Some(probe),
+            Registration::Pattern(_) => None,
+        }
+    }
+
+    /// The probe, for a pattern registration.
+    pub fn pattern_probe(&self) -> Option<&PatternProbe> {
+        match self {
+            Registration::Pattern(probe) => Some(probe),
+            Registration::Component(_) => None,
         }
     }
 }
@@ -255,6 +304,33 @@ macro_rules! __register_contract {
             ).with_purpose($purpose));
         };
     };
+}
+
+/// Registers the pattern type `$ty` with the `$purpose` line of its doc comment.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "testing")]
+macro_rules! __register_pattern {
+    ($ty:ty, $purpose:expr) => {
+        const _: () = {
+            #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
+            #[linkme(crate = $crate::__private::linkme)]
+            static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::pattern($crate::contract::PatternProbe::of::<$ty>(
+                env!("CARGO_PKG_NAME"),
+                env!("CARGO_CRATE_NAME"),
+                module_path!(),
+                $purpose,
+            ));
+        };
+    };
+}
+
+/// Registers the pattern type `$ty`; without the `testing` feature there is nothing to register.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(not(feature = "testing"))]
+macro_rules! __register_pattern {
+    ($ty:ty, $purpose:expr) => {};
 }
 
 /// Registers the component type `$ty`; without the `testing` feature there is nothing to register.

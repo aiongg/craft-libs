@@ -1,9 +1,10 @@
-//! Macros of craft-ui: `#[derive(Component, Props, ComponentStyle, TokenGroup, CommandSet, EnvValue)]`,
+//! Macros of craft-ui: `#[derive(Component, Pattern, Props, ComponentStyle, TokenGroup, CommandSet, EnvValue)]`,
 //! `words!`, `#[story]`, `#[craft_ui::testing::trial]` and `register_contract!`.
 
 mod command_set;
 mod component;
 mod env;
+mod pattern;
 mod props;
 mod style;
 mod token_group;
@@ -43,6 +44,13 @@ pub fn derive_component(input: TokenStream) -> TokenStream {
     expanded(component::derive(input.into()))
 }
 
+/// Writes `Pattern` for a struct that only assembles components, and registers it so the components index and the
+/// suite list it. `#[pattern(probe(Type<..>, ..))]` lists the instantiations of a type with type parameters.
+#[proc_macro_derive(Pattern, attributes(pattern))]
+pub fn derive_pattern(input: TokenStream) -> TokenStream {
+    expanded(pattern::derive(input.into()))
+}
+
 /// Registers an `impl Component` written without the derive: `register_contract!(Type)`, with instantiations
 /// for a generic type (`register_contract!(Field<'static, Plain>, Field<'static, Number>)`) and options after
 /// a semicolon (`register_contract!(Menu; container, overlay)`; the shape is a leaf unless `container` or
@@ -53,7 +61,9 @@ pub fn register_contract(input: TokenStream) -> TokenStream {
 }
 
 /// Writes one setter per `#[prop]` field: `#[prop]`, `#[prop(into)]`, `#[prop(flag)]`, `#[prop(name = "..")]`.
-/// The field's doc comment is the setter's.
+/// The field's doc comment is the setter's. `#[prop(quantity = "..")]` names what a numeric prop measures; the
+/// `props/point-size` lint reads it as the declaration that the number is not a size in points, and it changes no
+/// generated code.
 #[proc_macro_derive(Props, attributes(prop))]
 pub fn derive_props(input: TokenStream) -> TokenStream {
     expanded(props::derive(input.into()))

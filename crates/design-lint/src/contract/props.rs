@@ -17,8 +17,8 @@ pub const HAND_SETTER: &str = "props/hand-setter";
 pub const OWN_FIELD: &str = "props/own-field";
 /// A `#[prop]` field whose generated setter shadows a `Props` setter.
 pub const SHADOW: &str = "props/shadow";
-/// A `#[prop]` field of type `f32` or `Vec2`.
-pub const LITERAL_SIZE: &str = "props/literal-size";
+/// A size in points as a prop or a builder argument.
+pub const POINT_SIZE: &str = "props/point-size";
 
 /// The `Props` setters and the `Common` fields they write.
 const SETTERS: [&str; 13] =
@@ -35,6 +35,7 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     for item in flat_items(&cx.file.items) {
         match item {
             Item::Impl(imp) if imp.trait_.is_none() && component_layer && builds_props(cx, imp) => setters(cx, imp, out),
+            Item::Enum(e) if component_layer => size_variants(cx, e, out),
             Item::Struct(s) => fields(cx, s, out),
             _ => {}
         }
@@ -55,6 +56,18 @@ fn setters(cx: &Cx<'_>, imp: &ItemImpl, out: &mut Vec<Finding>) {
         let name = m.sig.ident.to_string();
         if SETTERS.contains(&name.as_str()) {
             cx.flag_span(out, RESERVED, RESERVED, m.sig.ident.span(), format!("`{owner}::{name}` is a `Props` setter name; `Props` provides it"));
+        }
+        for param in m.sig.inputs.iter().filter_map(|a| if let syn::FnArg::Typed(t) = a { Some(t) } else { None }) {
+            let syn::Pat::Ident(pat) = &*param.pat else { continue };
+            if is_point_size(&param.ty, &pat.ident.to_string()) {
+                cx.flag_span(
+                    out,
+                    POINT_SIZE,
+                    POINT_SIZE,
+                    param.ty.span(),
+                    format!("`{owner}::{name}` takes `{}` as a size; {SIZE_ADVICE}", pat.ident),
+                );
+            }
         }
         if only_stores(m) {
             cx.flag_span(
@@ -125,14 +138,8 @@ fn fields(cx: &Cx<'_>, s: &ItemStruct, out: &mut Vec<Finding>) {
         if SETTERS.contains(&setter.as_str()) {
             cx.flag_span(out, SHADOW, SHADOW, f.span(), format!("the setter `{}::{setter}` shadows the `Props` setter of that name", s.ident));
         }
-        if is_literal_size(&f.ty) {
-            cx.flag_span(
-                out,
-                LITERAL_SIZE,
-                LITERAL_SIZE,
-                f.ty.span(),
-                format!("`{}::{field}` is a size in points; sizes come from `ControlSize`, `ColumnWidth` or a binding", s.ident),
-            );
+        if !declares_quantity(prop) && is_point_size(&f.ty, &field) {
+            cx.flag_span(out, POINT_SIZE, POINT_SIZE, f.ty.span(), format!("`{}::{field}` is a size in points; {SIZE_ADVICE}", s.ident));
         }
     }
 }
@@ -149,15 +156,44 @@ fn setter_name(attr: &syn::Attribute) -> Option<String> {
     })
 }
 
-/// `f32`, `Vec2` or an `Option` of either.
-fn is_literal_size(ty: &Type) -> bool {
+const SIZE_ADVICE: &str =
+    "sizes come from a token step (`ControlSize`), an aspect ratio or the content; a number that is not a size declares `#[prop(quantity = \"..\")]`";
+
+/// Types that name a length in points.
+const SIZE_TYPES: [&str; 6] = ["Px", "Points", "Pt", "Size", "Width", "Height"];
+
+/// Words in a name that make an integer a size.
+const SIZE_WORDS: [&str; 13] =
+    ["width", "widths", "height", "heights", "size", "sizes", "side", "extent", "px", "points", "gap", "padding", "radius"];
+
+/// `#[prop(quantity = "..")]`: the field declares what it measures, and it is not a size.
+fn declares_quantity(attr: &syn::Attribute) -> bool {
+    let syn::Meta::List(list) = &attr.meta else { return false };
+    list.tokens.clone().into_iter().any(|t| matches!(t, TokenTree::Ident(i) if i == "quantity"))
+}
+
+/// Whether a value of type `ty` named `name` is a length in points: a float or `Vec2` of any name; a newtype named like
+/// a size (`Px`, `Points`, `Size`, `Width`, `Height`); an integer named like a size. Looks through `Option`.
+fn is_point_size(ty: &Type, name: &str) -> bool {
     let Type::Path(p) = ty else { return false };
     let Some(last) = p.path.segments.last() else { return false };
-    match last.ident.to_string().as_str() {
-        "f32" | "Vec2" => true,
+    let ident = last.ident.to_string();
+    match ident.as_str() {
+        "f32" | "f64" | "Vec2" => true,
+        "u8" | "u16" | "u32" | "u64" | "usize" | "i8" | "i16" | "i32" | "i64" | "isize" => name.split('_').any(|w| SIZE_WORDS.contains(&w)),
         "Option" => {
-            matches!(&last.arguments, syn::PathArguments::AngleBracketed(a) if a.args.iter().any(|g| matches!(g, syn::GenericArgument::Type(t) if is_literal_size(t))))
+            matches!(&last.arguments, syn::PathArguments::AngleBracketed(a) if a.args.iter().any(|g| matches!(g, syn::GenericArgument::Type(t) if is_point_size(t, name))))
         }
-        _ => false,
+        other => SIZE_TYPES.contains(&other),
+    }
+}
+
+/// An enum variant named `Px`, `Points` or `Pt` that carries a number: a size chosen in points.
+fn size_variants(cx: &Cx<'_>, e: &syn::ItemEnum, out: &mut Vec<Finding>) {
+    for v in &e.variants {
+        let named_like_points = matches!(v.ident.to_string().as_str(), "Px" | "Points" | "Pt");
+        if named_like_points && v.fields.iter().any(|f| is_point_size(&f.ty, "px")) {
+            cx.flag_span(out, POINT_SIZE, POINT_SIZE, v.ident.span(), format!("`{}::{}` is a size in points; {SIZE_ADVICE}", e.ident, v.ident));
+        }
     }
 }

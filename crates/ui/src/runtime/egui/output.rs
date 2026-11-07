@@ -1,4 +1,4 @@
-//! The cursor icon and IME output in `PlatformOutput`.
+//! What a pass asks the platform to do through `PlatformOutput`: the cursor icon and opening a URL.
 
 use craft_behavior::CursorIcon;
 use egui::Context;
@@ -6,6 +6,11 @@ use egui::Context;
 /// Sets the system cursor of the running pass.
 pub(crate) fn set_cursor(ctx: &Context, icon: CursorIcon) {
     ctx.set_cursor_icon(egui_icon(icon));
+}
+
+/// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
+pub(crate) fn open_url(ctx: &Context, url: &str, new_tab: bool) {
+    ctx.open_url(if new_tab { egui::OpenUrl::new_tab(url) } else { egui::OpenUrl::same_tab(url) });
 }
 
 fn egui_icon(icon: CursorIcon) -> egui::CursorIcon {

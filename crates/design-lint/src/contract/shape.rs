@@ -15,7 +15,7 @@ pub const SHADOW: &str = "contract/shadow";
 pub const WIDGET: &str = "contract/widget";
 /// An overridden `overlay` on a type without `#[component(overlay)]`.
 pub const OVERLAY_FLAG: &str = "contract/overlay-flag";
-/// An `impl Component for` a type that neither derives `Component` nor appears in `register_contract!`.
+/// An `impl Component for` or `impl Pattern for` a type that neither derives it nor appears in `register_contract!`.
 pub const REGISTRATION: &str = "contract/registration";
 
 /// The names of the sealed show traits' functions; an inherent function of one of them hides the trait's.
@@ -24,19 +24,21 @@ const SHOW_NAMES: [&str; 5] = ["show", "show_at", "show_in", "show_with_tip", "s
 fn check_registration(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     for item in flat_items(&cx.file.items) {
         let Item::Impl(imp) = item else { continue };
-        if trait_name(imp).as_deref() != Some("Component") {
-            continue;
-        }
+        let contract = match trait_name(imp).as_deref() {
+            Some("Component") => "Component",
+            Some("Pattern") => "Pattern",
+            _ => continue,
+        };
         let Some(owner) = self_name(imp) else { continue };
-        let unregistered = cx.types.get(&owner).is_some_and(|f| f.defined && !f.derives_component && !f.registered);
+        let unregistered = cx.types.get(&owner).is_some_and(|f| {
+            let derives = if contract == "Component" { f.derives_component } else { f.derives_pattern };
+            f.defined && !derives && !f.registered
+        });
         if unregistered {
-            cx.flag_span(
-                out,
-                REGISTRATION,
-                REGISTRATION,
-                imp.impl_token.span,
-                format!("`impl Component for {owner}` without `#[derive(Component)]`: register it with `register_contract!({owner})`"),
-            );
+            cx.flag_span(out, REGISTRATION, REGISTRATION, imp.impl_token.span, {
+                let option = if contract == "Pattern" { "; pattern" } else { "" };
+                format!("`impl {contract} for {owner}` without `#[derive({contract})]`: register it with `register_contract!({owner}{option})`")
+            });
         }
     }
 }

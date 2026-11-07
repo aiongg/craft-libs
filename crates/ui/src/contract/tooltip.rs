@@ -3,6 +3,10 @@
 //! A tooltip shows after one delay while the pointer rests on the component, or on keyboard focus after the same
 //! delay, and at once while a neighbour's tooltip was hiding a moment ago. A press, a menu that owns keys and a
 //! running drag hide it.
+//!
+//! A component with no tooltip shows its label as the tooltip when its type declares `Component::SHOWS_LABEL` false
+//! (or an instance does, through `Component::shows_label`): the label is then its only name and no text paints it.
+//! A component that paints its label shows it whole as the tooltip when the paint cut it.
 
 use super::cx::PartExtras;
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
@@ -47,6 +51,8 @@ pub(crate) struct TipIn<'a> {
     pub rich: Option<TipFn<'a>>,
     /// The parts the component declared this pass, with their tooltips.
     pub parts: &'a [(PartDecl, PartExtras)],
+    /// The instance's `shows_label` fact.
+    pub shows_label: bool,
 }
 
 /// The text a tooltip shows for `spec`: the disabled text while disabled.
@@ -59,9 +65,9 @@ fn spec_text(env: &crate::runtime::env::EnvView<'_>, spec: &TooltipSpec, enabled
 }
 
 /// The text the component's own tooltip shows, or `None` when it has none: the tooltip's text, or its disabled text
-/// while disabled, with the bound command's chord; else the full label when the paint cut it, or when a leaf painted
-/// no text and no field label names it.
-fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
+/// while disabled, with the bound command's chord; else the full label when the paint cut it, or when the component
+/// declares it paints no label (`shows_label`) and no field label names it.
+fn text_of<C: Component>(cx: &Cx<'_, C>, shows_label: bool) -> Option<String> {
     let core = &cx.core;
     let base = match core.resolved.tooltip.map(|tooltip| tooltip.spec()) {
         Some(spec) => spec_text(&core.env, spec, core.resolved.enabled),
@@ -69,7 +75,7 @@ fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
             let paint = core.paint.borrow();
             match paint.elided.clone() {
                 Some(full) => full,
-                None if shows_no_text::<C>(core, paint.baseline) => core.resolved.label.to_owned(),
+                None if !shows_label && unnamed_by_field(core) => core.resolved.label.to_owned(),
                 None => return None,
             }
         }
@@ -81,13 +87,10 @@ fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
     })
 }
 
-/// Whether a leaf painted no text (its paint recorded no baseline) and no field label shows its name, so its label
-/// is the only visible name the tooltip can give.
-fn shows_no_text<C: Component>(core: &super::CxCore<'_>, baseline: Option<f32>) -> bool {
-    <C::Shape as super::ShowShape>::KIND == super::ShapeKind::Leaf
-        && baseline.is_none()
-        && !core.resolved.label.is_empty()
-        && crate::runtime::access::scope::field_label(&core.ctx).is_none()
+/// Whether the label is non-empty and no field label shows the component's name, so the label is the only visible
+/// name a tooltip can give.
+fn unnamed_by_field(core: &super::CxCore<'_>) -> bool {
+    !core.resolved.label.is_empty() && crate::runtime::access::scope::field_label(&core.ctx).is_none()
 }
 
 /// A part's tooltip, for the part the pointer is over or the keyboard is on.
@@ -131,7 +134,7 @@ pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
             part.hovered || keyboard,
             Some(part.part),
         ),
-        None => (text_of(cx), own_spec, core.rect, core.response.hovered() || keyboard, None),
+        None => (text_of(cx, input.shows_label), own_spec, core.rect, core.response.hovered() || keyboard, None),
     };
     let call = TipCall {
         ctx: &core.ctx,

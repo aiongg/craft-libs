@@ -20,6 +20,8 @@ pub struct TypeFacts {
     pub component: bool,
     /// Carries `#[derive(Component)]`, which registers the type.
     pub derives_component: bool,
+    /// Carries `#[derive(Pattern)]`, which registers the type.
+    pub derives_pattern: bool,
     /// Named in a `register_contract!(..)` anywhere in its crate.
     pub registered: bool,
     /// Derives `Props` or has a `#[prop]` field.
@@ -145,6 +147,7 @@ pub(crate) fn definition(item: &Item) -> Option<(String, TypeFacts)> {
         derives_component: derived.iter().any(|d| d == "Component"),
         registered: false,
         props: derived.iter().any(|d| d == "Props") || has_prop_field,
+        derives_pattern: derived.iter().any(|d| d == "Pattern"),
         pattern: derived.iter().any(|d| d == "Pattern"),
         overlay_attr: attrs.iter().any(|a| attr_names(a, "component", "overlay")),
         component_style: derived.iter().any(|d| d == "ComponentStyle"),

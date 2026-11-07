@@ -1,4 +1,5 @@
-//! `contract/platform`: target checks, clipboard writes and URL opening in UI modules.
+//! `contract/platform`: target checks, clipboard writes and URL opening in UI modules. URL opening is matched by the
+//! egui path (`ctx.open_url`, `egui::OpenUrl`), so a component method named `open_url` is not flagged.
 
 use crate::report::Finding;
 
@@ -22,11 +23,14 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
             _ => {}
         }
     }
-    cx.flag_methods(
-        out,
-        ID,
-        ID,
-        "writes the clipboard or opens a URL through egui; use `cx.clipboard()` or the runtime's output commands",
-        |name, _| matches!(name, "copy_text" | "open_url"),
-    );
+    cx.flag_methods(out, ID, ID, "writes the clipboard through egui; use `cx.clipboard()`", |name, _| name == "copy_text");
+    for site in &cx.sites {
+        if let Kind::Method { name, receiver, .. } = &site.kind
+            && name == "open_url"
+            && receiver.last().is_some_and(|r| r == "context" || r.ends_with("ctx"))
+        {
+            cx.flag(out, ID, ID, site, format!("`{}.open_url` opens a URL through egui; use `Cx::open_url`", receiver.join(".")));
+        }
+    }
+    cx.flag_paths(out, ID, ID, "opens a URL through egui; use `Cx::open_url`", |path| path.iter().any(|segment| segment == "OpenUrl"));
 }
