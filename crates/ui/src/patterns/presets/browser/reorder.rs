@@ -5,7 +5,7 @@ use crate::list::DropTest;
 use crate::patterns::presets::model::{PresetRow, children_end, nest_allowed};
 
 /// What may be dragged and how deep groups may nest. The browser always keeps these rules: a preset lands next to
-/// another preset; a group lands next to a group, where `nest` allows its depth.
+/// another preset or on a group, which it goes into; a group lands next to a group, where `nest` allows its depth.
 ///
 /// ```ignore
 /// let reorder = PresetReorder::<u32>::items_and_groups().nest(1).accepts(|drag, over, _| drag.keys != [7]);
@@ -57,11 +57,8 @@ impl<K: PartialEq> PresetReorder<'_, K> {
             if (from..children_end(rows, from)).contains(&target) {
                 return false;
             }
-            let fits = if rows[from].is_group() {
-                self.groups && rows[target].is_group() && (rows[target].depth == 0 || nest_allowed(rows, from, target, self.nest + 1))
-            } else {
-                !rows[target].is_group()
-            };
+            let fits = !rows[from].is_group()
+                || (self.groups && rows[target].is_group() && (rows[target].depth == 0 || nest_allowed(rows, from, target, self.nest + 1)));
             if !fits {
                 return false;
             }

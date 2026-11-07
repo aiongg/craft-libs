@@ -502,7 +502,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     .can_drag(&can_drag)
                     .accepts(&accepts);
                 if reorder.is_some() {
-                    grid = grid.reorder(ReorderRule::new().into_groups());
+                    grid = grid.reorder(ReorderRule::new());
                 }
                 let aspect = cell_shape.aspect();
                 let out = grid.show_items(ui, &tiles, &mut |_, icx| {
