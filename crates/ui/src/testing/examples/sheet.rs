@@ -14,8 +14,8 @@
 
 use super::code_editor::{CodeDocument, caret_x};
 use crate::contract::{
-    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, MeasureCx, Name,
-    NoValue, Outcome, PaintUi, PartsCx, Remember as _, Role, SelectMode, Styled as _,
+    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, GridPlace, MeasureCx,
+    Name, NoValue, Outcome, PaintUi, PartsCx, Remember as _, Role, SelectMode, Styled as _,
 };
 use crate::primitives::{EditorLine, EditorPurpose, EditorState, PaintShape, StrokeWidth, TextRun};
 use crate::runtime::focus::{KeepKeys, KeyUse};
@@ -420,12 +420,20 @@ pub struct SheetRow<'r> {
     common: Common,
     cells: Vec<(ColumnKey, Rect)>,
     values: &'r [String],
+    /// The row's index and the sheet's row count, for a row shown outside a collection; a collection supplies them.
+    place: Option<(usize, usize)>,
 }
 
 impl<'r> SheetRow<'r> {
     /// A row showing `values` in `cells`, the rects the item context lists.
     pub fn new(values: &'r [String], cells: Vec<(ColumnKey, Rect)>) -> Self {
-        SheetRow { common: Common::new(), cells, values }
+        SheetRow { common: Common::new(), cells, values, place: None }
+    }
+
+    /// The row is the `row`th of `rows`, where no collection says so.
+    pub fn place(mut self, row: usize, rows: usize) -> Self {
+        self.place = Some((row, rows));
+        self
     }
 }
 
@@ -456,8 +464,15 @@ impl Component for SheetRow<'_> {
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some((row, rows)) = self.place {
+            access.grid(GridPlace { row_index: Some(row), row_count: Some(rows), ..GridPlace::default() });
+        }
         for at in 0..self.cells.len() {
-            access.node(PartKey::CELL.at(at as u64), Role::CELL).name = Name::Text(self.values.get(at).cloned().unwrap_or_default());
+            let node = access.node(PartKey::CELL.at(at as u64), Role::CELL);
+            node.name = Name::Text(self.values.get(at).cloned().unwrap_or_default());
+            if let Some((row, _)) = self.place {
+                node.grid = GridPlace::cell(row, at);
+            }
         }
     }
 

@@ -85,6 +85,7 @@ fn sheet_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn sheet_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let values = sheet_rows(1).remove(0);
     SheetRow::new(&values, cells(ui, &[ColumnKey::new("a"), ColumnKey::new("b"), ColumnKey::new("c"), ColumnKey::new("d")]))
+        .place(0, 1)
         .label("Row 1")
         .show(ui)
         .into()
