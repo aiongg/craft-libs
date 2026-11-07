@@ -3,4 +3,5 @@
 mod access;
 mod board;
 mod kit;
+mod popover_scope;
 mod resolve;

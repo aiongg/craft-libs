@@ -136,6 +136,7 @@ fn step(picks: &[usize], from: Option<usize>, mv: NavMove) -> Option<usize> {
 
 impl<T: Value + 'static> Component for Select<'_, T> {
     const ROLE: Role = Role::COMBO_BOX;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = SelectStyle;
     type Output = EditResponse<T>;
 

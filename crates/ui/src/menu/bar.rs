@@ -324,6 +324,7 @@ impl<'a> MenuBar<'a> {
 
 impl Component for MenuBar<'_> {
     const ROLE: Role = Role::MENU_BAR;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = MenuBarStyle;
     type Output = MenuBarOutput;
 
