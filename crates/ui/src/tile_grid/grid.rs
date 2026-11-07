@@ -13,8 +13,8 @@ use super::tile::AroundPicture;
 use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component,
-    ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
-    Show as _, Sizing, SpaceAction, ToggleColumn,
+    ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
+    RowState, SelectMode, Show as _, Sizing, SpaceAction, ToggleColumn,
 };
 use crate::contract::{Move, lead_position, request_move};
 use crate::controls::disclosure::Disclosure;
@@ -352,7 +352,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     /// key asks for its menu. Any other move or typed text hands the lead back to the tiles.
     fn header_keys(&mut self, cx: &mut Cx<'_, Self>) {
         let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
-        let held = headers::lead(&ctx, id);
+        let held = *cx.keep::<HeaderLead>();
         let tile = lead_position(&ctx, id);
         let focused = cx.is_focused();
         let mut group = held.group.filter(|group| focused && *group < self.groups.len() && held.tile == tile);
@@ -363,7 +363,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             group = self.header_turn(cx, &arrangement, group, tile);
         }
         self.header_lead = group;
-        headers::set_lead(&ctx, id, HeaderLead { group, tile });
+        *cx.keep::<HeaderLead>() = HeaderLead { group, tile };
     }
 
     /// One pass of header keys: the header that holds the lead afterwards.
