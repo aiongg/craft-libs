@@ -33,6 +33,118 @@ const SKEW_GAP: f32 = 4.0;
 const SKEW_HALF_LENGTH: f32 = 9.0;
 const SKEW_HEAD: f32 = 3.5;
 const SKEW_BACK: f32 = 2.5;
+/// The open hand: the offset of its box from the pointer, the palm's centre, half size and corner radius, the
+/// fingers' x and tip heights, where the fingers start, their radius, and the thumb's ends and radius.
+const HAND_SHIFT: [f32; 2] = [2.0, 0.5];
+const PALM_CENTER: [f32; 2] = [0.0, 4.5];
+const PALM_HALF: [f32; 2] = [6.8, 5.5];
+const PALM_ROUND: f32 = 3.0;
+const FINGER_X: [f32; 4] = [-5.1, -1.7, 1.7, 5.1];
+const FINGER_TIP: [f32; 4] = [-7.0, -9.5, -8.5, -5.5];
+const FINGER_BASE: f32 = 3.0;
+const FINGER_R: f32 = 1.7;
+const THUMB: ([f32; 2], [f32; 2], f32) = ([-4.5, 7.0], [-10.5, 1.5], 1.9);
+/// The fist: the box, the knuckles' ends and radius, the thumb, the curl line across the fingers and where the finger
+/// creases start.
+const FIST_CENTER: [f32; 2] = [0.0, 3.0];
+const FIST_HALF: [f32; 2] = [7.2, 6.5];
+const FIST_ROUND: f32 = 3.6;
+const KNUCKLE_FROM: f32 = -1.0;
+const KNUCKLE_TO: f32 = -2.2;
+const KNUCKLE_R: f32 = 1.9;
+const FIST_THUMB: ([f32; 2], [f32; 2], f32) = ([-4.5, 7.0], [-9.6, 3.6], 2.0);
+const FIST_CURL: ([f32; 2], [f32; 2]) = ([-4.0, 4.4], [6.0, 4.4]);
+const FIST_CREASE_FROM: f32 = -2.6;
+const CREASE_X: [f32; 3] = [-3.4, 0.0, 3.4];
+const CREASE_END: f32 = 3.5;
+/// The magnifier: the lens radius (its centre is the pointer), the handle's ends and radius, and the arms of the plus
+/// or minus.
+const LENS: f32 = 6.5;
+const HANDLE: ([f32; 2], [f32; 2], f32) = ([5.2, 5.2], [10.8, 10.8], 2.2);
+const GLYPH_ARM: f32 = 3.4;
+
+fn v(point: [f32; 2]) -> Vec2 {
+    Vec2::new(point[0], point[1])
+}
+
+/// What the pointers paint with: the painter, the pointer, the mark colour, its halo and the hairline width.
+pub(super) struct Pen<'a> {
+    pub painter: &'a Painter,
+    pub at: Pos2,
+    pub fill: Color32,
+    pub halo: Color32,
+    pub thin: f32,
+}
+
+/// A line mark, in points from the pointer.
+enum Mark {
+    Line(Vec2, Vec2),
+    Circle(Vec2, f32),
+    Rect(Rect),
+}
+
+impl Pen<'_> {
+    /// `marks` as hairlines in the mark colour, each over a halo line a hairline wider on each side.
+    fn marks(&self, marks: &[Mark]) {
+        self.lines(self.thin, self.fill, marks);
+    }
+
+    /// `marks` as lines of `width` in `color`, each over a halo line a hairline wider on each side.
+    fn lines(&self, width: f32, color: Color32, marks: &[Mark]) {
+        for (width, color) in [(width + self.thin * 2.0, self.halo), (width, color)] {
+            let stroke = Stroke::new(width, color);
+            for mark in marks {
+                match mark {
+                    Mark::Line(a, b) => {
+                        self.painter.line_segment([self.at + *a, self.at + *b], stroke);
+                    }
+                    Mark::Circle(center, radius) => {
+                        self.painter.circle_stroke(self.at + *center, *radius, stroke);
+                    }
+                    Mark::Rect(rect) => {
+                        self.painter.rect_stroke(rect.translate(self.at.to_vec2()), 0.0, stroke, egui::StrokeKind::Middle);
+                    }
+                }
+            }
+        }
+    }
+
+    fn disc(&self, center: Vec2, radius: f32, color: Color32) {
+        self.painter.circle_filled(self.at + center, radius, color);
+    }
+
+    /// The segment `a` to `b` grown by `radius`.
+    fn capsule(&self, a: Vec2, b: Vec2, radius: f32, color: Color32) {
+        self.painter.line_segment([self.at + a, self.at + b], Stroke::new(2.0 * radius, color));
+        self.disc(a, radius, color);
+        self.disc(b, radius, color);
+    }
+
+    /// A polygon filled with the mark colour and outlined in the halo.
+    fn polygon(&self, points: Vec<Pos2>) {
+        self.painter.add(Shape::convex_polygon(points, self.fill, Stroke::new(self.thin, self.halo)));
+    }
+}
+
+/// A circle of `radius` points around the pointer.
+pub(super) fn circle(pen: &Pen<'_>, radius: f32, width: f32, color: Color32) {
+    pen.lines(width, color, &[Mark::Circle(Vec2::ZERO, radius)]);
+}
+
+/// A crosshair with arms of `arm` points.
+pub(super) fn crosshair(pen: &Pen<'_>, arm: f32, width: f32, color: Color32) {
+    pen.lines(width, color, &[Mark::Line(v([-arm, 0.0]), v([arm, 0.0])), Mark::Line(v([0.0, -arm]), v([0.0, arm]))]);
+}
+
+/// Rings of a brush tip, as offsets from the pointer.
+pub(super) fn outline(pen: &Pen<'_>, rings: &[Vec<Pos2>]) {
+    for ring in rings.iter().filter(|ring| ring.len() >= 2) {
+        let points: Vec<Pos2> = ring.iter().map(|p| pen.at + p.to_vec2()).collect();
+        pen.painter.add(Shape::closed_line(points.clone(), Stroke::new(pen.thin * 3.0, pen.halo)));
+        pen.painter.add(Shape::closed_line(points, Stroke::new(pen.thin, pen.fill)));
+    }
+}
+
 /// The hand: open, or the fist while `closed`. Its silhouette is in the mark colour over the same grown by a hairline in
 /// the halo colour, with the creases between the fingers.
 pub(super) fn hand(pen: &Pen<'_>, closed: bool) {
