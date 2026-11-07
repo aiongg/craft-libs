@@ -2,12 +2,10 @@
 
 mod board;
 mod clipboard;
-#[allow(unsafe_code, reason = "`linkme` places the registration in a link section")]
 mod library;
-#[allow(unsafe_code, reason = "`linkme` places the registration in a link section")]
 mod registry;
 
-pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle, Pending};
+pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
 pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule};
 pub use library::{EditCommands, WindowCommand};
 #[doc(hidden)]

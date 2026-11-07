@@ -155,6 +155,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         ids.push(id);
     }
     let names: Vec<_> = data.variants.iter().map(|v| &v.ident).collect();
+    // Inside craft-ui the registration's `link_section` static meets the crate's `deny(unsafe_code)`; see `component.rs`.
+    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     Ok(quote! {
         impl ::craft_ui::runtime::commands::CommandSet for #ident {
             const SCOPE: ::craft_ui::runtime::commands::CommandScope = #scope;
@@ -185,6 +187,9 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
             }
         }
 
-        ::craft_ui::__register_command_set!(#ident);
+        #allow
+        const _: () = {
+            ::craft_ui::__register_command_set!(#ident);
+        };
     })
 }

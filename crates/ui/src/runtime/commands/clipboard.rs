@@ -1,25 +1,9 @@
 //! The clipboard handle `Commands::clipboard` returns, over `runtime::egui::clipboard`.
 
 use crate::runtime::egui::clipboard;
+use crate::runtime::pending::Pending;
 use egui::{ColorImage, Context};
 use std::sync::Arc;
-
-/// A result that may not have arrived.
-// F4-MERGE: motion track (`Pending` and background results, chapter 14)
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum Pending<T, E> {
-    /// Not there yet.
-    #[non_exhaustive]
-    Loading {
-        /// How far along it is, when known.
-        progress: Option<f32>,
-    },
-    /// The result.
-    Ready(T),
-    /// The reason there is none.
-    Failed(E),
-}
 
 /// One clipboard item.
 #[derive(Clone, Debug)]

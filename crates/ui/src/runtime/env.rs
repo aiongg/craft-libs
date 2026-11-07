@@ -535,6 +535,11 @@ impl<'a> EnvView<'a> {
     pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
         self.scoped.words.set::<L>()
     }
+
+    /// `label` with a `Word` replaced by its text in the scope's language.
+    pub(crate) fn resolve(&self, label: &Label) -> Label {
+        label.resolved(&self.scoped.words)
+    }
 }
 
 /// Changes to the inherited values for a stretch of code.

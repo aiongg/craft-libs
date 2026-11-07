@@ -882,10 +882,17 @@ pub(crate) struct ReportIn<'a> {
     pub sense: Sense,
 }
 
-/// The bound command's hint and shortcut, which describe and key its node.
-// F4-MERGE: F4c (commands): `ResolvedCommand` carries `hint` and the shortcut text.
-fn command_facts(_command: &ResolvedCommand) -> (Option<&str>, Option<&str>) {
-    (None, None)
+/// The bound command's hint and shortcut text, which describe and key its node.
+fn command_facts(command: &ResolvedCommand, platform: craft_keymap::Platform) -> (Option<&str>, Option<String>) {
+    (command.hint.as_deref(), command.chord.as_ref().map(|chord| chord.display(platform)))
+}
+
+/// The message of a validity that warns or refuses; the node's description when the component gives none.
+fn validity_message<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
+    match &cx.validity {
+        Validity::Warn(message) | Validity::Refuse(message) => Some(cx.core.env.resolve(&message.text).as_str().to_owned()),
+        _ => None,
+    }
 }
 
 /// Step 16, report: the AccessKit node filled with its sub-nodes, the label-scope patch and the merge, then the
@@ -905,7 +912,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     debug_assert!(access.role.is_none_or(|alt| C::ALT_ROLES.contains(&alt)), "`Access::role` picks one of `ALT_ROLES`");
     let flags = core.state.flags;
     let resolved = core.resolved;
-    let (hint, shortcut) = core.command.as_deref().map_or((None, None), command_facts);
+    let platform = craft_keymap::egui::platform(ctx);
+    let (hint, shortcut) = core.command.as_deref().map_or((None, None), |command| command_facts(command, platform));
+    let shortcut = shortcut.as_deref();
+    if access.description.is_none() {
+        access.description = validity_message(cx);
+    }
     let tooltip = resolved.tooltip.map(|tooltip| tooltip.spec().text.as_str());
     let paint = core.paint.borrow();
     if role == Role::Merged {
