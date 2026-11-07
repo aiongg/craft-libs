@@ -57,6 +57,14 @@ pub trait DisplayOrder<K> {
         false
     }
 
+    /// Whether section `at` is a stop of navigation: it holds the lead, takes Enter, the context-menu key and a
+    /// press, and opens or closes with Forward and Back when it has children. A move stops on it, and it is never
+    /// selected, extended over, toggled, marqueed, dragged, renamed or reached by type-ahead. Only meaningful for a
+    /// section.
+    fn section_stop(&self, _at: usize) -> bool {
+        false
+    }
+
     /// Whether entry `at` can take the lead.
     fn enabled(&self, _at: usize) -> bool {
         true
@@ -143,7 +151,7 @@ impl<K> NavOutline for Outline<'_, K> {
     }
 
     fn is_section(&self, at: usize) -> bool {
-        self.order.is_section(at)
+        self.order.is_section(at) && !self.order.section_stop(at)
     }
 
     fn enabled(&self, at: usize) -> bool {

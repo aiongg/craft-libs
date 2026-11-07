@@ -243,19 +243,19 @@ fn shown_rows<K: Clone + Eq + Hash>(
 
 /// The grid's tiles and group headers from the shown rows: each header covers the presets that follow it inside its
 /// group.
-struct Plan {
+struct Plan<K> {
     tiles: Vec<usize>,
-    groups: Vec<TileGroup>,
+    groups: Vec<TileGroup<K>>,
     group_rows: Vec<usize>,
 }
 
-fn grid_plan<K>(rows: &[PresetRow<K>], shown: &[usize], open: impl Fn(usize) -> bool, count: impl Fn(usize) -> Option<String>) -> Plan {
+fn grid_plan<K: Clone>(rows: &[PresetRow<K>], shown: &[usize], open: impl Fn(usize) -> bool, count: impl Fn(usize) -> Option<String>) -> Plan<K> {
     let mut plan = Plan { tiles: Vec::new(), groups: Vec::new(), group_rows: Vec::new() };
     let mut counting = false;
     for &at in shown {
         let row = &rows[at];
         if row.is_group() {
-            let mut group = TileGroup::new(plan.tiles.len(), 0, row.label.clone()).open(open(at));
+            let mut group = TileGroup::new(row.key.clone(), plan.tiles.len(), 0, row.label.clone()).open(open(at));
             if let Some(detail) = count(at) {
                 group = group.detail(detail);
             }
@@ -456,8 +456,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 grid = grid.reorder(ReorderRule::new());
             }
             let aspect = cell_shape.aspect();
-            let out = grid.show_items(ui, &tiles, &mut |_, icx| {
-                let row = &rows[tiles.at[icx.at]];
+            let out = grid.show_items(ui, &tiles, &mut |key, icx| {
+                let row = &rows[tiles.at[tiles.index_of(key).expect("a tile that is built is a tile of the source")]];
                 let mut tile = Tile::new(row.label.clone());
                 if let Some(detail) = &row.caption {
                     tile = tile.detail(detail.clone());

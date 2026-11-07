@@ -8,11 +8,20 @@ use egui::{Pos2, Rect, Vec2, pos2, vec2};
 use std::ops::Range;
 use std::sync::Arc;
 
-/// A run of tiles under one header (a date, a folder): `start..start + count` in display order.
+/// A run of tiles under one header (a date, a folder): `start..start + count` in the order of the tiles the grid is
+/// given.
+///
+/// The header is a row of the grid's outline, as a tree's group row is: it holds the keyboard lead, opens and closes
+/// with Left and Right, reports Enter and the context-menu key, and is never selected. Its `key` names that row, so
+/// it differs from the key of every tile. Positions in the grid's events (`CollectionEvent::Reorder`,
+/// `FilesDropped`, the `accepts` test) count the headers as rows: the header of a group sits just before its first
+/// tile.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct TileGroup {
-    /// The first tile's position.
+pub struct TileGroup<K> {
+    /// The key of the header row.
+    pub key: K,
+    /// The first tile's position among the tiles.
     pub start: usize,
     /// How many tiles.
     pub count: usize,
@@ -24,10 +33,10 @@ pub struct TileGroup {
     pub open: bool,
 }
 
-impl TileGroup {
-    /// An open group of `count` tiles from position `start`, titled `title`.
-    pub fn new(start: usize, count: usize, title: impl Into<String>) -> Self {
-        TileGroup { start, count, title: title.into(), detail: String::new(), open: true }
+impl<K> TileGroup<K> {
+    /// An open group of `count` tiles from tile position `start`, titled `title`, whose header row is keyed `key`.
+    pub fn new(key: K, start: usize, count: usize, title: impl Into<String>) -> Self {
+        TileGroup { key, start, count, title: title.into(), detail: String::new(), open: true }
     }
 
     /// The detail at the header's trailing end.
@@ -42,6 +51,59 @@ impl TileGroup {
     pub fn open(mut self, open: bool) -> Self {
         self.open = open;
         self
+    }
+}
+
+/// The tiles each of `groups` covers among `tiles` tiles: groups are in display order, a start before the end of the
+/// group before it moves up to that end, and a range ends at the last tile.
+pub(super) fn group_spans<K>(groups: &[TileGroup<K>], tiles: usize) -> Vec<Range<usize>> {
+    let mut at = 0;
+    groups
+        .iter()
+        .map(|group| {
+            let first = group.start.clamp(at, tiles);
+            let end = group.start.saturating_add(group.count).clamp(first, tiles);
+            at = end;
+            first..end
+        })
+        .collect()
+}
+
+/// How many headers sit at or before outline position `at`, given the first tile of every group: the header of group
+/// `g` sits at `starts[g] + g`.
+pub(super) fn headers_through(starts: &[usize], at: usize) -> usize {
+    let (mut low, mut high) = (0, starts.len());
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if starts[mid] + mid <= at {
+            low = mid + 1;
+        } else {
+            high = mid;
+        }
+    }
+    low
+}
+
+/// The outline position of tile `tile`: the tiles' own position plus the headers before it.
+pub(super) fn outline_position(starts: &[usize], tile: usize) -> usize {
+    tile + starts.partition_point(|&start| start <= tile)
+}
+
+/// What stands at an outline position.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Slot {
+    /// The header of the group.
+    Header(usize),
+    /// The tile at this position among the tiles.
+    Tile(usize),
+}
+
+/// What stands at outline position `at`, given the first tile of every group.
+pub(super) fn slot_at(starts: &[usize], at: usize) -> Slot {
+    let before = headers_through(starts, at);
+    match before.checked_sub(1) {
+        Some(group) if starts[group] + group == at => Slot::Header(group),
+        _ => Slot::Tile(at - before),
     }
 }
 
@@ -139,6 +201,8 @@ pub struct TileArrangement {
     pub tiles: Vec<Rect>,
     /// Each group header's rect, in group order.
     pub headers: Vec<Rect>,
+    /// Each group's first tile, in group order.
+    pub starts: Vec<usize>,
     /// The whole height.
     pub height: f32,
 }
@@ -154,18 +218,43 @@ impl TileArrangement {
 
     /// The tile counts of the rows in order, with each run of tiles of a closed group as a row of its own.
     pub fn row_lengths(&self) -> Vec<usize> {
-        let mut lengths = Vec::with_capacity(self.rows.len());
+        self.runs().into_iter().map(|run| run.len()).collect()
+    }
+
+    /// The rows in order as ranges of tiles, with each run of tiles of a closed group as a range of its own.
+    fn runs(&self) -> Vec<Range<usize>> {
+        let mut runs = Vec::with_capacity(self.rows.len());
         let mut next = 0;
         for row in &self.rows {
             if row.tiles.start > next {
-                lengths.push(row.tiles.start - next);
+                runs.push(next..row.tiles.start);
             }
-            lengths.push(row.tiles.len());
+            runs.push(row.tiles.clone());
             next = row.tiles.end;
         }
         if next < self.tiles.len() {
-            lengths.push(self.tiles.len() - next);
+            runs.push(next..self.tiles.len());
         }
+        runs
+    }
+
+    /// The row lengths of the grid's outline: a group's header is a row of one position before its tiles' rows.
+    fn outline_rows(&self) -> Vec<usize> {
+        let mut lengths = Vec::with_capacity(self.rows.len() + self.starts.len());
+        let mut group = 0;
+        for run in self.runs() {
+            let mut from = run.start;
+            while from < run.end {
+                while group < self.starts.len() && self.starts[group] <= from {
+                    lengths.push(1);
+                    group += 1;
+                }
+                let cut = self.starts.get(group).copied().filter(|&start| start < run.end).unwrap_or(run.end);
+                lengths.push(cut - from);
+                from = cut;
+            }
+        }
+        lengths.extend(std::iter::repeat_n(1, self.starts.len() - group));
         lengths
     }
 
@@ -173,6 +262,18 @@ impl TileArrangement {
     pub fn row_of(&self, at: usize) -> Option<usize> {
         let row = self.rows.partition_point(|r| r.tiles.end <= at);
         self.rows.get(row).filter(|r| r.tiles.contains(&at)).map(|_| row)
+    }
+
+    /// The header pinned at the top of a view scrolled to `top`, and where it stands: the header of the group whose
+    /// tiles cross the top edge, lifted out by the next header.
+    pub fn pinned(&self, top: f32) -> Option<(usize, Rect)> {
+        let group = self.group_at(top)?;
+        let header = *self.headers.get(group)?;
+        if header.top() >= top {
+            return None;
+        }
+        let lift = self.headers.get(group + 1).map_or(top, |next| top.min(next.top() - header.height()));
+        Some((group, Rect::from_min_size(pos2(header.left(), lift), header.size())))
     }
 
     /// The group whose tiles cross the top edge `top`, for the pinned header.
@@ -202,10 +303,11 @@ impl ArrangeSpacing {
 }
 
 /// The aspect of every tile of `source`: `SizeHint::Aspect`, or a `SizeHint::Rect`'s width over height; a tile that
-/// gives neither, or a non-finite or non-positive one, counts as 1.
+/// gives neither, or a non-finite or non-positive one, counts as 1. Section rows (group headers) are not tiles.
 pub fn aspects_of<K>(source: &dyn ItemSource<K>) -> Vec<f32> {
     let sane = |aspect: f32| if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.0 };
     (0..source.len())
+        .filter(|&at| !source.is_section(at))
         .map(|at| match source.size_hint(at) {
             SizeHint::Aspect(aspect) => sane(aspect),
             SizeHint::Rect(size) if size.y > 0.0 => sane(size.x / size.y),
@@ -222,27 +324,27 @@ pub fn aspects_of<K>(source: &dyn ItemSource<K>) -> Vec<f32> {
 /// - `Cards`: as many columns as fit; each group starts a new row below its header.
 /// - `groups` are in display order and cover only the tiles they name; tiles outside every group sit in rows
 ///   without a header. A closed group has its header only.
-pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, tiling: Tiling, spacing: ArrangeSpacing, around: Around) -> TileArrangement {
+pub fn arrange<K>(aspects: &[f32], groups: &[TileGroup<K>], width: f32, tiling: Tiling, spacing: ArrangeSpacing, around: Around) -> TileArrangement {
     let sanitized: Vec<f32> = aspects.iter().map(|a| if a.is_finite() && *a > 0.0 { *a } else { 1.0 }).collect();
     let n = sanitized.len();
     let ArrangeSpacing { gap, inset, group_header } = spacing;
     let content = (width - 2.0 * inset).max(1.0);
     let mut out = TileArrangement { tiles: vec![Rect::NOTHING; n], ..TileArrangement::default() };
 
+    let spans = group_spans(groups, n);
     let mut segments: Vec<(Option<usize>, Range<usize>)> = Vec::new();
     let mut at = 0;
-    for (index, group) in groups.iter().enumerate() {
-        let first = group.start.clamp(at, n);
-        let end = group.start.saturating_add(group.count).clamp(first, n);
-        if first > at {
-            segments.push((None, at..first));
+    for (index, span) in spans.iter().enumerate() {
+        if span.start > at {
+            segments.push((None, at..span.start));
         }
-        segments.push((Some(index), first..end));
-        at = end;
+        segments.push((Some(index), span.clone()));
+        at = span.end;
     }
     if at < n {
         segments.push((None, at..n));
     }
+    out.starts = spans.iter().map(|span| span.start).collect();
 
     let mut y = inset;
     let mut started = false;
@@ -350,7 +452,7 @@ enum Kind {
     /// Equal cards in no group, `inset` from every edge.
     Equal { tiles: EqualTiles, inset: f32 },
     /// An arrangement; each card is its picture and `around`.
-    Arranged { arrangement: Arc<TileArrangement>, rows: Arc<[usize]>, width: f32, around: Around },
+    Arranged { arrangement: Arc<TileArrangement>, rows: Arc<[usize]>, starts: Arc<[usize]>, width: f32, around: Around },
 }
 
 impl GridLayout {
@@ -360,10 +462,12 @@ impl GridLayout {
         GridLayout { kind: Kind::Equal { tiles, inset }, recipe: None }
     }
 
-    /// The layout `arrangement` makes in `width`; each card is its picture and `around`.
+    /// The layout `arrangement` makes in `width`; each card is its picture and `around`. The positions of the layout are
+    /// those of the grid's outline: the header of every group stands just before the group's first tile.
     pub fn arranged(arrangement: TileArrangement, width: f32, around: Around) -> Self {
-        let rows = arrangement.row_lengths().into();
-        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), rows, width, around }, recipe: None }
+        let rows = arrangement.outline_rows().into();
+        let starts = arrangement.starts.as_slice().into();
+        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), rows, starts, width, around }, recipe: None }
     }
 
     /// The layout remembers what it was made from.
@@ -417,32 +521,60 @@ impl ItemLayout for GridLayout {
     fn visible(&self, offset: ScrollPos, view: Vec2, out: &mut Vec<usize>) {
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.visible(shifted(offset, *inset), view, out),
-            Kind::Arranged { arrangement, .. } => {
+            Kind::Arranged { arrangement, starts, .. } => {
                 let top = offset.y as f32;
-                for row in &arrangement.rows[arrangement.rows_between(top, top + view.y)] {
-                    out.extend(row.tiles.clone());
+                let bottom = top + view.y;
+                let mut found: Vec<usize> = Vec::new();
+                for row in &arrangement.rows[arrangement.rows_between(top, bottom)] {
+                    found.extend(row.tiles.clone().map(|tile| outline_position(starts, tile)));
                 }
+                let pinned = arrangement.pinned(top).map(|(group, _)| group);
+                let shown = arrangement.headers.iter().enumerate().filter(|(_, header)| header.bottom() >= top && header.top() <= bottom);
+                found.extend(shown.map(|(group, _)| group).chain(pinned).map(|group| starts[group] + group));
+                found.sort_unstable();
+                found.dedup();
+                out.extend(found);
             }
         }
     }
 
     fn rect(&self, at: usize, offset: ScrollPos) -> Rect {
+        let behind = vec2(-(offset.x as f32), -(offset.y as f32));
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.rect(at, shifted(offset, *inset)),
-            Kind::Arranged { arrangement, around, .. } => {
-                let card = Self::card(arrangement, *around, at);
-                if card == Rect::NOTHING { card } else { card.translate(vec2(-(offset.x as f32), -(offset.y as f32))) }
-            }
+            Kind::Arranged { arrangement, starts, around, .. } => match slot_at(starts, at) {
+                Slot::Header(group) => {
+                    let pinned = arrangement.pinned(offset.y as f32).filter(|(held, _)| *held == group);
+                    pinned
+                        .map(|(_, rect)| rect)
+                        .or_else(|| arrangement.headers.get(group).copied())
+                        .map_or(Rect::NOTHING, |rect| rect.translate(behind))
+                }
+                Slot::Tile(tile) => {
+                    let card = Self::card(arrangement, *around, tile);
+                    if card == Rect::NOTHING { card } else { card.translate(behind) }
+                }
+            },
         }
     }
 
     fn hit(&self, point: Pos2, offset: ScrollPos) -> Option<usize> {
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.hit(point, shifted(offset, *inset)),
-            Kind::Arranged { arrangement, around, .. } => {
+            Kind::Arranged { arrangement, starts, around, .. } => {
                 let at = pos2(point.x + offset.x as f32, point.y + offset.y as f32);
+                let header = |group: usize| starts[group] + group;
+                if let Some((group, rect)) = arrangement.pinned(offset.y as f32)
+                    && rect.contains(at)
+                {
+                    return Some(header(group));
+                }
+                let below = arrangement.headers.partition_point(|header| header.top() <= at.y);
+                if let Some(group) = below.checked_sub(1).filter(|&group| arrangement.headers[group].contains(at)) {
+                    return Some(header(group));
+                }
                 let row = arrangement.rows.get(arrangement.rows_between(at.y, at.y).start)?;
-                row.tiles.clone().find(|&tile| Self::card(arrangement, *around, tile).contains(at))
+                row.tiles.clone().find(|&tile| Self::card(arrangement, *around, tile).contains(at)).map(|tile| outline_position(starts, tile))
             }
         }
     }
@@ -462,6 +594,12 @@ impl ItemLayout for GridLayout {
     }
 
     fn shown(&self, at: usize) -> bool {
-        self.arrangement().is_none_or(|arrangement| arrangement.tiles.get(at).is_some_and(|tile| *tile != Rect::NOTHING))
+        match &self.kind {
+            Kind::Equal { .. } => true,
+            Kind::Arranged { arrangement, starts, .. } => match slot_at(starts, at) {
+                Slot::Header(group) => group < arrangement.headers.len(),
+                Slot::Tile(tile) => arrangement.tiles.get(tile).is_some_and(|rect| *rect != Rect::NOTHING),
+            },
+        }
     }
 }

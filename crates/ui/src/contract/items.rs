@@ -18,8 +18,8 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, NavState, NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan,
-    SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
+    Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, MoveMods, NavMove, NavState, NavStep, Outline, PressPhase, Proposal,
+    ScrollPos, ScrollSpan, SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -32,8 +32,8 @@ mod marquee;
 mod request;
 
 pub use header::ColumnCommands;
+pub(crate) use request::lead_position;
 pub use request::request_rename;
-pub(crate) use request::{Move, lead_position, request_move};
 
 use drag::Drags;
 use header::{Header, HeaderMemory};
@@ -45,6 +45,14 @@ pub(super) struct Rows<K> {
 }
 
 const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scroll");
+const SECTION: craft_behavior::PartKey = craft_behavior::PartKey::new("section");
+
+/// The part of a collection that stands for the section row `key` (`ItemSource::section_stop`): the item step builds
+/// no row for it, so the access node that AccessKit focus goes to while the section holds the lead, and the pointer
+/// part over it, are this part of the collection.
+pub(crate) fn section_part<K: std::hash::Hash>(key: &K) -> craft_behavior::PartRef {
+    SECTION.at(key_hash(key))
+}
 
 #[derive(Clone, Default)]
 struct Scrolled {
@@ -240,6 +248,9 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 
     /// A press or key that selects row `at` the way the modifiers say.
     fn pick(&mut self, comp: &C, at: usize, extend: bool, toggle: bool) {
+        if self.source.section_stop(at) {
+            return;
+        }
         let key = self.source.key(at);
         match Self::select_mode(comp) {
             SelectMode::None => {}
@@ -459,7 +470,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
-        self.requested_moves(comp, cx, &layout, view);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &props, lead_at, header_held);
@@ -529,6 +539,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let mut widest = 0.0f32;
         let place_rows = |ui: &mut Ui| {
             for at in order {
+                if self.source.section_stop(at) {
+                    continue;
+                }
                 let key = self.source.key(at);
                 let item_id = sub(id, ("key", key_hash(&key)));
                 let row_group = rows::row_group(item_id);
@@ -604,7 +617,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     }),
                 );
                 item = Props::id(item, item_id);
-                eprintln!("DBGITEM {:?} at={at}", item_id);
                 if content_sized {
                     widest = widest.max(item.measure_in(&row_ui, Proposal::Ideal).x);
                 }
@@ -691,9 +703,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         if (focused || lead_child.is_some())
             && let Some(at) = lead.as_ref().and_then(|key| self.index_of(key))
         {
-            let item_id = sub(id, ("key", key_hash(&self.source.key(at))));
-            let cell = (sheet && self.selection.lead_column().is_some()).then_some(self.lead.column);
-            access::set_focus(&ctx, crate::runtime::access::items::focus_node(item_id, lead_child, cell));
+            let key = self.source.key(at);
+            if self.source.section_stop(at) {
+                access::set_focus(&ctx, crate::runtime::access::sub_node_id(id, section_part(&key)));
+            } else {
+                let item_id = sub(id, ("key", key_hash(&key)));
+                let cell = (sheet && self.selection.lead_column().is_some()).then_some(self.lead.column);
+                access::set_focus(&ctx, crate::runtime::access::items::focus_node(item_id, lead_child, cell));
+            }
         }
         if self.source.is_empty() {
             let mut open = true;
@@ -876,7 +893,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                         ActivateOn::DoubleClick => start.clicks == 2,
                         ActivateOn::Click => primary && start.clicks == 1,
                     };
-                    if activates {
+                    if activates && !self.source.section_stop(at) {
                         self.events.push(CollectionEvent::Activate(key));
                     }
                 }
@@ -889,13 +906,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 self.change(SelectionChange::Clear);
             }
         }
-        // A press that a part of an item won leaves the selection alone and moves the lead to its row.
+        // A press that a part of an item won leaves the selection alone and moves the lead to its row. A press on the
+        // part of a section row (`section_part`) is the section's own, so the lead goes to it as well.
         let outcome = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id));
         if let (Some(PressPhase::Down { start, .. }), Some(target)) = (outcome.phase, outcome.target)
-            && target.owner != cx.core.id
             && target.part.is_some()
             && local(start.origin).y >= 0.0
             && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at) && layout.shown(at))
+            && (target.owner != cx.core.id || target.part.is_some_and(|part| part.key == SECTION))
         {
             self.move_lead(at, LeadSource::Pointer);
         }
@@ -955,6 +973,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 continue;
             }
             let lead = self.lead.key.as_ref().and_then(|key| self.index_of(key));
+            if let Some(at) = lead.filter(|&at| self.source.section_stop(at))
+                && self.section_move(at, mv, mods)
+            {
+                continue;
+            }
             let mut state = NavState::new().page(page).column(self.lead.column);
             state.lead = lead;
             state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
@@ -984,6 +1007,23 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 _ => {}
             }
         }
+    }
+
+    /// Forward and Back on the lead section `at` open and close it when it has children, the tree rule; whether or not
+    /// they do, a plain Forward or Back is the section's and moves nothing else. `true` when the move was taken.
+    fn section_move(&mut self, at: usize, mv: NavMove, mods: MoveMods) -> bool {
+        let wanted = match mv {
+            NavMove::Forward => true,
+            NavMove::Back => false,
+            _ => return false,
+        };
+        if mods != MoveMods::PLAIN {
+            return false;
+        }
+        if self.source.has_children(at) && self.source.open(at) != wanted {
+            self.events.push(CollectionEvent::Open(OpenChange::new(self.source.key(at), wanted)));
+        }
+        true
     }
 
     /// Space and activation at the lead.
@@ -1053,6 +1093,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if let Some(forward) = crate::contract::reorder::take_move_item(&mut cx.core.intents)
             && props.reorder.is_some()
             && let Some(at) = lead_at
+            && !self.source.section_stop(at)
             && comp.can_drag(&self.source.key(at))
         {
             self.nudge_reorder(cx, props, at, forward);
@@ -1060,6 +1101,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if props.rename
             && cx.core.intents.take(Intent::Rename)
             && let Some(at) = lead_at
+            && !self.source.section_stop(at)
             && comp.can_rename(&self.source.key(at))
         {
             self.begin_rename(cx, at);
@@ -1076,34 +1118,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.renaming = Renaming { key: Some(key), draft, gesture, focused: false };
     }
 
-    /// The lead and view moves a component asked for (`request_move`).
-    fn requested_moves(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, view: f32) {
-        for mv in request::take_moves(&cx.core.ctx, cx.core.id) {
-            match mv {
-                Move::Lead(at) if at < self.source.len() && layout.shown(at) => {
-                    self.move_lead(at, LeadSource::Keys);
-                    self.pick(comp, at, false, false);
-                    self.reveal_with(layout, at, view);
-                }
-                Move::Lead(_) => {}
-                Move::Reveal { top, bottom } => {
-                    let (top, bottom) = (f64::from(top), f64::from(bottom));
-                    if top < self.offset {
-                        self.offset = top;
-                    } else if bottom > self.offset + f64::from(view) {
-                        self.offset = bottom - f64::from(view);
-                    }
-                    self.offset = self.offset.clamp(0.0, self.max_offset(view));
-                }
-            }
-        }
-    }
-
     /// A rename requested from outside (`request_rename`): the lead moves to the item, the item is revealed and its
     /// rename field opens.
     fn requested_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, view: f32) {
         let Some(key) = request::take_rename::<C::Key>(&cx.core.ctx, cx.core.id) else { return };
         if let Some(at) = self.index_of(&key)
+            && !self.source.section_stop(at)
             && props.rename
             && comp.can_rename(&key)
         {

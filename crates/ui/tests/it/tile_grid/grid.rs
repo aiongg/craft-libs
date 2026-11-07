@@ -21,7 +21,7 @@ fn spacing() -> ArrangeSpacing {
 fn a_justified_row_but_the_last_fills_the_width_exactly() {
     let aspects = [1.5; 9];
     let around = Around::new(6.0, 2.0, 3.0, 20.0);
-    let laid = arrange(&aspects, &[], WIDTH, Tiling::justified(ROW), spacing(), around);
+    let laid = arrange::<usize>(&aspects, &[], WIDTH, Tiling::justified(ROW), spacing(), around);
     assert!(laid.rows.len() > 1, "nine wide tiles do not fit one row");
     let content = WIDTH - 2.0 * INSET;
     for row in &laid.rows[..laid.rows.len() - 1] {
@@ -36,7 +36,7 @@ fn a_justified_row_but_the_last_fills_the_width_exactly() {
 
 #[craft_ui::testing::trial]
 fn each_group_starts_a_row_below_its_header_and_a_closed_group_has_no_rows() {
-    let groups = [TileGroup::new(0, 5, "A"), TileGroup::new(5, 5, "B").open(false), TileGroup::new(10, 4, "C")];
+    let groups = [TileGroup::new(0, 0, 5, "A"), TileGroup::new(1, 5, 5, "B").open(false), TileGroup::new(2, 10, 4, "C")];
     let laid = arrange(&[1.0; 14], &groups, WIDTH, Tiling::cards(100.0, 1.0), spacing(), Around::default());
     assert_eq!(laid.headers.len(), 3);
     assert!(laid.rows.iter().all(|row| row.group != Some(1)), "a closed group has no rows");
@@ -51,7 +51,7 @@ fn each_group_starts_a_row_below_its_header_and_a_closed_group_has_no_rows() {
 #[craft_ui::testing::trial]
 fn a_hit_finds_the_card_under_the_point_after_scrolling() {
     let around = Around::new(0.0, 0.0, 0.0, 20.0);
-    let laid = arrange(&[1.0; 12], &[], WIDTH, Tiling::cards(100.0, 1.0), spacing(), around);
+    let laid = arrange::<usize>(&[1.0; 12], &[], WIDTH, Tiling::cards(100.0, 1.0), spacing(), around);
     let layout = GridLayout::arranged(laid.clone(), WIDTH, around);
     let offset = ScrollPos { x: 0.0, y: 50.0 };
     let second_row = layout.rect(laid.rows[1].tiles.start, offset);
