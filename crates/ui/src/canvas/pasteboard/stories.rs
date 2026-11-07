@@ -17,7 +17,7 @@ const PLACE_PAGES: ToolPath = ToolPath::Command("the New Artboard command");
 fn boards() -> Vec<PageFrame> {
     vec![
         PageFrame::new(DocRect::new(40.0, 40.0, 240.0, 200.0)).name("Artboard 1").active(true),
-        PageFrame::new(DocRect::new(280.0, 40.0, 440.0, 160.0)).name("Artboard 2").active(false).fill(DataColor::new(Color32::WHITE)),
+        PageFrame::new(DocRect::new(280.0, 40.0, 440.0, 160.0)).name("Artboard 2").active(false).fill(DataColor::new(Color32::from_gray(u8::MAX))),
     ]
 }
 

@@ -45,7 +45,7 @@ impl PasteboardColor {
     pub fn fill(self) -> Option<DataColor> {
         match self {
             PasteboardColor::Default => None,
-            PasteboardColor::Black => Some(DataColor::new(Color32::BLACK)),
+            PasteboardColor::Black => Some(DataColor::new(Color32::from_gray(0))),
             PasteboardColor::DarkGray => Some(DataColor::new(Color32::from_gray(40))),
             PasteboardColor::MediumGray => Some(DataColor::new(Color32::from_gray(83))),
             PasteboardColor::LightGray => Some(DataColor::new(Color32::from_gray(184))),
