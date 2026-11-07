@@ -123,3 +123,91 @@ fn reduced_motion_jumps_travel_and_off_jumps_everything() {
     assert!(fade < 100.0 && asks, "reduced motion keeps its fades: {fade}");
     assert_eq!(after_a_change(MotionMode::Off, false), (100.0, false), "off snaps a fade");
 }
+
+/// What a component's own animations returned in the last pass.
+#[derive(Default)]
+struct Seen {
+    own_on: Cell<f32>,
+    presence: Cell<Option<(f32, bool, bool)>>,
+    phase: Cell<Option<Option<f32>>>,
+}
+
+/// Animates `on` itself (a name the pipeline's state mix also uses), a presence and a loop phase.
+#[derive(Component)]
+struct Animator<'a> {
+    #[common]
+    common: Common,
+    open: bool,
+    seen: &'a Seen,
+}
+
+impl Component for Animator<'_> {
+    const ROLE: Role = Role::None;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: AnimatorStyleKey) -> PlainStyle {
+        PlainStyle::min(egui::vec2(40.0, 20.0))
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        self.seen.own_on.set(cx.anim_bool("on", true, spec::HOVER));
+        let presence = cx.presence("panel", self.open, spec::OPEN_FADE);
+        self.seen.presence.set(Some((presence.t, presence.visible, presence.exiting)));
+        self.seen.phase.set(Some(cx.phase(1.0, None)));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A component's own `on` animation and the pipeline's `on` state are different tweens: neither retargets the other,
+/// so both settle.
+#[trial]
+fn a_component_animating_on_does_not_fight_the_state_mix() {
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        Animator { common: Common::new(), open: true, seen: &seen }.show(ui);
+    };
+    frames.idle(60, &mut show);
+    assert_eq!(seen.own_on.get(), 1.0, "the component's own value stays at its target");
+    let loop_only = frames.repaint_delay();
+    assert!(loop_only.is_some(), "the loop phase keeps asking for passes");
+    let mut frames = Frames::new();
+    frames.root(RootEnv::default().motion(MotionMode::Reduced));
+    frames.idle(60, &mut show);
+    assert_eq!(frames.repaint_delay(), None, "with no loop under reduced motion, nothing is left to animate");
+}
+
+/// A closing presence stays visible and exiting while it fades, then goes; a loop paints its still frame under
+/// reduced motion.
+#[trial]
+fn presence_exits_by_fading_and_a_loop_stands_still_under_reduced_motion() {
+    let seen = Seen::default();
+    let open = Cell::new(true);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut egui::Ui| {
+        Animator { common: Common::new(), open: open.get(), seen: &seen }.show(ui);
+    };
+    frames.idle(3, &mut show);
+    assert_eq!(seen.presence.get(), Some((1.0, true, false)), "open");
+    assert!(matches!(seen.phase.get(), Some(Some(_))), "a loop runs at full motion");
+    open.set(false);
+    frames.idle(2, &mut show);
+    let (t, visible, exiting) = seen.presence.get().unwrap_or_default();
+    assert!(t > 0.0 && t < 1.0 && visible && exiting, "fading out: {t}");
+    for _ in 0..60 {
+        frames.frame(Vec::new(), &mut show);
+    }
+    assert_eq!(seen.presence.get(), Some((0.0, false, false)), "gone");
+    let mut still = Frames::new();
+    still.root(RootEnv::default().motion(MotionMode::Reduced));
+    still.idle(2, &mut show);
+    assert_eq!(seen.phase.get(), Some(None), "a loop is still under reduced motion");
+}
