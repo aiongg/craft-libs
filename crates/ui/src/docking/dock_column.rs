@@ -385,7 +385,7 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded:
 
 /// The name of a column's bar: the labels of its panels.
 pub(super) fn bar_name<P>(column: &Column<P>, spec: &dyn Fn(&P) -> PanelSpec, template: &crate::runtime::env::WordTemplate) -> String {
-    let names: Vec<String> = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).label.as_ref().to_owned()).collect();
+    let names: Vec<String> = column.groups.iter().flat_map(|group| group.panels.iter()).map(|panel| spec(panel).label.as_str().to_owned()).collect();
     template.fill(&[("name", names.join(", ").as_str())])
 }
 
@@ -590,7 +590,7 @@ impl<P: Value + 'static> Component for DockColumn<'_, P> {
         let (rect, rtl, ctx) = (cx.rect, cx.flow.is_rtl(), cx.core.ctx.clone());
         let plan = self.plan(rect, &sizes);
         let bar = cx.part(BAR).clone();
-        if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == egui::PointerButton::Primary)
+        if matches!(bar.press.phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary)
             && let Some(anchor) = self.anchor(0)
         {
             self.gesture = Some(ColumnGesture::Column { anchor: anchor.clone() });

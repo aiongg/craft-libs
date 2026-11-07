@@ -2,8 +2,9 @@
 
 use craft_behavior::dock::{Column, Group};
 use craft_ui::docking::{DockHeights, GroupSize, IconicColumn, PanelSpec, drag_divider, fit_widths, group_heights};
+use craft_ui::testing::memory::global;
 use craft_ui::testing::{Fixture, trial};
-use egui::{Id, Key, Modifiers};
+use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -82,7 +83,7 @@ fn clicking_an_icon_opens_the_flyout_of_its_panel_and_escape_closes_it() {
     let (seen, group_active) = (Rc::clone(&changes), Rc::clone(&shown));
     let mut fixture = Fixture::new(move |ui| {
         let column = Column::new(vec![Group::new(vec![0, 1], 0)], 240.0);
-        let out = IconicColumn::new("Panels", Id::new("dock"), &column, &spec)
+        let out = IconicColumn::new("Panels", global("dock", "columns test"), &column, &spec)
             .show_flyouts(ui, |group, _, _, _| group_active.set(group.active_panel().copied()));
         if let Some(change) = out.flyout {
             seen.borrow_mut().push(change);

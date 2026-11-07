@@ -5,8 +5,8 @@ use super::{DockSpot, DockTargets, DockWords, Flyout, PanelSpec};
 use crate::buttons::IconButton;
 use crate::contract::overlay::Popup;
 use crate::contract::{
-    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, Focus as _, Name, NoValue, Outcome, OverlayUi, Overlays as _, Pad, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, ShowContainer as _, Sizing, WordSetCx as _,
+    Access, BodyCx, Common, Component, Container, ContainerProps, Cx, Name, NoValue, Outcome, OverlayUi, Overlays as _, Pad, PaintUi, PartsCx,
+    Pointer as _, Props as _, Remember as _, Role, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::menu::GroupItem;
 use crate::primitives::IconSpec;
@@ -273,7 +273,8 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
         let plan = self.plan(rect, &sizes);
         let flat = self.flat();
         let popup = cx.popup("flyout");
-        let dragging = |phase: PressPhase| matches!(phase, PressPhase::DragStart { start, .. } if start.button == egui::PointerButton::Primary);
+        let dragging =
+            |phase: PressPhase| matches!(phase, PressPhase::DragStart { start, .. } if start.button == craft_behavior::PointerButton::Primary);
         let mut began = false;
         if dragging(cx.part(super::dock_column::BAR).press.phase)
             && let Some(anchor) = self.column.groups.first().and_then(|group| group.panels.first())
@@ -343,11 +344,11 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
         access.node(super::dock_column::BAR, Role::BUTTON).name = Name::Text(bar_name(self.column, self.spec, &words.move_column));
         for (at, (group, panel)) in self.flat().iter().enumerate() {
             let Some(panel) = self.panel(*group, *panel) else { continue };
-            access.node(CELL.at(at as u64), Role::BUTTON).name = Name::Text((self.spec)(panel).label.as_ref().to_owned());
+            access.node(CELL.at(at as u64), Role::BUTTON).name = Name::Text((self.spec)(panel).label.as_str().to_owned());
         }
         for (group, _) in &plan.grips {
             let Some(shown) = self.column.groups.get(*group).and_then(|group| group.active_panel()) else { continue };
-            let name = words.move_group.fill(&[("name", (self.spec)(shown).label.as_ref())]);
+            let name = words.move_group.fill(&[("name", (self.spec)(shown).label.as_str())]);
             access.node(GRIP.at(*group as u64), Role::BUTTON).name = Name::Text(name);
         }
     }
