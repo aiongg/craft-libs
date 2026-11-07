@@ -70,7 +70,6 @@ impl Momentary {
         match phase {
             FirePhase::Press | FirePhase::Repeat => self.held = Some(command),
             FirePhase::Release => self.held = None,
-            _ => {}
         }
     }
 

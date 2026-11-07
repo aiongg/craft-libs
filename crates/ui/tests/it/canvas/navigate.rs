@@ -94,10 +94,10 @@ fn page_keys_scroll_a_screenful_and_home_end_show_the_corners() {
     let small = MoveMods::new(true, false, Granularity::Unit);
     assert_eq!(PageKey::of(NavMove::PageDown, small, CANVAS), Some(PageKey::Scroll(Vec2::new(0.0, PageKey::SMALL_STEP))));
     assert_eq!(PageKey::of(NavMove::Start, small, CANVAS), None, "Shift+Home is not a page key");
-    assert_eq!(PageKey::of(NavMove::End, plain, CANVAS), Some(PageKey::Corner { end: true }));
+    assert_eq!(PageKey::of(NavMove::End, plain, CANVAS), Some(PageKey::End));
 
     let mut end = view();
-    assert!(PageKey::Corner { end: true }.apply(&mut end, DOCUMENT));
+    assert!(PageKey::End.apply(&mut end, DOCUMENT));
     let corner = end.to_screen(Point::new(DOCUMENT.width, DOCUMENT.height));
     assert!(
         (corner.x - end.rect.right()).abs() < 1e-3 && (corner.y - end.rect.bottom()).abs() < 1e-3,

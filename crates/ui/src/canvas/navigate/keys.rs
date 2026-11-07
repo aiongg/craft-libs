@@ -11,11 +11,10 @@ use egui::Vec2;
 pub enum PageKey {
     /// Scroll by this many screen points (positive: show what is below or to the right).
     Scroll(Vec2),
-    /// Show the document's top-left corner (Home) or bottom-right corner (End).
-    Corner {
-        /// `true` for End (bottom-right), `false` for Home (top-left).
-        end: bool,
-    },
+    /// Show the document's top-left corner (Home).
+    Start,
+    /// Show the document's bottom-right corner (End).
+    End,
 }
 
 impl PageKey {
@@ -33,7 +32,8 @@ impl PageKey {
         let sign = match step {
             NavMove::PageUp => -1.0,
             NavMove::PageDown => 1.0,
-            NavMove::Start | NavMove::End if !mods.extend && !mods.lead => return Some(PageKey::Corner { end: step == NavMove::End }),
+            NavMove::Start if !mods.extend && !mods.lead => return Some(PageKey::Start),
+            NavMove::End if !mods.extend && !mods.lead => return Some(PageKey::End),
             _ => return None,
         };
         let sideways = mods.lead;
@@ -52,12 +52,13 @@ impl PageKey {
         let before = *view;
         match self {
             PageKey::Scroll(delta) => pan(view, -delta),
-            PageKey::Corner { end } => {
+            PageKey::Start | PageKey::End => {
+                let end = self == PageKey::End;
                 // The document corner goes to the canvas corner the document runs on from: the top-left one in an
                 // upright view, another when it is turned or mirrored.
-                let (corner, inward) =
-                    if end { (Point::new(size.width, size.height), DocVec::new(-1.0, -1.0)) } else { (Point::ORIGIN, DocVec::new(1.0, 1.0)) };
-                let dir = view.map_vec(inward);
+                let toward = if end { -1.0 } else { 1.0 };
+                let corner = if end { Point::new(size.width, size.height) } else { Point::ORIGIN };
+                let dir = view.map_vec(DocVec::new(toward, toward));
                 let canvas = view.rect.size();
                 let at = Vec2::new(-dir.x.signum() * canvas.x / 2.0, -dir.y.signum() * canvas.y / 2.0);
                 let center = corner - view.unmap_vec(at);
