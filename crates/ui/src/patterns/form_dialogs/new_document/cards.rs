@@ -2,7 +2,7 @@
 
 use super::presets::{DEFAULT_ID, DocumentOptions, DocumentPreset, PresetWords, size_line};
 use super::{NewDocumentWords, Read, Session, Setup, background_label, depth_label, mode_label};
-use crate::contract::{Bind, CollectionEvent, Props as _, SelectMode, ShowCollection as _};
+use crate::contract::{Bind, CollectionEvent, Props as _, SelectMode, Show as _, ShowCollection as _};
 use crate::display::{Shade, Text};
 use crate::list::{List, ListRow, ThumbAspect};
 use crate::primitives::{ContentPainterCx, PaintShape};
