@@ -29,6 +29,7 @@ pub mod style;
 pub mod suite;
 pub mod surface;
 pub mod text;
+pub mod tool_fixture;
 pub mod wheel;
 pub mod windows;
 
@@ -36,6 +37,7 @@ pub use crate::contract::{Exemption, PatternProbe, Probe, Registration};
 pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;
+pub use tool_fixture::ToolFixture;
 #[doc(hidden)]
 pub use story::{
     CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,

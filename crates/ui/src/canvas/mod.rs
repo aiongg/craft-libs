@@ -9,8 +9,16 @@ mod crop;
 mod stories;
 mod words;
 
+mod tool;
+mod tool_groups;
+mod tool_host;
+
 pub use crop::{CropOverlay, CropStyle};
 pub use words::CanvasWords;
+
+pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
+pub use tool_groups::{PickStep, tool_pick};
+pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
