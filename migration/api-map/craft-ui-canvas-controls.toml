@@ -351,3 +351,201 @@ new = "Axis { along: craft_behavior::Axis } and SnapGesture::axis(along)"
 type = "SnapTargets"
 old = "nearest(vertical, value, tolerance), snap_axis(vertical, value, tolerance) and the guides argument of with_document as (bool, f64)"
 new = "the same with along: craft_behavior::Axis, and (Axis, f64) for the guides"
+
+# Brush overlays (canvas-controls-c): craft_ui::canvas_controls::brush
+[[type]]
+name = "BrushCursor"
+old = "craft_ui::canvas::brush::BrushCursor"
+new = "craft_ui::canvas_controls::brush::BrushCursor"
+status = "moved"
+
+[[type]]
+name = "BrushTip"
+old = "craft_ui::canvas::brush::BrushTip"
+new = "craft_ui::canvas_controls::brush::BrushTip"
+status = "moved"
+
+[[type]]
+name = "BrushTipOutline"
+old = "craft_ui::canvas::brush::BrushTipOutline"
+new = "craft_ui::canvas_controls::brush::BrushTipOutline"
+status = "moved"
+
+[[type]]
+name = "TipRings"
+old = "craft_ui::canvas::brush::TipRings"
+new = "craft_ui::canvas_controls::brush::TipRings"
+status = "moved"
+
+[[type]]
+name = "TipPose"
+old = "craft_ui::canvas::brush::TipPose"
+new = "craft_ui::canvas_controls::brush::TipPose"
+status = "moved"
+
+[[type]]
+name = "TipFalloff"
+old = "craft_ui::canvas::brush::TipFalloff"
+new = "craft_ui::canvas_controls::brush::TipFalloff"
+status = "moved"
+
+[[type]]
+name = "BrushResize"
+old = "craft_ui::canvas::brush::BrushResize"
+new = "craft_ui::canvas_controls::brush::BrushResize"
+status = "moved"
+
+[[type]]
+name = "BrushDimensions"
+old = "craft_ui::canvas::brush::BrushDimensions"
+new = "craft_ui::canvas_controls::brush::BrushDimensions"
+status = "moved"
+
+[[type]]
+name = "BrushLevel"
+old = "craft_ui::canvas::brush::BrushLevel"
+new = "craft_ui::canvas_controls::brush::BrushLevel"
+status = "moved"
+
+[[type]]
+name = "BrushResizeOptions"
+old = "craft_ui::canvas::brush::BrushResizeOptions"
+new = "craft_ui::canvas_controls::brush::BrushResizeOptions"
+status = "moved"
+
+[[type]]
+name = "PaintingCursor"
+old = "craft_ui::canvas::PaintingCursor"
+new = "craft_ui::canvas_controls::brush::PaintingCursor"
+status = "moved"
+
+[[type]]
+name = "BrushResizeLabels"
+old = "craft_ui::canvas::brush::BrushResizeLabels"
+new = ""
+status = "removed"
+note = "The readout's row labels are words: `craft_ui::canvas_controls::BrushWords`."
+
+[[type]]
+name = "BrushWords"
+old = ""
+new = "craft_ui::canvas_controls::BrushWords"
+status = "replaced"
+note = "The word set of the brush overlays; replaces BrushResizeLabels (ids brushResize.diameter, hardness, opacity, density)."
+
+[[type]]
+name = "BrushStyle"
+old = "craft_ui::canvas::brush::BrushStyle"
+new = ""
+status = "removed"
+note = "The cursor sizes, the preview tint and the resize travel are gone as one value: the painters read their colours from tokens in their ComponentStyle (FalloffPreviewStyle), the crosshair reach is BrushCursorOptions::crosshair_reach, and the travel is BrushResizeOptions::travel (default RESIZE_TRAVEL)."
+
+[[type]]
+name = "BrushCursorOptions"
+old = ""
+new = "craft_ui::canvas_controls::brush::BrushCursorOptions"
+status = "replaced"
+note = "The user's cursor preferences a brush cursor reads (painting cursor, Show Only Crosshair While Painting, Caps Lock precise) and the crosshair reach; replaces the brush part of the legacy CursorOptions."
+
+[[type]]
+name = "ResizeStep"
+old = ""
+new = "craft_ui::canvas_controls::brush::ResizeStep"
+status = "replaced"
+note = "A resize step { phase: GesturePhase, dimensions, changed }; replaces EditEvent<BrushDimensions>."
+
+[[type]]
+name = "FalloffPreview"
+old = ""
+new = "craft_ui::canvas_controls::brush::FalloffPreview"
+status = "replaced"
+note = "The canvas control that shows a TipFalloff and the brush circle; replaces TipFalloff::paint and BrushResize::paint."
+
+[[type]]
+name = "TipCell"
+old = ""
+new = "craft_ui::canvas_controls::brush::TipCell"
+status = "replaced"
+note = "The canvas control that shows an aliased tip's pixel cell; replaces BrushCursor::paint_pixels."
+
+[[type]]
+name = "CursorBitmap"
+old = ""
+new = "craft_ui::canvas_controls::brush::CursorBitmap"
+status = "replaced"
+note = "The image of a painted circle, crosshair or outline for a window's own cursor, rendered from a CursorBitmapSpec; replaces the private cursor/bitmap.rs of the legacy cursor host."
+
+[[setter]]
+type = "BrushTip"
+old = "the struct literal BrushTip { diameter, outline }"
+new = "BrushTip::new(diameter, outline)"
+
+[[setter]]
+type = "BrushTipOutline"
+old = "the struct-like variants Round { .. }, Traced { .. } and Pixels { .. } as literals"
+new = "BrushTipOutline::round(normal_radius, full_radius), traced(normal, full) and pixels(cell, round)"
+
+[[setter]]
+type = "TipPose"
+old = "the struct literal TipPose { x_axis, y_axis }"
+new = "TipPose::new(x_axis, y_axis)"
+
+[[setter]]
+type = "BrushCursor"
+old = "icon(Icon)"
+new = "icon(craft_behavior::IconId)"
+
+[[setter]]
+type = "BrushCursor"
+old = "cursor(style, prefs, view, caps_lock) -> ToolCursor"
+new = "cursor(options, view, caps_lock) -> craft_behavior::Cursor"
+
+[[setter]]
+type = "BrushCursor"
+old = "paint_pixels(painter, view, style)"
+new = "tip_cell() -> Option<TipCell> shown at the canvas rect with show_at; pixel_cell(view, pixels_per_point) -> Option<egui::Rect> is the snapped cell"
+
+[[setter]]
+type = "BrushCursor"
+old = "the Caps Lock and centre mark on circles and outlines"
+new = "centre(on) applies to an aliased tip only (crosshair instead of a hidden pointer): PaintedCursor::Circle and Outline carry no centre mark; badge(..) rides on the Standard icon and the crosshair only"
+
+[[setter]]
+type = "BrushResize"
+old = "chord(egui::PointerButton, egui::Modifiers) and takes(..)"
+new = "chord(craft_behavior::PointerButton, craft_keymap::Mods) and takes(..); the primary-button chord is Control and Alt (the Control key, not Command)"
+
+[[setter]]
+type = "BrushResize"
+old = "begin(view, at, start, options) -> Option<EditEvent<BrushDimensions>>"
+new = "begin(view, at, start, options) -> Option<ResizeStep>"
+
+[[setter]]
+type = "BrushResize"
+old = "track(view, at, modifiers) and finish(view, at, modifiers) -> Option<EditEvent<BrushDimensions>>"
+new = "track(view, at) and finish(view, at) -> Option<ResizeStep>"
+
+[[setter]]
+type = "BrushResize"
+old = "cancel() -> Option<EditEvent<BrushDimensions>>"
+new = "cancel() -> Option<ResizeStep> carrying the start values"
+
+[[setter]]
+type = "BrushResize"
+old = "paint(painter, view, style, falloff)"
+new = "preview(&falloff) -> Option<FalloffPreview> shown at the canvas rect with show_at"
+
+[[setter]]
+type = "BrushResize"
+old = "readout(units, labels) -> Option<Readout>"
+new = "readout_rows(units, words: &BrushWords) -> Vec<(Label, String)> for ToolContext::readout"
+
+[[setter]]
+type = "BrushResizeOptions"
+old = "new(style, max_diameter) and tint(Color32)"
+new = "new(max_diameter), travel(points) and tint(DataColor)"
+
+[[setter]]
+type = "TipFalloff"
+old = "paint(painter, centre, zoom, tint)"
+new = "FalloffPreview::new(&falloff, centre, ring_radius) shown at the canvas rect, with tint(DataColor)"

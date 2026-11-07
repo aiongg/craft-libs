@@ -7,6 +7,9 @@ pub(crate) mod body;
 mod buttons;
 mod callsites;
 mod canvas;
+
+// Brush overlays.
+mod canvas_controls;
 mod choice;
 mod collection;
 mod commands;
