@@ -1,5 +1,6 @@
 //! Drag and drop (8.4): the session, drop targets, the operation, cancel and the ghost layer's preview.
 
+use crate::windows_kit::Windows;
 use craft_behavior::{DropOperation, PartKey, PressPhase};
 use craft_ui::contract::{Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, PartsCx, Pointer as _, Props as _, Role, Show as _};
 use craft_ui::runtime::drag;
@@ -8,7 +9,7 @@ use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2};
+use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 use std::cell::RefCell;
 
 const GRIP: PartKey = PartKey::new("grip");
@@ -211,4 +212,46 @@ fn a_release_over_no_target_reports_nothing_and_the_cursor_says_so() {
     let seen = seen.borrow();
     assert!(seen.dropped.is_empty() && seen.ended.is_empty(), "{:?} {:?}", seen.dropped, seen.ended);
     let _ = over;
+}
+
+/// A drag that starts in one window and ends over a target in another: the session maps the pointer to desktop
+/// space, the other window's target takes the drop one frame after the release, and the source learns the
+/// operation in the frame after that.
+#[trial]
+fn a_drag_crosses_windows_and_the_target_in_the_other_window_takes_the_drop() {
+    let seen = RefCell::new(Seen::default());
+    let windows = Windows::new();
+    let other = ViewportId::from_hash_of("other");
+    let at = |min: Pos2, size: Vec2| ViewportInfo { inner_rect: Some(Rect::from_min_size(min, size)), ..ViewportInfo::default() };
+    windows.root_info(at(Pos2::ZERO, Vec2::new(800.0, 600.0)));
+    windows.child_info(at(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0)));
+    let mut frame = |events: Vec<egui::Event>| {
+        windows.frame(events, vec![], |ui| {
+            Chip { common: Common::new(), seen: &seen }.id_salt("chip").show_at(ui, CHIP);
+            ui.ctx().show_viewport_immediate(other, ViewportBuilder::default(), |other_ui, _| {
+                Slot { common: Common::new(), seen: &seen }.id_salt("slot").show_at(other_ui, SLOT);
+            });
+        });
+    };
+    // The slot's centre in the other window is (250, 35); that window sits at (100, 100) on the desktop, so the
+    // source window's pointer is at (350, 135).
+    let over = Pos2::new(350.0, 135.0);
+    let from = CHIP.center();
+    for _ in 0..2 {
+        frame(vec![]);
+    }
+    frame(vec![moved(from)]);
+    frame(vec![press(from)]);
+    for to in [from + Vec2::new(30.0, 0.0), from + Vec2::new(100.0, 0.0), over] {
+        frame(vec![moved(to)]);
+    }
+    frame(vec![]);
+    assert!(seen.borrow().dropped.is_empty(), "nothing drops while the button is down");
+    frame(vec![release(over)]);
+    for _ in 0..3 {
+        frame(vec![]);
+    }
+    let seen = seen.borrow();
+    assert_eq!(seen.dropped, vec![(7, DropOperation::Move)], "the other window's target took the drop once");
+    assert_eq!(seen.ended, vec![DropOperation::Move], "the source saw the operation once");
 }

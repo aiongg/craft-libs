@@ -74,17 +74,17 @@ fn looks_replace_a_components_style_app_wide() {
         width
     };
     let mut plain = Frames::uninstalled();
-    assert!(install(&plain.ctx, InstallSpec::new()).is_ok());
+    assert!(install(&plain.ctx, craft_ui::testing::install_spec()).is_ok());
     let mut replaced = Frames::uninstalled();
     let mut looks = Looks::new();
     looks.style::<Probe<'static>>(|_, _| PlainStyle::min(Vec2::new(80.0, 10.0)));
-    assert!(install(&replaced.ctx, InstallSpec::new().looks(looks)).is_ok());
+    assert!(install(&replaced.ctx, craft_ui::testing::install_spec().looks(looks)).is_ok());
     assert!(size(&mut replaced) > size(&mut plain), "the replacement's minimum size applies");
 
     let mut twice = Looks::new();
     twice.style::<Probe<'static>>(|_, _| PlainStyle::default()).style::<Probe<'static>>(|_, _| PlainStyle::default());
     let ctx = Frames::uninstalled().ctx;
-    assert!(install(&ctx, InstallSpec::new().looks(twice)).is_err(), "two replacements for one style key are refused");
+    assert!(install(&ctx, craft_ui::testing::install_spec().looks(twice)).is_err(), "two replacements for one style key are refused");
 }
 
 static FACE_UPDATES: AtomicU32 = AtomicU32::new(0);

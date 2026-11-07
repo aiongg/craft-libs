@@ -107,7 +107,7 @@ fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
     let frames = Frames::uninstalled();
     let mut looks = StyleReplacements::new();
     looks.push::<FirstKey, SharedStyle>(replacement);
-    assert!(install(&frames.ctx, InstallSpec::new().looks(looks)).is_ok());
+    assert!(install(&frames.ctx, craft_ui::testing::install_spec().looks(looks)).is_ok());
     let tokens = tokens(Mode::Light, Contrast::Standard);
     with_cx(&frames.ctx, &tokens, Variant::SECONDARY, ControlSize::Md, |cx| {
         assert_eq!(style_of(&frames.ctx, cx, FirstKey, default).built_by, "app");
@@ -117,7 +117,7 @@ fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
     let other = Frames::uninstalled();
     let mut twice = StyleReplacements::new();
     twice.push::<FirstKey, SharedStyle>(replacement).push::<FirstKey, SharedStyle>(replacement);
-    assert!(matches!(install(&other.ctx, InstallSpec::new().looks(twice)), Err(InstallError::DuplicateStyle(_))));
+    assert!(matches!(install(&other.ctx, craft_ui::testing::install_spec().looks(twice)), Err(InstallError::DuplicateStyle(_))));
 }
 
 /// The key of a token set is its content, so rebuilding an equal set adds no cache entries.

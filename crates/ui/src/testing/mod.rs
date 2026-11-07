@@ -15,10 +15,12 @@ pub mod pointer;
 pub mod sensing;
 pub mod style;
 pub mod wheel;
+pub mod windows;
 
 pub use crate::contract::{Exemption, Probe, Registration};
 pub use craft_ui_macros::trial;
 pub use frames::Frames;
+pub use windows::install_spec;
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]

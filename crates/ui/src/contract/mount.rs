@@ -3,24 +3,30 @@
 
 use super::body::{Placement, placement_id};
 use super::container::PaneEdge;
-use super::run::{Host, ShowAt};
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
+use super::run::{Host, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
+use crate::runtime::egui::memory as store;
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{memory as store, viewports};
-use crate::runtime::env::Env;
+use crate::runtime::env::{Env, Label};
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
+use crate::runtime::windows::{self, ViewportOpen, WindowHost};
+use craft_host::target::WindowKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host for `props.mount`.
-pub(super) fn host(props: &ContainerProps) -> Box<dyn Host> {
+pub(super) fn host(props: &ContainerProps, title: &Label) -> Box<dyn Host> {
     match &props.mount {
         Mount::Inline => Box::new(InlineHost),
         Mount::Pane(pane) => Box::new(PaneHost(*pane)),
         Mount::Layer(overlay) => Box::new(LayerHost(overlay.clone())),
         Mount::FullWindow => Box::new(FullWindowHost),
-        Mount::Viewport { fallback } => Box::new(ViewportHost(LayerHost(fallback.clone()))),
+        Mount::Viewport { fallback } => Box::new(ViewportHost {
+            fallback: LayerHost(fallback.clone()),
+            title: title.clone(),
+            save: props.save.as_ref().map(|key| key.as_str().to_owned()),
+        }),
     }
 }
 
@@ -85,17 +91,52 @@ impl Host for FullWindowHost {
     }
 }
 
-/// An OS viewport where the integration opens them, else the fallback layer.
-struct ViewportHost(LayerHost);
+/// An OS viewport where `WindowHost` opens them, else the fallback layer. The window's placement and the
+/// fallback layer's placement are kept in the window store under the container's save key.
+struct ViewportHost {
+    fallback: LayerHost,
+    title: Label,
+    save: Option<String>,
+}
+
+impl ViewportHost {
+    /// The fallback layer, seeded from the saved placement and saved after the pass.
+    fn run_fallback(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+        let ctx = parent.ctx().clone();
+        let Some(key) = self.save.as_deref() else { return self.fallback.run(id, parent, env, pass) };
+        let slot = placement_id(id);
+        if store::peek_clone::<Placement>(&ctx, slot).is_none_or(|placement| placement == Placement::default())
+            && let Some(saved) = windows::saved_placement(&ctx, key)
+        {
+            let scale = saved.scale.max(f32::EPSILON);
+            let pos = saved.position_px.map(|[x, y]| [x as f32 / scale, y as f32 / scale]);
+            store::put(&ctx, slot, Placement { pos, size: Some(saved.normal.size) });
+        }
+        self.fallback.run(id, parent, env, pass);
+        if let Some(placement) = store::peek_clone::<Placement>(&ctx, slot)
+            && let Some(size) = placement.size
+        {
+            let scale = ctx.pixels_per_point();
+            let mut saved = windows::saved_placement(&ctx, key).unwrap_or_else(|| craft_window::restore::Placement::new(size, scale));
+            saved.normal.size = size;
+            saved.scale = scale;
+            saved.position_px = placement.pos.map(|[x, y]| [(x * scale).round() as i32, (y * scale).round() as i32]);
+            windows::save_placement(&ctx, key, &saved);
+        }
+    }
+}
 
 impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        if !viewports::available(&ctx) {
-            return self.0.run(id, parent, env, pass);
+        let windows_host = WindowHost::of(&ctx);
+        if !windows_host.viewports_available() {
+            return self.run_fallback(id, parent, env, pass);
         }
-        let size = layout_memory::read(&ctx, id);
-        viewports::show_immediate(&ctx, viewports::viewport_id(id), "", size, |ui| {
+        let title = env.resolve(&self.title);
+        let open =
+            ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind: WindowKind::Tool };
+        windows::show_viewport(&ctx, &open, |ui| {
             let installed = Env::install_for(ui, env.clone());
             let window = ui.max_rect();
             pass(ui, Some(ShowAt::Rect(window)));

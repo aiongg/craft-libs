@@ -232,7 +232,7 @@ fn every_call_site_shows() {
     // An app-wide style replacement, frozen at install. Variants need no registration.
     let mut looks = Looks::new();
     looks.style::<Badge>(|_, _| app::PlainLook::new(Vec2::new(30.0, 18.0)));
-    assert!(install(&frames.ctx, InstallSpec::new().looks(looks)).is_ok(), "one replacement per type");
+    assert!(install(&frames.ctx, craft_ui::testing::install_spec().looks(looks)).is_ok(), "one replacement per type");
     let help = String::from("help");
     frames.frame(vec![], |ui| {
         // A leaf with setters, a rich tooltip that borrows app state, and a measure call.

@@ -3,6 +3,7 @@
 //! The begin hook converts the pass's pointer input once. The sensing core in `primitives` runs the press
 //! lifecycle over it and writes the shapes it registers into the record the focus service reads.
 
+use crate::runtime::drag;
 use crate::runtime::egui::areas::{self, Layer};
 use crate::runtime::egui::{input, pass};
 use crate::runtime::frame::{PerViewport, Stamped};
@@ -108,7 +109,11 @@ struct Shapes {
 pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
-    let read = input::pointer_read(ctx);
+    let mut read = input::pointer_read(ctx);
+    // A drag that started in another window reaches this one through the desktop pointer (8.4).
+    if read.pos.is_none() {
+        read.pos = drag::cross_window_pointer(ctx, viewport);
+    }
     let wheel = input::wheel_read(ctx, WHEEL_LINE_POINTS, WHEEL_PAGE_POINTS);
     let hits = input::hit_targets(ctx);
     let middle_pressed = read.events.iter().any(|event| matches!(event, PointerEvent::Pressed { button: PointerButton::Middle, .. }));

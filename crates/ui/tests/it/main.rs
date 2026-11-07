@@ -5,8 +5,8 @@ mod body;
 mod callsites;
 mod commands;
 mod contract;
-mod drag;
 mod controls;
+mod drag;
 mod egui_surface;
 mod focus;
 mod label;
@@ -18,6 +18,7 @@ mod runtime;
 mod sections;
 mod style;
 mod values;
+mod windows_kit;
 
 use craft_ui::testing::TRIALS;
 use libtest_mimic::{Arguments, Trial};

@@ -146,6 +146,8 @@ pub mod mac;
 mod menu;
 mod place;
 pub mod policy;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod system;
 #[cfg(feature = "ui")]
 pub mod title_bar;
 #[cfg(feature = "ui")]

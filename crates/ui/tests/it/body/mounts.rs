@@ -3,12 +3,19 @@
 
 use super::kit::Slab;
 use crate::contract::kit::{Probe, Seen};
+use crate::windows_kit::Windows;
 use craft_behavior::CanvasTransform;
+use craft_host::target::{Caps, ShellInfo};
+use craft_ui::contract::SaveKey;
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
+use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::layout::{Block, in_region};
+use craft_ui::testing::windows::NoWindows;
 use craft_ui::testing::{Frames, pointer, trial};
-use egui::{Pos2, Rect, Ui, Vec2};
+use craft_window::restore::Store;
+use egui::{Pos2, Rect, Ui, Vec2, ViewportEvent, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
+use std::sync::{Arc, Mutex};
 
 /// What the pointer drags a layer by, and the most its position may differ from the drag.
 const MOVE: Vec2 = Vec2::new(40.0, 30.0);
@@ -101,4 +108,105 @@ fn a_viewport_mount_shows_its_body_in_the_fallback_layer_under_test() {
     });
     assert!(ran.get() > 0, "the body ran in the fallback layer");
     assert!(screen.contains_rect(rect.get()) && rect.get().width() >= BODY.x, "the fallback layer sits inside the window: {:?}", rect.get());
+}
+
+/// Where viewports are available a viewport mount opens a window with the container's title, and its body runs in
+/// that window's passes, not the main window's.
+#[trial]
+fn a_viewport_mount_opens_a_window_with_its_title() {
+    let windows = Windows::new();
+    let in_window = Cell::new(false);
+    let mut frame = || {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                in_window.set(ui.ctx().viewport_id() != ViewportId::ROOT);
+                Block::new(BODY).show(ui);
+            });
+        })
+    };
+    frame();
+    let out = frame();
+    assert!(in_window.get(), "the body ran in the child viewport");
+    assert!(
+        out.titles.iter().any(|(id, title)| *id != ViewportId::ROOT && title == "Export"),
+        "the window is titled by the container: {:?}",
+        out.titles
+    );
+}
+
+/// Without the viewport capability the same mount shows its body in the main window, on the fallback layer.
+#[trial]
+fn a_viewport_mount_without_the_capability_uses_the_fallback_overlay() {
+    let shell = ShellInfo::default().caps(Caps::web());
+    let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));
+    let (ran, in_window) = (Cell::new(0), Cell::new(false));
+    for _ in 0..3 {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                ran.set(ran.get() + 1);
+                in_window.set(ui.ctx().viewport_id() != ViewportId::ROOT);
+                Block::new(BODY).show(ui);
+            });
+        });
+    }
+    assert!(ran.get() > 0 && !in_window.get(), "the body ran in the main window's fallback layer");
+}
+
+/// A viewport mount's window placement goes to the placement store under the container's save key, and the next
+/// run opens the window with it.
+#[trial]
+fn a_viewport_mount_saves_its_window_placement_in_the_store() {
+    let store = Arc::new(Mutex::new(Store::in_memory()));
+    let spec = InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).placement(store.clone());
+    let windows = Windows::with(spec);
+    windows.child_info(ViewportInfo {
+        inner_rect: Some(Rect::from_min_size(Pos2::new(120.0, 90.0), Vec2::new(420.0, 310.0))),
+        outer_rect: Some(Rect::from_min_size(Pos2::new(118.0, 60.0), Vec2::new(424.0, 342.0))),
+        native_pixels_per_point: Some(2.0),
+        ..ViewportInfo::default()
+    });
+    for _ in 0..3 {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new()
+                .mount(Mount::viewport(Overlay::floating()))
+                .sizing(Sizing::Content)
+                .save(SaveKey::new("craft_ui_tests.export_window"));
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                Block::new(BODY).show(ui);
+            });
+        });
+    }
+    let saved = store.lock().unwrap().get("craft_ui_tests.export_window").expect("the window's placement was saved");
+    assert_eq!(saved.normal.size, [420.0, 310.0], "the inner size in points");
+    assert_eq!(saved.position_px, Some([236, 120]), "the outer position in physical pixels");
+}
+
+/// The OS asking a viewport mount's window to close closes the container: its body stops running.
+#[trial]
+fn the_os_closing_a_viewport_mount_window_closes_the_container() {
+    let windows = Windows::new();
+    let ran = Cell::new(0);
+    let mut frame = || {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                ran.set(ran.get() + 1);
+                Block::new(BODY).show(ui);
+            });
+        });
+    };
+    for _ in 0..3 {
+        frame();
+    }
+    windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
+    frame();
+    windows.child_info(ViewportInfo::default());
+    frame();
+    let after_close = ran.get();
+    for _ in 0..3 {
+        frame();
+    }
+    assert_eq!(ran.get(), after_close, "the body no longer runs once the window was closed");
 }

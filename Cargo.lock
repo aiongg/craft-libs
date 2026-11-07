@@ -1338,6 +1338,7 @@ dependencies = [
 name = "craft-host"
 version = "0.1.0"
 dependencies = [
+ "bitflags 2.13.2",
  "craft-i18n",
  "egui",
  "serde",
@@ -1712,15 +1713,19 @@ dependencies = [
  "craft-host",
  "craft-i18n",
  "craft-keymap",
+ "craft-quit",
  "craft-theme",
  "craft-ui",
  "craft-ui-macros",
+ "craft-window",
  "eframe",
  "egui",
  "egui_kittest",
  "libtest-mimic",
  "linkme",
  "log",
+ "objc2 0.6.5",
+ "objc2-app-kit 0.3.2",
  "serde",
  "smallvec",
 ]

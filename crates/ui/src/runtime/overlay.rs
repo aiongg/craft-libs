@@ -317,7 +317,11 @@ pub(crate) fn end_pass(ctx: &Context) {
             persist.raised.insert(id, persist.counter);
         };
         let live = |entry: &&OpenEntry| !entry.exiting;
-        let roots: Vec<Id> = current.iter().filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent))).map(|entry| entry.id).collect();
+        let roots: Vec<Id> = current
+            .iter()
+            .filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent)))
+            .map(|entry| entry.id)
+            .collect();
         for root in &roots {
             if !last_ids.contains(root) {
                 stamp(*root, persist);
@@ -372,9 +376,13 @@ pub(crate) fn note_dropped_press(ctx: &Context, viewport: ViewportId) {
 
 /// Whether the input hook dropped a press for `viewport` since the last call; the window host raises the modal's
 /// window for it.
-#[expect(dead_code, reason = "the window host (F7) raises the modal's window for a dropped press")]
 pub(crate) fn take_dropped_press(ctx: &Context, viewport: ViewportId) -> bool {
     with_persist(ctx, viewport, |persist| std::mem::take(&mut persist.dropped_press))
+}
+
+/// A viewport other than `viewport` that has a modal layer open: the window a blocked press raises.
+pub(crate) fn modal_viewport(ctx: &Context, viewport: ViewportId) -> Option<ViewportId> {
+    pass::live_viewports(ctx).into_iter().filter(|other| *other != viewport).find(|other| with_persist(ctx, *other, |persist| persist.modal))
 }
 
 /// Whether a layer of key class `class` that is not fading out was shown last frame.

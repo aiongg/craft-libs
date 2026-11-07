@@ -323,10 +323,37 @@ pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
     input.events.retain(|event| {
         let blocked = matches!(
             event,
-            Event::PointerButton { .. } | Event::MouseWheel { .. } | Event::Key { .. } | Event::Text(_) | Event::Copy | Event::Cut | Event::Paste(_) | Event::Touch { .. }
+            Event::PointerButton { .. }
+                | Event::MouseWheel { .. }
+                | Event::Key { .. }
+                | Event::Text(_)
+                | Event::Copy
+                | Event::Cut
+                | Event::Paste(_)
+                | Event::Touch { .. }
         );
         press |= matches!(event, Event::PointerButton { pressed: true, .. });
         !blocked
     });
     (input.events.len() != before, press)
+}
+
+/// Adds a release of the primary button at `pos` after the events of `input`.
+pub(crate) fn push_primary_release(input: &mut RawInput, pos: Pos2) {
+    input.events.push(Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, modifiers: egui::Modifiers::NONE });
+}
+
+/// Follows the primary button and the pointer through `events`: `down` ends as the button's last state and `last`
+/// as the last position any pointer event named.
+pub(crate) fn follow_primary(events: &[Event], down: &mut bool, last: &mut Option<Pos2>) {
+    for event in events {
+        match event {
+            Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, .. } => {
+                *down = *pressed;
+                *last = Some(*pos);
+            }
+            Event::PointerMoved(pos) => *last = Some(*pos),
+            _ => {}
+        }
+    }
 }

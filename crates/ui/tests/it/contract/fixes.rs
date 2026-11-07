@@ -5,7 +5,8 @@ use super::kit::{PartSpec, PlainStyle, Probe, Seen};
 use craft_behavior::{Proposal, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, Looks, Sizing, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
+    Common, Component, Container, ContainerProps, Cx, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
+    Sizing,
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::runtime::{InstallSpec, install};
@@ -285,7 +286,7 @@ fn body_sizes(fill: bool) -> (Vec<Vec2>, Vec2) {
     let mut looks = Looks::new();
     looks.style::<Hooked<'static>>(|_, _| PlainStyle::min(Vec2::new(200.0, 100.0)));
     let mut frames = Frames::uninstalled();
-    assert!(install(&frames.ctx, InstallSpec::new().looks(looks)).is_ok());
+    assert!(install(&frames.ctx, craft_ui::testing::install_spec().looks(looks)).is_ok());
     let log: Log = RefCell::new(Vec::new());
     let first_room = RefCell::new(None);
     let mut sizes = Vec::new();

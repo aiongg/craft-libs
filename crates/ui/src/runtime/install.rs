@@ -1,13 +1,23 @@
 //! `runtime::install`: adds the runtime plugin once and sets the egui options the runtime owns.
 
 use crate::runtime::egui::{focus, input, plugin};
-use crate::runtime::{commands, frame};
+use crate::runtime::{commands, frame, windows};
 use crate::style::{DuplicateStyle, StyleReplacements};
+use craft_host::target::ShellInfo;
+use craft_window::restore::Store;
+use craft_window::system::WindowSystem;
 use egui::Context;
+use std::sync::{Arc, Mutex};
 
 /// What `install` takes.
 #[non_exhaustive]
 pub struct InstallSpec {
+    /// The platform and what it offers; `runtime::windows` owns it from install on.
+    pub shell_info: ShellInfo,
+    /// The OS services the window host reads in `set_input`.
+    pub window_system: Arc<dyn WindowSystem>,
+    /// Where viewport mounts keep their window placement; none keeps placement in memory only.
+    pub placement: Option<Arc<Mutex<Store>>>,
     /// The end hook's ghost-layer painter, called once per pass. The runtime names no contract type, so it
     /// holds an erased function; `craft_ui::install` fills it with the overlay host's painter.
     pub frame_layers: Option<fn(&Context)>,
@@ -16,10 +26,15 @@ pub struct InstallSpec {
 }
 
 impl InstallSpec {
-    /// A spec with no ghost-layer painter.
-    #[expect(clippy::new_without_default, reason = "`new` takes the shell info and window system once they exist, so the spec has no default")]
-    pub fn new() -> Self {
-        InstallSpec { frame_layers: None, looks: StyleReplacements::new() }
+    /// A spec for `shell_info` and `window_system`, with no ghost-layer painter.
+    pub fn new(shell_info: ShellInfo, window_system: Arc<dyn WindowSystem>) -> Self {
+        InstallSpec { shell_info, window_system, placement: None, frame_layers: None, looks: StyleReplacements::new() }
+    }
+
+    /// Sets the store viewport mounts save their window placement in.
+    pub fn placement(mut self, store: Arc<Mutex<Store>>) -> Self {
+        self.placement = Some(store);
+        self
     }
 
     /// Sets the app's style replacements.
@@ -71,6 +86,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
     looks.store(ctx);
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);
+    windows::install(ctx, spec.shell_info, spec.window_system, spec.placement);
     frame::set_frame_layers(ctx, spec.frame_layers);
     frame::seed_hooked_passes(ctx);
     plugin::register(ctx);
