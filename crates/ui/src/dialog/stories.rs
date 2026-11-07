@@ -5,7 +5,6 @@ use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::controls::check::Checkbox;
 use crate::layout_components::Stack;
 use crate::runtime::focus::Initial;
-use crate::sections::HeaderAction;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -76,11 +75,7 @@ fn dialog_frame_with_footer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(FullWindowDialog<'static>, covers = [Default], drive = Drive::Custom(close_box))]
 fn full_window_dialog(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    FullWindowDialog::new("Grid options")
-        .opened(Bind::bound(data.value("open", true)))
-        .actions([HeaderAction::Close])
-        .show(ui, |ui, _| body(ui))
-        .into()
+    FullWindowDialog::new("Grid options").opened(Bind::bound(data.value("open", true))).closable(true).show(ui, |ui, _| body(ui)).into()
 }
 
 #[story(BlockingOverlay<'static>, covers = [Default], drive = Drive::Never)]

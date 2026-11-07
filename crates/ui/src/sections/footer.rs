@@ -82,6 +82,11 @@ pub struct FooterButton {
 }
 
 impl FooterButton {
+    /// The meaning of the button.
+    pub(crate) fn role(&self) -> DialogRole {
+        self.role
+    }
+
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
         FooterButton { label: label.into(), role }

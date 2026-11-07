@@ -1,14 +1,16 @@
 //! `BlockingOverlay` (16.5): a modal layer with no title, for work the window must not interrupt.
 
+use super::frame::{self, DialogOutput, FOOTER};
 use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pad, Pointer as _, Props as _, Role, SaveKey,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pad, Pointer as _, Props as _, Role, SaveKey,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::{FocusPolicy, Initial};
-use crate::runtime::overlay::{Backdrop, Rank};
+use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
+use crate::sections::{DialogRole, FooterButton};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{CancelRule, CursorIcon, CursorPriority, Metrics, Sense};
-use egui::Response;
+use egui::Ui;
 
 /// The style of a blocking overlay: the card's surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -23,8 +25,9 @@ pub struct BlockingOverlayStyle {
 ///
 /// - Open state: bound with [`opened`](BlockingOverlay::opened), else a session slot that starts open. Show it
 ///   every pass the work lasts, or bind the state to the work.
-/// - Cancel: Escape closes it when [`cancellable`](BlockingOverlay::cancellable) says so; the open state then
-///   reads `false`.
+/// - Cancel: Escape closes it when [`cancellable`](BlockingOverlay::cancellable) says so, and a footer button
+///   named by [`cancel`](BlockingOverlay::cancel) closes it as `CloseReason::Requested`; the open state then reads
+///   `false`.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct BlockingOverlay<'a> {
@@ -35,9 +38,12 @@ pub struct BlockingOverlay<'a> {
     /// Binds the open state to `open`.
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
-    /// The cursor while the overlay is shown.
+    /// The cursor while the overlay is shown, over the whole window.
     #[prop]
     cursor: CursorIcon,
+    cancel: Option<Label>,
+    closed: Option<CloseReason>,
+    picked: Option<usize>,
 }
 
 impl<'a> BlockingOverlay<'a> {
@@ -47,7 +53,7 @@ impl<'a> BlockingOverlay<'a> {
         overlay.rank = Rank::modal(Backdrop::None);
         overlay.focus = FocusPolicy::DIALOG.initial(Initial::Keep).cancel(CancelRule::Ignore);
         let props = ContainerProps::new().mount(Mount::Layer(overlay));
-        BlockingOverlay { common: Common::new(), props, open: None, cursor: CursorIcon::Wait }.label(name)
+        BlockingOverlay { common: Common::new(), props, open: None, cursor: CursorIcon::Wait, cancel: None, closed: None, picked: None }.label(name)
     }
 
     fn with_overlay(mut self, change: impl FnOnce(&mut Overlay)) -> Self {
@@ -77,6 +83,14 @@ impl<'a> BlockingOverlay<'a> {
         self.with_overlay(|overlay| overlay.focus = overlay.focus.cancel(if on { CancelRule::Close } else { CancelRule::Ignore }))
     }
 
+    /// A footer with a Cancel button named `label`; a click closes the overlay as `CloseReason::Requested`.
+    #[must_use]
+    pub fn cancel(mut self, label: impl Into<Label>) -> Self {
+        self.props = self.props.footer(FOOTER);
+        self.cancel = Some(label.into());
+        self
+    }
+
     /// Saves the open state under `key`.
     #[must_use]
     pub fn remember(mut self, key: SaveKey) -> Self {
@@ -88,7 +102,7 @@ impl<'a> BlockingOverlay<'a> {
 impl Component for BlockingOverlay<'_> {
     const ROLE: Role = Role::DIALOG;
     type Style = BlockingOverlayStyle;
-    type Output = Response;
+    type Output = DialogOutput;
 
     fn style(_: &StyleCx<'_>, _: BlockingOverlayStyleKey) -> BlockingOverlayStyle {
         BlockingOverlayStyle::default()
@@ -99,16 +113,27 @@ impl Component for BlockingOverlay<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        cx.cursor(self.cursor, CursorPriority::Hover);
+        // The overlay blocks every window it covers, so its cursor holds wherever the pointer is: it outranks the
+        // hover cursors of what lies below.
+        cx.cursor(self.cursor, CursorPriority::Part);
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {
+        DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked }
     }
 }
 
 impl Container for BlockingOverlay<'_> {
     fn open(&mut self) -> Option<BindMut<'_, bool>> {
         self.open.as_mut().map(Bind::reborrow)
+    }
+
+    fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        let buttons: Vec<FooterButton> = self.cancel.iter().map(|label| FooterButton::new(label.clone(), DialogRole::Cancel)).collect();
+        frame::footer(ui, cx, &mut None, &buttons, &mut self.picked);
+    }
+
+    fn closed(&mut self, why: CloseReason) {
+        self.closed.get_or_insert(why);
     }
 }

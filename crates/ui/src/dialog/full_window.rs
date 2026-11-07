@@ -1,14 +1,14 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
-use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
 use crate::contract::{Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Pad, Props as _, Role, SaveKey};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
-use crate::sections::HeaderAction;
+use crate::sections::FooterButton;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use egui::{Response, Ui};
+use egui::Ui;
 
 /// The style of a full-window dialog: the surface comes from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -35,14 +35,16 @@ pub struct FullWindowDialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
-    actions: Vec<HeaderAction>,
-    /// Reports how the dialog closed. Called once for each close.
-    #[prop(into)]
-    on_close: Option<CloseHandler<'a>>,
+    buttons: Vec<FooterButton>,
+    /// Whether the title row has a close action.
+    #[prop]
+    closable: bool,
+    closed: Option<CloseReason>,
+    picked: Option<usize>,
 }
 
 impl<'a> FullWindowDialog<'a> {
-    /// A dialog titled `title`, with no title actions.
+    /// A dialog titled `title`, with no close action.
     pub fn new(title: impl Into<Label>) -> Self {
         let props = ContainerProps::new()
             .mount(Mount::FullWindow)
@@ -50,14 +52,8 @@ impl<'a> FullWindowDialog<'a> {
             .pad(Pad::None)
             .header(HeaderRegion::new().rule(true))
             .focus(FocusPolicy::DIALOG.initial(Initial::Keep));
-        FullWindowDialog { common: Common::new(), props, open: None, footer: None, actions: Vec::new(), on_close: None }.label(title)
-    }
-
-    /// The action parts at the end of the title row, in reading order; the close action closes the dialog.
-    #[must_use]
-    pub fn actions(mut self, actions: impl IntoIterator<Item = HeaderAction>) -> Self {
-        self.actions = actions.into_iter().collect();
-        self
+        FullWindowDialog { common: Common::new(), props, open: None, footer: None, buttons: Vec::new(), closable: false, closed: None, picked: None }
+            .label(title)
     }
 
     /// Who gets Enter: the dialog's submit, or the body.
@@ -88,7 +84,16 @@ impl<'a> FullWindowDialog<'a> {
         self
     }
 
-    /// The footer's content: the closure fills a footer bar under the body.
+    /// The dialog buttons in the footer, in the platform's order for their roles. A click closes the dialog: `Cancel`
+    /// as `CloseReason::Requested`, every other role as `CloseReason::Activated`; `DialogOutput::picked` says which.
+    #[must_use]
+    pub fn buttons(mut self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
+        self.props = self.props.footer(FOOTER);
+        self.buttons = buttons.into_iter().collect();
+        self
+    }
+
+    /// The footer's content: the closure fills a footer bar above the buttons, or alone.
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a) -> Self {
         self.props = self.props.footer(FOOTER);
@@ -100,7 +105,7 @@ impl<'a> FullWindowDialog<'a> {
 impl Component for FullWindowDialog<'_> {
     const ROLE: Role = Role::DIALOG;
     type Style = FullWindowDialogStyle;
-    type Output = Response;
+    type Output = DialogOutput;
 
     fn style(_: &StyleCx<'_>, _: FullWindowDialogStyleKey) -> FullWindowDialogStyle {
         FullWindowDialogStyle::default()
@@ -110,8 +115,8 @@ impl Component for FullWindowDialog<'_> {
         Sense::empty()
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {
+        DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked }
     }
 }
 
@@ -121,16 +126,14 @@ impl Container for FullWindowDialog<'_> {
     }
 
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::header(ui, cx, &self.actions);
+        frame::header(ui, cx, frame::close_action(self.closable));
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer);
+        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked);
     }
 
     fn closed(&mut self, why: CloseReason) {
-        if let Some(report) = self.on_close.as_mut() {
-            report.report(why);
-        }
+        self.closed.get_or_insert(why);
     }
 }

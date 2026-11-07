@@ -312,6 +312,12 @@ impl From<Response> for StoryOutput {
     }
 }
 
+impl From<crate::dialog::DialogOutput> for StoryOutput {
+    fn from(output: crate::dialog::DialogOutput) -> Self {
+        output.response.into()
+    }
+}
+
 impl<K, E> From<crate::contract::CollectionResponse<K, E>> for StoryOutput {
     fn from(response: crate::contract::CollectionResponse<K, E>) -> Self {
         StoryOutput {

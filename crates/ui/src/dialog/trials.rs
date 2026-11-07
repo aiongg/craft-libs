@@ -4,9 +4,10 @@ use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::controls::check::Checkbox;
 use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
+use crate::sections::{DialogRole, FooterButton};
 use crate::testing::focus::is_focused;
 use crate::testing::input::key_press;
-use crate::testing::{Frames, trial};
+use crate::testing::{Fixture, Frames, trial};
 use crate::text::TextField;
 use egui::{Id, Key, Modifiers, Ui};
 use std::cell::Cell;
@@ -80,9 +81,12 @@ fn a_dialog_reports_how_it_closed() {
         let mut ui = |ui: &mut Ui| {
             let mut now = open.get();
             let mut name = String::new();
-            Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).on_close(|why| reason.set(Some(why))).show(ui, |ui, _| {
+            let shown = Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).show(ui, |ui, _| {
                 TextField::new("Name", Bind::bound(&mut name)).show(ui);
             });
+            if let Some(why) = shown.output.closed {
+                reason.set(Some(why));
+            }
             open.set(now);
         };
         frames.idle(30, &mut ui);
@@ -128,4 +132,47 @@ fn a_full_window_dialog_is_modal_and_closes_on_escape() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
     frames.idle(2, &mut ui);
     assert!(!open.get(), "Escape closed the full-window dialog");
+}
+
+#[trial]
+fn a_footer_button_closes_the_dialog_by_its_role() {
+    let run = |label: &str| {
+        let seen = std::rc::Rc::new(Cell::new((None, None)));
+        let sink = seen.clone();
+        let mut fixture = Fixture::new(move |ui| {
+            let (mut open, mut name) = (true, String::new());
+            let shown = Dialog::new("Options")
+                .opened(Bind::bound(&mut open))
+                .buttons([FooterButton::new("Delete", DialogRole::Destructive), FooterButton::new("Cancel", DialogRole::Cancel)])
+                .show(ui, |ui, _| {
+                    TextField::new("Name", Bind::bound(&mut name)).show(ui);
+                });
+            if shown.output.closed.is_some() {
+                sink.set((shown.output.closed, shown.output.picked));
+            }
+        });
+        fixture.idle(30);
+        let button = fixture.by_label(label).expect("the button is shown");
+        fixture.click(&button);
+        seen.get()
+    };
+    assert_eq!(run("Cancel"), (Some(CloseReason::Requested), Some(1)), "Cancel closes as requested");
+    assert_eq!(run("Delete"), (Some(CloseReason::Activated), Some(0)), "any other button closes as an outcome");
+}
+
+#[trial]
+fn a_blocking_overlays_cancel_button_closes_it() {
+    let seen = std::rc::Rc::new(Cell::new(None));
+    let sink = seen.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        let shown = BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
+        if shown.output.closed.is_some() {
+            sink.set(shown.output.closed);
+        }
+    });
+    fixture.settle();
+    let button = fixture.by_label("Stop").expect("the cancel button is shown");
+    fixture.click(&button);
+    assert_eq!(seen.get(), Some(CloseReason::Requested));
 }
