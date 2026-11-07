@@ -61,6 +61,9 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// dragged rows would go. A refused spot shows no drop mark.
     #[prop]
     accepts: Option<Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>>,
+    /// Files dragged in from the OS may drop on the list; a drop reports `CollectionEvent::FilesDropped`.
+    #[prop]
+    takes_files: bool,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
@@ -77,6 +80,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             can_drag: None,
             accept_from: None,
             accepts: None,
+            takes_files: false,
         }
         .label(label)
     }
@@ -113,6 +117,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn allow_empty(mut self, on: bool) -> Self {
         self.items = self.items.allow_empty(on);
+        self
+    }
+
+    /// A press picks and activates a row without moving key focus to the list: a popup list whose opener keeps focus.
+    #[must_use]
+    pub fn focus_on_press(mut self, on: bool) -> Self {
+        self.items = self.items.focus_on_press(on);
         self
     }
 
@@ -190,6 +201,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
 
     fn accepts(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
         self.accepts.as_ref().is_none_or(|test| test(drag, over, insert))
+    }
+
+    fn takes_files(&self) -> bool {
+        self.takes_files
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {

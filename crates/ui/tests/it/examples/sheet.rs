@@ -5,12 +5,14 @@ use craft_behavior::{CellSelection, SelectionModel as _};
 use craft_ui::contract::{Bind, Props as _, Role, ShowCollection as _};
 use craft_ui::testing::examples::sheet::{CellEdit, Rows, SheetGrid, SheetRow};
 use craft_ui::testing::{Fixture, trial};
-use egui::{Key, Modifiers};
+use egui::{Event, Key, Modifiers, Vec2};
 use std::cell::RefCell;
 use std::rc::Rc;
 
 /// Enough rows that two steps down from the clicked middle cell stay inside the sheet.
 const ROWS: usize = 12;
+/// Far enough below the grid's middle to land at least two rows down.
+const ROW_STEP: f32 = 80.0;
 const COLUMNS: [&str; 4] = ["A", "B", "C", "D"];
 
 struct Rig {
@@ -59,6 +61,16 @@ impl Rig {
 
     fn press(&mut self, key: Key) {
         self.fixture.key(key, Modifiers::NONE);
+        self.fixture.idle(2);
+    }
+
+    /// A click at `at` with Ctrl (Cmd on macOS) held.
+    fn ctrl_click(&mut self, at: egui::Pos2) {
+        self.fixture.frame(vec![Event::ModifiersChanged(Modifiers::COMMAND)]);
+        self.fixture.frame(vec![craft_ui::testing::pointer::moved(at)]);
+        self.fixture.frame(vec![craft_ui::testing::pointer::press(at)]);
+        self.fixture.frame(vec![craft_ui::testing::pointer::release(at)]);
+        self.fixture.frame(vec![Event::ModifiersChanged(Modifiers::NONE)]);
         self.fixture.idle(2);
     }
 
@@ -114,4 +126,22 @@ fn formula_point_mode_moves_a_reference_cursor_with_the_arrows() {
     rig.press(Key::Enter);
     let name = format!("={}{}", COLUMNS[column], row + 2);
     assert_eq!(*rig.committed.borrow(), [CellEdit::new(row, column, name)]);
+}
+
+/// Ctrl-click flips one cell: a second cell joins the selection and the first stays; a Ctrl-click on a selected
+/// cell takes only that cell out.
+#[trial]
+fn ctrl_click_toggles_one_cell_and_keeps_the_others() {
+    let mut rig = rig();
+    let grid = rig.fixture.by_role(Role::TABLE).first().copied().expect("the grid showed");
+    let first = rig.lead();
+    let other_column = (first.1 + 1) % COLUMNS.len();
+    rig.ctrl_click(grid.center() + Vec2::new(0.0, ROW_STEP));
+    let second = rig.lead();
+    assert_ne!(second.0, first.0, "the Ctrl-click landed on another row");
+    let cell = |rig: &Rig, (row, column): (usize, usize)| rig.selection.borrow().contains_cell(&row, column as u32);
+    assert!(cell(&rig, first) && cell(&rig, second), "both cells are selected");
+    assert!(!cell(&rig, (first.0, other_column)), "the rest of the first cell's row is not");
+    rig.ctrl_click(grid.center());
+    assert!(!cell(&rig, first) && cell(&rig, second), "a Ctrl-click on a selected cell takes only that cell out");
 }

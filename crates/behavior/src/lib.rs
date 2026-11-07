@@ -9,8 +9,8 @@ pub mod codec;
 pub mod columns;
 pub mod command;
 pub mod cursor;
-pub mod dock;
 pub mod doc_key;
+pub mod dock;
 pub mod edit_history;
 pub mod editor;
 pub mod eviction;
@@ -76,7 +76,7 @@ pub use press::{
 pub use quantity::Reader;
 pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use selection::{CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
+pub use selection::{CellAt, CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};

@@ -86,6 +86,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         size
     }
 
+    /// The root's sense, from the component's own `own`.
+    fn sense(&self, _comp: &C, own: Sense) -> Sense {
+        own
+    }
+
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
         false
@@ -359,7 +364,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         (None, _, Some((widget, keys))) => (Some(widget), Some(keys)),
         (None, keys, None) => (None, keys),
     };
-    let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
+    let own = if inert || !resolved.enabled { Sense::HOVER } else { p.hooks.sense(comp, comp.sense()) };
     // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
     let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
     let arena = p.hooks.arena(comp);

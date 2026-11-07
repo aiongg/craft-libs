@@ -212,7 +212,7 @@ impl<'a> EventList<'a> {
         EventList {
             common: Common::new(),
             props: ContainerProps::new().surface(SurfaceKind::Sunken).sizing(Sizing::Fill),
-            items: CollectionProps::new().select(SelectMode::Single).striped(true),
+            items: CollectionProps::new().select(SelectMode::Single).striped(true).allow_empty(true),
             selection: None,
         }
         .label(label)

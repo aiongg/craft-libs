@@ -1,5 +1,6 @@
 //! Chapter 17: collection props, columns, row state and the events and response a collection reports.
 
+use crate::runtime::drag::OsFile;
 use crate::runtime::env::Label;
 use craft_behavior::{ColumnKey, ColumnWidth, DropOperation, EditEvent, SelectionChange};
 use egui::{Id, Pos2, Response, Vec2};
@@ -187,6 +188,9 @@ pub struct CollectionProps {
     /// The lead, and the selection with it as for the arrow keys, moves to the row under the pointer when the pointer
     /// moves: menus, popup lists and the undo list.
     pub lead_follows_hover: bool,
+    /// A primary press moves key focus to the collection. Off: a press picks and activates and focus stays where it
+    /// is, for a popup list whose opener keeps focus.
+    pub focus_on_press: bool,
 }
 
 impl CollectionProps {
@@ -203,6 +207,7 @@ impl CollectionProps {
             allow_empty: false,
             lead_on_open: LeadOnOpen::Selected,
             lead_follows_hover: false,
+            focus_on_press: true,
         }
     }
 
@@ -266,6 +271,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn lead_follows_hover(mut self, on: bool) -> Self {
         self.lead_follows_hover = on;
+        self
+    }
+
+    /// A primary press moves key focus to the collection; off, it leaves focus where it is.
+    #[must_use]
+    pub const fn focus_on_press(mut self, on: bool) -> Self {
+        self.focus_on_press = on;
         self
     }
 
@@ -457,6 +469,14 @@ pub enum CollectionEvent<K, E> {
         op: DropOperation,
         /// The dragged items in display order, from the drag session's payload.
         keys: Vec<K>,
+    },
+    /// Files from the OS dropped on a collection that takes them (`Collection::takes_files`).
+    #[non_exhaustive]
+    FilesDropped {
+        /// The position of the display order the files land before; the source's length drops them after the last item.
+        insert: usize,
+        /// The files, in the order the OS lists them.
+        files: Vec<OsFile>,
     },
     /// A rename started, committed or was cancelled.
     Rename(EditEvent<Rename<K>>),

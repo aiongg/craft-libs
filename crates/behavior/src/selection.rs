@@ -17,6 +17,28 @@ pub enum SelectionChange<K> {
     /// Replaces the selection by the cells of `rows` in `columns`; `lead_column` is the lead cell's column.
     /// A model with no columns selects the rows.
     Cells(CellRange<K>),
+    /// Adds the cell when it is not selected, removes it when it is; the other cells stay. A model of rows toggles
+    /// the row.
+    ToggleCell(CellAt<K>),
+}
+
+/// The cell a [`SelectionChange::ToggleCell`] flips.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CellAt<K> {
+    /// The cell's row.
+    pub row: K,
+    /// The cell's column position.
+    pub column: u32,
+    /// The cell's column key, which becomes the lead cell's column.
+    pub column_key: ColumnKey,
+}
+
+impl<K> CellAt<K> {
+    /// The cell of `row` at column position `column`, whose column is `column_key`.
+    pub fn new(row: K, column: u32, column_key: ColumnKey) -> Self {
+        Self { row, column, column_key }
+    }
 }
 
 /// The cells a [`SelectionChange::Cells`] selects.
@@ -121,11 +143,13 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
                 self.anchor = None;
             }
             SelectionChange::Cells(CellRange { rows, .. }) => self.apply(SelectionChange::Set(rows)),
+            SelectionChange::ToggleCell(CellAt { row, .. }) => self.apply(SelectionChange::Toggle(row)),
         }
     }
 }
 
-/// Cell selection of a sheet: row keys with a lead column and cell ranges. Changes report as selection changes.
+/// Cell selection of a sheet: row keys with a lead column, cell ranges and single cells toggled over them. Changes
+/// report as selection changes.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CellSelection<K> {
@@ -135,24 +159,27 @@ pub struct CellSelection<K> {
     pub lead_column: Option<ColumnKey>,
     /// Cell ranges: first row, last row and the columns they cover.
     pub ranges: Vec<(K, K, Range<u32>)>,
+    /// Cells toggled over the rows and ranges: row, column position and whether the cell is selected. Only cells
+    /// that differ from what the rows and ranges say are held, so a range over a million rows stays one entry.
+    pub toggled: Vec<(K, u32, bool)>,
 }
 
 impl<K> CellSelection<K> {
     /// A selection of `rows`, the column of the lead cell and cell `ranges`.
     pub fn new(rows: Selection<K>, lead_column: Option<ColumnKey>, ranges: Vec<(K, K, Range<u32>)>) -> Self {
-        CellSelection { rows, lead_column, ranges }
+        CellSelection { rows, lead_column, ranges, toggled: Vec::new() }
     }
 }
 
 impl<K> Default for CellSelection<K> {
     fn default() -> Self {
-        CellSelection { rows: Selection::default(), lead_column: None, ranges: Vec::new() }
+        CellSelection { rows: Selection::default(), lead_column: None, ranges: Vec::new(), toggled: Vec::new() }
     }
 }
 
 impl<K: Value> SelectionModel<K> for CellSelection<K> {
     fn contains(&self, key: &K) -> bool {
-        self.rows.contains(key)
+        self.rows.contains(key) || self.toggled.iter().any(|(row, _, on)| *on && row == key)
     }
 
     fn lead(&self) -> Option<&K> {
@@ -165,7 +192,18 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
 
     fn apply(&mut self, change: SelectionChange<K>) {
         match change {
+            SelectionChange::ToggleCell(CellAt { row, column, column_key }) => {
+                let on = !self.contains_cell(&row, column);
+                self.toggled.retain(|(held, at, _)| !(*held == row && *at == column));
+                if on != self.in_rows_and_ranges(&row, column) {
+                    self.toggled.push((row.clone(), column, on));
+                }
+                self.lead_column = Some(column_key);
+                self.rows.anchor = Some(row.clone());
+                self.rows.lead = Some(row);
+            }
             SelectionChange::Cells(CellRange { rows, columns, lead_column, .. }) => {
+                self.toggled.clear();
                 if let (Some(first), Some(last)) = (rows.first().cloned(), rows.last().cloned()) {
                     self.ranges = vec![(first, last, columns)];
                 }
@@ -174,11 +212,13 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
             }
             SelectionChange::Clear => {
                 self.ranges.clear();
+                self.toggled.clear();
                 self.lead_column = None;
                 self.rows.apply(SelectionChange::Clear);
             }
             change => {
                 self.ranges.clear();
+                self.toggled.clear();
                 self.rows.apply(change);
             }
         }
@@ -188,9 +228,18 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
         self.lead_column.as_ref()
     }
 
-    /// A cell is selected when its row is and a range covers its column; rows selected without a range
-    /// select every column.
+    /// A toggled cell is as it was toggled. Any other cell is selected when its row is and a range covers its
+    /// column; rows selected without a range select every column.
     fn contains_cell(&self, key: &K, column: u32) -> bool {
+        match self.toggled.iter().find(|(row, at, _)| row == key && *at == column) {
+            Some((_, _, on)) => *on,
+            None => self.in_rows_and_ranges(key, column),
+        }
+    }
+}
+
+impl<K: Value> CellSelection<K> {
+    fn in_rows_and_ranges(&self, key: &K, column: u32) -> bool {
         self.rows.contains(key) && (self.ranges.is_empty() || self.ranges.iter().any(|(_, _, columns)| columns.contains(&column)))
     }
 }
@@ -226,6 +275,27 @@ mod tests {
         assert_eq!((cells.lead(), cells.lead_column()), (Some(&3), Some(&ColumnKey::new("c"))));
         cells.apply(SelectionChange::Set(vec![4]));
         assert_eq!((cells.contains_cell(&4, 0), cells.contains_cell(&4, 9)), (true, true));
+    }
+
+    #[test]
+    fn a_cell_toggle_flips_one_cell_and_leaves_the_others() {
+        let at = |row, column| SelectionChange::ToggleCell(CellAt::new(row, column, ColumnKey::new("c")));
+        let mut cells = CellSelection::<u32>::default();
+        cells.apply(SelectionChange::Cells(CellRange::new(vec![2, 3], 1..3, ColumnKey::new("c"))));
+        cells.apply(at(7, 0));
+        assert_eq!(
+            (cells.contains_cell(&7, 0), cells.contains_cell(&7, 1), cells.contains_cell(&2, 1), cells.contains(&7)),
+            (true, false, true, true)
+        );
+        cells.apply(at(2, 1));
+        assert_eq!((cells.contains_cell(&2, 1), cells.contains_cell(&2, 2), cells.contains_cell(&3, 1)), (false, true, true));
+        cells.apply(at(2, 1));
+        assert_eq!((cells.toggled.len(), cells.contains_cell(&2, 1)), (1, true));
+        cells.apply(at(7, 0));
+        assert_eq!((cells.toggled.len(), cells.contains(&7), cells.lead()), (0, false, Some(&7)));
+        cells.apply(at(5, 2));
+        cells.apply(SelectionChange::Set(vec![4]));
+        assert_eq!((cells.contains_cell(&5, 2), cells.contains_cell(&4, 0)), (false, true));
     }
 
     #[test]

@@ -374,6 +374,12 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
         true
     }
 
+    /// Whether the collection takes files dragged in from the OS: a drop reports `CollectionEvent::FilesDropped` at the
+    /// insert position under the pointer, with the same drop mark an internal drag gets.
+    fn takes_files(&self) -> bool {
+        false
+    }
+
     /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
     fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32 {
         0.0
