@@ -6,7 +6,7 @@ use egui::Color32;
 
 use super::look::StyleColor;
 
-fn color(c: Rgba) -> Color32 {
+pub(crate) fn color(c: Rgba) -> Color32 {
     let [r, g, b, a] = c.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)
 }

@@ -3,7 +3,8 @@
 use super::text::TextLayout;
 use crate::fonts::FontRef;
 use crate::runtime::egui::text_layout;
-use crate::style::DataColor;
+use crate::style::{DataColor, UiTokens};
+use craft_i18n::Direction;
 use egui::epaint::text::FontId;
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Align, Painter};
@@ -13,12 +14,14 @@ use egui::{Align, Painter};
 pub struct ContentPainterCx {
     /// The painter.
     pub painter: Painter,
+    pub(super) tokens: UiTokens,
+    pub(super) direction: Direction,
 }
 
 impl ContentPainterCx {
-    /// A raw painter for a content painter.
-    pub(crate) fn new(painter: Painter) -> Self {
-        ContentPainterCx { painter }
+    /// A raw painter for a content painter, with the tokens and direction the content-paint kit reads.
+    pub(crate) fn new(painter: Painter, tokens: &UiTokens, direction: Direction) -> Self {
+        ContentPainterCx { painter, tokens: tokens.clone(), direction }
     }
 
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,
