@@ -25,6 +25,7 @@ pub struct Frames {
     host: Option<Arc<Host>>,
     commands: CommandInput,
     tree: Option<AccessTree>,
+    ime: Option<fixture::ImeSeen>,
     modifiers: egui::Modifiers,
     /// The modifiers the context was last told about.
     told: egui::Modifiers,
@@ -55,6 +56,7 @@ impl Frames {
             host: None,
             commands: CommandInput::new(),
             tree: None,
+            ime: None,
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
         }
@@ -140,7 +142,13 @@ impl Frames {
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;
         self.tree = result.tree;
+        self.ime = result.ime;
         result.closed
+    }
+
+    /// The IME output of the last frame: `None` when it wrote none.
+    pub fn ime(&self) -> Option<&fixture::ImeSeen> {
+        self.ime.as_ref()
     }
 
     /// The AccessKit tree the last frame produced.

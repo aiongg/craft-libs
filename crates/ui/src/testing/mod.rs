@@ -14,6 +14,7 @@ pub mod memory;
 pub mod pointer;
 pub mod sensing;
 pub mod style;
+pub mod text;
 pub mod wheel;
 
 pub use crate::contract::{Exemption, Probe, Registration};

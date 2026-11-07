@@ -205,7 +205,12 @@ pub(crate) fn request_now(ctx: &Context, target: FocusTarget) {
 /// root, else the root itself.
 pub(crate) fn focused_stop(ctx: &Context) -> Option<StopKey> {
     let root = egui_focus::focused(ctx)?;
-    with(ctx, |state| Some(state.focused.get(&root).copied().unwrap_or((root, None))))
+    with(ctx, |state| {
+        let recorded = state.focused.get(&root).copied();
+        // A text part's egui widget is not its component's id: the stop registered under that root names it.
+        let registered = || state.stops.iter().chain(&state.last_stops).find(|rec| rec.stop.root == root).map(|rec| rec.stop.key());
+        Some(recorded.or_else(registered).unwrap_or((root, None)))
+    })
 }
 
 /// The registration of the stop `key`.

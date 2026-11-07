@@ -12,6 +12,20 @@ pub(crate) struct FrameResult {
     pub repaint_delay: std::time::Duration,
     /// The AccessKit tree update of the frame.
     pub tree: Option<crate::runtime::egui::access::AccessTree>,
+    /// What the frame's `PlatformOutput.ime` said.
+    pub ime: Option<ImeSeen>,
+}
+
+/// The IME output of a frame: the owner widget, whether it asks the OS to interrupt a composition, the caret rect.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ImeSeen {
+    /// The widget that owns the IME.
+    pub owner: egui::Id,
+    /// The OS composition is to be interrupted.
+    pub interrupt: bool,
+    /// Where the candidate window opens.
+    pub caret: Rect,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -22,7 +36,10 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
     let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
-    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay, tree: crate::runtime::egui::access::tree_of(&mut output) }
+    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay,
+        tree: crate::runtime::egui::access::tree_of(&mut output),
+        ime: output.platform_output.ime.as_ref().map(|ime| ImeSeen { owner: ime.owner, interrupt: ime.should_interrupt_composition, caret: ime.cursor_rect }),
+    }
 }
 
 /// A key press event with `modifiers`.

@@ -17,6 +17,7 @@ mod paint;
 mod runtime;
 mod sections;
 mod style;
+mod text;
 mod values;
 
 use craft_ui::testing::TRIALS;

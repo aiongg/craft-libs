@@ -78,7 +78,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                     .event_filter(filter)
                     .return_key(if multiline { Some(egui::KeyboardShortcut::new(egui::Modifiers::NONE, egui::Key::Enter)) } else { None })
                     .layouter(&mut layouter)
-                    .horizontal_align(if rtl { egui::Align::RIGHT } else { egui::Align::LEFT });
+                    .align(if rtl { egui::Align2::RIGHT_CENTER } else { egui::Align2::LEFT_CENTER });
                 if let Some(hint) = hint_text.clone() {
                     edit = edit.hint_text(hint);
                 }
