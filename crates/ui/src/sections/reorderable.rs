@@ -125,8 +125,10 @@ impl<'a> ReorderableSections<'a> {
             let moves = stack
                 .show(ui, |ui, _| {
                     rows.each(ui, |ui, key, slot| {
-                        let title =
-                            sections.iter().find(|spec| spec.key == *key).map_or_else(|| Label::from(key.as_str()), |spec| spec.title.clone());
+                        let title = sections
+                            .iter()
+                            .find(|spec| spec.key == *key)
+                            .map_or_else(|| Label::from(key.as_str().to_owned()), |spec| spec.title.clone());
                         let mut open = !held.is_folded(key);
                         let out = Section::new(title)
                             .open(Bind::bound(&mut open))
