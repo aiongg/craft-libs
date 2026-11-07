@@ -65,12 +65,6 @@ pub(crate) fn hide(ctx: &Context, id: Id) {
     });
 }
 
-/// Withdraws the click egui declared for the widget of `id` from its sensed gestures: a click that only pointer
-/// gestures take (a canvas tool's press) is not an action assistive technology can request.
-pub(crate) fn withdraw_click(ctx: &Context, id: Id) {
-    ctx.accesskit_node_builder(id, |node| node.remove_action(accesskit::Action::Click));
-}
-
 /// Reports `id` as the focused node of this pass.
 pub(crate) fn set_focus(ctx: &Context, id: Id) {
     ctx.set_accesskit_focus(id);
