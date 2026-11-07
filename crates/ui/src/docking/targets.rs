@@ -5,8 +5,7 @@
 //! zone is a rect: previews are rects and lines, never polygons.
 
 use super::PanelKey;
-use crate::runtime::egui::pass;
-use crate::runtime::frame::{PassStep, PerViewport, Stamped};
+use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
 use craft_behavior::{DockSide, GroupId};
 use egui::{Context, Pos2, Rect};
 
@@ -48,6 +47,7 @@ pub const DROP_LINE_WIDTH: f32 = 4.0;
 #[non_exhaustive]
 pub enum DockSpot {
     /// A tab insertion in `group` before the tab at `index` (the tab count for the end), previewed by `line`.
+    #[non_exhaustive]
     Tab {
         /// The group whose strip takes the tab.
         group: GroupId,
@@ -57,6 +57,7 @@ pub enum DockSpot {
         line: Rect,
     },
     /// A side of `group`: beside it, or into its tabs for `DockSide::Center`.
+    #[non_exhaustive]
     Group {
         /// The group.
         group: GroupId,
@@ -66,6 +67,7 @@ pub enum DockSpot {
     /// The layout's outer edge on `side`: a new root split.
     Edge(DockSide),
     /// The seam between two stacked groups of a dock column: a new group between them.
+    #[non_exhaustive]
     Seam {
         /// The group above the seam.
         before: GroupId,
@@ -73,6 +75,7 @@ pub enum DockSpot {
         after: GroupId,
     },
     /// An edge of the dock column that holds `group`: a new column beside it.
+    #[non_exhaustive]
     Column {
         /// A group of the column.
         group: GroupId,
@@ -86,6 +89,26 @@ pub enum DockSpot {
 }
 
 impl DockSpot {
+    /// A tab insertion in `group` before the tab at `index`, previewed by `line`.
+    pub const fn tab(group: GroupId, index: usize, line: Rect) -> Self {
+        DockSpot::Tab { group, index, line }
+    }
+
+    /// The `side` of `group`.
+    pub const fn group(group: GroupId, side: DockSide) -> Self {
+        DockSpot::Group { group, side }
+    }
+
+    /// The seam between the stacked groups `before` and `after`.
+    pub const fn seam(before: GroupId, after: GroupId) -> Self {
+        DockSpot::Seam { before, after }
+    }
+
+    /// The `side` edge of the dock column that holds `group`.
+    pub const fn column(group: GroupId, side: DockSide) -> Self {
+        DockSpot::Column { group, side }
+    }
+
     /// Which spot wins where rects of one layer overlap: the outer bands, then seams and columns, then a tab
     /// strip, then the sides of a group, then its middle. A border band reaches only `DROP_LINE_WIDTH` into a
     /// tab strip, so the strip keeps the rest of its height.
@@ -202,12 +225,13 @@ struct Pass {
 }
 
 impl DockTargets {
-    fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
-        let viewport = pass::current_viewport(ctx);
-        PerViewport::<Stamped<Pass>>::with_pass(
+    /// Runs `f` on the registries of the running pass; `None` outside a pass.
+    fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> Option<R> {
+        let facts = frame::running(ctx)?;
+        Some(PerViewport::<Stamped<Pass>>::with_pass(
             ctx,
-            viewport,
-            pass::pass_nr(ctx, viewport),
+            facts.viewport,
+            facts.pass_nr,
             |pass, step| {
                 pass.before = match step {
                     PassStep::Next => std::mem::take(&mut pass.now),
@@ -216,10 +240,11 @@ impl DockTargets {
                 pass.now.clear();
             },
             f,
-        )
+        ))
     }
 
-    /// Registers `spot` over `rect` in the running pass of this viewport. Group and column rendering call it.
+    /// Registers `spot` over `rect` in the running pass of this viewport. Group and column rendering call it; it
+    /// does nothing outside a pass.
     pub fn register(ctx: &Context, spot: DockSpot, rect: Rect) {
         Self::with_pass(ctx, |pass| pass.now.add(spot, rect));
     }
@@ -230,9 +255,10 @@ impl DockTargets {
         Self::with_pass(ctx, |pass| pass.now.raise());
     }
 
-    /// The spot a drop at `at` lands on, by the spots of the previous pass. Drop resolution calls it.
+    /// The spot a drop at `at` lands on, by the spots of the previous pass. Drop resolution calls it; `None`
+    /// outside a pass.
     pub fn resolve(ctx: &Context, at: Pos2) -> Option<DockSpot> {
-        Self::with_pass(ctx, |pass| pass.before.at(at))
+        Self::with_pass(ctx, |pass| pass.before.at(at)).flatten()
     }
 }
 

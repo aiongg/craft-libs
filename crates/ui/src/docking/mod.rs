@@ -16,7 +16,7 @@ pub mod targets;
 mod words;
 
 pub use config::{DockConfig, DockSides};
-pub use event::{DockEvent, FLOAT_HEIGHT, FLOAT_INSET, FLOAT_WIDTH, FloatSpace, HidePanels};
+pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use panels::DockPanels;
 pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};

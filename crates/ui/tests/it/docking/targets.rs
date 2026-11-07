@@ -26,10 +26,10 @@ fn body() -> Rect {
 fn registered(rule: ZoneRule) -> DockTargets {
     let mut targets = DockTargets::new();
     for (side, rect) in rule.zones(body()) {
-        targets.add(DockSpot::Group { group: GROUP, side }, rect);
+        targets.add(DockSpot::group(GROUP, side), rect);
     }
     let line = Rect::from_min_size(strip().min, Vec2::new(2.0, STRIP_HEIGHT));
-    targets.add(DockSpot::Tab { group: GROUP, index: 0, line }, strip());
+    targets.add(DockSpot::tab(GROUP, 0, line), strip());
     targets
 }
 
@@ -39,10 +39,10 @@ fn a_pointer_resolves_to_a_tab_insertion_a_group_side_or_the_group() {
         let targets = registered(rule);
         assert!(matches!(targets.at(strip().center()), Some(DockSpot::Tab { group: GROUP, index: 0, .. })), "{rule:?}: the strip");
         let left = Pos2::new(body().left() + 2.0, body().center().y);
-        assert_eq!(targets.at(left), Some(DockSpot::Group { group: GROUP, side: DockSide::Start }), "{rule:?}: the start side");
+        assert_eq!(targets.at(left), Some(DockSpot::group(GROUP, DockSide::Start)), "{rule:?}: the start side");
         let bottom = Pos2::new(body().center().x, body().bottom() - 2.0);
-        assert_eq!(targets.at(bottom), Some(DockSpot::Group { group: GROUP, side: DockSide::Bottom }), "{rule:?}: the bottom side");
-        assert_eq!(targets.at(body().center()), Some(DockSpot::Group { group: GROUP, side: DockSide::Center }), "{rule:?}: the middle");
+        assert_eq!(targets.at(bottom), Some(DockSpot::group(GROUP, DockSide::Bottom)), "{rule:?}: the bottom side");
+        assert_eq!(targets.at(body().center()), Some(DockSpot::group(GROUP, DockSide::Center)), "{rule:?}: the middle");
     }
 }
 
@@ -69,7 +69,7 @@ fn an_edge_band_beats_a_group_side_near_the_layouts_border() {
     let near = Pos2::new(LAYOUT.left() + 2.0, body().center().y);
     assert_eq!(targets.at(near), Some(DockSpot::Edge(DockSide::Start)));
     let inside = Pos2::new(LAYOUT.left() + EDGE_BAND + 2.0, body().center().y);
-    assert_eq!(targets.at(inside), Some(DockSpot::Group { group: GROUP, side: DockSide::Start }), "past the band the group's side");
+    assert_eq!(targets.at(inside), Some(DockSpot::group(GROUP, DockSide::Start)), "past the band the group's side");
 }
 
 #[trial]

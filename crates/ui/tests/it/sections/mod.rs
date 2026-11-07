@@ -206,6 +206,9 @@ fn a_double_click_on_the_row_is_reported_and_one_on_its_close_action_is_not() {
         click(&mut frames, at, &mut show);
         seen.into_inner()
     };
-    assert!(double(Pos2::new(ROW.left() + side() * 2.0, ROW.center().y)), "the title band reports a double click");
-    assert!(!double(Pos2::new(ROW.right() - side() / 2.0, ROW.center().y)), "the close action takes its own clicks");
+    let title = Pos2::new(ROW.left() + side() * 2.0, ROW.center().y);
+    let close = Pos2::new(ROW.right() - side() / 2.0, ROW.center().y);
+    let (on_title, on_close) = (double(title), double(close));
+    assert!(on_title, "the title band reports a double click");
+    assert!(!on_close, "the close action takes its own clicks");
 }

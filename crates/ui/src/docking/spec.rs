@@ -9,13 +9,13 @@ use egui::Vec2;
 /// inverted rects. A maximum constrains a pane when its sibling can take the remainder. A tab group takes the
 /// largest minimum and the largest maximum of its panels, so a panel without a maximum lifts the maximum of the
 /// panels it joins.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct PanelLimits {
     /// Smallest body size.
     pub min: Vec2,
-    /// Largest body size.
-    pub max: Vec2,
+    /// Largest body size; `None` has no maximum.
+    pub max: Option<Vec2>,
 }
 
 impl PanelLimits {
@@ -24,36 +24,24 @@ impl PanelLimits {
 
     /// Limits between `min` and `max`.
     pub const fn new(min: Vec2, max: Vec2) -> Self {
-        PanelLimits { min, max }
+        PanelLimits { min, max: Some(max) }
     }
 
     /// No smaller than `min`, with no maximum.
     pub const fn at_least(min: Vec2) -> Self {
-        PanelLimits { min, max: Vec2::splat(Self::BOUND) }
+        PanelLimits { min, max: None }
     }
 
     /// No larger than `max`, with no minimum.
     pub const fn at_most(max: Vec2) -> Self {
-        PanelLimits { min: Vec2::ZERO, max }
+        PanelLimits { min: Vec2::ZERO, max: Some(max) }
     }
 
     /// Whether every value is finite and non-negative, the maximum is no less than the minimum and no value is
     /// above [`Self::BOUND`].
     pub fn valid(self) -> bool {
-        self.min.is_finite()
-            && self.max.is_finite()
-            && self.min.x >= 0.0
-            && self.min.y >= 0.0
-            && self.max.x >= self.min.x
-            && self.max.y >= self.min.y
-            && self.max.x <= Self::BOUND
-            && self.max.y <= Self::BOUND
-    }
-}
-
-impl Default for PanelLimits {
-    fn default() -> Self {
-        PanelLimits::new(Vec2::ZERO, Vec2::splat(Self::BOUND))
+        let within = |size: Vec2| size.is_finite() && size.x >= 0.0 && size.y >= 0.0 && size.x <= Self::BOUND && size.y <= Self::BOUND;
+        within(self.min) && self.max.is_none_or(|max| within(max) && max.x >= self.min.x && max.y >= self.min.y)
     }
 }
 

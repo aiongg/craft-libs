@@ -4,22 +4,13 @@ use crate::menu::GroupItem;
 use craft_behavior::GroupId;
 use egui::{Rect, Vec2};
 
-/// Gap between the top start corner of the dock area and a unit a command floats without a rect, so it stays clear
-/// of the app's menu bar.
-pub const FLOAT_INSET: f32 = 24.0;
-
-/// Width a command floats a panel at when the area never drew it.
-pub const FLOAT_WIDTH: f32 = 260.0;
-
-/// Height a command floats a panel at when the area never drew it.
-pub const FLOAT_HEIGHT: f32 = 320.0;
-
 /// A request for host state outside the layout, or a report of where something ended up.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum DockEvent<P> {
     /// Maximize Frame: maximize the frame holding `panel`, or restore it when it is the one the host passed as
     /// maximized.
+    #[non_exhaustive]
     ToggleMaximize {
         /// A panel of the frame to maximize or restore.
         panel: P,
@@ -28,11 +19,13 @@ pub enum DockEvent<P> {
     ToggleAutoCollapse,
     /// The area's flyout opened, switched to another panel or closed, whatever changed it. It comes once per
     /// change, in the pass that shows the change.
+    #[non_exhaustive]
     FlyoutChanged {
         /// The panel now in the flyout; `None` when it closed.
         panel: Option<P>,
     },
     /// A dock row of `panel`'s menu was chosen. The host's own rows are commands and run by themselves.
+    #[non_exhaustive]
     PanelCommand {
         /// The panel whose menu the row belongs to.
         panel: P,
@@ -41,6 +34,7 @@ pub enum DockEvent<P> {
     },
     /// A dock column was placed: the column that holds `group` first took `rect` this pass. Hosts that anchor
     /// their own surfaces to a column read it.
+    #[non_exhaustive]
     ColumnPlaced {
         /// The first group of the column.
         group: GroupId,
@@ -48,6 +42,7 @@ pub enum DockEvent<P> {
         rect: Rect,
     },
     /// A floating frame holding `panel` was moved or resized to `rect`.
+    #[non_exhaustive]
     FloatPlaced {
         /// A panel of the frame.
         panel: P,
@@ -101,13 +96,13 @@ pub struct FloatSpace<P> {
 }
 
 impl<P: PartialEq> FloatSpace<P> {
-    /// An area with no recorded sizes: commands float a panel at `FLOAT_WIDTH` by `FLOAT_HEIGHT`, `FLOAT_INSET`
-    /// inside the area.
-    pub fn new(area: Rect) -> Self {
+    /// An area with no recorded sizes: commands float a panel at `default_size`, `inset` inside the area. The dock
+    /// passes its style's sizes (the cascade offset and the floating window's default size).
+    pub fn new(area: Rect, inset: f32, default_size: Vec2) -> Self {
         FloatSpace {
             area,
-            inset: FLOAT_INSET,
-            default_size: Vec2::new(FLOAT_WIDTH, FLOAT_HEIGHT),
+            inset,
+            default_size,
             panels: Vec::new(),
             groups: Vec::new(),
             columns: Vec::new(),
