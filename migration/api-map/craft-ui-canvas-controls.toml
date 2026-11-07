@@ -530,3 +530,291 @@ new = "bounds(craft_behavior::kurbo::Rect)"
 type = "SmartGuides"
 old = "show(ui, view)"
 new = "show_at(ui, body.rect) in the body of a Canvas that has a view"
+
+[[type]]
+name = "Guides"
+old = "craft_ui::canvas::guides::Guides"
+new = "craft_ui::canvas_controls::Guides"
+status = "pending"
+
+[[type]]
+name = "Marquee"
+old = "craft_ui::canvas::marquee::Marquee"
+new = "craft_ui::canvas_controls::Marquee"
+status = "moved"
+
+# canvas-controls-b: marquee, outlines, line preview, grids
+
+[[type]]
+name = "MarqueeLook"
+old = "craft_ui::canvas::marquee::MarqueeLook"
+new = "craft_ui::canvas_controls::MarqueeLook"
+status = "moved"
+
+[[type]]
+name = "MarqueeStyle"
+old = "craft_ui::canvas::marquee::MarqueeStyle"
+new = "craft_ui::canvas_controls::MarqueeStyle"
+status = "moved"
+note = "The fields are now the component style: the ants' dash, march speed and repaint tick belong to the kit, and the click slop to the tool."
+
+[[type]]
+name = "MarqueeShape"
+old = ""
+new = "craft_ui::canvas_controls::MarqueeShape"
+status = "replaced"
+note = "New public name for the legacy private `Outline` enum: the shape a Marquee outlines."
+
+[[type]]
+name = "MarqueeDrag"
+old = "craft_ui::canvas::marquee::MarqueeDrag"
+new = ""
+status = "removed"
+note = "Replaced by the tool's press, drag and release under ToolHost."
+
+[[type]]
+name = "MarqueeResponse"
+old = "craft_ui::canvas::marquee::MarqueeResponse"
+new = ""
+status = "removed"
+note = "Replaced by the tool's press, drag and release under ToolHost."
+
+[[type]]
+name = "HoverOutline"
+old = "craft_ui::canvas::hover::HoverOutline"
+new = "craft_ui::canvas_controls::HoverOutline"
+status = "moved"
+
+[[type]]
+name = "HoverShape"
+old = "craft_ui::canvas::hover::HoverShape"
+new = "craft_ui::canvas_controls::HoverShape"
+status = "moved"
+
+[[type]]
+name = "HoverMask"
+old = "craft_ui::canvas::hover::HoverMask"
+new = "craft_ui::canvas_controls::HoverMask"
+status = "moved"
+
+[[type]]
+name = "HoverStyle"
+old = "craft_ui::canvas::hover::HoverStyle"
+new = ""
+status = "removed"
+note = "Replaced by the component style `OutlineStyle`; the debounce and busy timing belong to HoverLookup."
+
+[[type]]
+name = "OutlineStyle"
+old = ""
+new = "craft_ui::canvas_controls::OutlineStyle"
+status = "replaced"
+note = "The style of HoverOutline and SelectionOutline."
+
+[[type]]
+name = "SelectionOutline"
+old = "craft_ui::canvas::selection::outline::SelectionOutline"
+new = "craft_ui::canvas_controls::SelectionOutline"
+status = "moved"
+
+[[type]]
+name = "SelectionOutlineLook"
+old = "craft_ui::canvas::selection::outline::SelectionOutlineLook"
+new = "craft_ui::canvas_controls::SelectionOutlineLook"
+status = "moved"
+
+[[type]]
+name = "range_bands"
+old = "craft_ui::canvas::selection::bands::range_bands"
+new = "craft_ui::canvas_controls::range_bands"
+status = "moved"
+
+[[type]]
+name = "rect_around"
+old = "craft_ui::canvas::selection::bands::rect_around"
+new = "craft_ui::canvas_controls::rect_around"
+status = "moved"
+
+[[type]]
+name = "StraightLinePreview"
+old = "craft_ui::canvas::straight_line::StraightLinePreview"
+new = "craft_ui::canvas_controls::StraightLinePreview"
+status = "moved"
+
+[[type]]
+name = "LineGuideStyle"
+old = "craft_ui::canvas::straight_line::LineGuideStyle"
+new = "craft_ui::canvas_controls::LineGuideStyle"
+status = "moved"
+
+[[type]]
+name = "CanvasGrid"
+old = "craft_ui::canvas::grid::CanvasGrid"
+new = "craft_ui::canvas_controls::CanvasGrid"
+status = "moved"
+
+[[type]]
+name = "GridStyle"
+old = "craft_ui::canvas::grid::GridStyle"
+new = "craft_ui::canvas_controls::GridStyle"
+status = "moved"
+
+[[type]]
+name = "GridLine"
+old = "craft_ui::canvas::grid::GridLine"
+new = "craft_ui::canvas_controls::GridLine"
+status = "moved"
+
+[[type]]
+name = "GridLines"
+old = ""
+new = "craft_ui::canvas_controls::GridLines"
+status = "replaced"
+note = "The lines a grid draws, public for hosts that snap to them; legacy GridLines was crate-private."
+
+[[type]]
+name = "PixelGrid"
+old = "craft_ui::canvas::pixel_grid::PixelGrid"
+new = "craft_ui::canvas_controls::PixelGrid"
+status = "moved"
+
+[[type]]
+name = "GridSegment"
+old = "craft_ui::canvas::pixel_grid::GridSegment"
+new = "craft_ui::canvas_controls::GridSegment"
+status = "moved"
+
+[[setter]]
+type = "Marquee"
+old = "rect(rect, label)"
+new = "rect(label, rect)"
+
+[[setter]]
+type = "Marquee"
+old = "ellipse(rect, label)"
+new = "ellipse(label, rect)"
+
+[[setter]]
+type = "Marquee"
+old = "polygon(points, label)"
+new = "polygon(label, points)"
+
+[[setter]]
+type = "Marquee"
+old = "polyline(points, label)"
+new = "polyline(label, points)"
+
+[[setter]]
+type = "Marquee"
+old = "segments(segments, label)"
+new = "segments(label, segments)"
+
+[[setter]]
+type = "Marquee"
+old = "look(MarqueeLook)"
+new = "look(MarqueeLook), without the Contrast variant"
+
+[[setter]]
+type = "Marquee"
+old = "value(text)"
+new = "value(label)"
+
+[[setter]]
+type = "Marquee"
+old = "bounds_value(numbers, unit)"
+new = "the default value: the bounds written with the env's Units"
+
+[[setter]]
+type = "Marquee"
+old = "id_salt(salt)"
+new = "none: the component id names the control"
+
+[[setter]]
+type = "Marquee"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, canvas_rect); the view is the canvas body's CanvasSpace"
+
+[[setter]]
+type = "Marquee"
+old = "paint(painter, view, look, time) and paint_screen(painter, clip, look, time)"
+new = "none: the control paints through a content painter at the canvas rect"
+
+[[setter]]
+type = "Marquee"
+old = "style(tokens)"
+new = "the component style MarqueeStyle"
+
+[[setter]]
+type = "HoverOutline"
+old = "new(id_salt, shape)"
+new = "new(label, shape)"
+
+[[setter]]
+type = "HoverOutline"
+old = "color(Color32)"
+new = "color(DataColor)"
+
+[[setter]]
+type = "HoverOutline"
+old = "show(ui, view)"
+new = "show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "SelectionOutline"
+old = "solid(paths) and dashed(paths)"
+new = "solid(label, paths) and dashed(label, paths)"
+
+[[setter]]
+type = "SelectionOutline"
+old = "color(Color32)"
+new = "color(DataColor)"
+
+[[setter]]
+type = "SelectionOutline"
+old = "paint(painter, view)"
+new = "show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "StraightLinePreview"
+old = "new(from, to)"
+new = "new(label, from, to)"
+
+[[setter]]
+type = "StraightLinePreview"
+old = "paint(painter, view, style)"
+new = "show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "CanvasGrid"
+old = "new(id)"
+new = "new(label)"
+
+[[setter]]
+type = "CanvasGrid"
+old = "color(Option<Color32>)"
+new = "color(DataColor)"
+
+[[setter]]
+type = "CanvasGrid"
+old = "min_zoom(Option<f64>) in points per unit"
+new = "min_zoom(f64) in device zoom (1 is 100 percent)"
+
+[[setter]]
+type = "CanvasGrid"
+old = "show(ui, view)"
+new = "show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "CanvasGrid"
+old = "lines(view, style)"
+new = "lines(space)"
+
+[[setter]]
+type = "PixelGrid"
+old = "show(ctx, canvas, painter, view, source)"
+new = "PixelGrid::new(label, source).show_at(ui, canvas_rect)"
+
+[[setter]]
+type = "PixelGrid"
+old = "MIN_ZOOM, STRENGTH, LIGHT_SCALE, REGION_SNAP, MAX_SEGMENTS"
+new = "the same associated constants"
