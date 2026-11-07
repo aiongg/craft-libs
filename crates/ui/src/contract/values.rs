@@ -283,8 +283,9 @@ pub struct EditResponse<T> {
     /// What the binding's check says about the shown value.
     pub validity: Validity<T>,
     /// The value the component showed after the pass, with the pass's edits applied; `None` for a component with
-    /// no value to show. A composite reads a child's new state here in the pass it changes.
-    pub shown: Option<Mixed<T>>,
+    /// no value to show. A composite reads a child's new state here in the pass it changes. The value is shared with
+    /// the component, so building the response copies nothing.
+    pub shown: Option<Mixed<Arc<T>>>,
 }
 
 impl<T> EditResponse<T> {

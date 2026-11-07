@@ -16,6 +16,7 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{EditEvent, Flow, IconId, Metrics, Mixed, Proposal, Sense};
 use egui::{Rect, Response, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
+use std::sync::Arc;
 
 craft_ui::words! {
     /// The words of the link toggle.
@@ -289,8 +290,9 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
             })
             .collect();
         let link = ui.child("link", place(link_cell), link_toggle(mode.label(&words), self.link.reborrowed()));
-        let linked = matches!(link.shown, Some(Mixed::Same(true)));
-        self.link_shown = link.shown.as_ref().map(|shown| matches!(shown, Mixed::Same(true)));
+        let is_on = |shown: &Mixed<Arc<bool>>| matches!(shown, Mixed::Same(on) if **on);
+        let linked = link.shown.as_ref().is_some_and(is_on);
+        self.link_shown = link.shown.as_ref().map(is_on);
         self.link_event = link.event;
         for (i, child) in children.iter().enumerate() {
             cx.adopt(child, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));

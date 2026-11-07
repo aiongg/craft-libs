@@ -830,7 +830,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         response.submitted = self.core.submitted;
         response.shown = match (&self.shown, self.mixed) {
             (_, true) => Some(Mixed::Mixed),
-            (Some(value), false) => Some(Mixed::Same((**value).clone())),
+            (Some(value), false) => Some(Mixed::Same(Arc::clone(value))),
             (None, false) => None,
         };
         response

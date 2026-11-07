@@ -4,7 +4,7 @@
 use super::{ANY, Case, Subject};
 use crate::contract::Probe;
 use crate::runtime::access::Role;
-use crate::runtime::egui::access::NodeKey;
+use crate::runtime::egui::access::{Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{Drive, EditKind, Required, Story};
@@ -126,7 +126,11 @@ pub(super) fn activate(fixture: &mut Fixture, variant: usize, target: &Target) {
 
 fn step(fixture: &mut Fixture, variant: usize, target: &Target) {
     if variant == 0 {
-        fixture.access(AccessActionKind::Increment, target);
+        // A component whose value lives in sub-nodes (thumbs, axes) steps through the first of them.
+        let tree = fixture.tree();
+        let part = fixture.by_role(Role::SLIDER).into_iter().find(|slider| tree.declares_key(slider.node, Declared::Increment));
+        let target = if tree.declares_key(target.node, Declared::Increment) { *target } else { part.unwrap_or(*target) };
+        fixture.access(AccessActionKind::Increment, &target);
         fixture.idle(2);
     } else {
         fixture.key(Key::Tab, Modifiers::NONE);
