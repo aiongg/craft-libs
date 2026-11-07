@@ -3,7 +3,7 @@
 use super::view_words::{EventWords, FindingsWords};
 use super::{
     EventLevel, EventList, EventLog, EventLogState, Finding, Findings, FindingsList, FindingsSummary, List, ListRow, LogEvent, Severity, UndoList,
-    UndoMark, UndoRow, UndoRows,
+    UndoMark, UndoRows,
 };
 use crate::contract::{Bind, Show as _, ShowCollection as _, WordSetCx as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -138,10 +138,8 @@ fn event_list_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn undo_list(ui: &mut Ui, data: &mut StoryData, count: usize) -> StoryOutput {
     let labels: Vec<String> = (1..=count).rev().map(|n| format!("Action {n}")).collect();
     let mark = data.value("mark", UndoMark::default());
-    UndoList::new("Undo History")
-        .selection(Bind::bound(mark))
-        .show_items(ui, &UndoRows::new(&labels), &mut |key, _| UndoRow::new(labels[*key].as_str()))
-        .into()
+    let rows = UndoRows::new(&labels);
+    UndoList::new("Undo History").selection(Bind::bound(mark)).show_items(ui, &rows, &mut |key, _| rows.row(*key)).into()
 }
 
 #[story(UndoList<'static>, covers = [Default, Many], drive = Drive::Never)]
@@ -157,9 +155,4 @@ fn undo_list_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(UndoList<'static>, covers = [Empty], drive = Drive::Never)]
 fn undo_list_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     undo_list(ui, data, 0)
-}
-
-#[story(UndoRow<'static>, covers = [Default], drive = Drive::Never)]
-fn undo_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    crate::testing::show_as_only_item(ui, UndoRow::new("Delete Layer")).into()
 }

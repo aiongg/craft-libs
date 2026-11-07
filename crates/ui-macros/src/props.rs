@@ -3,13 +3,14 @@
 use crate::util::{is_named, named_fields, wrapped};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, DeriveInput, Field, Ident, LitStr, Meta, Type};
+use syn::{Attribute, DeriveInput, Field, GenericArgument, Ident, LitStr, Meta, PathArguments, Type, TypeParamBound};
 
 #[derive(Default)]
 struct Prop {
     into: bool,
     flag: bool,
     name: Option<Ident>,
+    func: Option<TypeParamBound>,
 }
 
 /// The declared quantity of a `quantity = ".."` option: it states that a numeric prop is not a size, for the
@@ -35,14 +36,27 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
         } else if meta.path.is_ident("name") {
             let name: LitStr = meta.value()?.parse()?;
             prop.name = Some(name.parse().map_err(|_| syn::Error::new(name.span(), "`name` is the setter's identifier"))?);
+        } else if meta.path.is_ident("func") {
+            let bound: LitStr = meta.value()?.parse()?;
+            prop.func = Some(bound.parse().map_err(|_| syn::Error::new(bound.span(), "`func` is a closure bound such as \"Fn(&K) -> bool\""))?);
         } else if meta.path.is_ident("quantity") {
             read_quantity(&meta)?;
         } else {
-            return Err(meta.error("unknown `prop` option; expected `into`, `flag`, `name = \"..\"` or `quantity = \"..\"`"));
+            return Err(meta.error("unknown `prop` option; expected `into`, `flag`, `name = \"..\"`, `func = \"..\"` or `quantity = \"..\"`"));
         }
         Ok(())
     })?;
     Ok(prop)
+}
+
+/// The first lifetime argument of a path type such as `RowTest<'a, K>`.
+fn lifetime_of(ty: &Type) -> Option<&syn::Lifetime> {
+    let Type::Path(path) = ty else { return None };
+    let PathArguments::AngleBracketed(arguments) = &path.path.segments.last()?.arguments else { return None };
+    arguments.args.iter().find_map(|argument| match argument {
+        GenericArgument::Lifetime(lifetime) => Some(lifetime),
+        _ => None,
+    })
 }
 
 fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
@@ -68,11 +82,13 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
                 self
             }
         });
-    } else if let Some(bounds) = wrapped(ty, "Option").and_then(|inner| wrapped(inner, "Box")).and_then(|boxed| match boxed {
-        Type::TraitObject(object) => Some(&object.bounds),
-        _ => None,
-    }) {
-        (quote!(value: impl #bounds), quote!(::core::option::Option::Some(::std::boxed::Box::new(value))))
+    } else if let Some(bound) = &prop.func {
+        let Some(inner) = wrapped(ty, "Option") else {
+            return Err(syn::Error::new_spanned(ty, "`func` is for an `Option<Named>` field, where `Named::new` takes the closure"));
+        };
+        let lifetime =
+            lifetime_of(inner).ok_or_else(|| syn::Error::new_spanned(inner, "`func` needs the named type to carry the closure's lifetime"))?;
+        (quote!(value: impl #bound + #lifetime), quote!(::core::option::Option::Some(<#inner>::new(value))))
     } else if let Some(inner) = wrapped(ty, "Option") {
         if prop.into {
             (quote!(value: impl ::core::convert::Into<#inner>), quote!(::core::option::Option::Some(value.into())))

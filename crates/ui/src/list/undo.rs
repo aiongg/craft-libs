@@ -2,16 +2,15 @@
 //! drop-down arrow. Marking a row marks it and every newer one; picking a row undoes through it.
 
 use super::view_words::UndoWords;
+use super::{ListRow, RowEvent};
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, MeasureCx,
-    PaintUi, Props as _, Role, SelectMode, Sizing,
+    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Props as _,
+    Role, SelectMode, Sizing,
 };
-use crate::controls::select::row_look;
-use crate::primitives::TextRun;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{DisplayOrder, ItemSource, Metrics, SelectionChange, SelectionModel, SpanLayout};
-use egui::{Response, Vec2};
+use craft_i18n::Format;
 use std::borrow::Cow;
 
 /// The marked actions of an undo list: the row at `marked` and every newer one (a smaller position).
@@ -61,9 +60,9 @@ impl SelectionModel<usize> for UndoMark {
 
 /// The footer text of an undo list: "Undo 3 Actions" while rows are marked, `None` while none is (the footer is the
 /// Cancel row then).
-pub fn footer_text(words: &UndoWords, mark: &UndoMark) -> Option<String> {
-    let actions = mark.actions();
-    (actions > 0).then(|| words.actions.text(actions as u64, &actions.to_string()))
+pub fn footer_text(words: &UndoWords, format: &Format, mark: &UndoMark) -> Option<String> {
+    let actions = mark.actions() as u64;
+    (actions > 0).then(|| words.actions.text(actions, &format.integer(actions)))
 }
 
 /// The actions of the undo list as an item source: the label of each, newest first, keyed by position.
@@ -97,9 +96,16 @@ impl DisplayOrder<usize> for UndoRows<'_> {
 
 impl ItemSource<usize> for UndoRows<'_> {}
 
+impl UndoRows<'_> {
+    /// The row of the action at `at`: an option of the listbox, marked by the list's selection.
+    pub fn row(&self, at: usize) -> ListRow<'static> {
+        ListRow::new(self.0[at].clone()).option()
+    }
+}
+
 /// How many actions an undo list asks the app to undo: through the row picked by a click or Enter, `None` while
 /// no row was picked. The app undoes that many and closes the popup.
-pub fn undo_count(events: &[CollectionEvent<usize, ()>]) -> Option<usize> {
+pub fn undo_count(events: &[CollectionEvent<usize, RowEvent>]) -> Option<usize> {
     events.iter().find_map(|event| match event {
         CollectionEvent::Activate(position) => Some(position + 1),
         _ => None,
@@ -144,7 +150,7 @@ impl<'a> UndoList<'a> {
 impl Component for UndoList<'_> {
     const ROLE: Role = Role::LIST_BOX;
     type Style = UndoListStyle;
-    type Output = CollectionResponse<usize, ()>;
+    type Output = CollectionResponse<usize, RowEvent>;
 
     fn style(_: &StyleCx<'_>, _: UndoListStyleKey) -> UndoListStyle {
         UndoListStyle::default()
@@ -159,8 +165,8 @@ impl Collection for UndoList<'_> {
     type Key = usize;
     type ItemLayout = SpanLayout;
     type Selection = UndoMark;
-    type Item<'r> = UndoRow<'r>;
-    type ItemEvent = ();
+    type Item<'r> = ListRow<'r>;
+    type ItemEvent = RowEvent;
 
     fn items(&self) -> &CollectionProps {
         &self.items
@@ -172,54 +178,5 @@ impl Collection for UndoList<'_> {
 
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
         SpanLayout::new(source, width, cx.control().height)
-    }
-}
-
-/// The style of an undo row: the marked fill, the control's padding and the text colour.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct UndoRowStyle {
-    #[style(surface)]
-    surface: SurfaceLook,
-    #[style(metrics)]
-    metrics: Metrics,
-    ink: StyleColor,
-}
-
-/// A row of the undo list: the label of an action. The list's item step handles the click and Enter that pick it.
-#[derive(crate::contract::Component)]
-pub struct UndoRow<'r> {
-    #[common]
-    common: Common,
-    label: &'r str,
-}
-
-impl<'r> UndoRow<'r> {
-    /// A row showing `label`.
-    pub fn new(label: &'r str) -> Self {
-        UndoRow { common: Common::new(), label }.label(label.to_owned())
-    }
-}
-
-impl Component for UndoRow<'_> {
-    const ROLE: Role = Role::LIST_BOX_OPTION;
-    const OVERLAYS: bool = false;
-    type Style = UndoRowStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, _: UndoRowStyleKey) -> UndoRowStyle {
-        UndoRowStyle { surface: row_look(cx), metrics: cx.control().metrics(), ink: cx.ink(Ink::OnPanel) }
-    }
-
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(self.label)).size()
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.draw().text(cx.content_rect, &TextRun::new(self.label).elide().color(cx.style.ink));
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
     }
 }

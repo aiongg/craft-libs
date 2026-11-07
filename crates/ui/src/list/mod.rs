@@ -2,6 +2,7 @@
 
 mod events;
 mod findings;
+mod predicate;
 pub(crate) mod row;
 #[cfg(feature = "testing")]
 mod stories;
@@ -16,10 +17,11 @@ mod words;
 
 pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};
 pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
+pub use predicate::{DropTest, RowTest, SourceTest};
 pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget};
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};
 pub use tree::OpenSet;
-pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRow, UndoRowStyle, UndoRows, footer_text, undo_count};
+pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRows, footer_text, undo_count};
 pub use view::{List, ListStyle};
 pub use view_words::{EventWords, FindingsWords, UndoWords};
 pub use words::ListWords;

@@ -182,6 +182,20 @@ status = "removed"
 note = "See `UndoRowEvent`."
 
 [[type]]
+name = "UndoRow"
+old = "craft_ui::list::UndoRow"
+new = ""
+status = "removed"
+note = "An undo list shows `ListRow`s: `UndoRows::row(at)` is `ListRow::new(label).option()`, the option role of a listbox. The list's selection marks the rows."
+
+[[type]]
+name = "UndoRowStyle"
+old = "craft_ui::list::UndoRowStyle"
+new = ""
+status = "removed"
+note = "See `UndoRow`; the look is `ListRowStyle`."
+
+[[type]]
 name = "FindingsList"
 old = "craft_ui::list::findings::FindingsList"
 new = "craft_ui::list::FindingsList"
@@ -200,7 +214,7 @@ name = "UndoList"
 old = "craft_ui::edit::history_panel::undo_list::UndoList"
 new = "craft_ui::list::UndoList"
 status = "replaced"
-note = "A `Collection` over `UndoRows::new(&labels)` (labels newest first, built by the app from its history) with a `UndoMark` selection; `undo_count(&events)` is `UndoListEvent::UndoThrough(n)`, `footer_text(&UndoWords, &mark)` is the footer text (`None` is the Cancel row). `UndoList::marked(Some(i))` is `Bind::given(UndoMark::at(i))`. Hover marking and the footer row are not ported."
+note = "A `Collection` over `UndoRows::new(&labels)` (labels newest first, built by the app from its history) with a `UndoMark` selection; `undo_count(&events)` is `UndoListEvent::UndoThrough(n)`, `footer_text(&UndoWords, &format, &mark)` is the footer text (the count in the scope's digits) (`None` is the Cancel row). `UndoList::marked(Some(i))` is `Bind::given(UndoMark::at(i))`. Hover marking and the footer row are not ported."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
