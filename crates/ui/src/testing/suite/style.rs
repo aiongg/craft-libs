@@ -12,7 +12,7 @@ use crate::testing::fixture::Fixture;
 use crate::testing::style::{StyleLooks, StyleSeen, themes_at, tokens, with_cx};
 use craft_behavior::Input;
 use craft_theme::{
-    Appearance, Contrast, ControlSize, Flags, Mode, Resolve, Rgba, Size, State, StateMix, Stateful, TextSize, TokenRef, builtins, explain,
+    Appearance, ColorToken, Contrast, ControlSize, Flags, Mode, Resolve, Rgba, Size, State, StateMix, Stateful, TextSize, TokenRef, builtins, explain,
 };
 use std::sync::Arc;
 
