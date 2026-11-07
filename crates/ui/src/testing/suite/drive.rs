@@ -163,11 +163,15 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
     let target = root_target(fixture);
     fixture.click(&target);
     if by_click {
-        let mut rows: Vec<Target> = [crate::runtime::egui::access::Role::ListBoxOption, crate::runtime::egui::access::Role::MenuItem]
-            .into_iter()
-            .flat_map(|role| fixture.by_role(Role::Node(role)))
-            .filter(|row| row.node != target.node)
-            .collect();
+        let mut rows: Vec<Target> = [
+            crate::runtime::egui::access::Role::ListBoxOption,
+            crate::runtime::egui::access::Role::MenuItem,
+            crate::runtime::egui::access::Role::TreeItem,
+        ]
+        .into_iter()
+        .flat_map(|role| fixture.by_role(Role::Node(role)))
+        .filter(|row| row.node != target.node)
+        .collect();
         rows.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
         if let Some(row) = rows.get(row).copied() {
             fixture.click(&row);

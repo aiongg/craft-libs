@@ -163,7 +163,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
 
     fn parts(&mut self, rect: egui::Rect, cx: &mut PartsCx<'_, Self>) {
         cx.part(FACE, rect)
-            .sense(Sense::CLICK | Sense::HOVER)
+            .sense(Sense::CLICK | Sense::HOVER | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Body, 0))
             .pointer_only("Enter, Space and Alt+Down open the list")
             .toggles("list");

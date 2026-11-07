@@ -169,6 +169,11 @@ impl<'a, T: Value> Bind<'a, T> {
         Bind { source, policy: self.policy, check, save: self.save.clone(), reset: self.reset.clone() }
     }
 
+    /// The value a reset restores.
+    pub(crate) fn reset_value(&self) -> Option<&T> {
+        self.reset.as_ref()
+    }
+
     /// The binding as the pipeline reads and writes it.
     pub fn reborrow(&mut self) -> BindMut<'_, T> {
         let source = match &mut self.source {

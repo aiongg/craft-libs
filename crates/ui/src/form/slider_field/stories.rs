@@ -38,7 +38,7 @@ fn slider_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     SliderField::new("Opacity", Bind::bound(data.value("over", 95.0)).check(refuse_over), PERCENT).show(ui).into()
 }
 
-#[story(SliderField<'static>, covers = [], disabled_text = "Pick a layer first")]
+#[story(SliderField<'static>, covers = [], drive = Drive::Type("25"), disabled_text = "Pick a layer first")]
 fn slider_field_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("The layer's opacity");
     SliderField::new("Opacity", Bind::bound(data.value("value", 40.0)), PERCENT).tooltip(tooltip).show(ui).into()

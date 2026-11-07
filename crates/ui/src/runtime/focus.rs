@@ -157,6 +157,26 @@ pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
     });
 }
 
+/// How many stops the running pass has registered so far.
+pub(crate) fn stop_count(ctx: &Context) -> usize {
+    with(ctx, |state| state.stops.len())
+}
+
+/// Where a request for the component `id` goes when it has no stop of its own: the first stop registered since
+/// `from` (a `stop_count`), which a component inside it holds.
+pub(crate) fn first_stop_inside(ctx: &Context, id: Id, from: usize) -> Option<FocusTarget> {
+    with(ctx, |state| {
+        if state.stops.iter().any(|rec| rec.stop.id == id) {
+            return None;
+        }
+        let rec = state.stops.get(from..)?.first()?;
+        Some(match rec.stop.part {
+            Some(part) => FocusTarget::Part(rec.stop.id, part),
+            None => FocusTarget::Id(rec.stop.id),
+        })
+    })
+}
+
 /// Marks the stops registered from here on in the innermost open scope as its body's: they come first in Tab
 /// order, then the footer's, then the header's, and initial focus goes to the first of them, not to the title
 /// row's close action. The first mark of a pass stands.

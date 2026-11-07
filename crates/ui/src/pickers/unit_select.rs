@@ -1,8 +1,8 @@
 //! `UnitSelect`: a number field with a select of units beside it that picks the unit the field reads and writes.
 
 use super::select::Select;
-use crate::contract::{WordSetCx as _, 
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Props as _, Role,
+use crate::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Props as _, Role, WordSetCx as _,
 };
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
@@ -80,7 +80,8 @@ pub struct UnitSelect<'a> {
 impl<'a> UnitSelect<'a> {
     /// A number field named `label` over `value`, with a select of `units` over `unit` after it.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>, unit: Bind<'a, UnitKind>, units: &'a [Entry<UnitKind>]) -> Self {
-        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, unit_event: None, unit_width: Cell::new(0.0) }.label(label)
+        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, unit_event: None, unit_width: Cell::new(0.0) }
+            .label(label)
     }
 
     fn number(&self, name: Label, value: Mixed<Option<f64>>, kind: Option<UnitKind>) -> NumberField<'static> {
@@ -133,24 +134,24 @@ impl Component for UnitSelect<'_> {
         Some(self.value.reborrow())
     }
 
-    /// The select is shown first, so the number follows the unit it shows after the pass; the number's edit is
-    /// adopted as the component's own.
+    /// The number is shown first, so it is the first stop after the group, as it is first on screen. It reads the unit
+    /// the binding holds before the pass, so a unit picked in this pass reaches it at the next one; the number's edit
+    /// is adopted as the component's own.
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let group = cx.label();
         let flow = Flow::new(cx.rect, cx.flow.is_rtl());
         let (select_rect, rest) = flow.take_end(self.unit_width.get());
         let number_rect = rest.take_end(cx.style.metrics.gap).1.rect();
-        let select = Select::new(self.select_name(&group), self.unit.reborrowed(), self.units);
-        let unit = ui.child("unit", select_rect, select);
-        let kind = match unit.shown.as_ref() {
-            Some(Mixed::Same(kind)) => Some(**kind),
+        let kind = match self.unit.reborrow().get() {
+            Some(Mixed::Same(kind)) => Some(kind),
             _ => None,
         };
-        self.unit_event = unit.event;
         let shown = shown_of(cx.value());
         let start = cx.value().and_then(|value| *value);
-        let number = ui.child("number", number_rect, self.number(group, shown, kind));
+        let number = ui.child("number", number_rect, self.number(group.clone(), shown, kind));
         cx.adopt(&number, &start, |value, mine| *mine = *value);
+        let select = Select::new(self.select_name(&group), self.unit.reborrowed(), self.units);
+        self.unit_event = ui.child("unit", select_rect, select).event;
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> UnitSelectOutput {

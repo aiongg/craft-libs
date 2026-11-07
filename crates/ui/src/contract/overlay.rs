@@ -611,7 +611,7 @@ impl<C: Component> Overlays for Cx<'_, C> {
 /// Step 9, before `update`: what the component's parts declared with `PartBuilder::toggles`. A click on the part
 /// toggles its popup, AccessKit Expand and Collapse on its sub-node open and close it, Alt+Down opens the popup of
 /// the focused toggling part (else the first one that is closed), and Alt+Up closes the open ones. Each toggle keeps
-/// the popup's open state for the part's `expanded`.
+/// the popup's open state for the part's `expanded`. A click a toggling part took is not left as the root's activation.
 pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
     if cx.core.toggles.is_empty() {
         return;
@@ -636,6 +636,10 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
         if cx.core.results.get(&(part.key, part.index)).is_some_and(|result| result.press.phase.is_click()) {
             queue(&cx.core.ctx, popup.id, OpenOp::Toggle);
             handled = true;
+            // The toggling part took the click: the root's pointer activation of it is not a second toggle.
+            if cx.core.activation.is_some_and(|activation| !activation.by_key) {
+                cx.core.activation = None;
+            }
         }
     }
     let mut open = Vec::with_capacity(toggles.len());
