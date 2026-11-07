@@ -1,7 +1,7 @@
 //! Integration tests of craft-keymap: chord.
 
 use craft_keymap::chord::foreign::{Flavor, ForeignError, ReadNote, read_foreign};
-use craft_keymap::{Chord, Key, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
+use craft_keymap::{Chord, Key, Layout, MAX_CHORD_TEXT, Mods, ParseError, Platform, Trigger};
 
 fn chord(text: &str) -> Chord {
     Chord::parse(text).unwrap_or_else(|e| panic!("{text}: {e}"))
@@ -144,6 +144,24 @@ fn hostile_text_is_refused() {
     let wide = "⌘".repeat(30);
     assert_eq!(Chord::parse(&wide), Err(ParseError::TooLong));
     assert!(serde_json::from_str::<Chord>("\"Cmd+Nope\"").is_err());
+}
+
+#[test]
+fn spoken_names_follow_the_platform_order_with_words_for_keys() {
+    let c = chord("Cmd+Ctrl+Alt+Shift+K");
+    assert_eq!(c.spoken(Platform::Mac), "Ctrl+Option+Shift+Cmd+K");
+    assert_eq!(c.spoken(Platform::Windows), "Ctrl+Alt+Shift+K");
+    assert_eq!(c.spoken(Platform::Linux), "Ctrl+Alt+Shift+K");
+    assert_eq!(chord("Cmd+Alt+PageDown").spoken(Platform::Mac), "Option+Cmd+Page Down");
+    assert_eq!(chord("Up").spoken(Platform::Mac), "Up");
+}
+
+#[test]
+fn parts_are_one_text_per_key() {
+    let layout = Layout::default();
+    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Windows, &layout), ["Ctrl", "Shift", "K"]);
+    assert_eq!(chord("Cmd+Shift+K").parts_for(Platform::Mac, &layout), ["⇧", "⌘", "K"]);
+    assert_eq!(chord("Escape").parts_for(Platform::Mac, &layout), ["⎋"]);
 }
 
 #[test]

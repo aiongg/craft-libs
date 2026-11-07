@@ -5,12 +5,12 @@ use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, Pa
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, IconLook, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{
-    Variant,
-    variant::{Emphasis, Tone},
-};
+use craft_theme::Stateful;
 use egui::{Pos2, Response, Vec2, vec2};
 use std::f32::consts::{PI, TAU};
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// How long the spinner takes for a turn, in seconds.
 const PERIOD: f64 = 1.0;
@@ -19,15 +19,14 @@ const SWEEP: f32 = PI * 4.0 / 3.0;
 /// The points of the arc.
 const POINTS: usize = 24;
 
-/// The style of a spinner. It accepts the variants of a button, so a spinner shown as a button's face reads in the
-/// button's text colour.
+/// The style of a spinner. Shown as the face of a part it reads in the host's ink, so it follows any button
+/// variant or row fill.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[style(variants = [Variant::SECONDARY, Variant::PRIMARY, Variant::DANGER, Variant::look(Emphasis::Outline, Tone::Accent)])]
 #[non_exhaustive]
 pub struct SpinnerStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The arc: the icon side of the control and the variant's text colour.
+    /// The arc: the icon side of the control and the host's ink.
     #[style(icon)]
     arc: IconLook,
     /// How far the arc sits inside the square.
@@ -65,12 +64,8 @@ impl Component for Spinner {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: SpinnerStyleKey) -> SpinnerStyle {
-        let control = cx.control();
-        SpinnerStyle {
-            metrics: Metrics::new().min_size(Vec2::splat(control.height)),
-            arc: IconLook::new(control.icon, cx.variant_look().text),
-            inset: cx.tokens.space.gap.tight,
-        }
+        let ink = Stateful::new(cx.color(cx.tokens.color.text.normal));
+        SpinnerStyle { metrics: Metrics::new(), arc: IconLook::new(cx.control().icon, cx.host_ink(ink)), inset: cx.tokens.space.gap.tight }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -95,7 +90,7 @@ impl Component for Spinner {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let centre = cx.rect.center();
-        let radius = (cx.rect.width().min(cx.rect.height()) / 2.0 - cx.style.inset).max(0.0);
+        let radius = (cx.style.arc.side / 2.0 - cx.style.inset).max(0.0);
         let start = cx.phase(PERIOD, None).map_or(0.0, |turn| turn * TAU);
         let points: Vec<Pos2> = (0..=POINTS)
             .map(|at| {

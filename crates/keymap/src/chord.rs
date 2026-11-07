@@ -313,22 +313,31 @@ impl Mods {
 
     /// The modifiers' text before a key: `⌃⌥⇧⌘` on macOS, `Ctrl+Alt+Shift+` elsewhere.
     pub(crate) fn prefix(self, platform: Platform) -> String {
+        let parts = self.parts(platform);
+        if platform.is_mac() { parts.concat() } else { parts.iter().map(|name| format!("{name}+")).collect() }
+    }
+
+    /// The held modifiers one by one, in the platform's order: `⌃ ⌥ ⇧ ⌘` on macOS, `Ctrl Alt Shift` elsewhere.
+    pub(crate) fn parts(self, platform: Platform) -> Vec<&'static str> {
         let m = self.effective(platform);
-        let mut s = String::new();
-        if platform.is_mac() {
-            for (on, glyph) in [(m.ctrl, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.cmd, "⌘")] {
-                if on {
-                    s.push_str(glyph);
-                }
-            }
+        let table: [(bool, &'static str); 4] = if platform.is_mac() {
+            [(m.ctrl, "⌃"), (m.alt, "⌥"), (m.shift, "⇧"), (m.cmd, "⌘")]
         } else {
-            for (on, name) in [(m.cmd, "Ctrl+"), (m.alt, "Alt+"), (m.shift, "Shift+")] {
-                if on {
-                    s.push_str(name);
-                }
-            }
-        }
-        s
+            [(m.cmd, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift"), (false, "")]
+        };
+        table.into_iter().filter(|(on, _)| *on).map(|(_, name)| name).collect()
+    }
+
+    /// The held modifiers' names for a screen reader, in the platform's order: `Ctrl Option Shift Cmd` on macOS,
+    /// `Ctrl Alt Shift` elsewhere.
+    fn spoken(self, platform: Platform) -> Vec<&'static str> {
+        let m = self.effective(platform);
+        let table: [(bool, &'static str); 4] = if platform.is_mac() {
+            [(m.ctrl, "Ctrl"), (m.alt, "Option"), (m.shift, "Shift"), (m.cmd, "Cmd")]
+        } else {
+            [(m.cmd, "Ctrl"), (m.alt, "Alt"), (m.shift, "Shift"), (false, "")]
+        };
+        table.into_iter().filter(|(on, _)| *on).map(|(_, name)| name).collect()
     }
 
     /// The modifiers as `platform` sees them: off macOS `ctrl` becomes `cmd`.
@@ -533,8 +542,32 @@ impl Chord {
 
     pub(crate) fn display_key_with(&self, platform: Platform, key_text: Option<&str>, glyph: ReturnGlyph) -> String {
         let mut s = self.mods.prefix(platform);
-        s.push_str(key_text.unwrap_or(if platform.is_mac() { self.key.mac_symbol(glyph) } else { self.key.text_name() }));
+        s.push_str(&self.key_text(platform, key_text, glyph));
         s
+    }
+
+    fn key_text(&self, platform: Platform, key_text: Option<&str>, glyph: ReturnGlyph) -> String {
+        match key_text {
+            Some(text) => text.to_owned(),
+            None if platform.is_mac() => self.key.mac_symbol(glyph).to_owned(),
+            None => self.key.text_name().to_owned(),
+        }
+    }
+
+    /// The chord as one text per key, modifiers first, each as [`display_for`](Self::display_for) writes it:
+    /// `["Ctrl", "Shift", "K"]`, or `["⇧", "⌘", "K"]` on macOS. A keycap is drawn around each.
+    pub fn parts_for(&self, platform: Platform, layout: &Layout) -> Vec<String> {
+        let mut parts: Vec<String> = self.mods.parts(platform).into_iter().map(str::to_owned).collect();
+        parts.push(self.key_text(platform, layout.key_label(self.key).as_deref(), ReturnGlyph::Enter));
+        parts
+    }
+
+    /// The chord as names for a screen reader and AccessKit's `keyboard_shortcut`, in the platform's order
+    /// whatever its symbols: `Ctrl+Option+Shift+Cmd+K` on macOS, `Ctrl+Alt+Shift+K` elsewhere.
+    pub fn spoken(&self, platform: Platform) -> String {
+        let mut names: Vec<&str> = self.mods.spoken(platform);
+        names.push(self.key.text_name());
+        names.join("+")
     }
 
     /// Whether the key is a function key.

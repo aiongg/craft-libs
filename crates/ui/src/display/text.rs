@@ -1,4 +1,4 @@
-//! `Text`: static text in a type role and a shade. `Text::section` is the faint caption over a group of controls.
+//! `Text`: static text in a type role and a shade.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
 use crate::primitives::{TextRun, Wrap};
@@ -7,6 +7,9 @@ use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Response, Vec2};
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// How strongly the text reads against its surface.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
@@ -57,6 +60,7 @@ pub struct Text {
     #[prop]
     shade: Shade,
     /// The type role.
+    #[style_key]
     #[prop]
     role: TypeRole,
     /// Where text that does not fit is cut.
@@ -70,18 +74,13 @@ impl Text {
         Text { common: Common::new(), shade: Shade::Normal, role: TypeRole::Body, elide: Elide::Off }.label(text)
     }
 
-    /// The caption over a group of controls: label type in the faint shade.
-    pub fn section(label: impl Into<Label>) -> Self {
-        Text::new(label).role(TypeRole::Label).shade(Shade::Faint)
-    }
-
-    fn run<'a>(&self, label: &'a str) -> TextRun<'a> {
+    fn run<'a>(&self, role: TypeRole, label: &'a str) -> TextRun<'a> {
         let wrap = match self.elide {
             Elide::Off => Wrap::Wrap,
             Elide::End => Wrap::Elide,
             Elide::Path => Wrap::ElidePath,
         };
-        TextRun::new(label).role(self.role).wrap(wrap)
+        TextRun::new(label).role(role).wrap(wrap)
     }
 }
 
@@ -100,11 +99,11 @@ impl Component for Text {
             Shade::Faint => text.faint,
         });
         let off = States::new(color, color, color, cx.color(text.disabled));
-        TextStyle { metrics: Metrics::new(), text: TextLook::new(TypeRole::Body, Stateful::new(color).off(off)) }
+        TextStyle { metrics: Metrics::new(), text: TextLook::new(key.role, Stateful::new(color).off(off)) }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let layout = cx.layout(&self.run(cx.resolved.label));
+        let layout = cx.layout(&self.run(cx.style.text.role, cx.resolved.label));
         // A cut line takes the whole room: its width must not follow where the last glyph happened to fit.
         match cx.room {
             Some(room) if layout.elided => Vec2::new(room, layout.size().y),
@@ -117,7 +116,7 @@ impl Component for Text {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.draw().text(cx.content_rect, &self.run(cx.resolved.label).color(cx.resolve(&cx.style.text.color)));
+        ui.draw().text(cx.content_rect, &self.run(cx.style.text.role, cx.resolved.label).color(cx.resolve(&cx.style.text.color)));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

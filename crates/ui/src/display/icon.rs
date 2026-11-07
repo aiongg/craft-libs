@@ -7,6 +7,9 @@ use craft_behavior::{Metrics, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Response, Vec2};
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The style of an icon.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]

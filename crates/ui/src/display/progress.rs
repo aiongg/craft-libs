@@ -2,10 +2,13 @@
 
 use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, Numeric, PaintUi, Role, Styled as _, WordSetCx as _};
 use crate::primitives::PaintShape;
-use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, SurfaceKind, SurfaceLook};
+use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, TrackLook};
 use craft_behavior::{Flow, Metrics, Sense};
-use craft_theme::{Stateful, States};
-use egui::{CornerRadius, Response, Vec2};
+use craft_theme::Stateful;
+use egui::{CornerRadius, Rect, Response, Vec2};
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// Seconds for the unknown-extent segment to cross the track.
 const SWEEP: f64 = 1.25;
@@ -16,23 +19,19 @@ const STILL_START: f32 = 0.3;
 /// Dash and gap lengths of the still segment, in track heights.
 const DASH: f32 = 2.0;
 const DASH_GAP: f32 = 1.0;
-/// The default length of the bar, in control heights.
-const LENGTH_IN_CONTROLS: f32 = 5.0;
 
 /// The style of a progress bar.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct ProgressStyle {
-    /// The sunken track.
-    #[style(surface)]
-    track: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
+    /// The groove and its thickness, as every value track has them.
+    track: TrackLook,
     /// The filled part.
     fill: Stateful<StyleColor>,
     radius: CornerRadius,
     length: f32,
-    thickness: f32,
 }
 
 /// What a bar shows.
@@ -99,25 +98,17 @@ impl Component for Progress {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: ProgressStyleKey) -> ProgressStyle {
-        let colors = &cx.tokens.color;
-        let radius = crate::style::UiTokens::corner(cx.tokens.shape.radius.pill);
-        let accent = cx.color(colors.accent.solid);
-        let track = SurfaceLook::new(Stateful::new(cx.color(colors.surface.sunken)))
-            .kind(SurfaceKind::Sunken)
-            .radius(radius)
-            .border(Stateful::new(cx.color(colors.line.control_edge)), cx.tokens.stroke.thin);
         ProgressStyle {
-            track,
             metrics: Metrics::new(),
-            fill: Stateful::new(accent).off(States::new(accent, accent, accent, cx.color(colors.state.disabled_fill))),
-            radius,
-            length: cx.control().height * LENGTH_IN_CONTROLS,
-            thickness: 2.0 * cx.tokens.stroke.thick + cx.tokens.stroke.thin,
+            track: cx.track(),
+            fill: cx.accent_fill(),
+            radius: crate::style::UiTokens::corner(cx.tokens.shape.radius.pill),
+            length: cx.tokens.size.length.track,
         }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.style.length, cx.style.thickness)
+        Vec2::new(cx.style.length, cx.style.track.thickness)
     }
 
     fn sense(&self) -> Sense {
@@ -142,8 +133,9 @@ impl Component for Progress {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let track = cx.content_rect;
-        let (width, thickness) = (track.width(), cx.style.thickness);
+        let thickness = cx.style.track.thickness;
+        let track = Rect::from_center_size(cx.content_rect.center(), Vec2::new(cx.content_rect.width(), thickness));
+        let width = track.width();
         let spans = match self.fraction() {
             Some(fraction) if fraction > 0.0 => vec![(0.0, fraction.max(thickness / width.max(1.0)).min(1.0))],
             Some(_) => Vec::new(),
@@ -158,6 +150,7 @@ impl Component for Progress {
         let flow = Flow::new(track, cx.flow.is_rtl());
         let color = cx.resolve(&cx.style.fill);
         let draw = ui.draw();
+        draw.fill(&PaintShape::Rect(track, cx.style.radius), cx.resolve(&cx.style.track.groove));
         for (from, to) in spans {
             let span = flow.span(from * width, (to - from) * width);
             if span.width() > 0.0 {
