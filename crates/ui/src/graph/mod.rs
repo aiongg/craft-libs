@@ -14,7 +14,7 @@ pub use node::{Node, NodeOutput, NodeStyle};
 
 use crate::contract::{
     Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, PaintUi, PartsCx, Pointer as _, Role,
-    SelectMode, Sizing,
+    SelectMode, Sizing, Styled as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Stateful, States, StyleColor, StyleCx, SurfaceKind};
