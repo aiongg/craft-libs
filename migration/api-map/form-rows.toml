@@ -11,38 +11,78 @@ new_module = "craft_ui::form"
 name = "Field"
 old = "craft_ui::composites::field::Field"
 new = "craft_ui::form::Field"
-status = "pending"
+status = "moved"
+note = "A container shown with `ShowContainer::show(ui, |ui, cx| control)`; the body holds one control and the closure returns the control's own output (no `FieldControl`, no `invalid` argument). The label is the constructor argument and `Common.label`; `layout`, `side` and `help` are its setters. The output is `Response`."
 
 [[type]]
 name = "FieldGroup"
 old = "craft_ui::composites::field::FieldGroup"
 new = "craft_ui::form::FieldGroup"
-status = "pending"
+status = "moved"
+note = "A container named by its label and shown with `ShowContainer::show(ui, |ui, cx| ..)`; the old `id_salt` argument is gone (the id comes from the call site). Every `Field` in the body shares one label column."
 
 [[type]]
 name = "PropertyRow"
-old = ""
-# found in: craft_ui::dialog::properties::PropertyRow, craft_ui::composites::property_row::PropertyRow
-new = "craft_ui::form::PropertyRow"
-status = "pending"
+old = "craft_ui::composites::property_row::PropertyRow"
+new = ""
+status = "replaced"
+note = "A `Field` configuration; `craft_ui::dialog::properties::PropertyRow` is the same row type. A glyph label is `Field::side(SideLabel::new().kind(LabelKind::Hidden).icon(icon))` with the word as the field's label, which still names the control; `scrubs()` is `SideLabel::scrub(true)`; `redundant()` is `SideLabel::role(FieldLabelRole::Describes)`; `size(ControlSize)` is the ambient control size."
 
 [[type]]
 name = "PropertyPair"
 old = "craft_ui::composites::property_row::PropertyPair"
-new = "craft_ui::form::PropertyPair"
-status = "pending"
+new = ""
+status = "replaced"
+note = "Two `Field`s in a `Row`, or `LinkedFields` where the two values link. `reserve_link_slot` and `show_linked` go with `LinkedFields`."
 
 [[type]]
 name = "PropertyGroup"
 old = "craft_ui::composites::property_row::PropertyGroup"
-new = "craft_ui::form::PropertyGroup"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`FieldGroup`: its `Field`s share one label column. `glyph_width` and `word_width` go; the column is as wide as the widest label."
 
 [[type]]
 name = "FormGrid"
 old = "craft_ui::composites::form_grid::FormGrid"
-new = "craft_ui::form::FormGrid"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`FieldGroup` with one `Field` per row. `Form::row` is `Field::new(label)`, `Form::unlabelled` is a `Field` with a hidden label, `Form::value` is a `Field` over `Text`, `Form::linked` is `LinkedFields`, `Form::space` is the group's gap."
+
+[[type]]
+name = "FieldStyle"
+old = "craft_ui::composites::field::FieldStyle"
+new = ""
+status = "replaced"
+note = "`FieldRowStyle` holds no values; the help line and the label step take their looks from the theme."
+
+[[type]]
+name = "FieldControl"
+old = "craft_ui::composites::field::FieldControl"
+new = ""
+status = "removed"
+note = "The body closure returns the control's own output; the control reads its own validity."
+
+[[type]]
+name = "Form"
+old = "craft_ui::composites::form_grid::Form"
+new = ""
+status = "replaced"
+note = "The row helper of `FormGrid`; its rows are `Field`s in a `FieldGroup`."
+
+[[type]]
+name = "PropertyStyle"
+old = "craft_ui::composites::property_row::PropertyStyle"
+new = ""
+status = "removed"
+note = "A `Field` takes its looks from the theme."
+
+[[type]]
+name = "FormStyle"
+old = "craft_ui::composites::form_grid::FormStyle"
+new = ""
+status = "removed"
+note = "A `Field` takes its looks from the theme."
 
 [[type]]
 name = "SliderRow"
@@ -55,3 +95,42 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "Field"
+old = "above()"
+new = "layout(FieldLayout::Above)"
+
+[[setter]]
+type = "Field"
+old = "help(impl Into<String>)"
+new = "help(Help::Text(&str))"
+
+[[setter]]
+type = "Field"
+old = "help_status(StatusKind)"
+new = "help(Help::Status(Tone, &str))"
+note = "`Tone` is `craft_theme::variant::Tone`."
+
+[[setter]]
+type = "Field"
+old = "error(Option<impl Into<String>>)"
+new = ""
+note = "Error text comes from the control's binding check (`Bind::check`)."
+
+[[setter]]
+type = "Field"
+old = "label_align(LabelAlign)"
+new = ""
+note = "The label column's alignment follows the reading direction."
+
+[[setter]]
+type = "Field"
+old = "unlabelled()"
+new = "side(SideLabel::new().kind(LabelKind::Hidden))"
+note = "The field's label still names the control."
+
+[[setter]]
+type = "Field"
+old = "show(ui, |ui, invalid| control)"
+new = "show(ui, |ui, cx| control)"
