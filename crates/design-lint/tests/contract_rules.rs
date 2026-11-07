@@ -37,7 +37,7 @@ const REJECT: [(&str, &[&str]); 19] = [
     ("props-hand-setter.rs", &["props/hand-setter"]),
     ("props-own-field.rs", &["props/own-field"]),
     ("props-shadow.rs", &["props/shadow"]),
-    ("props-literal-size.rs", &["props/literal-size"]),
+    ("props-point-size.rs", &["props/point-size"]),
     ("style-state-pick.rs", &["contract/pointer", "style/state-pick"]),
     ("style-match-state.rs", &["style/match-state"]),
     ("style-states-field.rs", &["style/states-field"]),
@@ -70,7 +70,7 @@ fn each_reject_fixture_reports_every_shape() {
     assert_eq!(count("props-hand-setter.rs", "props/hand-setter"), 3, "assignment, wrapped assignment and struct update");
     assert_eq!(count("props-own-field.rs", "props/own-field"), 3);
     assert_eq!(count("props-shadow.rs", "props/shadow"), 2, "a field named like a setter, and a `name = ..` override");
-    assert_eq!(count("props-literal-size.rs", "props/literal-size"), 2);
+    assert_eq!(count("props-point-size.rs", "props/point-size"), 6, "float, `Option<Vec2>`, `Px`, sized integer, builder argument, `Px` variant");
     assert_eq!(count("style-states-field.rs", "style/states-field"), 3);
     assert_eq!(count("style-token-read.rs", "style/token-read"), 2);
     assert_eq!(count("style-instance-setter.rs", "style/instance-setter"), 4, "by name, style part, colour and converted colour");

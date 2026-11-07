@@ -73,7 +73,7 @@ pub struct Badge {
 ```
 
 - `Common` holds what every component has: label, id, variant, size, enabled, read-only, selected, tooltip. Its setters come from `Props`. A component adds no `enabled`, `id_salt` or `tooltip` field of its own (`props/*`).
-- `#[prop]` fields become setters. A `#[prop]` field is not an `f32` or a `Vec2`: sizes come from the style (`props/literal-size`).
+- `#[prop]` fields become setters. A `#[prop]` field is not a size in points (`f32`, `Vec2`, `Px`): sizes come from the style, a token step or the content (`props/point-size`). A number that is not a size, such as an opacity, declares `#[prop(quantity = "opacity")]`.
 - The derive writes `<Type>StyleKey`, the setters and the registration that lets the suite find the type. A type that implements `Component` by hand registers with `register_contract!`.
 
 ## The trait

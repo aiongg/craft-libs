@@ -12,6 +12,16 @@ struct Prop {
     name: Option<Ident>,
 }
 
+/// The declared quantity of a `quantity = ".."` option: it states that a numeric prop is not a size, for the
+/// `props/point-size` lint. It changes no generated code.
+fn read_quantity(meta: &syn::meta::ParseNestedMeta<'_>) -> syn::Result<()> {
+    let quantity: LitStr = meta.value()?.parse()?;
+    if quantity.value().trim().is_empty() {
+        return Err(syn::Error::new(quantity.span(), "`quantity` names what the number measures, such as \"opacity\" or \"count\""));
+    }
+    Ok(())
+}
+
 fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
     let mut prop = Prop::default();
     if matches!(attr.meta, Meta::Path(_)) {
@@ -25,8 +35,10 @@ fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
         } else if meta.path.is_ident("name") {
             let name: LitStr = meta.value()?.parse()?;
             prop.name = Some(name.parse().map_err(|_| syn::Error::new(name.span(), "`name` is the setter's identifier"))?);
+        } else if meta.path.is_ident("quantity") {
+            read_quantity(&meta)?;
         } else {
-            return Err(meta.error("unknown `prop` option; expected `into`, `flag` or `name = \"..\"`"));
+            return Err(meta.error("unknown `prop` option; expected `into`, `flag`, `name = \"..\"` or `quantity = \"..\"`"));
         }
         Ok(())
     })?;

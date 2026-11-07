@@ -12,6 +12,12 @@ pub struct Chip {
     #[prop]
     width: ColumnWidth,
     gap: f32,
+    /// A fraction of full strength, not a length.
+    #[prop(quantity = "opacity")]
+    opacity: f32,
+    /// How many rows show; an integer with no size word in its name.
+    #[prop]
+    rows: u16,
 }
 
 pub struct Plain {

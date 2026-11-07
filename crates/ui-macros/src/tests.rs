@@ -96,6 +96,34 @@ fn a_flag_prop_must_be_a_bool() {
 }
 
 #[test]
+fn a_quantity_names_what_a_prop_measures_and_changes_no_setter() {
+    let plain = crate::props::derive(quote! {
+        struct Fade {
+            /// Strength.
+            #[prop] opacity: f32,
+        }
+    })
+    .unwrap()
+    .to_string();
+    let declared = crate::props::derive(quote! {
+        struct Fade {
+            /// Strength.
+            #[prop(quantity = "opacity")] opacity: f32,
+        }
+    })
+    .unwrap()
+    .to_string();
+    assert_eq!(plain, declared);
+    let message = error(crate::props::derive(quote! {
+        struct Fade {
+            /// Strength.
+            #[prop(quantity = " ")] opacity: f32,
+        }
+    }));
+    assert!(message.contains("quantity"), "{message}");
+}
+
+#[test]
 fn a_group_path_needs_a_crate_prefix_and_its_fields_are_colours_or_shapes() {
     let unprefixed = error(crate::token_group::derive(quote! {
         #[group(path = "clips")]

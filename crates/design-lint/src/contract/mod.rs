@@ -65,7 +65,7 @@ pub(crate) const IDS: [&str; 39] = [
     props::HAND_SETTER,
     props::OWN_FIELD,
     props::SHADOW,
-    props::LITERAL_SIZE,
+    props::POINT_SIZE,
     style::STATE_PICK,
     style::MATCH_STATE,
     style::STATES_FIELD,
