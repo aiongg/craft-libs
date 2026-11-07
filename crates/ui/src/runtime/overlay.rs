@@ -295,6 +295,11 @@ pub fn family(ctx: &Context, id: Id) -> SmallVec<[Id; 4]> {
     })
 }
 
+/// Every layer of the running viewport shown last frame, not exiting, parent first.
+pub(crate) fn open_entries(ctx: &Context) -> Vec<OpenEntry> {
+    with_pass(ctx, |pass| pass.last.iter().filter(|entry| !entry.exiting).cloned().collect())
+}
+
 /// The entry of the layer `id` shown last frame.
 pub(crate) fn entry(ctx: &Context, id: Id) -> Option<OpenEntry> {
     with_pass(ctx, |pass| pass.last.iter().find(|entry| entry.id == id).cloned())

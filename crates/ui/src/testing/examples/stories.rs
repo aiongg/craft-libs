@@ -5,7 +5,7 @@ use super::sheet::{Rows, SheetGrid, SheetRow};
 use super::tracks::{Clip, LANE, LOCK, MUTE, NAME, Track, TrackRow, TrackStack, Tracks};
 use crate::contract::{Bind, Props as _, Show as _, ShowCollection as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use craft_behavior::{CellSelection, ColumnKey};
+use craft_behavior::{CellSelection, ColumnKey, Flow};
 use egui::{Pos2, Rect, Ui, Vec2};
 
 /// The width and height of a cell in a stand-alone row story: two and a half control heights wide and one high.
@@ -14,10 +14,13 @@ fn cell(ui: &Ui) -> Vec2 {
     Vec2::new(height * 2.5, height)
 }
 
-/// Side-by-side cells of `keys`, as the item step lists them for a row.
+/// Side-by-side cells of `keys`, as the item step lists them for a row: screen rects, mirrored under right-to-left.
 fn cells(ui: &Ui, keys: &[ColumnKey]) -> Vec<(ColumnKey, Rect)> {
     let size = cell(ui);
-    keys.iter().enumerate().map(|(at, key)| (key.clone(), Rect::from_min_size(Pos2::new(size.x * at as f32, 0.0), size))).collect()
+    let rtl = crate::runtime::env::Env::of(ui).view().direction().is_rtl();
+    let row = Rect::from_min_size(Pos2::ZERO, Vec2::new(size.x * keys.len() as f32, size.y));
+    let flow = Flow::new(row, rtl);
+    keys.iter().enumerate().map(|(at, key)| (key.clone(), flow.span(size.x * at as f32, size.x))).collect()
 }
 
 /// The seconds the story lanes show.

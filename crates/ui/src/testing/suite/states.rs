@@ -58,10 +58,14 @@ fn is_face_only(probe: &Probe) -> bool {
 
 fn every_required_state_has_a_story(subject: &Subject) -> Result<(), String> {
     if is_face_only(subject.probe) {
-        return if subject.stories.is_empty() { Ok(()) } else { Err("the type declares `face-only` and has stories".to_owned()) };
+        return if subject.stories.is_empty() {
+            Ok(())
+        } else {
+            Err("the type declares `face-only` and has stories or a sample; a type with a sample runs through it, so drop `face-only`".to_owned())
+        };
     }
     if subject.stories.is_empty() {
-        return Err("no story shows the type; a type shown only inside another declares `face-only`".to_owned());
+        return Err("no story shows the type; a type shown only inside another declares `#[component(sample = ..)]`, or `face-only` when it has no constructor".to_owned());
     }
     let missing: Vec<_> =
         required(subject.probe).into_iter().filter(|state| !subject.stories.iter().any(|story| story.covers.contains(state))).collect();

@@ -434,7 +434,7 @@ struct HeaderTextStyle {
 
 /// A header cell's label.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "face-only", reason = "The header text is shown by a collection's header row, never stand-alone."))]
+#[component(sample = HeaderText::sample)]
 struct HeaderText {
     #[common]
     common: Common,
@@ -444,6 +444,10 @@ struct HeaderText {
 }
 
 impl HeaderText {
+    fn sample() -> Self {
+        HeaderText::new(Label::from("Name"), 0.0, Some(false))
+    }
+
     fn new(text: Label, inset: f32, sort: Option<bool>) -> Self {
         HeaderText { common: Common::new(), inset, sort }.label(text)
     }

@@ -1006,11 +1006,17 @@ struct RowThumbStyle {
 /// The picture of a row's thumbnail, painted by the host through the content painter, which is clipped to the
 /// thumbnail's rect.
 #[derive(crate::contract::Component)]
-#[component(content_painter, exempt(case = "face-only", reason = "A part of `ListRow`, shown by its stories."))]
+#[component(content_painter, sample = RowThumb::sample)]
 struct RowThumb<'a> {
     #[common]
     common: Common,
     paint: Option<ThumbPaint<'a>>,
+}
+
+impl RowThumb<'static> {
+    fn sample() -> Self {
+        RowThumb::new(Box::new(|_, _| {}))
+    }
 }
 
 impl<'a> RowThumb<'a> {

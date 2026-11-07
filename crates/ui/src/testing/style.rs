@@ -81,3 +81,41 @@ pub fn paint_frame(
 pub fn root_token_entries(ctx: &Context) -> usize {
     crate::runtime::env::root_token_entries(ctx)
 }
+
+/// A resolved style as the style cases read it: the variants its type lists and the looks that state colours
+/// reach, with the whole style kept to tell two styles apart.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct StyleLooks {
+    /// The variants the style type accepts; the first is the default.
+    pub variants: &'static [craft_theme::Variant],
+    /// The surface, when the style has one.
+    pub surface: Option<crate::style::SurfaceLook>,
+    /// The focus ring, when the style has one.
+    pub focus: Option<crate::style::FocusLook>,
+    style: std::sync::Arc<dyn std::any::Any + Send + Sync>,
+    equal: fn(&dyn std::any::Any, &dyn std::any::Any) -> bool,
+}
+
+impl StyleLooks {
+    /// Whether `other` is the same style, in every field.
+    pub fn same_as(&self, other: &StyleLooks) -> bool {
+        (self.equal)(&*self.style, &*other.style)
+    }
+}
+
+pub(crate) fn style_looks<T: crate::contract::Component + 'static>(
+    instance: &dyn std::any::Any,
+    cx: &crate::style::StyleCx<'_>,
+) -> Option<StyleLooks> {
+    use crate::style::ComponentStyle as _;
+    let component = instance.downcast_ref::<T>()?;
+    let style = T::style(cx, component.style_key());
+    Some(StyleLooks {
+        variants: <T::Style as crate::style::ComponentStyle>::VARIANTS,
+        surface: style.surface().cloned(),
+        focus: style.focus().copied(),
+        style: std::sync::Arc::new(style),
+        equal: |a, b| matches!((a.downcast_ref::<T::Style>(), b.downcast_ref::<T::Style>()), (Some(a), Some(b)) if a == b),
+    })
+}
