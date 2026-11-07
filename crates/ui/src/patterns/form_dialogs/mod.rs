@@ -59,3 +59,13 @@ pub use about::{
     AboutDialog, AboutInfo, AboutLink, AboutOutput, AboutTab, AboutWords, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
     commit_day, commit_share, sorted_contributors,
 };
+
+mod guides;
+mod properties;
+
+pub use guides::{
+    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions, GuideLayoutOutput,
+    GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, GuideWords, HostedGuideLayoutDialog,
+    HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
+};
+pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};

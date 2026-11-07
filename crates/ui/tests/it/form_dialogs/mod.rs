@@ -17,3 +17,7 @@ mod sizing;
 mod new_document;
 
 mod about;
+
+mod guides;
+
+mod properties;
