@@ -3,16 +3,24 @@
 use super::options::{options_bar, status_bar};
 use super::panels::Panels;
 use crate::viewer::{Browser, Catalog, GalleryCommands, GallerySettings, Viewer};
+use craft_behavior::GroupId;
 use craft_settings::{Location, SettingsStore};
 use craft_ui::contract::{Bind, CommandSet as _, ShowContainer as _};
-use craft_ui::docking::{SplitArea, group_rects};
+use craft_ui::docking::tree::{FrameRules, FrameSizes, frames};
+use craft_ui::docking::{PanelLimits, SplitArea};
 use craft_ui::layout_components::Stack;
 use craft_ui::runtime::frame::{FrameInput, FrameOutput, request_repaint_after};
 use craft_ui::shell::app::{CloseDecision, ShellApp};
-use egui::{Context, Ui};
+use egui::{Context, Ui, Vec2};
 
 /// Passes without a change after which the settings are written.
 const SETTLED_PASSES: u64 = 30;
+/// The space between panels, in points.
+const PANE_GAP: f32 = 4.0;
+/// The least width and height of a panel, in points.
+const PANE_LEAST: f32 = 40.0;
+/// The height of a panel's header, in points.
+const PANE_HEADER: f32 = 24.0;
 /// Seconds until the pass that writes settings a change left unwritten.
 const SAVE_WAKE: f64 = 0.75;
 
@@ -80,11 +88,16 @@ impl ShellApp for Gallery {
         let shown_appearance = *appearance;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
         let layout = dock.clone();
+        let limits = |_: &GroupId| PanelLimits::at_least(Vec2::splat(PANE_LEAST));
+        let rules = FrameRules::new(FrameSizes::new(PANE_GAP, PANE_GAP, PANE_LEAST, PANE_HEADER), &limits);
         let mut panels = Panels { catalog, filter, selection, open, cells, generation: *generation, appearance: shown_appearance };
         Stack::new().fill().header(|ui, _| options_bar(ui, appearance, more_open)).footer(|ui, _| status_bar(ui, &status)).show(ui, |ui, _| {
-            SplitArea::new("Panels", Bind::bound(dock)).show(ui, |ui, body| {
-                for (group, rect) in group_rects(&layout, body.rect, body.env.direction().is_rtl()) {
-                    panels.show(ui, group, rect);
+            SplitArea::new("Panels", Bind::bound(dock), rules).show(ui, |ui, body| {
+                let Some(root) = &layout.root else { return };
+                for frame in frames(root, body.rect, &rules, body.env.direction().is_rtl()).groups {
+                    if let Some(group) = frame.anchor() {
+                        panels.show(ui, *group, frame.rect);
+                    }
                 }
             });
         });

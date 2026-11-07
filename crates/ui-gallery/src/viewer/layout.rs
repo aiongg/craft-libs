@@ -1,8 +1,9 @@
 //! The viewer's panel layout as plain data: the shares of its columns and of the right column's two panels.
 //!
-//! The dock tree is rebuilt from the shares on load, so a saved layout the build cannot read costs only the layout.
+//! The dock layout is rebuilt from the shares on load, so a saved layout the build cannot read costs only the layout.
 
-use craft_behavior::{Axis, DockTree, GroupId};
+use craft_behavior::dock::{Layout, Node, SplitSize};
+use craft_behavior::{Axis, GroupId};
 use serde::{Deserialize, Serialize};
 
 /// The group of the component tree.
@@ -15,13 +16,24 @@ pub const FACTS: GroupId = GroupId::new(2);
 pub const RECORD: GroupId = GroupId::new(3);
 
 /// How wide each column is and how the right column divides, as shares of the whole.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct PanelShares {
     /// The component tree, the stories and the right column, side by side.
     pub columns: [f32; 3],
     /// The facts over the decision record in the right column.
     pub right: [f32; 2],
+}
+
+/// Shares are equal when they divide the room alike: a layout keeps ratios, so only the proportions survive it.
+impl PartialEq for PanelShares {
+    fn eq(&self, other: &Self) -> bool {
+        fn alike(a: &[f32], b: &[f32]) -> bool {
+            let (sum_a, sum_b) = (a.iter().sum::<f32>(), b.iter().sum::<f32>());
+            a.iter().zip(b).all(|(a, b)| (a / sum_a - b / sum_b).abs() < 1e-4)
+        }
+        alike(&self.columns, &other.columns) && alike(&self.right, &other.right)
+    }
 }
 
 impl Default for PanelShares {
@@ -36,22 +48,23 @@ impl PanelShares {
         self.columns.iter().chain(&self.right).all(|share| share.is_finite() && *share > 0.0)
     }
 
-    /// The dock tree of the shares.
-    pub fn tree(&self) -> DockTree {
+    /// The dock layout of the shares: each split gives its first child the fraction of what its two children share.
+    pub fn tree(&self) -> Layout<GroupId> {
         let [first, second, third] = self.columns;
         let [above, below] = self.right;
-        let right = DockTree::split(Axis::Y, vec![(above, DockTree::group(FACTS)), (below, DockTree::group(RECORD))]);
-        DockTree::split(Axis::X, vec![(first, DockTree::group(COMPONENTS)), (second, DockTree::group(STORIES)), (third, right)])
+        let group = |id: GroupId| Node::tabs(vec![id], 0);
+        let right = Node::split(Axis::Y, SplitSize::Ratio(above / (above + below)), group(FACTS), group(RECORD));
+        let rest = Node::split(Axis::X, SplitSize::Ratio(second / (second + third)), group(STORIES), right);
+        Layout::new(Some(Node::split(Axis::X, SplitSize::Ratio(first / (first + second + third)), group(COMPONENTS), rest)), Vec::new())
     }
 
-    /// The shares of `tree`, when it has the shape `tree` builds.
-    pub fn of_tree(tree: &DockTree) -> Option<PanelShares> {
-        let DockTree::Split(outer) = tree else { return None };
-        let [(first, _), (second, _), (third, right)] = outer.children.as_slice() else { return None };
-        let DockTree::Split(inner) = right else { return None };
-        let [(above, _), (below, _)] = inner.children.as_slice() else { return None };
-        let shares = PanelShares { columns: [*first, *second, *third], right: [*above, *below] };
-        (outer.axis == Axis::X && inner.axis == Axis::Y && shares.is_valid()).then_some(shares)
+    /// The shares of `layout`, when it has the shape `tree` builds.
+    pub fn of_tree(layout: &Layout<GroupId>) -> Option<PanelShares> {
+        let Some(Node::Split { axis: Axis::X, size: SplitSize::Ratio(outer), second: rest, .. }) = &layout.root else { return None };
+        let Node::Split { axis: Axis::X, size: SplitSize::Ratio(middle), second: right, .. } = rest.as_ref() else { return None };
+        let Node::Split { axis: Axis::Y, size: SplitSize::Ratio(inner), .. } = right.as_ref() else { return None };
+        let shares = PanelShares { columns: [*outer, (1.0 - outer) * middle, (1.0 - outer) * (1.0 - middle)], right: [*inner, 1.0 - inner] };
+        shares.is_valid().then_some(shares)
     }
 
     /// The saved text of the shares.

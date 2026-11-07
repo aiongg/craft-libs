@@ -6,7 +6,8 @@ use super::commands::GalleryCommands;
 use super::layout::PanelShares;
 use super::settings::GallerySettings;
 use super::tree::{self, TreeKey};
-use craft_behavior::{DockTree, Selection};
+use craft_behavior::dock::Layout;
+use craft_behavior::{GroupId, Selection};
 use craft_i18n::Direction;
 use craft_theme::ControlSize;
 use craft_ui::list::OpenSet;
@@ -28,7 +29,7 @@ pub struct Browser {
     /// The open module groups.
     pub open: OpenSet<TreeKey>,
     /// The panel layout.
-    pub dock: DockTree,
+    pub dock: Layout<GroupId>,
     /// Counts the resets of the stories; a cell's id scope names it, so a reset mounts the cell anew.
     pub generation: u32,
     /// The shown cells' values.
