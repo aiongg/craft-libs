@@ -11,13 +11,106 @@ new_module = "craft_ui::value_drag"
 name = "Slider"
 old = "craft_ui::controls::slider::Slider"
 new = "craft_ui::value_drag::Slider"
-status = "pending"
+status = "moved"
+note = "A `Component`: `Slider::new(Bind::bound(&mut value), 0.0..=100.0).label(\"Opacity\").show(ui)`; the id salt, the label (`Common.label`), `size`, `enabled` and the reset value (the binding's) are the common props. The output is `EditResponse<f64>`. `Slider::style(tokens, size)` is gone; the style is `SliderStyle`. The wheel steps a slider only while it is focused or armed (the horizontal share always), so `wheel`, `wheel_unfocused` and `wheel_step` go; the step is `step` for arrows and wheel alike."
 
 [[type]]
 name = "RangeSlider"
 old = "craft_ui::controls::range_slider::RangeSlider"
 new = "craft_ui::value_drag::RangeSlider"
-status = "pending"
+status = "moved"
+note = "A `Component` over `Bind<(f64, f64)>`, lower end first; the label names the pair and the thumbs are named `<label>, Minimum` and `<label>, Maximum`. The output is `EditResponse<(f64, f64)>`. `labels`, `id_salt` and `width` go with the common props and content sizing."
+
+[[type]]
+name = "SliderScale"
+old = "craft_ui::controls::slider::SliderScale"
+new = "craft_ui::value_drag::SliderScale"
+status = "moved"
+note = "`Linear`, `Log` and `Power(f32)` (the exponent was `f64`). A scale that does not fit the range debug-asserts and stays linear. Both sliders take it with `.scale(..)`."
+
+[[type]]
+name = "SliderStyle"
+old = "craft_ui::controls::slider::SliderStyle"
+new = "craft_ui::value_drag::SliderStyle"
+status = "replaced"
+note = "Read-only style struct of the new component, built from tokens by `ComponentStyle`; the 17 style fields and `with_style` go. The track and fill look is shared with `RangeSlider` and `ThumbRow` (`value_drag::track`)."
+
+[[type]]
+name = "SliderThumb"
+old = "craft_ui::controls::slider::SliderThumb"
+new = ""
+status = "removed"
+note = "The triangle thumb of the colour channel sliders is not built; the colour sliders draw their own pointer under the track as a face or a content painter."
+
+[[type]]
+name = "Scale"
+old = "craft_ui::controls::slider::Scale"
+new = ""
+status = "removed"
+note = "Scale maths is private to the sliders. A caller that maps positions to values for its own control uses `ValueDrag::absolute` over `0.0..=1.0` and its own mapping, or a `Slider` with `scale(..)`."
+
+[[type]]
+name = "KEY_FILTER"
+old = "craft_ui::controls::slider::KEY_FILTER"
+new = ""
+status = "removed"
+note = "Key use is the component's `KEYS`: `KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither)`."
+
+[[type]]
+name = "pointer"
+old = "craft_ui::controls::slider::pointer"
+new = ""
+status = "removed"
+note = "A press is `cx.part(key).press`, read in `update` with `ValueDrag::value(start, &press, rtl)`."
+
+[[type]]
+name = "tap"
+old = "craft_ui::controls::slider::tap"
+new = ""
+status = "removed"
+note = "A tap is `PressPhase::Release { click: true, .. }` on a part with `Sense::CLICK`; `ValueDrag::value` gives its value."
+
+[[type]]
+name = "PressTurn"
+old = "craft_ui::controls::slider::PressTurn"
+new = ""
+status = "removed"
+note = "Presses take their turn from the pipeline; a composite that reports several values adopts its children's edits with `cx.adopt`."
+
+[[type]]
+name = "press_turn"
+old = "craft_ui::controls::slider::press_turn"
+new = ""
+status = "removed"
+note = "See `PressTurn`: the edit order is the pipeline's, not a control's."
+
+[[type]]
+name = "Sensing"
+old = "craft_ui::controls::slider::Sensing"
+new = ""
+status = "removed"
+note = "Disabled and read-only are applied by the pipeline; hover and drag state are `cx.part(key)` results; a falling thumb steps with `craft_behavior::nav::step_value`, whose `Forward` follows the reading direction."
+
+[[type]]
+name = "stepped"
+old = "craft_ui::controls::slider::stepped"
+new = ""
+status = "removed"
+note = "Keys are `cx.intents().take_move()` mapped by `craft_behavior::nav::step_value`; the wheel is `cx.take_wheel()`; AccessKit steps are `take_set_value`."
+
+[[type]]
+name = "apply"
+old = "craft_ui::controls::slider::apply"
+new = ""
+status = "removed"
+note = "`ScalarOp` is applied by the component's `update` with `cx.set`; see `stepped`."
+
+[[type]]
+name = "with_values"
+old = "craft_ui::controls::slider::with_values"
+new = ""
+status = "removed"
+note = "Stories keep their values in `StoryData::value(key, initial)`; a host example keeps them in its own state."
 
 [[type]]
 name = "AngleDial"
@@ -42,3 +135,147 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "Slider"
+old = "new(id_salt, label, value, range)"
+new = "new(Bind<f64>, RangeInclusive<f64>)"
+note = "The id salt is the shown id; the label is `.label(..)`; the value is `Bind::bound(&mut value)`; the range is `f64`."
+
+[[setter]]
+type = "Slider"
+old = "step(impl Into<f64>)"
+new = "step(f64)"
+note = "Also the stops a drag or a key snaps to, and the wheel's step."
+
+[[setter]]
+type = "Slider"
+old = "scale(SliderScale)"
+new = "scale(SliderScale)"
+
+[[setter]]
+type = "Slider"
+old = "policy(EditPolicy)"
+new = ""
+note = "The binding decides when edits apply: `Bind::bound` applies each update; `Bind::given` with the output's events applies on commit."
+
+[[setter]]
+type = "Slider"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Slider"
+old = "enabled(bool)"
+new = "enabled(bool)"
+
+[[setter]]
+type = "Slider"
+old = "default_value(impl Into<f64>)"
+new = ""
+note = "The reset value is the binding's: `Bind::bound(..).reset(value)`."
+
+[[setter]]
+type = "Slider"
+old = "wheel(bool)"
+new = ""
+note = "A slider takes the wheel while focused or armed, and the horizontal share always (core 8.6)."
+
+[[setter]]
+type = "Slider"
+old = "wheel_unfocused(bool)"
+new = ""
+note = "See `wheel(bool)`."
+
+[[setter]]
+type = "Slider"
+old = "wheel_step(f64)"
+new = "step(f64)"
+note = "The wheel moves one step, as an arrow key does."
+
+[[setter]]
+type = "Slider"
+old = "value_text(impl Into<String>)"
+new = ""
+note = "Not built: the numeric value of the access node is the value; a slider that shows its value sits in a `NumberField` with `popup_slider` or beside a `Text`."
+
+[[setter]]
+type = "Slider"
+old = "part(bool)"
+new = ""
+note = "A composite adopts its children's edits with `cx.adopt`."
+
+[[setter]]
+type = "Slider"
+old = "width(f32)"
+new = ""
+note = "A slider's length is content (eight icon sides) or the width its container gives it."
+
+[[setter]]
+type = "Slider"
+old = "track_colors(impl IntoIterator<Item = impl Into<Srgba>>)"
+new = ""
+note = "Not built: the colour channel tracks are the colour picker's own painters."
+
+[[setter]]
+type = "Slider"
+old = "fill(bool)"
+new = ""
+note = "Not built: the fill from the start edge to the thumb is always drawn while the value is shown."
+
+[[setter]]
+type = "Slider"
+old = "marks(&[f64])"
+new = ""
+note = "Not built: marks, labelled marks and ticks have no counterpart yet."
+
+[[setter]]
+type = "Slider"
+old = "marks_labelled(impl IntoIterator<Item = (f64, impl Into<String>)>)"
+new = ""
+note = "See `marks(&[f64])`."
+
+[[setter]]
+type = "Slider"
+old = "ticks(usize)"
+new = ""
+note = "See `marks(&[f64])`; the content-paint kit has `ticks`."
+
+[[setter]]
+type = "Slider"
+old = "thumb(SliderThumb)"
+new = ""
+note = "See `SliderThumb`."
+
+[[setter]]
+type = "RangeSlider"
+old = "new(id_salt, (label_from, label_to), value, range)"
+new = "new(Bind<(f64, f64)>, RangeInclusive<f64>)"
+note = "One label for the pair, `.label(..)`; the thumbs add \"Minimum\" and \"Maximum\" to it."
+
+[[setter]]
+type = "RangeSlider"
+old = "step(f64)"
+new = "step(f64)"
+
+[[setter]]
+type = "RangeSlider"
+old = "width(f32)"
+new = ""
+note = "The length is content or the container's width."
+
+[[setter]]
+type = "RangeSlider"
+old = "policy(EditPolicy)"
+new = ""
+note = "See `Slider::policy`."
+
+[[setter]]
+type = "RangeSlider"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "RangeSlider"
+old = "enabled(bool)"
+new = "enabled(bool)"
