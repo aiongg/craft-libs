@@ -1,5 +1,6 @@
 //! Where a collection's items come from: the data traits and the one way to show a slice.
 
+use crate::columns::ColumnKey;
 use crate::nav::NavOutline;
 use emath::Vec2;
 use std::borrow::Cow;
@@ -81,6 +82,11 @@ pub trait ItemSource<K>: DisplayOrder<K> {
     /// The size entry `at` wants.
     fn size_hint(&self, _at: usize) -> SizeHint {
         SizeHint::Auto
+    }
+
+    /// Whether the cell of entry `at` in the toggle column `column` is on.
+    fn toggled(&self, _at: usize, _column: &ColumnKey) -> bool {
+        false
     }
 }
 

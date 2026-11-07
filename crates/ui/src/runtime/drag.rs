@@ -143,6 +143,12 @@ pub fn started(ctx: &Context) -> u64 {
     board(ctx, |board| board.started)
 }
 
+/// The mark of the target that would take a drop now.
+#[doc(hidden)]
+pub fn mark(ctx: &Context) -> Option<DropMark> {
+    board(ctx, |board| board.session.as_ref().and_then(|session| session.mark))
+}
+
 /// Whether a session runs.
 pub(crate) fn running(ctx: &Context) -> bool {
     board(ctx, |board| board.session.is_some())

@@ -1,0 +1,458 @@
+//! The header row (17.1, 17.3 I0): column widths and order, sort presses, resize grips, column moves and the
+//! header commands, in one roving group of focusable parts.
+
+use super::ItemsHooks;
+use crate::contract::collection::{CollectionEvent, ColumnEvent, ColumnSpec, HeaderMenuRequest};
+use crate::contract::{Collection, Common, Component, Cx, Focus as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
+use crate::primitives::TextRun;
+use crate::runtime::access::items::{HeaderCell, report_header};
+use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
+use crate::runtime::egui::{alloc, child};
+use crate::runtime::env::{Env, Label};
+use crate::runtime::memory::{MemoryStage, sub};
+use crate::style::{ComponentStyle, StyleCx, scroll_bar_look};
+use craft_behavior::grid::resolve_columns;
+use craft_behavior::{
+    ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, Insets, Intent, Metrics, NavMove, NavShape, PartKey, PointerButton, PressPhase,
+    Roving, Sense,
+};
+use egui::{Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
+
+const HEADER: PartKey = PartKey::new("header");
+const GRIP: PartKey = PartKey::new("header_grip");
+/// The narrowest a resized column gets, in control heights.
+const MIN_COLUMN: f32 = 2.0;
+
+/// The commands of a column header (17.1): resize and move work from the keyboard through them. The app lists
+/// them in the menu it opens for `CollectionEvent::HeaderMenu`, and `commands::fire` routes them to the collection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
+#[command(prefix = "column", scope = "column")]
+#[non_exhaustive]
+pub enum ColumnCommands {
+    /// Resize the focused column with the arrow keys.
+    #[command(label = "Resize Column…")]
+    Resize,
+    /// Move the focused column toward the left edge.
+    #[command(label = "Move Column Left")]
+    MoveLeft,
+    /// Move the focused column toward the right edge.
+    #[command(label = "Move Column Right")]
+    MoveRight,
+}
+
+impl ColumnCommands {
+    /// Every header command, in menu order.
+    pub const ALL: [ColumnCommands; 3] = [ColumnCommands::Resize, ColumnCommands::MoveLeft, ColumnCommands::MoveRight];
+}
+
+/// A header gesture in progress.
+#[derive(Clone, Debug, PartialEq)]
+enum Grab {
+    Resize { key: ColumnKey, from: f32 },
+    Move { key: ColumnKey, from: usize, to: usize },
+}
+
+/// What the header keeps in session memory under the collection's id.
+#[derive(Clone, Debug, Default)]
+pub(super) struct HeaderMemory {
+    /// Column keys in display order; empty until the user moves one.
+    order: Vec<ColumnKey>,
+    /// User widths of `Content` and `Fill` columns.
+    widths: Vec<(ColumnKey, f32)>,
+    sorted: Option<(ColumnKey, bool)>,
+    /// The column a context menu or command acts on when no header part holds focus.
+    menu: Option<ColumnKey>,
+    /// The column the keyboard resize command works on.
+    resizing: Option<ColumnKey>,
+    grab: Option<Grab>,
+}
+
+struct Cell {
+    spec: usize,
+    rect: Rect,
+    hash: u64,
+}
+
+#[derive(Default)]
+pub(super) struct Header {
+    /// The header row's height, zero without columns.
+    pub(super) height: f32,
+    memory: HeaderMemory,
+    specs: Vec<ColumnSpec>,
+    cells: Vec<Cell>,
+    events: Vec<ColumnEvent>,
+    menus: Vec<HeaderMenuRequest>,
+    /// The narrowest a resized column gets, and the keyboard resize step.
+    min: f32,
+    step: f32,
+    inset: f32,
+}
+
+fn hash_of(key: &ColumnKey) -> u64 {
+    super::key_hash(key)
+}
+
+impl Header {
+    /// Step 4: the columns in their display order and the header's session memory.
+    pub(super) fn read(&mut self, stage: &mut MemoryStage, id: Id, columns: &[ColumnSpec]) {
+        self.memory = stage.session::<HeaderMemory>(sub(id, "columns")).clone();
+        let mut specs = columns.to_vec();
+        let order = &self.memory.order;
+        specs.sort_by_key(|spec| order.iter().position(|key| *key == spec.key).unwrap_or(usize::MAX));
+        self.specs = specs;
+    }
+
+    /// Step 5: the header takes the control height.
+    pub(super) fn measure(&mut self, scx: &StyleCx<'_>) {
+        let control = scx.control();
+        self.height = if self.specs.is_empty() { 0.0 } else { control.height };
+        self.min = control.height * MIN_COLUMN;
+        self.step = control.height;
+        self.inset = control.gap;
+    }
+
+    fn width_of(&self, spec: &ColumnSpec) -> ColumnWidth {
+        match spec.width {
+            ColumnWidth::Fixed(_) => spec.width,
+            _ => self.memory.widths.iter().find(|(key, _)| *key == spec.key).map_or(spec.width, |(_, width)| ColumnWidth::Fixed(*width)),
+        }
+    }
+
+    /// The width of each column, in display order, in a row `room` wide.
+    fn widths(&self, room: f32) -> Vec<f32> {
+        let kinds: Vec<ColumnWidth> = self.specs.iter().map(|spec| self.width_of(spec)).collect();
+        let content = vec![self.min; kinds.len()];
+        resolve_columns(&kinds, &content, room, 0.0)
+    }
+
+    /// The columns with their widths for the item layout.
+    pub(super) fn columns(&self, room: f32) -> Vec<(ColumnKey, f32)> {
+        self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths(room)).collect()
+    }
+
+    /// Step 7: one focusable part per column, a resize grip at the end edge of each resizable one, and the group.
+    pub(super) fn parts<C: Component>(&mut self, pcx: &mut PartsCx<'_, C>) {
+        self.cells.clear();
+        if self.specs.is_empty() {
+            return;
+        }
+        let area = pcx.content_rect;
+        let row = Rect::from_min_size(area.min, Vec2::new(area.width(), self.height));
+        let grip = scroll_bar_look(pcx.tokens).thickness;
+        let rtl = pcx.flow.is_rtl();
+        let mut flow = Flow::new(row, rtl);
+        let widths = self.widths(area.width());
+        for (at, (spec, width)) in self.specs.iter().zip(widths).enumerate() {
+            let (rect, rest) = flow.take_start(width);
+            flow = rest;
+            let hash = hash_of(&spec.key);
+            let mut sense = Sense::CLICK | Sense::FOCUS;
+            if spec.movable {
+                sense |= Sense::DRAG;
+            }
+            pcx.part(HEADER.at(hash), rect).sense(sense).focusable().priority(HitPriority::new(HitLevel::Body, 0));
+            if spec.resizable {
+                let edge = if rtl {
+                    Rect::from_min_size(rect.min, Vec2::new(grip, rect.height()))
+                } else {
+                    Rect::from_min_max(Pos2::new(rect.max.x - grip, rect.min.y), rect.max)
+                };
+                pcx.part(GRIP.at(hash), edge)
+                    .sense(Sense::DRAG)
+                    .priority(HitPriority::new(HitLevel::Body, 1))
+                    .cursor(CursorIcon::ResizeHorizontal)
+                    .pointer_only("Resize Column… resizes from the keyboard");
+            }
+            self.cells.push(Cell { spec: at, rect, hash });
+        }
+        pcx.roving(Roving::new(NavShape::Flat));
+    }
+
+    fn cell_at(&self, key: &ColumnKey) -> Option<usize> {
+        self.cells.iter().position(|cell| self.specs[cell.spec].key == *key)
+    }
+
+    fn sort(&mut self, key: &ColumnKey) {
+        let descending = matches!(&self.memory.sorted, Some((sorted, false)) if sorted == key);
+        self.memory.sorted = Some((key.clone(), descending));
+        self.events.push(ColumnEvent::Sort { key: key.clone(), descending });
+    }
+
+    fn resize(&mut self, key: &ColumnKey, width: f32, shown: f32) {
+        let width = width.max(self.min);
+        if (width - shown).abs() <= f32::EPSILON {
+            return;
+        }
+        let owned_by_app = self.specs.iter().any(|spec| spec.key == *key && matches!(spec.width, ColumnWidth::Fixed(_)));
+        if !owned_by_app {
+            match self.memory.widths.iter_mut().find(|(held, _)| held == key) {
+                Some((_, held)) => *held = width,
+                None => self.memory.widths.push((key.clone(), width)),
+            }
+        }
+        self.events.push(ColumnEvent::Resized { key: key.clone(), width });
+    }
+
+    /// Moves `key` to display position `to`: the session order changes and the move is reported.
+    fn move_to(&mut self, key: &ColumnKey, to: usize) {
+        let mut order: Vec<ColumnKey> = self.specs.iter().map(|spec| spec.key.clone()).collect();
+        let Some(from) = order.iter().position(|held| held == key) else { return };
+        let to = to.min(order.len() - 1);
+        if to == from {
+            return;
+        }
+        let moved = order.remove(from);
+        order.insert(to, moved);
+        self.memory.order = order;
+        self.events.push(ColumnEvent::Moved { key: key.clone(), to });
+    }
+
+    /// The display position a drag at `x` drops on: the column whose centre is nearest.
+    fn drop_at(&self, x: f32) -> usize {
+        let distance = |cell: &Cell| (cell.rect.center().x - x).abs();
+        (0..self.cells.len()).min_by(|&a, &b| distance(&self.cells[a]).total_cmp(&distance(&self.cells[b]))).unwrap_or(0)
+    }
+
+    /// Whether `command` can act on the column at display position `at`.
+    fn allowed(&self, command: ColumnCommands, at: usize, rtl: bool) -> bool {
+        let spec = &self.specs[self.cells[at].spec];
+        let (toward_start, toward_end) = (at > 0, at + 1 < self.cells.len());
+        match command {
+            ColumnCommands::Resize => spec.resizable,
+            ColumnCommands::MoveLeft => spec.movable && if rtl { toward_end } else { toward_start },
+            ColumnCommands::MoveRight => spec.movable && if rtl { toward_start } else { toward_end },
+        }
+    }
+
+    /// Step 9: presses on the header parts, the header's keys and its commands. Returns whether the header holds
+    /// the keys this pass, so the rows take none.
+    pub(super) fn update<C: Collection>(&mut self, cx: &mut Cx<'_, C>, id: Id, rtl: bool) -> bool {
+        if self.cells.is_empty() {
+            return false;
+        }
+        let ctx = cx.core.ctx.clone();
+        commands::register_instance(&ctx, ColumnCommands::SCOPE, id);
+        let active =
+            cx.active_part().filter(|part| part.key == HEADER).and_then(|part| self.cells.iter().position(|cell| Some(cell.hash) == part.index));
+        let keyed = active.is_some() && (cx.core.intents.take(Intent::Activate) || cx.activation().is_some_and(|activation| activation.by_key));
+        for at in 0..self.cells.len() {
+            let (rect, hash, spec) = (self.cells[at].rect, self.cells[at].hash, self.cells[at].spec);
+            let (key, sortable, movable, resizable) = {
+                let spec = &self.specs[spec];
+                (spec.key.clone(), spec.sortable, spec.movable, spec.resizable)
+            };
+            let phase = cx.part(HEADER.at(hash)).press.phase;
+            let primary = phase.start().is_some_and(|start| start.button == PointerButton::Primary);
+            if sortable && ((phase.is_click() && primary) || (keyed && active == Some(at))) {
+                self.sort(&key);
+            }
+            if let PressPhase::Down { start, .. } = phase
+                && start.button == PointerButton::Secondary
+            {
+                self.memory.menu = Some(key.clone());
+                self.menus.push(HeaderMenuRequest { column: key.clone(), at: rect.left_bottom() });
+            }
+            if movable {
+                match phase {
+                    PressPhase::DragStart { pos, .. } | PressPhase::Drag { pos, .. } => {
+                        let to = self.drop_at(pos.x);
+                        self.memory.grab = Some(Grab::Move { key: key.clone(), from: at, to });
+                    }
+                    PressPhase::Release { click: false, .. } => {
+                        if let Some(Grab::Move { key: held, to, .. }) = self.memory.grab.take()
+                            && held == key
+                        {
+                            self.move_to(&key, to);
+                        }
+                    }
+                    PressPhase::Cancel { .. } => self.memory.grab = None,
+                    _ => {}
+                }
+            }
+            if resizable {
+                match cx.part(GRIP.at(hash)).press.phase {
+                    PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } => {
+                        let from = match &self.memory.grab {
+                            Some(Grab::Resize { key: held, from }) if *held == key => *from,
+                            _ => {
+                                self.memory.grab = Some(Grab::Resize { key: key.clone(), from: rect.width() });
+                                rect.width()
+                            }
+                        };
+                        let travel = if rtl { start.origin.x - pos.x } else { pos.x - start.origin.x };
+                        self.resize(&key, from + travel, rect.width());
+                    }
+                    PressPhase::Release { .. } => {
+                        if matches!(&self.memory.grab, Some(Grab::Resize { key: held, .. }) if *held == key) {
+                            self.memory.grab = None;
+                        }
+                    }
+                    PressPhase::Cancel { .. } => {
+                        if let Some(Grab::Resize { key: held, from }) = self.memory.grab.take()
+                            && held == key
+                        {
+                            self.resize(&key, from, rect.width());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if active == Some(at) && cx.core.intents.take(Intent::ContextMenu) {
+                self.memory.menu = Some(key.clone());
+                self.menus.push(HeaderMenuRequest { column: key, at: rect.left_bottom() });
+            }
+        }
+        self.keyboard_resize(cx);
+        self.commands(cx, id, active, rtl);
+        active.is_some() || self.memory.resizing.is_some()
+    }
+
+    /// The keyboard resize the `Resize` command starts: Forward widens, Back narrows, Enter or Escape ends it.
+    fn keyboard_resize<C: Collection>(&mut self, cx: &mut Cx<'_, C>) {
+        let Some(key) = self.memory.resizing.clone() else { return };
+        let Some(at) = self.cell_at(&key).filter(|_| cx.is_focused()) else {
+            self.memory.resizing = None;
+            return;
+        };
+        let shown = self.cells[at].rect.width();
+        while let Some((step, _)) = cx.core.intents.take_move() {
+            match step {
+                NavMove::Forward => self.resize(&key, shown + self.step, shown),
+                NavMove::Back => self.resize(&key, shown - self.step, shown),
+                _ => {}
+            }
+        }
+        if cx.core.intents.take(Intent::Submit) || cx.core.intents.take(Intent::Cancel) {
+            self.memory.resizing = None;
+        }
+    }
+
+    fn commands<C: Collection>(&mut self, cx: &mut Cx<'_, C>, id: Id, active: Option<usize>, rtl: bool) {
+        let ctx = cx.core.ctx.clone();
+        let target = active.or_else(|| self.memory.menu.as_ref().and_then(|key| self.cell_at(key)));
+        let chain = cx.core.env.command_chain().pushed(ColumnCommands::SCOPE, id);
+        for command in ColumnCommands::ALL {
+            let enabled = target.is_some_and(|at| self.allowed(command, at, rtl));
+            commands::publish_for(&ctx, &chain, &CommandRef::from(command), CommandState::new().enabled(enabled));
+        }
+        while let Some((command, _)) = commands::take_for(&ctx, Some(id), ColumnCommands::from_ref) {
+            let Some(at) = target.filter(|&at| self.allowed(command, at, rtl)) else { continue };
+            let key = self.specs[self.cells[at].spec].key.clone();
+            match command {
+                ColumnCommands::Resize => self.memory.resizing = Some(key),
+                ColumnCommands::MoveLeft => self.move_to(&key, if rtl { at + 1 } else { at - 1 }),
+                ColumnCommands::MoveRight => self.move_to(&key, if rtl { at - 1 } else { at + 1 }),
+            }
+        }
+    }
+
+    /// Step 14, I0: the header labels, with the sort mark on the sorted column.
+    pub(super) fn paint<C: Collection>(&self, ui: &mut Ui, cx: &Cx<'_, C>, env: &Env, id: Id, rtl: bool) {
+        let ctx = ui.ctx().clone();
+        for cell in &self.cells {
+            let spec = &self.specs[cell.spec];
+            let mut text = cx.core.env.resolve(&spec.header).as_str().to_owned();
+            if let Some((key, descending)) = &self.memory.sorted
+                && *key == spec.key
+            {
+                text.push(' ');
+                text.push(if *descending { '▼' } else { '▲' });
+            }
+            let builder = UiBuilder::new().max_rect(cell.rect).layout(child::column_layout(rtl)).scope_id(sub(id, ("header_cell", cell.hash)));
+            let mut cell_ui = alloc::child(ui, builder);
+            cell_ui.set_clip_rect(cell.rect.intersect(ui.clip_rect()));
+            let installed = Env::install_for(&cell_ui, env.derive(|scoped| scoped.arena = None));
+            let label = HeaderText::new(Label::from(text), self.inset).id(sub(id, ("header_text", cell.hash)));
+            label.show_at(&mut cell_ui, cell.rect);
+            Env::restore(&ctx, installed);
+        }
+    }
+
+    /// Step 16: the header cells as `ColumnHeader` sub-nodes.
+    pub(super) fn report<C: Collection>(&self, ctx: &Context, id: Id, cx: &Cx<'_, C>) {
+        let focused = self.focused(cx);
+        let names: Vec<String> = self.cells.iter().map(|cell| cx.core.env.resolve(&self.specs[cell.spec].header).as_str().to_owned()).collect();
+        let cells: Vec<HeaderCell<'_>> = self
+            .cells
+            .iter()
+            .zip(&names)
+            .enumerate()
+            .map(|(at, (cell, name))| HeaderCell {
+                part: HEADER.at(cell.hash),
+                name,
+                rect: cell.rect,
+                clickable: self.specs[cell.spec].sortable,
+                active: focused == Some(at),
+            })
+            .collect();
+        report_header(ctx, id, cx.core.resolved.enabled, &cells);
+    }
+
+    /// The display position of the header part that holds focus.
+    pub(super) fn focused<C: Collection>(&self, cx: &Cx<'_, C>) -> Option<usize> {
+        cx.active_part().filter(|part| part.key == HEADER).and_then(|part| self.cells.iter().position(|cell| Some(cell.hash) == part.index))
+    }
+
+    pub(super) fn persist(&self) -> HeaderMemory {
+        self.memory.clone()
+    }
+}
+
+impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// Step 9 for the header: its events join the collection's, in drawing order.
+    pub(super) fn header_step(&mut self, cx: &mut Cx<'_, C>) -> bool {
+        let (id, rtl) = (cx.core.id, cx.core.flow.is_rtl());
+        let held = self.header.update(cx, id, rtl);
+        for event in self.header.events.drain(..) {
+            self.events.push(CollectionEvent::Column(event));
+        }
+        for menu in self.header.menus.drain(..) {
+            self.events.push(CollectionEvent::HeaderMenu(menu));
+        }
+        held
+    }
+}
+
+/// The style of a header label: no metrics of its own.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+struct HeaderTextStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// A header cell's label.
+#[derive(crate::contract::Component)]
+struct HeaderText {
+    #[common]
+    common: Common,
+    inset: f32,
+}
+
+impl HeaderText {
+    fn new(text: Label, inset: f32) -> Self {
+        HeaderText { common: Common::new(), inset }.label(text)
+    }
+}
+
+impl Component for HeaderText {
+    const ROLE: Role = Role::None;
+    type Style = HeaderTextStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: HeaderTextStyleKey) -> HeaderTextStyle {
+        HeaderTextStyle { metrics: Metrics::new() }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
+        ui.draw().text(flow.inset(Insets::horizontal(self.inset)), &TextRun::new(cx.core.resolved.label));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.core.response.clone()
+    }
+}

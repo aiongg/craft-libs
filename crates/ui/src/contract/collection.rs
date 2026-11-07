@@ -3,7 +3,7 @@
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
 use craft_behavior::{ColumnKey, ColumnWidth, EditEvent, SelectionChange};
-use egui::{Pos2, Response, Vec2};
+use egui::{Id, Pos2, Response, Vec2};
 use std::ops::Range;
 
 /// What a collection lets the user select.
@@ -239,6 +239,37 @@ pub struct ReorderMove<K> {
     pub key: K,
     /// Its new position.
     pub to: usize,
+    /// The drag was a copy (Alt held, `ReorderRule::copy_with_alt`): the item stays and a copy goes to `to`.
+    pub copy: bool,
+}
+
+/// What a row drag carries through the drag session (8.4).
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ListDrag<K> {
+    /// The collection the drag started in.
+    pub list: Id,
+    /// The dragged items in display order: the selection when the grabbed row was selected, else the row.
+    pub keys: Vec<K>,
+    /// The row the pointer grabbed.
+    pub grabbed: K,
+}
+
+impl<K> ListDrag<K> {
+    /// A drag of `keys` from `list`, grabbed at `grabbed`.
+    pub fn new(list: Id, keys: Vec<K>, grabbed: K) -> Self {
+        ListDrag { list, keys, grabbed }
+    }
+}
+
+/// A request for the context menu of a column header: the app lists `ColumnCommands` in it.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct HeaderMenuRequest {
+    /// The column whose header was pressed or focused.
+    pub column: ColumnKey,
+    /// Where the menu opens.
+    pub at: Pos2,
 }
 
 /// A toggle column's cell flipped.
@@ -333,6 +364,8 @@ pub enum CollectionEvent<K, E> {
     Toggle(EditEvent<ToggleEdit<K>>),
     /// A column changed.
     Column(ColumnEvent),
+    /// The user asked for the context menu of a column header.
+    HeaderMenu(HeaderMenuRequest),
     /// An item reported an event.
     Item(K, E),
 }

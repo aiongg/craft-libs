@@ -38,6 +38,9 @@ pub trait ItemLayout {
     fn grid(&self) -> Option<&GridView> {
         None
     }
+
+    /// The column widths the collection resolved, from the start edge; layouts without columns ignore them.
+    fn set_columns(&mut self, _columns: &[(ColumnKey, f32)]) {}
 }
 
 /// Rows of equal height, optionally split into columns: lists, popup lists, tab strips and timeline tracks.
@@ -101,6 +104,10 @@ impl ItemLayout for SpanLayout {
 
     fn nav(&self) -> NavShape {
         if self.tree { NavShape::Tree } else { NavShape::Flat }
+    }
+
+    fn set_columns(&mut self, columns: &[(ColumnKey, f32)]) {
+        self.columns = columns.to_vec();
     }
 
     fn cells(&self, at: usize, offset: ScrollPos, out: &mut Vec<(ColumnKey, Rect)>) {
