@@ -5,6 +5,8 @@
 
 use std::{collections::HashMap, hash::Hash};
 
+use emath::Rect;
+
 use crate::flow::Axis;
 
 use super::{
@@ -40,7 +42,7 @@ pub(super) fn node_at_mut<'a, P>(mut node: &'a mut Node<P>, path: &[bool]) -> Op
 
 /// Every `Tabs`, `Stack` and `Dock` node of a tree with its path, first to last. Stops at
 /// [`MAX_NODES`] for an invalid tree.
-pub fn leaves<P>(root: &Node<P>) -> Vec<(&Node<P>, Vec<bool>)> {
+pub(crate) fn leaves<P>(root: &Node<P>) -> Vec<(&Node<P>, Vec<bool>)> {
     let mut out = Vec::new();
     let mut visit = vec![(root, Vec::new())];
     let mut visited = 0usize;
@@ -89,7 +91,7 @@ pub fn first_active<P>(root: &Node<P>) -> Option<&P> {
 }
 
 /// The groups of a tree, first to last: what a dock column takes from a floating window.
-pub fn tree_groups<P: Clone>(root: &Node<P>) -> Vec<Group<P>> {
+pub(crate) fn tree_groups<P: Clone>(root: &Node<P>) -> Vec<Group<P>> {
     let mut groups = Vec::new();
     for (leaf, _) in leaves(root) {
         match leaf {
@@ -231,7 +233,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             floating: self
                 .floating
                 .iter()
-                .map(|w| Floating { root: node(&w.root), rect: [0.0; 4], native: None, monitor: None, monitor_size: None, ..w.clone() })
+                .map(|w| Floating { root: node(&w.root), rect: Rect::ZERO, native: None, monitor: None, monitor_size: None, ..w.clone() })
                 .collect(),
         }
     }
@@ -309,7 +311,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The docked layout (`None`) or a floating window's tree.
-    pub fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
+    pub(crate) fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
         match window {
             None => self.root.as_ref(),
             Some(window) => self.floating.get(window).map(|w| &w.root),
@@ -521,8 +523,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 // takes the window's rect along.
                 let source = window.and_then(|w| self.floating.get(w)).map(|w| (w.rect, w.minimized, w.id));
                 let whole = |moving: Moving<P>| match source {
-                    Some((rect, minimized, id)) if path.is_empty() => Moving { width: rect.get(2).copied(), minimized, id: Some(id), ..moving },
-                    Some((rect, ..)) => Moving { width: rect.get(2).copied(), ..moving },
+                    Some((rect, minimized, id)) if path.is_empty() => Moving { width: Some(rect.width()), minimized, id: Some(id), ..moving },
+                    Some((rect, ..)) => Moving { width: Some(rect.width()), ..moving },
                     None => moving,
                 };
                 if let Some(Node::Stack { entries }) = self.node_of_mut(&place)
@@ -593,7 +595,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             groups: tree_groups(&taken.root),
             node: Some(taken.root),
             minimized: taken.minimized,
-            width: taken.rect.get(2).copied(),
+            width: Some(taken.rect.width()),
             iconic: false,
             iconic_width: None,
             id: Some(taken.id),

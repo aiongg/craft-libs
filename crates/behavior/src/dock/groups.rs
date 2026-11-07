@@ -2,6 +2,8 @@
 
 use std::hash::Hash;
 
+use emath::Rect;
+
 use super::{DockSide, action::Placement, edit::node_at, layout::Layout, node::Node, policy::DockError};
 
 /// The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
@@ -106,9 +108,10 @@ pub enum Target<P> {
     /// A new floating window.
     #[non_exhaustive]
     Float {
-        /// Window rect as `[x, y, width, height]` in logical points, which the caller takes from its
-        /// `FloatSpace`.
-        rect: [f32; 4],
+        /// Window rect in logical points, which the caller takes from its `FloatSpace`. Saved as
+        /// `[x, y, width, height]`.
+        #[serde(with = "crate::monitor::rect_serde")]
+        rect: Rect,
     },
 }
 
@@ -261,7 +264,7 @@ impl<P> Target<P> {
     }
 
     /// Builds [`Target::Float`].
-    pub fn float(rect: [f32; 4]) -> Self {
+    pub fn float(rect: Rect) -> Self {
         Self::Float { rect }
     }
 }

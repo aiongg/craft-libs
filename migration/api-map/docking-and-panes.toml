@@ -277,6 +277,76 @@ status = "moved"
 
 # Literals of types that are now `#[non_exhaustive]`.
 
+# Dock transactions, workspaces, arrangements, document windows, placement (dock-model-b).
+
+[[type]]
+name = "Workspace"
+old = "craft_ui::docking::Workspace"
+new = "craft_behavior::dock::Workspace"
+status = "moved"
+
+[[type]]
+name = "WorkspaceSet"
+old = "craft_ui::docking::workspaces::WorkspaceSet"
+new = "craft_behavior::dock::WorkspaceSet"
+status = "moved"
+note = "Data only: `menu_entries` and `WorkspaceLabels` are not part of the set; the dock commands build the rows."
+
+[[type]]
+name = "NamedWorkspace"
+old = "craft_ui::docking::workspaces::NamedWorkspace"
+new = "craft_behavior::dock::NamedWorkspace"
+status = "moved"
+
+[[type]]
+name = "WorkspaceChrome"
+old = "craft_ui::docking::workspaces::WorkspaceChrome"
+new = "craft_behavior::dock::WorkspaceChrome"
+status = "moved"
+
+[[type]]
+name = "WorkspaceCommand"
+old = "craft_ui::docking::workspaces::WorkspaceCommand"
+new = "craft_behavior::dock::WorkspaceCommand"
+status = "moved"
+
+[[type]]
+name = "WorkspaceError"
+old = "craft_ui::docking::workspaces::WorkspaceError"
+new = "craft_behavior::dock::WorkspaceError"
+status = "moved"
+
+[[type]]
+name = "Arrangement"
+old = "craft_ui::docking::arrange::Arrangement"
+new = "craft_behavior::dock::Arrangement"
+status = "moved"
+note = "Data only: `menu_entries` and `ArrangeLabels` are not part of the type; the dock commands build the rows."
+
+[[type]]
+name = "arrange_rects"
+old = "craft_ui::docking::arrange::arrange_rects"
+new = "craft_behavior::dock::arrange_rects"
+status = "moved"
+
+[[type]]
+name = "cascade_rects"
+old = "craft_ui::docking::arrange::cascade_rects"
+new = "craft_behavior::dock::cascade_rects"
+status = "moved"
+
+[[type]]
+name = "DocumentGroup"
+old = "craft_ui::docking::windows::DocumentGroup"
+new = "craft_behavior::dock::DocumentGroup"
+status = "moved"
+
+[[type]]
+name = "DocumentWindows"
+old = "craft_ui::docking::windows::DocumentWindows"
+new = "craft_behavior::dock::DocumentWindows"
+status = "moved"
+
 [[setter]]
 type = "Layout"
 old = "Layout { root, floating }"
@@ -304,18 +374,18 @@ new = "StackEntry::new(panel); then assign `open` and `height`"
 
 [[setter]]
 type = "Monitor"
-old = "Monitor { name, rect, scale }"
-new = "Monitor::new(name, rect, scale)"
+old = "Monitor { name, rect: [x, y, w, h], scale }"
+new = "Monitor::new(name, rect, scale), with `rect` an `emath::Rect`; the saved shape stays `[x, y, width, height]`"
 
 [[setter]]
 type = "Permissions"
 old = "Permissions { movable, floatable, closable, accepts_tabs, accepts_splits }"
-new = "Permissions::new(movable, floatable, closable, accepts_tabs, accepts_splits)"
+new = "Permissions::ALL.movable(..).floatable(..).closable(..).accepts_tabs(..).accepts_splits(..)"
 
 [[setter]]
 type = "Permissions"
 old = "Permissions { accepts_splits: true, ..Permissions::PROTECTED }"
-new = "Permissions::new(false, false, false, false, true)"
+new = "Permissions::PROTECTED.accepts_splits(true)"
 
 [[setter]]
 type = "Location"
@@ -341,6 +411,66 @@ new = "Group::new(panels, active); then assign `minimized` and `height`"
 type = "Column"
 old = "Column { groups, width, iconic, iconic_width }"
 new = "Column::new(groups, width); then assign `iconic` and `iconic_width`"
+
+[[setter]]
+type = "Floating"
+old = "Floating::single(panels, active, [x, y, w, h])"
+new = "Floating::single(panels, active, Rect)"
+
+[[setter]]
+type = "Action"
+old = "Action::Float { panel, rect: [x, y, w, h] }"
+new = "Action::float(panel, Rect)"
+
+[[setter]]
+type = "Action"
+old = "Action::MoveFloating { panel, rect: [x, y, w, h] }"
+new = "Action::move_floating(panel, Rect)"
+
+[[setter]]
+type = "Action"
+old = "Action::SetNative { panel, rect: Some([x, y, w, h]) }"
+new = "Action::set_native(panel, Some(Rect))"
+
+[[setter]]
+type = "Target"
+old = "Target::Float { rect: [x, y, w, h] }"
+new = "Target::float(Rect)"
+
+[[setter]]
+type = "Workspace"
+old = "Workspace { version, layout, hidden, saved, locked }"
+new = "Workspace::new(layout); then assign `hidden`, `saved` or `locked`"
+
+[[setter]]
+type = "NamedWorkspace"
+old = "NamedWorkspace { id, name, layout, chrome, keeps_shortcuts, keeps_menus }"
+new = "NamedWorkspace::new(id, name, layout); then assign `chrome`, `keeps_shortcuts` or `keeps_menus`"
+
+[[setter]]
+type = "WorkspaceSet"
+old = "WorkspaceSet { builtin, saved, current, locked, edited }"
+new = "WorkspaceSet::new(builtin); then assign `saved`, `locked` or `edited`"
+
+[[setter]]
+type = "DocumentGroup"
+old = "DocumentGroup { id, documents, shown }"
+new = "DocumentGroup::new(id, documents); then assign `shown`"
+
+[[setter]]
+type = "DocumentWindows"
+old = "DocumentWindows::default() with `docked` and `floating` set"
+new = "DocumentWindows::default(); then assign `docked` and `floating`"
+
+[[setter]]
+type = "Arrangement"
+old = "Arrangement::menu_entries(&ArrangeLabels, documents, groups, floating)"
+new = "Arrangement::enabled(documents, groups, floating) per command; the dock commands build the rows"
+
+[[setter]]
+type = "WorkspaceSet"
+old = "WorkspaceSet::menu_entries(&WorkspaceLabels)"
+new = "the `builtin`, `saved` and `current` fields and `WorkspaceCommand`; the dock commands build the rows"
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]

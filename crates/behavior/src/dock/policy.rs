@@ -23,20 +23,48 @@ pub struct Permissions {
 
 impl Default for Permissions {
     fn default() -> Self {
-        Self { movable: true, floatable: true, closable: true, accepts_tabs: true, accepts_splits: true }
+        Self::ALL
     }
 }
 
 impl Permissions {
-    /// Permissions with each right given in field order: movable, floatable, closable, accepts tabs, accepts splits.
-    pub const fn new(movable: bool, floatable: bool, closable: bool, accepts_tabs: bool, accepts_splits: bool) -> Self {
-        Self { movable, floatable, closable, accepts_tabs, accepts_splits }
-    }
+    /// Every right: the panel moves, floats, closes and takes tabs and splits.
+    pub const ALL: Self = Self { movable: true, floatable: true, closable: true, accepts_tabs: true, accepts_splits: true };
 
     /// A document canvas: it stays docked and open, and takes neither tabs nor side splits.
     /// A group dropped on it floats there. An application that opens panels beside its canvas
-    /// uses `Permissions::new(false, false, false, false, true)`.
+    /// uses `Permissions::PROTECTED.accepts_splits(true)`.
     pub const PROTECTED: Self = Self { movable: false, floatable: false, closable: false, accepts_tabs: false, accepts_splits: false };
+
+    /// These permissions with [`Self::movable`] set to `movable`.
+    pub const fn movable(mut self, movable: bool) -> Self {
+        self.movable = movable;
+        self
+    }
+
+    /// These permissions with [`Self::floatable`] set to `floatable`.
+    pub const fn floatable(mut self, floatable: bool) -> Self {
+        self.floatable = floatable;
+        self
+    }
+
+    /// These permissions with [`Self::closable`] set to `closable`.
+    pub const fn closable(mut self, closable: bool) -> Self {
+        self.closable = closable;
+        self
+    }
+
+    /// These permissions with [`Self::accepts_tabs`] set to `accepts_tabs`.
+    pub const fn accepts_tabs(mut self, accepts_tabs: bool) -> Self {
+        self.accepts_tabs = accepts_tabs;
+        self
+    }
+
+    /// These permissions with [`Self::accepts_splits`] set to `accepts_splits`.
+    pub const fn accepts_splits(mut self, accepts_splits: bool) -> Self {
+        self.accepts_splits = accepts_splits;
+        self
+    }
 
     /// A canvas: it can neither move, close nor take tabs. `accepts_splits` and `floatable`
     /// do not matter, so a canvas that opens panels beside it still counts.

@@ -15,6 +15,8 @@ mod tab;
 pub mod targets;
 mod words;
 
+pub mod desktop;
+
 pub use config::{DockConfig, DockSides};
 pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use panels::DockPanels;

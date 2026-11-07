@@ -4,10 +4,14 @@ use craft_behavior::dock::{
     Action, Column, DockEdge, DockError, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, Placement, SplitSize,
 };
 use craft_behavior::{Axis, Flow, Monitor};
-use emath::{Pos2, Rect};
+use emath::{Pos2, Rect, Vec2};
 use serde_json::json;
 
-const WINDOW: [f32; 4] = [100.0, 100.0, 300.0, 400.0];
+const WINDOW: Rect = Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(400.0, 500.0));
+
+fn area(x: f32, y: f32, width: f32, height: f32) -> Rect {
+    Rect::from_min_size(Pos2::new(x, y), Vec2::new(width, height))
+}
 
 fn g(panels: &[u32], active: usize) -> Group<u32> {
     Group::new(panels.to_vec(), active)
@@ -78,10 +82,10 @@ fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
     docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
     assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
     let mut native = docked();
-    native.floating[0].native = Some([0.0, 0.0, -1.0, 10.0]);
+    native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
     assert_eq!(native.validate(), Err(DockError::InvalidGeometry));
     let mut monitor = docked();
-    monitor.floating[0].monitor = Some(Monitor::new(None, [0.0, 0.0, 1920.0, 1080.0], f32::NAN));
+    monitor.floating[0].monitor = Some(Monitor::new(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), f32::NAN));
     assert_eq!(monitor.validate(), Err(DockError::InvalidGeometry));
     let mut monitor_size = docked();
     monitor_size.floating[0].monitor_size = Some([f32::NAN, 1080.0]);
@@ -113,7 +117,10 @@ fn without(skip: Option<u32>) -> Layout<u32> {
     let columns: Vec<Column<u32>> = [Column::new(a, 180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
     let end = Node::dock(DockEdge::End, columns);
     let windows: Vec<Group<u32>> = [group(&[6], 0), tall].into_iter().flatten().collect();
-    Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)), vec![Floating::stack(windows, [10.0, 10.0, 200.0, 300.0]).unwrap()])
+    Layout::new(
+        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)),
+        vec![Floating::stack(windows, area(10.0, 10.0, 200.0, 300.0)).unwrap()],
+    )
 }
 
 #[test]
@@ -178,7 +185,7 @@ fn step_group_never_passes_a_protected_group() {
     for (panel, up) in [(2, false), (4, true), (9, true), (9, false)] {
         assert!(!layout.can_step_group(&panel, up, permissions), "{panel} {up}");
     }
-    let immovable = |p: &u32| if *p == 2 { Permissions::new(false, true, true, true, true) } else { Permissions::default() };
+    let immovable = |p: &u32| if *p == 2 { Permissions::ALL.movable(false) } else { Permissions::default() };
     assert!(!layout.can_step_group(&2, false, immovable));
     assert!(!layout.can_step_group(&9, true, immovable));
 }
@@ -199,9 +206,10 @@ fn a_saved_stack_of_groups_loads_as_a_vertical_split_by_their_heights() {
 
 #[test]
 fn a_single_plain_floating_window_writes_the_v1_shape_and_others_round_trip() {
-    let rect = [1.0, 2.0, 300.0, 200.0];
+    let saved = [1.0, 2.0, 300.0, 200.0];
+    let rect = Rect::from_min_size(Pos2::new(saved[0], saved[1]), Vec2::new(saved[2], saved[3]));
     let plain = Floating::single(vec![4u32, 5], 1, rect);
-    assert_eq!(serde_json::to_value(&plain).unwrap(), json!({"id": plain.id, "panels": [4, 5], "active": 1, "rect": rect}));
+    assert_eq!(serde_json::to_value(&plain).unwrap(), json!({"id": plain.id, "panels": [4, 5], "active": 1, "rect": saved}));
     let mut minimized = Floating::single(vec![4u32], 0, rect);
     minimized.minimized = true;
     let stacked = Floating::stack(vec![g(&[4], 0), g(&[5], 0)], rect).unwrap();
@@ -213,12 +221,12 @@ fn a_single_plain_floating_window_writes_the_v1_shape_and_others_round_trip() {
         assert_eq!(value["id"], json!(window.id), "{value}");
         assert_eq!(serde_json::from_value::<Floating<u32>>(value).unwrap(), window);
     }
-    assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": rect})).is_err());
+    assert!(serde_json::from_value::<Floating<u32>>(json!({"rect": saved})).is_err());
 }
 
 #[test]
 fn windows_keep_their_ids_through_a_save() {
-    let rect = [1.0, 2.0, 300.0, 200.0];
+    let rect = Rect::from_min_size(Pos2::new(1.0, 2.0), Vec2::new(300.0, 200.0));
     let layout = Layout::new(
         None,
         vec![Floating::single(vec![4u32], 0, rect).with_id(7), Floating::stack(vec![g(&[5], 0), g(&[6], 0)], rect).unwrap().with_id(8)],
@@ -243,7 +251,7 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     layout.validate().unwrap();
     let expected = Layout::new(
         Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
-        vec![Floating::single(vec![4], 0, [1.0, 2.0, 300.0, 200.0]).with_id(5)],
+        vec![Floating::single(vec![4], 0, area(1.0, 2.0, 300.0, 200.0)).with_id(5)],
     );
     assert_eq!(layout, expected);
     let written = serde_json::to_value(&layout).unwrap();
