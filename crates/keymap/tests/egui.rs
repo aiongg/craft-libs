@@ -1,6 +1,6 @@
 //! Integration tests of craft-keymap: egui.
 
-#![cfg(feature = "ui")]
+#![cfg(feature = "egui")]
 
 use craft_keymap::egui::{Dispatcher, Hit, matches, platform};
 use craft_keymap::{Active, Bindable, Binding, Chord, CommandRef, Key, KeyInput, Keymap, Kind, Layout, Mods, Platform, Scope, Scopes, Trigger};

@@ -28,7 +28,7 @@ testing-gpu = ["testing", "egui_kittest/wgpu"]
 craft-behavior = { workspace = true }
 # `Intent::Access` and the AccessKit action requests the key stage routes.
 accesskit = "0.25"
-craft-keymap = { workspace = true }
+craft-keymap = { workspace = true, features = ["egui"] }
 craft-theme = { workspace = true }
 craft-ui-macros = { workspace = true }
 egui = { workspace = true }
@@ -36,6 +36,7 @@ eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11"
 egui_kittest = { version = "0.37", default-features = false, optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
+log = "0.4"
 linkme = { version = "0.3", optional = true }
 serde = { workspace = true }
 

@@ -3,8 +3,8 @@
 use super::{control, focus, focused, id, stop_with};
 use craft_behavior::Input;
 use craft_behavior::Sense;
-use craft_ui::runtime::focus::{FocusPolicy, KeyUse, Stop, commit_now, pop_scope, push_scope, register_stop};
-use craft_ui::testing::focus::{press_shape, primary_button, widget};
+use craft_ui::runtime::focus::{FocusPolicy, KeyUse};
+use craft_ui::testing::focus::{Stop, commit_now, pop_scope, press_shape, primary_button, push_scope, register_stop, widget};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Pos2, Rect, Ui};
 use std::cell::{Cell, RefCell};

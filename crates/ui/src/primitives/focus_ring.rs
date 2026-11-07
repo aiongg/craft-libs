@@ -1,22 +1,9 @@
 //! `FocusRing`: rings and halos around a rect, circle, polygon or path.
 
+use super::draw::PaintShape;
 use crate::style::{Flags, FocusLook};
 use egui::emath::GuiRounding as _;
-use egui::{CornerRadius, Pos2, Rect, Shape, Stroke, StrokeKind};
-
-/// The shape a ring follows.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum FocusShape {
-    /// A rect with corners.
-    Rect(Rect, CornerRadius),
-    /// A circle.
-    Circle(Pos2, f32),
-    /// A closed polygon.
-    Polygon(Vec<Pos2>),
-    /// An open path.
-    Path(Vec<Pos2>),
-}
+use egui::{CornerRadius, Shape, Stroke, StrokeKind};
 
 /// How a focus indication is drawn.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
@@ -41,7 +28,7 @@ impl FocusRing {
 
     /// The shapes of the ring around `shape`, grown by `look.offset`. A halo adds a stroke twice as wide at a
     /// third of the opacity beneath the ring.
-    pub fn shapes(look: &FocusLook, kind: FocusKind, shape: &FocusShape, pixels_per_point: f32) -> Vec<Shape> {
+    pub fn shapes(look: &FocusLook, kind: FocusKind, shape: &PaintShape, pixels_per_point: f32) -> Vec<Shape> {
         let stroke = look.stroke;
         let mut out = Vec::new();
         if kind == FocusKind::Halo {
@@ -51,9 +38,9 @@ impl FocusRing {
         out
     }
 
-    fn one(shape: &FocusShape, offset: f32, stroke: Stroke, pixels_per_point: f32) -> Shape {
+    fn one(shape: &PaintShape, offset: f32, stroke: Stroke, pixels_per_point: f32) -> Shape {
         match shape {
-            FocusShape::Rect(rect, radius) => {
+            PaintShape::Rect(rect, radius) => {
                 let rect = rect.round_to_pixels(pixels_per_point);
                 let grown = rect.expand(offset);
                 let radius = CornerRadius {
@@ -64,9 +51,9 @@ impl FocusRing {
                 };
                 Shape::rect_stroke(grown, radius, stroke, StrokeKind::Inside)
             }
-            FocusShape::Circle(center, r) => Shape::circle_stroke(*center, r + offset, stroke),
-            FocusShape::Polygon(points) => Shape::closed_line(points.clone(), stroke),
-            FocusShape::Path(points) => Shape::line(points.clone(), stroke),
+            PaintShape::Circle(center, r) => Shape::circle_stroke(*center, r + offset, stroke),
+            PaintShape::Polygon(points) => Shape::closed_line(points.clone(), stroke),
+            PaintShape::Path(points) => Shape::line(points.clone(), stroke),
         }
     }
 }

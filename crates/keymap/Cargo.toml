@@ -33,7 +33,9 @@ egui_kittest = "0.37"
 image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]
-# The egui key conversions and dispatcher, and the Keyboard Shortcuts dialog.
-ui = ["dep:egui", "dep:craft-ui", "craft-host/ui"]
+# The egui key conversions and dispatcher.
+egui = ["dep:egui", "craft-host/ui"]
+# The Keyboard Shortcuts dialog.
+ui = ["egui", "dep:craft-ui"]
 # Screenshots of the dialog for review (tests/ui_snapshot.rs; needs a GPU or software adapter).
 screen-testing = ["ui", "dep:egui_kittest", "egui_kittest/wgpu", "craft-ui/screen-testing"]

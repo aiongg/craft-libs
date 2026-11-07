@@ -2,7 +2,6 @@
 //! [`Dispatcher`] that turns a frame's key events into the commands they run. [`platform`] gives
 //! the platform to build a keymap for, the browser's operating system included on the web.
 
-use ::egui::os::OperatingSystem;
 use ::egui::{Context, Event, InputState, Key as EguiKey, KeyboardShortcut, Modifiers};
 
 use crate::chord::{Chord, Key, Mods, Platform, Trigger};
@@ -16,18 +15,7 @@ use crate::scope::Active;
 /// shows and matches Cmd shortcuts. eframe sets it before the first frame; an app that builds its
 /// keymap earlier rebuilds it when this differs.
 pub fn platform(ctx: &Context) -> Platform {
-    Platform::from(ctx.os())
-}
-
-/// iOS counts as Mac; Android and unknown systems count as Linux.
-impl From<OperatingSystem> for Platform {
-    fn from(os: OperatingSystem) -> Platform {
-        match os {
-            OperatingSystem::Mac | OperatingSystem::IOS => Platform::Mac,
-            OperatingSystem::Windows => Platform::Windows,
-            OperatingSystem::Nix | OperatingSystem::Android | OperatingSystem::Unknown => Platform::Linux,
-        }
-    }
+    Platform::of_egui(ctx.os())
 }
 
 // Both matches are generated from one list so that a key added to `Key` without an egui

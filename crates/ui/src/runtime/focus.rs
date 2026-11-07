@@ -7,12 +7,14 @@
 mod nav;
 mod policy;
 mod press;
+pub(crate) mod registration;
 
 pub(crate) use nav::roving_move;
+pub(crate) use registration::{Group, Stop};
 
 use crate::runtime::egui::focus as egui_focus;
 use crate::runtime::frame::PerViewport;
-use craft_behavior::{DocKey, KeyRole, PartRef};
+use craft_behavior::{DocKey, PartRef};
 use egui::{Context, Id, ViewportId};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -23,118 +25,6 @@ pub use policy::{ActivateKeys, EditSet, EnterRule, FocusPolicy, FocusTarget, Ini
 
 /// A focus stop: a component, or one of its parts.
 pub(crate) type StopKey = (Id, Option<PartRef>);
-
-/// A stop as registered at step 7 of the pipeline.
-#[doc(hidden)]
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct Stop {
-    /// The component.
-    pub id: Id,
-    /// The focusable part, `None` for the component itself.
-    pub part: Option<PartRef>,
-    /// The egui widget that holds focus for the stop: the component, or the arena root of a member.
-    pub root: Id,
-    /// The component's declared keys.
-    pub keys: KeyUse,
-    /// What the table's rows differ by.
-    pub role: KeyRole,
-    /// The stop is a text or editor part, which holds a draft.
-    pub text: bool,
-    /// The stop is its scope's default (`Initial::Default`).
-    pub default: bool,
-    /// The name `Initial::Key` matches.
-    pub name: Option<&'static str>,
-    /// The roving group the stop belongs to.
-    pub group: Option<Id>,
-}
-
-impl Stop {
-    /// A stop of component `id` with `keys`, its own egui root.
-    pub fn new(id: Id, keys: KeyUse) -> Stop {
-        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None }
-    }
-
-    /// A stop on a part of the component.
-    pub fn part(mut self, part: PartRef) -> Self {
-        self.part = Some(part);
-        self
-    }
-
-    /// A stop whose focus the arena root `root` holds.
-    pub fn root(mut self, root: Id) -> Self {
-        self.root = root;
-        self
-    }
-
-    /// The table role of the stop.
-    pub fn role(mut self, role: KeyRole) -> Self {
-        self.role = role;
-        self
-    }
-
-    /// Marks the stop as a text part.
-    pub fn text(mut self) -> Self {
-        self.text = true;
-        self
-    }
-
-    /// Marks the stop as its scope's default.
-    pub fn default_stop(mut self) -> Self {
-        self.default = true;
-        self
-    }
-
-    /// Names the stop for `Initial::Key`.
-    pub fn named(mut self, name: &'static str) -> Self {
-        self.name = Some(name);
-        self
-    }
-
-    /// Joins the roving group `group`.
-    pub fn in_group(mut self, group: Id) -> Self {
-        self.group = Some(group);
-        self
-    }
-
-    pub(crate) fn key(&self) -> StopKey {
-        (self.id, self.part)
-    }
-}
-
-/// A roving group's registration: one Tab stop whose members take moves.
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub struct Group {
-    /// The group.
-    pub id: Id,
-    /// Its rules.
-    pub roving: Roving,
-    /// The member Tab arrives at, else the first.
-    pub selected: Option<Id>,
-    /// The group is a collection row's children: Tab leaves the collection and Forward enters the row.
-    pub row: bool,
-}
-
-impl Group {
-    /// A group of `roving` rules.
-    pub fn new(id: Id, roving: Roving) -> Group {
-        Group { id, roving, selected: None, row: false }
-    }
-
-    /// The member Tab arrives at.
-    pub fn selected(mut self, member: Id) -> Self {
-        self.selected = Some(member);
-        self
-    }
-
-    /// Marks a row's children.
-    pub fn row(mut self) -> Self {
-        self.row = true;
-        self
-    }
-}
 
 /// A registered stop with its place in the scope tree.
 #[derive(Clone, Debug)]
@@ -157,13 +47,17 @@ pub(crate) struct ScopeRec {
 pub(crate) struct FocusedRecord {
     pub(crate) keys: Option<KeyUse>,
     pub(crate) claims: Vec<craft_keymap::Chord>,
+    /// The component of the focused stop: only its state-dependent claims hold.
+    pub(crate) focused: Option<Id>,
+    /// The focused stop switches pages with Ctrl+Tab.
+    pub(crate) pages: bool,
     pub(crate) menu_bar: bool,
 }
 
 /// A change to egui's focus, applied after the state lock is released.
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Act {
-    Focus(Id, egui::EventFilter),
+    Focus(Id, egui_focus::KeyFilter),
     Surrender(Id),
 }
 
@@ -191,6 +85,7 @@ pub(crate) struct State {
     pub(super) pending: Option<FocusTarget>,
     pub(super) docs: HashMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
+    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
     pub(super) seen: HashMap<Id, u64>,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
@@ -220,8 +115,8 @@ pub(crate) fn apply(ctx: &Context, acts: Vec<Act>) {
 }
 
 /// Registers a stop of the running pass in the innermost open scope, in registration order.
-#[doc(hidden)]
-pub fn register_stop(ctx: &Context, stop: Stop) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
     with(ctx, |state| {
         let scope = state.open.last().map(|(id, _)| *id);
         state.stops.push(StopRec { stop, scope });
@@ -229,16 +124,16 @@ pub fn register_stop(ctx: &Context, stop: Stop) {
 }
 
 /// Registers a roving group of the running pass.
-#[doc(hidden)]
-pub fn register_group(ctx: &Context, group: Group) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn register_group(ctx: &Context, group: Group) {
     with(ctx, |state| {
         state.groups.insert(group.id, group);
     });
 }
 
 /// Opens the scope `id` for the stops registered until the matching [`pop_scope`].
-#[doc(hidden)]
-pub fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
     let focused = egui_focus::focused(ctx);
     with(ctx, |state| {
         let parent = state.open.last().map(|(parent, _)| *parent);
@@ -253,22 +148,22 @@ pub fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<
 
 /// Closes the innermost open scope. A scope pushed for the first time (or again after a gap of a frame)
 /// moves focus to its initial stop, in this pass.
-#[doc(hidden)]
-pub fn pop_scope(ctx: &Context) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn pop_scope(ctx: &Context) {
     let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
     let acts = with(ctx, |state| nav::initial_focus(state, frame));
     apply(ctx, acts);
 }
 
 /// Registers that a menu bar can take the menu-bar keys of the next input hook (spec 9.7).
-#[doc(hidden)]
-pub fn register_menu_bar(ctx: &Context) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn register_menu_bar(ctx: &Context) {
     with(ctx, |state| state.menu_bar = true);
 }
 
 /// Registers the component that `FocusTarget::Doc(key)` focuses.
-#[doc(hidden)]
-pub fn register_doc(ctx: &Context, key: DocKey, id: Id) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn register_doc(ctx: &Context, key: DocKey, id: Id) {
     with(ctx, |state| {
         state.docs.insert(key, id);
     });
@@ -289,10 +184,15 @@ pub(crate) fn request_now(ctx: &Context, target: FocusTarget) {
 
 /// The stop focus is on, in the viewport whose pass is running: the focused member or part of the egui
 /// root, else the root itself.
-#[doc(hidden)]
-pub fn focused_stop(ctx: &Context) -> Option<StopKey> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn focused_stop(ctx: &Context) -> Option<StopKey> {
     let root = egui_focus::focused(ctx)?;
     with(ctx, |state| Some(state.focused.get(&root).copied().unwrap_or((root, None))))
+}
+
+/// The registration of the stop `key`.
+pub(crate) fn stop_rec(ctx: &Context, key: StopKey) -> Option<StopRec> {
+    with(ctx, |state| state.find_stop(key))
 }
 
 /// The registration of the stop focus is on.
@@ -305,6 +205,7 @@ pub(crate) fn focused_rec(ctx: &Context) -> Option<StopRec> {
 }
 
 /// Whether the focus stop is a child of a collection row's roving group.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn in_row_child(ctx: &Context) -> bool {
     with(ctx, |state| {
         let group = state.stop_of_focus().and_then(|rec| rec.stop.group);
@@ -314,26 +215,26 @@ pub(crate) fn in_row_child(ctx: &Context) -> bool {
 
 /// Whether the focus stop is the component `id`: the focused member or item of its arena, or a root that
 /// holds focus while none of its members is the stop. A root's own focused part counts as the root.
-#[doc(hidden)]
-pub fn is_focused(ctx: &Context, id: Id) -> bool {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn is_focused(ctx: &Context, id: Id) -> bool {
     focused_stop(ctx).is_some_and(|(focused, _)| focused == id)
 }
 
 /// `is_focused` and focus arrived by keyboard, so the ring shows.
-#[doc(hidden)]
-pub fn focus_visible(ctx: &Context, id: Id) -> bool {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn focus_visible(ctx: &Context, id: Id) -> bool {
     is_focused(ctx, id) && with(ctx, |state| state.visible)
 }
 
 /// The part of `id` that is the focus stop, when one is.
-#[doc(hidden)]
-pub fn active_part(ctx: &Context, id: Id) -> Option<PartRef> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn active_part(ctx: &Context, id: Id) -> Option<PartRef> {
     focused_stop(ctx).filter(|(focused, _)| *focused == id).and_then(|(_, part)| part)
 }
 
 /// The text part that commits its draft in this pass because a press moved focus away from it (8.3).
-#[doc(hidden)]
-pub fn commit_now(ctx: &Context) -> Option<Id> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn commit_now(ctx: &Context) -> Option<Id> {
     with(ctx, |state| state.press.commit_now)
 }
 
@@ -348,8 +249,8 @@ pub(crate) fn record(ctx: &Context, viewport: ViewportId) -> FocusedRecord {
 }
 
 /// The component the last `request` or Tab move asked the enclosing scroll owner to reveal.
-#[doc(hidden)]
-pub fn take_reveal(ctx: &Context) -> Option<StopKey> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn take_reveal(ctx: &Context) -> Option<StopKey> {
     with(ctx, |state| state.revealed.take())
 }
 

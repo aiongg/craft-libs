@@ -6,9 +6,9 @@ mod roving;
 mod scopes;
 
 use craft_behavior::Input;
-use craft_ui::runtime::focus::{FocusTarget, KeyUse, Stop, register_stop, request};
+use craft_ui::runtime::focus::{FocusTarget, KeyUse, request};
 use craft_ui::testing::Frames;
-use craft_ui::testing::focus::widget;
+use craft_ui::testing::focus::{Stop, register_stop, widget};
 use egui::{Context, Event, Id, Key, Modifiers, Ui};
 
 fn id(name: &str) -> Id {

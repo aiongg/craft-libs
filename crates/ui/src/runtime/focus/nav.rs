@@ -204,15 +204,20 @@ impl State {
             None => {
                 self.revealed = Some(key);
                 self.focus_now = Some(key.0);
-                vec![Act::Focus(key.0, egui::EventFilter::default())]
+                vec![Act::Focus(key.0, Default::default())]
             }
         }
     }
 
     /// A roving move of the group of `from`: focus moves to the member the navigation core picks.
-    fn roving_move(&mut self, from: StopKey, mv: NavMove, mods: MoveMods) -> Option<Vec<Act>> {
+    fn roving_move(&mut self, from: StopKey, mv: NavMove, mods: MoveMods, horizontal: bool) -> Option<Vec<Act>> {
         let current = self.find_stop(from)?;
         let group = *self.last_groups.get(&current.stop.group?)?;
+        let mv = match (horizontal && group.rtl, mv) {
+            (true, NavMove::Back) => NavMove::Forward,
+            (true, NavMove::Forward) => NavMove::Back,
+            (_, mv) => mv,
+        };
         if !group.roving.takes(mv) {
             return None;
         }
@@ -272,8 +277,10 @@ fn cycle(entries: &[Entry], current: Option<&StopRec>, forward: bool) -> Option<
 }
 
 /// Closes the innermost open scope; a scope shown for the first time moves focus to its initial stop.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
     let Some((scope, first)) = state.open.pop() else { return Vec::new() };
+    state.seen.retain(|_, last| *last + 1 >= frame);
     let previous = state.seen.insert(scope, frame);
     if previous.is_some_and(|last| last + 1 >= frame) {
         return Vec::new();
@@ -331,9 +338,12 @@ pub(super) fn end(state: &mut State, focused: Option<Id>) -> Vec<Act> {
     });
     state.focus_now = now;
     state.focused.retain(|root, _| Some(*root) == now);
-    let keys = state.stop_of_focus().map(|rec| rec.stop.keys);
+    let stop = state.stop_of_focus().map(|rec| rec.stop);
+    let keys = stop.as_ref().map(|stop| stop.keys);
     state.record = super::FocusedRecord {
         claims: keys.map(|keys| keys.claims.to_vec()).unwrap_or_default(),
+        focused: stop.as_ref().map(|stop| stop.id),
+        pages: stop.as_ref().is_some_and(|stop| stop.role.pages),
         keys,
         menu_bar: std::mem::take(&mut state.menu_bar),
     };
@@ -342,8 +352,8 @@ pub(super) fn end(state: &mut State, focused: Option<Id>) -> Vec<Act> {
 
 /// Applies a roving move of the group that `from` belongs to. `None` when `from` is no group member or the
 /// group does not take the move; the caller then routes the move to the component.
-pub(crate) fn roving_move(ctx: &Context, from: StopKey, mv: NavMove, mods: MoveMods) -> Option<()> {
-    let acts = super::with(ctx, |state| state.roving_move(from, mv, mods))?;
+pub(crate) fn roving_move(ctx: &Context, from: StopKey, mv: NavMove, mods: MoveMods, horizontal: bool) -> Option<()> {
+    let acts = super::with(ctx, |state| state.roving_move(from, mv, mods, horizontal))?;
     super::apply(ctx, acts);
     Some(())
 }

@@ -2,7 +2,7 @@
 
 use craft_behavior::PartKey;
 use craft_theme::{Contrast, ControlSize, Flags, Mode, State, StateMix, Variant};
-use craft_ui::primitives::{BarAxis, FocusKind, FocusRing, FocusShape, Handle, HandleShape, ScrollBar};
+use craft_ui::primitives::{BarAxis, FocusKind, FocusRing, Handle, HandleShape, PaintShape, ScrollBar};
 use craft_ui::style::{FocusLook, StateSet};
 use craft_ui::testing::style::{face_id, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -22,7 +22,7 @@ fn a_ring_shows_only_on_the_focused_component_with_focus_visible() {
 #[trial]
 fn a_halo_adds_a_wider_translucent_stroke_under_the_ring() {
     let look = FocusLook::new(Stroke::new(2.0, egui::Color32::from_rgb(0, 120, 255)), 1.0);
-    let shape = FocusShape::Circle(pos2(20.0, 20.0), 6.0);
+    let shape = PaintShape::Circle(pos2(20.0, 20.0), 6.0);
     let ring = FocusRing::shapes(&look, FocusKind::Ring, &shape, 1.0);
     let halo = FocusRing::shapes(&look, FocusKind::Halo, &shape, 1.0);
     assert_eq!(ring.len(), 1);

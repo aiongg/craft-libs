@@ -3,10 +3,9 @@
 use super::{control, focus, focused, id, tap};
 use craft_behavior::focus::EscapeStep;
 use craft_behavior::{CancelRule, DocKey, Input, PartKey};
-use craft_ui::runtime::focus::{FocusPolicy, FocusTarget, KeyUse, Stop, pop_scope, push_scope, register_doc, register_stop, request, take_reveal};
+use craft_ui::runtime::focus::{FocusPolicy, FocusTarget, KeyUse, request};
 use craft_ui::runtime::frame::take_output;
-use craft_ui::runtime::keys::scope_escape;
-use craft_ui::testing::focus::widget;
+use craft_ui::testing::focus::{Stop, pop_scope, push_scope, register_doc, register_stop, scope_escape, take_reveal, widget};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Ui};
 use std::cell::Cell;
@@ -112,7 +111,7 @@ fn request_focuses_an_id_a_part_and_a_doc_key_and_reveals_it() {
     request(&frames.ctx, FocusTarget::Part(id("pair"), KNOB.at(1)));
     frames.frame(Vec::new(), &mut show);
     assert_eq!(focused(&frames.ctx), Some(id("pair")));
-    assert_eq!(craft_ui::runtime::focus::active_part(&frames.ctx, id("pair")), Some(KNOB.at(1)));
+    assert_eq!(craft_ui::testing::focus::active_part(&frames.ctx, id("pair")), Some(KNOB.at(1)));
     request(&frames.ctx, FocusTarget::Doc(FIND));
     frames.frame(Vec::new(), &mut show);
     assert_eq!(focused(&frames.ctx), Some(id("find")));

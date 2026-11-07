@@ -3,7 +3,7 @@
 use craft_behavior::one_press::split_after_first_press;
 use craft_behavior::{PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
 use craft_host::target::Os;
-use craft_keymap::Mods;
+use craft_keymap::{KeyInput, Mods};
 use egui::{Context, Event, Id, MouseWheelUnit, Pos2, TouchPhase, Vec2, ViewportId};
 
 pub use egui::RawInput;
@@ -63,51 +63,13 @@ pub(crate) fn stop_dragging(ctx: &Context) {
 
 /// The operating system the key table picks rows for.
 pub(crate) fn os(ctx: &Context) -> Os {
-    use egui::os::OperatingSystem;
-    match ctx.os() {
-        OperatingSystem::Mac | OperatingSystem::IOS => Os::Mac,
-        OperatingSystem::Windows => Os::Windows,
-        OperatingSystem::Nix | OperatingSystem::Android | OperatingSystem::Unknown => Os::Linux,
-    }
-}
-
-/// The modifiers egui reports, read for `os`: off macOS, Ctrl is the command key.
-pub(crate) fn mods(modifiers: &egui::Modifiers, os: Os) -> craft_keymap::Mods {
-    if os == Os::Mac {
-        craft_keymap::Mods { cmd: modifiers.mac_cmd || modifiers.command, ctrl: modifiers.ctrl, alt: modifiers.alt, shift: modifiers.shift }
-    } else {
-        craft_keymap::Mods { cmd: modifiers.ctrl || modifiers.command, ctrl: false, alt: modifiers.alt, shift: modifiers.shift }
-    }
-}
-
-macro_rules! key_conversion {
-    ($($ours:ident = $theirs:ident),* ; $($same:ident),* $(,)?) => {
-        /// craft-keymap's key for an egui key; `None` for egui's clipboard and browser keys.
-        pub(crate) fn key_of(key: egui::Key) -> Option<craft_keymap::Key> {
-            match key {
-                $(egui::Key::$theirs => Some(craft_keymap::Key::$ours),)*
-                $(egui::Key::$same => Some(craft_keymap::Key::$same),)*
-                _ => None,
-            }
-        }
-    };
-}
-
-key_conversion! {
-    Up = ArrowUp, Down = ArrowDown, Left = ArrowLeft, Right = ArrowRight;
-    A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W, X, Y, Z,
-    Num0, Num1, Num2, Num3, Num4, Num5, Num6, Num7, Num8, Num9,
-    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10, F11, F12, F13, F14, F15, F16, F17, F18, F19, F20,
-    F21, F22, F23, F24, F25, F26, F27, F28, F29, F30, F31, F32, F33, F34, F35,
-    Escape, Tab, Menu, Backspace, Enter, Space, Insert, Delete, Home, End, PageUp, PageDown,
-    Minus, Equals, Plus, OpenBracket, CloseBracket, Backslash, Semicolon, Quote, Backtick,
-    Comma, Period, Slash, IntlBackslash, Colon, Pipe, Questionmark, Exclamationmark, OpenCurlyBracket, CloseCurlyBracket,
+    Os::of_egui(ctx.os())
 }
 
 /// One key event as the key stage reads it.
 pub(crate) enum KeyEvent {
-    /// A key press, repeats included: the key as typed and the modifiers.
-    Press { key: craft_keymap::Key, mods: craft_keymap::Mods },
+    /// A key press, repeats included: the key as typed and everything the layout matcher reads.
+    Press { key: craft_keymap::Key, input: KeyInput },
     /// Typed text.
     Text(String),
     /// egui's own clipboard events.
@@ -125,12 +87,12 @@ pub(crate) enum KeyEvent {
 /// The key stage's reading of `event`.
 pub(crate) fn key_event(event: &Event, os: Os) -> KeyEvent {
     match event {
-        Event::Key { key, pressed: true, modifiers, .. } => match key_of(*key) {
-            Some(typed) => KeyEvent::Press { key: typed, mods: mods(modifiers, os) },
+        Event::Key { pressed: true, .. } => match KeyInput::from_egui(event, os) {
+            Some(input) => input.typed.map_or(KeyEvent::Other, |key| KeyEvent::Press { key, input }),
             None => KeyEvent::Other,
         },
         Event::Text(text) => KeyEvent::Text(text.clone()),
-        Event::ModifiersChanged(modifiers) => KeyEvent::Modifiers(mods(modifiers, os)),
+        Event::ModifiersChanged(modifiers) => KeyEvent::Modifiers(Mods::from_egui(modifiers, os)),
         Event::Copy => KeyEvent::Clip(craft_behavior::EditCommand::Copy),
         Event::Cut => KeyEvent::Clip(craft_behavior::EditCommand::Cut),
         Event::Paste(_) => KeyEvent::Clip(craft_behavior::EditCommand::Paste),
@@ -244,7 +206,7 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             delta: input.pointer.delta(),
             primary_down: input.pointer.primary_down(),
             primary_pressed: input.pointer.primary_pressed(),
-            mods: mods(&input.modifiers, os),
+            mods: Mods::from_egui(&input.modifiers, os),
             time: input.time,
             kind,
             sample,
@@ -282,7 +244,7 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
                     TouchPhase::Cancel => WheelPhase::Cancel,
                 };
                 let sum = read.map_or(Vec2::ZERO, |(sum, ..)| sum) + *delta * points;
-                read = Some((sum, unit, phase, mods(modifiers, os)));
+                read = Some((sum, unit, phase, Mods::from_egui(modifiers, os)));
             }
         }
         read

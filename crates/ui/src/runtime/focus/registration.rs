@@ -1,0 +1,126 @@
+//! The registrations of the focus service: a stop and a roving group. The types are `pub` so the testing kit can
+//! name them; the module is crate-private, so no other path reaches them.
+
+use super::{KeyUse, Roving, StopKey};
+use craft_behavior::{KeyRole, PartRef};
+use egui::Id;
+
+/// A stop as registered at step 7 of the pipeline.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct Stop {
+    /// The component.
+    pub id: Id,
+    /// The focusable part, `None` for the component itself.
+    pub part: Option<PartRef>,
+    /// The egui widget that holds focus for the stop: the component, or the arena root of a member.
+    pub root: Id,
+    /// The component's declared keys.
+    pub keys: KeyUse,
+    /// What the table's rows differ by.
+    pub role: KeyRole,
+    /// The stop is a text or editor part, which holds a draft.
+    pub text: bool,
+    /// The stop is its scope's default (`Initial::Default`).
+    pub default: bool,
+    /// The name `Initial::Key` matches.
+    pub name: Option<&'static str>,
+    /// The roving group the stop belongs to.
+    pub group: Option<Id>,
+}
+
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers stops and groups"))]
+impl Stop {
+    /// A stop of component `id` with `keys`, its own egui root.
+    pub fn new(id: Id, keys: KeyUse) -> Stop {
+        Stop { id, part: None, root: id, keys, role: KeyRole::new(), text: false, default: false, name: None, group: None }
+    }
+
+    /// A stop on a part of the component.
+    pub fn part(mut self, part: PartRef) -> Self {
+        self.part = Some(part);
+        self
+    }
+
+    /// A stop whose focus the arena root `root` holds.
+    pub fn root(mut self, root: Id) -> Self {
+        self.root = root;
+        self
+    }
+
+    /// The table role of the stop.
+    pub fn role(mut self, role: KeyRole) -> Self {
+        self.role = role;
+        self
+    }
+
+    /// Marks the stop as a text part.
+    pub fn text(mut self) -> Self {
+        self.text = true;
+        self
+    }
+
+    /// Marks the stop as its scope's default.
+    pub fn default_stop(mut self) -> Self {
+        self.default = true;
+        self
+    }
+
+    /// Names the stop for `Initial::Key`.
+    pub fn named(mut self, name: &'static str) -> Self {
+        self.name = Some(name);
+        self
+    }
+
+    /// Joins the roving group `group`.
+    pub fn in_group(mut self, group: Id) -> Self {
+        self.group = Some(group);
+        self
+    }
+
+    pub(crate) fn key(&self) -> StopKey {
+        (self.id, self.part)
+    }
+}
+
+/// A roving group's registration: one Tab stop whose members take moves.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct Group {
+    /// The group.
+    pub id: Id,
+    /// Its rules.
+    pub roving: Roving,
+    /// The member Tab arrives at, else the first.
+    pub selected: Option<Id>,
+    /// The group is a collection row's children: Tab leaves the collection and Forward enters the row.
+    pub row: bool,
+    /// The group lays out right to left: a physical Left or Right arrow moves the opposite way.
+    pub rtl: bool,
+}
+
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers stops and groups"))]
+impl Group {
+    /// A group of `roving` rules.
+    pub fn new(id: Id, roving: Roving) -> Group {
+        Group { id, roving, selected: None, row: false, rtl: false }
+    }
+
+    /// Reads horizontal arrows in the group's direction.
+    pub fn rtl(mut self, rtl: bool) -> Self {
+        self.rtl = rtl;
+        self
+    }
+
+    /// The member Tab arrives at.
+    pub fn selected(mut self, member: Id) -> Self {
+        self.selected = Some(member);
+        self
+    }
+
+    /// Marks a row's children.
+    pub fn row(mut self) -> Self {
+        self.row = true;
+        self
+    }
+}

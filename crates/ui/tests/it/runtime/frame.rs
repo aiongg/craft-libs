@@ -57,7 +57,7 @@ fn cmd_equals_does_not_zoom_the_ui_and_cmd_q_sends_no_close() {
 fn the_slop_token_is_the_click_distance_and_clicks_have_no_time_limit_in_every_pass() {
     let mut frames = Frames::new();
     let mut root = RootEnv::default();
-    root.hit.slop = 5.0;
+    root.sizes = std::sync::Arc::new(craft_theme::AppSizes::parse(br#"{"all": {"size.hit.slop": 5}}"#).unwrap());
     frames.root(root);
     set_max_click_duration(&frames.ctx, 0.5);
     frames.idle(1, |_| {});

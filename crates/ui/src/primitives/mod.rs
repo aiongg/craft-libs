@@ -17,7 +17,7 @@ pub mod textures;
 
 pub use content::{ContentPainter, ContentPainterCx, DocRun, DocText};
 pub use draw::{Draw, PaintShape, StrokeWidth};
-pub use focus_ring::{FocusKind, FocusRing, FocusShape};
+pub use focus_ring::{FocusKind, FocusRing};
 pub use handle::{Handle, HandleShape};
 pub use icon::{Glyph, IconSpec, Mirror};
 pub use reset_mark::ResetMark;

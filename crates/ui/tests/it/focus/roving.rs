@@ -2,9 +2,11 @@
 
 use super::{control, focus, focused, id, tap};
 use craft_behavior::{Input, Intent, NavShape, PartKey, Roving};
-use craft_ui::runtime::focus::{Group, KeyUse, Stop, active_part, is_focused, register_group, register_stop};
-use craft_ui::runtime::keys::{activated_member, intents_of};
-use craft_ui::testing::focus::widget;
+use craft_ui::runtime::focus::KeyUse;
+use craft_ui::testing::focus::{
+    AccessActionKind, Group, Stop, access_request, activated_member, active_part, intents_of, is_focused, register_group, register_node,
+    register_stop, widget,
+};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Ui};
 use std::cell::{Cell, RefCell};
@@ -72,4 +74,68 @@ fn tab_into_a_component_sets_its_first_part_active() {
     focus(&mut frames, "before", &mut show);
     tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
     assert_eq!(read.get(), (true, Some(KNOB.at(0))));
+}
+
+fn members(ui: &mut Ui, names: &[&str], group: Group) {
+    widget(ui, id("group"));
+    for member in names {
+        register_stop(ui.ctx(), Stop::new(id(member), KeyUse::of(Input::Pointer)).root(id("group")).in_group(id("group")));
+    }
+    register_group(ui.ctx(), group);
+}
+
+fn focused_members(ctx: &egui::Context, names: &[&str]) -> Vec<String> {
+    names.iter().filter(|name| is_focused(ctx, id(name))).map(|name| name.to_string()).collect()
+}
+
+/// 9.2: a physical arrow reads in the receiving group's direction.
+#[trial]
+fn a_right_to_left_group_reads_horizontal_arrows_in_its_direction() {
+    const ALL: [&str; 3] = ["m1", "m2", "m3"];
+    for (rtl, right, left) in [(false, "m3", "m1"), (true, "m1", "m3")] {
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| members(ui, &ALL, Group::new(id("group"), Roving::new(NavShape::Flat)).selected(id("m2")).rtl(rtl));
+        frames.idle(2, &mut show);
+        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        assert_eq!(focused_members(&frames.ctx, &ALL), ["m2"]);
+        tap(&mut frames, Key::ArrowRight, Modifiers::NONE, &mut show);
+        assert_eq!(focused_members(&frames.ctx, &ALL), [right], "ArrowRight, rtl {rtl}");
+        tap(&mut frames, Key::ArrowLeft, Modifiers::NONE, &mut show);
+        tap(&mut frames, Key::ArrowLeft, Modifiers::NONE, &mut show);
+        assert_eq!(focused_members(&frames.ctx, &ALL), [left], "ArrowLeft, rtl {rtl}");
+    }
+}
+
+/// 9.5: when the focused member of a group is no longer registered, focus goes to the next member.
+#[trial]
+fn focus_moves_to_the_next_member_when_the_focused_member_is_removed() {
+    let present = RefCell::new(vec!["m1", "m2", "m3"]);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| members(ui, &present.borrow(), Group::new(id("group"), Roving::new(NavShape::Flat)).selected(id("m1")));
+    frames.idle(2, &mut show);
+    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+    tap(&mut frames, Key::ArrowRight, Modifiers::NONE, &mut show);
+    assert_eq!(focused_members(&frames.ctx, &["m1", "m2", "m3"]), ["m2"]);
+    present.borrow_mut().retain(|name| *name != "m2");
+    frames.idle(2, &mut show);
+    assert_eq!(focused_members(&frames.ctx, &["m1", "m2", "m3"]), ["m3"]);
+    assert_eq!(focused(&frames.ctx), Some(id("group")), "egui focus stays on the arena root");
+}
+
+/// 9.2 rule 1: an AccessKit click on a group member activates it through the group.
+#[trial]
+fn an_accesskit_click_on_a_group_member_activates_it_through_the_group() {
+    let mut frames = Frames::new();
+    let activated = Cell::new((false, None));
+    let mut show = |ui: &mut Ui| {
+        members(ui, &["m1", "m2", "m3"], Group::new(id("group"), Roving::new(NavShape::Flat)));
+        register_node(ui.ctx(), id("m3"), id("m3"), None, true);
+        let ctx = ui.ctx();
+        if intents_of(ctx, Some(id("group")), false).take(Intent::Activate) {
+            activated.set((true, activated_member(ctx, id("group"))));
+        }
+    };
+    frames.idle(2, &mut show);
+    frames.frame(vec![access_request(AccessActionKind::Click, id("m3"))], &mut show);
+    assert_eq!(activated.get(), (true, Some(id("m3"))));
 }
