@@ -21,9 +21,10 @@ status = "pending"
 
 [[type]]
 name = "StartScreen"
-old = "craft_ui::shell::start::StartScreen"
+old = "craft_ui::shell::StartScreen"
 new = "craft_ui::shell::StartScreen"
-status = "pending"
+status = "same"
+note = "A `Pattern`: `StartScreen::new(Bind<RecentView>, Bind<RecentSort>, &[RecentFile], &Collator)`, `show(self, ui) -> StartOutput` (actions in `StartOutput.actions`)."
 
 [[type]]
 name = "TitleBar"
@@ -34,9 +35,10 @@ status = "pending"
 
 [[type]]
 name = "ViewportWindow"
-old = "craft_ui::viewport::window::ViewportWindow"
+old = "craft_ui::viewport::ViewportWindow"
 new = "craft_ui::shell::ViewportWindow"
-status = "pending"
+status = "moved"
+note = "A `Pattern` over `Dialog::viewport()`: `ViewportWindow::new(title).app_modal(bool).layer(Overlay).remember(SaveKey).show(ui, body) -> ViewportWindowOutput`. It has no viewport id and no builder: the dialog identifies and places the window."
 
 [[type]]
 name = "ShellCx"
@@ -141,3 +143,173 @@ type = "ShellCx"
 old = "canvas(CanvasId)"
 new = ""
 note = "removed: the key stage asks the focused component's `KeyUse` whether Tab toggles the chrome, so a canvas registers nothing."
+
+# Start screen and app windows.
+
+[[type]]
+name = "RecentFile"
+old = "craft_ui::shell::RecentFile"
+new = "craft_ui::shell::RecentFile"
+status = "same"
+note = "`#[non_exhaustive]`: `RecentFile::new(path, name)` then set `opened`, `created` and `thumbnail`. `thumbnail` is an `Option<Revision>` of the picture stored under `ThumbKey::Recent(path)`, not an `egui::TextureId`."
+
+[[type]]
+name = "Template"
+old = "craft_ui::shell::Template"
+new = "craft_ui::shell::Template"
+status = "same"
+note = "`#[non_exhaustive]`: `Template::new(id, name, detail)` then set `thumbnail`, an `Option<Revision>` of the picture stored under `ThumbKey::Template(id)`."
+
+[[type]]
+name = "RecentView"
+old = "craft_ui::shell::RecentView"
+new = "craft_ui::shell::RecentView"
+status = "same"
+note = "`#[non_exhaustive]`; the app owns it as a `Bind<RecentView>`."
+
+[[type]]
+name = "RecentSort"
+old = "craft_ui::shell::RecentSort"
+new = "craft_ui::shell::RecentSort"
+status = "same"
+note = "`#[non_exhaustive]`; the app owns it as a `Bind<RecentSort>`."
+
+[[type]]
+name = "StartAction"
+old = "craft_ui::shell::StartAction"
+new = "craft_ui::shell::StartAction"
+status = "same"
+note = "`ViewChanged` is gone: the view and sort are the app's bindings, written when the user changes them."
+
+[[type]]
+name = "sort_recent"
+old = "craft_ui::shell::sort_recent"
+new = "craft_ui::shell::sort_recent"
+status = "same"
+
+[[type]]
+name = "StartLabels"
+old = "craft_ui::shell::StartLabels"
+new = ""
+status = "removed"
+note = "Replaced by `StartWords`, the installed word set; the screen takes no labels."
+
+[[type]]
+name = "StartWords"
+old = ""
+new = "craft_ui::shell::StartWords"
+status = "replaced"
+note = "The start screen's word set, replacing `StartLabels`; ids keep the `start.` prefix."
+
+[[type]]
+name = "ThumbKey"
+old = ""
+new = "craft_ui::shell::ThumbKey"
+status = "replaced"
+note = "The texture-store key of a start screen picture (a recent file's path or a template's id); replaces the `egui::TextureId` fields."
+
+[[type]]
+name = "StartOutput"
+old = ""
+new = "craft_ui::shell::StartOutput"
+status = "replaced"
+note = "`show` returns it in place of `Vec<StartAction>`: `output.actions`."
+
+[[type]]
+name = "StartRecentCommands"
+old = ""
+new = "craft_ui::shell::StartRecentCommands"
+status = "replaced"
+note = "The recent files' context menu rows as commands (Open, Remove from Recent, Clear Recent Files, Show in Folder)."
+
+[[type]]
+name = "StartPinnedCommands"
+old = ""
+new = "craft_ui::shell::StartPinnedCommands"
+status = "replaced"
+note = "The pinned folders' context menu rows as commands (Open, Unpin)."
+
+[[type]]
+name = "ViewportWindowOutput"
+old = ""
+new = "craft_ui::shell::ViewportWindowOutput"
+status = "replaced"
+note = "Replaces `ViewportResponse`: `close_requested` is the close reason when the window asked to close."
+
+[[type]]
+name = "Hosting"
+old = "craft_ui::viewport::Hosting"
+new = ""
+status = "removed"
+note = "The dialog chooses an OS window or its fallback layer; the body does not learn which."
+
+[[type]]
+name = "ViewportResponse"
+old = "craft_ui::viewport::ViewportResponse"
+new = ""
+status = "removed"
+note = "Replaced by `ViewportWindowOutput`."
+
+[[setter]]
+type = "StartScreen"
+old = "new(id_salt)"
+new = "new(Bind<RecentView>, Bind<RecentSort>, &[RecentFile], &Collator)"
+note = "The screen's identity comes from its place; the view, sort, files and collator are constructor arguments."
+
+[[setter]]
+type = "StartScreen"
+old = "recent(&[RecentFile])"
+new = "new(.., &[RecentFile], ..)"
+note = "The files are a constructor argument."
+
+[[setter]]
+type = "StartScreen"
+old = "view(RecentView, RecentSort)"
+new = "new(Bind<RecentView>, Bind<RecentSort>, ..)"
+note = "The view and sort are bindings the app owns; a change is written through them."
+
+[[setter]]
+type = "StartScreen"
+old = "labels(StartLabels)"
+new = ""
+note = "removed: the words are the installed `StartWords`."
+
+[[setter]]
+type = "StartScreen"
+old = "id_salt(impl AsIdSalt)"
+new = ""
+note = "removed: the screen is a pattern identified by its place."
+
+[[setter]]
+type = "StartScreen"
+old = "show(&mut Ui) -> Vec<StartAction>"
+new = "show(self, &mut Ui) -> StartOutput"
+note = "The actions are `StartOutput.actions`."
+
+[[setter]]
+type = "ViewportWindow"
+old = "new(ViewportId, ViewportBuilder)"
+new = "new(title)"
+note = "The title is the constructor argument. The builder's inner and minimum sizes and the opening position go on the `Overlay` given to `layer`: `Overlay::dialog().size_limits(min, max).placed(rect).resizable(true)`."
+
+[[setter]]
+type = "ViewportWindow"
+old = "title(impl Into<String>)"
+new = "new(title)"
+
+[[setter]]
+type = "ViewportWindow"
+old = "app_modal(bool /*scrim*/)"
+new = "app_modal(bool)"
+note = "On by default; `app_modal(false)` is a tool window. The backdrop is the dialog's."
+
+[[setter]]
+type = "ViewportWindow"
+old = "embedded(bool)"
+new = ""
+note = "removed: where OS windows are unavailable the fallback layer is the embedded window."
+
+[[setter]]
+type = "ViewportWindow"
+old = "show(&Context, FnMut(&mut Ui, Hosting)) -> ViewportResponse"
+new = "show(self, &mut Ui, FnMut(&mut Ui, &mut BodyCx)) -> ViewportWindowOutput"

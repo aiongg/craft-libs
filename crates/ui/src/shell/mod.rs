@@ -14,3 +14,13 @@ pub use captions::{Caption, CaptionRegions, WindowHit};
 mod regions;
 
 pub use regions::{Slot, SlotSize};
+
+// Start screen and app windows.
+mod recent;
+mod start;
+mod viewport_window;
+
+pub use recent::{RecentFile, RecentSort, RecentView, Template, ThumbKey, sort_recent};
+pub use start::{StartAction, StartOutput, StartPinnedCommands, StartRecentCommands, StartScreen};
+pub use viewport_window::{ViewportWindow, ViewportWindowOutput};
+pub use words::StartWords;
