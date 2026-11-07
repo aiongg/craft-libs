@@ -201,6 +201,6 @@ impl StackDialog for HostedCommandForm {
     }
 
     fn instance(&self) -> Option<DialogId> {
-        self.inner.instance()
+        StackDialog::instance(&self.inner)
     }
 }
