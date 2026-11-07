@@ -75,8 +75,8 @@ note = "The scope's `Arc<DateFormat>`: the host's, else the system region's, hel
 
 [[call]]
 old = "DatePicker::today(date)"
-new = "RootEnv::today(date) and Env::today()"
-note = "The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
+new = "RootEnv::today(date)"
+note = "Read back with `Env::today()`. The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
 
 [[call]]
 old = "UnitKind::Pixels"
