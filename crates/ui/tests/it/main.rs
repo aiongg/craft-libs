@@ -35,6 +35,7 @@ mod paint;
 mod parity;
 mod pickers;
 mod popover;
+mod presets;
 mod prompts;
 mod runtime;
 mod sections;
