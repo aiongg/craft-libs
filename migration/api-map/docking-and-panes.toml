@@ -71,7 +71,7 @@ name = "DockConfig"
 old = "craft_ui::docking::DockConfig"
 new = "craft_ui::docking::DockConfig"
 status = "same"
-note = "Behaviour fields only, with a builder per field. The label fields are `DockWords`; the band, zone and line sizes are the constants of `craft_ui::docking::targets`; `right_to_left` is the env's direction; `panel_menu` and `min_tab_width` are gone (panel rows come from `DockPanels::panel_rows`, tabs fit by the strip's kind). `Sides` is `DockSides`."
+note = "Behaviour fields only, with a builder per field. The label fields are `DockWords`; the band, zone, cascade-inset and float sizes are `DockSizes`, resolved from the theme by `DockSizes::style(cx)` in the dock's component style; `right_to_left` is the env's direction; `panel_menu` and `min_tab_width` are gone (panel rows come from `DockPanels::panel_rows`, tabs fit by the strip's kind). `Sides` is `DockSides`."
 
 [[type]]
 name = "Sides"
@@ -85,14 +85,14 @@ name = "DockEvent"
 old = "craft_ui::docking::DockEvent"
 new = "craft_ui::docking::DockEvent"
 status = "same"
-note = "`PanelCommand { panel, command }` carries a `menu::GroupItem` (the dock's own rows); the host's rows are commands and run by themselves. Adds `ColumnPlaced { group, rect }` and `FloatPlaced { panel, rect }`."
+note = "`PanelCommand { panel, command }` carries a `menu::GroupItem` (the dock's own rows); the host's rows are commands and run by themselves. Adds `ColumnPlaced { anchor, rect }` (the anchor is a panel of the column's first group) and `FloatPlaced { panel, rect }`."
 
 [[type]]
 name = "FloatSpace"
 old = "craft_ui::docking::FloatSpace"
 new = "craft_ui::docking::FloatSpace"
 status = "same"
-note = "The default size and inset are the named `FLOAT_WIDTH`, `FLOAT_HEIGHT` and `FLOAT_INSET`; the lookups `panel`, `group`, `column` and `place` are public."
+note = "`FloatSpace::new(area, &DockSizes)` takes the default float size and the cascade inset from the sizes; the lookups `panel`, `group`, `column` and `place` are public."
 
 [[type]]
 name = "HidePanels"
@@ -112,21 +112,21 @@ name = "DockContent"
 old = "craft_ui::docking::DockContent"
 new = ""
 status = "replaced"
-note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view` (was `custom_group`), `group_header` and `panel_rows` stay hooks. Permissions are the dock model's."
+note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view(panels, active, ui, rect, cx)` (was `custom_group(panels, active, floating)`), `group_header(panels, active, ui, cx)` and `panel_rows` stay hooks; a group is named by one of its panels. Permissions are the dock model's."
 
 [[type]]
 name = "ZoneRule"
 old = "craft_ui::docking::ZoneRule"
 new = "craft_ui::docking::ZoneRule"
 status = "same"
-note = "`Depth` or `Fraction`, with the sizes as named constants; `zones(body)` gives non-overlapping rects."
+note = "`Depth` or `Fraction`; `zones(body, &DockSizes, rtl)` gives non-overlapping rects by `craft_behavior::dock::zones`, with `Start` on the right under right-to-left."
 
 [[type]]
 name = "DropTarget"
 old = "craft_ui::docking::DropTarget"
 new = ""
 status = "replaced"
-note = "`DockTargets` registers `DockSpot`s with hit rects; resolution against a pointer is `DockTargets::at` (dock-drop-a adds the model step)."
+note = "`DockTargets::register(ctx, dock, spot, rect)` registers `DockSpot`s (a group is named by an anchor panel) with hit rects for one dock; `DockTargets::resolve(ctx, dock, at)` resolves a pointer against the previous pass, only inside the dock's `DropTarget::accept`; `DockSpot::mark(rect, rtl)` gives the `DropMark` (dock-drop-a adds the model step)."
 
 # Dock model (dock-model-a): moved UI-free into craft-behavior, serde shapes unchanged.
 
@@ -187,14 +187,16 @@ status = "moved"
 [[type]]
 name = "Zone"
 old = "craft_ui::docking::model::Zone"
-new = "craft_behavior::dock::Zone"
-status = "moved"
+new = "craft_behavior::DockSide"
+status = "replaced"
+note = "`DockSide` in reading order: `Left` is `Start` and `Right` is `End`; saved layouts and actions with `Left`/`Right` load through serde aliases. `Placement::for_zone` loses its `right_to_left` argument."
 
 [[type]]
 name = "Monitor"
 old = "craft_ui::docking::model::Monitor"
-new = "craft_behavior::dock::Monitor"
+new = "craft_behavior::Monitor"
 status = "moved"
+note = "The one desktop monitor type of saved data, in `craft_behavior::monitor`."
 
 [[type]]
 name = "Group"
@@ -211,8 +213,16 @@ status = "moved"
 [[type]]
 name = "Side"
 old = "craft_ui::docking::dock_model::Side"
-new = "craft_behavior::dock::Side"
-status = "moved"
+new = "craft_behavior::dock::DockEdge"
+status = "replaced"
+note = "Renamed: `overlay::Side` is another type. A dock's window edge, `Start` or `End`."
+
+[[type]]
+name = "Place"
+old = "craft_ui::docking::dock_model::Place"
+new = "craft_behavior::dock::PanelPlace"
+status = "replaced"
+note = "Renamed: `contract::overlay::Place` is another type."
 
 [[type]]
 name = "Target"
@@ -255,8 +265,9 @@ note = "A constant."
 [[type]]
 name = "SplitAxis"
 old = "craft_ui::layout::SplitAxis"
-new = "craft_behavior::dock::SplitAxis"
-status = "moved"
+new = "craft_behavior::Axis"
+status = "replaced"
+note = "`Horizontal` is `X` and `Vertical` is `Y`; saved layouts with the old names load through serde aliases. The split tree is in reading order: the first child is the start (or top) child."
 
 [[type]]
 name = "SplitSize"
