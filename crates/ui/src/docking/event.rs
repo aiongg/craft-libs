@@ -1,7 +1,7 @@
 //! `DockEvent`, `FloatSpace` and `HidePanels`: what a dock reports to the host and the host tells a dock.
 
+use super::DockSizes;
 use crate::menu::GroupItem;
-use craft_behavior::GroupId;
 use egui::{Rect, Vec2};
 
 /// A request for host state outside the layout, or a report of where something ended up.
@@ -32,12 +32,12 @@ pub enum DockEvent<P> {
         /// The chosen row.
         command: GroupItem,
     },
-    /// A dock column was placed: the column that holds `group` first took `rect` this pass. Hosts that anchor
+    /// A dock column was placed: the column that holds `anchor` first took `rect` this pass. Hosts that anchor
     /// their own surfaces to a column read it.
     #[non_exhaustive]
     ColumnPlaced {
-        /// The first group of the column.
-        group: GroupId,
+        /// A panel of the first group of the column.
+        anchor: P,
         /// The column's rect in the area's layer space.
         rect: Rect,
     },
@@ -96,13 +96,13 @@ pub struct FloatSpace<P> {
 }
 
 impl<P: PartialEq> FloatSpace<P> {
-    /// An area with no recorded sizes: commands float a panel at `default_size`, `inset` inside the area. The dock
-    /// passes its style's sizes (the cascade offset and the floating window's default size).
-    pub fn new(area: Rect, inset: f32, default_size: Vec2) -> Self {
+    /// An area with no recorded sizes: commands float a panel at the default float size of `sizes`, its cascade
+    /// inset inside the area.
+    pub fn new(area: Rect, sizes: &DockSizes) -> Self {
         FloatSpace {
             area,
-            inset,
-            default_size,
+            inset: sizes.cascade_inset,
+            default_size: sizes.float_size,
             panels: Vec::new(),
             groups: Vec::new(),
             columns: Vec::new(),

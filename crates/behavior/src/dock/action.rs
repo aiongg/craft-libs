@@ -1,8 +1,10 @@
 //! Where a panel goes ([`Placement`]), where it was ([`Location`]) and the transaction unit ([`Action`]).
 
+use crate::monitor::Monitor;
+
 use super::{
+    DockSide,
     groups::{GroupLocation, Target},
-    node::{Monitor, Zone},
     policy::Permissions,
     split::SplitSize,
 };
@@ -19,7 +21,7 @@ pub enum Placement<P> {
     },
     /// Center inserts after the anchor; sides split the anchor's frame into two halves, and
     /// every other frame keeps its size. Sides apply to `Tabs` and `Stack` nodes only.
-    Split(Zone),
+    Split(DockSide),
     /// A side [`Placement::Split`] that gives the new frame its own room instead of half the
     /// anchor's frame: the new split takes `size`, and `outer` replaces the size of the nearest
     /// enclosing split whose divider runs along the anchor frame's `zone` side, so the frames
@@ -30,7 +32,7 @@ pub enum Placement<P> {
     #[non_exhaustive]
     SplitSized {
         /// The side of the anchor frame.
-        zone: Zone,
+        zone: DockSide,
         /// Size of the new split.
         size: SplitSize,
         /// New size of the enclosing split that gives up the room.
@@ -61,7 +63,7 @@ pub enum Placement<P> {
     /// side of a side-by-side split is a dock and only one holds a protected panel, that side;
     /// for `Top` (`Bottom`), also the first (last) row of a split of rows when only that row
     /// holds one. `Center` is invalid.
-    Edge(Zone),
+    Edge(DockSide),
 }
 
 /// A closed panel's former placement. Applications may retain this beside visibility flags.
@@ -128,7 +130,7 @@ pub enum Action<P> {
     /// `anchor` names the group it joins as the last tab. Without one it becomes the root of an
     /// empty layout, else joins the first dock group that accepts tabs and is shown (not
     /// minimized, not in an iconic column; the end-side dock's first), else gets a new frame a
-    /// quarter wide at the right edge of the docked area
+    /// quarter wide at the end edge of the docked area
     /// ([`Placement::Edge`]).
     #[non_exhaustive]
     Open {
@@ -462,7 +464,7 @@ impl<P> Placement<P> {
     }
 
     /// Builds [`Placement::SplitSized`].
-    pub fn split_sized(zone: Zone, size: SplitSize, outer: SplitSize) -> Self {
+    pub fn split_sized(zone: DockSide, size: SplitSize, outer: SplitSize) -> Self {
         Self::SplitSized { zone, size, outer }
     }
 
@@ -483,7 +485,7 @@ impl<P> Placement<P> {
     /// (`floating`), which splits the anchor's frame.
     pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
         match self {
-            Self::Tab { .. } | Self::Split(Zone::Center) => anchor.accepts_tabs,
+            Self::Tab { .. } | Self::Split(DockSide::Center) => anchor.accepts_tabs,
             Self::Split(_) | Self::SplitSized { .. } => anchor.accepts_splits,
             Self::Group { .. } if floating => anchor.accepts_splits,
             _ => true,

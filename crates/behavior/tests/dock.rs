@@ -1,8 +1,10 @@
 //! The dock model: validation, restore to the old place, permissions and the persisted shapes.
 
 use craft_behavior::dock::{
-    Column, DockError, Floating, Group, Layout, Location, Monitor, Node, PanelState, Permissions, Placement, Side, SplitAxis, SplitSize,
+    Action, Column, DockEdge, DockError, DockSide, Floating, Group, Layout, Location, Node, PanelState, Permissions, Placement, SplitSize,
 };
+use craft_behavior::{Axis, Flow, Monitor};
+use emath::{Pos2, Rect};
 use serde_json::json;
 
 const WINDOW: [f32; 4] = [100.0, 100.0, 300.0, 400.0];
@@ -16,30 +18,30 @@ fn tabs(panels: &[u32], active: usize) -> Node<u32> {
 }
 
 fn hsplit(size: SplitSize, first: Node<u32>, second: Node<u32>) -> Node<u32> {
-    Node::split(SplitAxis::Horizontal, size, first, second)
+    Node::split(Axis::X, size, first, second)
 }
 
 /// Canvas 1 above frame tabs [11, 12]; an end dock with column A ([2, 3], [4]) and column B
 /// ([5]); a floating window with groups [6, 7] and [8].
 fn docked() -> Layout<u32> {
-    let middle = Node::split(SplitAxis::Vertical, SplitSize::Ratio(0.7), tabs(&[1], 0), tabs(&[11, 12], 1));
-    let dock = Node::dock(Side::End, vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)]);
+    let middle = Node::split(Axis::Y, SplitSize::Ratio(0.7), tabs(&[1], 0), tabs(&[11, 12], 1));
+    let dock = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)]);
     Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), middle, dock)), vec![Floating::stack(vec![g(&[6, 7], 1), g(&[8], 0)], WINDOW).unwrap()])
 }
 
 fn with_column(column: Column<u32>) -> Layout<u32> {
-    Layout::new(Some(Node::dock(Side::End, vec![column])), Vec::new())
+    Layout::new(Some(Node::dock(DockEdge::End, vec![column])), Vec::new())
 }
 
 #[test]
 fn validation_rejects_two_docks_per_side_nested_docks_empty_columns_and_bad_widths() {
     docked().validate().unwrap();
     let empty_dock = |side| Node::dock(side, Vec::new());
-    Layout::new(Some(hsplit(SplitSize::FixedFirst(10.0), empty_dock(Side::Start), tabs(&[1], 0))), Vec::new()).validate().unwrap();
+    Layout::new(Some(hsplit(SplitSize::FixedFirst(10.0), empty_dock(DockEdge::Start), tabs(&[1], 0))), Vec::new()).validate().unwrap();
 
-    let two = hsplit(SplitSize::Ratio(0.5), empty_dock(Side::Start), empty_dock(Side::Start));
-    let nested = Node::split(SplitAxis::Vertical, SplitSize::Ratio(0.5), empty_dock(Side::Start), tabs(&[1], 0));
-    let wrong_side = hsplit(SplitSize::Ratio(0.5), empty_dock(Side::End), tabs(&[1], 0));
+    let two = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), empty_dock(DockEdge::Start));
+    let nested = Node::split(Axis::Y, SplitSize::Ratio(0.5), empty_dock(DockEdge::Start), tabs(&[1], 0));
+    let wrong_side = hsplit(SplitSize::Ratio(0.5), empty_dock(DockEdge::End), tabs(&[1], 0));
     for root in [two, nested, wrong_side] {
         assert_eq!(Layout::new(Some(root), Vec::new()).validate(), Err(DockError::InvalidPlacement));
     }
@@ -73,7 +75,7 @@ fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
     empty_window.floating[0].root = tabs(&[], 0);
     assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
     let mut docked_window = docked();
-    docked_window.floating[0].root = Node::dock(Side::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
+    docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
     assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
     let mut native = docked();
     native.floating[0].native = Some([0.0, 0.0, -1.0, 10.0]);
@@ -109,7 +111,7 @@ fn without(skip: Option<u32>) -> Layout<u32> {
     b.iconic = true;
     b.iconic_width = Some(48.0);
     let columns: Vec<Column<u32>> = [Column::new(a, 180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
-    let end = Node::dock(Side::End, columns);
+    let end = Node::dock(DockEdge::End, columns);
     let windows: Vec<Group<u32>> = [group(&[6], 0), tall].into_iter().flatten().collect();
     Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)), vec![Floating::stack(windows, [10.0, 10.0, 200.0, 300.0]).unwrap()])
 }
@@ -188,7 +190,7 @@ fn a_saved_stack_of_groups_loads_as_a_vertical_split_by_their_heights() {
         "rect": [1.0, 2.0, 300.0, 400.0],
     });
     let window: Floating<u32> = serde_json::from_value(saved).unwrap();
-    let expected = Node::split(SplitAxis::Vertical, SplitSize::Ratio(0.25), tabs(&[4], 0), tabs(&[5, 6], 1));
+    let expected = Node::split(Axis::Y, SplitSize::Ratio(0.25), tabs(&[4], 0), tabs(&[5, 6], 1));
     assert_eq!((window.root, window.minimized), (expected, false));
     let all_minimized = json!({"groups": [{"panels": [4], "active": 0, "minimized": true}], "rect": [1.0, 2.0, 300.0, 400.0]});
     let window: Floating<u32> = serde_json::from_value(all_minimized).unwrap();
@@ -228,7 +230,7 @@ fn windows_keep_their_ids_through_a_save() {
 }
 
 #[test]
-fn a_layout_saved_by_the_legacy_code_loads_and_writes_back_unchanged() {
+fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order() {
     let saved = r#"{
         "root": {"Split": {"axis": "Horizontal", "size": {"FixedSecond": 300.0},
             "first": {"Tabs": {"panels": [1, 2], "active": 1}},
@@ -240,9 +242,34 @@ fn a_layout_saved_by_the_legacy_code_loads_and_writes_back_unchanged() {
     let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
     layout.validate().unwrap();
     let expected = Layout::new(
-        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(Side::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
+        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
         vec![Floating::single(vec![4], 0, [1.0, 2.0, 300.0, 200.0]).with_id(5)],
     );
     assert_eq!(layout, expected);
-    assert_eq!(serde_json::to_value(&layout).unwrap(), serde_json::from_str::<serde_json::Value>(saved).unwrap());
+    let written = serde_json::to_value(&layout).unwrap();
+    assert_eq!(written["root"]["Split"]["axis"], json!("X"));
+    let mut renamed: serde_json::Value = serde_json::from_str(saved).unwrap();
+    renamed["root"]["Split"]["axis"] = json!("X");
+    assert_eq!(written, renamed);
+}
+
+#[test]
+fn actions_saved_with_left_and_right_load_as_start_and_end() {
+    for (saved, side) in [("Left", DockSide::Start), ("left", DockSide::Start), ("Right", DockSide::End), ("right", DockSide::End)] {
+        let action: Action<u32> = serde_json::from_value(json!({"Move": {"panel": 1, "anchor": 2, "placement": {"Split": saved}}})).unwrap();
+        assert_eq!(action, Action::move_beside(1, 2, Placement::Split(side)), "{saved}");
+    }
+    assert_eq!(serde_json::to_value(Placement::<u32>::Split(DockSide::Start)).unwrap(), json!({"Split": "Start"}));
+}
+
+#[test]
+fn a_split_dropped_on_start_lands_on_the_right_in_a_right_to_left_flow() {
+    let mut layout = Layout::new(Some(tabs(&[1], 0)), Vec::new());
+    layout.restore(2, &Location::new(Some(1), Placement::Split(DockSide::Start))).unwrap();
+    let Some(Node::Split { axis: Axis::X, first, .. }) = &layout.root else { panic!("{:?}", layout.root) };
+    assert_eq!(**first, tabs(&[2], 0), "the dropped panel is the start child");
+    let area = Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(200.0, 100.0));
+    let start_cell = Rect::from_min_max(area.min, Pos2::new(100.0, 100.0));
+    assert!(Flow::new(area, false).to_physical(start_cell).center().x < area.center().x);
+    assert!(Flow::new(area, true).to_physical(start_cell).center().x > area.center().x);
 }
