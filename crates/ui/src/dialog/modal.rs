@@ -10,7 +10,7 @@ use crate::runtime::access::Access;
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
-use crate::sections::FooterButton;
+use crate::sections::{DialogRole, FooterButton};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::{Pos2, Ui};
@@ -42,12 +42,15 @@ pub struct Dialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
-    /// Lets the host refuse the close of a button: `allows` gets the index of a picked button that would close the
-    /// dialog (not `Cancel`, not one marked `stays_open`) and returns whether it may. On `false` the dialog stays
-    /// open, with `DialogOutput::picked` still reporting the pick; the host shows why.
+    /// Lets the host act on a picked button and refuse its close: `allows` gets the index of every picked button but
+    /// `Cancel` and the dialog's body context, so a host reads and writes its kept state, and returns whether a
+    /// button that closes the dialog may. On `false` the dialog stays open, with `DialogOutput::picked` still
+    /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed, name = "close_guard")]
-    guard: Option<Box<dyn FnMut(usize) -> bool + 'a>>,
+    guard: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>>,
     buttons: Vec<FooterButton>,
+    /// Whether Enter closes the dialog as its OK.
+    enter: bool,
     /// Whether the title row has a close action.
     #[prop]
     closable: bool,
@@ -79,6 +82,7 @@ impl<'a> Dialog<'a> {
             footer: None,
             guard: None,
             buttons: Vec::new(),
+            enter: false,
             closable: true,
             closed: None,
             picked: None,
@@ -87,7 +91,10 @@ impl<'a> Dialog<'a> {
         .label(title)
     }
 
-    fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
+    /// Changes the layer the dialog shows in, for the settings without a setter of their own: the size a resizable
+    /// dialog has until the user resizes it (`Overlay::size`) and the least it may be resized to (`Overlay::min_size`).
+    #[must_use]
+    pub fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
         self.props = match std::mem::take(&mut self.props.mount) {
             Mount::Layer(overlay) => self.props.mount(Mount::Layer(change(overlay))),
             Mount::Viewport { fallback } => self.props.mount(Mount::viewport(change(fallback))),
@@ -108,13 +115,13 @@ impl<'a> Dialog<'a> {
     /// A tool window: no modal layer and no backdrop; its edits are the app's normal edits.
     #[must_use]
     pub fn modeless(self) -> Self {
-        self.with_overlay(Overlay::modeless)
+        self.overlay(Overlay::modeless)
     }
 
     /// What is drawn behind a modal dialog.
     #[must_use]
     pub fn backdrop(self, backdrop: Backdrop) -> Self {
-        self.with_overlay(|mut overlay| {
+        self.overlay(|mut overlay| {
             if overlay.rank.is_modal() {
                 overlay.rank = Rank::modal(backdrop);
             }
@@ -125,13 +132,13 @@ impl<'a> Dialog<'a> {
     /// Whether edge grips resize the dialog, and the size the user leaves it at is saved.
     #[must_use]
     pub fn resizable(self, on: bool) -> Self {
-        self.with_overlay(|overlay| if on { overlay.resizable(true).fit(OverlayFit::Resizable) } else { overlay.resizable(false) })
+        self.overlay(|overlay| if on { overlay.resizable(true).fit(OverlayFit::Resizable) } else { overlay.resizable(false) })
     }
 
     /// What takes the keyboard focus when the dialog opens.
     #[must_use]
     pub fn initial_focus(self, initial: Initial) -> Self {
-        self.with_overlay(|overlay| {
+        self.overlay(|overlay| {
             let focus = overlay.focus.initial(initial);
             overlay.focus(focus)
         })
@@ -141,7 +148,7 @@ impl<'a> Dialog<'a> {
     /// it. A saved placement comes first.
     #[must_use]
     pub fn first_place(self, at: Pos2) -> Self {
-        self.with_overlay(|overlay| overlay.place(Place::Float(FloatPlace::at(at))))
+        self.overlay(|overlay| overlay.place(Place::Float(FloatPlace::at(at))))
     }
 
     /// Saves the placement and size under `key`, so a reopened dialog sits where the user left it.
@@ -151,12 +158,21 @@ impl<'a> Dialog<'a> {
         self
     }
 
-    /// Whether Enter, pressed with the focus inside and left untaken by the focused part, closes the dialog with
-    /// `CloseReason::Enter` (the OK of the dialog).
+    /// Whether Enter, pressed with the focus inside and left untaken by the focused part, is the OK of the dialog.
+    /// With an enabled `Accept` button in the footer, Enter activates that button, so a click and Enter take the same
+    /// way (`close_guard` included) and `DialogOutput::picked` says so. Without one, Enter closes the dialog with
+    /// `CloseReason::Enter`.
     #[must_use]
-    pub fn close_on_enter(self, on: bool) -> Self {
-        self.with_overlay(|mut overlay| {
-            overlay.dismiss = overlay.dismiss.enter(on);
+    pub fn close_on_enter(mut self, on: bool) -> Self {
+        self.enter = on;
+        self.route_enter()
+    }
+
+    /// Sets the overlay's own Enter dismissal for the dialogs whose footer has no default button to take it.
+    fn route_enter(self) -> Self {
+        let dismiss = self.enter && !self.buttons.iter().any(|button| button.role() == DialogRole::Accept && button.is_enabled());
+        self.overlay(|mut overlay| {
+            overlay.dismiss = overlay.dismiss.enter(dismiss);
             overlay
         })
     }
@@ -189,7 +205,7 @@ impl<'a> Dialog<'a> {
     pub fn buttons(mut self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
         self.props = self.props.footer(FOOTER);
         self.buttons = buttons.into_iter().collect();
-        self
+        self.route_enter()
     }
 
     /// The footer's content: the closure fills a footer bar above the buttons, or alone.
@@ -238,7 +254,7 @@ impl Container for Dialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked, &mut self.guard);
+        frame::footer(ui, cx, &mut self.footer, &self.buttons, self.enter, &mut self.picked, &mut self.guard);
     }
 
     fn closed(&mut self, why: CloseReason) {

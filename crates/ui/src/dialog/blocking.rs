@@ -132,7 +132,7 @@ impl Container for BlockingOverlay<'_> {
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let buttons: Vec<FooterButton> = self.cancel.iter().map(|label| FooterButton::new(label.clone(), DialogRole::Cancel)).collect();
-        frame::footer(ui, cx, &mut None, &buttons, &mut self.picked, &mut None);
+        frame::footer(ui, cx, &mut None, &buttons, false, &mut self.picked, &mut None);
     }
 
     fn closed(&mut self, why: CloseReason) {

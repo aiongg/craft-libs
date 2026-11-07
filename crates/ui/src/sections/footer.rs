@@ -45,6 +45,8 @@ pub struct FooterBar {
     #[container]
     props: ContainerProps,
     content: Content,
+    /// Whether an Enter the focused part left untaken activates the default button.
+    enter: bool,
 }
 
 /// The payload a dropped-on action reports, type-erased so actions of different payload types share one footer.
@@ -458,6 +460,13 @@ fn letters_reach_footer(ctx: &Context) -> bool {
     focus::focus_in_scope(ctx, scope) == Some(true) && focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
 }
 
+/// Whether an Enter would reach the open layer's default button: the layer is the topmost one that takes keys and the
+/// focus is inside it.
+fn enter_reaches_footer(ctx: &Context) -> bool {
+    let Some(scope) = focus::open_scope(ctx) else { return false };
+    crate::runtime::overlay::top(ctx) == Some(scope) && focus::focus_in_layer(ctx, scope) == Some(true)
+}
+
 #[derive(Default)]
 enum Content {
     #[default]
@@ -480,6 +489,7 @@ impl FooterBar {
             common: Common::new(),
             props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
             content: Content::Body,
+            enter: false,
         }
     }
 
@@ -494,9 +504,18 @@ impl FooterBar {
         FooterBar { content: Content::Buttons(buttons.into_iter().collect()), ..FooterBar::body() }
     }
 
+    /// Whether an Enter that the focused part left untaken, pressed with the focus inside the open layer, activates the
+    /// default button (the first enabled `Accept` one) like a click on it.
+    #[must_use]
+    pub(crate) fn enter_activates(mut self, on: bool) -> Self {
+        self.enter = on;
+        self
+    }
+
     /// Shows the bar with the actions or buttons it was made with and reports what happened to them.
     pub fn show_footer(mut self, ui: &mut Ui) -> FooterOutput {
         let content = std::mem::take(&mut self.content);
+        let enter = self.enter;
         let shown = self.show(ui, |ui, _| match &content {
             Content::Body => Shown::default(),
             Content::Actions(actions) => {
@@ -562,6 +581,9 @@ impl FooterBar {
                             shown.picked = Some(at);
                         }
                     }
+                }
+                if enter && shown.picked.is_none() && !ui.is_sizing_pass() {
+                    shown.picked = default_at.filter(|_| enter_reaches_footer(&ctx) && keys::take_submit(&ctx));
                 }
                 shown
             }

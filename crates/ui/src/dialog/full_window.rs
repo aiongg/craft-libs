@@ -35,11 +35,12 @@ pub struct FullWindowDialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
-    /// Lets the host refuse the close of a button: `allows` gets the index of a picked button that would close the
-    /// dialog (not `Cancel`, not one marked `stays_open`) and returns whether it may. On `false` the dialog stays
-    /// open, with `DialogOutput::picked` still reporting the pick; the host shows why.
+    /// Lets the host act on a picked button and refuse its close: `allows` gets the index of every picked button but
+    /// `Cancel` and the dialog's body context, so a host reads and writes its kept state, and returns whether a
+    /// button that closes the dialog may. On `false` the dialog stays open, with `DialogOutput::picked` still
+    /// reporting the pick; the host shows why. A button marked `stays_open` never closes, whatever it returns.
     #[prop(boxed, name = "close_guard")]
-    guard: Option<Box<dyn FnMut(usize) -> bool + 'a>>,
+    guard: Option<Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether the title row has a close action.
     #[prop]
@@ -148,7 +149,7 @@ impl Container for FullWindowDialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked, &mut self.guard);
+        frame::footer(ui, cx, &mut self.footer, &self.buttons, false, &mut self.picked, &mut self.guard);
     }
 
     fn closed(&mut self, why: CloseReason) {
