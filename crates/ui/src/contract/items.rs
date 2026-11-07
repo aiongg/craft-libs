@@ -657,14 +657,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft), label, &name);
                     self.renaming.draft = draft;
                     if let Some(editor) = editor {
-                        // A layer that is still fading out (the menu the rename was chosen in) takes focus away from what
-                        // lies under it, so the request repeats until the field holds the focus.
                         if !self.renaming.focused {
-                            if focus::is_focused(&ctx, editor.response.id) {
-                                self.renaming.focused = true;
-                            } else {
-                                focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
-                            }
+                            focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
+                            self.renaming.focused = true;
                         }
                         let gesture = self.renaming.gesture;
                         let before = Mixed::Same(Rename { key: key.clone(), name });
