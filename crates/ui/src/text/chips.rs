@@ -249,6 +249,10 @@ impl Component for ChipField<'_> {
         Some(self.value.reborrow())
     }
 
+    fn parts_follow_value(&self) -> bool {
+        true
+    }
+
     /// A remove part's click, or Delete or Backspace on a focused chip, removes the chip; Backspace in an empty draft
     /// focuses the last chip. Delete in an empty draft does nothing.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {

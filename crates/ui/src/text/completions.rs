@@ -7,6 +7,7 @@ use crate::primitives::TextKey;
 use crate::runtime::env::Label;
 use craft_behavior::{DisplayOrder, ItemSource};
 use std::borrow::Cow;
+use std::hash::{DefaultHasher, Hash as _, Hasher as _};
 
 /// The labels of the candidates as a collection source, keyed by position.
 struct Candidates<'a> {
@@ -42,8 +43,17 @@ pub(crate) fn show<C: Component, V: 'static>(ui: &mut OverlayUi<'_>, cx: &mut Cx
     let candidates = cx.text(key).map_or_else(Vec::new, |text| text.completions.clone());
     let labels: Vec<Label> = candidates.iter().map(|candidate| cx.env.resolve(&candidate.label)).collect();
     let name = cx.label();
+    // New candidates are new rows: the highlight returns to the first.
+    let stamp = {
+        let mut hasher = DefaultHasher::new();
+        labels.iter().for_each(|label| label.as_str().hash(&mut hasher));
+        hasher.finish()
+    };
     let events = ui.show(popup, Overlay::dropdown(), |ui, _| {
-        List::options(name.clone()).show_items(ui, &Candidates { labels: &labels }, &mut |at, _| ListRow::new(labels[*at].clone()).option()).events
+        List::options(name.clone())
+            .rows_stamp(stamp)
+            .show_items(ui, &Candidates { labels: &labels }, &mut |at, _| ListRow::new(labels[*at].clone()).option())
+            .events
     });
     let picked = events.into_iter().flatten().find_map(|event| match event {
         CollectionEvent::Activate(at) => Some(at),

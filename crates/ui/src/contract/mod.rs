@@ -250,6 +250,12 @@ pub trait Component: Meta + Sized {
         Vec2::ZERO
     }
 
+    /// Whether the component's parts or size depend on its value: a text commit that changes the value then runs the
+    /// pass again, so the parts show the new value.
+    fn parts_follow_value(&self) -> bool {
+        false
+    }
+
     /// The root's sense; the shape's default unless a canvas control.
     fn sense(&self) -> Sense {
         if Self::CANVAS_CONTROL { Sense::empty() } else { <Self::Shape as ShowShape>::DEFAULT_SENSE }

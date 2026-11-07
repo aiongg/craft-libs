@@ -345,6 +345,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
     if !inert && C::INPUT == Input::Text {
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
+        parts.text.parts_follow_value = comp.parts_follow_value();
     }
     if !inert {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));

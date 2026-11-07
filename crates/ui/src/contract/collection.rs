@@ -220,6 +220,9 @@ pub struct CollectionProps {
     /// A primary press moves key focus to the collection. Off: a press picks and activates and focus stays where it
     /// is, for a popup list whose opener keeps focus.
     pub focus_on_press: bool,
+    /// Identifies the set the rows are, where it can change while the collection is shown: the lead starts over when
+    /// it differs from the last pass's. Completion candidates, which are new rows at every keystroke.
+    pub rows_stamp: Option<u64>,
 }
 
 impl CollectionProps {
@@ -238,6 +241,7 @@ impl CollectionProps {
             lead_on_open: LeadOnOpen::Selected,
             lead_follows_hover: false,
             focus_on_press: true,
+            rows_stamp: None,
         }
     }
 
@@ -308,6 +312,13 @@ impl CollectionProps {
     #[must_use]
     pub const fn lead_follows_hover(mut self, on: bool) -> Self {
         self.lead_follows_hover = on;
+        self
+    }
+
+    /// The rows are the set `stamp` names; the lead starts over when the stamp changes.
+    #[must_use]
+    pub const fn rows_stamp(mut self, stamp: u64) -> Self {
+        self.rows_stamp = Some(stamp);
         self
     }
 

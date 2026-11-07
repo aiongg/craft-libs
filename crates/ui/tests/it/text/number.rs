@@ -8,6 +8,7 @@ use craft_host::{AppInfo, Host};
 use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::UnitKind;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press};
 use craft_ui::testing::windows::FakeSystem;
@@ -245,6 +246,23 @@ fn presets_open_over_the_field_and_a_pick_sets_the_value() {
     fixture.idle(3);
     const FIRST: f64 = 8.0;
     assert_eq!(*shown.value.borrow(), Some(FIRST), "the reopened list starts at the first row, a number row");
+}
+
+/// AccessKit Expand and Collapse on the presets chevron open and close the list, not the field.
+#[trial]
+fn expand_and_collapse_on_the_presets_chevron_open_and_close_the_list() {
+    let (mut fixture, shown) = fixture_of(None, presets(), false);
+    fixture.idle(2);
+    let field = shown.id.get().expect("the field showed");
+    let chevron = |fixture: &Fixture| fixture.part(field, craft_behavior::PartKey::new("presets")).expect("the chevron has a node");
+    let target = chevron(&fixture);
+    fixture.access(AccessActionKind::Expand, &target);
+    fixture.idle(4);
+    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(true), "Expand opens the list");
+    let target = chevron(&fixture);
+    fixture.access(AccessActionKind::Collapse, &target);
+    fixture.idle(4);
+    assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "Collapse closes it");
 }
 
 /// One drag of the popup slider is one Begin and one Commit, not a set per frame.

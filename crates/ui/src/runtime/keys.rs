@@ -659,6 +659,11 @@ fn route_access(
         ActionKind::Focus if node.focusable => {}
         ActionKind::Expand | ActionKind::Collapse if node.expanded.is_some() => {
             if node.expanded == Some(matches!(request.kind(), ActionKind::Collapse)) {
+                // A sub-node with no stop of its own (a chevron) names its part: the component decides what it opens.
+                if node.part.is_some() && !node.focusable {
+                    push(routed, owner, Intent::Access(request.request(node.part)), false);
+                    return;
+                }
                 match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
                     Some(rec) => route_activate(ctx, &rec, routed, activated),
                     None => push(routed, owner, Intent::Activate, false),

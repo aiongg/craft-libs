@@ -22,8 +22,8 @@ use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole
 use crate::value_drag::Slider;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
-    Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey,
-    Selection, Sense, ValueDrag, decimals_for_step, wheel_step,
+    AccessAction, AccessRequest, Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, MoveMods, NavMove, NotAValue,
+    NumberCodec, PartKey, Selection, Sense, ValueDrag, decimals_for_step, wheel_step,
 };
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
@@ -361,6 +361,17 @@ impl<'a> NumberField<'a> {
         let mut asked = cx.intents().take(Intent::Open);
         for (popup, part) in [(presets, PRESETS), (slider, SLIDER)] {
             let Some(popup) = popup else { continue };
+            let named = |request: &AccessRequest| {
+                request.target.is_some_and(|target| target.key == part) && matches!(request.action, AccessAction::Expand | AccessAction::Collapse)
+            };
+            while let Some(request) = cx.intents().take_access_where(named) {
+                if request.action == AccessAction::Expand {
+                    popup.open(cx);
+                } else {
+                    popup.close(cx);
+                }
+                asked = false;
+            }
             if cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click()) {
                 if popup.is_open(cx) {
                     popup.close(cx);

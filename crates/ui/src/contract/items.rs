@@ -60,11 +60,13 @@ struct Lead<K> {
     /// A sheet's lead cell column and the column the cell range extends from.
     column: usize,
     anchor_column: usize,
+    /// The `CollectionProps.rows_stamp` of the pass that last set the lead.
+    stamp: Option<u64>,
 }
 
 impl<K> Default for Lead<K> {
     fn default() -> Self {
-        Lead { key: None, at: 0, column: 0, anchor_column: 0 }
+        Lead { key: None, at: 0, column: 0, anchor_column: 0, stamp: None }
     }
 }
 
@@ -281,6 +283,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A collection in a layer starts from `lead_on_open` at every opening of the layer, not only the first.
         if overlay::drawing_parent(&ctx).is_some_and(|layer| overlay::opening(&ctx, layer)) {
             self.lead = Lead::default();
+        }
+        let stamp = comp.items().rows_stamp;
+        if stamp != self.lead.stamp {
+            self.lead = Lead::default();
+            self.lead.stamp = stamp;
+            // The selection follows the lead: the one the collection holds goes with it.
+            if comp.selection().is_none() {
+                self.selection = C::Selection::default();
+            }
         }
         if self.lead.key.is_none() {
             self.lead.key = self.selection.lead().cloned();
