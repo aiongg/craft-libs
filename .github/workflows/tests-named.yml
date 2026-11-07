@@ -1,0 +1,58 @@
+name: Named tests
+
+on:
+  push:
+    branches: [ci/t1, ci/t2, ci/t3, ci/t4, ci/t5, ci/t6, ci/t7, ci/t8]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: tests-named-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+  CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+
+jobs:
+  tests:
+    name: named tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Install linker
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: tests-named
+      - name: Run filters
+        run: bash .github/ci/run-filters.sh
+      - name: Summary
+        if: always()
+        run: bash .github/ci/tests-summary.sh test.log >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-log
+          path: test.log
+          retention-days: 3
+          if-no-files-found: ignore
