@@ -1126,7 +1126,7 @@ dependencies = [
  "craft-keymap",
  "craft-theme",
  "emath",
- "kurbo",
+ "kurbo 0.13.1",
  "smallvec",
 ]
 
