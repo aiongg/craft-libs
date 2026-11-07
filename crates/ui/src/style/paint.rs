@@ -124,3 +124,8 @@ pub(crate) fn ink_color(tokens: &UiTokens, ink: super::key::Ink) -> Color32 {
         super::key::Ink::OnDark => text.on_strong,
     })
 }
+
+/// The colour of the scrim behind a modal layer.
+pub(crate) fn scrim_color(tokens: &UiTokens) -> Color32 {
+    color(tokens.color.surface.scrim)
+}

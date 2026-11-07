@@ -3,6 +3,7 @@
 
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
+use super::{overlay, tooltip};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
     TipFn, Validity,
@@ -442,11 +443,15 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::gesture_gate(cx);
     steps::update_inputs(&mut cx.core);
     steps::edit_intents(comp, cx);
+    overlay::begin_owner(&ctx, id);
     comp.update(cx);
     p.hooks.updated(comp, cx);
     // 10 overlay
     p.trace.mark(Step::Overlay);
-    comp.overlay(&mut OverlayUi::new(), cx);
+    let open = overlay::open_map(&mut *cx.core.memory, id);
+    let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
+    comp.overlay(&mut overlays, cx);
+    overlay::apply_closes(&ctx, overlays.closed);
     // What `update` and `overlay` left untaken goes back to the key service.
     steps::after_update(&mut cx.core);
     // 11 apply
@@ -455,7 +460,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     p.hooks.apply(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
-    steps::state(comp, cx, false, env.ink);
+    steps::state(comp, cx, overlay::popup_shown(&ctx, id), env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
         commands::note_focus(&ctx, id, &env.commands);
     }
@@ -477,10 +482,10 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     // 15 settle
     p.trace.mark(Step::Settle);
     steps::settle(comp, cx);
-    // 16 report. F5-LATER: the tooltip runs from `tip` here.
+    // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
     steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own });
-    let _ = p.tip.take();
+    tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
     p.activated = comp.activated(cx) && resolved.enabled;
 }
 

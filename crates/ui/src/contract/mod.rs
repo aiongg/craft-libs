@@ -2,12 +2,15 @@
 
 mod cx;
 mod looks;
+pub mod overlay;
 mod paint_ui;
 mod props;
 mod registry;
 mod run;
 mod shell;
 mod steps;
+pub mod toast;
+pub mod tooltip;
 mod values;
 
 pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
@@ -25,7 +28,8 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
-pub use shell::{CollectionProps, ContainerProps, OverlayUi};
+pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
+pub use shell::{CollectionProps, ContainerProps};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};

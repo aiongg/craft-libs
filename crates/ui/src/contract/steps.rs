@@ -885,10 +885,9 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
-/// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied. A reveal request goes to
-/// the nearest scroll owner; anything queued for the next pass requests a repaint.
+/// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied, and the open state of the
+/// component's popups is written. A reveal request goes to the nearest scroll owner; anything queued for the next pass requests a repaint.
 pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
-    // F5-LATER: open and gate changes.
     let adopted = std::mem::take(&mut cx.core.paint.borrow_mut().adopted);
     for event in adopted.into_iter().filter_map(|adopted| adopted.take::<ValueOf<C>>()) {
         if let Some(event) = cx.absorb(event) {
@@ -896,6 +895,8 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
         }
     }
     apply_values(comp, cx);
+    let owner = cx.core.id;
+    super::overlay::write_open(&mut *cx.core.memory, owner);
     if let Some(rect) = cx.core.reveal.take()
         && let Some(owner) = wheel::nearest_scroll_owner(&cx.core.ctx, rect)
     {
@@ -927,7 +928,6 @@ fn validity_message<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
 
 /// Step 16, report: the AccessKit node filled with its sub-nodes, the label-scope patch and the merge, then the
 /// cursor request.
-// F5-LATER: tooltips (`contract::tooltip`)
 pub(crate) fn report<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     report_access(comp, cx, input);
     super::cx::write_cursor(&cx.core);

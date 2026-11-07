@@ -5,7 +5,6 @@
 
 use crate::runtime::commands::CommandScope;
 use crate::runtime::focus::FocusPolicy;
-use std::marker::PhantomData;
 
 /// What a container or collection adds to `Common`.
 #[derive(Clone, Debug, Default)]
@@ -53,18 +52,5 @@ impl CollectionProps {
     /// Collection props with every setting at its default.
     pub const fn new() -> Self {
         CollectionProps {}
-    }
-}
-
-/// What `Component::overlay` builds anchored popups with.
-// F3-LATER: overlay host (F5)
-#[derive(Debug)]
-pub struct OverlayUi<'a> {
-    _anchor: PhantomData<&'a ()>,
-}
-
-impl OverlayUi<'_> {
-    pub(crate) fn new() -> Self {
-        OverlayUi { _anchor: PhantomData }
     }
 }

@@ -51,6 +51,7 @@ egui_kittest = { version = "0.37", default-features = false, optional = true }
 craft-host = { workspace = true }
 craft-i18n = { workspace = true }
 log = "0.4"
+smallvec = { workspace = true }
 linkme = "0.3"
 serde = { workspace = true }
 

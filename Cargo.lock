@@ -1722,6 +1722,7 @@ dependencies = [
  "linkme",
  "log",
  "serde",
+ "smallvec",
 ]
 
 [[package]]

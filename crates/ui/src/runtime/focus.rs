@@ -95,7 +95,6 @@ pub(crate) struct State {
     pub(super) pending: Option<FocusTarget>,
     pub(super) docs: HashMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
     pub(super) seen: HashMap<Id, u64>,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
@@ -140,12 +139,16 @@ pub(crate) fn register_group(ctx: &Context, group: Group) {
 }
 
 /// Opens the scope `id` for the stops registered until the matching [`pop_scope`].
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
+    push_scope_from(ctx, id, policy, label, None);
+}
+
+/// `push_scope` for a scope whose opener the caller noted before egui's modal gate took focus away from it.
+pub(crate) fn push_scope_from(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>, noted: Option<StopKey>) {
     let focused = egui_focus::focused(ctx);
     with(ctx, |state| {
         let parent = state.open.last().map(|(parent, _)| *parent);
-        let opener = focused.and_then(|root| state.focused.get(&root).copied().or(Some((root, None))));
+        let opener = noted.or_else(|| focused.and_then(|root| state.focused.get(&root).copied().or(Some((root, None)))));
         let opener = state.last_scopes.get(&id).map_or(opener, |last| last.opener.or(opener));
         state.scopes.insert(id, ScopeRec { policy, parent, label, opener });
         state.scope_order.push(id);
@@ -156,7 +159,6 @@ pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Opti
 
 /// Closes the innermost open scope. A scope pushed for the first time (or again after a gap of a frame)
 /// moves focus to its initial stop, in this pass.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn pop_scope(ctx: &Context) {
     let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
     let acts = with(ctx, |state| nav::initial_focus(state, frame));
@@ -212,7 +214,6 @@ pub(crate) fn focused_rec(ctx: &Context) -> Option<StopRec> {
 }
 
 /// Whether the focus stop is a child of a collection row's roving group.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn in_row_child(ctx: &Context) -> bool {
     with(ctx, |state| {
         let group = state.stop_of_focus().and_then(|rec| rec.stop.group);
@@ -276,4 +277,19 @@ pub(crate) fn end(ctx: &Context) {
     let focused = egui_focus::focused(ctx);
     let acts = with(ctx, |state| nav::end(state, focused));
     apply(ctx, acts);
+}
+
+/// Whether the focused stop sits inside `scope` or a scope opened from inside it; `None` when nothing is focused.
+pub(crate) fn focus_in_scope(ctx: &Context, scope: Id) -> Option<bool> {
+    let rec = focused_rec(ctx)?;
+    Some(with(ctx, |state| {
+        let mut at = rec.scope;
+        while let Some(id) = at {
+            if id == scope {
+                return true;
+            }
+            at = state.last_scopes.get(&id).and_then(|record| record.parent);
+        }
+        false
+    }))
 }

@@ -26,6 +26,7 @@ pub mod marquee;
 pub mod motion;
 pub mod nav;
 pub mod one_press;
+pub mod overlay;
 pub mod part;
 pub mod press;
 pub mod scroll;

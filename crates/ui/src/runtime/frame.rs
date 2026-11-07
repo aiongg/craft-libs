@@ -5,7 +5,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
-use crate::runtime::{access, cursor, focus, keys, layout_memory, memory, motion, pointer, wheel};
+use crate::runtime::{access, cursor, focus, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -327,6 +327,8 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);
     }
+    toast::end_pass(&ctx);
+    overlay::end_pass(&ctx);
     focus::end(&ctx);
     let sweeps: Vec<fn(&Context)> = store::with::<FrameState, _>(&ctx, |state| state.sweeps.values().copied().collect());
     for sweep in sweeps {

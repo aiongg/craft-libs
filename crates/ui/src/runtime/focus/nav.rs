@@ -277,7 +277,6 @@ fn cycle(entries: &[Entry], current: Option<&StopRec>, forward: bool) -> Option<
 }
 
 /// Closes the innermost open scope; a scope shown for the first time moves focus to its initial stop.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
     let Some((scope, first)) = state.open.pop() else { return Vec::new() };
     state.seen.retain(|_, last| *last + 1 >= frame);

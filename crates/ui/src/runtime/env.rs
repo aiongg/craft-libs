@@ -408,6 +408,11 @@ impl Env {
         });
     }
 
+    /// The root env of the running viewport, once its begin hook ran.
+    pub(crate) fn root_of(ctx: &Context) -> Option<Env> {
+        PerViewport::<ViewportEnvs>::with(ctx, ctx.viewport_id(), |envs| envs.root.clone())
+    }
+
     /// Records `env` as the root env of `viewport`, which `Env::of` falls back to for a `Ui` with no entry above it.
     pub(crate) fn set_root(ctx: &Context, viewport: ViewportId, env: Env) {
         PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root = Some(env));

@@ -231,6 +231,20 @@ pub(crate) fn end_pass(ctx: &Context) {
     }
 }
 
+/// The open-close presence of an overlay layer `base` that no component context drives: the overlay host reads it.
+/// A layer that is closed and fully faded out answers without opening a stage.
+pub(crate) fn layer_presence(ctx: &Context, base: Id, owner: Id, policy: MotionPolicy, open: bool, spec: MotionSpec) -> Presence {
+    let hidden = Presence { t: 0.0, visible: false, exiting: false };
+    let running = store::peek_clone::<Tween<f32>>(ctx, memory::sub(base, ("anim", "open"))).is_some_and(|tween| !tween.is_settled() || tween.target() > 0.0 || tween.shown() > 0.0);
+    if !open && !running {
+        return hidden;
+    }
+    let stage = MemoryStage::open_owned(ctx, memory::sub(base, "presence"), owner);
+    let presence = Driver { stage: &stage, base, policy }.presence("open", open, spec);
+    stage.write_back();
+    presence
+}
+
 /// Everything an `Animate` call needs from the context type that makes it.
 pub(crate) struct Driver<'a> {
     pub(crate) stage: &'a MemoryStage,

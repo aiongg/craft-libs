@@ -8,6 +8,7 @@ use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEven
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
 use craft_behavior::focus::key_owner;
+use crate::runtime::overlay;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
 use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
@@ -266,6 +267,14 @@ impl Strip<'_> {
 /// whether it removed an event, so the hook asks for a repaint.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
+    // A modal layer in another viewport blocks this one (app-modal, 15.5): nothing below reaches the key stage.
+    if overlay::modal_elsewhere(ctx, viewport) {
+        let (removed, press) = raw_input::drop_under_modal(input);
+        if press {
+            overlay::note_dropped_press(ctx, viewport);
+        }
+        return removed;
+    }
     let os = raw_input::os(ctx);
     let record = focus::record(ctx, viewport);
     let keys = record.keys;
@@ -650,12 +659,10 @@ pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
 }
 
 /// Takes an untaken `Submit` for the innermost scope with a default action.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn take_submit(ctx: &Context) -> bool {
     take_untaken(ctx, &Intent::Submit)
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     let focused = focus::focused_rec(ctx).map(|rec| rec.stop.id);
     current(ctx, |stage| {
@@ -672,7 +679,6 @@ fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
 
 /// What an untaken Escape does in a scope: `None` when no Escape arrived or a component took it. One scope
 /// takes each Escape.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool, scope_clearable: bool) -> Option<EscapeStep> {
     if !take_untaken(ctx, &Intent::Cancel) {
         return None;

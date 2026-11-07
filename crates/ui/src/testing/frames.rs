@@ -5,7 +5,7 @@ use crate::runtime::egui::access::AccessTree;
 use crate::runtime::egui::{areas, fixture};
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
-use crate::runtime::{InstallSpec, install};
+use crate::runtime::InstallSpec;
 use craft_host::Host;
 use egui::{Context, Event, Ui};
 use std::sync::Arc;
@@ -57,7 +57,7 @@ impl Frames {
 
     /// Installs the runtime on the context.
     pub fn install(&mut self) {
-        let installed = install(&self.ctx, InstallSpec::new());
+        let installed = crate::install(&self.ctx, InstallSpec::new());
         debug_assert!(installed.is_ok(), "the context takes the runtime once");
     }
 

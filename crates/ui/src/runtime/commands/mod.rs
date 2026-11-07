@@ -282,8 +282,6 @@ pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> ResolvedCommand
 }
 
 /// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire.
-// F5-LATER: the overlay host calls this when a `Rank::Modal` layer opens or closes
-#[expect(dead_code, reason = "called by the overlay host (F5)")]
 pub(crate) fn set_modal_open(ctx: &Context, open: bool) {
     board::set_modal_open(ctx, open);
 }
