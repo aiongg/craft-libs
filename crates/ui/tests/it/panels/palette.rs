@@ -132,8 +132,9 @@ fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
 fn zz_diag() {
     let rig = rig();
     let tree = rig.fixture.tree();
+    let mut out = String::new();
     for key in tree.keys() {
-        eprintln!("ZZ {:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
+        out += &format!("\nZZ {:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
     }
-    panic!("diag");
+    panic!("diag{out}");
 }
