@@ -289,6 +289,10 @@ pub enum AccessActionKind {
     Click,
     /// AccessKit `Increment`.
     Increment,
+    /// AccessKit `Decrement`.
+    Decrement,
+    /// AccessKit `SetValue` with a number.
+    SetValue(f64),
     /// AccessKit `Expand`, an action with no intent of its own.
     Expand,
     /// AccessKit `ScrollDown`.
@@ -306,8 +310,17 @@ impl AccessActionKind {
             AccessActionKind::Focus => accesskit::Action::Focus,
             AccessActionKind::Click => accesskit::Action::Click,
             AccessActionKind::Increment => accesskit::Action::Increment,
+            AccessActionKind::Decrement => accesskit::Action::Decrement,
+            AccessActionKind::SetValue(_) => accesskit::Action::SetValue,
             AccessActionKind::Expand => accesskit::Action::Expand,
             AccessActionKind::ScrollDown => accesskit::Action::ScrollDown,
+        }
+    }
+
+    fn data(self) -> Option<accesskit::ActionData> {
+        match self {
+            AccessActionKind::SetValue(value) => Some(accesskit::ActionData::NumericValue(value)),
+            _ => None,
         }
     }
 }
@@ -316,13 +329,18 @@ impl AccessActionKind {
 pub(crate) fn access_request(kind: AccessActionKind, target: egui::Id) -> Event {
     let action = kind.action();
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
-    Event::AccessKitActionRequest(accesskit::ActionRequest { action, target_tree: accesskit::TreeId::ROOT, target_node, data: None })
+    Event::AccessKitActionRequest(accesskit::ActionRequest { action, target_tree: accesskit::TreeId::ROOT, target_node, data: kind.data() })
 }
 
 /// An AccessKit action request for the node `target`.
 pub(crate) fn access_request_node(kind: AccessActionKind, target: crate::runtime::egui::access::NodeKey) -> Event {
     let target_node = accesskit::NodeId(target.raw());
-    Event::AccessKitActionRequest(accesskit::ActionRequest { action: kind.action(), target_tree: accesskit::TreeId::ROOT, target_node, data: None })
+    Event::AccessKitActionRequest(accesskit::ActionRequest {
+        action: kind.action(),
+        target_tree: accesskit::TreeId::ROOT,
+        target_node,
+        data: kind.data(),
+    })
 }
 
 /// An AccessKit `SetValue` request carrying `value` for the node of `target`.

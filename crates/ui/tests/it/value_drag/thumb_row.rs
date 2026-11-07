@@ -1,9 +1,12 @@
 //! `ThumbRow` rules: the order thumbs keep, split halves, wrapping.
 
-use craft_behavior::{MoveMods, NavMove};
-use craft_ui::contract::Bind;
-use craft_ui::testing::trial;
+use craft_behavior::{MoveMods, NavMove, PartKey};
+use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::testing::focus::AccessActionKind;
+use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{Anchor, Order, RowOp, Thumb, ThumbOp, ThumbRow};
+use egui::{Key, Modifiers, Ui};
 
 fn forward(thumb: usize) -> RowOp {
     RowOp::new(thumb, ThumbOp::Move(NavMove::Forward, MoveMods::PLAIN))
@@ -53,4 +56,53 @@ fn an_anchored_row_keeps_its_span_and_order() {
     assert_eq!(rules.apply(&forward(3), &at), at);
     // A middle thumb stops at the next one.
     assert_eq!(rules.apply(&RowOp::new(1, ThumbOp::Set(70.0)), &at), [340.0, 50.0, 50.0, 80.0]);
+}
+
+/// Two thumbs with a default of their own and a binding whose reset is different from both.
+fn levels(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let thumbs = [Thumb::new("Black").reset(10.0), Thumb::new("White").reset(90.0)];
+    ThumbRow::new(Bind::bound(data.value("row", [20.0, 80.0])).reset([0.0, 100.0]), 0.0..=100.0)
+        .step(1.0)
+        .thumbs(thumbs)
+        .label("Levels")
+        .show(ui)
+        .into()
+}
+
+fn levels_fixture() -> Fixture {
+    let mut fixture = Fixture::story(&Story::new("levels", levels));
+    fixture.settle();
+    fixture
+}
+
+fn row(fixture: &Fixture) -> [f64; 2] {
+    *fixture.data().value("row", [f64::NAN; 2])
+}
+
+fn thumb(fixture: &Fixture, i: u64) -> craft_ui::testing::Target {
+    let id = fixture.root_id().expect("the row is shown");
+    fixture.part(id, PartKey::new("thumb").at(i)).expect("the thumb has a sub-node")
+}
+
+/// A reset aimed at a thumb that has a default of its own sets that thumb alone, by a double click on it or by
+/// Delete while it is focused; the other thumb keeps its value.
+#[trial]
+fn a_reset_of_a_thumb_with_a_default_sets_only_that_thumb() {
+    let mut fixture = levels_fixture();
+    let at = thumb(&fixture, 1).center();
+    fixture.frame(vec![moved(at)]);
+    for _ in 0..2 {
+        fixture.frame(vec![press(at)]);
+        fixture.frame(vec![release(at)]);
+    }
+    fixture.idle(2);
+    assert_eq!(row(&fixture), [20.0, 90.0], "a double click on the second thumb restores its default alone");
+
+    let mut fixture = levels_fixture();
+    let first = thumb(&fixture, 0);
+    fixture.access(AccessActionKind::Focus, &first);
+    fixture.idle(2);
+    fixture.key(Key::Delete, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(row(&fixture), [10.0, 80.0], "Reset with the first thumb focused restores its default alone");
 }

@@ -657,10 +657,13 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             cx.cancel(reason);
         }
     }
-    let double = is_double_click(&cx.core);
-    if cx.core.intents.take(Intent::Reset) || (double && !matches!(C::INPUT, Input::Text | Input::Editor)) {
-        let reset = comp.bind().and_then(|bind| bind.reset_value().cloned());
-        if let Some(reset) = reset {
+    let reset = cx.core.intents.take(Intent::Reset);
+    let double = double_click(&cx.core).filter(|_| !matches!(C::INPUT, Input::Text | Input::Editor));
+    if reset || double.is_some() {
+        let part = if reset { cx.core.active } else { double.flatten() };
+        if let Some(part) = part.filter(|part| cx.core.own_reset_parts.contains(&(part.key, part.index))) {
+            cx.core.reset_part = Some(part);
+        } else if let Some(reset) = comp.bind().and_then(|bind| bind.reset_value().cloned()) {
             cx.set(reset);
         }
     }
@@ -738,10 +741,17 @@ fn hide_scrub_cursor<C: Component>(cx: &Cx<'_, C>, drag: &ValueDrag) {
     }
 }
 
-/// A second press of a double click went down on the component's root or one of its value parts this pass (10.2).
-fn is_double_click(core: &CxCore<'_>) -> bool {
+/// A second press of a double click went down on the component's root (`Some(None)`) or one of its value parts
+/// (`Some(Some(part))`) this pass (10.2).
+fn double_click(core: &CxCore<'_>) -> Option<Option<PartRef>> {
     let second = |phase: &craft_behavior::PressPhase| matches!(phase, craft_behavior::PressPhase::Down { start, .. } if start.clicks >= 2);
-    second(&core.press.phase) || core.value_parts.iter().any(|key| core.results.get(key).is_some_and(|result| second(&result.press.phase)))
+    if second(&core.press.phase) {
+        return Some(None);
+    }
+    core.value_parts
+        .iter()
+        .find(|key| core.results.get(key).is_some_and(|result| second(&result.press.phase)))
+        .map(|&(key, index)| Some(PartRef { key, index }))
 }
 
 /// Step 12: a control with a reset value tells its label scope whether its value differs from it (10.2).

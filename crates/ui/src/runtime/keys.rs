@@ -95,7 +95,7 @@ struct Item {
 struct Routed {
     items: Vec<Item>,
     nudge: Option<(Vec2, Mods)>,
-    set_value: Option<f64>,
+    set_value: Option<(Option<PartRef>, f64)>,
 }
 
 #[derive(Clone, Copy)]
@@ -606,10 +606,13 @@ fn route_access(
             Some(rec) => route_activate(ctx, &rec, routed, activated),
             None => push(routed, owner, Intent::Activate, false),
         },
+        ActionKind::Increment | ActionKind::Decrement if node.part.is_some() && !node.focusable => {
+            push(routed, owner, Intent::Access(request.request(node.part)), false)
+        }
         ActionKind::Increment => push(routed, owner, Intent::Move(NavMove::Forward, MoveMods::PLAIN), false),
         ActionKind::Decrement => push(routed, owner, Intent::Move(NavMove::Back, MoveMods::PLAIN), false),
         ActionKind::ShowContextMenu => push(routed, owner, Intent::ContextMenu, false),
-        ActionKind::SetValue(value) => routed.entry(owner).or_default().set_value = Some(value),
+        ActionKind::SetValue(value) => routed.entry(owner).or_default().set_value = Some((node.part, value)),
         ActionKind::Focus | ActionKind::Expand | ActionKind::Collapse | ActionKind::Other => {
             push(routed, owner, Intent::Access(request.request(node.part)), false)
         }
@@ -621,7 +624,7 @@ fn route_access(
 pub struct Intents {
     items: Vec<(Intent, bool)>,
     nudge: Option<(Vec2, Mods)>,
-    set_value: Option<f64>,
+    set_value: Option<(Option<PartRef>, f64)>,
 }
 
 impl Intents {
@@ -707,9 +710,24 @@ impl Intents {
         self.nudge.take()
     }
 
-    /// Takes the AccessKit `SetValue` request.
+    /// Takes the AccessKit `SetValue` request aimed at the component's own node.
     pub fn take_set_value(&mut self) -> Option<f64> {
-        self.set_value.take()
+        self.take_set_value_of(None)
+    }
+
+    /// Takes the AccessKit `SetValue` request aimed at the sub-node of `part`.
+    pub fn take_set_value_at(&mut self, part: impl Into<PartRef>) -> Option<f64> {
+        self.take_set_value_of(Some(part.into()))
+    }
+
+    fn take_set_value_of(&mut self, part: Option<PartRef>) -> Option<f64> {
+        match self.set_value {
+            Some((target, value)) if target == part => {
+                self.set_value = None;
+                Some(value)
+            }
+            _ => None,
+        }
     }
 
     /// Whether an intent of the kind of `intent` is routed and not taken.

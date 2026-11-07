@@ -94,6 +94,10 @@ pub struct CxCore<'a> {
     pub(crate) scroll_moves: Vec<(PartKey, Range<f64>)>,
     /// The parts that show the value, whose double click resets it like the root's.
     pub(crate) value_parts: Vec<(PartKey, Option<u64>)>,
+    /// The value parts that declared `own_reset`.
+    pub(crate) own_reset_parts: Vec<(PartKey, Option<u64>)>,
+    /// The part a reset targeted that declared `own_reset`; step 9 leaves its value to `update`.
+    pub(crate) reset_part: Option<PartRef>,
     /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
@@ -122,6 +126,12 @@ pub struct CxCore<'a> {
 }
 
 impl<C: Component> Cx<'_, C> {
+    /// The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its
+    /// default. Reads `None` when the reset was the whole binding's, which step 9 applied.
+    pub fn reset_part(&self) -> Option<PartRef> {
+        self.core.reset_part
+    }
+
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
     pub fn open_url(&mut self, url: &str, new_tab: bool) {
         crate::runtime::egui::output::open_url(&self.core.ctx, url, new_tab);
@@ -1274,6 +1284,7 @@ pub(crate) struct PartExtras {
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
     pub value: bool,
+    pub own_reset: bool,
 }
 
 impl PartBuilder<'_> {
@@ -1342,6 +1353,15 @@ impl PartBuilder<'_> {
     /// stepper button or a scroll thumb is no value part.
     pub fn value_part(self) -> Self {
         self.declared.value = true;
+        self
+    }
+
+    /// A reset aimed at the part (Reset while it is the focused part, a double click on it) does not reset the
+    /// binding: `Cx::reset_part` names the part and `update` proposes the value with that part at its own default.
+    /// Implies `value_part`.
+    pub fn own_reset(self) -> Self {
+        self.declared.value = true;
+        self.declared.own_reset = true;
         self
     }
 

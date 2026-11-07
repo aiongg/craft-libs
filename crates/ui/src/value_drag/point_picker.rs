@@ -2,14 +2,16 @@
 //! on the point or the well follows the pointer, and the arrow keys move it along one axis each. The X and Y fields
 //! are `NumberField`s the caller shows beside it, bound to the same value.
 
+use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
     Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{ContentPainterCx, PaintShape};
+use crate::runtime::access::Name;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
-use craft_behavior::{Axis, HitLevel, HitPriority, Metrics, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{AccessAction, Axis, HitLevel, HitPriority, Metrics, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
@@ -20,6 +22,12 @@ mod stories;
 const WELL: PartKey = PartKey::new("well");
 /// The point: a drag on it follows the pointer.
 const THUMB: PartKey = PartKey::new("thumb");
+
+/// The accessible sub-node of the x value.
+const AXIS_X: PartKey = PartKey::new("axis_x");
+/// The accessible sub-node of the y value.
+const AXIS_Y: PartKey = PartKey::new("axis_y");
+const AXES: [PartKey; 2] = [AXIS_X, AXIS_Y];
 
 /// The well's least width and height in control heights.
 const WIDTH_IN_HEIGHTS: f32 = 10.0;
@@ -157,7 +165,7 @@ fn key_delta(mv: NavMove, mods: MoveMods, rtl: bool) -> Option<[f64; 2]> {
 }
 
 impl Component for PointPicker<'_> {
-    const ROLE: Role = Role::SLIDER;
+    const ROLE: Role = Role::GROUP;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = PointPickerStyle;
@@ -243,22 +251,45 @@ impl Component for PointPicker<'_> {
                 now = next;
             }
         }
-        if let Some(next) = cx.intents().take_set_value().filter(|next| next.is_finite()) {
-            cx.set([self.settle(0, next), now[1]]);
+        for (axis, key) in AXES.into_iter().enumerate() {
+            if let Some(next) = cx.intents().take_set_value_at(key).filter(|next| next.is_finite()) {
+                now[axis] = self.settle(axis, next);
+                cx.set(now);
+            }
+        }
+        while let Some(request) = cx.intents().take_access() {
+            let Some(axis) = AXES.iter().position(|key| request.target == Some((*key).into())) else { continue };
+            let steps = match request.action {
+                AccessAction::Increment => 1.0,
+                AccessAction::Decrement => -1.0,
+                _ => continue,
+            };
+            if !running {
+                now[axis] = self.settle(axis, now[axis] + steps * self.small(axis));
+                cx.set(now);
+            }
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let numeric = match cx.value() {
-            Some(value) => {
-                let number = |axis: usize| cx.format().number(value[axis], self.places());
-                let mut numeric = Numeric::new(value[0], self.x.clone());
-                numeric.text = Some(format!("{}, {}", number(0), number(1)));
-                numeric
-            }
-            None => Numeric::empty(self.x.clone()),
-        };
-        access.numeric(numeric.step(self.small(0)));
+        let words = cx.words::<ValueDragWords>();
+        let value = cx.value().copied();
+        let number = |axis: usize| value.map(|value| cx.format().number(value[axis], self.places()));
+        if let (Some(x), Some(y)) = (number(0), number(1)) {
+            access.value(format!("{x}, {y}"));
+        }
+        for (axis, (key, word)) in [(AXIS_X, &words.axis_x), (AXIS_Y, &words.axis_y)].into_iter().enumerate() {
+            let range = self.ranges()[axis].clone();
+            let numeric = match value {
+                Some(value) => Numeric::new(value[axis], range).text(number(axis).unwrap_or_default()),
+                None => Numeric::empty(range),
+            };
+            let node = access.node(key, Role::SLIDER);
+            let label = cx.resolved.label;
+            node.name =
+                if label.is_empty() { Name::Text(word.as_str().to_owned()) } else { Name::Joined(vec![label.to_owned(), word.as_str().to_owned()]) };
+            node.numeric = Some(numeric.step(self.small(axis)));
+        }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

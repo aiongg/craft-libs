@@ -2,6 +2,7 @@
 
 use crate::contract::kit::{Panel, Probe, RowProbe, Rows, Seen, Table};
 use craft_behavior::{PartKey, Sense};
+use craft_ui::contract::Bind;
 use craft_ui::contract::announce;
 use craft_ui::contract::{
     Access, Common, Component, Cx, Name, Numeric, Politeness, Props as _, Role as UiRole, Show as _, ShowCollection as _, ShowContainer as _,
@@ -9,7 +10,10 @@ use craft_ui::contract::{
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::{Declared, NodeKey};
 use craft_ui::testing::contract::findings;
+use craft_ui::testing::focus::AccessActionKind;
+use craft_ui::testing::{Fixture, Story};
 use craft_ui::testing::{Frames, trial};
+use craft_ui::value_drag::{Thumb, ThumbRow};
 use egui::{Rect, Response, Vec2};
 use std::cell::RefCell;
 use std::sync::Mutex;
@@ -249,4 +253,24 @@ fn expand_is_declared_only_where_the_node_has_an_open_state() {
     assert_eq!(shown(None), (false, false, true));
     assert_eq!(shown(Some(false)), (true, false, false));
     assert_eq!(shown(Some(true)), (false, true, false));
+}
+
+/// An AccessKit `SetValue` names the sub-node it targets: it sets that thumb of a row while another holds focus.
+#[trial]
+fn a_set_value_on_a_thumb_sub_node_sets_that_thumb_while_another_holds_focus() {
+    fn levels(ui: &mut egui::Ui, data: &mut craft_ui::testing::StoryData) -> craft_ui::testing::StoryOutput {
+        let thumbs = [Thumb::new("Black"), Thumb::new("White")];
+        ThumbRow::new(Bind::bound(data.value("row", [20.0, 80.0])), 0.0..=100.0).step(1.0).thumbs(thumbs).label("Levels").show(ui).into()
+    }
+    let mut fixture = Fixture::story(&Story::new("levels", levels));
+    fixture.settle();
+    let id = fixture.root_id().expect("the row is shown");
+    let thumb = |fixture: &Fixture, i: u64| fixture.part(id, PartKey::new("thumb").at(i)).expect("the thumb has a sub-node");
+    let first = thumb(&fixture, 0);
+    fixture.access(AccessActionKind::Focus, &first);
+    fixture.idle(2);
+    let second = thumb(&fixture, 1);
+    fixture.access(AccessActionKind::SetValue(60.0), &second);
+    fixture.idle(2);
+    assert_eq!(*fixture.data().value("row", [f64::NAN; 2]), [20.0, 60.0]);
 }

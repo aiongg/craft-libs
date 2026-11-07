@@ -362,10 +362,12 @@ impl Component for RangeSlider<'_> {
             let value = if upper { pair.1 } else { pair.0 };
             cx.set(with(pair, upper, scale.nudged(value, f64::from(along.signum()), Self::bounds(&scale, pair, upper))));
         }
-        if let Some(next) = cx.intents().take_set_value() {
-            let pair = Self::current(&scale, cx);
-            let (low, high) = Self::bounds(&scale, pair, upper);
-            cx.set(with(pair, upper, scale.snap(next).clamp(low, high)));
+        for (key, upper) in [(LOWER, false), (UPPER, true)] {
+            if let Some(next) = cx.intents().take_set_value_at(key) {
+                let pair = Self::current(&scale, cx);
+                let (low, high) = Self::bounds(&scale, pair, upper);
+                cx.set(with(pair, upper, scale.snap(next).clamp(low, high)));
+            }
         }
     }
 

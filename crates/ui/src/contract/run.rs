@@ -225,6 +225,8 @@ fn blank_core<'a>(
         press_cancel: None,
         scroll_moves: Vec::new(),
         value_parts: Vec::new(),
+        own_reset_parts: Vec::new(),
+        reset_part: None,
         root_sense: Sense::empty(),
         roving_arrival: None,
         collection_events: None,
@@ -439,6 +441,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.active = cx.core.focus.part.filter(|part| results.contains_key(&(part.key, part.index)));
     cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
     cx.core.value_parts = parts.decls.iter().filter(|(_, extras)| extras.value).map(|(decl, _)| (decl.key, decl.index)).collect();
+    cx.core.own_reset_parts = parts.decls.iter().filter(|(_, extras)| extras.own_reset).map(|(decl, _)| (decl.key, decl.index)).collect();
     cx.core.results = results;
     cx.core.root_sense = root_sense;
     cx.core.press = press;

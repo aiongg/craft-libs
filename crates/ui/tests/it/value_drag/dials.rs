@@ -1,7 +1,9 @@
 //! `AngleDial` points at the pointer in its orientation and steps round or against the ends of its range;
 //! `PointPicker` maps a press to the point on the well and moves one axis per arrow key.
 
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use craft_ui::testing::access::Declared;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{AngleDial, AngleOrientation, PointPicker};
@@ -119,4 +121,30 @@ fn a_point_picker_moves_one_axis_per_arrow_key() {
     assert_eq!(point(&fixture), [51.0, 51.0]);
     key(&mut fixture, Key::ArrowUp, Modifiers::SHIFT);
     assert_eq!(point(&fixture), [51.0, 41.0], "Shift moves ten steps, and up lowers y");
+}
+
+/// The picker's value is two slider sub-nodes, one per axis, each with its own numeric; the picker stays one Tab
+/// stop, and Increment or Decrement on a sub-node steps that axis alone.
+#[trial]
+fn a_point_picker_has_a_slider_sub_node_per_axis_that_steps_its_own_axis() {
+    let mut fixture = shown(picker);
+    let sliders = fixture.by_role(Role::SLIDER);
+    assert_eq!(sliders.len(), 2, "one slider sub-node per axis");
+    for axis in &sliders {
+        assert!(fixture.tree().declares_key(axis.node, Declared::Increment) && fixture.tree().declares_key(axis.node, Declared::SetValue));
+    }
+    let named = |fixture: &Fixture, end: char| {
+        fixture.by_role(Role::SLIDER).into_iter().find(|target| fixture.tree().name_of(target.node).is_some_and(|name| name.ends_with(end)))
+    };
+    let y = named(&fixture, 'Y').expect("the y axis has a node");
+    fixture.access(AccessActionKind::Increment, &y);
+    fixture.idle(2);
+    assert_eq!(point(&fixture), [50.0, 51.0], "Increment on the y sub-node steps y and leaves x");
+    let x = named(&fixture, 'X').expect("the x axis has a node");
+    fixture.access(AccessActionKind::Decrement, &x);
+    fixture.idle(2);
+    assert_eq!(point(&fixture), [49.0, 51.0]);
+    fixture.access(AccessActionKind::SetValue(20.0), &y);
+    fixture.idle(2);
+    assert_eq!(point(&fixture), [49.0, 20.0], "SetValue on the y sub-node sets y");
 }
