@@ -107,6 +107,7 @@ pub(crate) struct ToolRequests {
 }
 
 /// What a tool sees and may ask for during a call.
+#[non_exhaustive]
 pub struct ToolContext<'a> {
     /// The pointer's last sample this pass; `None` while the pointer is off the canvas and no gesture runs.
     pub pointer: Option<ToolPointer>,
@@ -176,7 +177,7 @@ impl<'a> ToolContext<'a> {
     }
 }
 
-/// A tool on the canvas. The app owns the value and hands it to [`ToolHost::show`](super::ToolHost::show) each
+/// A tool on the canvas. The app owns the value and hands it to [`ToolHost::run`](super::ToolHost::run) each
 /// pass; a tool with a gesture in progress keeps its state in itself. One `Begin`...`Commit` makes a drag: `press`
 /// returning [`ToolAction::Claimed`] begins it, `drag` updates it, `release` commits it, `cancel` ends it.
 pub trait CanvasTool {

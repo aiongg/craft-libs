@@ -20,7 +20,7 @@
 //! # fn demo(ui: &mut egui::Ui, canvas: Canvas, tool: &mut dyn CanvasTool) {
 //! let mut host = ToolHost::new("Document");
 //! let shown = canvas.show(ui, |ui, _body| host.capture_values(ui));
-//! let reply = host.show(ui, &shown.output, tool);
+//! let reply = host.run(ui, &shown.output, tool);
 //! # let _ = reply;
 //! # }
 //! ```
@@ -47,6 +47,7 @@ use std::cell::RefCell;
 #[non_exhaustive]
 pub enum ToolInput {
     /// A press of `button`. The host starts nothing when the tool takes no such button with `mods`.
+    #[non_exhaustive]
     Down {
         /// The button.
         button: PointerButton,
@@ -58,6 +59,7 @@ pub enum ToolInput {
         mods: Mods,
     },
     /// The pointer moved: a drag while a gesture runs, else a hover.
+    #[non_exhaustive]
     Move {
         /// The pointer.
         pos: Pos2,
@@ -67,12 +69,49 @@ pub enum ToolInput {
         mods: Mods,
     },
     /// The button came up.
+    #[non_exhaustive]
     Up {
         /// The pointer.
         pos: Pos2,
         /// The modifiers held.
         mods: Mods,
     },
+}
+
+impl ToolInput {
+    /// A mouse press of `button` at `pos`, with no modifiers.
+    pub const fn down(button: PointerButton, pos: Pos2) -> Self {
+        ToolInput::Down { button, pos, sample: PointerSample::new(1.0), mods: Mods::NONE }
+    }
+
+    /// A mouse move to `pos`, with no modifiers.
+    pub const fn moved(pos: Pos2) -> Self {
+        ToolInput::Move { pos, sample: PointerSample::new(1.0), mods: Mods::NONE }
+    }
+
+    /// The button coming up at `pos`, with no modifiers.
+    pub const fn up(pos: Pos2) -> Self {
+        ToolInput::Up { pos, mods: Mods::NONE }
+    }
+
+    /// The input with the modifiers `held`.
+    #[must_use]
+    pub fn mods(mut self, held: Mods) -> Self {
+        match &mut self {
+            ToolInput::Down { mods, .. } | ToolInput::Move { mods, .. } | ToolInput::Up { mods, .. } => *mods = held,
+        }
+        self
+    }
+
+    /// The input with the pen's reading `pen`; a button coming up has none.
+    #[must_use]
+    pub fn sample(mut self, pen: PointerSample) -> Self {
+        match &mut self {
+            ToolInput::Down { sample, .. } | ToolInput::Move { sample, .. } => *sample = pen,
+            ToolInput::Up { .. } => {}
+        }
+        self
+    }
 }
 
 /// Labelled values for the pointer's side, as a tool handed them over with [`ToolContext::readout`].
@@ -160,7 +199,7 @@ impl ToolHost {
     }
 
     /// Delivers the pass's pointer and key events to `tool` and paints it over the canvas.
-    pub fn show(self, ui: &mut Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
+    pub fn run(self, ui: &mut Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let key = state_id(&self.label);

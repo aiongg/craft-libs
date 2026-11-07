@@ -43,7 +43,7 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
                 host.capture_values(ui);
                 body(ui, cx);
             });
-            let reply = host.show(ui, &canvas.output, &mut *shown.borrow_mut());
+            let reply = host.run(ui, &canvas.output, &mut *shown.borrow_mut());
             if let Some(phase) = reply.gesture {
                 seen.borrow_mut().push(phase);
             }

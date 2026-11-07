@@ -12,7 +12,7 @@ name = "ToolHost"
 old = "craft_ui::canvas::tool_host::ToolHost"
 new = "craft_ui::canvas::ToolHost"
 status = "moved"
-note = "`ToolHost::new(label).show(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. Call `capture_values(ui)` inside the canvas body so tools read the canvas's space with `ToolContext::value`. `inject`, `cancel` and `in_gesture` take the host's label in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
+note = "`ToolHost::new(label).run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. Call `capture_values(ui)` inside the canvas body so tools read the canvas's space with `ToolContext::value`. `inject`, `cancel` and `in_gesture` take the host's label in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
 
 [[type]]
 name = "CanvasTool"
