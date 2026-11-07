@@ -4,7 +4,7 @@ use crate::contract::kit::{Panel, Probe, Seen};
 use craft_behavior::Sense;
 use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, FieldLabel, Props as _, Role as UiRole, Show as _, ShowContainer as _};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::access::{AccessTree, NodeKey, begin_label_scope};
+use craft_ui::testing::access::{AccessTree, NodeKey, begin_label_scope, name};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Frames, trial};
 use egui::{Id, Rect, Response};
@@ -39,6 +39,15 @@ fn one_control_is_labelled_by_the_field_label() {
     let (_, ids, tree) = field(&mut frames, 1, false);
     assert_eq!(tree.labelled_by(ids[0]), [NodeKey::of(field_label().id)]);
     assert_eq!((tree.role(field_label().id), tree.name(field_label().id)), (Some(UiRole::LABEL), Some("Name")));
+}
+
+#[trial]
+fn the_name_rule_follows_labelled_by() {
+    let mut frames = Frames::new();
+    let (_, ids, tree) = field(&mut frames, 1, false);
+    let control = NodeKey::of(ids[0]);
+    assert_eq!(tree.name(ids[0]), None, "the label replaces the control's own name");
+    assert_eq!(name(&tree, control), Some("Name"), "a control named only through labelled_by has a name for the checker");
 }
 
 #[trial]

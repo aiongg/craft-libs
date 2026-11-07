@@ -1123,7 +1123,8 @@ impl<'a> BodyCx<'a> {
 
     /// Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
     /// it, with the icon and detail of `side`, and the child takes the width the label leaves. The row is as high as
-    /// the child (plus the label line when the label stacks). `ui` is the body's `Ui`; `key` makes the child's id.
+    /// the placement measured: the child (plus the label line when the label stacks), and the label when it is taller.
+    /// `ui` is the body's `Ui`; `key` makes the child's id.
     pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output {
         let id = self.id.with(key);
         let env = Env::of(ui);
@@ -1131,8 +1132,8 @@ impl<'a> BodyCx<'a> {
         let under = Some((self.resolved.enabled, self.resolved.size));
         let ideal = super::measure_under(&mut child, &*ui, Some(id), Proposal::Ideal, under);
         let avail = ui.available_rect_before_wrap();
-        // Tall enough for a stacked label above the child; only what the row used is allocated below.
-        let row = Rect::from_min_size(avail.min, Vec2::new(avail.width(), ideal.y * 2.0));
+        // The child's own height: a stacked label pushes the control down, and the allocation below follows the placement.
+        let row = Rect::from_min_size(avail.min, Vec2::new(avail.width(), ideal.y));
         let at = LeafLabel {
             id,
             owner: self.resolved.id,
@@ -1147,7 +1148,7 @@ impl<'a> BodyCx<'a> {
         let control = Rect::from_min_size(placed.control.min, Vec2::new(placed.control.width(), ideal.y));
         let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
         placed.finish(ui.ctx());
-        alloc::space(ui, Vec2::new(avail.width(), (control.bottom() - row.top()).max(ideal.y)));
+        alloc::space(ui, Vec2::new(avail.width(), (control.bottom().max(placed.label.bottom()) - row.top()).max(ideal.y)));
         output
     }
 }

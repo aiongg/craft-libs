@@ -12,10 +12,11 @@ use crate::runtime::access::{
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
+use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
 use craft_behavior::{ColumnWidth, Flow, IconId, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
-use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
+use egui::{Align, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
 
@@ -43,6 +44,9 @@ pub enum FieldLayout {
     Above,
     /// Above the control, at most this wide.
     Caption(CellWidth),
+    /// After the control, as check box and radio labels sit: the control takes its narrowest width and the label
+    /// follows it, on the end side under RTL. The row never stacks.
+    After,
 }
 
 /// The width of a caption's cell.
@@ -363,6 +367,8 @@ pub(crate) struct LeafLabel<'a> {
 /// A leaf child's label step that has run: the rect left for the child and the scope the caller closes.
 pub(crate) struct LeafPlaced {
     pub control: Rect,
+    /// The label's rect; `Rect::NOTHING` for a hidden label.
+    pub label: Rect,
     scope: Id,
 }
 
@@ -390,12 +396,37 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         size: at.size,
         control_min,
     };
-    LeafPlaced { control: run(ui, env, &input), scope }
+    let placed = run(ui, env, &input);
+    LeafPlaced { control: placed.control, label: placed.label, scope }
 }
 
-/// Runs the label step in `ui`: shows the label, opens the label scope and returns the rect left for the control.
-/// The caller closes the scope with `scope::finish` after the control ran.
-pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
+/// Where the label step put the label and the control.
+pub(crate) struct Placed {
+    /// The label's rect; `Rect::NOTHING` for a hidden label.
+    pub label: Rect,
+    /// The rect left for the control.
+    pub control: Rect,
+}
+
+/// The `After` placement: the control's cell first, then the gap, then the label. As in `LabelColumn::place`, the
+/// one with the lower baseline moves down so the two baselines line up, using the baseline `record_control_baseline`
+/// stored last pass.
+fn place_after(ctx: &egui::Context, scope: Id, flow: Flow, control_min: f32, gap: f32, label: Vec2, label_baseline: f32) -> Placed {
+    let rtl = flow.is_rtl();
+    let (control_cell, rest) = flow.take_start(control_min.min(flow.rect().width()));
+    let (_, rest) = rest.take_start(gap);
+    let control_baseline = layout_memory::read(ctx, sub(scope, "baseline")).map(|size| size.y);
+    let drop = control_baseline.map_or(0.0, |control| control - label_baseline);
+    let (label_drop, control_drop) = (drop.max(0.0), (-drop).max(0.0));
+    let label_size = Vec2::new(label.x.min(rest.rect().width()), label.y);
+    let label = Flow::new(rest.rect(), rtl).align(label_size, Align::Min, Align::Min).translate(Vec2::new(0.0, label_drop));
+    let control = Rect::from_min_max(egui::pos2(control_cell.left(), control_cell.top() + control_drop), control_cell.max);
+    Placed { label, control }
+}
+
+/// Runs the label step in `ui`: shows the label, opens the label scope and returns where the label and the control
+/// sit. The caller closes the scope with `scope::finish` after the control ran.
+pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let ctx = ui.ctx().clone();
     let rtl = env.direction.is_rtl();
     let tokens = &env.tokens;
@@ -405,7 +436,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     let label_id = sub(input.scope, "label");
     if input.side.kind == LabelKind::Hidden {
         scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
-        return input.row;
+        return Placed { label: Rect::NOTHING, control: input.row };
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
@@ -432,6 +463,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
             (width, width + gap + input.control_min)
         }
         FieldLayout::Above => (natural.x, f32::INFINITY),
+        FieldLayout::After => (natural.x, 0.0),
         FieldLayout::Caption(cell) => {
             let width = match cell {
                 ColumnWidth::Fixed(width) => width.min(natural.x),
@@ -453,14 +485,19 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
         }
         Flow::new(wide, rtl)
     };
-    let placed = crate::layout::place_label(
-        &kids,
-        input.scope,
-        &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
-        flow,
-        natural.min(Vec2::new(column, natural.y)),
-        baseline,
-    );
+    let placed = if input.side.layout == FieldLayout::After {
+        place_after(&ctx, input.scope, flow, input.control_min, gap, natural, baseline)
+    } else {
+        let placed = crate::layout::place_label(
+            &kids,
+            input.scope,
+            &LabelColumn::new(column, if stacks { f32::INFINITY } else { 0.0 }, gap),
+            flow,
+            natural.min(Vec2::new(column, natural.y)),
+            baseline,
+        );
+        Placed { label: placed.label, control: placed.control }
+    };
     let label_id_for_scope = sub(input.scope, "label");
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);
     Env::restore(&ctx, installed);
@@ -469,5 +506,5 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     }
     let label = field_label(env, input, label_id_for_scope, placed.label).with_press(shown.press).activated(shown.activated);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
-    placed.control
+    Placed { label: placed.label, control: placed.control }
 }
