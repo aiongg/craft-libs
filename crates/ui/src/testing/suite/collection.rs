@@ -46,8 +46,8 @@ fn lead(fixture: &Fixture, container: &Target) -> Option<usize> {
 /// Whether the focus is on a cell: the collection navigates a grid, where Home and End move along the row and the
 /// first and last row are Ctrl+Home and Ctrl+End (17.4).
 fn focus_on_cell(fixture: &Fixture) -> bool {
-    let tree = fixture.tree();
-    tree.data_of(tree.focused_key()).is_some_and(|node| node.role() == accesskit::Role::Cell)
+    let focused = fixture.tree().focused_key();
+    fixture.by_role(Role::CELL).iter().any(|cell| cell.node == focused)
 }
 
 /// A click on the first row puts the lead there; the keys then move it: Down and Up by one row, End to the last,
