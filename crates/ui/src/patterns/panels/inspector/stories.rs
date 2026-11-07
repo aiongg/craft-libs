@@ -18,17 +18,22 @@ fn inspector(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         Inspector::new("Properties").target("layer-1").header("Layer 1").icon(IconSpec::svg(IconId::new("settings"))).kind("Pixel layer").show(
             ui,
             |ui, _| {
-                let shown = SectionStack::new(&order, |ui, key, slot| {
-                    let open = Bind::bound(data.value(TITLES[usize::from(*key)], true));
-                    Section::new(TITLES[usize::from(*key)])
-                        .open(open)
-                        .in_stack(slot)
-                        .show(ui, |ui, _| {
-                            Slider::new(Bind::given(30.0), 0.0..=100.0).label("Opacity").show(ui);
-                        })
-                        .output
-                })
-                .show(ui);
+                let stack = SectionStack::new(&order);
+                let rows = stack.rows();
+                let shown = stack
+                    .show(ui, |ui, _| {
+                        rows.each(ui, |ui, key, slot| {
+                            let open = Bind::bound(data.value(TITLES[usize::from(*key)], true));
+                            Section::new(TITLES[usize::from(*key)])
+                                .open(open)
+                                .in_stack(slot)
+                                .show(ui, |ui, _| {
+                                    Slider::new(Bind::given(30.0), 0.0..=100.0).label("Opacity").show(ui);
+                                })
+                                .output
+                        });
+                    })
+                    .output;
                 let order = data.value("order", vec![0_u8, 1, 2]);
                 for edit in &shown.moves {
                     if let Some(moved) = edit.value()
