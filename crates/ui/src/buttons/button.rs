@@ -1,16 +1,20 @@
 //! `Button`: a push button with an optional leading and trailing icon and a busy state.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Props, Role};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, PartsCx, Pointer as _, Props, Role};
+use crate::display::Spinner;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook};
-use craft_behavior::{IconId, Metrics, Sense};
+use craft_behavior::{IconId, Metrics, PartKey, Sense};
 use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Response, Vec2};
+use egui::{Rect, Response, Vec2};
+
+/// The part a loading button shows its spinner in.
+const SPINNER: PartKey = PartKey::new("spinner");
 
 /// The style of a push button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -99,6 +103,18 @@ impl Component for Button {
         if self.loading { Sense::FOCUS } else { Sense::CLICK | Sense::FOCUS }
     }
 
+    /// A loading button declares the slot of its spinner, which paints as the face of that part.
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        if !self.loading {
+            return;
+        }
+        let (area, rtl) = (cx.content_rect, cx.flow.is_rtl());
+        let spinner = face::spinner_rect(cx, &self.spec(cx.resolved.label), &cx.style.face, cx.style.icon.side, area, rtl);
+        if let Some(rect) = spinner {
+            cx.part(SPINNER, rect);
+        }
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.join_roving();
     }
@@ -113,6 +129,9 @@ impl Component for Button {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         face::paint(ui, cx, (&cx.style.text, &cx.style.icon), &cx.style.face, &self.spec(cx.resolved.label), cx.content_rect);
+        if cx.part_if_declared(SPINNER).is_some() {
+            ui.face(SPINNER, Spinner::new().variant(cx.resolved.variant));
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

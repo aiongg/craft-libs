@@ -1,38 +1,27 @@
 //! What a push or toggle button shows: a leading icon (or spinner), a label and a trailing icon, centred in the
 //! button, and the look parts the buttons share.
 
-use crate::contract::{Animate as _, Component, Cx, MeasureCx, PaintUi, Styled as _};
-use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
-use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
+use crate::contract::{Component, Cx, MeasureCx, PaintUi, Styled as _};
+use crate::primitives::{IconSpec, TextRun};
+use crate::style::{FocusLook, IconLook, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, IconId};
 use craft_theme::{
     Variant,
     variant::{Emphasis, Tone},
 };
-use egui::{Pos2, Rect, Vec2, pos2, vec2};
-use std::f32::consts::{PI, TAU};
-
-/// How long the spinner takes for a turn, in seconds.
-const SPIN_PERIOD: f64 = 1.0;
-/// The arc the spinner draws, in radians.
-const SPIN_SWEEP: f32 = PI * 4.0 / 3.0;
-/// The points of the spinner's arc.
-const SPIN_POINTS: usize = 24;
+use egui::{Rect, Vec2, pos2};
 
 /// The parts of a button's look that the face paints besides its text and icon looks.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct FaceLook {
     /// The gap between icon and label.
     pub gap: f32,
-    /// The radius of the spinner's ring.
-    pub ring: f32,
 }
 
 impl FaceLook {
-    /// The face look of the instance's variant: the control's gap and spinner.
+    /// The face look of the instance's variant: the control's gap.
     pub(super) fn of(cx: &StyleCx<'_>) -> FaceLook {
-        let control = cx.control();
-        FaceLook { gap: control.gap, ring: control.icon / 2.0 - cx.tokens.space.gap.tight }
+        FaceLook { gap: cx.control().gap }
     }
 }
 
@@ -48,7 +37,8 @@ pub(super) struct FaceSpec<'a> {
     pub role: Option<TypeRole>,
     pub lead: Option<&'a IconId>,
     pub trail: Option<&'a IconId>,
-    /// A spinner takes the place of the leading icon, or of the label when there is no leading icon.
+    /// A spinner takes the place of the leading icon, or of the label when there is no leading icon: the face keeps
+    /// the slot empty and the button shows a `Spinner` there.
     pub loading: bool,
 }
 
@@ -100,6 +90,50 @@ pub(super) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) 
     Vec2::new(text.x + icon * spec.icons() as f32 + cx.gap() * spec.gaps() as f32, text.y.max(icon))
 }
 
+/// The slots of the parts a face shows, centred in an area.
+struct Slots {
+    lead: Option<Rect>,
+    text: Option<Rect>,
+    trail: Option<Rect>,
+}
+
+/// Places the icons of `side` and a label `text_width` wide with `gap` between them, centred in `area`: the leading
+/// icon at the reading start, the trailing icon at the reading end.
+fn slots(spec: &FaceSpec<'_>, side: f32, gap: f32, text_width: f32, area: Rect, rtl: bool) -> Slots {
+    let width = side * spec.icons() as f32 + gap * spec.gaps() as f32 + text_width;
+    let (_, mut rest) = Flow::new(area, rtl).take_start(((area.width() - width) / 2.0).max(0.0));
+    let mut take = |extent: f32| {
+        let (slot, next) = rest.take_start(extent);
+        rest = next;
+        slot
+    };
+    let mut slots = Slots { lead: None, text: None, trail: None };
+    let mut gapped = false;
+    if spec.lead.is_some() {
+        slots.lead = Some(take(side));
+        gapped = true;
+    }
+    if !spec.label.is_empty() {
+        if gapped {
+            take(gap);
+        }
+        slots.text = Some(take(text_width));
+        gapped = true;
+    }
+    if spec.trail.is_some() {
+        if gapped {
+            take(gap);
+        }
+        slots.trail = Some(take(side));
+    }
+    slots
+}
+
+/// The square an icon of `side` takes in `slot`, vertically centred in `area`.
+fn icon_at(slot: Rect, area: Rect, side: f32) -> Rect {
+    Rect::from_center_size(pos2(slot.center().x, area.center().y), Vec2::splat(side))
+}
+
 /// Paints the face centred in `area`: the leading icon at the reading start, the trailing icon at the reading end.
 pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextLook, &IconLook), look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
     let (text_look, icon_look) = ink;
@@ -109,55 +143,28 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextL
     let run = spec.run().color(text_color);
     let text = if spec.label.is_empty() { None } else { Some(draw.layout(&run, (area.width() - fixed).max(0.0))) };
     let text_width = text.as_ref().map_or(0.0, |text| text.size().x);
-    let width = fixed + text_width;
-    let (_, mut rest) = Flow::new(area, cx.flow.is_rtl()).take_start(((area.width() - width) / 2.0).max(0.0));
-    let mut take = |extent: f32| {
-        let (slot, next) = rest.take_start(extent);
-        rest = next;
-        slot
-    };
-    let centre_y = area.center().y;
-    let icon_at = |slot: Rect| Rect::from_center_size(pos2(slot.center().x, centre_y), Vec2::splat(side));
-    let spinner = |slot: Rect| ring(&draw, cx, icon_at(slot).center(), look.ring, icon_color);
-    let mut gap = false;
-    if let Some(lead) = spec.lead {
-        let slot = take(side);
-        if spec.loading {
-            spinner(slot);
-        } else {
-            draw.icon(icon_at(slot), &IconSpec::svg(lead.clone()).color(icon_color));
-        }
-        gap = true;
+    let slots = slots(spec, side, look.gap, text_width, area, cx.flow.is_rtl());
+    if let (Some(lead), Some(slot)) = (spec.lead, slots.lead)
+        && !spec.loading
+    {
+        draw.icon(icon_at(slot, area, side), &IconSpec::svg(lead.clone()).color(icon_color));
     }
-    if let Some(text) = &text {
-        if gap {
-            take(look.gap);
-        }
-        let slot = take(text_width);
-        if spec.loading && spec.lead.is_none() {
-            spinner(slot);
-        } else {
-            draw.galley(pos2(slot.min.x, centre_y - text.size().y / 2.0), text);
-        }
-        gap = true;
+    if let (Some(text), Some(slot)) = (&text, slots.text)
+        && !(spec.loading && spec.lead.is_none())
+    {
+        draw.galley(pos2(slot.min.x, area.center().y - text.size().y / 2.0), text);
     }
-    if let Some(trail) = spec.trail {
-        if gap {
-            take(look.gap);
-        }
-        let slot = take(side);
-        draw.icon(icon_at(slot), &IconSpec::svg(trail.clone()).color(icon_color));
+    if let (Some(trail), Some(slot)) = (spec.trail, slots.trail) {
+        draw.icon(icon_at(slot, area, side), &IconSpec::svg(trail.clone()).color(icon_color));
     }
 }
 
-/// A turning arc around `centre`: the busy mark. It stands still where motion is off.
-fn ring<C: Component>(draw: &crate::primitives::Draw<'_>, cx: &Cx<'_, C>, centre: Pos2, radius: f32, color: StyleColor) {
-    let start = cx.phase(SPIN_PERIOD, None).map_or(0.0, |turn| turn * TAU);
-    let points: Vec<Pos2> = (0..=SPIN_POINTS)
-        .map(|at| {
-            let angle = start + SPIN_SWEEP * at as f32 / SPIN_POINTS as f32;
-            centre + radius * vec2(angle.cos(), angle.sin())
-        })
-        .collect();
-    draw.stroke(&PaintShape::Path(points), StrokeWidth::Thick, color);
+/// Where the busy spinner of a loading face goes: the square of the icon side in the leading icon's slot, or in the
+/// label's slot when there is no leading icon. `None` when the face has neither.
+pub(super) fn spinner_rect<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>, look: &FaceLook, side: f32, area: Rect, rtl: bool) -> Option<Rect> {
+    let fixed = side * spec.icons() as f32 + look.gap * spec.gaps() as f32;
+    let text_width = if spec.label.is_empty() { 0.0 } else { cx.layout_at(&spec.run(), (area.width() - fixed).max(0.0)).size().x };
+    let slots = slots(spec, side, look.gap, text_width, area, rtl);
+    let slot = if spec.lead.is_some() { slots.lead } else { slots.text }?;
+    Some(icon_at(slot, area, side))
 }

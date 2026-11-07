@@ -1,0 +1,84 @@
+//! `Divider`: a separator line one physical pixel wide, horizontal or vertical.
+
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Role};
+use crate::primitives::RuleKind;
+use crate::style::{ComponentStyle, StyleCx};
+use craft_behavior::{Metrics, Sense};
+use egui::{Response, Vec2};
+
+/// The style of a divider.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct DividerStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+    /// The line's width.
+    width: f32,
+    /// The length of a vertical line, and of a horizontal one where no room is offered: one control height.
+    length: f32,
+}
+
+/// Which way the line runs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Axis {
+    Horizontal,
+    Vertical,
+}
+
+/// A separator line in the divider colour, snapped to the pixel grid. A horizontal line takes the width it is
+/// offered and a vertical one a control's height. Decoration: it is not in the AccessKit tree.
+#[derive(crate::contract::Component)]
+pub struct Divider {
+    #[common]
+    common: Common,
+    axis: Axis,
+}
+
+impl Divider {
+    /// A line across the width offered.
+    pub fn horizontal() -> Self {
+        Divider { common: Common::new(), axis: Axis::Horizontal }
+    }
+
+    /// A line down a control's height, for rows.
+    pub fn vertical() -> Self {
+        Divider { common: Common::new(), axis: Axis::Vertical }
+    }
+}
+
+impl Component for Divider {
+    const ROLE: Role = Role::None;
+    const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
+    const SHOWS_LABEL: bool = false;
+    const OVERLAYS: bool = false;
+    type Style = DividerStyle;
+    type Output = Response;
+
+    fn style(cx: &StyleCx<'_>, _: DividerStyleKey) -> DividerStyle {
+        DividerStyle { metrics: Metrics::new(), width: cx.rule(RuleKind::Divider).width, length: cx.control().height }
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        match self.axis {
+            Axis::Horizontal => Vec2::new(cx.room.unwrap_or(cx.style.length), cx.style.width),
+            Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),
+        }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
+        let rect = cx.rect;
+        let (from, to) = match self.axis {
+            Axis::Horizontal => (rect.left_center(), rect.right_center()),
+            Axis::Vertical => (rect.center_top(), rect.center_bottom()),
+        };
+        ui.draw().rule(RuleKind::Divider, from, to);
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
