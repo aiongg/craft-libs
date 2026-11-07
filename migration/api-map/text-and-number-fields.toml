@@ -74,7 +74,8 @@ note = "A `Component` over one `Bind<[Option<f64>; N]>` and a link `Bind<bool>`;
 name = "ApplyRow"
 old = "craft_ui::controls::mixed::ApplyRow"
 new = "craft_ui::text::ApplyRow"
-status = "pending"
+status = "moved"
+note = "A container: `ApplyRow::new(label, Bind<bool>).show(ui, |ui, _| field)`. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
 
 [[type]]
 name = "NumberOutput"

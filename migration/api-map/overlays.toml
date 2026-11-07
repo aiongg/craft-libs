@@ -39,7 +39,8 @@ note = "No widget type; `craft_ui::contract::DragPreview::Badge(label)` replaces
 name = "DropVeil"
 old = "craft_ui::behavior::drag_feedback::DropVeil"
 new = "craft_ui::popover::DropVeil"
-status = "pending"
+status = "replaced"
+note = "A container: `DropVeil::new(label).show(ui, |ui, _| body).dropped` gives `Option<OsFiles>`. It takes no `Context`, `id_salt` or `lines`: the label is the card text (one line; the app builds the count text) and the veil shows while `OsFiles` hover, as the app does not poll `HoveredFiles`."
 
 [[type]]
 name = "PopoverResponse"
