@@ -8,9 +8,11 @@
 //! The example has no pointer caret placement, clipboard commands or undo: pointer placement and the clipboard
 //! belong to the text UI family, and without a history `can_undo` is false, which sends undo to the app command.
 
-use crate::contract::{Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Role};
+use crate::contract::{Commands as _, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Role};
 use crate::primitives::{EditorLine, EditorPurpose, EditorRun, EditorState, PaintShape, StrokeWidth, TextRun};
+use crate::runtime::commands::ClipContent;
 use crate::runtime::focus::KeyUse;
+use crate::runtime::pending::Pending;
 use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, SurfaceLook, TypeRole};
 use craft_behavior::{EditCommand, EditorInput, Granularity, Insets, Metrics, MoveMods, NavMove, PartKey, Sense, TextPos};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -351,6 +353,13 @@ impl Component for CodeEditor<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let inputs: Vec<EditorInput> = cx.editor_input().collect();
         for input in inputs {
+            let input = match input {
+                EditorInput::Edit(EditCommand::Paste) => match cx.clipboard().paste() {
+                    Pending::Ready(ClipContent { text: Some(text) }) => EditorInput::Text(text.clone()),
+                    _ => continue,
+                },
+                other => other,
+            };
             self.edited |= self.doc.apply(input);
         }
     }

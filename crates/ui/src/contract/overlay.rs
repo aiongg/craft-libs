@@ -477,7 +477,7 @@ fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
     Service::<Popups>::of(ctx).with(f)
 }
 
-/// Step 9, before `update`: the popups `owner` registers are registered again.
+/// Step 8b, before the text part runs: the popups `owner` registers are registered again.
 pub(crate) fn begin_owner(ctx: &Context, owner: Id) {
     with_popups(ctx, |popups| {
         popups.registered.retain(|(registered, _)| *registered != owner);

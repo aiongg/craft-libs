@@ -48,8 +48,9 @@ pub(crate) fn enabled(ctx: &Context, id: Id) -> bool {
     create_node(ctx, id)
 }
 
-/// Names the node of `id`.
+/// Names the node of `id`, a widget node egui made for a text part, and notes it as the runtime's.
 pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
+    super::widgets::note_node(ctx, id);
     ctx.accesskit_node_builder(id, |node| node.set_label(label));
 }
 

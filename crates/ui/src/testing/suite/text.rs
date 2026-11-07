@@ -17,14 +17,22 @@ fn is_text(subject: &Subject) -> bool {
     matches!(subject.probe.input, Input::Text | Input::Editor)
 }
 
-/// The text the focused node shows: its value, or its text runs for an editor.
+/// The text the focused component shows. Its text runs and value are on the component's node, and egui's focus is
+/// on the text part's widget below it, whose own node holds the value only for a text field.
 fn shown_text(fixture: &Fixture) -> String {
-    let Some(id) = fixture.focused() else { return String::new() };
+    let Some(focus) = fixture.focused() else { return String::new() };
     let tree = fixture.tree();
-    let runs = tree.run_texts(id).join("\n");
-    match tree.value(id) {
-        Some(value) if runs.is_empty() => value.to_owned(),
-        _ => runs,
+    let from = |id| {
+        let runs = tree.run_texts(id).join("\n");
+        match tree.value(id) {
+            Some(value) if runs.is_empty() => value.to_owned(),
+            _ => runs,
+        }
+    };
+    let text = from(focus);
+    match fixture.root_id() {
+        Some(root) if text.is_empty() => from(root),
+        _ => text,
     }
 }
 
@@ -95,19 +103,26 @@ fn ime_composition_is_guarded(subject: &Subject) -> Result<(), String> {
     Ok(())
 }
 
-/// An editor with text reports its lines as AccessKit text runs.
+/// An editor that paints typed text reports it as AccessKit text runs. At rest an editor can hold no text (a sheet
+/// shows its cells and opens the editor on the first key), so the case types first.
 fn editor_lines_reach_accesskit(subject: &Subject) -> Result<(), String> {
     if !matches!(subject.probe.input, Input::Editor) {
         return Ok(());
     }
-    for story in &subject.stories {
-        let (fixture, _) = settled(story, subject.probe);
-        if !fixture.texts().iter().any(|run| !run.text.trim().is_empty()) {
+    for (name, mut fixture) in typing_fixtures(subject) {
+        fixture.frame(vec![Event::Text("qzq".to_owned())]);
+        fixture.idle(2);
+        if !fixture.texts().iter().any(|run| run.text.contains("qzq")) {
             continue;
         }
         let tree = fixture.tree();
-        if !tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.role() == crate::runtime::egui::access::Role::TextRun)) {
-            return Err(format!("{}: the editor paints text but reports no text run", story.name));
+        let reported = tree
+            .keys()
+            .into_iter()
+            .filter_map(|key| tree.data_of(key))
+            .any(|node| node.role() == crate::runtime::egui::access::Role::TextRun && node.value().is_some_and(|value| value.contains("qzq")));
+        if !reported {
+            return Err(format!("{name}: the editor paints the typed text but reports no text run for it"));
         }
     }
     Ok(())

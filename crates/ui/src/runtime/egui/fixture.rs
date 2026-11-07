@@ -18,7 +18,8 @@ pub(crate) struct FrameResult {
     pub copied: Vec<String>,
     /// The text runs the frame painted.
     pub texts: Vec<PaintedText>,
-    /// The visual bounds of every shape the frame painted.
+    /// The visual bounds of every shape the frame painted. A shape with no extent (egui reports an empty galley's
+    /// bounds as NaN) has none.
     pub bounds: Vec<Rect>,
 }
 
@@ -56,7 +57,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     for clipped in &output.shapes {
         flatten_ref(&clipped.shape, &mut flat);
     }
-    let bounds = flat.iter().map(|shape| shape.visual_bounding_rect()).collect();
+    let bounds = flat.iter().map(|shape| shape.visual_bounding_rect()).filter(|rect| rect.is_finite()).collect();
     let texts = flat
         .iter()
         .filter_map(|shape| match shape {
