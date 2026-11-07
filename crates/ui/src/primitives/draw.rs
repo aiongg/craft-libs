@@ -96,6 +96,7 @@ impl<'a> Draw<'a> {
             record.elided = Some(layout.full.clone());
         }
         drop(record);
+        super::text::note_painted(self.painter.ctx(), layout);
         // A run cut to nothing (an elided label in no room) has no glyphs, and egui gives it NaN bounds.
         if !layout.galley.mesh_bounds.is_finite() {
             return;

@@ -6,11 +6,11 @@ use super::stack::StackSlot;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{
     Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Pointer as _,
-    Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _,
+    Props as _, REORDER_BAND, Role, SaveKey, Show as _, Sizing, WordSetCx as _, reorder,
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{Intent, Metrics, PointerButton, PressPhase, Sense};
+use craft_behavior::{Metrics, PointerButton, PressPhase, Sense};
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
@@ -171,9 +171,7 @@ impl Component for Section<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if self.props.header.is_some_and(|header| header.band == DragBand::Reorder) {
-            // `take_move_item` takes by kind and so reports the wrong direction; the exact intent names the key.
-            let intents = &mut cx.core.intents;
-            self.nudged = [true, false].into_iter().find(|&forward| intents.take_exact(&Intent::move_item(forward)));
+            self.nudged = reorder::take_move_item(&mut cx.core.intents);
         }
     }
 

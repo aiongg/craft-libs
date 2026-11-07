@@ -1,5 +1,6 @@
 //! `TextRun`, the one description of UI text for measure, layout and paint, and `TextLayout`, its laid-out form.
 
+use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::text_layout;
 use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
@@ -7,6 +8,7 @@ use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Align, Color32, Context, Galley};
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -201,13 +203,7 @@ impl TextRun<'_> {
             _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
-        let mut galley = anchored_at_start(galley);
-        // A path cut by `layout_elided_path` is a whole galley to egui; the painted galley carries the layout's
-        // verdict, so whatever reads the painted shapes sees the same elision the record holds.
-        if galley.elided != elided {
-            Arc::make_mut(&mut galley).elided = elided;
-        }
-        TextLayout::new(galley, elided, full)
+        TextLayout::new(anchored_at_start(galley), elided, full)
     }
 
     fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
@@ -319,6 +315,34 @@ pub struct LayoutRun {
     pub positions: Vec<f32>,
     /// Each character's advance.
     pub widths: Vec<f32>,
+}
+
+/// The full text of each elided run painted in the current pass, by the text its galley shows. A path cut by
+/// `Wrap::ElidePath` is a whole galley to egui, so what reads the painted shapes asks here instead.
+#[derive(Default)]
+struct Elisions {
+    pass: u64,
+    full: HashMap<String, String>,
+}
+
+/// Records that the galley of `layout` was painted, and its full text when the layout cut text.
+pub(crate) fn note_painted(ctx: &Context, layout: &TextLayout) {
+    if !layout.elided {
+        return;
+    }
+    let pass = ctx.cumulative_pass_nr();
+    Service::<Elisions>::of(ctx).with(|log| {
+        if log.pass != pass {
+            log.pass = pass;
+            log.full.clear();
+        }
+        log.full.insert(layout.galley.job.text.clone(), layout.full.clone());
+    });
+}
+
+/// The full text of the painted run whose galley shows `shown`, when its layout cut text.
+pub(crate) fn full_text_of_painted(ctx: &Context, shown: &str) -> Option<String> {
+    Service::<Elisions>::of(ctx).with(|log| log.full.get(shown).cloned())
 }
 
 /// A laid-out run.
