@@ -20,10 +20,10 @@ use egui::{Response, Ui};
 pub struct DialogOutput {
     /// The dialog's response.
     pub response: Response,
-    /// How the dialog closed in this pass: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
-    /// `Requested` what a footer button asked for. `None` while it stays open. Reported once for each close.
+    /// How the dialog closed in this pass: `Escape` is the cancel, `Enter` the OK of `close_on_enter` in a dialog without an enabled
+    /// `Accept` button, `Activated` and `Requested` what a footer button asked for (Enter activates the `Accept` button). `None` while it stays open. Reported once for each close.
     pub closed: Option<CloseReason>,
-    /// The index, in the order given to `buttons`, of the footer button clicked in this pass.
+    /// The index, in the order given to `buttons`, of the footer button clicked, or activated by Enter, in this pass.
     pub picked: Option<usize>,
 }
 
@@ -76,8 +76,9 @@ impl<'b> FooterCx<'_, 'b> {
 /// The footer closure of a dialog shell.
 pub(super) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a>;
 
-/// The host's answer to a closing button: given the button's index, whether the dialog may close.
-pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize) -> bool + 'a>;
+/// The host's answer to a picked button: given the button's index and the dialog's body context, whether the dialog
+/// may close.
+pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize, &mut BodyCx<'_>) -> bool + 'a>;
 
 /// Fills the header region: the title and, for a closable shell, the close action.
 pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction]) {
@@ -89,12 +90,15 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 
 /// Fills the footer region: the caller's content closure in a footer bar, and under it the dialog buttons, whose
 /// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`). A
-/// button that stays open never closes; `guard` can refuse the close of any other button but Cancel.
+/// button that stays open never closes; `guard` runs for every picked button but Cancel and can refuse the close of
+/// one that closes. With `enter`, an
+/// Enter the focused part left untaken picks the default button, so it takes the way of a click on it, guard included.
 pub(super) fn footer(
     ui: &mut Ui,
     cx: &mut BodyCx<'_>,
     content: &mut Option<FooterFn<'_>>,
     buttons: &[FooterButton],
+    enter: bool,
     picked: &mut Option<usize>,
     guard: &mut Option<CloseGuard<'_>>,
 ) {
@@ -103,12 +107,15 @@ pub(super) fn footer(
         FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
     }
     if !buttons.is_empty() {
-        *picked = FooterBar::buttons(buttons.iter().cloned()).show_footer(ui).picked;
+        *picked = FooterBar::buttons(buttons.iter().cloned()).enter_activates(enter).show_footer(ui).picked;
         if let Some(at) = *picked {
             if buttons[at].role() == DialogRole::Cancel {
                 close.get_or_insert(CloseReason::Requested);
-            } else if buttons[at].closes() && guard.as_mut().is_none_or(|allows| allows(at)) {
-                close.get_or_insert(CloseReason::Activated);
+            } else {
+                let allowed = guard.as_mut().is_none_or(|allows| allows(at, cx));
+                if buttons[at].closes() && allowed {
+                    close.get_or_insert(CloseReason::Activated);
+                }
             }
         }
     }
@@ -202,6 +209,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer, &[], &mut None, &mut None);
+        footer(ui, cx, &mut self.footer, &[], false, &mut None, &mut None);
     }
 }

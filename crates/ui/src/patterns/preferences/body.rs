@@ -157,7 +157,11 @@ pub(super) fn show_body<H: PreferencesModel + ?Sized>(
                 state.selected = key;
             }
         }
-        Stack::new().fill().scroll(Scroll::vertical()).show(ui, |ui, _| show_page(ui, host, page, snap.searching, words, units, out));
+        Stack::new()
+            .fill()
+            .scroll(Scroll::vertical())
+            .label(page.title.clone())
+            .show(ui, |ui, _| show_page(ui, host, page, snap.searching, words, units, out));
     });
 }
 
