@@ -6,6 +6,7 @@ mod thumb_row;
 
 use craft_i18n::Direction;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::testing::pointer;
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
 use craft_ui::value_drag::{RangeSlider, Slider, SliderScale};
 use egui::{Key, Modifiers, Ui, Vec2};
@@ -67,6 +68,27 @@ fn the_lower_thumb_stops_at_the_upper_thumb() {
     fixture.drag(&lower, Vec2::new(500.0, 0.0));
 
     assert_eq!(*fixture.data().value("range", RANGE_START), (UPPER_END, UPPER_END));
+}
+
+/// A press on the track beside the upper thumb moves that thumb and focuses it, so the next arrow steps it.
+#[trial]
+fn a_track_press_near_the_upper_thumb_moves_and_focuses_it() {
+    let mut fixture = Fixture::story(&Story::new("range-slider", show_range));
+    fixture.settle();
+    let upper = fixture.by_label("Level, Maximum").expect("the upper thumb is named by the label and its end");
+    let at = upper.center() + Vec2::new(24.0, 0.0);
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::press(at)]);
+    fixture.frame(vec![pointer::release(at)]);
+    fixture.idle(2);
+    let pressed = *fixture.data().value("range", RANGE_START);
+    assert_eq!(pressed.0, RANGE_START.0, "the lower thumb stays");
+    assert!(pressed.1 > UPPER_END, "the upper thumb moved to the press: {pressed:?}");
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    let stepped = *fixture.data().value("range", RANGE_START);
+    assert_eq!(stepped.0, pressed.0, "the arrow does not step the lower thumb");
+    assert!(stepped.1 > pressed.1, "the arrow steps the focused upper thumb: {pressed:?} then {stepped:?}");
 }
 
 fn show_marked(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

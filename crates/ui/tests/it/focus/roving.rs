@@ -25,7 +25,7 @@ fn a_roving_group_is_one_tab_stop_and_its_members_read_their_own_focus() {
         for member in ["m1", "m2", "m3"] {
             register_stop(ui.ctx(), Stop::new(id(member), KeyUse::of(Input::Pointer)).root(id("group")).in_group(id("group")));
         }
-        register_group(ui.ctx(), Group::new(id("group"), Roving::new(NavShape::Flat)).selected(id("m2")));
+        register_group(ui.ctx(), Group::new(id("group"), Roving::new(NavShape::Flat)).selected((id("m2"), None)));
         let ctx = ui.ctx();
         *reads.borrow_mut() = ["m1", "m2", "m3", "group"].map(|name| is_focused(ctx, id(name)));
         let mut group = intents_of(ctx, Some(id("group")), false);
@@ -94,7 +94,7 @@ fn a_right_to_left_group_reads_horizontal_arrows_in_its_direction() {
     const ALL: [&str; 3] = ["m1", "m2", "m3"];
     for (rtl, right, left) in [(false, "m3", "m1"), (true, "m1", "m3")] {
         let mut frames = Frames::new();
-        let mut show = |ui: &mut Ui| members(ui, &ALL, Group::new(id("group"), Roving::new(NavShape::Flat)).selected(id("m2")).rtl(rtl));
+        let mut show = |ui: &mut Ui| members(ui, &ALL, Group::new(id("group"), Roving::new(NavShape::Flat)).selected((id("m2"), None)).rtl(rtl));
         frames.idle(2, &mut show);
         tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
         assert_eq!(focused_members(&frames.ctx, &ALL), ["m2"]);
@@ -111,7 +111,7 @@ fn a_right_to_left_group_reads_horizontal_arrows_in_its_direction() {
 fn focus_moves_to_the_next_member_when_the_focused_member_is_removed() {
     let present = RefCell::new(vec!["m1", "m2", "m3"]);
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| members(ui, &present.borrow(), Group::new(id("group"), Roving::new(NavShape::Flat)).selected(id("m1")));
+    let mut show = |ui: &mut Ui| members(ui, &present.borrow(), Group::new(id("group"), Roving::new(NavShape::Flat)).selected((id("m1"), None)));
     frames.idle(2, &mut show);
     tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
     tap(&mut frames, Key::ArrowRight, Modifiers::NONE, &mut show);
@@ -138,4 +138,31 @@ fn an_accesskit_click_on_a_group_member_activates_it_through_the_group() {
     frames.idle(2, &mut show);
     frames.frame(vec![access_request(AccessActionKind::Click, id("m3"))], &mut show);
     assert_eq!(activated.get(), (true, Some(id("m3"))));
+}
+
+/// 9.5: a group of parts of one component arrives at the part its registration names, and at the new one after the
+/// selection moves.
+#[trial]
+fn tab_arrives_at_the_selected_part_of_a_part_group() {
+    const KNOB: PartKey = PartKey::new("knob");
+    let selected = Cell::new(1u64);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        control(ui, "before");
+        widget(ui, id("row"));
+        for part in 0..3 {
+            register_stop(ui.ctx(), Stop::new(id("row"), KeyUse::of(Input::Pointer)).part(KNOB.at(part)).in_group(id("row-group")));
+        }
+        let arrival = (id("row"), Some(KNOB.at(selected.get())));
+        register_group(ui.ctx(), Group::new(id("row-group"), Roving::new(NavShape::Flat)).selected(arrival));
+    };
+    frames.idle(2, &mut show);
+    focus(&mut frames, "before", &mut show);
+    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+    assert_eq!(active_part(&frames.ctx, id("row")), Some(KNOB.at(1)), "Tab arrives at the selected part, not the first");
+    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+    selected.set(2);
+    frames.idle(2, &mut show);
+    tap(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
+    assert_eq!(active_part(&frames.ctx, id("row")), Some(KNOB.at(2)), "after the selection moves Tab arrives at the new part");
 }

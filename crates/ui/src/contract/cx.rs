@@ -140,6 +140,28 @@ impl<C: Component> Cx<'_, C> {
     pub fn roving_arrival(&mut self, member: Id) {
         self.core.roving_arrival = Some(member);
     }
+
+    /// Moves focus to one of this component's focusable parts, in this pass: the rest of the pass reads the new
+    /// focus. For `update` after a press on the component or while it holds focus; it never takes focus from elsewhere.
+    pub fn focus_part(&mut self, part: impl Into<PartRef>) {
+        let part = part.into();
+        debug_assert!(
+            self.core.focus.focused || self.core.press_held() || self.core.results.values().any(|result| result.press.phase.is_press()),
+            "`focus_part` is for a component that holds focus or was just pressed; `update` never steals focus"
+        );
+        focus::request(&self.core.ctx, focus::FocusTarget::Part(self.core.id, part));
+        self.core.sync_focus();
+    }
+
+    /// Moves focus to the component's own stop (not a part), under the rule of `focus_part`.
+    pub fn focus_own(&mut self) {
+        debug_assert!(
+            self.core.focus.focused || self.core.press_held(),
+            "`focus_own` is for a component that holds focus or was just pressed; `update` never steals focus"
+        );
+        focus::request(&self.core.ctx, focus::FocusTarget::Id(self.core.id));
+        self.core.sync_focus();
+    }
 }
 
 impl sealed::Sealed for CxCore<'_> {}
@@ -1274,6 +1296,7 @@ pub(crate) struct PartExtras {
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
     pub value: bool,
+    pub selected: bool,
 }
 
 impl PartBuilder<'_> {
@@ -1304,6 +1327,13 @@ impl PartBuilder<'_> {
     /// The part is a focus stop.
     pub fn focusable(self) -> Self {
         self.declared.focusable = true;
+        self
+    }
+
+    /// The part is the arrival of the component's part roving group: Tab and Shift+Tab into the group land here, not
+    /// on the first member. The last part declared `selected` wins.
+    pub fn selected(self) -> Self {
+        self.declared.selected = true;
         self
     }
 

@@ -1,5 +1,6 @@
-//! `Rating`: stars the user clicks, a row of `max` parts over a value from 0 to `max`. A click on the current star
-//! clears the rating; arrows, Home, End and the digits set it while the row has focus.
+//! `Rating`: stars the user clicks, a row of `max` parts over a value from 0 to `max`. A click or Space on the current
+//! star clears the rating. The stars are one Tab stop: arrows, Home and End move focus between them, and the digits set
+//! the rating while the row has focus.
 
 use super::words::ChoiceWords;
 use crate::contract::{
@@ -7,10 +8,10 @@ use crate::contract::{
     Pointer as _, Role, SetPosition, Styled as _, WordSetCx as _,
 };
 use crate::primitives::IconSpec;
-use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
+use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, Ink, StyleCx};
-use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{Flow, IconId, Metrics, PartKey, Sense};
+use craft_behavior::nav::{NavShape, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::{Flow, IconId, Metrics, PartKey, Roving, Sense};
 use craft_keymap::{Chord, Key};
 use craft_theme::{Stateful, States};
 use egui::{Rect, Vec2};
@@ -72,7 +73,7 @@ impl<'a> Rating<'a> {
 impl Component for Rating<'_> {
     const ROLE: Role = Role::RADIO_GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::InlineArrows).with_activate(ActivateKeys::Neither);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_activate(ActivateKeys::Space);
     type Style = RatingStyle;
     type Output = EditResponse<u8>;
 
@@ -94,7 +95,7 @@ impl Component for Rating<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS
+        Sense::HOVER
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -103,11 +104,12 @@ impl Component for Rating<'_> {
         for at in 0..self.max {
             let (cell, rest) = flow.take_start(rect.height());
             flow = rest;
-            let part = cx.part(Self::star(at), cell).sense(Sense::CLICK).pointer_only("the arrow keys, Home, End and the digits set the rating");
+            let part = cx.part(Self::star(at), cell).sense(Sense::CLICK | Sense::FOCUS).focusable();
             if at + 1 == current {
-                part.flags(Flags::CHECKED);
+                part.flags(Flags::CHECKED).selected();
             }
         }
+        cx.roving(Roving::new(NavShape::Flat));
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, u8>> {
@@ -116,11 +118,13 @@ impl Component for Rating<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let current = self.current(cx.value());
+        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for at in 0..self.max {
-            if cx.part(Self::star(at)).press.phase.is_click() {
+            if cx.part(Self::star(at)).press.phase.is_click() || by_key == Some(Self::star(at)) {
                 cx.set(if at + 1 == current { 0 } else { at + 1 });
             }
         }
+        // Arrows move focus between the stars; AccessKit Increment and Decrement arrive as moves of the whole row.
         let steps = ValueSteps::new(f64::from(current), 0.0, f64::from(self.max), 1.0, 1.0);
         while let Some((mv, mods)) = cx.intents().take_move() {
             if let StepResult::Set(next) = step_value(&steps, ValueAxes::Horizontal, mv, mods) {

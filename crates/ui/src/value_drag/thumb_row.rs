@@ -12,9 +12,9 @@ use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
 use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx};
-use craft_behavior::nav::{NavShape, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
-use craft_behavior::{HitLevel, HitPriority, Metrics, MoveMods, NavMove, PartKey, PressPhase, PressState, Roving, Sense, ValueDrag};
+use craft_behavior::{HitLevel, HitPriority, Metrics, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
@@ -29,10 +29,6 @@ pub(crate) const THUMB: PartKey = PartKey::new("thumb");
 
 /// The room a row asks for along its axis, in icon sides.
 const LENGTH_IN_ICONS: f32 = 8.0;
-/// The share of the row's height a thumb takes; the rest leaves room for the ring above and below.
-const THUMB_SHARE: f32 = 0.8;
-/// A thumb's width as a share of its height.
-const THUMB_ASPECT: f32 = 0.8;
 /// How many small steps a large step is.
 const LARGE_STEPS: f64 = 10.0;
 /// An arrow press steps this share of the range when the row has no step.
@@ -56,6 +52,8 @@ pub struct ThumbRowStyle {
     ring_width: f32,
     /// How far from a thumb's centre a press grabs it.
     hit: f32,
+    /// The side of a thumb's triangle.
+    thumb: f32,
 }
 
 /// How a thumb's value is kept among the row's other values.
@@ -494,8 +492,7 @@ struct Layout<'r, const N: usize> {
 }
 
 impl<'r, const N: usize> Layout<'r, N> {
-    fn new(rules: RowRules<'r, N>, rect: Rect, rtl: bool, reach: f32, alone: bool) -> Self {
-        let thumb = thumb_size(rect);
+    fn new(rules: RowRules<'r, N>, rect: Rect, thumb: Vec2, rtl: bool, reach: f32, alone: bool) -> Self {
         let (left, right) = (rect.left() + thumb.x / 2.0, rect.right() - thumb.x / 2.0);
         let mut layout = Layout { rules, left, right, rtl, reach, overlap: thumb.x, alone, period: 0.0 };
         layout.period = match rules.wrap {
@@ -598,12 +595,6 @@ impl<'r, const N: usize> Layout<'r, N> {
     }
 }
 
-/// A thumb's size from the row's rect: the row's height gives its height, which sets its width.
-fn thumb_size(rect: Rect) -> Vec2 {
-    let height = rect.height() * THUMB_SHARE;
-    Vec2::new(height * THUMB_ASPECT, height)
-}
-
 /// A half of a split thumb, drawn as the half of a triangle on its side of the tip's vertical.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Half {
@@ -611,13 +602,20 @@ enum Half {
     High,
 }
 
+/// The horizontal extent of a thumb centred on `x` with `width`, or of one `half` of it. The low half lies toward the
+/// lower values: on the left in a left-to-right row and on the right in a right-to-left one.
+fn span(x: f32, width: f32, half: Option<Half>, rtl: bool) -> (f32, f32) {
+    let (left, right) = (x - width / 2.0, x + width / 2.0);
+    match (half, rtl) {
+        (None, _) => (left, right),
+        (Some(Half::Low), false) | (Some(Half::High), true) => (left, x),
+        (Some(Half::High), false) | (Some(Half::Low), true) => (x, right),
+    }
+}
+
 /// The triangle, tip up at `tip`, or one `half` of it.
-fn triangle(tip: Pos2, size: Vec2, half: Option<Half>) -> Vec<Pos2> {
-    let (left, right) = match half {
-        None => (tip.x - size.x / 2.0, tip.x + size.x / 2.0),
-        Some(Half::Low) => (tip.x - size.x / 2.0, tip.x),
-        Some(Half::High) => (tip.x, tip.x + size.x / 2.0),
-    };
+fn triangle(tip: Pos2, size: Vec2, half: Option<Half>, rtl: bool) -> Vec<Pos2> {
+    let (left, right) = span(tip.x, size.x, half, rtl);
     vec![tip, pos2(right, tip.y + size.y), pos2(left, tip.y + size.y)]
 }
 
@@ -731,6 +729,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             ring: Stateful::new(cx.color(clear)).off(States::new(cx.color(clear), cx.color(soft), cx.color(accent), cx.color(clear))),
             ring_width: cx.tokens.stroke.thick,
             hit: cx.tokens.size.hit.target,
+            thumb: cx.tokens.size.handle.md,
         }
     }
 
@@ -754,19 +753,15 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         );
         let row = cx.value().copied().unwrap_or([f64::NAN; N]);
         let shown = rules.placed(&row);
-        let layout = Layout::new(rules, rect, cx.flow.is_rtl(), 0.0, false);
+        let size = Vec2::splat(cx.style.thumb);
+        let layout = Layout::new(rules, rect, size, cx.flow.is_rtl(), 0.0, false);
         let xs = layout.xs(&shown);
-        let size = thumb_size(rect);
         let top = rect.top() + (rect.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
         cx.part(ROW, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the focused thumb");
         for i in 0..N {
-            let (left, width) = match halves[i] {
-                None => (xs[i] - size.x / 2.0, size.x),
-                Some(Half::Low) => (xs[i] - size.x / 2.0, size.x / 2.0),
-                Some(Half::High) => (xs[i], size.x / 2.0),
-            };
-            let thumb = Rect::from_min_size(pos2(left, top), Vec2::new(width, size.y));
+            let (left, right) = span(xs[i], size.x, halves[i], cx.flow.is_rtl());
+            let thumb = Rect::from_min_size(pos2(left, top), Vec2::new(right - left, size.y));
             cx.part(THUMB.at(i as u64), thumb)
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
@@ -774,7 +769,6 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 .focus_shape(FocusShape::Rect)
                 .value_part();
         }
-        cx.roving(Roving::new(NavShape::Flat).home_end(false));
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, [f64; N]>> {
@@ -787,16 +781,20 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         }
         let rules = self.rules();
         let (rect, rtl, reach) = (cx.rect, cx.flow.is_rtl(), cx.style.hit);
+        let size = Vec2::splat(cx.style.thumb);
         let row = cx.value().copied().unwrap_or([f64::NAN; N]);
         let finite = row.iter().all(|v| v.is_finite());
         let parts: Vec<PartRef> = std::iter::once(PartRef::from(ROW)).chain((0..N).map(|i| THUMB.at(i as u64))).collect();
         for part in parts {
             let press = cx.part(part).press;
             match press.phase {
-                PressPhase::DragStart { start, .. } if finite => {
-                    let layout = Layout::new(rules, rect, rtl, reach, press.mods.alt);
+                PressPhase::DragStart { start, pos, .. } if finite => {
+                    let layout = Layout::new(rules, rect, size, rtl, reach, press.mods.alt);
                     if let Some(picked) = layout.press(&rules.placed(&row), start.origin.x) {
                         *cx.memory::<Held>() = Held { anchor: row.to_vec(), press: Some(picked), alone: press.mods.alt };
+                        if let Some(thumb) = picked.thumb(start.origin.x, pos.x) {
+                            cx.focus_part(THUMB.at(thumb as u64));
+                        }
                         cx.begin();
                         cx.propose(layout.moved(&row, picked, &press));
                     }
@@ -804,7 +802,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 PressPhase::Drag { .. } => {
                     let held = cx.memory::<Held>().clone();
                     if let (Some(picked), Ok(anchor)) = (held.press, <[f64; N]>::try_from(held.anchor)) {
-                        let layout = Layout::new(rules, rect, rtl, reach, held.alone);
+                        let layout = Layout::new(rules, rect, size, rtl, reach, held.alone);
                         cx.propose(layout.moved(&anchor, picked, &press));
                     }
                 }
@@ -812,17 +810,18 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                     if cx.gesture().is_some() {
                         let held = cx.memory::<Held>().clone();
                         if let (Some(picked), Ok(anchor)) = (held.press, <[f64; N]>::try_from(held.anchor)) {
-                            let layout = Layout::new(rules, rect, rtl, reach, held.alone);
+                            let layout = Layout::new(rules, rect, size, rtl, reach, held.alone);
                             cx.propose(layout.moved(&anchor, picked, &press));
                         }
                         cx.commit();
                     } else if click && finite && start.clicks < 2 {
                         // A tap off the thumbs moves the nearest one there; a tap on a thumb moves none. A second
                         // click is the reset, which the pipeline applies.
-                        let layout = Layout::new(rules, rect, rtl, reach, false);
+                        let layout = Layout::new(rules, rect, size, rtl, reach, false);
                         if let Some(picked @ Press::Jump(thumb)) = layout.press(&rules.placed(&row), start.origin.x) {
                             let target = layout.moved(&row, picked, &press)[thumb];
                             cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(target)), &row));
+                            cx.focus_part(THUMB.at(thumb as u64));
                         }
                     }
                 }
@@ -884,9 +883,9 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let draw = ui.draw();
         let row = cx.value().copied().unwrap_or([f64::NAN; N]);
         let shown = rules.placed(&row);
-        let layout = Layout::new(rules, cx.rect, cx.flow.is_rtl(), 0.0, false);
+        let size = Vec2::splat(style.thumb);
+        let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), 0.0, false);
         let xs = layout.xs(&shown);
-        let size = thumb_size(cx.rect);
         let top = cx.rect.top() + (cx.rect.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
         for i in 0..N {
@@ -894,7 +893,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             if halves[i].is_none() && rules.partner(i).is_some_and(|j| j < i) {
                 continue;
             }
-            let points = triangle(pos2(xs[i], top), size, halves[i]);
+            let points = triangle(pos2(xs[i], top), size, halves[i], cx.flow.is_rtl());
             let part = THUMB.at(i as u64);
             draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), cx.resolve_part(part, &style.ring));
             let shape = PaintShape::Polygon(points);

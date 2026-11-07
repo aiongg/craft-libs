@@ -312,6 +312,11 @@ impl Component for RangeSlider<'_> {
                         Moving::Upper => last.upper_last = true,
                         Moving::Span | Moving::Either => {}
                     }
+                    match moving {
+                        Moving::Lower => cx.focus_part(LOWER),
+                        Moving::Upper => cx.focus_part(UPPER),
+                        Moving::Span | Moving::Either => {}
+                    }
                     cx.begin();
                 }
                 PressPhase::Drag { .. } => {
@@ -333,6 +338,7 @@ impl Component for RangeSlider<'_> {
                             && let Some(next) = input(moving, from).map(|input| moved(&scale, &snap, moving, from, input))
                         {
                             cx.set(next);
+                            cx.focus_part(if next.1 != from.1 { UPPER } else { LOWER });
                         }
                     }
                 }

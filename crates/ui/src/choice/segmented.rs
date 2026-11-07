@@ -1,5 +1,6 @@
 //! `Segmented`: one of a few options as adjoining pills. A leaf with a part per segment; each segment wears the face
-//! of a toggle button. The row is one Tab stop: arrows, Home and End move the pick, a click picks.
+//! of a toggle button. The row is one Tab stop over its segments: arrows, Home and End move focus between them, Space
+//! or a click picks the focused one.
 
 use crate::buttons::ToggleButton;
 use crate::contract::{
@@ -8,9 +9,9 @@ use crate::contract::{
 };
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;
-use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
+use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleCx};
-use craft_behavior::{Flow, IconId, Metrics, NavMove, PartKey, PartRef, Sense, Value};
+use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use egui::{Rect, Vec2};
 
 const SEGMENT: PartKey = PartKey::new("segment");
@@ -88,33 +89,12 @@ impl<'a, T: Value + 'static> Segmented<'a, T> {
             })
             .collect()
     }
-
-    /// The enabled segment a move reaches from `current`, or `None` when it reaches none.
-    fn target(&self, current: Option<usize>, mv: NavMove) -> Option<usize> {
-        let last = self.segments.len().checked_sub(1)?;
-        let (mut at, forward) = match (mv, current) {
-            (NavMove::Forward, Some(at)) => (at + 1, true),
-            (NavMove::Forward, None) | (NavMove::Start, _) => (0, true),
-            (NavMove::Back, Some(at)) => (at.checked_sub(1)?, false),
-            (NavMove::Back, None) | (NavMove::End, _) => (last, false),
-            _ => return None,
-        };
-        loop {
-            if at > last {
-                return None;
-            }
-            if self.segments[at].enabled {
-                return Some(at);
-            }
-            at = if forward { at + 1 } else { at.checked_sub(1)? };
-        }
-    }
 }
 
 impl<T: Value + 'static> Component for Segmented<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::InlineArrows).with_activate(ActivateKeys::Neither);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_activate(ActivateKeys::Space);
     type Style = SegmentedStyle;
     type Output = EditResponse<T>;
 
@@ -137,7 +117,7 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS
+        Sense::HOVER
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -152,14 +132,15 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
             if !segment.enabled {
                 continue;
             }
-            let mut part = part.sense(Sense::CLICK).pointer_only("the arrow keys, Home and End move the pick");
+            let mut part = part.sense(Sense::CLICK | Sense::FOCUS).focusable();
             if segment.icon.is_some() {
                 part = part.tooltip(segment.label.clone());
             }
             if current == Some(at) {
-                part.flags(Flags::CHECKED);
+                part.flags(Flags::CHECKED).selected();
             }
         }
+        cx.roving(Roving::new(NavShape::Flat));
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, T>> {
@@ -168,14 +149,11 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let current = self.position_of(cx.value());
+        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for (at, segment) in self.segments.iter().enumerate() {
-            if segment.enabled && cx.part(Self::part(at)).press.phase.is_click() && current != Some(at) {
+            let hit = cx.part(Self::part(at)).press.phase.is_click() || by_key == Some(Self::part(at));
+            if segment.enabled && hit && current != Some(at) {
                 cx.set(segment.value.clone());
-            }
-        }
-        while let Some((mv, _)) = cx.intents().take_move() {
-            if let Some(at) = self.target(current, mv).filter(|at| current != Some(*at)) {
-                cx.set(self.segments[at].value.clone());
             }
         }
     }
