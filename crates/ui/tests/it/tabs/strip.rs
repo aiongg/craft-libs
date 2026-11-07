@@ -93,11 +93,10 @@ fn a_tab_drag_carries_the_mapped_payload_and_a_tab_mapped_to_none_does_not_drag(
     let carried = Rc::new(RefCell::new(Vec::new()));
     let seen = carried.clone();
     let mut fixture = Fixture::new(move |ui| {
-        TabStrip::new("Documents").shown(0).drag_payload(|drag: &ListDrag<usize>| (drag.grabbed != 2).then_some(Grabbed(drag.grabbed))).show_items(
-            ui,
-            &Titles,
-            &mut |key, _| Tab::new(TITLES[*key]),
-        );
+        let _ = TabStrip::new("Documents")
+            .shown(0)
+            .drag_payload(|drag: &ListDrag<usize>| (drag.grabbed != 2).then_some(Grabbed(drag.grabbed)))
+            .show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
         if let Some(payload) = drag::active::<Grabbed>(ui.ctx()) {
             seen.borrow_mut().push(payload.0);
         }
