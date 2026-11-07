@@ -53,7 +53,7 @@ fn the_tab_reveal_replaces_the_edge_reveals() {
 
 #[trial]
 fn a_body_reads_the_shell_the_root_values_hold() {
-    let regions = ShellRegions { body: body(), slots: vec![("tools", Rect::from_min_max(pos2(0.0, 30.0), pos2(40.0, 480.0)))], revealed: false };
+    let regions = ShellRegions::new(body()).with_slot("tools", Rect::from_min_max(pos2(0.0, 30.0), pos2(40.0, 480.0)));
     let shell = ShellCx::new(WindowKey::new("palette"), BodyMode::Normal, regions);
     let mut root = RootEnv::default();
     shell.put(&mut root.values);

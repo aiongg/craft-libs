@@ -190,6 +190,7 @@ impl Slot {
 
 /// What one shell pass laid out.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ShellRegions {
     /// The body's rect: the dock host's rect.
     pub body: Rect,
@@ -207,5 +208,18 @@ pub(crate) fn reveal_index(edge: PaneEdge) -> Option<usize> {
         PaneEdge::Start => Some(1),
         PaneEdge::End => Some(2),
         _ => None,
+    }
+}
+
+impl ShellRegions {
+    /// A layout with `body` and no slots, and no reveal.
+    pub fn new(body: Rect) -> Self {
+        ShellRegions { body, slots: Vec::new(), revealed: false }
+    }
+
+    /// The layout with the shown slot `key` at `rect`, after the slots already listed.
+    pub fn with_slot(mut self, key: SlotKey, rect: Rect) -> Self {
+        self.slots.push((key, rect));
+        self
     }
 }

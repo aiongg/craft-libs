@@ -39,7 +39,7 @@ impl ShellCx {
 
     /// A skeleton with no slots around `body`, for tests and the gallery without an `AppShell`.
     pub fn detached(window: WindowKey, mode: BodyMode, body: Rect) -> Self {
-        Self::new(window, mode, ShellRegions { body, slots: Vec::new(), revealed: false })
+        Self::new(window, mode, ShellRegions::new(body))
     }
 
     /// Whether the host shows the document tabs; they show only in [`BodyMode::Normal`].
