@@ -1,15 +1,17 @@
-//! `RadioGroup` and `Radio`: one Tab stop, arrows move focus, a click or Space selects.
+//! The choice family: `RadioGroup` and `Radio` are one Tab stop where arrows move focus and a click or Space selects;
+//! `Rating` and `Segmented` change their value from clicks and keys.
 
 use crate::contract::kit::{Probe, Seen};
 use craft_behavior::Sense;
+use craft_ui::choice::{Radio, RadioGroup, Rating, Segment, Segmented};
 use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use craft_ui::controls::radio::{Radio, RadioGroup};
 use craft_ui::testing::focus::{egui_focused, is_focused, key_release};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
-use craft_ui::testing::{Frames, trial};
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers, Rect, Ui};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 /// What the last frame showed.
 #[derive(Default)]
@@ -129,4 +131,73 @@ fn members_of_a_group_form_in_a_nested_layout_join_its_arena() {
         assert!(inside, "members are descendants of the group node");
         assert_eq!(tree.position(*id), Some((at, 2)), "each member reports its place in the set");
     }
+}
+
+fn rating_rig(start: u8) -> (Fixture, Rc<Cell<u8>>) {
+    let value = Rc::new(Cell::new(start));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut stars = shown.get();
+        Rating::new(Bind::bound(&mut stars), 5).label("Rating").show(ui);
+        shown.set(stars);
+    });
+    fixture.settle();
+    (fixture, value)
+}
+
+fn press(fixture: &mut Fixture, key: Key) {
+    fixture.key(key, Modifiers::NONE);
+    fixture.idle(2);
+}
+
+/// A click on a star sets the rating to it; a click on the current star clears it.
+#[trial]
+fn a_click_on_the_current_star_clears_the_rating() {
+    let (mut fixture, value) = rating_rig(0);
+    let star = fixture.by_label("3 stars").expect("the third star is a node");
+    fixture.click(&star);
+    assert_eq!(value.get(), 3);
+    fixture.click(&star);
+    assert_eq!(value.get(), 0);
+}
+
+/// With focus in the row, the arrows step by one and stop at the ends, Home and End jump to them, and a digit sets
+/// that many stars.
+#[trial]
+fn rating_keys_step_jump_and_set() {
+    let (mut fixture, value) = rating_rig(1);
+    press(&mut fixture, Key::Tab);
+    press(&mut fixture, Key::ArrowRight);
+    press(&mut fixture, Key::ArrowRight);
+    assert_eq!(value.get(), 3);
+    press(&mut fixture, Key::Num5);
+    assert_eq!(value.get(), 5);
+    press(&mut fixture, Key::ArrowRight);
+    assert_eq!(value.get(), 5, "the arrows stop at the last star");
+    press(&mut fixture, Key::Home);
+    assert_eq!(value.get(), 0);
+    press(&mut fixture, Key::End);
+    assert_eq!(value.get(), 5);
+}
+
+/// The arrows pass over a disabled segment, and a click on one picks nothing.
+#[trial]
+fn segmented_arrows_skip_disabled_segments() {
+    let value = Rc::new(Cell::new(1u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let segments = [Segment::new(1u8, "Draft"), Segment::new(2, "Review").enabled(false), Segment::new(3, "Final")];
+        let mut pick = shown.get();
+        Segmented::new(Bind::bound(&mut pick), &segments).label("Stage").show(ui);
+        shown.set(pick);
+    });
+    fixture.settle();
+    let review = fixture.by_label("Review").expect("every segment is a node");
+    fixture.click(&review);
+    assert_eq!(value.get(), 1, "a disabled segment is not picked");
+    press(&mut fixture, Key::Tab);
+    press(&mut fixture, Key::ArrowRight);
+    assert_eq!(value.get(), 3);
+    press(&mut fixture, Key::ArrowLeft);
+    assert_eq!(value.get(), 1);
 }

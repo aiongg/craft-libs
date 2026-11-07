@@ -11,34 +11,178 @@ new_module = "craft_ui::choice"
 name = "Checkbox"
 old = "craft_ui::controls::checkbox::Checkbox"
 new = "craft_ui::choice::Checkbox"
-status = "pending"
+status = "moved"
+note = "A `Component` over `Bind<bool>` shown with `Show::show`; `Checkbox::new(label, &mut state).show(ui)` becomes `Checkbox::new(Bind::bound(&mut on)).label(label).show(ui)`. The output is `EditResponse<bool>`. A mixed value is a `Mixed` binding (`Bind::bound_mixed`), and a click on a mixed box makes it checked. The visible text is the label step's: a `Field` or `PaintUi::labelled` shows it."
+
+[[type]]
+name = "CheckState"
+old = "craft_ui::controls::checkbox::CheckState"
+new = ""
+status = "replaced"
+note = "`CheckState::Checked` and `Unchecked` are `true` and `false`; `CheckState::Mixed` is a `Mixed` binding made with `Bind::bound_mixed`."
+
+[[type]]
+name = "CheckValue"
+old = "craft_ui::controls::checkbox::CheckValue"
+new = ""
+status = "removed"
+note = "`Checkbox` is over `Bind<bool>` only; a value of another type is mapped to a bool and back in a binding."
+
+[[type]]
+name = "CheckColors"
+old = "craft_ui::controls::check::CheckColors"
+new = ""
+status = "replaced"
+note = "The colour tables are the style parts of `CheckboxStyle`, `RadioStyle` and `SwitchStyle`, read from the theme tokens; an app does not pass colours."
 
 [[type]]
 name = "Switch"
 old = "craft_ui::controls::switch::Switch"
 new = "craft_ui::choice::Switch"
-status = "pending"
+status = "moved"
+note = "A `Component` over `Bind<bool>`: `Switch::new(label, &mut on).show(ui)` becomes `Switch::new(Bind::bound(&mut on)).label(label).show(ui)`. The output is `EditResponse<bool>`. A `Mixed` binding rests the thumb in the middle. The visible text is the label step's."
 
 [[type]]
 name = "RadioGroup"
 old = "craft_ui::controls::radio::RadioGroup"
 new = "craft_ui::choice::RadioGroup"
-status = "pending"
+status = "moved"
+note = "A group container: `RadioGroup::new(label, Bind::bound(&mut value)).show(ui, |ui, _| { Radio::new(v).label(..).show(ui); .. })`. The members are `Radio` leaves shown anywhere in the body, in any nesting. One Tab stop; arrows move focus, Space, Enter or a click picks. The legacy `item(value, label)` list is the `Radio` calls in the body; `item_enabled(false)` is `Radio::enabled(false)`."
+
+[[type]]
+name = "Radio"
+old = "craft_ui::controls::radio::Radio"
+new = "craft_ui::choice::Radio"
+status = "moved"
+note = "A member of a `RadioGroup`: `Radio::new(value).label(name).show(ui)`. It draws the button; its text is the label step's."
+
+[[type]]
+name = "RadioSet"
+old = "craft_ui::controls::radio::RadioSet"
+new = ""
+status = "replaced"
+note = "`RadioSet::begin`, `radio(..)` and `end` are a `RadioGroup` with its `Radio` members shown in the body closure."
+
+[[type]]
+name = "PreparedRadioSet"
+old = "craft_ui::controls::radio::PreparedRadioSet"
+new = ""
+status = "replaced"
+note = "Replaced by the `RadioGroup` body: the members register with the group as the body shows them."
+
+[[type]]
+name = "RadioOption"
+old = "craft_ui::controls::radio::RadioOption"
+new = ""
+status = "replaced"
+note = "`name` is the `Radio`'s `Props::label`. A description, an icon or a content closure is the row the app lays out around the `Radio` button in the group's body."
 
 [[type]]
 name = "Segmented"
 old = "craft_ui::controls::segmented::Segmented"
 new = "craft_ui::choice::Segmented"
-status = "pending"
+status = "moved"
+note = "A leaf over `Bind<T>` and a slice of `Segment<T>`: `Segmented::new(Bind::bound(&mut value), &segments).label(name).show(ui)`. `item(value, label)` is `Segment::new(value, label)`; `icon_item(value, icon, label)` is `Segment::new(value, label).icon(IconId)`; `item_enabled(false)` is `Segment::enabled(false)`. Each segment is a part wearing a toggle button's face."
+
+[[type]]
+name = "Segment"
+old = "craft_ui::controls::segmented::Segment"
+new = "craft_ui::choice::Segment"
+status = "moved"
+note = "New in this family: one option of a `Segmented`. It was the private `Item` of the legacy type."
 
 [[type]]
 name = "Rating"
 old = "craft_ui::controls::rating::Rating"
 new = "craft_ui::choice::Rating"
-status = "pending"
+status = "moved"
+note = "A leaf over `Bind<u8>`: `Rating::new(Bind::bound(&mut stars), 5).label(name).show(ui)`. The output is `EditResponse<u8>`. The number of stars is the second argument; the legacy fixed maximum `MAX_STARS` is gone."
+
+[[type]]
+name = "paint_rating"
+old = "craft_ui::controls::rating::paint_rating"
+new = ""
+status = "removed"
+note = "Stars drawn on thumbnails and captions (the browse family) are a `Rating` shown as a face of a part, or `Draw::icon` with the `star` and `star_filled` icons; no function replaces it."
 
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+[[setter]]
+type = "Checkbox"
+old = "new(label, &mut CheckState)"
+new = "new(Bind<bool>).label(label)"
+
+[[setter]]
+type = "Checkbox"
+old = "bool(label, &mut bool)"
+new = "new(Bind::bound(&mut on)).label(label)"
+
+[[setter]]
+type = "Checkbox"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "Checkbox"
+old = "enabled(bool)"
+new = "enabled(bool)"
+
+[[setter]]
+type = "Checkbox"
+old = "id_salt(impl AsIdSalt)"
+new = "id_salt(impl AsIdSalt)"
+
+[[setter]]
+type = "Switch"
+old = "new(label, &mut bool)"
+new = "new(Bind<bool>).label(label)"
+
+[[setter]]
+type = "Switch"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+
+[[setter]]
+type = "RadioGroup"
+old = "new(id_salt, label, &mut T)"
+new = "new(label, Bind<T>).id_salt(..)"
+
+[[setter]]
+type = "RadioGroup"
+old = "item(value, label)"
+new = "Radio::new(value).label(label).show(ui) in the body"
+
+[[setter]]
+type = "RadioGroup"
+old = "item_enabled(bool)"
+new = "Radio::enabled(bool)"
+
+[[setter]]
+type = "Segmented"
+old = "new(id_salt, label, &mut T)"
+new = "new(Bind<T>, &[Segment<T>]).label(label).id_salt(..)"
+
+[[setter]]
+type = "Segmented"
+old = "item(value, label)"
+new = "Segment::new(value, label)"
+
+[[setter]]
+type = "Segmented"
+old = "icon_item(value, Icon, label)"
+new = "Segment::new(value, label).icon(IconId)"
+
+[[setter]]
+type = "Segmented"
+old = "item_enabled(bool)"
+new = "Segment::enabled(bool)"
+
+[[setter]]
+type = "Rating"
+old = "new(id_salt, label, &mut u8)"
+new = "new(Bind<u8>, max: u8).label(label).id_salt(..)"
+
+[[setter]]
+type = "Rating"
+old = "labels(RatingLabels)"
+new = ""
+note = "The star names are the built-in `ChoiceWords` (`choice.stars`), translated through the host's words."

@@ -1,16 +1,17 @@
 //! `RadioGroup` and `Radio`: the group form of 20.3. The group is a container and arena root; its members, shown
-//! anywhere in its body, join its arena and register with its `GroupHandle`.
+//! anywhere in its body, join its arena and register with its `GroupHandle`. A radio draws only its button; its text
+//! is the label step's, as the check box's is.
 
 use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, GroupHandle, GroupKind, GroupState, MeasureCx, PaintUi,
     Pointer as _, Props as _, Remember as _, Role,
 };
-use crate::primitives::{PaintShape, StrokeWidth, TextRun};
-use crate::style::{ComponentStyle, Flags, Ink, StyleColor, StyleCx};
-use craft_behavior::{Flow, Metrics, NavShape, Roving, Value};
-use egui::{Pos2, Vec2};
+use crate::primitives::{PaintShape, StrokeWidth};
+use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx};
+use craft_behavior::{Metrics, NavShape, Roving, Value};
+use egui::{Id, Vec2};
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// The group kind of radios whose members stand for values of type `T`.
 pub struct RadioKind<T>(PhantomData<fn() -> T>);
@@ -19,18 +20,50 @@ impl<T: Value + 'static> GroupKind for RadioKind<T> {
     type Member = T;
 }
 
+/// The members a group registered, as `GroupState` holds them.
+type Members<T> = Vec<(T, Id, bool)>;
+
 /// The group's registrations, kept in its shown memory so the members registered last pass are readable this pass.
-struct GroupMemory<T: Value + 'static>(Arc<Mutex<GroupState<T>>>);
+/// `kept` holds the last non-empty registration: a pass that ran no body clears the live list, and the pick that
+/// arrives in the next pass still finds its member.
+struct GroupMemory<T: Value + 'static> {
+    live: Arc<Mutex<GroupState<T>>>,
+    kept: Arc<Mutex<Members<T>>>,
+}
 
 impl<T: Value + 'static> Clone for GroupMemory<T> {
     fn clone(&self) -> Self {
-        GroupMemory(Arc::clone(&self.0))
+        GroupMemory { live: Arc::clone(&self.live), kept: Arc::clone(&self.kept) }
     }
 }
 
 impl<T: Value + 'static> Default for GroupMemory<T> {
     fn default() -> Self {
-        GroupMemory(Arc::default())
+        GroupMemory { live: Arc::default(), kept: Arc::default() }
+    }
+}
+
+impl<T: Value + 'static> GroupMemory<T> {
+    /// The enabled member registered with `id`, in the live list or else the kept one.
+    fn member(&self, id: Id) -> Option<T> {
+        let find = |members: &Members<T>| members.iter().find(|(_, member, enabled)| *member == id && *enabled).map(|(value, ..)| value.clone());
+        let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        find(&live.members).or_else(|| find(&self.kept.lock().unwrap_or_else(PoisonError::into_inner)))
+    }
+
+    /// The id of the enabled member registered with `value`, in the live list or else the kept one.
+    fn member_id(&self, value: &T) -> Option<Id> {
+        let find = |members: &Members<T>| members.iter().find(|(member, _, enabled)| member == value && *enabled).map(|(_, id, _)| *id);
+        let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        find(&live.members).or_else(|| find(&self.kept.lock().unwrap_or_else(PoisonError::into_inner)))
+    }
+
+    /// Keeps the live registrations when there are any, then clears them for the pass's body to register again.
+    fn begin_registration(&self) {
+        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
+        if !live.members.is_empty() {
+            *self.kept.lock().unwrap_or_else(PoisonError::into_inner) = std::mem::take(&mut live.members);
+        }
     }
 }
 
@@ -81,22 +114,23 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
     /// The pick (20.3 item 1): the member activated this pass, found in last pass's registrations, goes to the
     /// binding. Tab arrives at the selected member.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.memory::<GroupMemory<T>>().0));
+        let memory = cx.memory::<GroupMemory<T>>().clone();
+        let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&memory.live));
         let activated = cx.activated_member();
-        if let Some(picked) = activated.and_then(|id| handle.member(id)) {
+        if let Some(picked) = activated.and_then(|id| memory.member(id)) {
             cx.propose(picked);
             cx.commit();
         }
         let selected = cx.value().cloned();
-        if let Some(id) = selected.as_ref().and_then(|value| handle.member_id(value)) {
+        if let Some(id) = selected.as_ref().and_then(|value| memory.member_id(value)) {
             cx.roving_arrival(id);
         }
         handle.select(selected);
-        handle.begin_registration();
+        memory.begin_registration();
     }
 
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        values.set(GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().0)));
+        values.set(GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().live)));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<T> {
@@ -112,6 +146,8 @@ impl<T: Value + 'static> Container for RadioGroup<'_, T> {}
 pub struct RadioStyle {
     #[style(metrics)]
     metrics: Metrics,
+    #[style(focus)]
+    focus: FocusLook,
     icon: f32,
     ring: StyleColor,
     dot: StyleColor,
@@ -142,12 +178,17 @@ impl<T: Value + 'static> Component for Radio<T> {
 
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
-        RadioStyle { metrics: control.metrics(), icon: control.icon, ring: cx.ink(Ink::OnPanel), dot: cx.tone(craft_theme::variant::Tone::Accent) }
+        RadioStyle {
+            metrics: control.metrics(),
+            focus: crate::controls::focus_look(cx),
+            icon: control.icon,
+            ring: cx.ink(Ink::OnPanel),
+            dot: cx.tone(craft_theme::variant::Tone::Accent),
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.layout(&TextRun::new(cx.resolved.label)).galley.size();
-        Vec2::new(text.x + cx.icon() + cx.gap(), text.y.max(cx.icon()))
+        Vec2::splat(cx.icon())
     }
 
     /// Reads "selected" from the group's pick and registers with the group.
@@ -163,16 +204,12 @@ impl<T: Value + 'static> Component for Radio<T> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
-        let (icon, rest) = flow.take_start(cx.style.icon);
-        let (_, text) = rest.take_start(cx.style.metrics.gap);
+        let center = cx.rect.center();
         let draw = ui.draw();
-        let center: Pos2 = icon.center();
         draw.stroke(&PaintShape::Circle(center, cx.style.icon / 2.0), StrokeWidth::Thin, cx.style.ring);
         if self.checked {
             draw.fill(&PaintShape::Circle(center, cx.style.icon / 4.0), cx.style.dot);
         }
-        draw.text(text.rect(), &TextRun::new(cx.resolved.label));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
