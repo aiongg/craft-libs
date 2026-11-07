@@ -223,7 +223,6 @@ fn command_set_derive_needs_a_prefix_and_labels() {
     assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A")] A(u8) }))).contains("unit"));
 }
 
-#[test]
 fn words(input: TokenStream) -> String {
     error(crate::words::expand_words(input))
 }
