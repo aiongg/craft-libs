@@ -3,6 +3,7 @@
 
 use super::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::{Metrics, PartKey, Sense};
+use craft_ui::buttons::ToggleButton;
 use craft_ui::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Looks, MeasureCx, PaintUi, PartsCx, Props as _, Remember as _, Role, Show as _,
 };
@@ -314,4 +315,43 @@ fn an_evicted_slot_drops_once_in_the_next_pipeline_run_outside_any_lock() {
     }
     assert_eq!(DROPPED.load(Ordering::SeqCst), 1, "the evicted slot's Drop ran exactly once");
     assert_eq!(CALLED_CONTEXT.load(Ordering::SeqCst), 1, "and could call a Context API");
+}
+
+/// A composite that measures as the face of a toggle button.
+#[derive(Component)]
+struct FaceMeasure {
+    #[common]
+    common: Common,
+}
+
+impl Component for FaceMeasure {
+    const ROLE: Role = Role::None;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FaceMeasureStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        cx.face(ToggleButton::new("Snap to grid", Bind::given(false)))
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// `MeasureCx::face` of a component is that component's own measure.
+#[trial]
+fn a_measured_face_is_the_size_of_the_component_shown_alone() {
+    let mut frames = Frames::new();
+    let (mut face, mut alone) = (Vec2::ZERO, Vec2::ZERO);
+    for _ in 0..2 {
+        frames.frame(vec![], |ui| {
+            face = FaceMeasure { common: Common::new() }.show(ui).rect.size();
+            alone = ToggleButton::new("Snap to grid", Bind::given(false)).show(ui).response.rect.size();
+        });
+    }
+    assert_eq!(face, alone);
 }
