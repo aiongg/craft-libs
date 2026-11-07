@@ -1,7 +1,7 @@
 //! Dialog bodies and footer buttons.
 
 use craft_behavior::{DisplayOrder, ItemSource};
-use craft_ui::contract::{Bind, Props as _, SelectMode, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, SelectMode, ShowCollection as _, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::list::{List, ListRow};
 use craft_ui::runtime::overlay::CloseReason;
