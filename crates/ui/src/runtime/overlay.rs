@@ -472,13 +472,27 @@ pub(crate) fn note_peers(ctx: &Context, id: Id, peers: Vec<Rect>) {
     });
 }
 
-/// Records the layer shown in this pass; a layer shown again in a discarded pass replaces its entry.
+/// Records the layer shown in this pass, parent first: a layer is recorded once its body ran, after the layers opened
+/// from inside it, so it goes in front of them, and every layer then stacks above the layer it was opened from. A
+/// layer shown again in a discarded pass replaces its entry.
 pub(crate) fn record(ctx: &Context, entry: OpenEntry) {
     with_pass(ctx, |pass| {
-        match pass.current.iter().position(|recorded| recorded.id == entry.id) {
-            Some(at) => pass.current[at] = entry,
-            None => pass.current.push(entry),
+        if let Some(at) = pass.current.iter().position(|recorded| recorded.id == entry.id) {
+            pass.current[at] = entry;
+            return;
+        }
+        let descends = |recorded: &OpenEntry| {
+            let mut parent = recorded.parent;
+            while let Some(id) = parent {
+                if id == entry.id {
+                    return true;
+                }
+                parent = pass.current.iter().find(|other| other.id == id).and_then(|other| other.parent);
+            }
+            false
         };
+        let at = pass.current.iter().position(descends).unwrap_or(pass.current.len());
+        pass.current.insert(at, entry);
     });
 }
 

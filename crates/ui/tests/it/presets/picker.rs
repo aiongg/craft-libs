@@ -75,16 +75,31 @@ fn deleting_picker() -> (Fixture, Rc<RefCell<Vec<PresetEvent<u32>>>>) {
     (fixture, seen)
 }
 
-/// Opens the popover, opens the row menu of the preset named `label` and runs its Delete row; what the picker
-/// reported.
-fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
-    let (mut fixture, seen) = deleting_picker();
-    open(&mut fixture);
+/// A secondary click on the tile of the preset named `label` in the open popover.
+fn open_row_menu(fixture: &mut Fixture, label: &str) {
     let at = fixture.by_label(label).expect("the preset's tile").rect.center();
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![pointer::secondary(at, true)]);
     fixture.frame(vec![pointer::secondary(at, false)]);
     fixture.settle();
+}
+
+/// The row menu of a preset opens over the popover, whose focus is on the tile grid, and the popover stays open.
+#[trial]
+fn the_row_menu_opens_over_the_popover_and_keeps_it_open() {
+    let (mut fixture, _) = deleting_picker();
+    open(&mut fixture);
+    open_row_menu(&mut fixture, "Coral");
+    assert!(fixture.by_label("Delete").is_some(), "a secondary click on a preset opens the row menu");
+    assert!(fixture.by_label("Amber").is_some(), "the popover stays open");
+}
+
+/// Opens the popover, opens the row menu of the preset named `label` and runs its Delete row; what the picker
+/// reported.
+fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
+    let (mut fixture, seen) = deleting_picker();
+    open(&mut fixture);
+    open_row_menu(&mut fixture, label);
     let delete = fixture.by_label("Delete").expect("a secondary click on a preset opens the row menu");
     fixture.click(&delete);
     fixture.idle(3);
