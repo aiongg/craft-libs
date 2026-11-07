@@ -109,19 +109,25 @@ impl Outcome for PreviewOutput {
 ///   steps the same view with buttons. Panes that show the same picture area (a 2-up or 4-up dialog) take one view
 ///   and the dialog applies the first view any of them reports to all.
 /// - A pane whose state is not `Ready` draws no picture and reports no view.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(content_painter)]
 pub struct PreviewPane {
     #[common]
     common: Common,
     state: PreviewState,
     view: CanvasTransform,
-    /// `Some` when the pane has a fit mode, and whether the view follows the well.
+    /// Whether the view follows the well: the zoom is the one that shows the whole picture in it, recomputed when the
+    /// well changes, and the given view is ignored. A pan or zoom by the user leaves fit and reports it in
+    /// `PreviewOutput::fit`; the caller passes `fit(false)` from then on. A double click returns to fit. Unset, the
+    /// pane has no fit mode.
+    #[prop]
     fit: Option<bool>,
-    range: RangeInclusive<f32>,
+    /// The zoom the wheel and fit stay inside; unset, 0.125 to 8.
+    #[prop]
+    zoom_range: Option<RangeInclusive<f32>>,
+    /// Whether a click centres the view on the point clicked.
+    #[prop]
     click_centres: bool,
-    /// Whether wheel zoom keeps the point under the pointer in place.
-    about_pointer: bool,
     moved: Option<CanvasTransform>,
     refit: bool,
 }
@@ -134,43 +140,18 @@ impl PreviewPane {
 
     /// A pane named `label` showing `state` through `view`.
     pub fn state(label: impl Into<Label>, state: PreviewState, view: CanvasTransform) -> Self {
-        PreviewPane {
-            common: Common::new(),
-            state,
-            view,
-            fit: None,
-            range: ZOOM_RANGE,
-            click_centres: true,
-            about_pointer: false,
-            moved: None,
-            refit: false,
-        }
-        .label(label)
+        PreviewPane { common: Common::new(), state, view, fit: None, zoom_range: None, click_centres: true, moved: None, refit: false }.label(label)
     }
 
-    /// Whether the view follows the well: the zoom is the one that shows the whole picture in it, recomputed when the
-    /// well changes, and the given view is ignored. A pan or zoom by the user leaves fit and reports it in
-    /// `PreviewOutput::fit`; the caller passes `fit(false)` from then on. A double click returns to fit.
-    #[must_use]
-    pub fn fit(mut self, on: bool) -> Self {
-        self.fit = Some(on);
-        self.about_pointer = true;
-        self
+    /// The zoom this pane stays inside.
+    fn range(&self) -> RangeInclusive<f32> {
+        self.zoom_range.clone().unwrap_or(ZOOM_RANGE)
     }
 
-    /// The zoom the wheel, `zoom_in` and `zoom_out` stay inside; the default is 0.125 to 8.
-    #[must_use]
-    pub fn zoom_range(mut self, range: RangeInclusive<f32>) -> Self {
-        self.range = range;
-        self.about_pointer = true;
-        self
-    }
-
-    /// Whether a click centres the view on the point clicked; the default is true.
-    #[must_use]
-    pub fn click_centres(mut self, on: bool) -> Self {
-        self.click_centres = on;
-        self
+    /// Whether wheel zoom keeps the point under the pointer in place: panes with a fit mode or a zoom range of
+    /// their own.
+    fn zooms_about_pointer(&self) -> bool {
+        self.fit.is_some() || self.zoom_range.is_some()
     }
 
     /// The view at the next zoom level above the view's, with the picture's centre kept in place.
@@ -262,7 +243,7 @@ impl PreviewPane {
     /// fitting, and the given one as it is where there is no picture.
     fn shown(&self, well: Vec2) -> CanvasTransform {
         let Some(texture) = self.picture() else { return self.view };
-        let view = if self.fit == Some(true) { Self::fit_view(texture.size, well, &self.range) } else { self.view };
+        let view = if self.fit == Some(true) { Self::fit_view(texture.size, well, &self.range()) } else { self.view };
         Self::settled(view, texture.size, well)
     }
 }
@@ -350,8 +331,8 @@ impl Component for PreviewPane {
         }
         if let Some(wheel) = cx.take_wheel() {
             if (wheel.zoom - 1.0).abs() > ZOOM_EPSILON {
-                let about = if self.about_pointer { cx.hover_pos(WELL).map(|at| at - well.center()) } else { None };
-                next = Self::rescaled(next, next.scale * wheel.zoom, &self.range, about.unwrap_or(Vec2::ZERO));
+                let about = if self.zooms_about_pointer() { cx.hover_pos(WELL).map(|at| at - well.center()) } else { None };
+                next = Self::rescaled(next, next.scale * wheel.zoom, &self.range(), about.unwrap_or(Vec2::ZERO));
             } else {
                 next.offset += wheel.scroll;
             }
@@ -359,7 +340,7 @@ impl Component for PreviewPane {
         if self.refit {
             // Fitting already: nothing to return to.
             self.refit = self.fit == Some(false);
-            next = Self::fit_view(texture.size, well_size, &self.range);
+            next = Self::fit_view(texture.size, well_size, &self.range());
         } else {
             next = Self::settled(next, texture.size, well_size);
         }

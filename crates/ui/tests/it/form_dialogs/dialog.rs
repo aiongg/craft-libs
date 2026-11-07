@@ -1,7 +1,7 @@
 //! The preview view maths and what a remembering dialog saves.
 
 use craft_behavior::CanvasTransform;
-use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::patterns::form_dialogs::{
     DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
@@ -126,12 +126,14 @@ fn alt_turns_cancel_into_reset_and_reset_keeps_the_dialog_open() {
 
     let (mut held, fields, open) = reset_rig(true, true);
     assert!(held.by_label("Reset").is_some() && held.by_label("Cancel").is_none(), "Reset with Alt");
+    let opening = fields.borrow().number("width");
     fields.borrow_mut().set("width", 700.0);
     held.idle(3);
+    assert_ne!(fields.borrow().number("width"), opening, "the value was edited");
     let reset = held.by_label("Reset").expect("the Reset button is shown");
     held.click(&reset);
     held.idle(3);
-    assert_eq!(fields.borrow().number("width"), Some(640.0), "Reset restores the opening value");
+    assert_eq!(fields.borrow().number("width"), opening, "Reset restores the opening value");
     assert!(open.get(), "Reset keeps the dialog open");
 }
 
@@ -147,7 +149,7 @@ fn the_shared_reset_footer_serves_any_dialog() {
                 .opened(Bind::bound(&mut open))
                 .footer(|ui, _| {
                     let footer = ResetFooter::new(ui, None, true);
-                    if let Some(pick) = footer.show(ui, FooterButton::new("OK", DialogRole::Accept), true) {
+                    if let Some(pick) = footer.buttons(ui, FooterButton::new("OK", DialogRole::Accept), true) {
                         seen.set(Some(pick));
                     }
                 })

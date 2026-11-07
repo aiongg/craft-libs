@@ -313,7 +313,7 @@ impl<'a> ParamDialog<'a> {
             }
             let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
             let changed = work.borrow().changed();
-            match reset.show(ui, accept, changed) {
+            match reset.buttons(ui, accept, changed) {
                 Some(ResetPick::Accept) => footer.request_close_as(CloseReason::Activated),
                 Some(ResetPick::Reset) => ResetFooter::restore(&mut work.borrow_mut(), reset_to.as_ref()),
                 Some(ResetPick::Cancel) => footer.request_close_as(CloseReason::Requested),
@@ -418,7 +418,7 @@ pub enum ResetPick {
 ///
 /// ```ignore
 /// let footer = ResetFooter::new(ui, None, true);
-/// match footer.show(ui, FooterButton::new(common.ok.clone(), DialogRole::Accept), values.changed()) {
+/// match footer.buttons(ui, FooterButton::new(common.ok.clone(), DialogRole::Accept), values.changed()) {
 ///     Some(ResetPick::Reset) => ResetFooter::restore(&mut values, None),
 ///     _ => {}
 /// }
@@ -447,9 +447,9 @@ impl ResetFooter {
         self.resetting
     }
 
-    /// Shows `accept` and the second button, which is Reset (enabled while `changed`) or Cancel, and answers with
+    /// Lays out `accept` and the second button, which is Reset (enabled while `changed`) or Cancel, and answers with
     /// the one pressed.
-    pub fn show(&self, ui: &mut Ui, accept: FooterButton, changed: bool) -> Option<ResetPick> {
+    pub fn buttons(&self, ui: &mut Ui, accept: FooterButton, changed: bool) -> Option<ResetPick> {
         let second = if self.resetting {
             FooterButton::new(self.reset.clone(), DialogRole::Other).enabled(changed)
         } else {
