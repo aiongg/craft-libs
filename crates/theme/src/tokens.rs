@@ -787,6 +787,19 @@ pub struct SizeTokens {
     pub hit: HitSizes,
     /// Side of a checkerboard cell in UI swatches and thumbnails.
     pub checker: f32,
+    /// Side of a dial control (an angle dial).
+    pub dial: f32,
+    /// The well of a two-axis picker (a point picker), before the picker's own fitting.
+    pub plot: PlotSizes,
+}
+
+/// Plot sizes, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PlotSizes {
+    /// Least width.
+    pub width: f32,
+    /// Least height.
+    pub height: f32,
 }
 
 /// Canvas drag handle sizes, in logical pixels.

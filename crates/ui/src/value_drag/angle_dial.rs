@@ -29,8 +29,6 @@ const LARGE_STEPS: f64 = 10.0;
 /// The range and the step of a dial that is given none a usable one.
 const DEFAULT_RANGE: (f64, f64) = (-180.0, 180.0);
 const DEFAULT_STEP: f64 = 1.0;
-/// The dial's side in control heights.
-const DIAL_IN_HEIGHTS: f32 = 1.75;
 /// The radius round the centre within which the pointer changes nothing, in control heights.
 const DEAD_ZONE_IN_HEIGHTS: f32 = 0.1;
 /// The least a range's span may differ from a turn for the dial to count it as one.
@@ -231,7 +229,7 @@ impl Component for AngleDial<'_> {
     fn style(cx: &StyleCx<'_>, _: AngleDialStyleKey) -> AngleDialStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
-        let side = (control.height * DIAL_IN_HEIGHTS).round();
+        let side = cx.tokens.size.dial;
         let disabled = colors.state.disabled_fill;
         let states = |rest, hover, pressed, off| {
             Stateful::new(cx.color(rest)).off(States::new(cx.color(rest), cx.color(hover), cx.color(pressed), cx.color(off)))

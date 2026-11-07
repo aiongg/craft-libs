@@ -29,9 +29,6 @@ const AXIS_X: PartKey = PartKey::new("axis_x");
 const AXIS_Y: PartKey = PartKey::new("axis_y");
 const AXES: [PartKey; 2] = [AXIS_X, AXIS_Y];
 
-/// The well's least width and height in control heights.
-const WIDTH_IN_HEIGHTS: f32 = 10.0;
-const HEIGHT_IN_HEIGHTS: f32 = 6.0;
 /// The point's hit square as a share of the well's height.
 const THUMB_SHARE: f32 = 0.25;
 /// An arrow press moves this share of an axis's range when the picker has no step.
@@ -174,7 +171,7 @@ impl Component for PointPicker<'_> {
     fn style(cx: &StyleCx<'_>, _: PointPickerStyleKey) -> PointPickerStyle {
         let control = cx.control();
         PointPickerStyle {
-            metrics: Metrics::new().min_size(Vec2::new(control.height * WIDTH_IN_HEIGHTS, control.height * HEIGHT_IN_HEIGHTS)),
+            metrics: Metrics::new().min_size(Vec2::new(cx.tokens.size.plot.width, cx.tokens.size.plot.height)),
             focus: crate::controls::focus_look(cx),
             cross: control.icon,
         }

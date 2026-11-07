@@ -657,10 +657,13 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             cx.cancel(reason);
         }
     }
-    let reset = cx.core.intents.take(Intent::Reset);
+    let reset = cx.core.intents.take_reset();
     let double = double_click(&cx.core).filter(|_| !matches!(C::INPUT, Input::Text | Input::Editor));
-    if reset || double.is_some() {
-        let part = if reset { cx.core.active } else { double.flatten() };
+    if reset.is_some() || double.is_some() {
+        let part = match reset {
+            Some(whole) => cx.core.active.filter(|_| !whole),
+            None => double.flatten(),
+        };
         if let Some(part) = part.filter(|part| cx.core.own_reset_parts.contains(&(part.key, part.index))) {
             cx.core.reset_part = Some(part);
         } else if let Some(reset) = comp.bind().and_then(|bind| bind.reset_value().cloned()) {

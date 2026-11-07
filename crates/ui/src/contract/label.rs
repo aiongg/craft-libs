@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 
@@ -326,7 +326,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);
     Env::restore(&ctx, installed);
     if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
-        keys::route(&ctx, fact.control, Intent::Reset);
+        keys::route_whole_reset(&ctx, fact.control);
     }
     let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str()).role(input.side.role).with_press(shown.press);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));

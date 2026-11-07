@@ -115,6 +115,9 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.hit.slop" Num 0.0..=32.0 => s.hit.slop;
         "base.size.hit.target" Num 0.0..=32.0 => s.hit.target;
         "base.size.checker" Num 1.0..=32.0 => s.checker;
+        "base.size.dial" Num 16.0..=128.0 => s.dial;
+        "base.size.plot.width" Num 48.0..=640.0 => s.plot.width;
+        "base.size.plot.height" Num 32.0..=480.0 => s.plot.height;
     }
     let sp = &mut b.space;
     leaves! { out;

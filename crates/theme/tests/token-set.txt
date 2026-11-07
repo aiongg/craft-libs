@@ -86,6 +86,7 @@ size.bar.title
 size.checker
 size.control.md
 size.control.sm
+size.dial
 size.handle.md
 size.handle.sm
 size.hit.slop
@@ -94,6 +95,8 @@ size.icon.lg
 size.icon.md
 size.icon.sm
 size.panel_header
+size.plot.height
+size.plot.width
 size.rail.button
 size.rail.width
 size.thumb.lg

@@ -96,6 +96,8 @@ struct Routed {
     items: Vec<Item>,
     nudge: Option<(Vec2, Mods)>,
     set_value: Option<(Option<PartRef>, f64)>,
+    /// A `Reset` the label step routed: it resets the whole binding, whatever part holds focus.
+    whole_reset: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -625,9 +627,16 @@ pub struct Intents {
     items: Vec<(Intent, bool)>,
     nudge: Option<(Vec2, Mods)>,
     set_value: Option<(Option<PartRef>, f64)>,
+    whole_reset: bool,
 }
 
 impl Intents {
+    /// Takes a `Reset`, once per pass: `Some(true)` when the label step sent it (the whole binding resets),
+    /// `Some(false)` when a key sent it (it resets the focused part when that part has its own reset).
+    pub(crate) fn take_reset(&mut self) -> Option<bool> {
+        self.take(Intent::Reset).then_some(self.whole_reset)
+    }
+
     /// Takes an intent of the kind of `intent`, once per pass: the first taker gets it.
     pub fn take(&mut self, intent: Intent) -> bool {
         match self.items.iter().position(|(item, taken)| !taken && item.same_kind(&intent)) {
@@ -801,7 +810,7 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
             intent => (intent, false),
         })
         .collect();
-    Intents { items, nudge: routed.nudge, set_value: routed.set_value }
+    Intents { items, nudge: routed.nudge, set_value: routed.set_value, whole_reset: routed.whole_reset }
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
@@ -819,10 +828,13 @@ pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
     });
 }
 
-/// Routes `intent` to the component `target` for the rest of this pass, as if the key stage had: the label step
-/// sends `Reset` to the control behind a label.
-pub(crate) fn route(ctx: &Context, target: Id, intent: Intent) {
-    current(ctx, |stage| push(&mut stage.routed, Some(target), intent, false));
+/// Routes a `Reset` of the whole binding to the component `target` for the rest of this pass: the label step sends
+/// it for a double click on the label and for the reset dot.
+pub(crate) fn route_whole_reset(ctx: &Context, target: Id) {
+    current(ctx, |stage| {
+        push(&mut stage.routed, Some(target), Intent::Reset, false);
+        stage.routed.entry(Some(target)).or_default().whole_reset = true;
+    });
 }
 
 /// Takes an untaken `Submit` for the innermost scope with a default action.

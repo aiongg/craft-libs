@@ -106,3 +106,39 @@ fn a_reset_of_a_thumb_with_a_default_sets_only_that_thumb() {
     fixture.idle(2);
     assert_eq!(row(&fixture), [10.0, 80.0], "Reset with the first thumb focused restores its default alone");
 }
+
+/// A double click on the row's side label resets the whole binding, even while a thumb with a default of its own
+/// holds focus.
+#[trial]
+fn a_label_reset_restores_the_whole_row_while_a_thumb_with_a_default_is_focused() {
+    use craft_ui::contract::{ShowContainer as _, SideLabel};
+    use craft_ui::testing::Frames;
+    use craft_ui::testing::input::key_press;
+
+    let mut frames = Frames::new();
+    let mut value = [20.0, 80.0];
+    let mut show = |ui: &mut Ui| {
+        crate::label::kit::Field::new("Levels", SideLabel::new()).id_salt("field").show_at(
+            ui,
+            egui::Rect::from_min_size(egui::pos2(10.0, 10.0), egui::vec2(300.0, 30.0)),
+            |ui, _| {
+                let thumbs = [Thumb::new("Black").reset(10.0), Thumb::new("White").reset(90.0)];
+                ThumbRow::new(Bind::bound(&mut value).reset([0.0, 100.0]), 0.0..=100.0).step(1.0).thumbs(thumbs).show(ui);
+            },
+        );
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    let tree = frames.tree();
+    let label = tree.keys().into_iter().find(|key| tree.role_of(*key) == Some(craft_ui::contract::Role::LABEL)).expect("the field shows its label");
+    let at = tree.bounds_of(label).expect("the label has bounds").center();
+    frames.frame(vec![moved(at)], &mut show);
+    for _ in 0..2 {
+        frames.frame(vec![press(at)], &mut show);
+        frames.frame(vec![release(at)], &mut show);
+    }
+    frames.frame(vec![], &mut show);
+    drop(show);
+    assert_eq!(value, [0.0, 100.0]);
+}

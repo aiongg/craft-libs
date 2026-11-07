@@ -26,6 +26,7 @@
         "md": 30.0,
         "sm": 24.0
       },
+      "dial": 52.0,
       "handle": {
         "md": 8.0,
         "sm": 6.0
@@ -40,6 +41,10 @@
         "sm": 14.0
       },
       "panel_header": 34.0,
+      "plot": {
+        "height": 180.0,
+        "width": 300.0
+      },
       "rail": {
         "button": 36.0,
         "width": 50.0
