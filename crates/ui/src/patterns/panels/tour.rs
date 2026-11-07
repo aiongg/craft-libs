@@ -111,58 +111,63 @@ impl<'a> Tour<'a> {
     pub fn show(self, ui: &mut Ui) -> TourOutput {
         let Tour { label, steps, mut index } = self;
         let Some(last) = steps.len().checked_sub(1) else { return TourOutput::default() };
-        let held = index.reborrow().get().and_then(|held| held.same().copied()).unwrap_or(0);
-        let at = held.min(last);
-        let step = &steps[at];
         let env = Env::of(ui);
         let words = env.words::<PanelWords>();
-        let count = words.tour_count.fill(&[("n", &env.format().integer(at as u64 + 1)), ("total", &env.format().integer(steps.len() as u64))]);
-        let layer = layer(step.target);
-        let mut taken: Option<TourEvent> = None;
-        let forward = if at < last { TourEvent::Next } else { TourEvent::Finished };
-        let shown = Popover::new(step.title.clone(), Bind::given(true))
-            .overlay(|_| layer)
-            .initial_focus(Initial::Default)
-            .command_scope(TourCommands::SCOPE)
-            .show(ui, |ui, cx| {
-                while let Some((command, _)) = cx.take_command::<TourCommands>() {
-                    taken = match command {
-                        TourCommands::Next => Some(forward),
-                        TourCommands::Back if at > 0 => Some(TourEvent::Back),
-                        TourCommands::Back => taken,
+        let mut event: Option<TourEvent> = None;
+        // The tour's root container holds no content; the step's card is the popover it opens.
+        Stack::new().show(ui, |ui, root| {
+            let held = index.reborrow().read(root).and_then(|held| held.same().copied()).unwrap_or(0);
+            let at = held.min(last);
+            let step = &steps[at];
+            let count = words.tour_count.fill(&[("n", &env.format().integer(at as u64 + 1)), ("total", &env.format().integer(steps.len() as u64))]);
+            let layer = layer(step.target);
+            let mut taken: Option<TourEvent> = None;
+            let forward = if at < last { TourEvent::Next } else { TourEvent::Finished };
+            let shown = Popover::new(step.title.clone(), Bind::given(true))
+                .overlay(|_| layer)
+                .initial_focus(Initial::Default)
+                .command_scope(TourCommands::SCOPE)
+                .show(ui, |ui, cx| {
+                    while let Some((command, _)) = cx.take_command::<TourCommands>() {
+                        taken = match command {
+                            TourCommands::Next => Some(forward),
+                            TourCommands::Back if at > 0 => Some(TourEvent::Back),
+                            TourCommands::Back => taken,
+                        };
+                    }
+                    Stack::new().show(ui, |ui, _| {
+                        let mut notice =
+                            Notice::new(Tone::Neutral, step.text.clone()).title(step.title.clone()).layout(NoticeLayout::Inline).footer_actions();
+                        // Reading order: Skip, Back, Next; the indices below follow it.
+                        let mut order = Vec::with_capacity(3);
+                        if at < last {
+                            notice = notice.action(NoticeAction::new(words.tour_skip.clone()));
+                            order.push(TourEvent::Skipped);
+                        }
+                        if at > 0 {
+                            notice = notice.action(NoticeAction::new(words.tour_back.clone()));
+                            order.push(TourEvent::Back);
+                        }
+                        notice = notice
+                            .action(NoticeAction::new(if at < last { words.tour_next.clone() } else { words.tour_done.clone() }).default_action());
+                        order.push(forward);
+                        if let Some(event) = notice.show(ui).action.and_then(|at| order.get(at).copied()) {
+                            taken = Some(event);
+                        }
+                        Text::new(count.clone()).show(ui);
+                    });
+                    let moved = match taken {
+                        Some(TourEvent::Next) => Some(at + 1),
+                        Some(TourEvent::Back) => Some(at - 1),
+                        _ => None,
                     };
-                }
-                Stack::new().show(ui, |ui, _| {
-                    let mut notice = Notice::new(Tone::Neutral, step.text.clone()).title(step.title.clone()).layout(NoticeLayout::Inline);
-                    // Reading order: Skip, Back, Next; the indices below follow it.
-                    let mut order = Vec::with_capacity(3);
-                    if at < last {
-                        notice = notice.action(NoticeAction::new(words.tour_skip.clone()));
-                        order.push(TourEvent::Skipped);
+                    if let Some(to) = moved {
+                        let name: Arc<str> = Arc::from(label.as_str());
+                        let _ = index.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(held), to, name, None));
                     }
-                    if at > 0 {
-                        notice = notice.action(NoticeAction::new(words.tour_back.clone()));
-                        order.push(TourEvent::Back);
-                    }
-                    notice =
-                        notice.action(NoticeAction::new(if at < last { words.tour_next.clone() } else { words.tour_done.clone() }).default_action());
-                    order.push(forward);
-                    if let Some(event) = notice.show(ui).action.and_then(|at| order.get(at).copied()) {
-                        taken = Some(event);
-                    }
-                    Text::new(count.clone()).show(ui);
                 });
-            });
-        let event = taken.or(shown.output.closed.map(|_| TourEvent::Skipped));
-        let moved = match event {
-            Some(TourEvent::Next) => Some(at + 1),
-            Some(TourEvent::Back) => Some(at - 1),
-            _ => None,
-        };
-        if let Some(to) = moved {
-            let name: Arc<str> = Arc::from(label.as_str());
-            let _ = index.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(held), to, name, None));
-        }
+            event = taken.or(shown.output.closed.map(|_| TourEvent::Skipped));
+        });
         TourOutput { event }
     }
 }
