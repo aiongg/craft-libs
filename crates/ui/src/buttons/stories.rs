@@ -1,8 +1,7 @@
 //! Stories of the buttons.
 
-use super::{Button, IconButton, Link, SplitButton, ToggleButton};
+use super::{Button, IconButton, Link, MenuEntry, SplitButton, ToggleButton};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
-use crate::controls::select::SelectOption;
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{IconId, Mixed};
@@ -34,8 +33,8 @@ fn toggle_button_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     ToggleButton::new("Snap to grid", Bind::bound(data.value("invalid", true)).check(refuse_on)).show(ui).into()
 }
 
-fn presets() -> [SelectOption<u8>; 3] {
-    [SelectOption::new(0, "Black and white"), SelectOption::new(1, "Colour"), SelectOption::new(2, "Grayscale")]
+fn presets() -> [MenuEntry<u8>; 3] {
+    [MenuEntry::new(0, "Black and white"), MenuEntry::new(1, "Colour"), MenuEntry::new(2, "Grayscale")]
 }
 
 #[story(SplitButton<'static, u8>, covers = [Default], drive = Drive::Activate)]

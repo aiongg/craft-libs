@@ -482,16 +482,16 @@ impl<T: Copy> PressMachine<T> {
                 }
                 PointerEvent::Pressed { button, pos: at, time, clicks } => {
                     pos = at;
-                    // A middle press captures for a drag (a canvas pan) and never starts over an open press; a primary
-                    // press does not replace an open middle press.
-                    let middle = button == PointerButton::Middle;
-                    let over_other = self.open.is_some_and(|open| middle || open.start.button != button);
-                    if !matches!(button, PointerButton::Primary | PointerButton::Middle) || over_other {
+                    // A middle or secondary press captures for a drag (a canvas pan, a drag with the secondary button) and
+                    // never clicks or starts over an open press; a primary press does not replace one of them.
+                    let capture_only = button != PointerButton::Primary;
+                    let over_other = self.open.is_some_and(|open| capture_only || open.start.button != button);
+                    if !matches!(button, PointerButton::Primary | PointerButton::Middle | PointerButton::Secondary) || over_other {
                         continue;
                     }
                     self.open = pick(at)
-                        .map(|(target, sense)| (target, if middle { sense - Sense::CLICK } else { sense }))
-                        .filter(|(_, sense)| !middle || sense.contains(Sense::DRAG))
+                        .map(|(target, sense)| (target, if capture_only { sense - Sense::CLICK } else { sense }))
+                        .filter(|(_, sense)| !capture_only || sense.contains(Sense::DRAG))
                         .map(|(target, sense)| Open {
                             target,
                             sense,
@@ -604,6 +604,18 @@ mod tests {
         assert_eq!(machine.button(), Some(PointerButton::Middle), "the primary press neither replaces nor drops the middle press");
         let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::DRAG);
         assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Middle), "{step:?}");
+    }
+
+    #[test]
+    fn a_secondary_press_captures_for_a_drag_and_never_clicks() {
+        let secondary = |x: f32| PointerEvent::pressed_by(PointerButton::Secondary, pos2(x, 0.0), 1.0, 1);
+        let mut machine = PressMachine::new();
+        pass(&mut machine, &[secondary(0.0)], Sense::CLICK | Sense::DRAG);
+        let step = pass(&mut machine, &[PointerEvent::Moved(pos2(20.0, 0.0))], Sense::CLICK | Sense::DRAG);
+        assert!(matches!(step.phase, Some(PressPhase::DragStart { start, .. }) if start.button == PointerButton::Secondary), "{step:?}");
+        let mut clicked = PressMachine::new();
+        pass(&mut clicked, &[secondary(0.0)], Sense::CLICK);
+        assert_eq!(clicked.target(), None, "a click-only shape takes no secondary press");
     }
 
     #[test]

@@ -238,14 +238,14 @@ pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[I
     });
 }
 
-/// The parts of the root `root` that sense a drag in last pass's shape record, in registration order.
-pub(crate) fn drag_parts(ctx: &Context, root: Id) -> Vec<craft_behavior::PartRef> {
+/// The parts of the root `root` that sense `sense` in last pass's shape record, in registration order.
+pub(crate) fn sensing_parts(ctx: &Context, root: Id, sense: craft_behavior::Sense) -> Vec<craft_behavior::PartRef> {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| {
         let mut parts = Vec::new();
         for layer in record.last.values() {
             if let Some(entry) = layer.get(&root) {
-                parts.extend(entry.shapes.iter().filter(|shape| shape.sense.contains(craft_behavior::Sense::DRAG)).filter_map(|shape| shape.part));
+                parts.extend(entry.shapes.iter().filter(|shape| shape.sense.contains(sense)).filter_map(|shape| shape.part));
             }
         }
         parts

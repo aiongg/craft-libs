@@ -21,6 +21,7 @@ pub(super) const CASES: &[Case] = &[
     Case::new("language", ANY, a_language_change_keeps_the_ids),
 ];
 
+/// Whether the drive changed a value, reported an edit or reported a click.
 fn acted(fixture: &mut Fixture, before: &crate::testing::story::StorySnapshot) -> bool {
     let changed = !fixture.data().changed_since(before).is_empty();
     let outputs = fixture.take_outputs();
@@ -58,7 +59,8 @@ fn is_text(subject: &Subject) -> bool {
     matches!(subject.probe.input, Input::Text | Input::Editor)
 }
 
-/// A read-only component keeps focus, changes no value, takes no typed text or deletion and reports read-only.
+/// A read-only component keeps focus, changes no value, takes no typed text or deletion
+/// and reports read-only.
 fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
     if !(subject.probe.carries_value() || is_text(subject)) {
         return Ok(());

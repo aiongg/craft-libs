@@ -5,13 +5,13 @@ use crate::contract::{
     Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
     Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
 };
-use crate::controls::select::{OptionList, OptionRow, SelectOption};
+use crate::controls::select::{OptionList, OptionRow};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Corners, FocusLook, StateSet, Stateful, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, Corners, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
 use craft_theme::{
-    State, StateMix, States, Variant,
+    States, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -38,6 +38,22 @@ pub struct SplitButtonStyle {
     /// The divider's gap from the top and bottom edges.
     divider_inset: f32,
     radius: CornerRadius,
+}
+
+/// One entry of a split button's menu: the value its pick reports and the label it shows.
+#[non_exhaustive]
+pub struct MenuEntry<T> {
+    /// The value reported when this entry is picked.
+    pub value: T,
+    /// The text the entry shows.
+    pub label: Label,
+}
+
+impl<T> MenuEntry<T> {
+    /// An entry reporting `value`, shown as `label`.
+    pub fn new(value: T, label: impl Into<Label>) -> Self {
+        MenuEntry { value, label: label.into() }
+    }
 }
 
 /// What a split button reports: the main part's response (`clicked()` runs the action) and the entry picked from
@@ -67,7 +83,7 @@ impl<T: Value> Outcome for SplitOutput<T> {
 pub struct SplitButton<'a, T: Value + 'static> {
     #[common]
     common: Common,
-    entries: &'a [SelectOption<T>],
+    entries: &'a [MenuEntry<T>],
     /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
     #[prop(into)]
     arrow_label: Option<Label>,
@@ -79,7 +95,7 @@ pub struct SplitButton<'a, T: Value + 'static> {
 
 impl<'a, T: Value + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens `entries`.
-    pub fn new(label: impl Into<Label>, entries: &'a [SelectOption<T>]) -> Self {
+    pub fn new(label: impl Into<Label>, entries: &'a [MenuEntry<T>]) -> Self {
         SplitButton { common: Common::new(), entries, arrow_label: None, icon: None, chosen: None }.label(label)
     }
 
@@ -183,19 +199,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let (rtl, direction) = (cx.flow.is_rtl(), cx.env.direction());
         let (arrow, main) = Flow::new(cx.rect, rtl).take_end(cx.style.face.icon);
         let main = main.rect();
-        let arrow_hovered = cx.part(ARROW).hovered;
-        let (hovered, pressed) = (cx.response.hovered() && !arrow_hovered, cx.press().phase.is_press());
-        let state = if !cx.resolved.enabled {
-            State::Disabled
-        } else if pressed {
-            State::Pressed
-        } else if hovered {
-            State::Hover
-        } else {
-            State::Rest
-        };
-        let main_fill = StateSet::new(state, crate::style::Flags::empty(), StateMix::new(f32::from(hovered), f32::from(pressed), 0.0))
-            .resolve(&cx.style.part_fill);
+        let main_fill = cx.root_state().resolve(&cx.style.part_fill);
         let draw = ui.draw();
         draw.fill(&PaintShape::Rect(main, Corners::Start.apply(cx.style.radius, direction)), main_fill);
         draw.fill(&PaintShape::Rect(arrow, Corners::End.apply(cx.style.radius, direction)), cx.resolve_part(ARROW, &cx.style.part_fill));

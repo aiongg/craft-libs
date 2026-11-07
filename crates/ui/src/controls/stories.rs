@@ -98,9 +98,10 @@ fn radio_group_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     spread(ui, RadioGroup::new("Size", Bind::bound(data.value("large", 3u8)).check(refuse_large))).0
 }
 
+// The shown member is the selected one, where Tab arrives, so the key drives reach it.
 #[story(Radio<u8>, covers = [Default])]
 fn radio(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    spread(ui, RadioGroup::new("Size", Bind::bound(data.value("size", 1u8)))).1.map(StoryOutput::from).unwrap_or_default()
+    spread(ui, RadioGroup::new("Size", Bind::bound(data.value("size", 2u8)))).1.map(StoryOutput::from).unwrap_or_default()
 }
 
 #[story(Disclosure<'static>, covers = [Default])]

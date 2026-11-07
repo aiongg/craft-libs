@@ -599,9 +599,14 @@ pub(crate) fn part_state(result: &crate::primitives::PartResult, enabled: bool, 
     StateSet::new(state, flags, StateMix::new(f32::from(u8::from(result.hovered)), f32::from(u8::from(pressed)), f32::from(u8::from(on))))
 }
 
+/// Whether the component takes activations (a click, a key, AccessKit `Click`): a disabled or read-only one drops them.
+pub(crate) fn takes_activation(resolved: &Resolved<'_>) -> bool {
+    resolved.enabled && !resolved.read_only
+}
+
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
-    if core.intents.take(craft_behavior::Intent::Activate) {
+    if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(&core.resolved) {
         core.activation = Some(super::Activation { by_key: true });
     }
 }

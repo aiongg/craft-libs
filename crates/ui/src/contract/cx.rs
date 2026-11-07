@@ -374,6 +374,9 @@ impl<C: Component> Pointer for Cx<'_, C> {
 pub trait Styled {
     /// The state set.
     fn state(&self) -> &StateSet;
+    /// The root's own state: the hover and press of the root without those of its parts, for a control whose parts
+    /// each paint their own state (a split button's main part).
+    fn root_state(&self) -> StateSet;
     /// The ink the surface reads in.
     fn ink(&self) -> Ink;
     /// The value of `look` for the component's state set.
@@ -420,6 +423,26 @@ impl Styled for CxCore<'_> {
         &self.state
     }
 
+    fn root_state(&self) -> StateSet {
+        self.assert_stated();
+        let hovered = self.response.hovered() && !self.results.values().any(|result| result.hovered);
+        let pressed = self.press.phase.is_press();
+        let state = if !self.resolved.enabled {
+            craft_theme::State::Disabled
+        } else if pressed {
+            craft_theme::State::Pressed
+        } else if hovered {
+            craft_theme::State::Hover
+        } else {
+            craft_theme::State::Rest
+        };
+        StateSet::new(
+            state,
+            self.state.flags,
+            craft_theme::StateMix::new(f32::from(u8::from(hovered)), f32::from(u8::from(pressed)), self.state.t.on),
+        )
+    }
+
     fn ink(&self) -> Ink {
         self.assert_stated();
         self.ink
@@ -439,6 +462,10 @@ impl Styled for CxCore<'_> {
 impl<C: Component> Styled for Cx<'_, C> {
     fn state(&self) -> &StateSet {
         self.core.state()
+    }
+
+    fn root_state(&self) -> StateSet {
+        self.core.root_state()
     }
 
     fn ink(&self) -> Ink {
@@ -615,9 +642,9 @@ impl<C: Component> Cx<'_, C> {
         }
     }
 
-    /// An edit of a read-only component reaches nothing.
+    /// An edit of a read-only or disabled component reaches nothing.
     fn refuses_edits(&self) -> bool {
-        self.core.resolved.read_only
+        self.core.resolved.read_only || !self.core.resolved.enabled
     }
 
     /// Turns an adopted child event into the composite's own and records its gesture, as `begin`, `propose`, `commit`

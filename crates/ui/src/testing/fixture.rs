@@ -184,7 +184,13 @@ impl Fixture {
 
     /// The first part of the shown component that senses a drag.
     pub fn drag_part(&self) -> Option<PartRef> {
-        crate::runtime::pointer::drag_parts(self.ctx(), self.root_id()?).into_iter().next()
+        crate::runtime::pointer::sensing_parts(self.ctx(), self.root_id()?, craft_behavior::Sense::DRAG).into_iter().next()
+    }
+
+    /// The first part of the shown component that senses a click: what a click activates when the component has
+    /// parts of its own.
+    pub fn click_part(&self) -> Option<PartRef> {
+        crate::runtime::pointer::sensing_parts(self.ctx(), self.root_id()?, craft_behavior::Sense::CLICK).into_iter().next()
     }
 
     /// The text runs the latest frame painted.
