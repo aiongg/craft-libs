@@ -11,13 +11,50 @@ new_module = "craft_ui::patterns::form_dialogs"
 name = "ParamDialog"
 old = "craft_ui::dialog::params::ParamDialog"
 new = "craft_ui::patterns::form_dialogs::ParamDialog"
-status = "pending"
+status = "moved"
+note = "A pattern: `ParamDialog::new(key, title, params)` with `show(ui) -> ParamDialogOutput { response, closed, result, rows, values, preview_on }`. A `DialogHost` owns it as `HostedParamDialog`, whose `build` closure makes the dialog over the host's values each pass."
+
+[[type]]
+name = "HostedParamDialog"
+old = ""
+new = "craft_ui::patterns::form_dialogs::HostedParamDialog"
+status = "replaced"
+note = "The `StackDialog` form of `ParamDialog` and `CommandForm`: `HostedParamDialog::new(key, fields, |fields| ParamDialog::new(..).values(Bind::bound(fields)))`, with `fields`, `fields_mut`, `pick_color`, `pick_path`, `pick_eyedropper`."
 
 [[type]]
 name = "CommandForm"
 old = "craft_ui::dialog::command_form::CommandForm"
-new = "craft_ui::patterns::form_dialogs::CommandForm"
-status = "pending"
+new = ""
+status = "removed"
+note = "A `ParamDialog` with no `preview` and no `remember` key; hosted, a `HostedParamDialog`."
+
+[[type]]
+name = "ParamLayout"
+old = "craft_ui::dialog::params::ParamLayout"
+new = "craft_ui::patterns::form_dialogs::ParamLayout"
+status = "moved"
+note = "Variants are `Beside` (was `SideColumn`) and `Below` (was `BottomFooter` and `Stacked`); OK and Cancel are always the dialog's footer, and the Preview check box and zoom row sit over the pane."
+
+[[type]]
+name = "ParamResult"
+old = "craft_ui::dialog::params::ParamResult"
+new = "craft_ui::patterns::form_dialogs::ParamResult"
+status = "moved"
+note = "`key` and `fields` are public fields (`#[non_exhaustive]`); `remember(&self, ui)` stores the values under the dialog's `SaveKey`."
+
+[[type]]
+name = "PreviewPane"
+old = ""
+new = "craft_ui::patterns::form_dialogs::PreviewPane"
+status = "replaced"
+note = "The preview panes of `ParamDialog` and Save for Web: `PreviewPane::new(label, texture: SizedTexture, view: CanvasTransform)` shows the picture; `show(ui) -> PreviewOutput { response, view }` reports the next view after a pan or zoom. `PreviewZoom::new(view)` is the zoom row."
+
+[[type]]
+name = "PreviewZoom"
+old = ""
+new = "craft_ui::patterns::form_dialogs::PreviewZoom"
+status = "replaced"
+note = "The zoom-out and zoom-in buttons with the zoom percentage over the same `CanvasTransform` view as `PreviewPane`."
 
 
 # Parameter model and rows (form-dialogs-a).
@@ -252,3 +289,152 @@ note = "The preview pane belongs to `ParamDialog` (form-dialogs-b); the rows tak
 type = "ParamRows"
 old = "ParamRows::show(ui, &mut fields)"
 new = "ParamRows::new(label, &params, Bind::bound(&mut fields)).show(ui)"
+
+# ParamDialog and CommandForm (form-dialogs-b).
+
+[[setter]]
+type = "ParamDialog"
+old = "ParamDialog::new(key, title: impl Into<String>, params: Vec<Param>)"
+new = "ParamDialog::new(key, title: impl Into<Label>, params: impl Into<Cow<[Param]>>)"
+
+[[setter]]
+type = "ParamDialog"
+old = "instance(id)"
+new = ""
+note = "Removed: a hosted dialog is named with `HostedParamDialog::instance`; a shown one is told apart by its key."
+
+[[setter]]
+type = "ParamDialog"
+old = "values(DialogFields)"
+new = "values(Bind<DialogFields>)"
+note = "Without a binding the dialog keeps its values between passes; the opening snapshot is taken on the first pass."
+
+[[setter]]
+type = "ParamDialog"
+old = "remember(key: impl Into<String>)"
+new = "remember(SaveKey)"
+note = "Opens with the saved values; `ParamResult::remember(ui)` stores them after the command succeeds."
+
+[[setter]]
+type = "ParamDialog"
+old = "ok_enabled(bool)"
+new = "ok_enabled(bool)"
+note = "Unchanged; `set_ok_enabled` is gone, the next pass passes the value."
+
+[[setter]]
+type = "ParamDialog"
+old = "set_ok_enabled(bool)"
+new = ""
+note = "Removed: the dialog is built each pass, so `ok_enabled` takes the current value."
+
+[[setter]]
+type = "ParamDialog"
+old = "reset_to(DialogFields)"
+new = "reset_to(DialogFields)"
+note = "Unchanged; `set_reset_to` is gone for the same reason."
+
+[[setter]]
+type = "ParamDialog"
+old = "set_reset_to(DialogFields)"
+new = ""
+note = "Removed: pass `reset_to` each pass."
+
+[[setter]]
+type = "ParamDialog"
+old = "history(bool)"
+new = ""
+note = "Removed: dialog-local history is none; a form dialog uses the app history (pilot P4)."
+
+[[setter]]
+type = "ParamDialog"
+old = "close_label(Option<String>)"
+new = "closable(bool)"
+note = "The close action is named by the dialog title row; `closable(false)` removes it."
+
+[[setter]]
+type = "ParamDialog"
+old = "footer_extra(FnMut(&mut Ui) + Send + 'static)"
+new = "footer_extra(FnMut(&mut Ui) + 'a)"
+
+[[setter]]
+type = "ParamDialog"
+old = "preview(bool)"
+new = "preview(SizedTexture)"
+note = "The picture the pane shows; a dialog without one has no Preview check box. `set_preview_image` is the next pass's `preview`, `preview_on()` is `ParamDialogOutput::preview_on`."
+
+[[setter]]
+type = "ParamDialog"
+old = "set_preview(bool)"
+new = ""
+note = "Removed: the Preview check box is the user's."
+
+[[setter]]
+type = "ParamDialog"
+old = "comparing()"
+new = ""
+note = "Removed: hold-to-compare is not ported."
+
+[[setter]]
+type = "ParamDialog"
+old = "layout(ParamLayout)"
+new = "layout(ParamLayout)"
+
+[[setter]]
+type = "ParamDialog"
+old = "width(Width)"
+new = ""
+note = "Removed: the dialog sizes to its rows and pane."
+
+[[setter]]
+type = "ParamDialog"
+old = "below(Fn(&mut Ui, &DialogFields) + Send + 'static)"
+new = "below(Fn(&mut Ui, &DialogFields) + 'a)"
+
+[[setter]]
+type = "ParamDialog"
+old = "fields() / fields_mut()"
+new = "HostedParamDialog::fields() / fields_mut()"
+note = "A shown dialog reports `ParamDialogOutput::values`."
+
+[[setter]]
+type = "ParamDialog"
+old = "pick_color() / pick_path() / pick_eyedropper()"
+new = "ParamDialogOutput::rows (`pick_color`, `path`, `eyedropper`) / HostedParamDialog::pick_color() / pick_path() / pick_eyedropper()"
+
+[[setter]]
+type = "ParamDialog"
+old = "set_color(key, Srgba)"
+new = "craft_ui::patterns::form_dialogs::set_color_field(&params, &mut fields, key, color)"
+
+[[setter]]
+type = "ParamDialog"
+old = "rows(&mut Form)"
+new = "ParamRows::new(label, &params, Bind<DialogFields>).show(ui)"
+
+[[setter]]
+type = "ParamDialog"
+old = "ParamDialog::show(ctx, stack)"
+new = "ParamDialog::show(ui) -> ParamDialogOutput"
+note = "`HostedParamDialog` keeps the `StackDialog::show(ui, stack)` form."
+
+[[setter]]
+type = "CommandForm"
+old = "CommandForm::new(key, title, params)"
+new = "ParamDialog::new(key, title, params)"
+
+[[setter]]
+type = "CommandForm"
+old = "ok_label(impl Into<String>)"
+new = "ok_label(Label)"
+
+[[setter]]
+type = "CommandForm"
+old = "body(Body)"
+new = ""
+note = "Removed: the dialog sizes to its rows."
+
+[[setter]]
+type = "CommandForm"
+old = "width(Width)"
+new = ""
+note = "Removed: the dialog sizes to its rows."
