@@ -12,7 +12,8 @@ use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
-use crate::runtime::{frame, keys, pointer};
+use crate::runtime::{frame, keys, layout_memory, pointer};
+use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, Intent, OwnerClass};
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui};
@@ -889,6 +890,13 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         Env::restore(ctx, installed);
     });
     overlay::end_layer(ctx);
+    // A container's layer was placed by the size it took last pass: a different size asks for the discard pass that
+    // places it by its real size, so it is not shown off its place. A popup is placed by its anchor and opens from its
+    // opener's queued request, which a discard pass would replay.
+    if layer.owner == layer.id && (shown.rect.size() - size).abs().max_elem() > measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx))
+    {
+        layout_memory::ask_discard(ctx);
+    }
     let mut entry = OpenEntry::new(layer.id, overlay.rank, overlay.keys, shown.rect, shown.layer);
     entry.parent = parent;
     entry.anchor = matches!(overlay.place, Place::Anchored { .. }).then_some(anchor);

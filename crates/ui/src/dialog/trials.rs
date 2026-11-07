@@ -174,13 +174,26 @@ fn a_blocking_overlays_cancel_button_closes_it_once_placed() {
             sink.set(shown.output.closed);
         }
     });
-    fixture.idle(6);
+    fixture.settle();
     let button = fixture.by_label("Stop");
     assert!(button.is_some(), "the cancel button is shown");
     if let Some(button) = button {
         fixture.click(&button);
     }
     assert_eq!(seen.get(), Some(CloseReason::Requested));
+}
+
+#[trial]
+fn a_blocking_overlays_buttons_keep_their_place_after_it_settled() {
+    let mut fixture = Fixture::new(|ui| {
+        let mut open = true;
+        BlockingOverlay::new("Working").opened(Bind::bound(&mut open)).card(true).cancel("Stop").show(ui, |_, _| {});
+    });
+    fixture.settle();
+    let first = fixture.by_label("Stop").map(|button| button.rect);
+    assert!(first.is_some(), "the cancel button is shown");
+    fixture.idle(10);
+    assert_eq!(fixture.by_label("Stop").map(|button| button.rect), first, "the overlay did not move or resize after it settled");
 }
 
 /// The width of each footer button by name, after the dialog settled, with a body of `body` text.
