@@ -247,6 +247,7 @@ pub struct SplitViews<'a> {
     props: ContainerProps,
     layout: SplitLayout,
     at: Bind<'a, SplitAt>,
+    /// The active pane: the full interactive view (0 by default). The other panes are display-only until clicked.
     #[prop]
     active: usize,
     activated: Option<usize>,

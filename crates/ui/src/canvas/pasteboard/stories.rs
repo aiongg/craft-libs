@@ -2,7 +2,7 @@
 
 use super::{NAME, PageBorder, PageFrame, Pasteboard, PasteboardColor};
 use crate::canvas::{Canvas, ToolPath};
-use crate::contract::{Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Show as _, ShowContainer as _};
 use crate::style::DataColor;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::CanvasView;

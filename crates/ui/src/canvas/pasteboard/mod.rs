@@ -165,8 +165,10 @@ pub struct Pasteboard<'a> {
     #[common]
     common: Common,
     pages: &'a [PageFrame],
+    /// The pasteboard's colour; the theme's canvas surface by default.
     #[prop]
     color: PasteboardColor,
+    /// The border round each page; a drop shadow by default.
     #[prop]
     border: PageBorder,
     /// The size of each page's name, measured in `parts`; zero for a page without one.

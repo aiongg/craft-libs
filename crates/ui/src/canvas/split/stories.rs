@@ -2,7 +2,7 @@
 
 use super::{DIVIDER, PANE, SplitAt, SplitLayout, SplitViews};
 use crate::canvas::{Canvas, ToolPath};
-use crate::contract::{Bind, Props as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
