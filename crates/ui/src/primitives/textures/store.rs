@@ -4,6 +4,8 @@ use super::limits::{fit_image, reduce_image, texels, texture_factor, texture_sid
 use super::loader::LoadFailure;
 use crate::runtime::egui::memory;
 use crate::runtime::egui::pass;
+use crate::runtime::egui::textures;
+use craft_behavior::PixelSize;
 use egui::load::SizedTexture;
 use egui::{ColorImage, Context, TextureHandle, TextureId, TextureOptions, Vec2};
 use std::collections::HashMap;
@@ -139,13 +141,13 @@ pub struct CachedTexture {
     /// The egui texture to paint.
     pub id: TextureId,
     /// The texture's size in texels (reduced when the image was past the device limit).
-    pub size: [u32; 2],
+    pub size: PixelSize,
 }
 
 impl CachedTexture {
     /// `size` as a vector, for fitting: only the aspect matters to a cell.
     pub fn size_vec2(&self) -> Vec2 {
-        Vec2::new(self.size[0] as f32, self.size[1] as f32)
+        Vec2::new(self.size.width as f32, self.size.height as f32)
     }
 
     /// The texture with its size, the form `PreviewPane` and egui's image widgets take.
@@ -209,7 +211,7 @@ enum Picture {
     Texture {
         handle: TextureHandle,
         /// The size of the image put, before any reduction.
-        source: [u32; 2],
+        source: PixelSize,
         /// The whole factor `fit_image` reduced it by: 1 when it fitted.
         factor: u32,
     },
@@ -335,10 +337,10 @@ impl<K: TextureKey> TextureStore<K> {
         // The upload runs outside the service lock: it does not call back into the store.
         let handle = match (existing, name) {
             (Some(mut handle), _) => {
-                handle.set(image, filter);
+                textures::replace(&mut handle, image, filter);
                 handle
             }
-            (None, name) => ctx.load_texture(name.unwrap_or_default(), image, filter),
+            (None, name) => textures::load(ctx, name.unwrap_or_default(), image, filter),
         };
         let texture = CachedTexture { id: handle.id(), size };
         let bytes = byte_size(size);
@@ -370,7 +372,7 @@ impl<K: TextureKey> TextureStore<K> {
         let sent = if factor > 1 { reduce_image(&image, factor) } else { image };
         let uploaded = byte_size(texels(sent.size));
         if uploaded > 0 {
-            handle.set_partial([(origin[0] / factor) as usize, (origin[1] / factor) as usize], sent, filter);
+            textures::replace_region(&mut handle, [origin[0] / factor, origin[1] / factor], sent, filter);
         }
         let texture = cached(&handle, source, factor);
         self.with(ctx, |inner| {
@@ -486,17 +488,17 @@ impl<K: TextureKey> TextureStore<K> {
     }
 }
 
-fn byte_size(size: [u32; 2]) -> usize {
-    size.iter().fold(4usize, |bytes, side| bytes.saturating_mul(*side as usize))
+fn byte_size(size: PixelSize) -> usize {
+    [size.width, size.height].into_iter().fold(4usize, |bytes, side| bytes.saturating_mul(side as usize))
 }
 
 /// The texel size of a texture made from an image of size `source` reduced by `factor`. The texture manager's own
 /// size lags an in-place `set` until the frame ends.
-fn texture_size(source: [u32; 2], factor: u32) -> [u32; 2] {
-    if factor <= 1 { source } else { source.map(|n| n.div_ceil(factor).max(1)) }
+fn texture_size(source: PixelSize, factor: u32) -> PixelSize {
+    if factor <= 1 { source } else { PixelSize::new(source.width.div_ceil(factor).max(1), source.height.div_ceil(factor).max(1)) }
 }
 
-fn cached(handle: &TextureHandle, source: [u32; 2], factor: u32) -> CachedTexture {
+fn cached(handle: &TextureHandle, source: PixelSize, factor: u32) -> CachedTexture {
     CachedTexture { id: handle.id(), size: texture_size(source, factor) }
 }
 
@@ -549,18 +551,18 @@ impl<K: TextureKey> Inner<K> {
     /// The texture a region update of `extent` texels at `origin` writes into, with the source size, the whole
     /// reduction factor and the filter; `None` when the key has no picture or the region is off the image or off the
     /// reduction grid.
-    fn region_target(&self, key: &K, origin: [u32; 2], extent: [u32; 2]) -> Option<(TextureHandle, [u32; 2], u32, TextureOptions)> {
+    fn region_target(&self, key: &K, origin: [u32; 2], extent: PixelSize) -> Option<(TextureHandle, PixelSize, u32, TextureOptions)> {
         let Picture::Texture { handle, source, factor } = &self.entries.get(key)?.picture else {
             return None;
         };
         let [x, y] = origin;
-        let [w, h] = extent;
-        if x.checked_add(w)? > source[0] || y.checked_add(h)? > source[1] {
+        let (w, h) = (extent.width, extent.height);
+        if x.checked_add(w)? > source.width || y.checked_add(h)? > source.height {
             return None;
         }
         let f = *factor;
         let on_grid = |start: u32, len: u32, whole: u32| start.is_multiple_of(f) && ((start + len).is_multiple_of(f) || start + len == whole);
-        if f > 1 && !(on_grid(x, w, source[0]) && on_grid(y, h, source[1])) {
+        if f > 1 && !(on_grid(x, w, source.width) && on_grid(y, h, source.height)) {
             return None;
         }
         Some((handle.clone(), *source, f, self.options.filter))

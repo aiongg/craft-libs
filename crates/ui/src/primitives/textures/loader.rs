@@ -5,7 +5,7 @@ use super::words::TextureWords;
 use crate::runtime::egui::{memory, pass, repaint};
 use crate::runtime::env::Env;
 use craft_host::queue::{Cancel, JobQueue, QueueOptions};
-use craft_host::{InlineJobs, Jobs, Wake};
+use craft_host::{Jobs, Wake, default_jobs};
 use egui::{Color32, ColorImage, Context};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -22,8 +22,9 @@ pub struct LoaderOptions {
     pub store: TextureStoreOptions,
     /// Jobs running at once; 0 runs one job per frame on the UI thread (wasm32).
     pub lanes: usize,
-    /// Where the lanes run. `None`: the installed host's `Jobs`, or the calling thread when no host is installed
-    /// (an app installs a `Host`; stories and tests pass their own). Stories and tests pass a `ManualJobs` to finish one job at a time.
+    /// Where the lanes run. `None`: the installed host's `Jobs`, or `craft_host::default_jobs()` when no host is
+    /// installed (threads on native targets, one job per frame on wasm32). Stories and tests pass a `ManualJobs` to
+    /// finish one job at a time.
     pub jobs: Option<Arc<dyn Jobs>>,
 }
 
@@ -183,9 +184,7 @@ impl<K: TextureKey> TextureLoader<K> {
         let (queue, lanes) = match known {
             Some(known) => known,
             None => {
-                let jobs = options.jobs.unwrap_or_else(|| {
-                    Env::host_of(ctx).map_or_else(|| Arc::new(InlineJobs) as Arc<dyn Jobs>, |host| Arc::clone(host.jobs_shared()))
-                });
+                let jobs = options.jobs.unwrap_or_else(|| Env::host_of(ctx).map_or_else(default_jobs, |host| Arc::clone(host.jobs_shared())));
                 let wake = {
                     let ctx = ctx.clone();
                     Wake::new(move || repaint::request(&ctx))

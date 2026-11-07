@@ -12,7 +12,7 @@ pub use store::{CachedTexture, Revision, TextureBudget, TextureKey, TextureState
 pub use words::TextureWords;
 
 use crate::runtime::egui::{memory, pass, textures};
-use egui::{ColorImage, Context, TextureHandle, TextureId};
+use egui::{ColorImage, Context, TextureHandle, TextureId, TextureOptions};
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -73,7 +73,7 @@ impl TextureCache {
             return id;
         }
         // The image is built and uploaded outside the service lock: neither calls back into the cache.
-        let handle = textures::load(ctx, format!("craft_ui/{hash:016x}"), image());
+        let handle = textures::load(ctx, format!("craft_ui/{hash:016x}"), image(), TextureOptions::LINEAR);
         memory::with(ctx, |loaded: &mut Loaded| {
             let id = loaded.handles.entry(hash).or_insert(Entry { handle, used: frame }).handle.id();
             loaded.evict(frame);
