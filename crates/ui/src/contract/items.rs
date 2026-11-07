@@ -740,6 +740,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 self.change(SelectionChange::Clear);
             }
         }
+        // A press that a part of an item won leaves the selection alone and moves the lead to its row.
+        let outcome = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id));
+        if let (Some(PressPhase::Down { start, .. }), Some(target)) = (outcome.phase, outcome.target)
+            && target.owner != cx.core.id
+            && target.part.is_some()
+            && local(start.origin).y >= 0.0
+            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at))
+        {
+            self.move_lead(at);
+        }
         match cx.core.press.phase {
             PressPhase::Release { click, .. } => {
                 if let Some(key) = self.drags.collapse.take()

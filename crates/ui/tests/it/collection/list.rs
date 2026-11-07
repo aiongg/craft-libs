@@ -386,6 +386,33 @@ fn an_item_part_reports_through_the_collection() {
     assert_eq!(items, [(1, Dismissed::Row)]);
 }
 
+/// A press on a row's click part leaves the selection alone and moves focus to the row (17.3 step 8).
+#[trial]
+fn a_press_on_an_item_part_moves_focus_to_the_row_and_does_not_select_it() {
+    let words = Words::flat(&["warn one", "warn two"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let rows = Box::leak(Box::new([Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING)]));
+    let rows: &'static [Cell<Rect>; 2] = rows;
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |key, cx| {
+                rows[*key].set(cx.rect);
+                Row::new().dismissable()
+            });
+            seen.take(out);
+        });
+    };
+    frames.idle(3, &mut show);
+    let hit = rows[1].get().min + Vec2::splat(ROW_H / 2.0);
+    pointer::click(&mut frames, hit, &mut show);
+    assert!(seen.selections().is_empty(), "the part's press does not select the row: {:?}", seen.selections());
+    assert_eq!(seen.leads(), [1], "the row takes the lead");
+    let beside = rows[1].get().min + Vec2::new(ROW_H * 3.0, ROW_H / 2.0);
+    pointer::click(&mut frames, beside, &mut show);
+    assert_eq!(seen.selections().len(), 1, "a press beside the part selects the row");
+}
+
 /// A text field renaming a row keeps Escape while its draft is open: the first Escape cancels the edit and focus
 /// goes back to the list, not to the row before the cancel.
 #[trial]
