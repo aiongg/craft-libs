@@ -335,6 +335,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let width = match (room.x.is_finite(), self.content_sized(comp)) {
             (false, _) => 0.0,
             (true, false) => room.x,
+            // No rows: the empty state has no ideal width, so it takes the room.
+            (true, true) if self.source.is_empty() => room.x,
             (true, true) => {
                 let floor = overlay::drawing_parent(ui.ctx()).map_or(0.0, |layer| super::overlay::floor_width(ui.ctx(), layer));
                 rows::widest_row(ui.ctx(), id).map_or(room.x, |widest| widest.max(floor).min(room.x))
