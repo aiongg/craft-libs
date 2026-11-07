@@ -86,3 +86,13 @@ pub use pdf_export::{
     PdfArtboards, PdfExportDialog, PdfExportOutput, PdfExportResult, PdfExportWords, PdfPresetEvent, PdfSection, RangeError, apply_standard,
     check_range, differences,
 };
+
+mod save_for_web;
+mod watermark;
+
+pub use save_for_web::{
+    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput, SaveForWebResult,
+    SaveForWebWords, SaveRequest, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView, advance_frame,
+    download_seconds, four_up_variants,
+};
+pub use watermark::{ROTATIONS, Stash, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};

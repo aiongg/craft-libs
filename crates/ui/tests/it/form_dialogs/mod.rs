@@ -26,3 +26,7 @@ mod export;
 
 // Save PDF.
 mod pdf_export;
+
+mod save_for_web;
+
+mod watermark;
