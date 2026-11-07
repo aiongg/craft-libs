@@ -4,12 +4,8 @@ use super::store::{Revision, TextureKey, TextureState, TextureStore, TextureStor
 use super::words::TextureWords;
 use crate::runtime::egui::{memory, pass, repaint};
 use crate::runtime::env::Env;
-#[cfg(target_arch = "wasm32")]
-use craft_host::InlineJobs;
-#[cfg(not(target_arch = "wasm32"))]
-use craft_host::ThreadJobs;
 use craft_host::queue::{Cancel, JobQueue, QueueOptions};
-use craft_host::{Jobs, Wake};
+use craft_host::{InlineJobs, Jobs, Wake};
 use egui::{Color32, ColorImage, Context};
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -26,8 +22,8 @@ pub struct LoaderOptions {
     pub store: TextureStoreOptions,
     /// Jobs running at once; 0 runs one job per frame on the UI thread (wasm32).
     pub lanes: usize,
-    /// Where the lanes run. `None`: the installed host's `Jobs`, or a thread per job (inline on wasm32) when no
-    /// host is installed. Stories and tests pass a `ManualJobs` to finish one job at a time.
+    /// Where the lanes run. `None`: the installed host's `Jobs`, or the calling thread when no host is installed
+    /// (an app installs a `Host`; stories and tests pass their own). Stories and tests pass a `ManualJobs` to finish one job at a time.
     pub jobs: Option<Arc<dyn Jobs>>,
 }
 
@@ -149,16 +145,6 @@ impl<K> Default for Pools<K> {
     }
 }
 
-#[cfg(not(target_arch = "wasm32"))]
-fn default_jobs() -> Arc<dyn Jobs> {
-    Arc::new(ThreadJobs)
-}
-
-#[cfg(target_arch = "wasm32")]
-fn default_jobs() -> Arc<dyn Jobs> {
-    Arc::new(InlineJobs)
-}
-
 /// A `TextureStore` whose pictures are made by background jobs: FilmCraft's frames, PdfCraft's pages and the
 /// thumbnails of a list. The queue is a `JobQueue` of the context, built the way `Remember::pending` builds its own.
 ///
@@ -197,7 +183,9 @@ impl<K: TextureKey> TextureLoader<K> {
         let (queue, lanes) = match known {
             Some(known) => known,
             None => {
-                let jobs = options.jobs.unwrap_or_else(|| Env::host_of(ctx).map_or_else(default_jobs, |host| Arc::clone(host.jobs_shared())));
+                let jobs = options.jobs.unwrap_or_else(|| {
+                    Env::host_of(ctx).map_or_else(|| Arc::new(InlineJobs) as Arc<dyn Jobs>, |host| Arc::clone(host.jobs_shared()))
+                });
                 let wake = {
                     let ctx = ctx.clone();
                     Wake::new(move || repaint::request(&ctx))
@@ -233,7 +221,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// or `Failed`, or `Some(Loading { stand_in })` while a job for this revision is queued or running; `None` when
     /// a job is needed. Marks the key asked for in this frame at `priority`, so its job is kept.
     pub fn ask(&self, ctx: &Context, key: &K, revision: Revision, priority: Priority) -> Option<TextureState> {
-        self.begin_pass(ctx);
+        self.run_frame_work(ctx);
         let state = match self.store.state(ctx, key, revision) {
             settled @ (TextureState::Ready(_) | TextureState::Empty | TextureState::Failed { .. }) => return Some(settled),
             other => other,
@@ -258,7 +246,7 @@ impl<K: TextureKey> TextureLoader<K> {
         priority: Priority,
         job: impl FnOnce(&Cancel) -> LoadResult + Send + 'static,
     ) -> TextureState {
-        self.begin_pass(ctx);
+        self.run_frame_work(ctx);
         let stand_in = self.store.state(ctx, &key, revision).shown();
         let frame = pass::root_frame_nr(ctx);
         self.with(ctx, |pool| pool.asked.insert(key.clone(), Asked { revision, priority, frame }));
@@ -268,7 +256,7 @@ impl<K: TextureKey> TextureLoader<K> {
             (revision, result)
         });
         if self.lanes == 0 {
-            // The job runs in the next frame's `begin_pass`; the web repaints only on input.
+            // The job runs in the next frame's `run_frame_work`; the web repaints only on input.
             repaint::request(ctx);
         }
         TextureState::Loading { stand_in }
@@ -292,7 +280,7 @@ impl<K: TextureKey> TextureLoader<K> {
     /// In the first call of a frame, runs the frame's work: an inline job when there are no lanes, dropping jobs
     /// nobody asked for, then storing finished results while the store's upload allowance lasts. A result for
     /// another revision than the one last asked for is discarded.
-    fn begin_pass(&self, ctx: &Context) {
+    fn run_frame_work(&self, ctx: &Context) {
         let frame = pass::root_frame_nr(ctx);
         let first = self.with(ctx, |pool| pool.polled.replace(frame) != Some(frame));
         if !first {

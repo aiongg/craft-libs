@@ -17,6 +17,10 @@ const LARGE: usize = 8;
 const KEPT_ENTRIES: usize = 2;
 const QUIET_FRAMES: usize = 3;
 
+fn shade(level: u8) -> Color32 {
+    Color32::from_gray(level)
+}
+
 fn square(side: usize, color: Color32) -> ColorImage {
     ColorImage::filled([side, side], color)
 }
@@ -38,9 +42,9 @@ fn a_new_revision_keeps_the_texture_and_the_same_revision_uploads_nothing() {
     let mut frames = Frames::new();
     let ctx = frames.ctx.clone();
     let store = TextureStore::<u32>::in_context(&ctx, "pictures", TextureStoreOptions::thumbnails());
-    let first = store.put(&ctx, 1, Revision::new(1), square(SMALL, Color32::RED));
+    let first = store.put(&ctx, 1, Revision::new(1), square(SMALL, shade(40)));
     next_frame(&mut frames);
-    let second = store.put(&ctx, 1, Revision::new(2), square(LARGE, Color32::BLUE));
+    let second = store.put(&ctx, 1, Revision::new(2), square(LARGE, shade(90)));
     assert_eq!(first.id, second.id, "the texture is updated in place");
     assert_eq!(second.size, [LARGE as u32, LARGE as u32]);
     assert_eq!(store.state(&ctx, &1, Revision::new(2)), TextureState::Ready(second));
@@ -51,7 +55,7 @@ fn a_new_revision_keeps_the_texture_and_the_same_revision_uploads_nothing() {
     let made = Cell::new(0);
     let again = store.get_or_put(&ctx, 1, Revision::new(2), || {
         made.set(made.get() + 1);
-        square(LARGE, Color32::BLUE)
+        square(LARGE, shade(90))
     });
     assert_eq!((again, made.get()), (second, 0), "the same revision makes no image");
     assert_eq!(store.statistics(&ctx).uploads, 0, "and uploads nothing");
@@ -63,7 +67,7 @@ fn over_budget_the_oldest_unseen_entry_goes_first_and_a_fresh_entry_stays() {
     let ctx = frames.ctx.clone();
     let by_count = store_with(&ctx, "by-count", TextureBudget::new(usize::MAX, KEPT_ENTRIES));
     for key in 0..4 {
-        by_count.put(&ctx, key, Revision::new(1), square(2, Color32::RED));
+        by_count.put(&ctx, key, Revision::new(1), square(2, shade(40)));
         frames.idle(QUIET_FRAMES, |_| {});
     }
     let stats = by_count.statistics(&ctx);
@@ -73,11 +77,11 @@ fn over_budget_the_oldest_unseen_entry_goes_first_and_a_fresh_entry_stays() {
 
     let crowded = store_with(&ctx, "crowded", TextureBudget::new(1, 1));
     for key in 0..3 {
-        crowded.put(&ctx, key, Revision::new(1), square(2, Color32::RED));
+        crowded.put(&ctx, key, Revision::new(1), square(2, shade(40)));
     }
     assert_eq!(crowded.statistics(&ctx).entries, 3, "entries put in this frame stay past the budget");
     next_frame(&mut frames);
-    crowded.put(&ctx, 3, Revision::new(1), square(2, Color32::RED));
+    crowded.put(&ctx, 3, Revision::new(1), square(2, shade(40)));
     assert_eq!(crowded.statistics(&ctx).entries, 4, "entries of the previous frame stay too");
 }
 
@@ -88,13 +92,13 @@ fn a_region_update_changes_part_of_a_texture_without_a_new_id() {
     let store = TextureStore::<u32>::in_context(&ctx, "pages", TextureStoreOptions::pages());
     // Twice the device limit wide, so the texture is reduced by the whole factor 2.
     let side = texture_side(&ctx) as usize;
-    let whole = store.put(&ctx, 1, Revision::new(1), ColorImage::filled([2 * side, 4], Color32::BLACK));
+    let whole = store.put(&ctx, 1, Revision::new(1), ColorImage::filled([2 * side, 4], shade(0)));
     assert_eq!(whole.size, [side as u32, 2]);
     next_frame(&mut frames);
 
-    let patch = || square(2, Color32::WHITE);
+    let patch = || square(2, shade(255));
     assert!(store.put_region(&ctx, &1, Revision::new(2), [1, 0], patch()).is_none(), "origin off the reduction grid");
-    assert!(store.put_region(&ctx, &1, Revision::new(2), [2 * side as u32 - 2, 2], square(4, Color32::WHITE)).is_none(), "past the image");
+    assert!(store.put_region(&ctx, &1, Revision::new(2), [2 * side as u32 - 2, 2], square(4, shade(255))).is_none(), "past the image");
     assert!(store.put_region(&ctx, &9, Revision::new(2), [0, 0], patch()).is_none(), "no picture under the key");
     assert_eq!(store.state(&ctx, &1, Revision::new(1)), TextureState::Ready(whole), "a refused update changes nothing");
 
@@ -114,7 +118,7 @@ fn counted(runs: &Arc<AtomicUsize>, side: usize) -> impl FnOnce(&Cancel) -> Load
     let runs = Arc::clone(runs);
     move |_| {
         runs.fetch_add(1, Ordering::Relaxed);
-        Ok(LoadedPicture::Image(ColorImage::filled([side, side], Color32::RED)))
+        Ok(LoadedPicture::Image(ColorImage::filled([side, side], shade(40))))
     }
 }
 
