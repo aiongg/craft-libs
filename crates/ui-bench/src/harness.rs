@@ -57,6 +57,9 @@ pub trait Library {
     /// Prepares a fresh context (theme, fonts, style).
     fn install(&self, ctx: &Context);
 
+    /// Runs before each frame, outside the frame's passes (the foundation's per-frame root input).
+    fn before_frame(&self, _ctx: &Context) {}
+
     /// The scene for the scenario called `name`.
     fn build(&self, name: &str) -> SceneBuild;
 }
@@ -73,7 +76,7 @@ struct Sample {
     passes: usize,
 }
 
-fn run_frame(ctx: &Context, scene: &mut dyn Scene, frame: u64, size: Vec2) -> Sample {
+fn run_frame(library: &dyn Library, ctx: &Context, scene: &mut dyn Scene, frame: u64, size: Vec2) -> Sample {
     let mut events = Vec::new();
     scene.events(frame, &mut events);
     let raw = RawInput {
@@ -83,6 +86,7 @@ fn run_frame(ctx: &Context, scene: &mut dyn Scene, frame: u64, size: Vec2) -> Sa
         events,
         ..Default::default()
     };
+    library.before_frame(ctx);
     let (count, bytes) = allocations();
     let start = Instant::now();
     let output = ctx.run_ui(raw, |ui| scene.show(ui, frame));
@@ -98,9 +102,10 @@ fn measure(library: &dyn Library, mut scene: Box<dyn Scene>) -> Measurement {
     library.install(&ctx);
     let size = scene.size();
     for frame in 0..WARMUP_FRAMES {
-        run_frame(&ctx, scene.as_mut(), frame, size);
+        run_frame(library, &ctx, scene.as_mut(), frame, size);
     }
-    let samples: Vec<Sample> = (WARMUP_FRAMES..WARMUP_FRAMES + MEASURED_FRAMES).map(|frame| run_frame(&ctx, scene.as_mut(), frame, size)).collect();
+    let samples: Vec<Sample> =
+        (WARMUP_FRAMES..WARMUP_FRAMES + MEASURED_FRAMES).map(|frame| run_frame(library, &ctx, scene.as_mut(), frame, size)).collect();
     Measurement::from_samples(
         samples.iter().map(|s| s.seconds * 1000.0).collect(),
         samples.iter().map(|s| s.allocations as f64).collect(),

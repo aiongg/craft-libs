@@ -3,17 +3,17 @@
 
 use std::path::PathBuf;
 
-use craft_ui::behavior::{RowInfo, Selection};
-use craft_ui::composites::{Field, FieldGroup, SectionHeader};
-use craft_ui::controls::{NumberField, TextField};
-use craft_ui::list::{List, ListRow, Table, TableColumn, TableLayout};
-use craft_ui::localized::LocaleNumbers;
-use craft_ui::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
-use craft_ui::patterns::StatusBar;
-use craft_ui::primitives::{Handle, HandleShape};
-use craft_ui::theme::{Base, install};
-use craft_ui::viewport::ViewportWindow;
 use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, print_table, run_all, write_json};
+use craft_ui_legacy::behavior::{RowInfo, Selection};
+use craft_ui_legacy::composites::{Field, FieldGroup, SectionHeader};
+use craft_ui_legacy::controls::{NumberField, TextField};
+use craft_ui_legacy::list::{List, ListRow, Table, TableColumn, TableLayout};
+use craft_ui_legacy::localized::LocaleNumbers;
+use craft_ui_legacy::menu::{ContextMenu, MenuEntry, MenuItem, OpenAt};
+use craft_ui_legacy::patterns::StatusBar;
+use craft_ui_legacy::primitives::{Handle, HandleShape};
+use craft_ui_legacy::theme::{Base, install};
+use craft_ui_legacy::viewport::ViewportWindow;
 use egui::collapsing_header::CollapsingState;
 use egui::{Context, Event, Modifiers, MouseWheelUnit, Pos2, Sense, Ui, Vec2, ViewportBuilder, ViewportId, pos2, vec2};
 
@@ -84,7 +84,7 @@ impl Scene for InspectorScene {
 
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
         let Self { numbers, values, texts } = self;
-        craft_ui::patterns::Inspector::new("inspector").target("layer").show(ui, |ui| {
+        craft_ui_legacy::patterns::Inspector::new("inspector").target("layer").show(ui, |ui| {
             FieldGroup::new("fields").show(ui, |ui| {
                 for i in 0..500 {
                     let label = format!("Property {i}:");
@@ -197,7 +197,7 @@ impl Scene for MenuScene {
     }
 
     fn show(&mut self, ui: &mut Ui, frame: u64) {
-        let button = ui.add(craft_ui::controls::Button::new("Open"));
+        let button = ui.add(craft_ui_legacy::controls::Button::new("Open"));
         let open = (frame == 0).then(|| OpenAt::Pointer(button.rect.left_bottom()));
         let _ = ContextMenu::new(&self.entries).open_at(open).own_gestures(false).show(ui, &button);
     }
