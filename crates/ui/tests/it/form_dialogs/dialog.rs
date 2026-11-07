@@ -198,20 +198,24 @@ fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
 /// keeps the dialog open.
 #[trial]
 fn param_dialog_ok_and_enter_go_through_the_close_guard() {
-    let (mut refused, asked, open) = guarded_rig(false);
-    let ok = refused.by_label("OK").expect("the OK button is shown");
-    refused.click(&ok);
-    refused.idle(3);
+    let (mut clicked, asked, open) = guarded_rig(false);
+    let ok = clicked.by_label("OK").expect("the OK button is shown");
+    clicked.click(&ok);
+    clicked.idle(3);
     assert_eq!(asked.get(), 1, "OK asks the guard");
     assert!(open.get(), "a refused OK keeps the dialog open");
+
+    let (mut refused, asked, open) = guarded_rig(false);
+    refused.idle(30);
     refused.key(Key::Enter, Modifiers::NONE);
-    refused.idle(3);
-    assert_eq!(asked.get(), 2, "Enter asks the guard through the OK button");
+    refused.idle(5);
+    assert_eq!(asked.get(), 1, "Enter asks the guard through the OK button");
     assert!(open.get(), "a refused Enter keeps the dialog open");
 
     let (mut allowed, asked, open) = guarded_rig(true);
+    allowed.idle(30);
     allowed.key(Key::Enter, Modifiers::NONE);
-    allowed.idle(3);
+    allowed.idle(5);
     assert_eq!(asked.get(), 1, "Enter asks the guard once");
     assert!(!open.get(), "an allowed Enter closes the dialog");
 }
