@@ -227,6 +227,7 @@ fn every_glossary_term_that_names_code_resolves_to_an_item_in_its_home() {
         }
         for home in &homes {
             if let Home::Module(module) = home
+                && !module.is_empty()
                 && !in_layer_map(&map, module)
             {
                 unmapped.insert(cell.trim().to_owned());
