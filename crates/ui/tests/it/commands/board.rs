@@ -1,12 +1,15 @@
-use super::kit::{AppCommand, PANE, PaneCommand, Tap};
+use super::kit::{AppCommand, Dock, DockCommand, Field, PANE, PaneCommand, Tap};
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
-use craft_ui::runtime::commands::{CommandGate, CommandInput, CommandRef, CommandState, Commands as _, FireSource, Fired, fire};
+use craft_ui::runtime::commands::{
+    CommandGate, CommandInput, CommandKind, CommandRef, CommandState, Commands as _, EditCommands, FirePhase, FireSource, Fired, fire, resolve,
+};
+use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Ui};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 fn ids(fired: &[Fired]) -> Vec<&str> {
     fired.iter().map(|f| f.command.id.as_str()).collect()
@@ -180,4 +183,242 @@ fn a_command_bound_click_fires_instead_of_reporting_a_click() {
     click_at(&mut frames, at, &mut show, false);
     assert!(!clicked, "no click query reports true");
     assert_eq!(ids(&take_output(&frames.ctx).fired), ["trial.go"], "and the command fired once");
+}
+
+fn focus_on(frames: &mut Frames, id: egui::Id, show: &mut impl FnMut(&mut Ui)) {
+    request(&frames.ctx, FocusTarget::Id(id));
+    frames.frame(vec![], &mut *show);
+}
+
+/// 9.3: a key the focused widget activates with is not also a shortcut.
+#[trial]
+fn a_shortcut_does_not_fire_on_a_key_the_focused_widget_activates_with() {
+    let at = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        let response = Tap::new().id_salt("go").command(AppCommand::Go).show(ui);
+        at.set(Some(response.id));
+    };
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show);
+    focus_on(&mut frames, at.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::Space, Modifiers::NONE)], &mut show);
+    let fired = take_output(&frames.ctx).fired;
+    assert_eq!(ids(&fired), ["trial.go"], "the button's activation fires, and the Space shortcut does not");
+    assert_eq!(fired[0].source, FireSource::Pointer);
+
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::Space, Modifiers::NONE)], &mut show);
+    assert_eq!(ids(&take_output(&frames.ctx).fired), ["trial.play"], "with nothing focused the shortcut fires");
+}
+
+/// 11.3: a scoped shortcut goes to the instance that holds key focus.
+#[trial]
+fn a_scoped_shortcut_goes_to_the_instance_that_holds_focus() {
+    let taps = RefCell::new(Vec::<egui::Id>::new());
+    let taken = RefCell::new(Vec::<&'static str>::new());
+    let mut show = |ui: &mut Ui| {
+        taps.borrow_mut().clear();
+        for name in ["a", "b"] {
+            super::kit::Pane::new().id_salt(name).show(ui, |ui, cx| {
+                while cx.take_command::<PaneCommand>().is_some() {
+                    taken.borrow_mut().push(name);
+                }
+                taps.borrow_mut().push(Tap::new().id_salt("t").show(ui).id);
+            });
+        }
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let second = taps.borrow()[1];
+    focus_on(&mut frames, second, &mut show);
+    frames.frame(vec![key_press(Key::K, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
+    assert_eq!(*taken.borrow(), ["b"], "the second pane holds focus, so it takes the command, not the first");
+}
+
+/// 9.3 and 11.3: with focus in a pane inside a dock, the dock's shortcut beats an application shortcut on the same
+/// chord; with focus outside, the application's does.
+#[trial]
+fn an_enclosing_scopes_shortcut_beats_the_applications() {
+    let tap = Cell::new(None);
+    let closed = Cell::new(0);
+    let outside = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        Dock::new().id_salt("dock").show(ui, |ui, cx| {
+            while cx.take_command::<DockCommand>().is_some() {
+                closed.set(closed.get() + 1);
+            }
+            super::kit::Pane::new().id_salt("pane").show(ui, |ui, _| tap.set(Some(Tap::new().id_salt("in").show(ui).id)));
+        });
+        outside.set(Some(Tap::new().id_salt("out").show(ui).id));
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    focus_on(&mut frames, tap.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::J, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
+    assert_eq!((closed.get(), take_output(&frames.ctx).fired.len()), (1, 0), "the dock takes it");
+    focus_on(&mut frames, outside.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::J, Modifiers::COMMAND | Modifiers::ALT)], &mut show);
+    assert_eq!((closed.get(), ids(&take_output(&frames.ctx).fired)), (1, vec!["trial.jump"]), "outside the dock the application's command fires");
+}
+
+/// 11.3: an edit command fired from a surface reaches the focused component that lists it, and stays an app command
+/// otherwise.
+#[trial]
+fn an_edit_command_from_a_surface_reaches_the_focused_component() {
+    let log = RefCell::new(Vec::<String>::new());
+    let field = Cell::new(None);
+    let mut show = |ui: &mut Ui| field.set(Some(Field::new(&log).id_salt("f").show(ui).id));
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show);
+    assert!(fire(&frames.ctx, EditCommands::Copy, FireSource::Menu));
+    frames.idle(2, &mut show);
+    assert!(log.borrow().is_empty(), "nothing is focused");
+    assert_eq!(ids(&take_output(&frames.ctx).fired), ["edit.copy"], "so Copy stays an app command");
+
+    focus_on(&mut frames, field.get().unwrap(), &mut show);
+    assert!(fire(&frames.ctx, EditCommands::Copy, FireSource::Menu));
+    frames.idle(2, &mut show);
+    assert_eq!(*log.borrow(), ["Copy"]);
+    assert!(take_output(&frames.ctx).fired.is_empty(), "the focused field took it");
+}
+
+/// 11.3: the paste text reaches the component that takes `Intent::Edit(Paste)`.
+#[trial]
+fn the_paste_text_reaches_the_component_that_takes_the_paste() {
+    let log = RefCell::new(Vec::<String>::new());
+    let field = Cell::new(None);
+    let mut show = |ui: &mut Ui| field.set(Some(Field::new(&log).id_salt("f").show(ui).id));
+    let mut frames = Frames::new();
+    frames.idle(2, &mut show);
+    focus_on(&mut frames, field.get().unwrap(), &mut show);
+    frames.frame(vec![egui::Event::Paste("hello".into())], &mut show);
+    assert_eq!(*log.borrow(), ["Paste", "text hello"]);
+}
+
+/// 10.4: a component bound to a toggle command shows its `checked` state.
+#[trial]
+fn a_toggle_command_bound_component_shows_the_checked_state() {
+    let on = Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        Tap::new().id_salt("grid").command(AppCommand::Grid).on(&on).show(ui);
+    };
+    let mut frames = Frames::new();
+    frames.commands(CommandInput::new().state(AppCommand::Grid, CommandState::new().checked(true)));
+    frames.idle(2, &mut show);
+    assert!(on.get());
+    frames.commands(CommandInput::new().state(AppCommand::Grid, CommandState::new().checked(false)));
+    frames.idle(2, &mut show);
+    assert!(!on.get());
+}
+
+/// 11.3: a surface resolves a command against the instance a fire would reach.
+#[trial]
+fn a_surface_resolves_a_command_against_its_target() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        for (name, enabled) in [("a", false), ("b", true)] {
+            super::kit::Pane::new().id_salt(name).show(ui, |_, cx| cx.publish(PaneCommand::ZoomIn, CommandState::new().enabled(enabled)));
+        }
+    };
+    frames.idle(3, &mut show);
+    let zoom = resolve(&frames.ctx, PaneCommand::ZoomIn);
+    assert!(!zoom.enabled, "the first live instance is the target, and it published the command disabled");
+    assert_eq!(&*zoom.label, "Zoom In");
+    assert!(zoom.chord.is_some());
+    frames.commands(CommandInput::new().state(AppCommand::Save, CommandState::new().enabled(false)));
+    frames.idle(2, &mut show);
+    assert!(!resolve(&frames.ctx, AppCommand::Save).enabled);
+    assert_eq!(resolve(&frames.ctx, AppCommand::Grid).kind, CommandKind::Toggle);
+    assert_eq!(resolve(&frames.ctx, AppCommand::Brush).kind, CommandKind::Tool { group: Some("tools".into()) });
+}
+
+/// 1.8 and 7.2: the gate is app code, so it runs with no runtime lock held and may use the board.
+#[trial]
+fn the_gate_may_resolve_commands() {
+    let mut frames = Frames::new();
+    let ctx = frames.ctx.clone();
+    let inside = std::sync::atomic::AtomicBool::new(false);
+    frames.commands(CommandInput::new().gate(CommandGate::new(move |_: &CommandRef| {
+        // The nested `resolve` runs the gate again, which stops here.
+        inside.swap(true, std::sync::atomic::Ordering::SeqCst) || {
+            let enabled = resolve(&ctx, AppCommand::Go).enabled;
+            inside.store(false, std::sync::atomic::Ordering::SeqCst);
+            enabled
+        }
+    })));
+    let mut show = |ui: &mut Ui| {
+        Tap::new().id_salt("go").command(AppCommand::Save).show(ui);
+    };
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::K, Modifiers::COMMAND)], &mut show);
+    assert_eq!(ids(&take_output(&frames.ctx).fired), ["trial.save"]);
+}
+
+/// 9.2 rule 3: a secondary release and an untaken `ContextMenu` intent record a context request.
+#[trial]
+fn a_context_request_is_recorded_for_the_component() {
+    let seen = Cell::new(false);
+    let at = Cell::new(Pos2::ZERO);
+    let tap = Cell::new(None);
+    let mut show = |ui: &mut Ui| {
+        let response = Tap::new().id_salt("t").show(ui);
+        at.set(response.rect.center());
+        tap.set(Some(response.id));
+        seen.set(seen.get() || craft_ui::testing::focus::context_request(ui.ctx(), response.id).is_some());
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    frames.frame(vec![moved(at.get())], &mut show);
+    frames.frame(vec![craft_ui::testing::pointer::secondary(at.get(), true)], &mut show);
+    assert!(!seen.get(), "a press alone asks for nothing");
+    frames.frame(vec![craft_ui::testing::pointer::secondary(at.get(), false)], &mut show);
+    assert!(seen.get(), "the secondary release asks for a context menu");
+
+    seen.set(false);
+    focus_on(&mut frames, tap.get().unwrap(), &mut show);
+    frames.frame(vec![key_press(Key::F10, Modifiers::SHIFT)], &mut show);
+    assert!(seen.get(), "Shift+F10 on a component that does not take it asks for a context menu");
+}
+
+/// 11.3: a momentary command fires on the press and again on the release.
+#[trial]
+fn a_momentary_command_fires_on_press_and_on_release() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        Tap::new().id_salt("go").show(ui);
+    };
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::H, Modifiers::NONE)], &mut show);
+    let fired = take_output(&frames.ctx).fired;
+    assert_eq!((ids(&fired), fired[0].phase), (vec!["trial.hold"], FirePhase::Press));
+    frames.frame(vec![craft_ui::testing::focus::key_release(Key::H, Modifiers::NONE)], &mut show);
+    let fired = take_output(&frames.ctx).fired;
+    assert_eq!((ids(&fired), fired[0].phase), (vec!["trial.hold"], FirePhase::Release));
+}
+
+/// 11.3: a scoped entry waits for its instance and is dropped when the instance stops being live.
+#[trial]
+fn an_untaken_scoped_entry_is_dropped_with_its_instance() {
+    let panes = Cell::new(true);
+    let taking = Cell::new(false);
+    let taken = Cell::new(0);
+    let mut show = |ui: &mut Ui| {
+        if panes.get() {
+            super::kit::Pane::new().id_salt("a").show(ui, |_, cx| {
+                if taking.get() {
+                    taken.set(taken.get() + usize::from(cx.take_command::<PaneCommand>().is_some()));
+                }
+            });
+        }
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    assert!(fire(&frames.ctx, PaneCommand::ZoomIn, FireSource::Palette));
+    panes.set(false);
+    frames.idle(3, &mut show);
+    panes.set(true);
+    taking.set(true);
+    frames.idle(3, &mut show);
+    assert_eq!(taken.get(), 0, "the entry died with its instance");
 }

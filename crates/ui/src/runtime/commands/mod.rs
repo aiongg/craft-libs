@@ -12,7 +12,7 @@ pub use registry::CommandDefError;
 #[doc(hidden)]
 pub use registry::{COMMAND_SETS, SetEntry};
 
-pub(crate) use board::{begin, edit_chords, end, install, note_focus, register_instance, set_input, take_fired};
+pub(crate) use board::{begin, edit_chords, end, install, modal_open, note_focus, platform, register_instance, set_input, take_fired};
 pub(crate) use board::{fire_bound, resolve_bound};
 
 use craft_behavior::CommandFlags;
@@ -232,10 +232,6 @@ impl CommandChain {
     pub(crate) fn ids(&self) -> impl Iterator<Item = Id> + '_ {
         self.0.iter().map(|(_, id)| *id)
     }
-
-    pub(crate) fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
 }
 
 /// How the contexts reach the board. Sealed: only the pipeline's contexts implement it.
@@ -245,6 +241,8 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
     fn command_ctx(&self) -> &Context;
     /// The instances above this context.
     fn command_chain(&self) -> &CommandChain;
+    /// The component this context belongs to, when it has an id of its own.
+    fn command_owner(&self) -> Option<Id>;
 }
 
 /// The chapter-11 context trait that `Cx`, `BodyCx` and `ItemCx` implement. "This instance" is the innermost
@@ -252,7 +250,7 @@ pub trait CommandAccess: crate::runtime::memory::sealed::Sealed {
 pub trait Commands: CommandAccess {
     /// The one clipboard path.
     fn clipboard(&self) -> ClipboardHandle {
-        ClipboardHandle::new(self.command_ctx())
+        ClipboardHandle::new(self.command_ctx(), self.command_owner())
     }
 
     /// This frame's state of a scoped command, for this instance. Publishing an app-scope command here is a
@@ -274,6 +272,13 @@ pub trait Commands: CommandAccess {
 /// live instance, is not.
 pub fn fire(ctx: &Context, command: impl Into<CommandRef>, source: FireSource) -> bool {
     board::fire_from(ctx, &command.into(), source)
+}
+
+/// `command` as a surface with no component of its own shows it: the label, icon, chord, enabled and checked state
+/// and hint, against the instance that [`fire`] would deliver it to. A scoped command with no live instance
+/// resolves disabled.
+pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> ResolvedCommand {
+    board::resolve_global(ctx, &command.into())
 }
 
 /// Declares that a modal layer is open in some viewport, so `ModalRule::Blocked` commands do not fire.

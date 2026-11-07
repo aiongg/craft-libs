@@ -24,6 +24,16 @@ pub enum AppCommand {
     Go,
     #[command(label = "Save", default = "Cmd+K")]
     Save,
+    #[command(label = "Play", default = "Space")]
+    Play,
+    #[command(label = "Jump", default = "Cmd+Alt+J")]
+    Jump,
+    #[command(label = "Show Grid", kind = "toggle")]
+    Grid,
+    #[command(label = "Hold", kind = "momentary", default = "H")]
+    Hold,
+    #[command(label = "Brush", kind = "tool", group = "tools")]
+    Brush,
 }
 
 /// Commands of the `trial.pane` scope.
@@ -35,7 +45,17 @@ pub enum PaneCommand {
     ZoomIn,
 }
 
+/// Commands of the `trial.dock` scope, whose instances contain panes.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "dock", scope = "trial.dock")]
+#[non_exhaustive]
+pub enum DockCommand {
+    #[command(label = "Close", default = "Cmd+Alt+J")]
+    Close,
+}
+
 pub const PANE: CommandScope = <PaneCommand as CommandSet>::SCOPE;
+pub const DOCK: CommandScope = <DockCommand as CommandSet>::SCOPE;
 
 /// A button-like leaf that can report the label and enabled state the pipeline resolved for it.
 #[derive(Component)]
@@ -43,11 +63,17 @@ pub struct Tap<'a> {
     #[common]
     common: Common,
     seen: Option<&'a RefCell<(String, bool)>>,
+    on: Option<&'a std::cell::Cell<bool>>,
 }
 
 impl<'a> Tap<'a> {
     pub fn new() -> Self {
-        Tap { common: Common::new(), seen: None }
+        Tap { common: Common::new(), seen: None, on: None }
+    }
+
+    pub fn on(mut self, on: &'a std::cell::Cell<bool>) -> Self {
+        self.on = Some(on);
+        self
     }
 
     pub fn seen(mut self, seen: &'a RefCell<(String, bool)>) -> Self {
@@ -80,6 +106,9 @@ impl Component for Tap<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
+        if let Some(on) = self.on {
+            on.set(craft_ui::contract::Styled::state(&cx).flags.contains(craft_ui::style::Flags::ON));
+        }
         cx.response.clone()
     }
 }
@@ -115,3 +144,83 @@ impl Component for Pane {
 }
 
 impl Container for Pane {}
+
+/// A container that is an instance of the `trial.dock` scope.
+#[derive(Component)]
+#[component(container)]
+pub struct Dock {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Dock {
+    pub fn new() -> Self {
+        Dock { common: Common::new(), props: ContainerProps::new().command_scope(DOCK) }
+    }
+}
+
+impl Component for Dock {
+    const ROLE: Role = Role::GROUP;
+    type Style = FixedStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: DockStyleKey) -> FixedStyle {
+        FixedStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Dock {}
+
+/// A focusable leaf that lists every edit command and records the ones it takes and the text it pastes.
+#[derive(Component)]
+pub struct Field<'a> {
+    #[common]
+    common: Common,
+    log: &'a RefCell<Vec<String>>,
+}
+
+impl<'a> Field<'a> {
+    pub fn new(log: &'a RefCell<Vec<String>>) -> Self {
+        Field { common: Common::new(), log }
+    }
+}
+
+impl Component for Field<'_> {
+    const ROLE: Role = Role::BUTTON;
+    const KEYS: craft_ui::runtime::focus::KeyUse = craft_ui::runtime::focus::KeyUse::CANVAS.with_edits(craft_ui::runtime::focus::EditSet::ALL);
+    type Style = FixedStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FieldStyleKey) -> FixedStyle {
+        FixedStyle::default()
+    }
+
+    fn measure(&mut self, _: &craft_ui::contract::MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(40.0, 20.0)
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        use craft_ui::contract::Focus as _;
+        use craft_ui::runtime::commands::Commands as _;
+        while let Some(command) = cx.intents().take_edit() {
+            self.log.borrow_mut().push(format!("{command:?}"));
+        }
+        if let craft_ui::runtime::pending::Pending::Ready(content) = cx.clipboard().paste() {
+            self.log.borrow_mut().push(format!("text {}", content.text.as_deref().unwrap_or("")));
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}

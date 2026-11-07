@@ -674,3 +674,22 @@ fn reset_removes_hand_written_variants_of_a_key() {
     let again = Keymap::new(catalog.clone(), Scopes::new(), Platform::Mac).with_overrides(km.overrides().clone());
     assert_eq!(again.bindings(&layers), vec![b("F7")]);
 }
+
+#[test]
+fn a_panel_around_the_focused_one_beats_the_application_on_a_shared_chord() {
+    let chord = Chord::new(Mods::CMD, Key::J);
+    let catalog = vec![
+        Bindable::new("app.jump", "Jump", Scope::app()).with_default(Binding::parse("Cmd+J").unwrap()),
+        Bindable::new("dock.close", "Close", Scope::new("Dock").unwrap()).with_default(Binding::parse("Cmd+J").unwrap()),
+        Bindable::new("pane.zoom", "Zoom", Scope::new("Pane").unwrap()),
+    ];
+    let km = Keymap::new(catalog, Scopes::new().with_panel("Dock").with_panel("Pane"), Platform::Mac);
+    let active = Active::panel("Pane");
+    let run = |lookup| match lookup {
+        Lookup::Run(command) => command.id,
+        other => panic!("{other:?}"),
+    };
+    assert_eq!(run(km.lookup(&chord, false, &active)), "app.jump", "without the enclosing panel the application wins over a distant panel");
+    assert_eq!(run(km.lookup_nested(&chord, false, &active, &["Dock"])), "dock.close");
+    assert_eq!(run(km.lookup_nested(&chord, false, &Active::NONE, &[])), "app.jump");
+}

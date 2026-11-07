@@ -154,3 +154,8 @@ pub fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
 pub fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
     keys::register_node(ctx, node, owner, part, focusable);
 }
+
+/// The rect `id`'s context request of this pass opens at, when it made one.
+pub fn context_request(ctx: &Context, id: Id) -> Option<Rect> {
+    keys::context_request(ctx, id)
+}

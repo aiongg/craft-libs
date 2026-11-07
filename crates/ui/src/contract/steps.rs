@@ -8,7 +8,7 @@ use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::access::{Access, Role, SubNode, scope};
-use crate::runtime::commands::{self, ResolvedCommand};
+use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
 use crate::runtime::egui::access::{self as adapter, FaceFacts, Own, SubDecl};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
@@ -293,10 +293,18 @@ fn reuse_or_new<V: Value>(held: &Option<Arc<V>>, v: V) -> Arc<V> {
     }
 }
 
+/// The value of a `bool` component that has no binding of its own and is bound to a toggle or radio command: the
+/// command's `checked` state, as a given value (10.4).
+fn command_given<V: Value>(command: Option<&ResolvedCommand>) -> Option<V> {
+    let command = command.filter(|command| matches!(command.kind, CommandKind::Toggle | CommandKind::Radio { .. }))?;
+    let checked = command.checked?;
+    (&checked as &dyn std::any::Any).downcast_ref::<V>().cloned()
+}
+
 /// Step 4, value: the shown value is the running gesture's proposal, else the binding's value. The one shown copy is
 /// replaced only when the binding differs from it. A gesture ends here when `cancel_all` ran, or when the app changed the
 /// value under it.
-pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id) -> ValueStep<ValueOf<C>> {
+pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id, command: Option<&ResolvedCommand>) -> ValueStep<ValueOf<C>> {
     type V<C> = ValueOf<C>;
     let held = stage.shown::<ShownCopy<V<C>>>(id).0.clone();
     let slot = gesture_key(id);
@@ -356,7 +364,7 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
                 None => stage.session::<Option<V<C>>>(id).as_ref().map(|value| reuse_arc(&held, value)),
             }
         }
-        (None, None) => {}
+        (None, None) => out.value = command_given::<V<C>>(command).map(|value| reuse_arc(&held, &value)),
     }
     let shown = &mut stage.shown::<ShownCopy<V<C>>>(id).0;
     let same = match (&*shown, &out.value) {
@@ -595,6 +603,12 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
 /// Writes back what the component left untaken, and its state-dependent claims for the next frames.
 pub(crate) fn after_update(core: &mut CxCore<'_>) {
     keys::settle(&core.ctx, Some(core.id), &core.intents);
+    if core.intents.untaken(&Intent::ContextMenu)
+        || (core.response.hovered() && crate::runtime::pointer::frame(&core.ctx).release == Some(craft_behavior::PointerButton::Secondary))
+    {
+        let part = focus::active_part(&core.ctx, core.id).and_then(|part| core.results.get(&(part.key, part.index)));
+        keys::request_context(&core.ctx, core.id, part.map_or(core.rect, |part| part.rect));
+    }
     for chord in std::mem::take(&mut core.claims) {
         keys::claim(&core.ctx, core.id, chord);
     }
@@ -773,6 +787,9 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     if cx.core.resolved.selected == Some(true) {
         flags |= Flags::SELECTED;
     }
+    if cx.core.command.as_deref().is_some_and(|command| command.checked == Some(true)) {
+        flags |= Flags::ON;
+    }
     if cx.mixed {
         flags |= Flags::MIXED;
     }
@@ -925,7 +942,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     debug_assert!(access.role.is_none_or(|alt| C::ALT_ROLES.contains(&alt)), "`Access::role` picks one of `ALT_ROLES`");
     let flags = core.state.flags;
     let resolved = core.resolved;
-    let platform = craft_keymap::egui::platform(ctx);
+    let platform = commands::platform(ctx);
     let (hint, shortcut) = core.command.as_deref().map_or((None, None), |command| command_facts(command, platform));
     let shortcut = shortcut.as_deref();
     for (_, label) in &mut access.custom_actions {
@@ -1054,7 +1071,7 @@ pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
         response::mark_changed(&mut cx.core.response);
     }
     if activated && let Some(command) = &cx.core.command {
-        commands::fire_bound(&cx.core.ctx, command, by_key);
+        commands::fire_bound(&cx.core.ctx, command);
     }
 }
 

@@ -701,6 +701,10 @@ impl<C: Component> CommandAccess for Cx<'_, C> {
     fn command_chain(&self) -> &CommandChain {
         self.core.env.command_chain()
     }
+
+    fn command_owner(&self) -> Option<Id> {
+        Some(self.core.id)
+    }
 }
 
 impl<C: Component> Commands for Cx<'_, C> {}
@@ -713,6 +717,10 @@ impl CommandAccess for BodyCx<'_> {
     fn command_chain(&self) -> &CommandChain {
         self.env.command_chain()
     }
+
+    fn command_owner(&self) -> Option<Id> {
+        None
+    }
 }
 
 impl Commands for BodyCx<'_> {}
@@ -724,6 +732,10 @@ impl<K> CommandAccess for ItemCx<'_, '_, K> {
 
     fn command_chain(&self) -> &CommandChain {
         self.env.command_chain()
+    }
+
+    fn command_owner(&self) -> Option<Id> {
+        None
     }
 }
 
