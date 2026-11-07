@@ -410,7 +410,7 @@ impl Shown<'_> {
             })
             .collect();
         let order: Vec<usize> = (0..models.len()).collect();
-        let source = keyed(&order[..], |at: &usize| *at).with_text(|at| Cow::Borrowed(&*models[*at].company));
+        let source = keyed(&order[..], |at: &usize| *at).with_text(|at| Cow::Owned(models[*at].company.to_string()));
         let _ = Table::<usize>::new(words.models_tab.clone(), columns.clone()).select(SelectMode::None).show_items(ui, &source, &mut |key, icx| {
             let model = &models[*key];
             let mut row = ListRow::new(model.company.to_string()).cells(icx.cells()).columns(&columns).striped(icx.row.striped);

@@ -1,7 +1,7 @@
 //! Stories of `AboutDialog`: the About tab and the Contributors tab with a PR-only contributor.
 
 use super::{AboutDialog, AboutInfo, AboutLink, AboutTab, Contributor, Credits, ModelCredit};
-use crate::contract::{Bind, Props as _};
+use crate::contract::Bind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 use std::sync::LazyLock;
