@@ -4,7 +4,7 @@
 use crate::contract::kit::PlainStyle;
 use crate::windows_kit::Windows;
 use craft_behavior::{PressCancel, Sense};
-use craft_host::target::{Caps, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_ui::contract::{
     Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pointer as _, Props as _, Role, Show as _, ShowContainer as _,
 };
@@ -13,10 +13,12 @@ use craft_ui::runtime::env::Env;
 use craft_ui::runtime::windows::{WindowAction, act};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
-use craft_ui::testing::trial;
+use craft_ui::testing::{Fixture, trial};
+use craft_window::restore::{MAIN, Placement, Store};
 use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
 use egui::{Event, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
 use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 const HANDLE: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(90.0, 50.0) };
@@ -153,12 +155,18 @@ fn window_info_updates_per_viewport() {
     assert_eq!(kid.kind, WindowKind::Tool, "a window the runtime opens is a tool window until a mount says otherwise");
 }
 
-/// H4: an undecorated window the OS resizes never gets the button release, so the input hook releases the press
-/// when the window's size changes under it. A decorated window keeps its press through the same size change.
+/// H4: where the OS resizes undecorated windows, such a window never gets the button release, so the input hook
+/// releases the press when the window's size changes under it. A decorated window keeps its press through the same
+/// size change, and so does an undecorated window on a platform that delivers the release itself.
 #[trial]
 fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
-    for (chrome, released) in [(WindowChrome::Integrated, true), (WindowChrome::Native, false)] {
-        let shell = ShellInfo::default().window(WindowInfo::new(WindowKind::Main).chrome(chrome));
+    let cases = [
+        (Os::Windows, WindowChrome::Integrated, true),
+        (Os::Windows, WindowChrome::Native, false),
+        (Os::Linux, WindowChrome::Integrated, false),
+    ];
+    for (os, chrome, released) in cases {
+        let shell = ShellInfo::default().os(os).caps(Caps::native(os)).window(WindowInfo::new(WindowKind::Main).chrome(chrome));
         let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));
         let down = Cell::new(false);
         let sized =
@@ -174,7 +182,45 @@ fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
         windows.root_info(sized(812.0));
         frame(vec![]);
         frame(vec![]);
-        assert_eq!(!down.get(), released, "{chrome:?}: the press after the OS resize");
+        assert_eq!(!down.get(), released, "{os:?} {chrome:?}: the press after the OS resize");
+    }
+}
+
+/// The placement store is written when the window's geometry changes, not on every pass.
+#[trial]
+fn placement_is_written_only_when_the_window_geometry_changes() {
+    let store = Arc::new(Mutex::new(Store::in_memory()));
+    let windows = Windows::with(InstallSpec::new(ShellInfo::default(), Arc::new(NoWindows)).placement(store.clone()));
+    let sized = |width: f32| ViewportInfo {
+        inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))),
+        outer_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 630.0))),
+        ..ViewportInfo::default()
+    };
+    let width = || store.lock().expect("the store").get(MAIN).map(|placement| placement.normal.size[0]);
+    windows.root_info(sized(800.0));
+    windows.frame(vec![], vec![], |_| {});
+    assert_eq!(width(), Some(800.0), "the first pass records the window");
+    let marker = Placement::new([1.0, 1.0], 1.0);
+    store.lock().expect("the store").set(MAIN, &marker);
+    windows.frame(vec![], vec![], |_| {});
+    assert_eq!(width(), Some(1.0), "an unchanged window writes nothing");
+    windows.root_info(sized(900.0));
+    windows.frame(vec![], vec![], |_| {});
+    assert_eq!(width(), Some(900.0), "a resized window is recorded");
+}
+
+/// The shell's OS, capabilities and menu placement follow the OS a fixture simulates, as the keys do.
+#[trial]
+fn the_shell_follows_the_fixtures_os() {
+    let seen = Rc::new(Cell::new(None));
+    let shown = seen.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let shell = Env::of(ui).view().shell().clone();
+        shown.set(Some((shell.os, shell.caps.contains(Caps::NATIVE_MENU_BAR), shell.caps.contains(Caps::OS_RESIZES_UNDECORATED))));
+    });
+    for (os, menu, resizes) in [(Os::Mac, true, false), (Os::Windows, false, true), (Os::Linux, false, false)] {
+        fixture.os(os).frame(vec![]);
+        assert_eq!(seen.get(), Some((os, menu, resizes)), "{os:?}");
     }
 }
 
