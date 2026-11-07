@@ -1,6 +1,5 @@
 //! Guide data: what a `Guides` control shows and reports. Data only; the control is a canvas control.
 
-use craft_behavior::kurbo::{Point, Vec2};
 use craft_behavior::{Axis, GesturePhase, PartKey, PartRef};
 use craft_keymap::Mods;
 use craft_theme::Rgba;
@@ -24,31 +23,6 @@ impl GuideKey {
     /// The part of the guide in a component that declares `part` for its guides.
     pub const fn part(self, part: PartKey) -> PartRef {
         part.at(self.0)
-    }
-}
-
-/// The axis across `along`: the one a guide running along `along` is placed on.
-pub const fn across_axis(along: Axis) -> Axis {
-    match along {
-        Axis::X => Axis::Y,
-        Axis::Y => Axis::X,
-    }
-}
-
-/// The document direction a guide running along `along` moves in, in document units: x for a guide along `Axis::Y`
-/// (a vertical guide). A screen caller maps it through `CanvasView::map_vec`; `resize_cursor` takes it as is.
-pub fn guide_motion(along: Axis) -> Vec2 {
-    match along {
-        Axis::X => Vec2::new(0.0, 1.0),
-        Axis::Y => Vec2::new(1.0, 0.0),
-    }
-}
-
-/// The coordinate of `p` a guide running along `along` is placed by: x for a guide along `Axis::Y`.
-pub const fn guide_position(along: Axis, p: Point) -> f64 {
-    match along {
-        Axis::X => p.y,
-        Axis::Y => p.x,
     }
 }
 

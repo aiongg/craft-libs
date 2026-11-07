@@ -335,6 +335,31 @@ impl SnapTargets {
     }
 }
 
+/// The axis across `along`: a line running along `Axis::Y` (vertical) is placed on `Axis::X`.
+pub const fn across_axis(along: Axis) -> Axis {
+    match along {
+        Axis::X => Axis::Y,
+        Axis::Y => Axis::X,
+    }
+}
+
+/// The document direction a line running `along` an axis moves in: x for a line along `Axis::Y`. A screen caller
+/// maps it through `CanvasView::map_vec`; `resize_cursor` takes it as is.
+pub const fn motion_across(along: Axis) -> Vec2 {
+    match along {
+        Axis::X => Vec2::new(0.0, 1.0),
+        Axis::Y => Vec2::new(1.0, 0.0),
+    }
+}
+
+/// The coordinate of `p` a line running `along` an axis is placed by: x for a line along `Axis::Y`.
+pub const fn coordinate_across(along: Axis, p: Point) -> f64 {
+    match along {
+        Axis::X => p.y,
+        Axis::Y => p.x,
+    }
+}
+
 /// The bounding rectangle of `rects`, or `None` for none.
 // pc: crates/engine/src/snap.rs:278 `union`.
 pub fn union(rects: impl IntoIterator<Item = Rect>) -> Option<Rect> {
