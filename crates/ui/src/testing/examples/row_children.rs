@@ -1,8 +1,8 @@
 //! `LayerStack` and `LayerRow`: a layers panel whose rows hold their own controls (17.5).
 //!
 //! One tree collection. Each row shows its name, a visibility `Switch` and a blend-mode `Select` as child
-//! components of the row. The controls sit at the trailing end and the name takes the rest, so a press on the
-//! middle of a row lands on the row itself. The controls' focus stops are members of the row's roving group: Tab
+//! components of the row. The controls sit at the trailing end at their measured sizes and the name takes the rest,
+//! so a press on the name lands on the row itself. The controls' focus stops are members of the row's roving group: Tab
 //! passes the collection once, Forward on a row enters the switch and then the select, Back returns, and Escape
 //! from a child returns to its row. Groups open and close by Right and Left on the row.
 
@@ -13,6 +13,7 @@ use crate::contract::{
 };
 use crate::pickers::Select;
 use crate::runtime::env::Label;
+use crate::runtime::layout_memory;
 use crate::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SpanLayout};
@@ -22,8 +23,6 @@ use std::convert::Infallible;
 
 /// The name band is at least this many control heights wide.
 const NAME_IN_HEIGHTS: f32 = 5.0;
-/// The blend-mode select is this many control heights wide.
-const SELECT_IN_HEIGHTS: f32 = 5.0;
 /// Each level of a group indents its rows by this many control heights.
 const INDENT_IN_HEIGHTS: f32 = 1.0;
 
@@ -164,9 +163,9 @@ impl Collection for LayerStack {
         &self.items
     }
 
-    /// A row is one control high; the stack is a tree.
+    /// A row is as tall as its tallest child, one control high at least; the stack is a tree.
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
-        SpanLayout::new(source, width, cx.control().height).tree()
+        SpanLayout::sized(source, width, cx.control().height).tree()
     }
 }
 
@@ -221,6 +220,11 @@ impl<'r> LayerRow<'r> {
     }
 }
 
+/// Where the row keeps the size its select measured, for the paint that places the select by it.
+fn select_id(row: egui::Id) -> egui::Id {
+    crate::runtime::memory::sub(row, "select_size")
+}
+
 /// The part of `row` that starts `at` from its leading edge and runs `length`, over the row's full height.
 fn band(flow: &Flow, row: Rect, at: f32, length: f32) -> Rect {
     let span = flow.span(at, length);
@@ -250,9 +254,10 @@ impl Component for LayerRow<'_> {
         let height = cx.style.height;
         let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
         let name = name_width(cx.layout(&crate::primitives::TextRun::new(self.layer.name.as_str())).size().x, cx.style);
-        // The select's field is taller than a control at large text, and the row holds it.
+        // The select takes its own size, and the row holds it: the field is taller than a control at large text.
         let select = cx.child("blend", &mut Select::new("Blend mode", Bind::kept(), self.modes), Proposal::Ideal);
-        Vec2::new((indent + 1.0 + SELECT_IN_HEIGHTS) * height + name, height.max(select.y))
+        layout_memory::record(cx.ui.ctx(), select_id(cx.resolved.id), select);
+        Vec2::new((indent + 1.0) * height + name + select.x, height.max(select.y))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -261,7 +266,8 @@ impl Component for LayerRow<'_> {
         let row = cx.rect;
         let flow = Flow::new(row, rtl);
         let start = self.layer.depth as f32 * INDENT_IN_HEIGHTS * height;
-        let select_at = (row.width() - SELECT_IN_HEIGHTS * height).max(start);
+        let select_width = layout_memory::read(&cx.core.ctx, select_id(cx.core.id)).map_or(0.0, |size| size.x);
+        let select_at = (row.width() - select_width).max(start);
         let switch_at = (select_at - height).max(start);
         let run = crate::primitives::TextRun::new(self.layer.name.as_str());
         let name = band(&flow, row, start, switch_at - start);
