@@ -16,7 +16,7 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
-use craft_behavior::{Flow, Input, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, Sense};
+use craft_behavior::{Flow, Input, ItemSource, KeyRole, NavMove, PartRef, PressState, Proposal, Roving, Sense};
 use craft_theme::ControlSize;
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
@@ -609,11 +609,19 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::edit_intents(comp, cx);
     steps::scrub_by_label(comp, cx);
     comp.update(cx);
-    debug_assert!(
-        !cx.core.intents.took_arrow_move() || p.hooks.key_role(comp).moves || text_keys.unwrap_or(C::KEYS).moves,
-        "`{}` takes arrow moves with `take_move` and must declare `moves` in its `KeyUse` or `KeyRole`",
-        std::any::type_name::<C>()
-    );
+    if cfg!(debug_assertions) {
+        let keys = text_keys.unwrap_or(C::KEYS);
+        let held = |mv: NavMove| match keys.keep {
+            focus::KeepKeys::BlockArrows => true,
+            focus::KeepKeys::InlineArrows => matches!(mv, NavMove::Back | NavMove::Forward),
+            _ => false,
+        };
+        debug_assert!(
+            p.hooks.key_role(comp).moves || keys.moves || cx.core.intents.taken_arrow_moves().iter().all(|mv| held(*mv)),
+            "`{}` takes arrow moves with `take_move` that its `KeyUse` neither keeps nor declares as `moves`",
+            std::any::type_name::<C>()
+        );
+    }
     p.hooks.updated(comp, cx);
     steps::record_context(&cx.core);
     if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
