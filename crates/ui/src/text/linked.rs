@@ -117,7 +117,7 @@ impl<const N: usize> Deref for LinkedOutput<N> {
 /// Turning the link on in `LinkMode::Equal` sets every field to the first one's value in one step; in
 /// `LinkMode::Ratio` it changes no value. A field that is blank takes no part in a ratio.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(probe(LinkedFields<'static, 2>))]
+#[component(probe(LinkedFields<'static, 2>, LinkedFields<'static, 4>))]
 pub struct LinkedFields<'a, const N: usize> {
     #[common]
     common: Common,
