@@ -2,10 +2,11 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Props, Role};
+use crate::primitives::IconSpec;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
-use craft_behavior::{IconId, Metrics, Sense};
+use craft_behavior::{Metrics, Sense};
 use craft_theme::Variant;
 use egui::Vec2;
 
@@ -39,14 +40,14 @@ pub struct ToggleButton<'a> {
     /// `None` for a button bound to a toggle command, which owns the state.
     value: Option<Bind<'a, bool>>,
     /// A leading icon.
-    #[prop]
-    icon: Option<IconId>,
+    #[prop(into)]
+    icon: Option<IconSpec<'a>>,
     /// The leading icon while the button is on, in place of `icon`.
-    #[prop]
-    on_icon: Option<IconId>,
+    #[prop(into)]
+    on_icon: Option<IconSpec<'a>>,
     /// An icon at the reading end, mirrored right to left.
-    #[prop]
-    trailing_icon: Option<IconId>,
+    #[prop(into)]
+    trailing_icon: Option<IconSpec<'a>>,
     /// The type role of the label, for a path or a value in `Mono`; the label role by default.
     #[prop]
     role: Option<TypeRole>,

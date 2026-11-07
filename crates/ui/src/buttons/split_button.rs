@@ -2,10 +2,10 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _,
-    PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
+    Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi,
+    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _,
 };
-use crate::controls::select::{OptionList, OptionRow};
+use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook};
@@ -46,22 +46,6 @@ pub struct SplitButtonStyle {
     radius: CornerRadius,
 }
 
-/// One entry of a split button's menu: the value its pick reports and the label it shows.
-#[non_exhaustive]
-pub struct MenuEntry<T> {
-    /// The value reported when this entry is picked.
-    pub value: T,
-    /// The text the entry shows.
-    pub label: Label,
-}
-
-impl<T> MenuEntry<T> {
-    /// An entry reporting `value`, shown as `label`.
-    pub fn new(value: T, label: impl Into<Label>) -> Self {
-        MenuEntry { value, label: label.into() }
-    }
-}
-
 /// What a split button reports: the main part's response (`clicked()` runs the action) and the entry picked from
 /// the menu this pass.
 #[derive(Debug)]
@@ -89,19 +73,19 @@ impl<T: Value> Outcome for SplitOutput<T> {
 pub struct SplitButton<'a, T: Value + 'static> {
     #[common]
     common: Common,
-    entries: &'a [MenuEntry<T>],
+    entries: &'a [Entry<T>],
     /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
     #[prop(into)]
     arrow_label: Option<Label>,
     /// A leading icon on the main part.
-    #[prop]
-    icon: Option<IconId>,
+    #[prop(into)]
+    icon: Option<IconSpec<'a>>,
     chosen: Option<T>,
 }
 
 impl<'a, T: Value + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens `entries`.
-    pub fn new(label: impl Into<Label>, entries: &'a [MenuEntry<T>]) -> Self {
+    pub fn new(label: impl Into<Label>, entries: &'a [Entry<T>]) -> Self {
         SplitButton { common: Common::new(), entries, arrow_label: None, icon: None, chosen: None }.label(label)
     }
 
@@ -176,16 +160,34 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         }
     }
 
-    /// The menu: one row per entry. A pick comes back from the list as Enter or a click on a row.
+    /// The menu: one row per entry, a spacer for a separator. A pick comes back from the list as Enter or a click on a
+    /// row; a disabled entry takes neither the lead nor a pick.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("menu");
-        let labels: Vec<Label> = self.entries.iter().map(|entry| cx.env.resolve(&entry.label)).collect();
+        let entries = self.entries;
+        let labels: Vec<Label> = entries.iter().map(|entry| cx.env.resolve(entry.label())).collect();
+        let name = cx.label();
         let events = ui.show(popup, Overlay::menu(), |ui, _| {
-            let rows = Entries { labels: &labels };
-            OptionList::new(Bind::given(Selection::default()))
+            let checked: Vec<usize> = (0..entries.len()).filter(|&at| entries[at].is_checked()).collect();
+            let lead = checked.first().copied();
+            let rows = Rows { entries, labels: &labels };
+            List::<usize>::new(name.clone())
+                .select(SelectMode::Single)
+                .activate(ActivateOn::Click)
                 .lead_on_open(LeadOnOpen::First)
                 .lead_follows_hover(true)
-                .show_items(ui, &rows, &mut |key, _| OptionRow::new(labels[*key].as_str()))
+                .selection(Bind::given(Selection::new(checked, lead, lead)))
+                .show_items(ui, &rows, &mut |at, _| {
+                    let entry = &entries[*at];
+                    if entry.is_separator() {
+                        return ListRow::spacer();
+                    }
+                    let row = ListRow::new(labels[*at].clone()).option().enabled(entry.is_enabled());
+                    match entry.icon_spec() {
+                        Some(icon) => row.icon(icon.clone()),
+                        None => row,
+                    }
+                })
                 .events
         });
         let mut picked = None;
@@ -194,8 +196,8 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
                 picked = Some(at);
             }
         }
-        if let Some(at) = picked {
-            self.chosen = Some(self.entries[at].value.clone());
+        if let Some(value) = picked.and_then(|at| entries.get(at)).and_then(Entry::value) {
+            self.chosen = Some(value.clone());
             popup.close(cx);
         }
     }
@@ -236,15 +238,15 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
     }
 }
 
-/// The labels of a split button's entries as a collection source, keyed by position: the entries are fixed while the
-/// menu is open.
-struct Entries<'a> {
+/// A split button's entries as a collection source, keyed by position: the entries are fixed while the menu is open.
+struct Rows<'a, T> {
+    entries: &'a [Entry<T>],
     labels: &'a [Label],
 }
 
-impl DisplayOrder<usize> for Entries<'_> {
+impl<T> DisplayOrder<usize> for Rows<'_, T> {
     fn len(&self) -> usize {
-        self.labels.len()
+        self.entries.len()
     }
 
     fn key(&self, at: usize) -> usize {
@@ -252,12 +254,20 @@ impl DisplayOrder<usize> for Entries<'_> {
     }
 
     fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.labels.len()).then_some(*key)
+        (*key < self.entries.len()).then_some(*key)
+    }
+
+    fn is_section(&self, at: usize) -> bool {
+        self.entries[at].is_separator()
+    }
+
+    fn enabled(&self, at: usize) -> bool {
+        self.entries[at].is_enabled()
     }
 
     fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
-        Some(std::borrow::Cow::Borrowed(self.labels[at].as_str()))
+        (!self.entries[at].is_separator()).then(|| std::borrow::Cow::Borrowed(self.labels[at].as_str()))
     }
 }
 
-impl ItemSource<usize> for Entries<'_> {}
+impl<T> ItemSource<usize> for Rows<'_, T> {}
