@@ -4,7 +4,7 @@
 use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
-    BindMut, BodyCx, Bind, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;

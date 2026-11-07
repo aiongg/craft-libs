@@ -10,9 +10,9 @@ use craft_ui::controls::radio::{Radio, RadioGroup};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::{RootEnv, with_env};
 use craft_ui::runtime::frame::FrameInput;
-use craft_ui::text::TextField;
 use craft_ui::shell::app::{AppSpec, ShellApp, run};
 use craft_ui::testing::{STORIES, StoryData, StoryRegistration, registered};
+use craft_ui::text::TextField;
 use craft_window::restore::Defaults;
 use egui::{Ui, Vec2};
 use std::collections::HashMap;
@@ -118,7 +118,9 @@ impl Viewer {
                         for size in &sizes {
                             let cell = data.entry((index, *direction, *size)).or_default();
                             // Each cell is its own id scope: a story's `id_salt` and auto ids must not meet in another cell.
-                            ui.push_id((index, label_of(*direction, *size)), |ui| Self::cell(ui, entry, *direction, *size, cell));
+                            craft_ui::testing::memory::scoped_by(ui, (index, label_of(*direction, *size)), |ui| {
+                                Self::cell(ui, entry, *direction, *size, cell)
+                            });
                         }
                     }
                 });

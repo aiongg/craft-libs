@@ -7,15 +7,18 @@ use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::ColumnWidth;
 use egui::{Ui, Vec2};
 
-/// The size of a trial block, in points.
-const CELL: Vec2 = Vec2::new(40.0, 20.0);
+/// The size of a trial block: two control heights wide and one high.
+fn cell(ui: &Ui) -> Vec2 {
+    let height = crate::style::control_metrics(&crate::runtime::env::Env::of(ui).tokens, craft_theme::ControlSize::Md).height;
+    Vec2::new(height * 2.0, height)
+}
 
 #[story(Row, covers = [Default])]
 fn row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Row::new()
         .show(ui, |ui, _| {
-            Block::new(CELL).show(ui);
-            Block::new(CELL).show(ui);
+            Block::new(cell(ui)).show(ui);
+            Block::new(cell(ui)).show(ui);
         })
         .into()
 }
@@ -24,8 +27,8 @@ fn row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Stack::new()
         .show(ui, |ui, _| {
-            Block::new(CELL).show(ui);
-            Block::new(CELL).show(ui);
+            Block::new(cell(ui)).show(ui);
+            Block::new(cell(ui)).show(ui);
         })
         .into()
 }
@@ -37,7 +40,7 @@ fn grid(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Grid::new(&COLUMNS)
         .show(ui, |ui, _| {
             for _ in 0..4 {
-                Block::new(CELL).show(ui);
+                Block::new(cell(ui)).show(ui);
             }
         })
         .into()

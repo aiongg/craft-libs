@@ -3,7 +3,7 @@
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::controls::check::Checkbox;
 use craft_ui::testing::{Fixture, bypass, trial};
-use egui::{Rect, Sense, pos2};
+use egui::{Rect, pos2};
 
 #[trial]
 fn a_component_alone_leaves_no_bypass_finding() {
@@ -21,7 +21,7 @@ fn a_raw_egui_widget_next_to_a_component_is_a_finding() {
     let mut fixture = Fixture::new(move |ui| {
         Checkbox::new(Bind::bound(&mut checked)).label("Show grid").show(ui);
         let raw = Rect::from_min_max(pos2(0.0, 100.0), pos2(40.0, 120.0));
-        ui.interact(raw, egui::Id::new("raw_widget"), Sense::click());
+        craft_ui::testing::contract::raw_widget(ui, raw);
     });
     fixture.settle();
     let found = bypass::findings(&fixture);

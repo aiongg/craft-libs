@@ -106,7 +106,7 @@ fn editor_lines_reach_accesskit(subject: &Subject) -> Result<(), String> {
             continue;
         }
         let tree = fixture.tree();
-        if !tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.role() == accesskit::Role::TextRun)) {
+        if !tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.role() == crate::runtime::egui::access::Role::TextRun)) {
             return Err(format!("{}: the editor paints text but reports no text run", story.name));
         }
     }

@@ -2,7 +2,7 @@
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
-use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, Stateful, TypeRole};
+use crate::style::{ComponentStyle, FocusLook, Stateful, StyleColor, StyleCx, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
 use craft_theme::States;
 use egui::{Pos2, Response, Vec2};
@@ -72,7 +72,7 @@ impl Component for Link {
         if let Some(url) = &self.url
             && (cx.activation().is_some() || middle_click)
         {
-            cx.open_url(url, middle_click);
+            cx.open_link(url, middle_click);
         }
         if cx.hit() {
             cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);

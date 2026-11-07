@@ -6,7 +6,6 @@ use super::{Component, Edit as _, Overlays as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
 use crate::runtime::access::text as text_access;
-use crate::runtime::egui::text_edit;
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
@@ -155,7 +154,7 @@ fn serve_access<C: Component>(cx: &mut Cx<'_, C>, state: &mut TextState, widget:
         if let Some((anchor, focus)) = text_access::requested_selection(&ctx, id, &request) {
             let text = state.draft.as_deref().unwrap_or(shown);
             if let Some(rows) = &state.rows {
-                text_edit::select(&ctx, widget, rows.chars(text, anchor), rows.chars(text, focus));
+                adapter::select(&ctx, widget, rows.chars(text, anchor), rows.chars(text, focus));
             }
         } else if let Some(text) = text_access::requested_value(&request)
             && !read_only
@@ -183,7 +182,7 @@ fn facts<C: Component>(
     }
     let rows = adapter::Rows::of(&out.layout, &out.layout.full, rect.min);
     let text = out.layout.full.clone();
-    let selection = text_edit::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
+    let selection = adapter::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
     let name = cx.core.resolved.label.to_owned();
     *cx.core.text_access.borrow_mut() =
         Some(text_access::TextFacts { widget, name, text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
@@ -278,8 +277,8 @@ pub(crate) fn run<C: Component>(
     if out.focused && !was_focused {
         let len = decl.shown.chars().count();
         match decl.caret {
-            Caret::All => text_edit::select(&ctx, widget, 0, len),
-            _ => text_edit::select(&ctx, widget, len, len),
+            Caret::All => adapter::select(&ctx, widget, 0, len),
+            _ => adapter::select(&ctx, widget, len, len),
         }
     }
     if decl.options.complete.is_some() {

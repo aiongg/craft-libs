@@ -2,8 +2,8 @@
 
 use craft_i18n::Direction;
 use craft_ui::runtime::env::RootEnv;
-use craft_ui::testing::{Frames, surface};
 use craft_ui::testing::trial;
+use craft_ui::testing::{Frames, surface};
 use std::path::Path;
 
 /// PL2: the input hook of a child viewport runs before the viewport is pushed; `on_begin_pass` runs after.

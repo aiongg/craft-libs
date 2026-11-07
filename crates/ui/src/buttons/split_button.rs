@@ -2,17 +2,18 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, Overlay, OverlayUi,
-    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
+    Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
 };
 use crate::controls::select::{OptionList, OptionRow, SelectOption};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, StateSet, Stateful, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{
-    DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value,
+use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
+use craft_theme::{
+    State, StateMix, States, Variant,
+    variant::{Emphasis, Tone},
 };
-use craft_theme::{State, StateMix, States, Variant, variant::{Emphasis, Tone}};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
 const ARROW: PartKey = PartKey::new("arrow");
@@ -122,11 +123,8 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let (arrow, _) = Flow::new(rect, cx.flow.is_rtl()).take_end(cx.icon());
-        let part = cx
-            .part(ARROW, arrow)
-            .sense(Sense::CLICK)
-            .priority(HitPriority::new(HitLevel::Handle, 0))
-            .pointer_only("Alt+Down and Down open the menu");
+        let part =
+            cx.part(ARROW, arrow).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Handle, 0)).pointer_only("Alt+Down and Down open the menu");
         if let Some(label) = &self.arrow_label {
             part.tooltip(label.clone());
         }
@@ -159,9 +157,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let labels: Vec<Label> = self.entries.iter().map(|entry| cx.env.resolve(&entry.label)).collect();
         let events = ui.show(popup, Overlay::menu(), |ui, _| {
             let rows = Entries { labels: &labels };
-            OptionList::new(Bind::given(Selection::default()))
-                .show_items(ui, &rows, &mut |key, _| OptionRow::new(labels[*key].as_str()))
-                .events
+            OptionList::new(Bind::given(Selection::default())).show_items(ui, &rows, &mut |key, _| OptionRow::new(labels[*key].as_str())).events
         });
         let mut picked = None;
         for event in events.into_iter().flatten() {

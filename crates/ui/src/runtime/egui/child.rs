@@ -59,3 +59,9 @@ pub(crate) fn scope<R>(ui: &mut Ui, disabled: bool, direction: Option<bool>, bod
 pub(crate) fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
     ui.scope(f).inner
 }
+
+/// Runs `f` on a child `Ui` of `ui` whose auto ids start from `salt`: equal widgets under different salts never meet.
+#[cfg(feature = "testing")]
+pub(crate) fn scoped_by<R>(ui: &mut Ui, salt: impl std::hash::Hash + std::fmt::Debug, f: impl FnOnce(&mut Ui) -> R) -> R {
+    ui.push_id(salt, f).inner
+}

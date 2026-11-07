@@ -602,3 +602,8 @@ impl<T: Clone + Send + Sync + 'static> Facts<T> {
         PerViewport::<Stamped<FactRecord<T>>>::with_pass(ctx, viewport, pass_nr, advance, f)
     }
 }
+
+/// An id no other `source` shares: the id of something with a stable key and no component of its own.
+pub(crate) fn unique(source: impl std::hash::Hash + std::fmt::Debug) -> Id {
+    store::unique(source)
+}

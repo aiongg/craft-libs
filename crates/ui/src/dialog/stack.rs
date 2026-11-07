@@ -7,7 +7,7 @@ pub type DialogId = Id;
 
 /// The id a host gives the dialog it opens from `key`, pushed on a [`DialogStack`] before the dialog first shows.
 pub fn dialog_id(key: impl std::hash::Hash + std::fmt::Debug) -> DialogId {
-    Id::unique(("craft_ui::dialog", key))
+    crate::runtime::memory::unique(("craft_ui::dialog", key))
 }
 
 /// The open dialogs in the order they were opened, kept by the host next to its dialog values. The layer stack

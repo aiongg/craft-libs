@@ -1,7 +1,7 @@
 //! Writes the label-scope and merge patches `runtime::access::scope` decides, and the status node of announcements.
 
-use crate::runtime::access::scope::{LabelPatch, MergePatch};
 use super::Toggle;
+use crate::runtime::access::scope::{LabelPatch, MergePatch};
 use egui::{Context, Id};
 
 /// Writes one label-scope change.

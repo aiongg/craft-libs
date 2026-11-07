@@ -246,6 +246,11 @@ pub(crate) fn announce(ctx: &Context, text: String) {
     store::with::<FrameState, _>(ctx, |state| state.output.announcements.push(text));
 }
 
+/// Asks for another pass of the viewport the running pass belongs to.
+pub(crate) fn request_repaint(ctx: &Context) {
+    raw_input::request_repaint_of(ctx, pass::current_viewport(ctx));
+}
+
 /// Marks the chrome toggle in the next `FrameOutput`.
 #[expect(dead_code, reason = "used by the pipeline (F3)")]
 pub(crate) fn request_chrome_toggle(ctx: &Context) {

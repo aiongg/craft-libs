@@ -31,6 +31,11 @@ impl Outcome for Response {
     }
 }
 
+/// Whether `response` reports a click, by pointer or by keyboard activation.
+pub fn clicked(response: &Response) -> bool {
+    crate::runtime::egui::response::clicked(response)
+}
+
 /// The value type of `C`'s output.
 pub type ValueOf<C> = <<C as super::Component>::Output as Outcome>::Value;
 

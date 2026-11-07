@@ -24,8 +24,8 @@ mod scope;
 mod shape;
 mod sites;
 mod style;
-mod text_edit;
 mod test_rules;
+mod text_edit;
 mod types;
 mod unsafe_allow;
 

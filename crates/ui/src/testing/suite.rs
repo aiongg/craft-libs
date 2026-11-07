@@ -64,8 +64,7 @@ const SHAPES: &[Case] = &[
 ];
 
 /// The case modules, in the order their cases run.
-const GROUPS: &[&[Case]] =
-    &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, SHAPES];
+const GROUPS: &[&[Case]] = &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, SHAPES];
 
 fn cases() -> impl Iterator<Item = &'static Case> {
     GROUPS.iter().flat_map(|group| group.iter())

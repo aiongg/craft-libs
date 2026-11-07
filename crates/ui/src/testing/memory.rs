@@ -97,3 +97,8 @@ pub fn facts_of_last_pass<T: Clone + Send + Sync + 'static>(ctx: &Context) -> Ve
 pub fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
     child::scoped(ui, f)
 }
+
+/// Runs `f` on a child `Ui` of `ui` with its own id scope named by `salt`.
+pub fn scoped_by<R>(ui: &mut Ui, salt: impl std::hash::Hash + std::fmt::Debug, f: impl FnOnce(&mut Ui) -> R) -> R {
+    child::scoped_by(ui, salt, f)
+}

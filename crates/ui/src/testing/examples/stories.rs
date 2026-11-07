@@ -8,12 +8,16 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{CellSelection, ColumnKey};
 use egui::{Pos2, Rect, Ui, Vec2};
 
-/// The width and height of a cell in a stand-alone row story.
-const CELL: Vec2 = Vec2::new(60.0, 24.0);
+/// The width and height of a cell in a stand-alone row story: two and a half control heights wide and one high.
+fn cell(ui: &Ui) -> Vec2 {
+    let height = crate::style::control_metrics(&crate::runtime::env::Env::of(ui).tokens, craft_theme::ControlSize::Md).height;
+    Vec2::new(height * 2.5, height)
+}
 
 /// Side-by-side cells of `keys`, as the item step lists them for a row.
-fn cells(keys: &[ColumnKey]) -> Vec<(ColumnKey, Rect)> {
-    keys.iter().enumerate().map(|(at, key)| (key.clone(), Rect::from_min_size(Pos2::new(CELL.x * at as f32, 0.0), CELL))).collect()
+fn cells(ui: &Ui, keys: &[ColumnKey]) -> Vec<(ColumnKey, Rect)> {
+    let size = cell(ui);
+    keys.iter().enumerate().map(|(at, key)| (key.clone(), Rect::from_min_size(Pos2::new(size.x * at as f32, 0.0), size))).collect()
 }
 
 /// The seconds the story lanes show.
@@ -77,7 +81,7 @@ fn sheet_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(SheetRow<'static>, covers = [Default], drive = Drive::Never)]
 fn sheet_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let values = sheet_rows(1).remove(0);
-    SheetRow::new(&values, cells(&[ColumnKey::new("a"), ColumnKey::new("b"), ColumnKey::new("c"), ColumnKey::new("d")]))
+    SheetRow::new(&values, cells(ui, &[ColumnKey::new("a"), ColumnKey::new("b"), ColumnKey::new("c"), ColumnKey::new("d")]))
         .label("Row 1")
         .show(ui)
         .into()
@@ -110,5 +114,5 @@ fn track_stack_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(TrackRow<'static>, covers = [Default], drive = Drive::Never)]
 fn track_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let tracks = tracks(1);
-    TrackRow::new(&tracks[0], cells(&[NAME, MUTE, LOCK, LANE]), VISIBLE).show(ui).response.into()
+    TrackRow::new(&tracks[0], cells(ui, &[NAME, MUTE, LOCK, LANE]), VISIBLE).show(ui).response.into()
 }

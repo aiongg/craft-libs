@@ -9,9 +9,9 @@ mod toggle;
 mod tree;
 mod undo;
 mod view;
-mod view_words;
 #[cfg(feature = "testing")]
 mod view_stories;
+mod view_words;
 mod words;
 
 pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};

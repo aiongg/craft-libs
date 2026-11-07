@@ -115,6 +115,7 @@ pub fn run_structure(args: &[String]) -> Result<ExitCode, Error> {
             }
         }
     }
+    let root = std::fs::canonicalize(&root).unwrap_or(root);
     let meta = Metadata::run(&root)?;
     let findings = match config {
         Some(path) => crate::check_workspace(&root, &crate::Config::load(&path)?, &meta)?,

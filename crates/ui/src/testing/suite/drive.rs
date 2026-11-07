@@ -153,7 +153,7 @@ fn pick(fixture: &mut Fixture, row: usize, by_click: bool) {
     let target = root_target(fixture);
     fixture.click(&target);
     if by_click {
-        let mut rows: Vec<Target> = [accesskit::Role::ListBoxOption, accesskit::Role::MenuItem]
+        let mut rows: Vec<Target> = [crate::runtime::egui::access::Role::ListBoxOption, crate::runtime::egui::access::Role::MenuItem]
             .into_iter()
             .flat_map(|role| fixture.by_role(Role::Node(role)))
             .filter(|row| row.node != target.node)
@@ -283,7 +283,7 @@ fn mixed_commits_a_concrete_value(subject: &Subject) -> Result<(), String> {
                 .tree()
                 .keys()
                 .into_iter()
-                .any(|key| fixture.tree().data_of(key).is_some_and(|node| node.toggled() == Some(accesskit::Toggled::Mixed)))
+                .any(|key| fixture.tree().data_of(key).is_some_and(|node| node.toggled() == Some(crate::runtime::egui::access::Toggled::Mixed)))
         };
         let (mut fixture, plan) = settled(story, subject.probe);
         if !is_mixed(&fixture) {

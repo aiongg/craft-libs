@@ -114,7 +114,8 @@ fn checker_and_grid_shapes_stay_within_the_clip_of_a_huge_rect() {
     assert!(checker.len() < 10_000, "{} checker shapes for a 100 point clip", checker.len());
     let grid = craft_ui::primitives::grid_lines(&tokens, huge, vec2(0.001, 10.0), clip, 2.0);
     assert!(grid.len() < 10_000, "{} grid shapes for a 100 point clip", grid.len());
+    let reach = clip.expand(2.0);
     for shape in checker.iter().chain(&grid) {
-        assert!(clip.expand(2.0).contains_rect(shape.visual_bounding_rect()), "{:?} reaches outside the clip", shape.visual_bounding_rect());
+        assert!(reach.contains_rect(shape.visual_bounding_rect()), "{:?} reaches outside the clip", shape.visual_bounding_rect());
     }
 }

@@ -10,7 +10,7 @@ use crate::controls::select::row_look;
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{DisplayOrder, ItemSource, Metrics, PartKey, PressPhase, Sense, SelectionChange, SelectionModel, SpanLayout};
+use craft_behavior::{DisplayOrder, ItemSource, Metrics, PartKey, PressPhase, SelectionChange, SelectionModel, Sense, SpanLayout};
 use egui::{Rect, Response, Vec2};
 use std::borrow::Cow;
 

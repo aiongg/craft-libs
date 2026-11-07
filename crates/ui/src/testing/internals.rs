@@ -1,7 +1,7 @@
 //! Crate-private logic the trials check without a frame: the geometry of a row and the order of footer buttons.
 
-pub use crate::list::row::RowPlacement;
 use crate::list::ListRow;
+pub use crate::list::row::RowPlacement;
 use crate::sections::DialogRole;
 
 /// Where the parts of `row` lie in a rect of `width`, under fixed sizes.

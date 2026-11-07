@@ -6,12 +6,15 @@ use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
 use crate::style::{ComponentStyle, DataColor, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{IconId, Metrics, Sense};
-use craft_theme::{ControlSize, Srgba, Variant, variant::{Emphasis, Tone}};
+use craft_theme::{
+    BySize, ControlSize, Srgba, Variant,
+    variant::{Emphasis, Tone},
+};
 use egui::{Color32, Pos2, Response, Vec2};
 
 /// The glyph is this much smaller than the icon side of the size class, small and standard: the button's own side
 /// holds the hit area and the room around the glyph.
-const GLYPH_LESS: (f32, f32) = (2.0, 4.0);
+const GLYPH_LESS: BySize<f32> = BySize { sm: 2.0, md: 4.0 };
 /// The badge dot's diameter in icon sides.
 const BADGE_RATIO: f32 = 0.4;
 
@@ -83,10 +86,7 @@ impl Component for IconButton {
         let mut surface = face::surface(cx, &off);
         surface.fill = off.fill.clone().on(on.fill.off);
         surface.border = off.edge.clone().map(|edge| edge.on(on.edge.as_ref().map_or(on.fill.off, |edge| edge.off)));
-        let less = match cx.size {
-            ControlSize::Sm => GLYPH_LESS.0,
-            _ => GLYPH_LESS.1,
-        };
+        let less = GLYPH_LESS.get(cx.size);
         IconButtonStyle {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),

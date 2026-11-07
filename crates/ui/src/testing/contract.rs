@@ -38,6 +38,11 @@ pub fn clicked_by_primary(response: &egui::Response) -> bool {
     crate::runtime::egui::fixture::clicked_by_primary(response)
 }
 
+/// Places a clickable egui widget in `rect` by hand, the way a bypass of the components does.
+pub fn raw_widget(ui: &mut egui::Ui, rect: egui::Rect) {
+    crate::runtime::egui::fixture::raw_widget(ui, rect);
+}
+
 /// Allocates a widget of `size` in `ui`.
 pub fn allocate(ui: &mut egui::Ui, size: egui::Vec2) {
     crate::runtime::egui::fixture::allocate_blocker(ui, size);

@@ -3,6 +3,6 @@
 
 mod kit;
 mod list;
+mod rows;
 mod table;
 mod table_trials;
-mod rows;

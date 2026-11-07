@@ -2,11 +2,11 @@
 //! the faces of other components, so they have those components' look, content paint and AccessKit role.
 
 use super::words::SectionWords;
+use crate::buttons::IconButton;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Role, WordSetCx as _,
 };
-use crate::buttons::IconButton;
 use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{Span, TextRun};

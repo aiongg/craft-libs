@@ -13,9 +13,9 @@ use craft_ui::runtime::env::Env;
 use craft_ui::runtime::windows::{WindowAction, act};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
+use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
 use craft_ui::testing::{Fixture, trial};
 use craft_window::restore::{MAIN, Placement, Store};
-use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
 use egui::{Event, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -160,11 +160,8 @@ fn window_info_updates_per_viewport() {
 /// size change, and so does an undecorated window on a platform that delivers the release itself.
 #[trial]
 fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
-    let cases = [
-        (Os::Windows, WindowChrome::Integrated, true),
-        (Os::Windows, WindowChrome::Native, false),
-        (Os::Linux, WindowChrome::Integrated, false),
-    ];
+    let cases =
+        [(Os::Windows, WindowChrome::Integrated, true), (Os::Windows, WindowChrome::Native, false), (Os::Linux, WindowChrome::Integrated, false)];
     for (os, chrome, released) in cases {
         let shell = ShellInfo::default().os(os).caps(Caps::native(os)).window(WindowInfo::new(WindowKind::Main).chrome(chrome));
         let windows = Windows::with(InstallSpec::new(shell, Arc::new(NoWindows)));

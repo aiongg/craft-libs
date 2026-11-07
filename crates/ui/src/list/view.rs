@@ -5,8 +5,8 @@
 
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Props as _, ReorderRule, Role,
-    SelectMode, Show as _,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Props as _, ReorderRule,
+    Role, SelectMode, Show as _,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;

@@ -1,9 +1,7 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
 use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
-use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Pad, Props as _, Role, SaveKey,
-};
+use crate::contract::{Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Pad, Props as _, Role, SaveKey};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;

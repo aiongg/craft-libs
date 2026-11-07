@@ -26,8 +26,8 @@ pub mod sensing;
 mod stories;
 pub mod story;
 pub mod style;
-pub mod surface;
 pub mod suite;
+pub mod surface;
 pub mod text;
 pub mod wheel;
 pub mod windows;
@@ -37,7 +37,9 @@ pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;
 #[doc(hidden)]
-pub use story::{CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item};
+pub use story::{
+    CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item,
+};
 pub use windows::install_spec;
 
 /// One registered trial.

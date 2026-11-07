@@ -21,7 +21,7 @@ fn rig() -> Rig {
     let mut fixture = Fixture::new(move |ui| {
         let entries = [SelectOption::new(7u8, "Colour"), SelectOption::new(9, "Grayscale")];
         let out = SplitButton::new("Trace", &entries).show(ui);
-        if out.response.clicked() {
+        if craft_ui::testing::contract::clicked(&out.response) {
             shown_clicks.set(shown_clicks.get() + 1);
         }
         if out.chosen.is_some() {

@@ -10,8 +10,8 @@
 use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
-    WordSetCx as _, ItemOutput, NoValue, Outcome,
+    Access, Bind, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
+    Styled as _, WordSetCx as _,
 };
 use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
@@ -1013,6 +1013,7 @@ pub(crate) fn indent_steps(row: &ListRow<'_>) -> usize {
 }
 
 /// A row's parts placed by [`placement_under_fixed_sizes`].
+#[non_exhaustive]
 pub struct RowPlacement {
     /// The label and detail.
     pub label: Rect,

@@ -372,6 +372,11 @@ pub(crate) fn allocate_blocker(ui: &mut Ui, size: egui::Vec2) {
     ui.allocate_response(size, egui::Sense::hover());
 }
 
+/// A clickable egui widget placed by hand in `rect`: what a component's own widgets never are.
+pub(crate) fn raw_widget(ui: &mut Ui, rect: egui::Rect) {
+    ui.interact(rect, egui::Id::unique("raw_widget"), egui::Sense::click());
+}
+
 /// Whether the `Response` reports a click.
 pub(crate) fn clicked(response: &egui::Response) -> bool {
     response.clicked()

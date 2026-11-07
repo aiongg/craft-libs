@@ -5,6 +5,7 @@ use crate::contract::{BodyLayout, Common, Component, Container, ContainerProps, 
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{IconId, Metrics, NavShape, Roving, Sense};
+use craft_host::target::Os;
 use craft_theme::Variant;
 use egui::{Response, Ui};
 
@@ -125,20 +126,20 @@ impl FooterBar {
         let content = std::mem::take(&mut self.content);
         let picked = self.show(ui, |ui, _| match &content {
             Content::Body => None,
-            Content::Actions(actions) => actions.iter().position(|action| {
-                IconButton::new(action.icon.clone()).label(action.label.clone()).show(ui).clicked()
-            }),
+            Content::Actions(actions) => {
+                actions.iter().position(|action| crate::contract::clicked(&IconButton::new(action.icon.clone()).label(action.label.clone()).show(ui)))
+            }
             Content::Buttons(buttons) => {
                 let roles: Vec<DialogRole> = buttons.iter().map(|button| button.role).collect();
                 let mut picked = None;
-                for at in display_order(&roles, cfg!(target_os = "windows")) {
+                for at in display_order(&roles, crate::runtime::windows::os_of(ui.ctx()) == Os::Windows) {
                     let button = &buttons[at];
                     let variant = match button.role {
                         DialogRole::Accept => Variant::PRIMARY,
                         DialogRole::Destructive => Variant::DANGER,
                         DialogRole::Cancel | DialogRole::Other => Variant::SECONDARY,
                     };
-                    if Button::new(button.label.clone()).variant(variant).show(ui).clicked() {
+                    if crate::contract::clicked(&Button::new(button.label.clone()).variant(variant).show(ui)) {
                         picked = Some(at);
                     }
                 }

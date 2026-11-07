@@ -77,13 +77,9 @@ fn a_dialog_reports_how_it_closed() {
         let mut ui = |ui: &mut Ui| {
             let mut now = open.get();
             let mut snap = false;
-            Dialog::new("Options")
-                .opened(Bind::bound(&mut now))
-                .close_on_enter(enter)
-                .on_close(|why| reason.set(Some(why)))
-                .show(ui, |ui, _| {
-                    Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
-                });
+            Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).on_close(|why| reason.set(Some(why))).show(ui, |ui, _| {
+                Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
+            });
             open.set(now);
         };
         frames.idle(30, &mut ui);

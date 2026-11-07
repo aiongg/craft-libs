@@ -1,10 +1,10 @@
 //! Stories of `List`, `FindingsList`, `FindingsSummary`, `EventList` and `UndoList`.
 
+use super::view_words::{EventWords, FindingsWords};
 use super::{
     EventLevel, EventList, EventLog, EventLogState, Finding, Findings, FindingsList, FindingsSummary, List, ListRow, LogEvent, Severity, UndoList,
     UndoMark, UndoRow, UndoRows,
 };
-use super::view_words::{EventWords, FindingsWords};
 use crate::contract::{Bind, Show as _, ShowCollection as _, WordSetCx as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource};
@@ -68,9 +68,7 @@ fn findings(count: usize) -> Vec<Finding> {
 
 fn findings_list(ui: &mut Ui, findings: &[Finding]) -> StoryOutput {
     let source = Findings::new(findings);
-    FindingsList::new("Findings")
-        .show_items(ui, &source, &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>()))
-        .into()
+    FindingsList::new("Findings").show_items(ui, &source, &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>())).into()
 }
 
 #[story(FindingsList<'static>, covers = [Default, Many], drive = Drive::Never)]
@@ -99,7 +97,10 @@ const NOW_MS: u64 = 600_000;
 fn events(count: usize) -> Vec<LogEvent> {
     let levels = [EventLevel::Info, EventLevel::Warning, EventLevel::Error];
     (0..count)
-        .map(|n| LogEvent::new(n as u64 + 1, levels[n % 3], "Render", format!("Event {}", n + 1), NOW_MS - (n as u64 + 1) * 60_000).count(1 + (n % 2) as u32))
+        .map(|n| {
+            LogEvent::new(n as u64 + 1, levels[n % 3], "Render", format!("Event {}", n + 1), NOW_MS - (n as u64 + 1) * 60_000)
+                .count(1 + (n % 2) as u32)
+        })
         .collect()
 }
 

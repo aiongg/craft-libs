@@ -228,6 +228,16 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
     changed
 }
 
+/// The selection of the text widget `id` as character indices, `(caret, anchor)`.
+pub(crate) fn selection(ctx: &Context, id: Id) -> Option<(usize, usize)> {
+    text_edit::selection(ctx, id)
+}
+
+/// Sets the selection of the text widget `id`: `anchor` and `caret` are character indices.
+pub(crate) fn select(ctx: &Context, id: Id, anchor: usize, caret: usize) {
+    text_edit::select(ctx, id, anchor, caret);
+}
+
 /// Runs the text widget for one pass.
 pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut {
     let (ctx, widget) = (input.ctx, text_id(input.id, input.key));

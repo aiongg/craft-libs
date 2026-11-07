@@ -1,12 +1,11 @@
 //! The pure logic of the list family.
 
-use craft_ui::list::*;
-use craft_ui::runtime::env::WordSet as _;
 use craft_behavior::{DisplayOrder as _, SelectionChange, SelectionModel as _};
 use craft_ui::contract::CollectionEvent;
+use craft_ui::list::*;
+use craft_ui::runtime::env::WordSet as _;
 use craft_ui::runtime::env::WordSet as _;
 use craft_ui::testing::trial;
-
 
 fn log() -> Vec<LogEvent> {
     vec![
@@ -41,7 +40,6 @@ fn a_repeated_event_shows_its_count_and_a_future_event_is_new() {
     assert_eq!(events[2].details_line(&words, "2 min ago"), "Warning \u{b7} Auto-save \u{b7} 2 min ago");
 }
 
-
 fn sample() -> Vec<Finding> {
     vec![
         Finding::new(Severity::Error, "Missing font"),
@@ -70,7 +68,6 @@ fn apply_opens_one_group_or_every_group() {
     open.apply(&"b", false, true, groups.iter());
     assert!(!open.is_open(&"a") && !open.is_open(&"b"));
 }
-
 
 #[trial]
 fn a_mark_covers_the_row_and_every_newer_one() {

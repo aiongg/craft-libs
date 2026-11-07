@@ -4,6 +4,11 @@ use craft_behavior::Sense;
 use egui::response::Flags;
 use egui::{Id, LayerId, Pos2, Rect, Response, Ui, Vec2};
 
+/// Whether the `Response` reports a click.
+pub(crate) fn clicked(response: &Response) -> bool {
+    response.clicked()
+}
+
 /// egui's sense for a library sense: `FOCUS` makes the widget a focus stop.
 pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
     let mut mapped = egui::Sense::hover();

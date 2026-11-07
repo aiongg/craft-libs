@@ -119,7 +119,7 @@ pub struct CxCore<'a> {
 
 impl<C: Component> Cx<'_, C> {
     /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
-    pub fn open_url(&mut self, url: &str, new_tab: bool) {
+    pub fn open_link(&mut self, url: &str, new_tab: bool) {
         crate::runtime::egui::clipboard::open_url(&self.core.ctx, url, new_tab);
     }
 
