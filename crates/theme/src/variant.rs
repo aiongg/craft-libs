@@ -21,7 +21,8 @@ pub enum Emphasis {
     Ghost,
 }
 
-/// What a variant says about its subject.
+/// What a variant says about its subject. The one tone type of the component layer: messages, notices, badges and
+/// status ink all name it, and `StyleCx::tone` and `StyleCx::tone_fill` give its colours.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]
 #[non_exhaustive]
 pub enum Tone {

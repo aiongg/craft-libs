@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 pub use craft_i18n::Word;
 use craft_i18n::Words;
+use craft_theme::variant::Tone;
 
 /// A label: a literal stays borrowed, a built string is shared. Cloning is cheap.
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -87,14 +88,14 @@ impl From<Label> for Cow<'static, str> {
 }
 
 /// The text of a `Validity`: a label and an optional tone override. `Warn` defaults to `Tone::Warn`, `Refuse` to
-/// `Tone::Bad`.
+/// `Tone::Bad`; `effective_tone` is the one place that default is decided.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct Message {
     /// The text.
     pub text: Label,
     /// The tone, when it is not the one the kind of validity implies.
-    pub tone: Option<craft_theme::Tone>,
+    pub tone: Option<Tone>,
 }
 
 impl Message {
@@ -104,8 +105,13 @@ impl Message {
     }
 
     /// The message in `tone`.
-    pub fn tone(mut self, tone: craft_theme::Tone) -> Self {
+    pub fn tone(mut self, tone: Tone) -> Self {
         self.tone = Some(tone);
         self
+    }
+
+    /// The tone the message shows in: its own, else `Warn` when it belongs to a `Validity::Warn` (`warn`), else `Bad`.
+    pub fn effective_tone(&self, warn: bool) -> Tone {
+        self.tone.unwrap_or(if warn { Tone::Warn } else { Tone::Bad })
     }
 }

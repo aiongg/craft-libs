@@ -10,7 +10,7 @@ use crate::runtime::inspect::Finding;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{self, sub};
 use craft_behavior::PressState;
-use craft_theme::Flags;
+use craft_theme::{Flags, variant::Tone};
 use egui::{Context, Id, Rect, Vec2};
 
 /// Whether a field label names its control or describes it.
@@ -108,7 +108,7 @@ struct Scope {
     /// The control that registered a reset value and whether its value differs from it.
     reset: Option<ResetFact>,
     /// The first message a control inside reported, with its resolved text.
-    message: Option<(Message, String)>,
+    message: Option<(Message, Tone, String)>,
     /// The narrowest width of the first control.
     control_min: Option<f32>,
     /// A control inside scrubs by the label.
@@ -247,18 +247,18 @@ pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
 }
 
 /// Registers the validity message of a control with the innermost label scope; `text` is the message resolved.
-/// The first message wins.
-pub(crate) fn register_message(ctx: &Context, message: &Message, text: String) {
+/// `tone` is the effective tone of the message. The first message wins.
+pub(crate) fn register_message(ctx: &Context, message: &Message, tone: Tone, text: String) {
     Service::<Stack>::run(ctx, |stack| {
         if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
-            scope.message.get_or_insert_with(|| (message.clone(), text));
+            scope.message.get_or_insert_with(|| (message.clone(), tone, text));
         }
     });
 }
 
 /// The message the label scope of `container` recorded last frame.
-pub(crate) fn last_message(ctx: &Context, container: Id) -> Option<Message> {
-    store::peek_clone::<Message>(ctx, message_slot(container))
+pub(crate) fn last_message(ctx: &Context, container: Id) -> Option<(Message, Tone)> {
+    store::peek_clone::<(Message, Tone)>(ctx, message_slot(container))
 }
 
 /// The slot of a container's message; it goes with the scope's owner.
@@ -420,12 +420,12 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             }
             let message_slot = message_slot(scope.container);
             match scope.message {
-                Some((message, text)) => {
-                    store::put(ctx, message_slot, message);
-                    memory::adopt::<Message>(ctx, scope.owner, message_slot);
+                Some((message, tone, text)) => {
+                    store::put(ctx, message_slot, (message, tone));
+                    memory::adopt::<(Message, Tone)>(ctx, scope.owner, message_slot);
                     adapter::write_label_patch(ctx, &LabelPatch::Detail { node: scope.container, text });
                 }
-                None => drop(store::take::<Message>(ctx, message_slot)),
+                None => drop(store::take::<(Message, Tone)>(ctx, message_slot)),
             }
             let scrub_slot = scrub_slot(scope.container);
             if scope.scrub {
