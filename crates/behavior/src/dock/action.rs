@@ -3,6 +3,7 @@
 use super::{
     groups::{GroupLocation, Target},
     node::{Monitor, Zone},
+    policy::Permissions,
     split::SplitSize,
 };
 
@@ -11,6 +12,7 @@ use super::{
 #[non_exhaustive]
 pub enum Placement<P> {
     /// Insert before this existing destination member, or append. Also reorders a group.
+    #[non_exhaustive]
     Tab {
         /// The member to insert before; `None` appends.
         before: Option<P>,
@@ -25,6 +27,7 @@ pub enum Placement<P> {
     /// the nearest such split along its opposite side instead. The renderer offers it beside a
     /// frame too small to halve. `Center`, and an anchor without either divider or with a dock
     /// beyond it, are invalid.
+    #[non_exhaustive]
     SplitSized {
         /// The side of the anchor frame.
         zone: Zone,
@@ -37,6 +40,7 @@ pub enum Placement<P> {
     /// floating window, a split of the anchor's group above or below.
     /// `height` is the inserted group's preferred height ([`Group::height`]); `None`
     /// keeps a moved group's own height, or shares the free height for a new group.
+    #[non_exhaustive]
     Group {
         /// Places the group below the anchor's group; false places it above.
         below: bool,
@@ -45,6 +49,7 @@ pub enum Placement<P> {
         height: Option<f32>,
     },
     /// A new column before (towards the window edge) or after the anchor's column.
+    #[non_exhaustive]
     Column {
         /// Places the new column after the anchor's column; false places it before.
         after: bool,
@@ -90,6 +95,7 @@ pub struct Location<P> {
 #[non_exhaustive]
 pub enum Action<P> {
     /// Move one panel next to `anchor`.
+    #[non_exhaustive]
     Move {
         /// The panel the action applies to.
         panel: P,
@@ -99,6 +105,7 @@ pub enum Action<P> {
         placement: Placement<P>,
     },
     /// Float the panel's group in a window at `rect`.
+    #[non_exhaustive]
     Float {
         /// The panel the action applies to.
         panel: P,
@@ -106,11 +113,13 @@ pub enum Action<P> {
         rect: [f32; 4],
     },
     /// Close a panel.
+    #[non_exhaustive]
     Close {
         /// The panel the action applies to.
         panel: P,
     },
     /// Select a panel in its group.
+    #[non_exhaustive]
     Activate {
         /// The panel the action applies to.
         panel: P,
@@ -121,6 +130,7 @@ pub enum Action<P> {
     /// minimized, not in an iconic column; the end-side dock's first), else gets a new frame a
     /// quarter wide at the right edge of the docked area
     /// ([`Placement::Edge`]).
+    #[non_exhaustive]
     Open {
         /// The panel the action applies to.
         panel: P,
@@ -128,6 +138,7 @@ pub enum Action<P> {
         anchor: Option<P>,
     },
     /// Reveal an absent panel beside a protected canvas or at another explicit destination.
+    #[non_exhaustive]
     OpenAt {
         /// The panel the action applies to.
         panel: P,
@@ -137,6 +148,7 @@ pub enum Action<P> {
         placement: Placement<P>,
     },
     /// Reposition/resize a floating window, identified by one of its panels.
+    #[non_exhaustive]
     MoveFloating {
         /// The panel the action applies to.
         panel: P,
@@ -144,6 +156,7 @@ pub enum Action<P> {
         rect: [f32; 4],
     },
     /// Path from the root: false is the first child, true the second.
+    #[non_exhaustive]
     ResizeSplit {
         /// Path from the root: false is the first child, true the second.
         path: Vec<bool>,
@@ -152,6 +165,7 @@ pub enum Action<P> {
     },
     /// [`Action::ResizeSplit`] in the floating window holding `panel`, with a path from its
     /// root.
+    #[non_exhaustive]
     ResizeWindowSplit {
         /// The panel the action applies to.
         panel: P,
@@ -161,6 +175,7 @@ pub enum Action<P> {
         size: SplitSize,
     },
     /// Open or close the panel's entry in its accordion stack.
+    #[non_exhaustive]
     SetStackOpen {
         /// The panel the action applies to.
         panel: P,
@@ -168,6 +183,7 @@ pub enum Action<P> {
         open: bool,
     },
     /// Set the panel's accordion entry height in points; `None` clears it.
+    #[non_exhaustive]
     ResizeStack {
         /// The panel the action applies to.
         panel: P,
@@ -177,6 +193,7 @@ pub enum Action<P> {
     /// Move the group containing `panel` with its order, active tab and minimized state.
     /// `Target::At` with `Tab` or `Split(Center)` merges every member. An accordion entry is a
     /// group of one. A target inside the group is a no-op.
+    #[non_exhaustive]
     MoveGroup {
         /// The panel the action applies to.
         panel: P,
@@ -187,6 +204,7 @@ pub enum Action<P> {
     /// neighbouring group. Fails for a group that is not docked in a column
     /// ([`DockError::InvalidPlacement`]), at the column's end ([`DockError::MissingTarget`]), or
     /// beside a group that cannot move ([`DockError::NotAllowed`]; a canvas is never stepped past).
+    #[non_exhaustive]
     StepGroup {
         /// The panel the action applies to.
         panel: P,
@@ -194,6 +212,7 @@ pub enum Action<P> {
         up: bool,
     },
     /// Move the dock column containing `panel`. `Float` makes a window of its groups.
+    #[non_exhaustive]
     MoveColumn {
         /// The panel the action applies to.
         panel: P,
@@ -201,6 +220,7 @@ pub enum Action<P> {
         to: Target<P>,
     },
     /// Dock or merge the floating window containing `panel`, every group included.
+    #[non_exhaustive]
     MoveWindow {
         /// The panel the action applies to.
         panel: P,
@@ -208,22 +228,26 @@ pub enum Action<P> {
         to: Target<P>,
     },
     /// Close Tab Group.
+    #[non_exhaustive]
     CloseGroup {
         /// The panel the action applies to.
         panel: P,
     },
     /// × on a floating window: closes all its panels.
+    #[non_exhaustive]
     CloseWindow {
         /// The panel the action applies to.
         panel: P,
     },
     /// Close Other Panels in Group.
+    #[non_exhaustive]
     CloseOthers {
         /// The panel the action applies to.
         panel: P,
     },
     /// Minimize a dock group to its tab strip, or the floating window holding the panel to its
     /// title bar (and the strip of its only group). On an accordion entry, closes it.
+    #[non_exhaustive]
     SetMinimized {
         /// The panel the action applies to.
         panel: P,
@@ -231,6 +255,7 @@ pub enum Action<P> {
         minimized: bool,
     },
     /// Collapse the panel's dock column to icons, or expand it.
+    #[non_exhaustive]
     SetIconic {
         /// The panel the action applies to.
         panel: P,
@@ -238,6 +263,7 @@ pub enum Action<P> {
         iconic: bool,
     },
     /// Set the expanded width in points of the panel's dock column.
+    #[non_exhaustive]
     ResizeColumn {
         /// The panel the action applies to.
         panel: P,
@@ -245,6 +271,7 @@ pub enum Action<P> {
         width: f32,
     },
     /// Preferred height of a dock group or of an accordion entry.
+    #[non_exhaustive]
     ResizeGroup {
         /// The panel the action applies to.
         panel: P,
@@ -252,6 +279,7 @@ pub enum Action<P> {
         height: Option<f32>,
     },
     /// Set the width in points of the panel's dock column while iconic; `None` clears it.
+    #[non_exhaustive]
     ResizeIconic {
         /// The panel the action applies to.
         panel: P,
@@ -259,6 +287,7 @@ pub enum Action<P> {
         width: Option<f32>,
     },
     /// Put the floating window in its own OS window at `rect`, or back in the app window.
+    #[non_exhaustive]
     SetNative {
         /// The panel the action applies to.
         panel: P,
@@ -267,6 +296,7 @@ pub enum Action<P> {
     },
     /// Record the monitor of the native window holding `panel`: from the application's
     /// monitor list, or else only the size egui reported.
+    #[non_exhaustive]
     SetMonitor {
         /// The panel the action applies to.
         panel: P,
@@ -277,6 +307,7 @@ pub enum Action<P> {
     },
     /// Move one panel, without the rest of its group. `Target::At` is [`Action::Move`];
     /// `NewDock` and `Float` give the panel a group of its own.
+    #[non_exhaustive]
     MovePanel {
         /// The panel the action applies to.
         panel: P,
@@ -289,5 +320,173 @@ impl<P> Location<P> {
     /// A location relative to `anchor` by `placement`, with no recorded sizes or siblings.
     pub fn new(anchor: Option<P>, placement: Placement<P>) -> Self {
         Self { floating: None, anchor, placement, size: None, stack: None, sibling: Vec::new(), group: None }
+    }
+}
+
+impl<P> Action<P> {
+    /// Builds [`Action::Move`].
+    pub fn move_beside(panel: P, anchor: P, placement: Placement<P>) -> Self {
+        Self::Move { panel, anchor, placement }
+    }
+
+    /// Builds [`Action::Float`].
+    pub fn float(panel: P, rect: [f32; 4]) -> Self {
+        Self::Float { panel, rect }
+    }
+
+    /// Builds [`Action::Close`].
+    pub fn close(panel: P) -> Self {
+        Self::Close { panel }
+    }
+
+    /// Builds [`Action::Activate`].
+    pub fn activate(panel: P) -> Self {
+        Self::Activate { panel }
+    }
+
+    /// Builds [`Action::Open`].
+    pub fn open(panel: P, anchor: Option<P>) -> Self {
+        Self::Open { panel, anchor }
+    }
+
+    /// Builds [`Action::OpenAt`].
+    pub fn open_at(panel: P, anchor: P, placement: Placement<P>) -> Self {
+        Self::OpenAt { panel, anchor, placement }
+    }
+
+    /// Builds [`Action::MoveFloating`].
+    pub fn move_floating(panel: P, rect: [f32; 4]) -> Self {
+        Self::MoveFloating { panel, rect }
+    }
+
+    /// Builds [`Action::ResizeSplit`].
+    pub fn resize_split(path: Vec<bool>, size: SplitSize) -> Self {
+        Self::ResizeSplit { path, size }
+    }
+
+    /// Builds [`Action::ResizeWindowSplit`].
+    pub fn resize_window_split(panel: P, path: Vec<bool>, size: SplitSize) -> Self {
+        Self::ResizeWindowSplit { panel, path, size }
+    }
+
+    /// Builds [`Action::SetStackOpen`].
+    pub fn set_stack_open(panel: P, open: bool) -> Self {
+        Self::SetStackOpen { panel, open }
+    }
+
+    /// Builds [`Action::ResizeStack`].
+    pub fn resize_stack(panel: P, height: Option<f32>) -> Self {
+        Self::ResizeStack { panel, height }
+    }
+
+    /// Builds [`Action::MoveGroup`].
+    pub fn move_group(panel: P, to: Target<P>) -> Self {
+        Self::MoveGroup { panel, to }
+    }
+
+    /// Builds [`Action::StepGroup`].
+    pub fn step_group(panel: P, up: bool) -> Self {
+        Self::StepGroup { panel, up }
+    }
+
+    /// Builds [`Action::MoveColumn`].
+    pub fn move_column(panel: P, to: Target<P>) -> Self {
+        Self::MoveColumn { panel, to }
+    }
+
+    /// Builds [`Action::MoveWindow`].
+    pub fn move_window(panel: P, to: Target<P>) -> Self {
+        Self::MoveWindow { panel, to }
+    }
+
+    /// Builds [`Action::CloseGroup`].
+    pub fn close_group(panel: P) -> Self {
+        Self::CloseGroup { panel }
+    }
+
+    /// Builds [`Action::CloseWindow`].
+    pub fn close_window(panel: P) -> Self {
+        Self::CloseWindow { panel }
+    }
+
+    /// Builds [`Action::CloseOthers`].
+    pub fn close_others(panel: P) -> Self {
+        Self::CloseOthers { panel }
+    }
+
+    /// Builds [`Action::SetMinimized`].
+    pub fn set_minimized(panel: P, minimized: bool) -> Self {
+        Self::SetMinimized { panel, minimized }
+    }
+
+    /// Builds [`Action::SetIconic`].
+    pub fn set_iconic(panel: P, iconic: bool) -> Self {
+        Self::SetIconic { panel, iconic }
+    }
+
+    /// Builds [`Action::ResizeColumn`].
+    pub fn resize_column(panel: P, width: f32) -> Self {
+        Self::ResizeColumn { panel, width }
+    }
+
+    /// Builds [`Action::ResizeGroup`].
+    pub fn resize_group(panel: P, height: Option<f32>) -> Self {
+        Self::ResizeGroup { panel, height }
+    }
+
+    /// Builds [`Action::ResizeIconic`].
+    pub fn resize_iconic(panel: P, width: Option<f32>) -> Self {
+        Self::ResizeIconic { panel, width }
+    }
+
+    /// Builds [`Action::SetNative`].
+    pub fn set_native(panel: P, rect: Option<[f32; 4]>) -> Self {
+        Self::SetNative { panel, rect }
+    }
+
+    /// Builds [`Action::SetMonitor`].
+    pub fn set_monitor(panel: P, monitor: Option<Monitor>, monitor_size: Option<[f32; 2]>) -> Self {
+        Self::SetMonitor { panel, monitor, monitor_size }
+    }
+
+    /// Builds [`Action::MovePanel`].
+    pub fn move_panel(panel: P, to: Target<P>) -> Self {
+        Self::MovePanel { panel, to }
+    }
+}
+
+impl<P> Placement<P> {
+    /// Builds [`Placement::Tab`].
+    pub fn tab(before: Option<P>) -> Self {
+        Self::Tab { before }
+    }
+
+    /// Builds [`Placement::SplitSized`].
+    pub fn split_sized(zone: Zone, size: SplitSize, outer: SplitSize) -> Self {
+        Self::SplitSized { zone, size, outer }
+    }
+
+    /// Builds [`Placement::Group`].
+    pub fn group(below: bool, height: Option<f32>) -> Self {
+        Self::Group { below, height }
+    }
+
+    /// Builds [`Placement::Column`].
+    pub fn column(after: bool) -> Self {
+        Self::Column { after }
+    }
+}
+
+impl<P> Placement<P> {
+    /// Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
+    /// splits `accepts_splits`, and so does a group placed at an anchor in a floating window
+    /// (`floating`), which splits the anchor's frame.
+    pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
+        match self {
+            Self::Tab { .. } | Self::Split(Zone::Center) => anchor.accepts_tabs,
+            Self::Split(_) | Self::SplitSized { .. } => anchor.accepts_splits,
+            Self::Group { .. } if floating => anchor.accepts_splits,
+            _ => true,
+        }
     }
 }

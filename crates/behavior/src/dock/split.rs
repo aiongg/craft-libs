@@ -2,6 +2,7 @@
 
 /// The direction in which the children of a split are placed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum SplitAxis {
     /// First child on the left, second child on the right.
     Horizontal,
@@ -11,6 +12,7 @@ pub enum SplitAxis {
 
 /// A transient sizing request. Applications may adapt their own persisted sizing enum.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum SplitSize {
     /// Fraction of the space left after the divider is removed, assigned to the first child.
     Ratio(f32),

@@ -95,6 +95,7 @@ impl<P> Column<P> {
 #[non_exhaustive]
 pub enum Target<P> {
     /// Relative to the panel `anchor`, which must not be part of what moves.
+    #[non_exhaustive]
     At {
         /// The panel to place the moved groups next to.
         anchor: P,
@@ -103,11 +104,13 @@ pub enum Target<P> {
     },
     /// A new dock on an edge that has none (or an empty one). The root becomes the other side
     /// of a horizontal split.
+    #[non_exhaustive]
     NewDock {
         /// The edge to put the dock on.
         side: Side,
     },
     /// A new floating window.
+    #[non_exhaustive]
     Float {
         /// Window rect as `[x, y, width, height]` in logical points. `None` keeps the source's
         /// size at a default position.
@@ -188,10 +191,12 @@ pub struct ColumnLocation {
 
 /// Where a panel is. Paths lead from the root: false is a split's first child, true its second.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) enum Place {
+#[non_exhaustive]
+pub enum Place {
     /// A `Tabs` or `Stack` node.
     Node(Vec<bool>),
     /// A group of a dock column.
+    #[non_exhaustive]
     Dock {
         /// The path of the `Dock` node.
         path: Vec<bool>,
@@ -201,6 +206,7 @@ pub(super) enum Place {
         group: usize,
     },
     /// A `Tabs` or `Stack` node of a floating window's tree.
+    #[non_exhaustive]
     Floating {
         /// The window's index.
         window: usize,
@@ -212,7 +218,7 @@ pub(super) enum Place {
 impl Place {
     /// The tree (`None` for the docked layout, else a floating window) and the path of a
     /// `Tabs` or `Stack` node.
-    pub(super) fn tree_path(&self) -> Option<(Option<usize>, &[bool])> {
+    pub fn tree_path(&self) -> Option<(Option<usize>, &[bool])> {
         match self {
             Place::Node(path) => Some((None, path)),
             Place::Floating { window, path } => Some((Some(*window), path)),
@@ -252,5 +258,22 @@ impl<P> Moving<P> {
 
     pub(super) fn into_column(self, width: f32) -> Column<P> {
         Column { groups: self.groups, width: self.width.unwrap_or(width), iconic: self.iconic, iconic_width: self.iconic_width }
+    }
+}
+
+impl<P> Target<P> {
+    /// Builds [`Target::At`].
+    pub fn at(anchor: P, placement: Placement<P>) -> Self {
+        Self::At { anchor, placement }
+    }
+
+    /// Builds [`Target::NewDock`].
+    pub fn new_dock(side: Side) -> Self {
+        Self::NewDock { side }
+    }
+
+    /// Builds [`Target::Float`].
+    pub fn float(rect: Option<[f32; 4]>) -> Self {
+        Self::Float { rect }
     }
 }

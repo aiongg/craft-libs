@@ -242,7 +242,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         self.shape() == other.shape()
     }
 
-    pub(super) fn place(&self, panel: &P) -> Option<Place> {
+    /// The place of `panel`, or `None` when it is absent.
+    pub fn place(&self, panel: &P) -> Option<Place> {
         for (w, window) in self.floating.iter().enumerate() {
             for (leaf, path) in leaves(&window.root) {
                 if leaf_holds(leaf, panel) {
@@ -268,7 +269,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
 
     /// [`Self::place`] of every panel, from one traversal: the renderer looks up many panels a
     /// frame.
-    pub(super) fn places(&self) -> HashMap<P, Place> {
+    pub fn places(&self) -> HashMap<P, Place> {
         fn note<P: Clone + Eq + Hash>(places: &mut HashMap<P, Place>, leaf: &Node<P>, place: &dyn Fn() -> Place) {
             match leaf {
                 Node::Tabs { panels, .. } => {
@@ -307,7 +308,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The docked layout (`None`) or a floating window's tree.
-    pub(super) fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
+    pub fn tree(&self, window: Option<usize>) -> Option<&Node<P>> {
         match window {
             None => self.root.as_ref(),
             Some(window) => self.floating.get(window).map(|w| &w.root),
@@ -327,7 +328,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The `Tabs` or `Stack` node at a tree place.
-    pub(super) fn node_of(&self, place: &Place) -> Option<&Node<P>> {
+    pub fn node_of(&self, place: &Place) -> Option<&Node<P>> {
         let (window, path) = place.tree_path()?;
         node_at(self.tree(window)?, path)
     }
@@ -418,7 +419,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         }
     }
 
-    pub(super) fn column(&self, place: &Place) -> Option<&Column<P>> {
+    /// The dock column at `place`; `None` for a place outside a dock.
+    pub fn column(&self, place: &Place) -> Option<&Column<P>> {
         let Place::Dock { path, column, .. } = place else { return None };
         match self.root.as_ref().and_then(|root| node_at(root, path)) {
             Some(Node::Dock { columns, .. }) => columns.get(*column),
@@ -432,7 +434,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     }
 
     /// The dock group at `place`; `None` for a `Tabs` or `Stack` node.
-    pub(super) fn group(&self, place: &Place) -> Option<&Group<P>> {
+    pub fn group(&self, place: &Place) -> Option<&Group<P>> {
         match place {
             Place::Dock { group, .. } => self.column(place)?.groups.get(*group),
             Place::Node(_) | Place::Floating { .. } => None,

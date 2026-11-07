@@ -27,6 +27,7 @@ pub enum Zone {
 #[non_exhaustive]
 pub enum Node<P> {
     /// Two children side by side or stacked.
+    #[non_exhaustive]
     Split {
         /// Direction the children lie in.
         axis: SplitAxis,
@@ -38,6 +39,7 @@ pub enum Node<P> {
         second: Box<Node<P>>,
     },
     /// A group of tabs.
+    #[non_exhaustive]
     Tabs {
         /// The tabs, first to last.
         panels: Vec<P>,
@@ -45,6 +47,7 @@ pub enum Node<P> {
         active: usize,
     },
     /// An accordion keeps its open state and preferred heights when other panels move.
+    #[non_exhaustive]
     Stack {
         /// The accordion sections, first to last.
         entries: Vec<StackEntry<P>>,
@@ -52,6 +55,7 @@ pub enum Node<P> {
     /// One window edge's dock, columns from the window edge inwards. A dock is the root or,
     /// following only same-side children of horizontal splits, at its window edge. At most one
     /// per side. An empty dock (no columns) is valid and accepts `Target::NewDock`.
+    #[non_exhaustive]
     Dock {
         /// The window edge the dock sits on.
         side: Side,
@@ -370,5 +374,17 @@ pub(super) mod floating_serde {
                 minimized,
             })
         }
+    }
+}
+
+impl<P> Node<P> {
+    /// Builds [`Node::Stack`].
+    pub fn stack(entries: Vec<StackEntry<P>>) -> Self {
+        Self::Stack { entries }
+    }
+
+    /// Builds [`Node::Dock`].
+    pub fn dock(side: Side, columns: Vec<Column<P>>) -> Self {
+        Self::Dock { side, columns }
     }
 }

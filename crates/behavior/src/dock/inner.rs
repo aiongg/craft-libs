@@ -265,7 +265,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
     /// the end of the first shown dock group that accepts tabs, in the end-side dock if one has
     /// such a group, else a new frame at the right edge of the docked area.
-    pub(super) fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
+    pub fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
         let docked: Vec<(&P, Place)> = self
             .panels()
             .into_iter()
@@ -313,18 +313,6 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             return if split_frame_sized(root, &path, new, zone, size, outer) { Ok(()) } else { Err(DockError::InvalidPlacement) };
         }
         if insert_node(root, &entry, anchor, &placement) { Ok(()) } else { Err(DockError::MissingTarget) }
-    }
-}
-
-/// Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
-/// splits `accepts_splits`, and so does a group placed at an anchor in a floating window
-/// (`floating`), which splits the anchor's frame.
-pub(super) fn placement_allowed<P>(placement: &Placement<P>, anchor: Permissions, floating: bool) -> bool {
-    match placement {
-        Placement::Tab { .. } | Placement::Split(Zone::Center) => anchor.accepts_tabs,
-        Placement::Split(_) | Placement::SplitSized { .. } => anchor.accepts_splits,
-        Placement::Group { .. } if floating => anchor.accepts_splits,
-        _ => true,
     }
 }
 

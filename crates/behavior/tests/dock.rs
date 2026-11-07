@@ -23,19 +23,18 @@ fn hsplit(size: SplitSize, first: Node<u32>, second: Node<u32>) -> Node<u32> {
 /// ([5]); a floating window with groups [6, 7] and [8].
 fn docked() -> Layout<u32> {
     let middle = Node::split(SplitAxis::Vertical, SplitSize::Ratio(0.7), tabs(&[1], 0), tabs(&[11, 12], 1));
-    let dock =
-        Node::Dock { side: Side::End, columns: vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)] };
+    let dock = Node::dock(Side::End, vec![Column::new(vec![g(&[2, 3], 1), g(&[4], 0)], 180.0), Column::new(vec![g(&[5], 0)], 120.0)]);
     Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), middle, dock)), vec![Floating::stack(vec![g(&[6, 7], 1), g(&[8], 0)], WINDOW).unwrap()])
 }
 
 fn with_column(column: Column<u32>) -> Layout<u32> {
-    Layout::new(Some(Node::Dock { side: Side::End, columns: vec![column] }), Vec::new())
+    Layout::new(Some(Node::dock(Side::End, vec![column])), Vec::new())
 }
 
 #[test]
 fn validation_rejects_two_docks_per_side_nested_docks_empty_columns_and_bad_widths() {
     docked().validate().unwrap();
-    let empty_dock = |side| Node::Dock { side, columns: Vec::new() };
+    let empty_dock = |side| Node::dock(side, Vec::new());
     Layout::new(Some(hsplit(SplitSize::FixedFirst(10.0), empty_dock(Side::Start), tabs(&[1], 0))), Vec::new()).validate().unwrap();
 
     let two = hsplit(SplitSize::Ratio(0.5), empty_dock(Side::Start), empty_dock(Side::Start));
@@ -74,7 +73,7 @@ fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
     empty_window.floating[0].root = tabs(&[], 0);
     assert_eq!(empty_window.validate(), Err(DockError::InvalidGeometry));
     let mut docked_window = docked();
-    docked_window.floating[0].root = Node::Dock { side: Side::End, columns: vec![Column::new(vec![g(&[6, 7], 0)], 100.0)] };
+    docked_window.floating[0].root = Node::dock(Side::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
     assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
     let mut native = docked();
     native.floating[0].native = Some([0.0, 0.0, -1.0, 10.0]);
@@ -110,7 +109,7 @@ fn without(skip: Option<u32>) -> Layout<u32> {
     b.iconic = true;
     b.iconic_width = Some(48.0);
     let columns: Vec<Column<u32>> = [Column::new(a, 180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
-    let end = Node::Dock { side: Side::End, columns };
+    let end = Node::dock(Side::End, columns);
     let windows: Vec<Group<u32>> = [group(&[6], 0), tall].into_iter().flatten().collect();
     Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)), vec![Floating::stack(windows, [10.0, 10.0, 200.0, 300.0]).unwrap()])
 }
@@ -141,7 +140,7 @@ fn restore_refuses_a_present_panel_and_a_missing_anchor_and_changes_nothing() {
 
     let mut layout = without(Some(3));
     let before = layout.clone();
-    let orphan = Location::new(Some(99), Placement::Tab { before: None });
+    let orphan = Location::new(Some(99), Placement::tab(None));
     assert!(layout.restore(3, &orphan).is_err());
     assert_eq!(layout, before);
 }
@@ -241,11 +240,7 @@ fn a_layout_saved_by_the_legacy_code_loads_and_writes_back_unchanged() {
     let layout: Layout<u32> = serde_json::from_str(saved).unwrap();
     layout.validate().unwrap();
     let expected = Layout::new(
-        Some(hsplit(
-            SplitSize::FixedSecond(300.0),
-            tabs(&[1, 2], 1),
-            Node::Dock { side: Side::End, columns: vec![Column::new(vec![g(&[3], 0)], 180.0)] },
-        )),
+        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(Side::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
         vec![Floating::single(vec![4], 0, [1.0, 2.0, 300.0, 200.0]).with_id(5)],
     );
     assert_eq!(layout, expected);

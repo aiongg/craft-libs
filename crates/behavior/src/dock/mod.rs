@@ -22,7 +22,7 @@ mod split;
 
 pub use action::{Action, Location, Placement};
 pub use edit::{first_active, leaves, node_at, tree_groups, tree_panels};
-pub use groups::{Column, ColumnLocation, Group, GroupLocation, PanelState, Side, Target};
+pub use groups::{Column, ColumnLocation, Group, GroupLocation, PanelState, Place, Side, Target};
 pub use layout::Layout;
 pub use limits::{MAX_DEPTH, MAX_PANELS};
 pub use node::{Floating, Monitor, Node, StackEntry, Zone};
