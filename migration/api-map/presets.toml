@@ -592,7 +592,10 @@ old = "can_rename(Fn(&K) -> bool)"
 new = "can_rename(Fn(&K) -> bool)"
 
 [[setter]]
-new = "can_delete(Fn(&K) -> bool)"
+type = "PresetPicker"
+old = "can_delete(Fn(&K) -> bool)"
+new = ""
+note = "Not built: the browser's context menu is off in the picker until its prop is renamed (the structure lint matches `.context_menu(`)."
 
 [[setter]]
 type = "PresetPicker"
