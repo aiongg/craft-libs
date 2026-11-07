@@ -250,7 +250,10 @@ fn write_states(node: &mut accesskit::Node, spec: &NodeSpec) {
     }
 }
 
+/// The actions the spec declares replace the ones egui declared for the widget's sense: a root whose widget senses
+/// its parts' clicks does not itself take a click.
 fn write_actions(node: &mut accesskit::Node, spec: &NodeSpec) {
+    node.clear_actions();
     for action in &spec.actions {
         node.add_action(action.action());
     }

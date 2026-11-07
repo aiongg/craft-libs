@@ -196,6 +196,7 @@ pub(crate) fn show_cover_layer(ctx: &Context, id: Id, tier: Tier, screen: Rect, 
             }
             let absorber = ui.allocate_rect(screen, Sense::click_and_drag());
             crate::runtime::egui::widgets::note_widget(ui.ctx(), absorber.id);
+            crate::runtime::egui::access::hide(ui.ctx(), absorber.id);
         },
     );
 }

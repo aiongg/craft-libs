@@ -53,9 +53,13 @@ pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
     ctx.accesskit_node_builder(id, |node| node.set_label(label));
 }
 
-/// Hides the node of `id` from assistive technology: a hit-test widget whose part has its own sub-node.
+/// Hides the node of `id` from assistive technology: a hit-test widget whose part has its own sub-node, or one that
+/// only absorbs presses. The actions egui declared for the widget's sense go too: a hidden node is operated by nobody.
 pub(crate) fn hide(ctx: &Context, id: Id) {
-    ctx.accesskit_node_builder(id, |node| node.set_hidden());
+    ctx.accesskit_node_builder(id, |node| {
+        node.clear_actions();
+        node.set_hidden();
+    });
 }
 
 /// Reports `id` as the focused node of this pass.

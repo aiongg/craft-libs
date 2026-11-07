@@ -9,12 +9,15 @@ use crate::sections::HeaderAction;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
-/// What the story dialogs hold: two check boxes of fixed values.
+/// What the story dialogs hold: two check boxes whose values the dialog keeps between passes.
 fn body(ui: &mut Ui) {
+    let slot = ui.scope_id().with("story-checks");
+    let [mut snap, mut rulers] = ui.data(|data| data.get_temp(slot)).unwrap_or([true, false]);
     Stack::new().show(ui, |ui, _| {
-        Checkbox::new(Bind::given(true)).label("Snap to grid").show(ui);
-        Checkbox::new(Bind::given(false)).label("Show rulers").show(ui);
+        Checkbox::new(Bind::bound(&mut snap)).label("Snap to grid").show(ui);
+        Checkbox::new(Bind::bound(&mut rulers)).label("Show rulers").show(ui);
     });
+    ui.data_mut(|data| data.insert_temp(slot, [snap, rulers]));
 }
 
 /// The drive of the shells with a close action: a click on it.

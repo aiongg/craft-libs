@@ -32,14 +32,20 @@ pub(crate) fn noted_ids(ctx: &Context) -> (std::collections::HashSet<Id>, std::c
 }
 
 /// The interactive egui widgets of the root viewport's latest finished pass: those that sense a click or a drag
-/// or take focus. A layer's own widget (an `Area`'s) is not one.
+/// or take focus. A layer's own widget (an `Area`'s, the one egui keys `layer.id.with("move")`) is not one.
 #[cfg(feature = "testing")]
 pub(crate) fn interactive(ctx: &Context) -> Vec<Id> {
     ctx.viewport(|viewport| {
         let widgets = &viewport.prev_pass.widgets;
         let mut found = Vec::new();
         for (layer, rects) in widgets.layers() {
-            found.extend(rects.iter().filter(|rect| rect.id != layer.id && (rect.sense.interactive() || rect.sense.is_focusable())).map(|rect| rect.id));
+            let area = layer.id.with("move");
+            found.extend(
+                rects
+                    .iter()
+                    .filter(|rect| rect.id != layer.id && rect.id != area && (rect.sense.interactive() || rect.sense.is_focusable()))
+                    .map(|rect| rect.id),
+            );
         }
         found
     })
