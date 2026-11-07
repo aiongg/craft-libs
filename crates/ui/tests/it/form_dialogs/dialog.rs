@@ -1,7 +1,7 @@
 //! The preview view maths and what a remembering dialog saves.
 
 use craft_behavior::CanvasTransform;
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, ShowContainer as _};
 use craft_ui::dialog::Dialog;
 use craft_ui::patterns::form_dialogs::{
     DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
@@ -85,8 +85,9 @@ fn a_requested_colour_is_taken_once_and_cleared() {
     });
     fixture.settle();
     assert!(requests.borrow_mut().take_color().is_none(), "no request before the button is pressed");
-    let button = fixture.by_label("#336699").expect("the colour button is shown");
-    fixture.click(&button);
+    let buttons = fixture.by_role(Role::BUTTON);
+    assert_eq!(buttons.len(), 1, "the colour row has one button");
+    fixture.click(&buttons[0]);
     fixture.idle(2);
     let taken = requests.borrow_mut().take_color().expect("the press filed a request");
     assert_eq!(taken.key, "tint");

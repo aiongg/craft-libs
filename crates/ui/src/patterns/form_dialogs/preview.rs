@@ -44,6 +44,7 @@ craft_ui::words! {
     pub struct PreviewWords {
         zoom_in: "formDialogs.zoomIn" = "Zoom in";
         zoom_out: "formDialogs.zoomOut" = "Zoom out";
+        rendering: "formDialogs.previewRendering" = "Rendering preview";
     }
 }
 
@@ -267,7 +268,7 @@ impl Component for PreviewPane {
     }
 
     fn sense(&self) -> Sense {
-        Sense::FOCUS
+        Sense::FOCUS | Sense::WHEEL
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
@@ -375,12 +376,13 @@ impl Component for PreviewPane {
         };
         let (track, thickness, gap) =
             ui.with_style(cx.resolved.variant, |style| (style.tokens.size.length.track, style.track().thickness, style.tokens.space.gap.inline));
+        let rendering = ui.env.words::<PreviewWords>().rendering.clone();
         match &self.state {
             PreviewState::Pending(done) => {
                 let bar = Rect::from_center_size(inside.center(), Vec2::new(track.min(inside.width()), thickness));
                 match done {
-                    Some(fraction) => ui.child(PROGRESS, bar, Progress::new(*fraction)),
-                    None => ui.child(PROGRESS, bar, Progress::indeterminate()),
+                    Some(fraction) => ui.child(PROGRESS, bar, Progress::new(*fraction).label(rendering)),
+                    None => ui.child(PROGRESS, bar, Progress::indeterminate().label(rendering)),
                 };
             }
             PreviewState::Failed(message) => {
