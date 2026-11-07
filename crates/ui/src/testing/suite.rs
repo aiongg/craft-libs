@@ -1,5 +1,5 @@
 //! The suite runner: one trial per registered type, running the shared cases of its shape over the stories the
-//! crate registered for it (22.4).
+//! crate registered for it (22.4). A registered pattern gets one trial that shows its stories (24.4).
 //!
 //! A crate's integration binary calls [`trials`] once with its package name and `testing::registered()`, and hands
 //! the result to `libtest-mimic` beside its own `#[trial]` functions.
@@ -12,6 +12,7 @@ mod body;
 mod collection;
 mod drive;
 mod nodes;
+mod pattern;
 mod shape;
 mod size;
 mod states;
@@ -19,7 +20,7 @@ mod text;
 mod variants;
 
 use super::story::{STORIES, Story};
-use crate::contract::{Probe, Registration, ShapeKind};
+use crate::contract::{PatternProbe, Probe, Registration, ShapeKind};
 use libtest_mimic::{Failed, Trial};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
@@ -109,9 +110,15 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
         let stories: Vec<Story> = own.iter().filter(|entry| (entry.type_name)() == probe.type_name()).map(|entry| entry.story).collect();
         trials.push(Trial::test(format!("suite::{}", probe.type_name()), move || run_type(probe, stories)));
     }
+    let patterns: Vec<&'static PatternProbe> = registered.iter().copied().filter_map(Registration::pattern_probe).collect();
+    for pattern in patterns.iter().copied() {
+        let stories: Vec<Story> = own.iter().filter(|entry| (entry.type_name)() == pattern.type_name()).map(|entry| entry.story).collect();
+        let name = pattern.type_name();
+        trials.push(Trial::test(format!("suite::{name}"), move || pattern::run(name, &stories).map_err(Failed::from)));
+    }
     for entry in &own {
         let name = (entry.type_name)();
-        if !probes.iter().any(|probe| probe.type_name() == name) {
+        if !probes.iter().any(|probe| probe.type_name() == name) && !patterns.iter().any(|pattern| pattern.type_name() == name) {
             let message = format!("the story `{}` shows `{name}`, which is not in the linked registrations", entry.story.name);
             trials.push(Trial::test(format!("suite::stories::{}", entry.story.name), move || Err(Failed::from(message))));
         }

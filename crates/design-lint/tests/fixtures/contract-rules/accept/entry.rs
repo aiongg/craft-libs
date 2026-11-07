@@ -14,9 +14,8 @@ impl Component for Chip {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {}
 }
 
+#[derive(Pattern)]
 pub struct Inspector;
-
-impl Pattern for Inspector {}
 
 impl Inspector {
     pub fn show(self, ui: &mut Ui) -> Response {

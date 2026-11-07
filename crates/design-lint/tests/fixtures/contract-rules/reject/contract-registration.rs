@@ -11,3 +11,7 @@ pub struct Manual {
 }
 
 impl Component for Manual {}
+
+pub struct Assembly;
+
+impl Pattern for Assembly {}

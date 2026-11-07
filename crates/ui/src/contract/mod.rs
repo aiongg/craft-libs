@@ -36,7 +36,7 @@ pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
     Sizing, ThemeScope,
 };
-pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
+pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::ColumnCommands;
@@ -49,7 +49,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
+pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, PatternProbe, Probe, Registration};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf, clicked};
 
 use crate::runtime::overlay::CloseReason;
@@ -194,6 +194,15 @@ impl<O, R> Deref for Inner<O, R> {
 
 /// The most a component may measure on either side, in points.
 pub const MAX_EXTENT: f32 = 32_768.0;
+
+/// A type that only assembles components: a composition with no contract shape of its own (24.4).
+///
+/// A pattern has no pipeline, no style, no sense and no props of the contract. It shows components, and the
+/// AccessKit node of its root container is the pattern's node. `#[derive(Pattern)]` writes this impl and registers
+/// the type, so the components index lists it and the suite runs the cases that apply to what it shows: the
+/// container and collection cases of its contents, and the role and name checks of every node. A type is a
+/// `Component` or a `Pattern`, never both: a type with its own sensing, painting, popups or focus is a component.
+pub trait Pattern {}
 
 /// The core trait: every UI type is a `Component`.
 pub trait Component: Meta + Sized {

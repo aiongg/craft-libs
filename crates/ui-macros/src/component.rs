@@ -120,7 +120,7 @@ impl Visit<'_> for StaticOnly {
 }
 
 /// The types to register: the type itself, or the instantiations `probe(..)` lists.
-fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>) -> syn::Result<Vec<Type>> {
+pub(crate) fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>, attribute: &str) -> syn::Result<Vec<Type>> {
     let parameterised = generics.params.iter().any(|param| !matches!(param, GenericParam::Lifetime(_)));
     if !parameterised {
         if let Some(first) = probe.first() {
@@ -133,7 +133,7 @@ fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>) -> syn::
     if probe.is_empty() {
         return Err(syn::Error::new_spanned(
             ident,
-            format!("`{ident}` has type parameters: list the instantiations to register with `#[component(probe({ident}<..>, ..))]`"),
+            format!("`{ident}` has type parameters: list the instantiations to register with `#[{attribute}(probe({ident}<..>, ..))]`"),
         ));
     }
     for ty in &probe {
@@ -152,7 +152,7 @@ fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>) -> syn::
 }
 
 /// The first sentence of the first paragraph of the doc comment on `attrs`, without its final full stop.
-fn purpose_of(attrs: &[Attribute]) -> String {
+pub(crate) fn purpose_of(attrs: &[Attribute]) -> String {
     let lines = attrs.iter().filter_map(|attr| match &attr.meta {
         Meta::NameValue(pair) if pair.path.is_ident("doc") => match &pair.value {
             syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(text), .. }) => Some(text.value()),
@@ -178,6 +178,18 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStre
     let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], #purpose);));
     // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
     // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
+    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    quote! {
+        #allow
+        const _: () = {
+            #(#each)*
+        };
+    }
+}
+
+/// The registration of each pattern type in `types`, with the `purpose` line of its doc comment.
+pub(crate) fn pattern_registrations(types: &[Type], purpose: &str) -> TokenStream {
+    let each = types.iter().map(|ty| quote!(::craft_ui::__register_pattern!(#ty, #purpose);));
     let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     quote! {
         #allow
@@ -464,7 +476,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
             }
         }
     });
-    let types = instantiations(ident, &input.generics, options.probe)?;
+    let types = instantiations(ident, &input.generics, options.probe, "component")?;
     options.declared.purpose = purpose_of(&input.attrs);
     let registration = registrations(&types, &options.declared, shape);
     Ok(quote! {
@@ -498,6 +510,8 @@ struct Registered {
     types: Vec<Type>,
     declared: Declared,
     shape: Shape,
+    /// The types are patterns: they register as `Pattern`s and no component probe applies.
+    pattern: bool,
 }
 
 impl Parse for Registered {
@@ -515,20 +529,26 @@ impl Parse for Registered {
         }
         let mut declared = Declared::default();
         let mut shape = Shape::Leaf;
+        let mut pattern = false;
         if input.parse::<Option<Token![;]>>()?.is_some() {
             syn::meta::parser(|meta| {
                 if meta.path.is_ident("container") {
                     shape = Shape::Container;
                 } else if meta.path.is_ident("collection") {
                     shape = Shape::Collection;
+                } else if meta.path.is_ident("pattern") {
+                    pattern = true;
                 } else if !declared.read(&meta)? {
-                    return Err(meta.error("expected `container`, `collection`, `overlay` or `exempt(..)`"));
+                    return Err(meta.error("expected `container`, `collection`, `pattern`, `overlay` or `exempt(..)`"));
                 }
                 Ok(())
             })
             .parse2(input.parse::<TokenStream>()?)?;
         }
-        Ok(Registered { types, declared, shape })
+        if pattern && (shape != Shape::Leaf || declared.overlay || !declared.exempt.is_empty()) {
+            return Err(input.error("`pattern` takes no shape, `overlay` or `exempt(..)`: a pattern has no pipeline"));
+        }
+        Ok(Registered { types, declared, shape, pattern })
     }
 }
 
@@ -540,6 +560,9 @@ pub(crate) fn register(input: TokenStream) -> syn::Result<TokenStream> {
         if let Some(error) = check.0 {
             return Err(error);
         }
+    }
+    if registered.pattern {
+        return Ok(pattern_registrations(&registered.types, ""));
     }
     Ok(registrations(&registered.types, &registered.declared, registered.shape))
 }

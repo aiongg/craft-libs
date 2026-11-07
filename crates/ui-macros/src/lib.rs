@@ -1,9 +1,10 @@
-//! Macros of craft-ui: `#[derive(Component, Props, ComponentStyle, TokenGroup, CommandSet, EnvValue)]`,
+//! Macros of craft-ui: `#[derive(Component, Pattern, Props, ComponentStyle, TokenGroup, CommandSet, EnvValue)]`,
 //! `words!`, `#[story]`, `#[craft_ui::testing::trial]` and `register_contract!`.
 
 mod command_set;
 mod component;
 mod env;
+mod pattern;
 mod props;
 mod style;
 mod token_group;
@@ -41,6 +42,13 @@ pub fn derive_command_set(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(Component, attributes(component, common, container, style_key))]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     expanded(component::derive(input.into()))
+}
+
+/// Writes `Pattern` for a struct that only assembles components, and registers it so the components index and the
+/// suite list it. `#[pattern(probe(Type<..>, ..))]` lists the instantiations of a type with type parameters.
+#[proc_macro_derive(Pattern, attributes(pattern))]
+pub fn derive_pattern(input: TokenStream) -> TokenStream {
+    expanded(pattern::derive(input.into()))
 }
 
 /// Registers an `impl Component` written without the derive: `register_contract!(Type)`, with instantiations
