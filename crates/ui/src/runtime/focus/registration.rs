@@ -127,10 +127,10 @@ impl Group {
     }
 }
 
-/// The collection a dropdown's opener hands its list keys to: the stop with the collection's key role that is
-/// registered inside the focus scope of the innermost open `KeepAnchor` layer opened from the stop `opener`.
-/// `None` while no such layer is open.
-pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<Id> {
+/// The innermost open `KeepAnchor` layer opened from the stop `opener` and the collection its opener hands list
+/// keys to: the stop with the collection's key role that is registered inside the layer's focus scope. `None` while
+/// no such layer is open or it has no collection.
+pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<(Id, Id)> {
     with(ctx, |state| {
         let layer =
             *state.last_scope_order.iter().rev().find(|id| {
@@ -146,6 +146,6 @@ pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<Id> {
             }
             false
         };
-        state.last_stops.iter().find(|rec| rec.stop.role.type_ahead && inside(rec)).map(|rec| rec.stop.id)
+        state.last_stops.iter().find(|rec| rec.stop.role.type_ahead && inside(rec)).map(|rec| (layer, rec.stop.id))
     })
 }

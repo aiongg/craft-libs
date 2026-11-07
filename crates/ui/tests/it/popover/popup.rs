@@ -311,3 +311,13 @@ fn a_letter_on_a_popup_list_opener_moves_the_lead_by_type_ahead() {
     picker.fixture.idle(4);
     assert_eq!(picker.activated.get(), Some(2), "`c` moved the lead to Chisel");
 }
+
+/// Alt+Up on the opener closes its open dropdown, as Alt+Down opens it.
+#[trial]
+fn alt_up_on_a_popup_list_opener_closes_the_popup() {
+    let mut picker = open_picker();
+    picker.fixture.key(Key::ArrowUp, Modifiers::ALT);
+    picker.fixture.idle(4);
+    assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
+    assert_eq!(picker.activated.get(), None, "and picks nothing");
+}

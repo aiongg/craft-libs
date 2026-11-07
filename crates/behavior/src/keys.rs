@@ -153,6 +153,7 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         Key::Up if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(false)),
         Key::Down if only(Mods::ALT) && role.reorderable => return Some(Intent::move_item(true)),
         Key::Down if only(Mods::ALT) => return Some(Intent::Open),
+        Key::Up if only(Mods::ALT) => return Some(Intent::Close),
         Key::PageUp if !mac && only(Mods::CMD) => return Some(Intent::switch_page(false)),
         Key::PageDown if !mac && only(Mods::CMD) => return Some(Intent::switch_page(true)),
         Key::OpenBracket | Key::OpenCurlyBracket if mac && shifted(Mods::CMD) => return Some(Intent::switch_page(false)),
@@ -248,7 +249,7 @@ mod tests {
             check(os, Key::Down, alt_mods, list, Some(Intent::move_item(true)));
             check(os, Key::Up, alt_mods, list, Some(Intent::move_item(false)));
             check(os, Key::Down, alt_mods, any, Some(Intent::Open));
-            check(os, Key::Up, alt_mods, any, None);
+            check(os, Key::Up, alt_mods, any, Some(Intent::Close));
             check(os, Key::Space, NONE, list, Some(Intent::Toggle));
             check(os, Key::Space, NONE, any, None);
             check(os, Key::PageDown, Mods::CMD, any, Some(Intent::switch_page(true)));
