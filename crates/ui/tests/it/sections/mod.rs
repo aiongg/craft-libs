@@ -6,6 +6,9 @@ mod panel;
 mod section;
 mod stack;
 
+// Reorderable sections.
+mod layout;
+
 use crate::contract::kit::PlainStyle;
 use craft_behavior::PartKey;
 use craft_ui::contract::{

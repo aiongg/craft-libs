@@ -739,3 +739,175 @@ new = "FloatingGroup::new(title, rect)"
 type = "FloatingFrame"
 old = "dock_into(Option<Id>)"
 new = "FloatingGroupOutput::released_at"
+
+# Reorderable sections (sidebar-sections-a).
+[[type]]
+name = "ReorderableSections"
+old = "craft_ui::panes::sections::ReorderableSections"
+new = "craft_ui::sections::ReorderableSections"
+status = "moved"
+note = "A pattern over `SectionStack`: `new(label, Bind<SectionLayout>, &[SectionSpec])` then `show(ui, body)`. The reorder is the stack's header band; the section menu is `SectionCommand` rows."
+
+[[type]]
+name = "SectionsOutput"
+old = "craft_ui::panes::sections::SectionsOutput"
+new = ""
+status = "removed"
+note = "Replaced by `ReorderableSectionsOutput`; the header buttons' responses are not reported."
+
+[[type]]
+name = "ReorderableSectionsOutput"
+old = ""
+new = "craft_ui::sections::ReorderableSectionsOutput"
+status = "replaced"
+note = "Replaces `SectionsOutput`: `response` and `events`."
+
+[[type]]
+name = "SectionKey"
+old = "craft_ui::panes::sections::SectionKey"
+new = "craft_ui::sections::SectionKey"
+status = "moved"
+note = "The trait with `ALL`, `id` and `from_id` is a newtype over the saved id, `SectionKey::new(id)`; the registered keys are the `SectionSpec` list and `SectionLayout::reconcile`."
+
+[[type]]
+name = "SectionState"
+old = "craft_ui::panes::sections::SectionState"
+new = "craft_ui::sections::SectionState"
+status = "moved"
+note = "No type parameter; `section` is `key`; `pinned` is added."
+
+[[type]]
+name = "SectionLayout"
+old = "craft_ui::panes::sections::SectionLayout"
+new = "craft_ui::sections::SectionLayout"
+status = "moved"
+note = "No type parameter. A saved layout is reconciled with the registered keys by `reconcile`; `Default` is the empty layout and `SectionLayout::new(keys)` the usual one. Pinned sections stay above the others."
+
+[[type]]
+name = "SectionEvent"
+old = "craft_ui::panes::sections::SectionEvent"
+new = "craft_ui::sections::SectionEvent"
+status = "moved"
+note = "No type parameter, owned keys; `Unfolded` is `Folded { folded: false }`; `Pinned` and `Unpinned` are added; `Button` and `Reset` are gone."
+
+[[type]]
+name = "SectionInfo"
+old = "craft_ui::panes::sections::SectionInfo"
+new = ""
+status = "removed"
+note = "Replaced by `SectionSpec` (key and title); counts, empty hints and availability belong to the body the app shows."
+
+[[type]]
+name = "SectionSpec"
+old = ""
+new = "craft_ui::sections::SectionSpec"
+status = "replaced"
+note = "Replaces `SectionInfo`: `SectionSpec::new(key, title)`."
+
+[[type]]
+name = "SectionButton"
+old = "craft_ui::panes::sections::SectionButton"
+new = ""
+status = "removed"
+note = "A header button is a control the app puts in the section body or in the header through `Section::controls`; the section menu button is the pattern's own."
+
+[[type]]
+name = "SectionsLabels"
+old = "craft_ui::panes::sections::SectionsLabels"
+new = ""
+status = "removed"
+note = "Replaced by `ReorderableWords` (menu name, move announcement); the menu rows are `SectionCommand` labels."
+
+[[type]]
+name = "ReorderableWords"
+old = ""
+new = "craft_ui::sections::ReorderableWords"
+status = "replaced"
+note = "Replaces `SectionsLabels`."
+
+[[type]]
+name = "SectionCommand"
+old = ""
+new = "craft_ui::sections::SectionCommand"
+status = "replaced"
+note = "New: Hide, Fold, Unfold, Pin, Unpin, MoveUp and MoveDown on the focused section; the legacy section menu rows run these."
+
+[[setter]]
+type = "ReorderableSections"
+old = "new(id_salt, &layout)"
+new = "new(label, Bind::bound(&mut layout), &specs)"
+
+[[setter]]
+type = "ReorderableSections"
+old = "show(ui, &sections, body)"
+new = "show(ui, body)"
+note = "`body` takes `(ui, &SectionKey, &mut BodyCx)` and runs for each open section."
+
+[[setter]]
+type = "ReorderableSections"
+old = "label(text)"
+new = "new(label, ..)"
+
+[[setter]]
+type = "ReorderableSections"
+old = "show_counts(bool)"
+new = ""
+note = "Not ported: the app shows a count in the section body or header controls."
+
+[[setter]]
+type = "ReorderableSections"
+old = "labels(SectionsLabels)"
+new = ""
+note = "Not ported: words come from `ReorderableWords` in the env."
+
+[[setter]]
+type = "ReorderableSections"
+old = "menu(layout, sections, on, labels)"
+new = "SectionCommand"
+note = "The menu rows are commands; a host menu runs them with `commands::fire`."
+
+[[setter]]
+type = "SectionLayout"
+old = "from_states(states)"
+new = "from_states(states)"
+
+[[setter]]
+type = "SectionLayout"
+old = "set_hidden(section, bool)"
+new = "set_hidden(&key, bool) -> bool"
+
+[[setter]]
+type = "SectionLayout"
+old = "set_folded(section, bool)"
+new = "set_folded(&key, bool) -> bool"
+
+[[setter]]
+type = "SectionLayout"
+old = "move_before(section, Option<S>)"
+new = "move_before(&key, Option<&SectionKey>)"
+
+[[setter]]
+type = "SectionLayout"
+old = "move_by(section, up, to_end)"
+new = "move_by(&key, up, to_end)"
+
+[[setter]]
+type = "SectionLayout"
+old = "is_default()"
+new = "SectionLayout::new(keys)"
+note = "Not ported: a host compares with `SectionLayout::new(keys)`."
+
+[[setter]]
+type = "SectionEvent"
+old = "Moved { section, before }"
+new = "Moved { key, before }"
+
+[[setter]]
+type = "SectionEvent"
+old = "Folded { section, folded }"
+new = "Folded { key, folded }"
+
+[[setter]]
+type = "SectionInfo"
+old = "SectionInfo::new(section, title)"
+new = "SectionSpec::new(key, title)"
