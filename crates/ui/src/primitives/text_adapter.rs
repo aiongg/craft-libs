@@ -40,6 +40,9 @@ pub(crate) struct TextState {
     pub draft: Option<String>,
     /// The value when the run began (a `K::Value`).
     pub start: Option<Arc<dyn Any + Send + Sync>>,
+    /// The value the run last showed or applied (a `K::Value`): a different value at the next pass was set outside
+    /// the run, which ends it.
+    pub seen: Option<Arc<dyn Any + Send + Sync>>,
     /// The draft changed since the typing run last read it.
     pub dirty: bool,
     pub end: Option<End>,
@@ -252,8 +255,14 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         replace_selection(ctx, widget, &mut base, selection, &insert);
         edited = true;
     }
-    if focused_before && (state.draft.is_some() || state.preedit.is_some()) && input.intents.take(Intent::Cancel) {
-        state.end = Some(End::Escape);
+    // A clearing field takes Escape while it shows text, with or without a draft, and passes it on once it is empty.
+    let takes_escape =
+        if input.options.clear_on_escape { !base.is_empty() || state.preedit.is_some() } else { state.draft.is_some() || state.preedit.is_some() };
+    if focused_before && takes_escape && input.intents.take(Intent::Cancel) {
+        // Escape over a composition alone ends the composition and leaves the text.
+        if state.draft.is_some() || state.preedit.is_none() {
+            state.end = Some(End::Escape);
+        }
         state.preedit = None;
     }
     let mut display = base.clone();

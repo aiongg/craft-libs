@@ -23,7 +23,8 @@ pub(crate) struct RunNode<'a> {
 
 /// What a text component's own node says beyond the common facts.
 pub(crate) struct TextNode<'a> {
-    pub value: &'a str,
+    /// The text; `None` for a node that exposes none (a masked field).
+    pub value: Option<&'a str>,
     pub editable: bool,
     /// The anchor and focus of the selection, `None` while the text has no runs.
     pub selection: Option<(Id, usize, Id, usize)>,
@@ -70,7 +71,9 @@ pub(crate) fn write_run(ctx: &Context, run: &RunNode<'_>) {
 /// Adds the text value, the text actions and the selection to the node of `id`.
 pub(crate) fn write_text(ctx: &Context, id: Id, text: &TextNode<'_>) {
     ctx.accesskit_node_builder(id, |node| {
-        node.set_value(text.value.to_owned());
+        if let Some(value) = text.value {
+            node.set_value(value.to_owned());
+        }
         node.add_action(accesskit::Action::SetTextSelection);
         if text.editable {
             node.add_action(accesskit::Action::SetValue);

@@ -40,8 +40,9 @@ pub enum EscapeRule {
     /// Drop the draft and show the value from before the run.
     #[default]
     Restore,
-    /// A non-empty draft clears first; Escape on an empty draft restores (a search field).
-    ClearThenRestore,
+    /// Escape clears the text and commits the empty text; it never restores. A host passes Escape on only while
+    /// the text is already empty (a search field).
+    Clear,
 }
 
 /// What typing did to the run.
@@ -70,8 +71,8 @@ pub enum Ended<V> {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Escaped<V> {
-    /// The draft was cleared and the run stays open.
-    Cleared,
+    /// The draft was cleared and the run closed on the empty text's value.
+    Cleared(V),
     /// The run closed; the value from before it comes back.
     Restore(V),
     /// No run was open.
@@ -181,14 +182,17 @@ impl<C: Codec> TypingRun<C> {
         Some(run.start.clone())
     }
 
-    /// Applies the escape rule.
+    /// Applies the escape rule. A codec that refuses the empty text keeps the cleared draft open under
+    /// [`EscapeRule::Clear`].
     pub fn escape(&self, run: &mut EditRun<C::Value>) -> Escaped<C::Value> {
         match (&run.draft, self.escape) {
             (None, _) => Escaped::Idle,
-            (Some(draft), EscapeRule::ClearThenRestore) if !draft.is_empty() => {
+            (Some(_), EscapeRule::Clear) => {
                 run.draft = Some(String::new());
-                run.error = self.codec.parse("", &run.start).err();
-                Escaped::Cleared
+                match self.commit(run) {
+                    Ended::Commit(value) => Escaped::Cleared(value),
+                    _ => Escaped::Idle,
+                }
             }
             _ => self.cancel(run).map_or(Escaped::Idle, Escaped::Restore),
         }
@@ -216,11 +220,12 @@ mod tests {
     }
 
     #[test]
-    fn plain_text_applies_as_typed_within_the_limit_and_search_escape_clears_first() {
-        let typing = TypingRun::new(PlainText).limit(3).escape_rule(EscapeRule::ClearThenRestore);
+    fn plain_text_applies_as_typed_within_the_limit_and_search_escape_clears_and_commits() {
+        let typing = TypingRun::new(PlainText).limit(3).escape_rule(EscapeRule::Clear);
         let mut run = EditRun::new(String::new());
         assert_eq!(typing.edit(&mut run, &String::new(), "abcdef"), Typed::Apply("abc".to_owned()));
-        assert_eq!(typing.escape(&mut run), Escaped::Cleared);
-        assert_eq!(typing.escape(&mut run), Escaped::Restore(String::new()));
+        assert_eq!(typing.escape(&mut run), Escaped::Cleared(String::new()));
+        assert!(!run.is_open(), "the cleared text is committed, not restored");
+        assert_eq!(typing.escape(&mut run), Escaped::Idle);
     }
 }
