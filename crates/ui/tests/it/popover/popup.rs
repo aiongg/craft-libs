@@ -7,6 +7,7 @@ use craft_ui::contract::{Bind, CollectionEvent, Overlay, Props as _, Show as _, 
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::PopupList;
 use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{click, moved, press, release};
 use craft_ui::testing::{Fixture, Frames, trial};
@@ -126,9 +127,11 @@ fn a_press_inside_the_popup_keeps_it_open() {
     let inside = rect(OPENER.left(), OPENER.bottom(), OPENER.width(), 30.0).center();
     frame(&mut frames, vec![moved(inside)], false);
     frame(&mut frames, vec![press(inside)], false);
-    frame(&mut frames, vec![release(inside)], false);
     assert!(frame(&mut frames, vec![], false), "a press inside the popup does not close it");
     assert!(frame(&mut frames, vec![], false));
+    // The release activates the content, and a dropdown closes on an activation inside it.
+    frame(&mut frames, vec![release(inside)], false);
+    assert!(!frame(&mut frames, vec![], false), "the click that completes inside closes the dropdown by activation");
 }
 
 #[trial]
@@ -269,6 +272,8 @@ fn open_picker() -> Picker {
     });
     fixture.settle();
     let button = fixture.by_label("Brush tip").expect("the opener is a node");
+    // A press does not move the key focus onto a button; the list keys reach the popup only from a focused opener.
+    fixture.access(AccessActionKind::Focus, &button);
     fixture.click(&button);
     open.set(true);
     fixture.idle(4);

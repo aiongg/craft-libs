@@ -374,8 +374,9 @@ impl<'b> BodyHooks<'b> {
     /// child takes all of it, so a region that took the whole room records no width then; one that took less
     /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
     /// A block placed without a size entry took a placeholder extent in its parent's flow. Its regions have run, so
-    /// the parent's flow moves past the size the block really took: whatever contains the block measures its content
-    /// true in this pass and records it, and nested blocks settle in the one discard pass the first record asks for.
+    /// the parent's flow moves past the size the block really took (a grid cell is widened to it, so the cells after
+    /// it are placed by it): whatever contains the block measures its content true in this pass and records it, and
+    /// nested blocks settle in the one discard pass the first record asks for.
     fn claim_first_extent(&self, props: &ContainerProps, ui: &mut Ui, rect: Rect, pad: f32, rtl: bool) {
         if self.remembered.is_some() || !matches!(props.mount, Mount::Inline) || self.sizing(props) != Sizing::Content {
             return;
@@ -385,6 +386,7 @@ impl<'b> BodyHooks<'b> {
         let took = Vec2::new(body.x.max(header.x).max(footer.x), body.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
         let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
         if !rect.contains_rect(real) {
+            layout::widen_cell(ui, took);
             alloc::advance_past(ui, real.union(rect));
         }
     }

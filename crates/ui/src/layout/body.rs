@@ -97,6 +97,18 @@ pub(crate) fn place_in_flow(ui: &mut Ui, size: Vec2) -> Rect {
     }
 }
 
+/// The cell `place_in_flow` placed last in the `Grid` body that encloses `ui` directly measured `size` after all: a
+/// block placed without a size entry learns its real size once its regions have run.
+pub(crate) fn widen_cell(ui: &Ui, size: Vec2) {
+    if let Some(grid) = Env::of(ui).grid {
+        Service::<Cursors>::of(ui.ctx()).with(|cursors| {
+            if let Some(cursor) = cursors.0.get_mut(&grid) {
+                cursor.widen(size);
+            }
+        });
+    }
+}
+
 fn column_id(grid: Id, index: usize) -> Id {
     sub(grid, ("column", index))
 }

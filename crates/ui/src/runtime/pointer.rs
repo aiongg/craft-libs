@@ -279,20 +279,28 @@ pub(crate) fn registered_widgets(ctx: &Context) -> std::collections::HashSet<Id>
 
 /// The winner of a press at `at` among last pass's shapes of the root egui hands the press to, on the topmost
 /// layer under it, with that root: what the focus service classifies the press by (8.3, H7). A press whose egui
-/// target is no root's widget has no winner. Shapes of transformed bodies lie on their own layers.
+/// target is no root's widget has no winner. A root's widget covers its whole rect, so when no shape of the click
+/// root lies under the press (a title row between its parts), the press goes to the drag root below it. Shapes of
+/// transformed bodies lie on their own layers.
 pub(crate) fn press_winner(ctx: &Context, at: Pos2, targets: PressTargets) -> Option<(Winner<Id>, Id)> {
     let layer = areas::layer_at(ctx, at)?;
     let viewport = pass::current_viewport(ctx);
-    let (root, shapes) = PerViewport::<Shapes>::with(ctx, viewport, |record| {
+    let candidates = PerViewport::<Shapes>::with(ctx, viewport, |record| {
         let roots = || record.last.values().flat_map(|roots| roots.iter());
-        let root_of = |widget: Option<Id>, drag_only: bool| {
+        let root_of = |widget: Option<Id>| {
             let widget = widget?;
-            roots().find(|(_, root)| root.widgets.contains(&widget) && (!drag_only || !root.click)).map(|(id, _)| *id)
+            roots().find(|(_, root)| root.widgets.contains(&widget)).map(|(id, _)| *id)
         };
-        let root = root_of(targets.click, false).or_else(|| root_of(targets.drag, true))?;
-        let shapes = record.last.get(&layer)?.get(&root)?.shapes.clone();
-        Some((root, shapes))
-    })?;
-    let map = areas::layer_map(ctx, layer);
-    resolve(&shapes, map.map_or(at, |map| map.to_layer(at)), ResolveFor::Press).map(|winner| (winner, root))
+        let mut found: Vec<(Id, Vec<Shape<Id>>)> = Vec::new();
+        for root in [root_of(targets.click), root_of(targets.drag)].into_iter().flatten() {
+            if found.iter().all(|(seen, _)| *seen != root)
+                && let Some(shapes) = record.last.get(&layer).and_then(|roots| roots.get(&root))
+            {
+                found.push((root, shapes.shapes.clone()));
+            }
+        }
+        found
+    });
+    let at = areas::layer_map(ctx, layer).map_or(at, |map| map.to_layer(at));
+    candidates.into_iter().find_map(|(root, shapes)| resolve(&shapes, at, ResolveFor::Press).map(|winner| (winner, root)))
 }
