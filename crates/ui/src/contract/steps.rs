@@ -392,9 +392,12 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id,
 /// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage. A kept binding reads
 /// shown memory.
 /// Returns the value and whether the binding is mixed.
-pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id) -> (Option<Arc<ValueOf<C>>>, bool) {
+pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id, command: Option<&ResolvedCommand>) -> (Option<Arc<ValueOf<C>>>, bool) {
     let held = MemoryStage::peek::<ShownCopy<ValueOf<C>>>(ctx, id).0;
-    let Some(bind) = comp.bind() else { return (held, false) };
+    let Some(bind) = comp.bind() else {
+        let given = command_given::<ValueOf<C>>(command).map(|value| reuse_arc(&held, &value));
+        return (given.or(held), false);
+    };
     if held.as_deref().is_some_and(|held| bind.shown_matches(held)) {
         return (held, false);
     }
