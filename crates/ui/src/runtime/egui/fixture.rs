@@ -88,7 +88,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
     // A shape shows only inside its clip rect.
     let (bounds, overshoot): (Vec<Rect>, Vec<f32>) = flat
         .iter()
-        .filter(|(shape, _)| !is_shadow(shape))
+        .filter(|(shape, _)| !is_shadow(shape) && shape.visual_bounding_rect().is_finite())
         .map(|(shape, clip)| (shape.visual_bounding_rect().intersect(*clip), stroke_width(shape) / 2.0))
         .filter(|(rect, _)| rect.is_finite() && rect.min.x <= rect.max.x && rect.min.y <= rect.max.y)
         .unzip();
