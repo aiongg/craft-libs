@@ -315,7 +315,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     Env::set_root(&ctx, viewport, env.clone());
     drop(Env::install_for(ui, env));
     // H7: focus moves and the press classification, then the pass's intents, then the wheel split.
-    focus::begin(&ctx, input.root.tab_all_controls || raw_input::os(&ctx) != Os::Mac);
+    focus::begin(&ctx, input.root.tab_all_controls || windows::os_of(&ctx) != Os::Mac);
     ime::begin(&ctx, focus::focused_rec(&ctx).filter(|rec| rec.stop.text).map(|rec| rec.stop.root));
     // Lead-1: an Escape over a captured press cancels the press and reaches no component.
     if keys::begin(&ctx, pointer::press_captured(&ctx) || drag::running(&ctx)) {

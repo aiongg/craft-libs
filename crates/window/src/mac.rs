@@ -188,7 +188,7 @@ fn measure() -> Option<MacInset> {
 /// floating panels in their own windows keep their own flag, which AppKit also needs to resize them. `applied`
 /// holds the value last set. Does nothing off macOS.
 pub fn set_movable(movable: bool, applied: &mut Option<bool>) {
-    #[cfg(all(feature = "ui", target_os = "macos"))]
+    #[cfg(all(feature = "appkit", target_os = "macos"))]
     {
         use objc2::MainThreadMarker;
         use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
@@ -202,7 +202,7 @@ pub fn set_movable(movable: bool, applied: &mut Option<bool>) {
             *applied = Some(movable);
         }
     }
-    #[cfg(not(all(feature = "ui", target_os = "macos")))]
+    #[cfg(not(all(feature = "appkit", target_os = "macos")))]
     let _ = (movable, applied);
 }
 

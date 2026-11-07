@@ -1,17 +1,17 @@
 //! `WindowHost`: the one multi-window driver. It owns `ShellInfo`, refreshes each viewport's `WindowInfo`, releases
 //! a press after an OS resize (H4), raises a modal's window for a blocked press (H5), opens viewport mounts, keeps
-//! window placement in `craft_window::restore::Store`, routes a root close through the platform quit, and maps
-//! pointers to desktop space for drags that cross windows.
+//! window placement in `craft_window::restore::Store`, routes a root close through the platform quit from the app's
+//! `logic`, and maps pointers to desktop space for drags that cross windows.
 
 use crate::runtime::egui::input::{self as raw_input, RawInput};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{pass, viewports};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::overlay;
-use craft_host::target::{Caps, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
+use craft_host::target::{Caps, MenuPlacement, Os, Runtime, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
-use egui::{Context, Id, Pos2, Ui, Vec2, ViewportId};
+use egui::{Context, Id, Pos2, Rect, Ui, Vec2, ViewportId};
 use std::sync::{Arc, Mutex};
 
 /// Seconds between writes of a changed placement store.
@@ -69,7 +69,7 @@ struct Shared {
     system_pointer: Option<Pos2>,
     /// The pointer of the viewport a drag started in, in desktop points, for platforms that tell no system pointer.
     source_pointer: Option<Pos2>,
-    /// Containers whose viewport the OS asked to close since their body last ran.
+    /// Containers whose viewport the OS asked to close in this root frame.
     close_requests: Vec<Id>,
     last_flush: f64,
 }
@@ -82,8 +82,20 @@ struct Record {
     chrome: Option<WindowChrome>,
     /// H4: whether the primary button is down as the viewport's events left the input hook.
     primary_down: bool,
+    /// The geometry last written to the placement store, so an unchanged window writes nothing.
+    placed: Option<Geometry>,
     last_pos: Option<Pos2>,
     last_inner_size: Option<Vec2>,
+}
+
+/// The window facts a placement keeps.
+#[derive(Clone, Copy, PartialEq)]
+struct Geometry {
+    inner: Rect,
+    outer: Option<Rect>,
+    scale: Option<f32>,
+    maximized: bool,
+    fullscreen: bool,
 }
 
 fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
@@ -101,6 +113,25 @@ pub(crate) fn install(ctx: &Context, shell: ShellInfo, system: Arc<dyn WindowSys
 
 fn base_shell(ctx: &Context) -> ShellInfo {
     shared(ctx, |shared| shared.shell.clone()).unwrap_or_default()
+}
+
+/// The operating system of the shell: the one source of the key table, the chords shown, the drop operation and
+/// the chrome. It does not differ between viewports.
+pub(crate) fn os_of(ctx: &Context) -> Os {
+    shared(ctx, |shared| shared.shell.as_ref().map(|shell| shell.os)).unwrap_or_else(|| ShellInfo::default().os)
+}
+
+/// Makes the shell run on `os`, as a test of the OS matrix does: the capabilities and the menu placement of a
+/// native build follow it. egui's own OS is the caller's to set.
+pub(crate) fn set_os(ctx: &Context, os: Os) {
+    shared(ctx, |shared| {
+        let shell = shared.shell.get_or_insert_with(ShellInfo::default);
+        shell.os = os;
+        if shell.runtime == Runtime::Native {
+            shell.caps = Caps::native(os);
+            shell.menu = if shell.caps.contains(Caps::NATIVE_MENU_BAR) { MenuPlacement::ScreenTop } else { MenuPlacement::InWindow };
+        }
+    });
 }
 
 fn state_of(facts: &viewports::Facts) -> WindowState {
@@ -154,13 +185,13 @@ pub(crate) fn set_input(ctx: &Context) {
     shared(ctx, |shared| shared.system_pointer = pointer);
 }
 
-/// H4, in the input hook: an undecorated window the OS resizes from its edge never delivers the button release,
-/// so a size change under a held primary press releases it. Reads only the raw input and the viewport's record.
-/// Returns whether it added an event.
+/// H4, in the input hook: where the OS resizes undecorated windows from their edges ([`Caps::OS_RESIZES_UNDECORATED`]),
+/// an undecorated window resized that way never delivers the button release, so a size change under a held primary
+/// press releases it. Reads only the raw input and the viewport's record. Returns whether it added an event.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let viewport = input.viewport_id;
     let base = base_shell(ctx);
-    let undecorated = window_info(ctx, viewport, &base).chrome == WindowChrome::Integrated;
+    let undecorated = base.caps.contains(Caps::OS_RESIZES_UNDECORATED) && window_info(ctx, viewport, &base).chrome == WindowChrome::Integrated;
     let size = viewports::inner_size_in(input, viewport);
     PerViewport::<Record>::with(ctx, viewport, |record| {
         let resized = matches!((record.last_inner_size, size), (Some(before), Some(now)) if before != now);
@@ -187,22 +218,41 @@ pub(crate) fn begin(ctx: &Context) {
     }
 }
 
-/// The end hook: a close request of the root window goes to the platform quit where the platform has one (the
-/// window stays for the quit to close); otherwise egui goes on as it would. Also writes a changed placement
-/// store once a second.
+/// The end hook: keeps the root window's placement, writes a changed placement store once a second, and drops the
+/// close requests the viewport mounts did not take in this frame.
 pub(crate) fn end(ctx: &Context) {
     if pass::current_viewport(ctx) != ViewportId::ROOT {
         return;
     }
-    let facts = viewports::current(ctx);
-    if facts.close_requested && !viewports::close_cancelled(ctx) && craft_quit::quit() {
-        viewports::cancel_close(ctx);
-    }
+    shared(ctx, |shared| shared.close_requests.clear());
     // The root window's placement is the app's `main` entry.
     if shared(ctx, |shared| shared.store.is_some()) {
-        record_placement(ctx, craft_window::restore::MAIN, &facts);
+        record_placement(ctx, ViewportId::ROOT, craft_window::restore::MAIN, &viewports::current(ctx));
     }
     flush_store(ctx);
+}
+
+/// Whether the root window was asked to close and nothing has cancelled it yet. Valid in the app's `logic`, which
+/// eframe runs while the window is minimized or hidden too.
+pub(crate) fn root_close_requested(ctx: &Context) -> bool {
+    pass::current_viewport(ctx) == ViewportId::ROOT && viewports::current(ctx).close_requested && !viewports::close_cancelled(ctx)
+}
+
+/// Keeps the root window open and brings it forward, so the app can ask before it closes.
+pub(crate) fn hold_close(ctx: &Context) {
+    viewports::cancel_close(ctx);
+    viewports::raise(ctx, ViewportId::ROOT);
+}
+
+/// The close path of the root window, for the app's `logic`: a close request goes to the platform quit where the
+/// platform has one (the window stays for the quit to close); otherwise egui goes on as it would. Call it last in
+/// `logic`, after the app's own close decision, so it sees the decision's `CancelClose`. It belongs in `logic`
+/// because eframe runs no UI pass for a minimized or hidden window and closes it itself; on macOS that close is the
+/// Touch Bar crash `craft_quit` exists to avoid. `app::run` calls it; apps that call `install` themselves do too.
+pub fn logic(ctx: &Context) {
+    if root_close_requested(ctx) && craft_quit::quit() {
+        viewports::cancel_close(ctx);
+    }
 }
 
 fn flush_store(ctx: &Context) {
@@ -225,7 +275,8 @@ fn flush_store(ctx: &Context) {
 }
 
 /// Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
-/// window's state, and a root `Close` reaches the close guard in the end hook. Returns whether a command went out.
+/// window's state; a root `Close` reaches the app's close decision and the platform quit in [`logic`]. Returns
+/// whether a command went out.
 pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
     let base = base_shell(ctx);
     let commands = base.caps.contains(Caps::WINDOW_COMMANDS);
@@ -276,7 +327,8 @@ impl WindowHost {
         base_shell(&self.ctx).caps.contains(Caps::VIEWPORTS) && viewports::available(&self.ctx)
     }
 
-    /// Whether the running viewport's window is drawn; a minimized or covered window runs no UI pass.
+    /// Whether the running viewport's window is drawn; a minimized or covered window runs no UI pass, so this reads
+    /// false only from the app's `logic`.
     pub fn visible(&self) -> bool {
         viewports::current(&self.ctx).visible
     }
@@ -354,8 +406,13 @@ fn saved_position(placement: &Placement) -> Option<Pos2> {
 
 /// Keeps the window's placement in the store: its size and position unless it is maximized or full screen, which
 /// keep the last normal size.
-fn record_placement(ctx: &Context, key: &str, facts: &viewports::Facts) {
+fn record_placement(ctx: &Context, viewport: ViewportId, key: &str, facts: &viewports::Facts) {
     let Some(inner) = facts.inner else { return };
+    let geometry = Geometry { inner, outer: facts.outer, scale: facts.native_scale, maximized: facts.maximized, fullscreen: facts.fullscreen };
+    let unchanged = PerViewport::<Record>::with(ctx, viewport, |record| std::mem::replace(&mut record.placed, Some(geometry)) == Some(geometry));
+    if unchanged {
+        return;
+    }
     let scale = facts.native_scale.unwrap_or(1.0);
     let mut next = saved_placement(ctx, key).unwrap_or_else(|| Placement::new(inner.size().into(), scale));
     next.scale = scale;
@@ -401,16 +458,20 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         refresh(&ctx, viewport, viewports::current(&ctx));
         if viewports::current(&ctx).close_requested {
             viewports::cancel_close(&ctx);
-            shared(&ctx, |shared| shared.close_requests.push(open.id));
+            shared(&ctx, |shared| {
+                if !shared.close_requests.contains(&open.id) {
+                    shared.close_requests.push(open.id);
+                }
+            });
         }
         body(ui);
         if let Some(key) = open.save {
-            record_placement(&ctx, key, &viewports::current(&ctx));
+            record_placement(&ctx, viewport, key, &viewports::current(&ctx));
         }
     });
 }
 
-/// Whether the OS asked the viewport of container `id` to close since the container last asked; once.
+/// Whether the OS asked the viewport of container `id` to close in this root frame; once.
 pub(crate) fn take_close_request(ctx: &Context, id: Id) -> bool {
     shared(ctx, |shared| {
         let before = shared.close_requests.len();

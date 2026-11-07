@@ -6,7 +6,7 @@ pub use label::{Label, Message, Word};
 
 use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{child, input as raw_input, pass, repaint, scale, stack, style};
+use crate::runtime::egui::{child, pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
 use crate::runtime::windows;
 use crate::style::{EnvKey, Ink, UiTokens};
@@ -354,7 +354,7 @@ impl Env {
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
         let tokens = root_tokens(ctx, root);
         let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
-        let os = raw_input::os(ctx);
+        let os = windows::os_of(ctx);
         let scale = Scale(pixels_per_point);
         let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
         let active = shell.window.active;

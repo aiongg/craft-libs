@@ -299,7 +299,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         }
         return removed;
     }
-    let os = raw_input::os(ctx);
+    let os = crate::runtime::windows::os_of(ctx);
     let record = focus::record(ctx, viewport);
     let keys = record.keys;
     let menu_bar = record.menu_bar && keys.is_none_or(|keys| !matches!(keys.owner, OwnerClass::Text | OwnerClass::Recorder));
@@ -359,7 +359,7 @@ pub(crate) fn take_nav(ctx: &Context) -> NavKeys {
 /// The begin hook's intents: the pass's key events, AccessKit requests and claimed chords, routed to the
 /// focused component (or to the component that owns a requested node).
 pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
-    let os = raw_input::os(ctx);
+    let os = crate::runtime::windows::os_of(ctx);
     let target = focus::focused_rec(ctx);
     let (batch, nodes, captures) = current(ctx, |stage| {
         stage.routed.clear();

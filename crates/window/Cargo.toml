@@ -10,7 +10,9 @@ repository.workspace = true
 [features]
 # `decorate`: set the decision on an `egui::ViewportBuilder`. `title_bar`: an app-drawn strip as
 # the title bar (on macOS with AppKit's `movable` flag). `Viewports`: one immediate viewport per window.
-ui = ["dep:egui", "dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
+ui = ["dep:egui", "appkit"]
+# `mac::set_movable`: AppKit's `movable` flag, without egui.
+appkit = ["dep:objc2", "dep:objc2-app-kit", "dep:objc2-foundation"]
 # `restore::install`, `restore::Tracker` and placement for further windows, for eframe apps. eframe
 # needs a renderer: `restore-ui` turns on its wgpu (without backends), `restore-ui-glow` its glow.
 # Pick the one the app already uses: with both, eframe starts on wgpu.

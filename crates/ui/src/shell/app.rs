@@ -5,9 +5,10 @@
 
 use crate::runtime::InstallSpec;
 use crate::runtime::frame::{FrameInput, FrameOutput, set_input, take_output};
+use crate::runtime::windows;
 use craft_host::target::ShellInfo;
 use craft_window::restore::{Defaults, MAIN, Store, place};
-use craft_window::system::NoWindows;
+use craft_window::system::{NoWindows, WindowSystem};
 use egui::{Context, Pos2, Ui, ViewportBuilder};
 use std::sync::{Arc, Mutex};
 
@@ -24,6 +25,8 @@ pub struct AppSpec {
     pub defaults: Defaults,
     /// Where window placement is kept.
     pub placement: Arc<Mutex<Store>>,
+    /// The OS services the window host reads: the system pointer and its warp.
+    pub window_system: Arc<dyn WindowSystem>,
 }
 
 impl AppSpec {
@@ -35,12 +38,19 @@ impl AppSpec {
             shell_info: ShellInfo::default(),
             defaults,
             placement: Arc::new(Mutex::new(Store::in_memory())),
+            window_system: Arc::new(NoWindows),
         }
     }
 
     /// Sets the placement store, shared by every window of the app.
     pub fn placement(mut self, store: Arc<Mutex<Store>>) -> Self {
         self.placement = store;
+        self
+    }
+
+    /// Sets the OS services the window host reads.
+    pub fn window_system(mut self, window_system: Arc<dyn WindowSystem>) -> Self {
+        self.window_system = window_system;
         self
     }
 
@@ -51,6 +61,18 @@ impl AppSpec {
     }
 }
 
+/// What the app decides when the root window is asked to close.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CloseDecision {
+    /// The window may close; the platform quit takes it from there.
+    #[default]
+    Close,
+    /// The window stays open, brought forward, while the app asks (for example about unsaved documents) and closes
+    /// it with `WindowAction::Close` once the answer allows.
+    Hold,
+}
+
 /// The app `run` drives.
 pub trait ShellApp {
     /// What the runtime reads before each pass.
@@ -59,14 +81,25 @@ pub trait ShellApp {
     /// Shows the root window.
     fn ui(&mut self, ui: &mut Ui);
 
+    /// Runs before each frame, also while the window is minimized or hidden and `ui` does not run.
+    /// `WindowHost::visible` tells which.
+    fn logic(&mut self, _ctx: &Context) {}
+
+    /// Decides what a close request of the root window does. Runs in `logic`, so it also runs for a hidden window.
+    fn close_requested(&mut self) -> CloseDecision {
+        CloseDecision::Close
+    }
+
     /// Receives what the runtime accumulated since the last frame: fired commands, announcements, the chrome toggle.
     fn output(&mut self, _output: FrameOutput) {}
 }
 
 /// eframe's `App` over a `ShellApp`: inputs go in before the pass and outputs come out at the start of the next
-/// frame, never in `logic`.
+/// frame. `logic` carries the close path, which must run while the window is hidden.
 struct Driver<A> {
     app: A,
+    /// The `movable` flag last set on the native window.
+    movable: Option<bool>,
 }
 
 impl<A: ShellApp> eframe::App for Driver<A> {
@@ -76,8 +109,17 @@ impl<A: ShellApp> eframe::App for Driver<A> {
         set_input(ctx, self.app.frame_input());
     }
 
+    fn logic(&mut self, ctx: &Context, _: &mut eframe::Frame) {
+        self.app.logic(ctx);
+        if windows::root_close_requested(ctx) && self.app.close_requested() == CloseDecision::Hold {
+            windows::hold_close(ctx);
+        }
+        windows::logic(ctx);
+    }
+
     fn ui(&mut self, ui: &mut Ui, _: &mut eframe::Frame) {
         self.app.ui(ui);
+        super::title_bar::sync_movable(ui.ctx(), &mut self.movable);
     }
 }
 
@@ -109,9 +151,9 @@ pub fn run<A: ShellApp + 'static>(spec: AppSpec, make: impl FnOnce(&Context) -> 
         &title,
         options,
         Box::new(move |cc| {
-            let install = InstallSpec::new(spec.shell_info, Arc::new(NoWindows)).placement(spec.placement);
+            let install = InstallSpec::new(spec.shell_info, spec.window_system).placement(spec.placement);
             crate::install(&cc.egui_ctx, install).map_err(|error| format!("the runtime could not be installed: {error}"))?;
-            Ok(Box::new(Driver { app: make(&cc.egui_ctx) }))
+            Ok(Box::new(Driver { app: make(&cc.egui_ctx), movable: None }))
         }),
     )
 }

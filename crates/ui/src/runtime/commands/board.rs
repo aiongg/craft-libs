@@ -6,7 +6,7 @@ use super::{
     registry,
 };
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{input as raw_input, pass, repaint};
+use crate::runtime::egui::{pass, repaint};
 use crate::runtime::{focus, keys};
 use craft_behavior::{EditCommand, pick_instance, resolve_flags};
 use craft_keymap::{Active, Chord, CommandKind, CommandRef, Keymap, Matcher, ModalRule, Overrides, Platform, Press, Scopes};
@@ -166,7 +166,7 @@ pub(crate) fn install(ctx: &Context) -> Result<(), registry::CommandDefError> {
 
 /// The platform the keymap and the chords shown are read for.
 pub(crate) fn platform(ctx: &Context) -> Platform {
-    raw_input::os(ctx)
+    crate::runtime::windows::os_of(ctx)
 }
 
 /// Before each frame: last frame's state is the fallback, the app's states and gate are this frame's, and the

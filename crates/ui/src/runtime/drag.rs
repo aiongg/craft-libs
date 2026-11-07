@@ -3,7 +3,7 @@
 //! next pass, like the press arena's shapes. The ghost layer paints from this data (`contract::ghost`).
 
 use crate::runtime::egui::areas::{self, Layer};
-use crate::runtime::egui::{input, memory::Service, pass};
+use crate::runtime::egui::{memory::Service, pass};
 use crate::runtime::env::Label;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::windows::{self, WindowHost};
@@ -146,7 +146,7 @@ pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Syn
 }
 
 fn operation(ctx: &Context, mods: Mods) -> DropOperation {
-    drop_operation(input::os(ctx), mods)
+    drop_operation(windows::os_of(ctx), mods)
 }
 
 /// The active drag payload of type `P`, from any viewport. For code without a `Cx`.

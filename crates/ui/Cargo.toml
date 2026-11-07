@@ -52,7 +52,7 @@ libtest-mimic = { version = "0.8", optional = true }
 craft-host = { workspace = true }
 # `WindowSystem` and `restore::Store`, which viewport mounts place windows through.
 craft-window = { workspace = true }
-# `quit` and the close guard `runtime::windows` routes a root close through.
+# `quit`, which `runtime::windows::logic` routes a root close through.
 craft-quit = { workspace = true }
 craft-i18n = { workspace = true }
 log = "0.4"
@@ -62,9 +62,9 @@ serde = { workspace = true }
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
 
-# `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code.
+# `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code, without its egui layer.
 [target.'cfg(target_os = "macos")'.dependencies]
-craft-window = { workspace = true, features = ["ui"] }
+craft-window = { workspace = true, features = ["appkit"] }
 
 # build.rs reads icons/icons.toml.
 [build-dependencies]

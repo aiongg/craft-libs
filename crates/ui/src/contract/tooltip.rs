@@ -66,7 +66,7 @@ fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
         Some(spec) => spec_text(&core.env, spec, core.resolved.enabled),
         None => core.paint.borrow().elided.clone()?,
     };
-    let platform = craft_keymap::egui::platform(&core.ctx);
+    let platform = crate::runtime::windows::os_of(&core.ctx);
     Some(match core.command.as_deref().and_then(|command| command.chord.as_ref()) {
         Some(chord) => format!("{base} ({})", chord.display(platform)),
         None => base,

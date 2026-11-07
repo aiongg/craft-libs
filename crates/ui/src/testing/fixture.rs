@@ -119,8 +119,10 @@ impl Fixture {
         self.set_root(|root| root.scale = scale)
     }
 
-    /// The operating system the keys and chrome follow.
+    /// The operating system the keys and chrome follow: the shell's OS and capabilities, and egui's own OS for its
+    /// text editing.
     pub fn os(&mut self, os: Os) -> &mut Self {
+        crate::runtime::windows::set_os(&self.frames.ctx, os);
         fixture::set_os(&self.frames.ctx, os);
         self
     }

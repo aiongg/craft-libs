@@ -61,11 +61,6 @@ pub(crate) fn stop_dragging(ctx: &Context) {
     ctx.stop_dragging();
 }
 
-/// The operating system the key table picks rows for.
-pub(crate) fn os(ctx: &Context) -> Os {
-    Os::of_egui(ctx.os())
-}
-
 /// One key event as the key stage reads it.
 pub(crate) enum KeyEvent {
     /// A key press, repeats included: the key as typed and everything the layout matcher reads.
@@ -211,7 +206,7 @@ fn button_of(button: egui::PointerButton) -> PointerButton {
 /// Converts the running pass's pointer input.
 pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
     let slop = ctx.options(|options| options.input_options.max_click_dist);
-    let os = os(ctx);
+    let os = crate::runtime::windows::os_of(ctx);
     ctx.input(|input| {
         let mut events = Vec::new();
         let mut focus_lost = false;
@@ -291,7 +286,7 @@ pub(crate) fn hit_targets(ctx: &Context) -> (Option<Id>, Option<Id>) {
 /// The wheel input of the pass: the summed scroll in points (`line` and `page` points per line and page), the
 /// last event's unit, phase and modifiers. `None` when no wheel event arrived.
 pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, WheelUnit, WheelPhase, Mods)> {
-    let os = os(ctx);
+    let os = crate::runtime::windows::os_of(ctx);
     let zoom_modifier = ctx.options(|options| options.input_options.zoom_modifier);
     ctx.input(|input| {
         let mut read: Option<(Vec2, WheelUnit, WheelPhase, Mods)> = None;
