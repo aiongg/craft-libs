@@ -213,7 +213,10 @@ pub(crate) fn style_cx<'a>(ctx: &'a Context, env: &'a Env, step: &EnvStep) -> St
 
 /// Step 2, style: `&C::Style` from the cache, keyed `(TypeId of StyleKey, key, EnvKey, variant, size)`.
 pub(crate) fn style<C: Component>(ctx: &Context, scx: &StyleCx<'_>, key: C::StyleKey) -> Arc<C::Style> {
-    resolve_style(scx, key, ctx, C::style)
+    let style = resolve_style(scx, key, ctx, C::style);
+    #[cfg(feature = "testing")]
+    crate::testing::style::record::<C>(ctx, scx, key, &style);
+    style
 }
 
 /// The `Auto` ordinals and the ids registered in one pass of one viewport.
