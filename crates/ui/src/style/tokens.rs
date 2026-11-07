@@ -1,6 +1,6 @@
 //! `UiTokens`: the runtime's egui-ready view of one resolved token set.
 
-use craft_theme::{GroupValues, Tokens, TypeRole};
+use craft_theme::{Contrast, GroupValues, Size, Tokens, TypeRole};
 use egui::{CornerRadius, FontFamily, FontId};
 use std::hash::{Hash, Hasher};
 use std::ops::Deref;
@@ -8,26 +8,45 @@ use std::sync::Arc;
 
 /// One resolved token set with the theme's token-group values and a key of their content. Each theme scope
 /// (mode, contrast, theme, density, text size) resolves its own; equal sets share a key, so the caches keyed by
-/// it hold one entry per distinct set however often a set is rebuilt. It derefs to the craft-theme tokens, which
+/// it hold one entry per distinct set however often a set is rebuilt. The set remembers the contrast and density it
+/// was resolved under, and the key covers both. It derefs to the craft-theme tokens, which
 /// only `style` reads.
 #[derive(Clone, Debug)]
 pub struct UiTokens {
     tokens: Arc<Tokens>,
     groups: Arc<GroupValues>,
+    contrast: Contrast,
+    density: Size,
     key: u64,
 }
 
 impl UiTokens {
-    /// A token set with no theme values for token groups.
-    pub fn new(tokens: Arc<Tokens>) -> Self {
+    /// A token set resolved under `contrast` and `density`, with no theme values for token groups.
+    pub fn new(tokens: Arc<Tokens>, contrast: Contrast, density: Size) -> Self {
         let groups = Arc::new(GroupValues::new());
-        UiTokens { key: content_key(&tokens, &groups), tokens, groups }
+        UiTokens { key: content_key(&tokens, &groups, contrast, density), tokens, groups, contrast, density }
+    }
+
+    /// The contrast setting the set was resolved under.
+    pub(crate) fn contrast(&self) -> Contrast {
+        self.contrast
+    }
+
+    /// The density preset the set was resolved under.
+    pub(crate) fn density(&self) -> Size {
+        self.density
     }
 
     /// The same tokens with the theme's values under token group paths. It is a different set: its own key.
     pub fn with_groups(&self, groups: GroupValues) -> Self {
         let groups = Arc::new(groups);
-        UiTokens { key: content_key(&self.tokens, &groups), tokens: self.tokens.clone(), groups }
+        UiTokens {
+            key: content_key(&self.tokens, &groups, self.contrast, self.density),
+            tokens: self.tokens.clone(),
+            groups,
+            contrast: self.contrast,
+            density: self.density,
+        }
     }
 
     /// The source tokens.
@@ -62,9 +81,11 @@ impl UiTokens {
 }
 
 /// The key of a token set: the hash of its resolved values, which are all `f32` and so have no `Hash`.
-fn content_key(tokens: &Tokens, groups: &GroupValues) -> u64 {
+fn content_key(tokens: &Tokens, groups: &GroupValues, contrast: Contrast, density: Size) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     format!("{tokens:?}{groups:?}").hash(&mut hasher);
+    contrast.hash(&mut hasher);
+    density.hash(&mut hasher);
     hasher.finish()
 }
 

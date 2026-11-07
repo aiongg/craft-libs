@@ -424,3 +424,9 @@ type = "TileGrid"
 old = "GroupPicked / GroupContextMenu by pointer only"
 new = "GridEvent::GroupPicked / GridEvent::GroupMenu from the keyboard"
 note = "A group header is a row of the grid outline: Up and Down reach it; Left and Right close and open a collapsible group, Enter picks it, the context-menu key and Shift+F10 open its menu."
+
+[[setter]]
+type = "Tile"
+old = ""
+new = "icon(impl Into<IconSpec<'static>>)"
+note = "The picture area shows the icon centred on the placeholder, at the style's face size, in place of a picture; the last of `thumb` and `icon` called wins."

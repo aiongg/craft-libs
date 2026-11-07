@@ -25,7 +25,7 @@ pub fn tokens_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     let index = index.unwrap_or_default();
     let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let resolved = resolve(&builtins()[index], appearance, None);
-    UiTokens::new(Arc::new(resolved.tokens))
+    UiTokens::new(Arc::new(resolved.tokens), contrast, Size::Compact)
 }
 
 /// Every built-in theme in each mode it has, at `contrast`, as (`<theme>.<mode>`, tokens).

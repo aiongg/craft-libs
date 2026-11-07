@@ -78,6 +78,11 @@ fn tile_unreadable_folder(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 #[story(Tile<'static>, covers = [], drive = Drive::Never)]
+fn tile_icon_face(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Tile::new("Settings").icon(IconId::new("settings")).show(ui).into()
+}
+
+#[story(Tile<'static>, covers = [], drive = Drive::Never)]
 fn tile_start_caption(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Tile::new("7")
         .caption(CaptionPlace::Start)

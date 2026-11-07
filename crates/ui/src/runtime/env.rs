@@ -654,7 +654,7 @@ fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
     let appearance = Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: false };
     let themes = builtins();
     let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
-    let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
+    let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens), root.contrast, root.density));
     service.with(|cache| {
         if cache.entries.len() == KEPT_ROOT_TOKENS {
             cache.entries.remove(0);
