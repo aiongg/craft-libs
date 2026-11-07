@@ -282,7 +282,7 @@ fn the_window_size_mode_resizes_the_layer_and_enter_keeps_it() {
 }
 
 #[trial]
-fn escape_closes_a_collapsible_container_through_its_scope_rule() {
+fn escape_never_collapses_a_collapsible_container_whatever_its_scope_rule() {
     let (ran, probes) = (Cell::new(false), RefCell::new(Seen::default()));
     let props = ContainerProps::new().collapse(Collapse::new().animated(false)).focus(FocusPolicy::PANE.cancel(CancelRule::Close));
     let mut frames = Frames::new();
@@ -300,7 +300,7 @@ fn escape_closes_a_collapsible_container_through_its_scope_rule() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     ran.set(false);
     frames.idle(2, &mut show);
-    assert!(!ran.get(), "Escape closed the body");
+    assert!(ran.get(), "Escape left the collapsible body open");
 }
 
 #[trial]

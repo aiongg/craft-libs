@@ -98,6 +98,19 @@ pub trait DropTarget<P> {
     fn mark(&self, drop: &Self::Drop) -> DropMark;
 }
 
+/// What a component registers with `Pointer::window_drop_target`: a target over the whole window, which needs no
+/// pointer position.
+pub trait WindowDropTarget<P> {
+    /// What a drop on this target carries to the component's caller.
+    type Drop;
+
+    /// `None` rejects. `op` is the operation the held modifiers pick, which a target may refuse.
+    fn accept(&self, payload: &P, op: DropOperation) -> Option<Self::Drop>;
+
+    /// Where `drop` would land, a value the ghost layer paints.
+    fn mark(&self, drop: &Self::Drop) -> DropMark;
+}
+
 struct Session {
     source: Id,
     /// The viewport whose pass started the session and the button whose press it follows: only that viewport's end

@@ -1,8 +1,31 @@
 //! Display components: the value maths of `Badge::count` and `Progress`.
 
-use craft_ui::contract::Show as _;
-use craft_ui::display::{Badge, Progress};
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::contract::{CommandSet, Props as _, Show as _};
+use craft_ui::display::{Badge, Kbd, Progress};
+use craft_ui::testing::{Fixture, Frames, trial};
+
+/// Commands of the Kbd trial: one with a default chord and one without.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "kbd_trial")]
+#[non_exhaustive]
+pub enum KbdCommand {
+    #[command(label = "Chorded", default = "Cmd+Alt+Shift+K")]
+    Chorded,
+    #[command(label = "Bare")]
+    Bare,
+}
+
+/// A Kbd bound to a command measures the chord step 1 resolved for it, so the room it takes matches what it paints.
+#[trial]
+fn a_kbd_bound_to_a_command_measures_the_resolved_chord() {
+    let width = |command: KbdCommand| {
+        let mut frames = Frames::new();
+        let mut width = 0.0;
+        frames.idle(3, |ui| width = Kbd::command(command).id_salt("kbd").show(ui).rect.width());
+        width
+    };
+    assert!(width(KbdCommand::Chorded) > width(KbdCommand::Bare), "a command with a chord takes the chord's room");
+}
 
 /// A count shows its digits up to the cap and `99+` above it.
 #[trial]

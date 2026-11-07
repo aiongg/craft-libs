@@ -8,7 +8,7 @@ use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
-use crate::runtime::drag::{self, DragPreview, DropTarget};
+use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
 use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
@@ -272,9 +272,10 @@ pub trait Pointer {
     /// pass, when it was the topmost accepting target under the pointer last pass and accepts now.
     fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
     /// Registers `target` over the whole window of the running viewport for this pass, in `update`; a target over a
-    /// component beats it wherever that accepts. `at` is the pointer in this component's egui layer space. OS file drops
-    /// (`OsFiles`) land on it wherever no other target takes them.
-    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
+    /// component beats it wherever that accepts. The payload is read without a pointer position, so files hovered
+    /// before the pointer has a position reach it. OS file drops (`OsFiles`) land on it wherever no other target
+    /// takes them.
+    fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop>;
     /// The operation of a drop of this component's payload, in the pass after the drop; `None` while dragging, when the
     /// drag was cancelled and when no target took it.
     fn drag_ended<P: Send + Sync + 'static>(&self) -> Option<DropOperation>;
@@ -355,10 +356,10 @@ impl Pointer for CxCore<'_> {
         drag::take_drop::<P>(&self.ctx, self.id, ordinal, op).then_some(drop)
     }
 
-    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
-        let (payload, at) = self.dragging::<P>()?;
+    fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+        let payload = drag::active::<P>(&self.ctx)?;
         let op = drag::current_operation(&self.ctx);
-        let drop = target.accept(&payload, at, op)?;
+        let drop = target.accept(&payload, op)?;
         let ordinal = drag::next_ordinal(&self.ctx, self.id);
         drag::register(&self.ctx, self.id, self.response.layer_id, target.mark(&drop), true);
         drag::take_drop::<P>(&self.ctx, self.id, ordinal, op).then_some(drop)
@@ -422,7 +423,7 @@ impl<C: Component> Pointer for Cx<'_, C> {
         self.core.drop_target(target)
     }
 
-    fn window_drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
+    fn window_drop_target<P: Send + Sync + 'static, T: WindowDropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         self.core.window_drop_target(target)
     }
 
@@ -1291,6 +1292,11 @@ impl<'a, C: Component> MeasureCx<'a, C> {
 }
 
 impl<C: Component> MeasureCx<'_, C> {
+    /// The bound command as step 1 resolved it, with the scoped bindings of the scopes above the component.
+    pub fn command(&self) -> Option<&ResolvedCommand> {
+        self.resolved.command
+    }
+
     /// The label as given.
     pub fn label(&self) -> Label {
         self.resolved.label_value.clone()

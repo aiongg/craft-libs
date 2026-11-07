@@ -2,21 +2,21 @@
 //! dims the body, frames it and shows a card with the label; a drop is reported in the output.
 
 use crate::contract::{
-    Accessible as _, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, OsFiles, Outcome, Pad, PaintUi,
-    Pointer as _, Politeness, Props as _, Remember as _, Role, Sizing, Styled as _, WordSetCx as _,
+    Accessible as _, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, NoValue, OsFiles, Outcome, Pad, PaintUi, PartsCx,
+    Pointer as _, Politeness, Props as _, Remember as _, Role, Sizing, WindowDropTarget, WordSetCx as _,
 };
-use crate::primitives::TextRun;
+use crate::display::Text;
+use crate::runtime::drag;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Corners, Ink, StyleCx, SurfaceKind, TextLook, TypeRole};
-use craft_behavior::{Metrics, Sense};
-use craft_theme::Stateful;
-use egui::{Pos2, Rect, Response, Vec2};
+use crate::style::{ComponentStyle, Corners, StyleCx, SurfaceKind, TypeRole};
+use craft_behavior::{Metrics, Proposal, Sense};
+use egui::{Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]
 mod stories;
 
-/// The style of a drop veil: the card's padding and text. The scrim, the frame and the card's surface come from the
-/// surface kinds.
+/// The style of a drop veil: the card's padding. The scrim, the frame and the card's surface come from the surface
+/// kinds; the card's text is a `Text` child.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct DropVeilStyle {
@@ -24,9 +24,6 @@ pub struct DropVeilStyle {
     metrics: Metrics,
     /// Between the card's edge and its text.
     pad: f32,
-    /// The card's text.
-    #[style(text)]
-    text: TextLook,
 }
 
 /// What a drop veil reports: its response and the files dropped on it in this pass.
@@ -52,10 +49,10 @@ struct WholeWindow {
     rect: Rect,
 }
 
-impl DropTarget<OsFiles> for WholeWindow {
+impl WindowDropTarget<OsFiles> for WholeWindow {
     type Drop = OsFiles;
 
-    fn accept(&self, payload: &OsFiles, _at: Pos2, _op: DropOperation) -> Option<OsFiles> {
+    fn accept(&self, payload: &OsFiles, _op: DropOperation) -> Option<OsFiles> {
         (!payload.files.is_empty()).then(|| payload.clone())
     }
 
@@ -79,14 +76,21 @@ pub struct DropVeil {
     props: ContainerProps,
     hovering: bool,
     dropped: Option<OsFiles>,
+    /// The card and its text rect, from the text child's measured size.
+    card: Option<(Rect, Rect)>,
 }
 
 impl DropVeil {
     /// A veil saying `label` ("Import 3 photos") while files hover.
     pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new().sizing(Sizing::Fill).pad(Pad::None);
-        DropVeil { common: Common::new(), props, hovering: false, dropped: None }.label(label)
+        DropVeil { common: Common::new(), props, hovering: false, dropped: None, card: None }.label(label)
     }
+}
+
+/// The card's text.
+fn card_text(label: Label) -> Text {
+    Text::new(label).role(TypeRole::Title)
 }
 
 impl Component for DropVeil {
@@ -96,19 +100,26 @@ impl Component for DropVeil {
     type Output = DropVeilOutput;
 
     fn style(cx: &StyleCx<'_>, _: DropVeilStyleKey) -> DropVeilStyle {
-        DropVeilStyle {
-            metrics: Metrics::new(),
-            pad: cx.tokens.space.pad.dialog,
-            text: TextLook::new(TypeRole::Title, Stateful::new(cx.ink(Ink::OnPanel))),
-        }
+        DropVeilStyle { metrics: Metrics::new(), pad: cx.tokens.space.pad.dialog }
     }
 
     fn sense(&self) -> Sense {
         Sense::empty()
     }
 
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        let held = drag::active::<OsFiles>(cx.ui.ctx()).is_some_and(|files| !files.files.is_empty());
+        self.card = held.then(|| {
+            let pad = cx.style.pad;
+            let room = (rect.width() - 2.0 * pad).max(0.0);
+            let size = cx.child("card-text", &mut card_text(cx.label()), Proposal::Width(room));
+            let card = Rect::from_center_size(rect.center(), size + Vec2::splat(2.0 * pad));
+            (card, Rect::from_min_size(card.min + Vec2::splat(pad), size))
+        });
+    }
+
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let held = cx.dragging::<OsFiles>().is_some_and(|(files, _)| !files.files.is_empty());
+        let held = drag::active::<OsFiles>(&cx.ctx).is_some_and(|files| !files.files.is_empty());
         let target = WholeWindow { rect: cx.rect };
         self.dropped = cx.window_drop_target::<OsFiles, _>(&target);
         self.hovering = held && self.dropped.is_none();
@@ -127,13 +138,10 @@ impl Component for DropVeil {
         }
         let draw = ui.draw();
         draw.surface(cx.rect, SurfaceKind::Scrim, Corners::None);
-        let pad = cx.style.pad;
-        let text = cx.env.resolve(&cx.label());
-        let run = TextRun::new(text.as_str()).role(cx.style.text.role).color(cx.resolve(&cx.style.text.color));
-        let layout = draw.layout(&run, (cx.rect.width() - 2.0 * pad).max(0.0));
-        let card = Rect::from_center_size(cx.rect.center(), layout.size() + Vec2::splat(2.0 * pad));
-        draw.surface(card, SurfaceKind::Popup, Corners::All);
-        draw.galley(card.min + Vec2::splat(pad), &layout);
+        if let Some((card, text)) = self.card {
+            draw.surface(card, SurfaceKind::Popup, Corners::All);
+            ui.child("card-text", text, card_text(cx.label()));
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DropVeilOutput {
