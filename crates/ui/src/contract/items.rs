@@ -242,6 +242,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.header.read(stage, id, &comp.items().columns);
         self.drags = stage.session::<Drags<C::Key>>(sub(id, "drags")).clone();
         self.lead = stage.session::<Lead<C::Key>>(sub(id, "lead")).clone();
+        if self.lead.key.is_none() {
+            self.lead.key = self.selection.lead().cloned();
+        }
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
         let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
