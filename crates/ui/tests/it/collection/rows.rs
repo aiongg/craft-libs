@@ -266,7 +266,7 @@ impl Collection for Sheet<'_> {
     }
 
     fn item_layout(&self, source: &dyn ItemSource<usize>, _: f32, _: &StyleCx<'_>) -> SheetLayout {
-        let columns = COLUMNS.iter().map(|key| (ColumnKey::new(*key), CELL_W)).collect();
+        let columns = COLUMNS.iter().map(|key| (ColumnKey::new(key), CELL_W)).collect();
         SheetLayout::new(source, ROW_H, columns).frozen(1)
     }
 }

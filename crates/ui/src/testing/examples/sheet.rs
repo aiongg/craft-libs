@@ -177,7 +177,7 @@ impl<'a> SheetGrid<'a> {
     fn lead_cell(&mut self) -> Option<(usize, usize)> {
         let Some(Mixed::Same(held)) = self.selection.reborrow().get() else { return None };
         let row = *held.rows.lead()?;
-        let column = held.lead_column.as_ref().and_then(|key| NAMES.iter().position(|name| ColumnKey::new(*name) == *key)).unwrap_or(0);
+        let column = held.lead_column.as_ref().and_then(|key| NAMES.iter().position(|name| ColumnKey::new(name) == *key)).unwrap_or(0);
         Some((row, column))
     }
 
@@ -244,12 +244,13 @@ impl Component for SheetGrid<'_> {
             state.point = None;
         } else if state.mode != Mode::Ready && enter {
             self.commit(&mut state);
-        } else if state.mode == Mode::Ready && f2 {
-            if let Some(cell) = lead {
-                state.cell = cell;
-                state.draft.set_text(self.cell_text(cell));
-                state.mode = Mode::Edit;
-            }
+        } else if state.mode == Mode::Ready
+            && f2
+            && let Some(cell) = lead
+        {
+            state.cell = cell;
+            state.draft.set_text(self.cell_text(cell));
+            state.mode = Mode::Edit;
         }
         if state.pointing() {
             let rtl = cx.flow.is_rtl();
@@ -364,7 +365,7 @@ impl Collection for SheetGrid<'_> {
     fn item_layout(&self, source: &dyn ItemSource<usize>, _: f32, cx: &StyleCx<'_>) -> SheetLayout {
         let control = cx.control();
         let width = control.height * COLUMN_IN_HEIGHTS;
-        SheetLayout::new(source, control.height, NAMES.iter().map(|name| (ColumnKey::new(*name), width)).collect())
+        SheetLayout::new(source, control.height, NAMES.iter().map(|name| (ColumnKey::new(name), width)).collect())
     }
 }
 

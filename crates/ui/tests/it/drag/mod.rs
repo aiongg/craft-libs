@@ -265,7 +265,7 @@ fn a_drag_crosses_windows_and_the_target_in_the_other_window_takes_the_drop() {
     let at = |min: Pos2, size: Vec2| ViewportInfo { inner_rect: Some(Rect::from_min_size(min, size)), ..ViewportInfo::default() };
     windows.root_info(at(Pos2::ZERO, Vec2::new(800.0, 600.0)));
     windows.child_info(at(Pos2::new(100.0, 100.0), Vec2::new(400.0, 300.0)));
-    let mut frame = |events: Vec<egui::Event>| {
+    let frame = |events: Vec<egui::Event>| {
         windows.frame(events, vec![], |ui| {
             Chip { common: Common::new(), seen: &seen }.id_salt("chip").show_at(ui, CHIP);
             ui.ctx().show_viewport_immediate(other, ViewportBuilder::default(), |other_ui, _| {

@@ -137,7 +137,7 @@ fn a_pane_holds_its_width_while_its_body_fills_it() {
 fn a_viewport_mount_opens_a_window_with_its_title() {
     let windows = Windows::new();
     let in_window = Cell::new(false);
-    let mut frame = || {
+    let frame = || {
         windows.frame(vec![], vec![], |ui| {
             let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
             Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
@@ -209,7 +209,7 @@ fn a_viewport_mount_saves_its_window_placement_in_the_store() {
 fn the_os_closing_a_viewport_mount_window_closes_the_container() {
     let windows = Windows::new();
     let ran = Cell::new(0);
-    let mut frame = || {
+    let frame = || {
         windows.frame(vec![], vec![], |ui| {
             let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
             Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {

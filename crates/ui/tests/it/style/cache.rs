@@ -4,7 +4,7 @@ use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Variant};
 use craft_ui::runtime::env::{RootEnv, Scale};
-use craft_ui::runtime::{InstallError, InstallSpec, install};
+use craft_ui::runtime::{InstallError, install};
 use craft_ui::style::{ComponentStyle, EnvKey, Metrics, StyleCx, StyleKey, StyleReplacements};
 use craft_ui::testing::style::{root_token_entries, style_of, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};

@@ -8,7 +8,7 @@ use craft_ui::contract::{
 };
 use craft_ui::primitives::PaintShape;
 use craft_ui::runtime::env::{EnvValue, RootEnv};
-use craft_ui::runtime::{InstallSpec, install};
+use craft_ui::runtime::install;
 use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx};
 use craft_ui::testing::{Frames, trial};
 use egui::{Context, CornerRadius, Rect, Response, Vec2};

@@ -9,7 +9,7 @@ use craft_ui::contract::{
     Sizing,
 };
 use craft_ui::runtime::env::{AppValues, EnvValue};
-use craft_ui::runtime::{InstallSpec, install};
+use craft_ui::runtime::install;
 use craft_ui::style::{ComponentStyle, Ink, StateSet, StyleCx, SurfaceKind, SurfaceLook};
 use craft_ui::testing::contract::{allocate, clicked as is_clicked, clicked_by_primary, findings};
 use craft_ui::testing::focus::named_id;

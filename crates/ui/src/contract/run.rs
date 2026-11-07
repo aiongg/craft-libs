@@ -530,14 +530,14 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     };
     let extent = hooks.extent(&comp, ui, at, id, &scx);
     let size = {
-        let input = MeasureIn { ui: &*ui, env: &env, proposal: Proposal::Ideal, room };
+        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room };
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
     trace.mark(Step::Measure);
     // A control in a label scope reports its narrowest width: the label step decides next frame whether the row fits
     // the label beside it.
     if shape == ShapeKind::Leaf && !sizing && scope::in_label(&ctx) {
-        let input = MeasureIn { ui: &*ui, env: &env, proposal: Proposal::Min, room: None };
+        let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Min, room: None };
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);
     }
@@ -567,12 +567,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
-    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env: &env, id, label: &step1.label });
+    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env, id, label: &step1.label });
     let mut run = Pass {
         comp: &mut comp,
         cx: &mut cx,
         hooks: &mut *hooks,
-        env: &env,
+        env,
         style: &*style,
         resolved: &resolved,
         trace,
@@ -585,7 +585,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         real: false,
         activated: false,
     };
-    host.run(id, ui, &env, &mut |host_ui, host_at| pass(&mut run, host_ui, host_at));
+    host.run(id, ui, env, &mut |host_ui, host_at| pass(&mut run, host_ui, host_at));
     let (real_pass, activated) = (run.real, run.activated);
     drop(run);
     if real_pass && let Some(why) = host.dismissed() {

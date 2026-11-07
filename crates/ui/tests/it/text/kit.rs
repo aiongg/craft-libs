@@ -7,7 +7,7 @@ use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::text::widget_id;
 use craft_ui::text::TextField;
-use egui::{Event, Id, Pos2, Rect};
+use egui::{Event, Id, Rect};
 
 pub const TEXT: PartKey = PartKey::new("text");
 
@@ -83,9 +83,5 @@ impl Rig {
 
     pub fn widget(&self) -> Id {
         widget_id(self.seen.id, TEXT)
-    }
-
-    pub fn out_of(at: Pos2) -> Pos2 {
-        at
     }
 }

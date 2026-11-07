@@ -172,9 +172,11 @@ impl StoryData {
     }
 }
 
+type Held = ((&'static str, TypeId), Box<dyn Shown>);
+
 /// The values of a [`StoryData`] at one moment.
 pub struct StorySnapshot {
-    values: Vec<((&'static str, TypeId), Box<dyn Shown>)>,
+    values: Vec<Held>,
 }
 
 /// The kind of an edit event.

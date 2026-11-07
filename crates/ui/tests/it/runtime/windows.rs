@@ -15,7 +15,7 @@ use craft_ui::style::StyleCx;
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::trial;
 use craft_ui::testing::windows::{NoWindows, dragged_id, record_input_hooks};
-use egui::{Event, Pos2, Rect, Response, Ui, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
+use egui::{Event, Pos2, Rect, Response, Vec2, ViewportBuilder, ViewportCommand, ViewportId, ViewportInfo};
 use std::cell::Cell;
 use std::sync::{Arc, Mutex};
 
@@ -106,7 +106,7 @@ fn a_child_viewports_input_hook_runs_with_the_parent_as_current_viewport() {
 fn a_cancelled_press_in_a_child_viewport_ends_the_childs_drag_not_the_main_windows() {
     let windows = Windows::new();
     let (root_dragged, child_dragged) = (Cell::new(None), Cell::new(None));
-    let mut frame = |root: Vec<Event>, child_events: Vec<Event>| {
+    let frame = |root: Vec<Event>, child_events: Vec<Event>| {
         windows.frame(root, child_events, |ui| {
             Handle { common: Common::new(), cancels: false }.id_salt("root").show_at(ui, HANDLE);
             ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
@@ -163,7 +163,7 @@ fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
         let down = Cell::new(false);
         let sized =
             |width: f32| ViewportInfo { inner_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(width, 600.0))), ..ViewportInfo::default() };
-        let mut frame = |events: Vec<Event>| {
+        let frame = |events: Vec<Event>| {
             windows.frame(events, vec![], |ui| down.set(ui.ctx().input(|input| input.pointer.any_down())));
         };
         windows.root_info(sized(800.0));
@@ -182,7 +182,7 @@ fn a_press_is_released_after_an_os_resize_of_an_undecorated_window() {
 #[trial]
 fn a_press_blocked_by_a_modal_in_another_window_raises_the_modal_window() {
     let windows = Windows::new();
-    let mut frame = |root: Vec<Event>| {
+    let frame = |root: Vec<Event>| {
         windows.frame(root, vec![], |ui| {
             ui.ctx().show_viewport_immediate(child(), ViewportBuilder::default(), |cui, _| {
                 let props = ContainerProps::new().mount(Mount::Layer(Overlay::modal()));

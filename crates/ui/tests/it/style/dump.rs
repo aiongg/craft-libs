@@ -9,13 +9,16 @@ fn entries(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
     pairs.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect()
 }
 
+/// Fields the dump reads through `Debug` only.
 #[derive(Debug)]
+#[allow(dead_code, reason = "the fields are read through the derived Debug the dump prints")]
 struct Inner {
     gap: f32,
     pair: (u8, u8),
 }
 
 #[derive(Debug)]
+#[allow(dead_code, reason = "the fields are read through the derived Debug the dump prints")]
 struct Outer {
     height: f32,
     inner: Inner,

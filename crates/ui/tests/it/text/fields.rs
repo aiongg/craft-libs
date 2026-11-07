@@ -88,7 +88,7 @@ impl Completer for Prefixes {
 fn completion_list_takes_arrows_and_tab_while_open_and_the_caret_does_not_move() {
     let mut rig = Rig::new("");
     rig.focus();
-    let mut frame = |rig: &mut Rig, events: Vec<Event>| {
+    let frame = |rig: &mut Rig, events: Vec<Event>| {
         let (text, seen) = (&mut rig.text, &mut rig.seen);
         rig.frames.frame(events, |ui| {
             let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Prefixes).id_salt("name").show(ui);
@@ -137,7 +137,7 @@ fn number_field_parses_through_its_codec_and_rejects_bad_text() {
     };
     frames.idle(3, &mut show);
     craft_ui::testing::pointer::click(&mut frames, rect.get().center(), &mut show);
-    let mut typed = |frames: &mut craft_ui::testing::Frames, text: &str, show: &mut dyn FnMut(&mut egui::Ui)| {
+    let typed = |frames: &mut craft_ui::testing::Frames, text: &str, show: &mut dyn FnMut(&mut egui::Ui)| {
         frames.frame(vec![key_press(Key::A, Modifiers::COMMAND)], &mut *show);
         frames.frame(vec![Event::Text(text.into())], &mut *show);
         frames.frame(vec![], &mut *show);

@@ -22,7 +22,9 @@ fn panels_of(group: GroupId) -> Vec<PanelTitle> {
 }
 
 /// A dock of two groups that docks a dropped panel into a new group, as an app's `DockArea` would.
-fn dock() -> (Fixture, Rc<RefCell<DockTree>>, Rc<RefCell<Option<(GroupId, DockSide)>>>) {
+type Dropped = Rc<RefCell<Option<(GroupId, DockSide)>>>;
+
+fn dock() -> (Fixture, Rc<RefCell<DockTree>>, Dropped) {
     let tree = Rc::new(RefCell::new(two_columns()));
     let dropped = Rc::new(RefCell::new(None));
     let (shared_tree, shared_drop) = (Rc::clone(&tree), Rc::clone(&dropped));

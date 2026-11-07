@@ -19,8 +19,8 @@ fn after(direction: Direction, key: Key, modifiers: Modifiers) -> f64 {
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.key(key, modifiers);
     fixture.idle(2);
-    let value = *fixture.data().value("value", START);
-    value
+
+    *fixture.data().value("value", START)
 }
 
 #[trial]

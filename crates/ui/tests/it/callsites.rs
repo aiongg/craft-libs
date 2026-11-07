@@ -5,7 +5,7 @@
 use craft_behavior::Proposal;
 use craft_theme::Variant;
 use craft_ui::contract::{Looks, Props as _, Show as _, ShowCollection as _, ShowContainer as _};
-use craft_ui::runtime::{InstallSpec, install};
+use craft_ui::runtime::install;
 use craft_ui::testing::contract::clicked;
 use craft_ui::testing::{Frames, trial};
 use egui::{Rect, Response, Vec2};

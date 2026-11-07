@@ -164,7 +164,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let (_, text) = rest.take_end(cx.style.metrics.gap);
         let label = match self.position(cx.value()) {
             Some(at) => cx.env.resolve(&self.options[at].label),
-            None if cx.value().is_none() => cx.env.resolve(&Label::from(cx.words::<ControlWords>().mixed.clone())),
+            None if cx.value().is_none() => cx.env.resolve(&cx.words::<ControlWords>().mixed.clone()),
             None => Label::Empty,
         };
         let draw = ui.draw();
