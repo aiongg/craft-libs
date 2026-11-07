@@ -141,3 +141,136 @@ type = "ShellCx"
 old = "canvas(CanvasId)"
 new = ""
 note = "removed: the key stage asks the focused component's `KeyUse` whether Tab toggles the chrome, so a canvas registers nothing."
+
+# Caption buttons and the caption icon theme (titlebar-b).
+
+[[type]]
+name = "CaptionButtons"
+old = "craft_ui::title_bar::CaptionButtons"
+new = ""
+status = "removed"
+note = "`CaptionButton`: one leaf per caption, shown by the title bar, which sends the window command of the click. The slot layout is `CaptionPlan`."
+
+[[type]]
+name = "CaptionButton"
+old = ""
+new = "craft_ui::shell::CaptionButton"
+status = "replaced"
+note = "`CaptionButton::new(Caption, CaptionFamily)` with `maximized(bool)`, `outermost(CaptionEnd)` and `icons(&CaptionIcons)`; the window's active state comes from the environment, and the labels are the `CaptionLabels` words."
+
+[[type]]
+name = "caption_buttons"
+old = "craft_ui::title_bar::caption_buttons"
+new = ""
+status = "removed"
+note = "Show a `CaptionButton` per caption of a `CaptionPlan`."
+
+[[type]]
+name = "caption_id"
+old = "craft_ui::title_bar::caption_id"
+new = ""
+status = "removed"
+note = "A button's id comes from the component's own id; tests find it by its `WindowHit::Caption` part in `WindowHost::caption_regions`."
+
+[[type]]
+name = "CaptionLabels"
+old = "craft_ui::title_bar::CaptionLabels"
+new = "craft_ui::shell::CaptionLabels"
+status = "moved"
+note = "The words `shell.captionMinimize`, `shell.captionMaximize`, `shell.captionRestore` and `shell.captionClose` (`window.*` before)."
+
+[[type]]
+name = "CaptionIcon"
+old = "craft_ui::title_bar::CaptionIcon"
+new = "craft_ui::shell::CaptionIcon"
+status = "moved"
+
+[[type]]
+name = "CaptionIcons"
+old = "craft_ui::title_bar::CaptionIcons"
+new = "craft_ui::shell::CaptionIcons"
+status = "moved"
+note = "The fields are readers `theme()` and `generation()`; `CaptionIcons::new(theme, generation, render)`, `from_files` and `from_theme(name, bases, &dyn ThemeFiles)` build one."
+
+[[type]]
+name = "RenderIconFn"
+old = "craft_ui::title_bar::RenderIconFn"
+new = "craft_ui::shell::RenderIconFn"
+status = "moved"
+note = "The mask is a shared slice, `CaptionMask`."
+
+[[type]]
+name = "CaptionIconCache"
+old = "craft_ui::title_bar::CaptionIconCache"
+new = ""
+status = "removed"
+note = "The textures come from `primitives::TextureCache`; the background load of a theme is a platform service that answers `ThemeFiles` and builds `CaptionIcons`."
+
+[[type]]
+name = "caption_icon_theme"
+old = "craft_ui::title_bar::caption_icon_theme"
+new = "craft_ui::shell::caption_icon_theme"
+status = "moved"
+
+[[type]]
+name = "CaptionFamily"
+old = "craft_ui::title_bar::CaptionFamily"
+new = "craft_ui::shell::CaptionFamily"
+status = "moved"
+note = "Re-exported from `craft_window::policy`."
+
+[[type]]
+name = "Captions"
+old = "craft_ui::title_bar::Captions"
+new = "craft_ui::shell::Captions"
+status = "moved"
+note = "Re-exported from `craft_window::policy`."
+
+[[type]]
+name = "Frame"
+old = "craft_ui::title_bar::Frame"
+new = "craft_ui::shell::Frame"
+status = "moved"
+note = "Re-exported from `craft_window::policy`."
+
+[[type]]
+name = "MacInset"
+old = "craft_ui::title_bar::MacInset"
+new = "craft_ui::shell::MacInset"
+status = "moved"
+note = "Re-exported from `craft_window::policy`."
+
+[[type]]
+name = "WINDOWS_BUTTON_WIDTH"
+old = "craft_ui::title_bar::WINDOWS_BUTTON_WIDTH"
+new = "craft_ui::shell::WINDOWS_BUTTON_WIDTH"
+status = "moved"
+
+[[setter]]
+type = "CaptionButton"
+old = "CaptionButtons::new(&Captions, &TitleBarStyle)"
+new = "CaptionButton::new(Caption, CaptionFamily)"
+note = "One button per caption; the family comes from the `Captions`, the look from the theme."
+
+[[setter]]
+type = "CaptionButton"
+old = "window(impl Hash)"
+new = ""
+note = "removed: the component's id salt (`id_salt`) names the window's buttons."
+
+[[setter]]
+type = "CaptionButton"
+old = "labels(&CaptionLabels)"
+new = ""
+note = "removed: the labels are the `CaptionLabels` words of the scope, translated with the catalog."
+
+[[setter]]
+type = "CaptionButton"
+old = "icons(Option<&CaptionIcons>)"
+new = "icons(impl Into<Option<&CaptionIcons>>)"
+
+[[setter]]
+type = "CaptionButton"
+old = "show(ui, bar)"
+new = "show_at(ui, slot.rect)"
+note = "The title bar shows each button at its `CaptionSlot::rect` and reads the click from the response."
