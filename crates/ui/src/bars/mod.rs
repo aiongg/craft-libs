@@ -12,6 +12,7 @@ mod words;
 pub use align::{AlignAction, AlignBar, AlignBarOutput, DistributeButtons};
 pub use bar::{Bar, BarCommands, BarKind, BarOutput, BarStyle};
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarStyle, BreadcrumbOutput, path_crumbs};
-pub use items::{BarItem, BarItems, BarItemsStyle, Fit, FitItem, FitKeep, ItemDisplay, fit_items};
+pub use craft_behavior::fit::FitKeep;
+pub use items::{BarItem, BarItems, BarItemsStyle, ItemDisplay};
 pub use status_readout::{StatusItem, StatusReadout, StatusReadoutOutput, StatusValues};
 pub use words::BarWords;

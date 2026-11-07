@@ -97,6 +97,7 @@ pub struct CommandState {
     flags: CommandFlags,
     title: Option<Arc<str>>,
     hint: Option<Arc<str>>,
+    marked: bool,
 }
 
 impl CommandState {
@@ -119,6 +120,14 @@ impl CommandState {
         self
     }
 
+    /// Whether the command's content has something to show, such as comments on a panel. A rail marks the command's
+    /// button; the marker's description is the command's `hint`.
+    #[must_use]
+    pub fn marked(mut self, marked: bool) -> Self {
+        self.marked = marked;
+        self
+    }
+
     /// A label for this frame in place of the command's own, such as "Undo Move".
     #[must_use]
     pub fn title(mut self, title: impl Into<Arc<str>>) -> Self {
@@ -131,6 +140,10 @@ impl CommandState {
     pub fn hint(mut self, hint: impl Into<Arc<str>>) -> Self {
         self.hint = Some(hint.into());
         self
+    }
+
+    pub(crate) fn is_marked(&self) -> bool {
+        self.marked
     }
 
     pub(crate) fn flags(&self) -> CommandFlags {
@@ -160,6 +173,8 @@ pub struct ResolvedCommand {
     pub enabled: bool,
     /// The checked state of a toggle or radio command.
     pub checked: Option<bool>,
+    /// The command's content has something to show; the marker's description is `hint`.
+    pub marked: bool,
     /// The accessible description and second tooltip line.
     pub hint: Option<Arc<str>>,
     /// What the command is.

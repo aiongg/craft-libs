@@ -2,7 +2,6 @@
 //! faces in one part roving group. The leading crumbs that do not fit stand behind an ellipsis part that opens a menu
 //! of them.
 
-use super::items::{FitItem, FitKeep, fit_items};
 use super::words::BarWords;
 use crate::buttons::Link;
 use crate::contract::{
@@ -15,6 +14,7 @@ use crate::primitives::{IconSpec, Wrap};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
+use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Axis, Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense, Value};
 use egui::{Rect, Response, Vec2};
 

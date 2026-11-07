@@ -12,12 +12,13 @@
 //! Escape, or running a row returns focus to where it was. A `&` in a title's words row marks its mnemonic; without
 //! one the title takes the first letter no earlier title holds. The mnemonic is underlined while Alt is held.
 //!
-//! The Help menu can start with a search field over a list of `HelpEntry` commands: typing lists up to `MAX_RESULTS`
+//! The Help menu can start with a search field over a list of `HelpEntry` commands: typing lists up to `search::MAX_RESULTS`
 //! matches by label, English label or menu path, each as a command row with its path as detail.
 
 #[cfg(feature = "testing")]
 mod stories;
 
+use super::search::{HelpEntry, search_order};
 use super::words::MenuWords;
 use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::ToggleButton;
@@ -34,19 +35,15 @@ use crate::runtime::memory::{Facts, Remember as _};
 use crate::runtime::words::common::CommonWords;
 use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use crate::text::TextField;
+use craft_behavior::fit::{FitItem, FitKeep, fit_items};
 use craft_behavior::{Axis, Flow, Intent, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
-use craft_i18n::Folder;
-use craft_i18n::matcher::Matcher;
 use craft_keymap::mnemonic;
 use craft_theme::Stateful;
 use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
 const MORE: PartKey = PartKey::new("more");
-
-/// The most matches the help search lists.
-pub const MAX_RESULTS: usize = 15;
 
 /// The style of a menu bar: the titles wear toggle-button faces; the bar itself draws the mnemonic underline in the
 /// faces' label role and ink.
@@ -70,37 +67,6 @@ impl<'a> MenuTitle<'a> {
     /// A menu titled `label` (a `&` marks the mnemonic) whose rows `body` shows.
     pub fn new(label: impl Into<Label>, body: impl FnMut(&mut Ui) + 'a) -> Self {
         MenuTitle { label: label.into(), body: Box::new(body) }
-    }
-}
-
-/// A command the help search can find.
-#[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct HelpEntry {
-    command: CommandRef,
-    label: Label,
-    english: Option<Label>,
-    path: Vec<Label>,
-}
-
-impl HelpEntry {
-    /// A command found by `label`, the label its menu row shows.
-    pub fn new(command: impl Into<CommandRef>, label: impl Into<Label>) -> Self {
-        HelpEntry { command: command.into(), label: label.into(), english: None, path: Vec::new() }
-    }
-
-    /// The English label, which matches too.
-    #[must_use]
-    pub fn english(mut self, english: impl Into<Label>) -> Self {
-        self.english = Some(english.into());
-        self
-    }
-
-    /// The menu names above the command, outermost first ("Image", "Adjustments").
-    #[must_use]
-    pub fn path(mut self, path: impl IntoIterator<Item = impl Into<Label>>) -> Self {
-        self.path = path.into_iter().map(Into::into).collect();
-        self
     }
 }
 
@@ -188,43 +154,9 @@ pub struct TitleFit {
 /// The titles to show in `room`, given each title's `widths` and the width of the "…" title: every title when they
 /// fit; else the titles that fit beside "…"; else none, with one "Menu" holding them all.
 pub fn fit_titles(widths: &[f32], more: f32, room: f32) -> TitleFit {
-    if widths.iter().sum::<f32>() <= room {
-        return TitleFit { shown: widths.len(), overflow: false };
-    }
-    let room = room - more;
-    let mut used = 0.0;
-    let shown = widths
-        .iter()
-        .take_while(|width| {
-            used += **width;
-            used <= room
-        })
-        .count();
-    TitleFit { shown, overflow: true }
-}
-
-/// The entries matching `query`, best first and in menu order within a rank, at most `MAX_RESULTS`. Each entry is
-/// its `[label, english label, menu path]` texts, matched by `folder` (case and accents folded). A label or English
-/// label that matches ranks before an entry found only through its path; within each, the matcher's rank decides.
-pub fn search_order(folder: &Folder, query: &str, texts: &[[&str; 3]]) -> Vec<usize> {
-    let query = query.trim();
-    if query.is_empty() {
-        return Vec::new();
-    }
-    let matcher = Matcher::new(folder, query);
-    let mut ranked: Vec<_> = texts
-        .iter()
-        .enumerate()
-        .filter_map(|(at, [label, english, path])| {
-            let named = [label, english].into_iter().filter_map(|text| matcher.score(text)).map(|found| found.rank).min();
-            match named {
-                Some(found) => Some((0_u8, found, at)),
-                None => matcher.score(path).map(|found| (1, found.rank, at)),
-            }
-        })
-        .collect();
-    ranked.sort();
-    ranked.into_iter().take(MAX_RESULTS).map(|(_, _, at)| at).collect()
+    let titles: Vec<FitItem> = widths.iter().map(|width| FitItem::new(*width, 0, FitKeep::Free)).collect();
+    let fit = fit_items(&titles, room, 0.0, 0.0, more);
+    TitleFit { shown: fit.shown.len(), overflow: !fit.overflow.is_empty() }
 }
 
 /// Which titles a pass declared as parts.
@@ -368,9 +300,9 @@ impl<'a> MenuBar<'a> {
         entries
             .iter()
             .map(|entry| {
-                let path: Vec<String> = entry.path.iter().map(|label| env.resolve(label).as_str().to_owned()).collect();
-                let english = entry.english.as_ref().map(|label| env.resolve(label).as_str().to_owned());
-                [env.resolve(&entry.label).as_str().to_owned(), english.unwrap_or_default(), path.join(separator)]
+                let path: Vec<String> = entry.path().iter().map(|label| env.resolve(label).as_str().to_owned()).collect();
+                let english = entry.english().map(|label| env.resolve(label).as_str().to_owned());
+                [env.resolve(entry.label()).as_str().to_owned(), english.unwrap_or_default(), path.join(separator)]
             })
             .collect()
     }
@@ -518,7 +450,7 @@ impl Component for MenuBar<'_> {
                                 let listed: Vec<usize> = search_order(&folder, &query.0, &refs)
                                     .into_iter()
                                     .filter(|at| {
-                                        let command = &help.entries[*at].command;
+                                        let command = help.entries[*at].command();
                                         let fresh = !seen.contains(&command);
                                         seen.push(command);
                                         fresh
@@ -526,8 +458,8 @@ impl Component for MenuBar<'_> {
                                     .collect();
                                 for at in &listed {
                                     let entry = &help.entries[*at];
-                                    let row = MenuItem::command(entry.command.clone());
-                                    if entry.path.is_empty() {
+                                    let row = MenuItem::command(entry.command().clone());
+                                    if entry.path().is_empty() {
                                         row.show(ui)
                                     } else {
                                         row.detail(rows[*at][2].clone()).show(ui)

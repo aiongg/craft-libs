@@ -154,6 +154,18 @@ status = "removed"
 note = "The bar's titles hold real focus, so a command shortcut runs while they do, as for every focused component."
 
 # One entry per renamed, removed or reshaped setter or constructor.
+[[type]]
+name = "HelpEntry"
+old = ""
+new = "craft_ui::menu::search::HelpEntry"
+status = "pending"
+
+[[type]]
+name = "search_order"
+old = ""
+new = "craft_ui::menu::search::search_order"
+status = "pending"
+
 [[setter]]
 type = "MenuItem"
 old = "shortcut(Kbd)"
