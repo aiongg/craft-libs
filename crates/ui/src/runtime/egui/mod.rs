@@ -15,6 +15,7 @@ pub mod ime;
 pub mod input;
 pub mod memory;
 pub mod output;
+pub(crate) mod painted;
 pub mod panels;
 pub mod pass;
 pub mod plugin;

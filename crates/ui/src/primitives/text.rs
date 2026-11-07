@@ -1,6 +1,5 @@
 //! `TextRun`, the one description of UI text for measure, layout and paint, and `TextLayout`, its laid-out form.
 
-use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::text_layout;
 use crate::style::{StyleColor, TypeRole, UiTokens};
 use craft_i18n::Direction;
@@ -8,7 +7,6 @@ use egui::epaint::text::{FontId, TextDirection};
 use egui::text::{LayoutJob, TextFormat, TextWrapping};
 use egui::{Align, Color32, Context, Galley};
 use std::borrow::Cow;
-use std::collections::HashMap;
 use std::ops::Range;
 use std::sync::Arc;
 
@@ -317,32 +315,11 @@ pub struct LayoutRun {
     pub widths: Vec<f32>,
 }
 
-/// The full text of each elided run painted in the current pass, by the text its galley shows. A path cut by
-/// `Wrap::ElidePath` is a whole galley to egui, so what reads the painted shapes asks here instead.
-#[derive(Default)]
-struct Elisions {
-    pass: u64,
-    full: HashMap<String, String>,
-}
-
 /// Records that the galley of `layout` was painted, and its full text when the layout cut text.
 pub(crate) fn note_painted(ctx: &Context, layout: &TextLayout) {
-    if !layout.elided {
-        return;
+    if layout.elided {
+        crate::runtime::egui::painted::note_elided(ctx, &layout.galley.job.text, &layout.full);
     }
-    let pass = ctx.cumulative_pass_nr();
-    Service::<Elisions>::of(ctx).with(|log| {
-        if log.pass != pass {
-            log.pass = pass;
-            log.full.clear();
-        }
-        log.full.insert(layout.galley.job.text.clone(), layout.full.clone());
-    });
-}
-
-/// The full text of the painted run whose galley shows `shown`, when its layout cut text.
-pub(crate) fn full_text_of_painted(ctx: &Context, shown: &str) -> Option<String> {
-    Service::<Elisions>::of(ctx).with(|log| log.full.get(shown).cloned())
 }
 
 /// A laid-out run.

@@ -35,7 +35,6 @@ pub use scroll_bar::{BarAxis, ScrollBar};
 pub use sensing::{PartResult, TextOutcome};
 pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
-pub(crate) use text::full_text_of_painted;
 pub use text::{ChordText, HAlign, LayoutRun, Span, TextLayout, TextRun, Wrap};
 pub use text_input::{Completer, Completion, EditorLine, EditorPurpose, EditorRun, EditorState, TextKey, TextOptions};
 pub use textures::TextureCache;
