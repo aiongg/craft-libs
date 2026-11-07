@@ -27,3 +27,12 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod export;
+
+pub use export::{
+    DdsCompression, DdsOptions, ExportAsDialog, ExportAsOutput, ExportAsResult, ExportFormat, ExportFormatDefaults, ExportMetadata, ExportOptions,
+    ExportOptionsKind, ExportPreview, ExportProfile, ExportSize, ExportWords, FormatOptions, FormatOptionsDialog, FormatOptionsOutput,
+    FormatOptionsWords, JpegFormat, JpegOptions, JpegPreset, OutputPathOutput, OutputPathRow, OutputPathWords, SizeEstimate, TargaOptions,
+    TiffOptions, export_file_name, jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
+};
