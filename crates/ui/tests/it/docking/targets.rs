@@ -48,7 +48,7 @@ fn registered_then(frames: &mut Frames, register: impl Fn(&Context), probe: impl
 fn a_pointer_resolves_to_a_tab_insertion_a_group_side_or_the_group() {
     let mut frames = Frames::new();
     let sizes = sizes(&frames);
-    let dock = Id::unique();
+    let dock = Id::unique("dock");
     for rule in [ZoneRule::Fraction, ZoneRule::Depth] {
         registered_then(
             &mut frames,
@@ -69,7 +69,7 @@ fn a_pointer_resolves_to_a_tab_insertion_a_group_side_or_the_group() {
 #[trial]
 fn a_spot_is_resolved_in_the_pass_after_its_registration() {
     let mut frames = Frames::new();
-    let dock = Id::unique();
+    let dock = Id::unique("dock");
     let mut first = true;
     let mut unresolved_before = false;
     frames.frame(Vec::new(), |ui| {
@@ -87,7 +87,7 @@ fn a_spot_is_resolved_in_the_pass_after_its_registration() {
 #[trial]
 fn two_docks_in_one_viewport_keep_their_spots_apart() {
     let mut frames = Frames::new();
-    let (first, second) = (Id::unique(), Id::unique());
+    let (first, second) = (Id::unique("first"), Id::unique("second"));
     registered_then(
         &mut frames,
         |ctx| {
@@ -98,7 +98,7 @@ fn two_docks_in_one_viewport_keep_their_spots_apart() {
             let at = strip().center();
             assert_eq!(DockTargets::<u32>::resolve(ctx, first, at), Some(DockSpot::tab(GROUP, 0)));
             assert_eq!(DockTargets::<u32>::resolve(ctx, second, at), Some(DockSpot::tab(OTHER, 1)));
-            assert_eq!(DockTargets::<u32>::resolve(ctx, Id::unique(), at), None, "a dock that registered nothing resolves nothing");
+            assert_eq!(DockTargets::<u32>::resolve(ctx, Id::unique("third"), at), None, "a dock that registered nothing resolves nothing");
         },
     );
 }
@@ -126,7 +126,7 @@ fn the_side_zones_of_a_body_do_not_overlap_and_stay_inside_it() {
 fn an_edge_band_beats_a_group_side_near_the_layouts_border() {
     let mut frames = Frames::new();
     let sizes = sizes(&frames);
-    let dock = Id::unique();
+    let dock = Id::unique("dock");
     let band = Rect::from_min_max(LAYOUT.min, Pos2::new(LAYOUT.left() + sizes.edge_band, LAYOUT.bottom()));
     registered_then(
         &mut frames,
@@ -151,7 +151,7 @@ fn an_edge_band_beats_a_group_side_near_the_layouts_border() {
 fn a_blocked_rect_hides_the_spots_registered_below_it() {
     let mut frames = Frames::new();
     let sizes = sizes(&frames);
-    let dock = Id::unique();
+    let dock = Id::unique("dock");
     let window = Rect::from_center_size(body().center(), Vec2::splat(80.0));
     registered_then(
         &mut frames,
