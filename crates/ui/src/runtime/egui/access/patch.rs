@@ -33,6 +33,15 @@ pub(crate) fn write_label_patch(ctx: &Context, patch: &LabelPatch) {
         LabelPatch::GroupLabelledBy { container, label } => {
             ctx.accesskit_node_builder(*container, |node| node.set_labelled_by(vec![label.accesskit_id()]));
         }
+        LabelPatch::Detail { node, text } => {
+            ctx.accesskit_node_builder(*node, |node| {
+                let joined = match node.description() {
+                    Some(own) if !own.is_empty() => format!("{own}. {text}"),
+                    _ => text.clone(),
+                };
+                node.set_description(joined);
+            });
+        }
     }
 }
 

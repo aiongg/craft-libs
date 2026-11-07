@@ -35,18 +35,27 @@ pub struct FieldLabel {
     pub text: String,
     /// Whether it names or describes the controls.
     pub role: FieldLabelRole,
+    /// A line that joins the controls' description, not their name.
+    pub detail: Option<String>,
 }
 
 impl FieldLabel {
     /// A label of `text` at `rect`, the node `id`.
     pub fn new(id: Id, rect: Rect, text: impl Into<String>) -> Self {
-        FieldLabel { id, rect, press: PressState::IDLE, text: text.into(), role: FieldLabelRole::Names }
+        FieldLabel { id, rect, press: PressState::IDLE, text: text.into(), role: FieldLabelRole::Names, detail: None }
     }
 
     /// Whether the label names or describes the controls.
     #[must_use]
     pub fn role(mut self, role: FieldLabelRole) -> Self {
         self.role = role;
+        self
+    }
+
+    /// Adds a detail line to the description of the controls the label covers.
+    #[must_use]
+    pub fn detail(mut self, detail: impl Into<String>) -> Self {
+        self.detail = Some(detail.into());
         self
     }
 
@@ -254,6 +263,8 @@ pub(crate) enum LabelPatch {
     LabelledBy { node: Id, label: Id },
     /// `container` is labelled by `label`: it holds several controls.
     GroupLabelledBy { container: Id, label: Id },
+    /// `text` joins the description of `node`.
+    Detail { node: Id, text: String },
 }
 
 /// What `label` does to the `nodes` registered in the scope of `container`: one control is labelled by it
@@ -270,6 +281,13 @@ pub(crate) fn label_patches(container: Id, label: &FieldLabel, nodes: &[ScopeNod
         }
         [only] => patches.push(LabelPatch::LabelledBy { node: only.id, label: label.id }),
         _ => patches.push(LabelPatch::GroupLabelledBy { container, label: label.id }),
+    }
+    if let Some(text) = &label.detail {
+        let node = match nodes {
+            [only] => only.id,
+            _ => container,
+        };
+        patches.push(LabelPatch::Detail { node, text: text.clone() });
     }
     patches
 }

@@ -868,7 +868,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         crate::runtime::focus::begin_body(&ctx);
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
-        if let Some(side) = props.label {
+        if let Some(side) = props.label.as_ref() {
             let resolved = cx.core.resolved;
             let input = LabelIn {
                 scope: id,
@@ -877,7 +877,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 row: regions.body,
                 room: if self.sizing(&props) == Sizing::Content { room.x } else { regions.body.width() },
                 text: resolved.label_value,
-                side: &side,
+                side,
                 enabled: resolved.enabled,
                 size: resolved.size,
                 control_min: scope::last_control_min(&ctx, id),

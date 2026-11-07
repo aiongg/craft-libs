@@ -3,8 +3,8 @@
 //! child, so the two line up and behave alike.
 
 use super::{Component, Props};
-use super::{Cx, MeasureCx, PaintUi, PartsCx, Show as _};
-use crate::primitives::TextRun;
+use super::{Cx, MeasureCx, PaintUi, PartsCx, Show};
+use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::{
     self,
     scope::{self, FieldLabel},
@@ -13,8 +13,8 @@ use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
-use crate::style::{ComponentStyle, ResetMarkLook, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
+use craft_behavior::{ColumnWidth, Flow, IconId, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 
@@ -48,7 +48,7 @@ pub enum FieldLayout {
 pub type CellWidth = ColumnWidth;
 
 /// What `ContainerProps.label` holds: how the label is shown and what it does. The text is `Common.label`.
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct SideLabel {
     /// How the label is shown.
@@ -59,12 +59,16 @@ pub struct SideLabel {
     pub role: FieldLabelRole,
     /// Dragging the label scrubs the control's value.
     pub scrub: bool,
+    /// An icon before the text, as large as the control's icons.
+    pub icon: Option<IconId>,
+    /// A line after the text in the muted text colour. It joins the control's description, not its name.
+    pub detail: Option<Label>,
 }
 
 impl SideLabel {
     /// A text label beside its control that names it.
     pub const fn new() -> Self {
-        SideLabel { kind: LabelKind::Text, layout: FieldLayout::Beside, role: FieldLabelRole::Names, scrub: false }
+        SideLabel { kind: LabelKind::Text, layout: FieldLayout::Beside, role: FieldLabelRole::Names, scrub: false, icon: None, detail: None }
     }
 
     /// How the label is shown.
@@ -94,6 +98,20 @@ impl SideLabel {
         self.scrub = on;
         self
     }
+
+    /// Shows `icon` before the text.
+    #[must_use]
+    pub fn icon(mut self, icon: IconId) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
+    /// Shows `detail` after the text, in the muted text colour, and adds it to the control's description.
+    #[must_use]
+    pub fn detail(mut self, detail: impl Into<Label>) -> Self {
+        self.detail = Some(detail.into());
+        self
+    }
 }
 
 /// How a drag on the side label changes a control's value: the drag maths over the control's number.
@@ -119,6 +137,12 @@ struct LabelStyle {
     #[style(metrics)]
     metrics: Metrics,
     reset: ResetMarkLook,
+    /// The side of the icon before the text.
+    icon: f32,
+    /// The gap between the icon, the text and the detail.
+    gap: f32,
+    /// The colour of the detail.
+    muted: StyleColor,
 }
 
 /// What the label leaf reports.
@@ -150,12 +174,19 @@ struct LabelLeaf {
     differs: bool,
     /// The width the dot's slot takes at the end of the label, 0 without one.
     slot: f32,
+    icon: Option<IconId>,
+    /// The detail, resolved in the scope's language.
+    detail: Option<Label>,
     baseline: Cell<f32>,
     double_click: bool,
     dot_click: bool,
 }
 
 impl LabelLeaf {
+    fn detail_run<'a>(&self, detail: &'a Label, style: &LabelStyle) -> TextRun<'a> {
+        TextRun::new(detail.as_str()).color(style.muted)
+    }
+
     #[cfg(feature = "testing")]
     fn sample() -> Self {
         LabelLeaf::new(Label::from("Opacity"), 0.0)
@@ -168,6 +199,8 @@ impl LabelLeaf {
             resettable: false,
             differs: false,
             slot,
+            icon: None,
+            detail: None,
             baseline: Cell::new(0.0),
             double_click: false,
             dot_click: false,
@@ -183,14 +216,30 @@ impl Component for LabelLeaf {
     type Output = LabelOutput;
 
     fn style(cx: &StyleCx<'_>, _: LabelLeafStyleKey) -> LabelStyle {
-        LabelStyle { metrics: Metrics::new(), reset: cx.reset_mark() }
+        LabelStyle {
+            metrics: Metrics::new(),
+            reset: cx.reset_mark(),
+            icon: cx.control().icon,
+            gap: cx.tokens.space.gap.inline,
+            muted: cx.color(cx.tokens.color.text.muted),
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let layout = cx.layout(&TextRun::new(cx.resolved.label));
-        self.baseline.set(layout.first_baseline);
-        let size = layout.galley.size();
-        Vec2::new(size.x + self.slot, size.y)
+        let name = cx.layout(&TextRun::new(cx.resolved.label)).size();
+        let (mut width, mut height) = (name.x, name.y);
+        if self.icon.is_some() {
+            width += cx.style.icon + cx.style.gap;
+            height = height.max(cx.style.icon);
+        }
+        if let Some(detail) = &self.detail {
+            let detail = cx.layout(&self.detail_run(detail, cx.style)).size();
+            width += cx.style.gap + detail.x;
+            height = height.max(detail.y);
+        }
+        // The text sits at the row's vertical centre, so an icon taller than the text moves the baseline down.
+        self.baseline.set(cx.layout(&TextRun::new(cx.resolved.label)).first_baseline + (height - name.y) / 2.0);
+        Vec2::new(width + self.slot, height)
     }
 
     fn sense(&self) -> Sense {
@@ -218,9 +267,25 @@ impl Component for LabelLeaf {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
-        let (slot, rest) = flow.take_end(self.slot);
+        let (slot, mut rest) = flow.take_end(self.slot);
         let draw = ui.draw();
-        draw.text(rest.rect(), &TextRun::new(cx.core.resolved.label));
+        let middle = cx.rect.center().y;
+        let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
+        if let Some(icon) = &self.icon {
+            let (cell, after) = rest.take_start(cx.style.icon);
+            draw.icon(centred(cell, cx.style.icon), &IconSpec::svg(icon.clone()));
+            rest = after.take_start(cx.style.gap).1;
+        }
+        let run = TextRun::new(cx.core.resolved.label);
+        let name = draw.layout(&run, rest.rect().width()).size();
+        let (name_rect, after) = rest.take_start(name.x);
+        draw.text(centred(name_rect, name.y), &run);
+        if let Some(detail) = &self.detail {
+            let run = self.detail_run(detail, cx.style);
+            let (_, detail_flow) = after.take_start(cx.style.gap);
+            let size = draw.layout(&run, detail_flow.rect().width()).size();
+            draw.text(centred(detail_flow.rect(), size.y), &run);
+        }
         if self.differs && self.slot > 0.0 {
             draw.reset_mark(&cx.style.reset, slot.center());
         }
@@ -251,6 +316,65 @@ pub(crate) struct LabelIn<'a> {
     pub control_min: f32,
 }
 
+/// The label fact the scope records: the name's text, and the detail (resolved) as the control's description.
+fn field_label(env: &Env, input: &LabelIn<'_>, id: Id, rect: Rect) -> FieldLabel {
+    let label = FieldLabel::new(id, rect, input.text.as_str()).role(input.side.role);
+    match &input.side.detail {
+        Some(detail) => label.detail(env.view().resolve(detail).as_str()),
+        None => label,
+    }
+}
+
+/// What the label step needs of one leaf child it labels (`PaintUi::labelled`, `BodyCx::labelled`).
+pub(crate) struct LeafLabel<'a> {
+    /// The child's id; the label scope derives from it.
+    pub id: Id,
+    /// The component whose eviction takes the label scope's facts.
+    pub owner: Id,
+    /// The node the label's node sits under in AccessKit, when the caller has one.
+    pub parent: Option<Id>,
+    /// The row the label and the child share.
+    pub row: Rect,
+    pub text: &'a Label,
+    pub side: &'a SideLabel,
+    /// The enabled state and size the child inherits.
+    pub enabled: bool,
+    pub size: craft_theme::ControlSize,
+}
+
+/// A leaf child's label step that has run: the rect left for the child and the scope the caller closes.
+pub(crate) struct LeafPlaced {
+    pub control: Rect,
+    scope: Id,
+}
+
+impl LeafPlaced {
+    /// Closes the label scope after the child ran.
+    pub(crate) fn finish(self, ctx: &egui::Context) {
+        scope::finish(ctx, self.scope, None);
+    }
+}
+
+/// The label step for one leaf child: measures the child's narrowest width, runs the step in `row` and returns the
+/// rect left for the child. The caller shows the child there and then calls `LeafPlaced::finish`.
+pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &mut C) -> LeafPlaced {
+    let scope = sub(at.id, "field");
+    let control_min = super::run::measure_under(child, &*ui, Some(at.id), craft_behavior::Proposal::Min, Some((at.enabled, at.size))).x;
+    let input = LabelIn {
+        scope,
+        owner: at.owner,
+        parent: at.parent,
+        row: at.row,
+        room: at.row.width(),
+        text: at.text,
+        side: at.side,
+        enabled: at.enabled,
+        size: at.size,
+        control_min,
+    };
+    LeafPlaced { control: run(ui, env, &input), scope }
+}
+
 /// Runs the label step in `ui`: shows the label, opens the label scope and returns the rect left for the control.
 /// The caller closes the scope with `scope::finish` after the control ran.
 pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
@@ -262,12 +386,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     let flow = Flow::new(input.row, rtl);
     let label_id = sub(input.scope, "label");
     if input.side.kind == LabelKind::Hidden {
-        scope::begin(
-            &ctx,
-            input.scope,
-            input.owner,
-            scope::Kind::Label(FieldLabel::new(label_id, Rect::NOTHING, input.text.as_str()).role(input.side.role)),
-        );
+        scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
         return input.row;
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
@@ -275,6 +394,8 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     leaf.scrub = input.side.scrub || scope::last_scrub(&ctx, input.scope);
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
+    leaf.icon = input.side.icon.clone();
+    leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
     let kids_scope = sub(input.scope, "label_ui");
     let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(kids_scope);
     let builder = match input.parent {
@@ -328,7 +449,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
         keys::route(&ctx, fact.control, Intent::Reset);
     }
-    let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str()).role(input.side.role).with_press(shown.press);
+    let label = field_label(env, input, label_id_for_scope, placed.label).with_press(shown.press);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
     placed.control
 }

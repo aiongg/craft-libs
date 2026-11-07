@@ -201,3 +201,30 @@ fn segmented_arrows_skip_disabled_segments() {
     press(&mut fixture, Key::ArrowLeft);
     assert_eq!(value.get(), 1);
 }
+
+/// Rows labelled through the body's label step carry an icon and a count, and a click on a row's radio still
+/// selects through the group's registrations.
+#[trial]
+fn radio_rows_labelled_through_the_body_select_on_click() {
+    use craft_behavior::IconId;
+    use craft_ui::contract::SideLabel;
+    let mut frames = Frames::new();
+    let mut value = 1u8;
+    let radios = RefCell::new(Vec::<(Rect, Id)>::new());
+    let mut show = |ui: &mut Ui, value: &mut u8| {
+        radios.borrow_mut().clear();
+        RadioGroup::new("Show", Bind::bound(value)).id_salt("group").show(ui, |ui, cx| {
+            for (v, text, count) in [(1u8, "Layers", "12"), (2, "Pages", "4")] {
+                let side = SideLabel::new().icon(IconId::new("list")).detail(count);
+                let response = cx.labelled(ui, v, text.into(), side, Radio::new(v));
+                radios.borrow_mut().push((response.rect, response.id));
+            }
+        });
+    };
+    frames.idle(3, |ui| show(ui, &mut value));
+    let rects: Vec<Rect> = radios.borrow().iter().map(|(rect, _)| *rect).collect();
+    assert_eq!(rects.len(), 2);
+    assert!(rects[0].max.y <= rects[1].min.y, "the rows stack in the body's flow: {rects:?}");
+    click(&mut frames, rects[1].center(), &mut |ui| show(ui, &mut value));
+    assert_eq!(value, 2, "a click on the second row's radio selects it");
+}

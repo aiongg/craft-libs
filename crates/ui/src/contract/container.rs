@@ -497,7 +497,7 @@ impl ContainerProps {
     }
 
     /// A field label.
-    pub const fn label(mut self, label: SideLabel) -> Self {
+    pub fn label(mut self, label: SideLabel) -> Self {
         self.label = Some(label);
         self
     }

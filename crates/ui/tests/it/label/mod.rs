@@ -43,12 +43,12 @@ impl Rows {
         Rows { container: value, leaf: value, seen_container: RefCell::default(), seen_leaf: RefCell::default() }
     }
 
-    fn show(&mut self, ui: &mut Ui, side: SideLabel) {
+    fn show(&mut self, ui: &mut Ui, side: &SideLabel) {
         let (container, seen_container) = (&mut self.container, &self.seen_container);
-        Field::new("Opacity", side).id_salt("container").show_at(ui, ROW_A, |ui, _| {
+        Field::new("Opacity", side.clone()).id_salt("container").show_at(ui, ROW_A, |ui, _| {
             Dial::new(&mut *container, seen_container).show(ui);
         });
-        LabelledDial::new("Opacity", side, &mut self.leaf, &self.seen_leaf).id_salt("leaf").show_at(ui, ROW_B);
+        LabelledDial::new("Opacity", side.clone(), &mut self.leaf, &self.seen_leaf).id_salt("leaf").show_at(ui, ROW_B);
     }
 
     fn label(&self, container: bool) -> FieldLabel {
@@ -61,7 +61,7 @@ impl Rows {
     }
 }
 
-fn settled(direction: Direction, side: SideLabel) -> (Frames, Rows) {
+fn settled(direction: Direction, side: &SideLabel) -> (Frames, Rows) {
     let mut frames = Frames::new();
     let mut root = RootEnv::new();
     root.direction = direction;
@@ -82,7 +82,7 @@ fn offsets(rows: &Rows, container: bool, row: Rect, rtl: bool) -> (f32, f32, f32
 fn a_labelled_leaf_and_a_labelled_container_line_up_their_labels_and_mirror_under_rtl() {
     let side = SideLabel::new();
     for rtl in [false, true] {
-        let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, side);
+        let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
         let (container, leaf) = (offsets(&rows, true, ROW_A, rtl), offsets(&rows, false, ROW_B, rtl));
         assert_eq!(
             (container.0.round(), container.1.round(), container.2.round(), container.3.round()),
@@ -113,11 +113,11 @@ fn a_narrow_row_puts_the_label_above_the_control() {
 #[trial]
 fn dragging_a_label_that_scrubs_changes_the_value() {
     let side = SideLabel::new().scrub(true);
-    let (mut frames, mut rows) = settled(Direction::Ltr, side);
+    let (mut frames, mut rows) = settled(Direction::Ltr, &side);
     for container in [true, false] {
         let before = if container { rows.container } else { rows.leaf };
         let from = rows.label(container).rect.center();
-        drag(&mut frames, from, Vec2::new(DRAG, 0.0), &mut |ui| rows.show(ui, side));
+        drag(&mut frames, from, Vec2::new(DRAG, 0.0), &mut |ui| rows.show(ui, &side));
         let after = if container { rows.container } else { rows.leaf };
         assert!(
             (after - before - f64::from(DRAG)).abs() < ROUNDING,
@@ -142,7 +142,7 @@ fn a_wrapped_scrub_keeps_its_value_continuous() {
     let seen = RefCell::new(Seen::default());
     let mut value = START;
     let show = |ui: &mut Ui, value: &mut f64| {
-        Field::new("Opacity", side).id_salt("warp").show_at(ui, ROW_A, |ui, _| {
+        Field::new("Opacity", side.clone()).id_salt("warp").show_at(ui, ROW_A, |ui, _| {
             Dial::new(value, &seen).warping().show(ui);
         });
     };
@@ -182,10 +182,10 @@ fn double_click(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {
 #[trial]
 fn double_clicking_the_label_resets_the_value() {
     let side = SideLabel::new();
-    let (mut frames, mut rows) = settled(Direction::Ltr, side);
+    let (mut frames, mut rows) = settled(Direction::Ltr, &side);
     for container in [true, false] {
         let at = rows.label(container).rect.center();
-        double_click(&mut frames, at, &mut |ui| rows.show(ui, side));
+        double_click(&mut frames, at, &mut |ui| rows.show(ui, &side));
         let value = if container { rows.container } else { rows.leaf };
         assert_eq!(value, RESET, "a double click on the label restores the reset value (container: {container})");
     }
@@ -205,22 +205,22 @@ fn circles(shapes: &[Shape]) -> usize {
 #[trial]
 fn the_reset_dot_shows_only_while_the_value_differs_and_resets_on_a_click() {
     let side = SideLabel::new();
-    let (mut frames, mut rows) = settled(Direction::Ltr, side);
+    let (mut frames, mut rows) = settled(Direction::Ltr, &side);
     let at_reset = {
         rows.container = RESET;
-        frames.idle(2, |ui| rows.show(ui, side));
-        circles(&frames.frame_shapes(|ui| rows.show(ui, side)))
+        frames.idle(2, |ui| rows.show(ui, &side));
+        circles(&frames.frame_shapes(|ui| rows.show(ui, &side)))
     };
     rows.container = RESET + 5.0;
-    frames.idle(2, |ui| rows.show(ui, side));
-    let differing = circles(&frames.frame_shapes(|ui| rows.show(ui, side)));
+    frames.idle(2, |ui| rows.show(ui, &side));
+    let differing = circles(&frames.frame_shapes(|ui| rows.show(ui, &side)));
     assert_eq!(differing, at_reset + 1, "one dot while the value differs, none at the reset value");
     let label = rows.label(true).rect;
     let dot = Pos2::new(label.right() - 1.0, label.center().y);
-    craft_ui::testing::pointer::click(&mut frames, dot, &mut |ui| rows.show(ui, side));
+    craft_ui::testing::pointer::click(&mut frames, dot, &mut |ui| rows.show(ui, &side));
     assert_eq!(rows.container, RESET, "a click on the dot resets the value");
-    frames.idle(2, |ui| rows.show(ui, side));
-    assert_eq!(circles(&frames.frame_shapes(|ui| rows.show(ui, side))), at_reset, "the dot is gone after the reset");
+    frames.idle(2, |ui| rows.show(ui, &side));
+    assert_eq!(circles(&frames.frame_shapes(|ui| rows.show(ui, &side))), at_reset, "the dot is gone after the reset");
 }
 
 #[trial]
@@ -276,4 +276,41 @@ fn a_label_stays_beside_a_fill_width_control_and_follows_the_row_width() {
     assert!(narrow.min.y > ROW_A.min.y + STACKED, "a row narrower than label, gap and the control's minimum stacks the label: {narrow:?}");
     let again = at(&mut frames, 300.0, 4);
     assert!(again.min.x > ROW_A.min.x + BESIDE, "the label returns beside the control when the row widens: {again:?}");
+}
+
+/// A label with an icon and a detail names its control by the text alone; the detail joins the control's
+/// description, and the icon and detail sit inside the row.
+#[trial]
+fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut value = 1.0;
+    let side = SideLabel::new().icon(craft_behavior::IconId::new("eye")).detail("12 layers");
+    let mut row = |ui: &mut Ui, value: &mut f64| {
+        Field::new("Opacity", side.clone()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
+            Dial::new(value, &seen).show(ui);
+        });
+    };
+    frames.idle(3, |ui| row(ui, &mut value));
+    let tree = frames.tree();
+    let (id, label) = (seen.borrow().id, seen.borrow().label.clone());
+    let (Some(id), Some(label)) = (id, label) else { panic!("the dial ran in a label scope") };
+    assert_eq!(tree.labelled_by(id), [NodeKey::of(label.id)], "the label names the control");
+    assert_eq!(tree.name(label.id), Some("Opacity"), "the name is the text alone");
+    assert_eq!(tree.description(id), Some("12 layers"), "the detail is the control's description");
+    assert!(ROW_A.contains_rect(label.rect), "the icon, text and detail sit inside the row: {:?}", label.rect);
+    let plain = {
+        let mut plain_frames = Frames::new();
+        let plain_seen = RefCell::new(Seen::default());
+        let mut plain_value = 1.0;
+        plain_frames.idle(3, |ui| {
+            Field::new("Opacity", SideLabel::new()).id_salt("detailed").show_at(ui, ROW_A, |ui, _| {
+                Dial::new(&mut plain_value, &plain_seen).show(ui);
+            });
+        });
+        let rect = plain_seen.borrow().label.clone().map(|label| label.rect);
+        rect
+    };
+    let plain = plain.expect("the plain label ran");
+    assert!(label.rect.width() > plain.width(), "the icon and detail widen the label: {:?} against {plain:?}", label.rect);
 }

@@ -1,7 +1,9 @@
 //! The context types (1.5): `CxCore`, `Cx`, `BodyCx`, `ItemCx`, `MeasureCx`, `PartsCx` and `PartBuilder`, and the
 //! chapter traits implemented on them.
 
-use super::{Component, EditResponse, Resolved, Show, Tooltip, Validity, ValueOf};
+use super::label::{self, LeafLabel};
+use super::run::ShowAt;
+use super::{Component, EditResponse, Resolved, Show, SideLabel, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
@@ -1079,6 +1081,36 @@ impl<'a> BodyCx<'a> {
 
     pub(crate) fn close_requested(&self) -> Option<CloseReason> {
         self.close
+    }
+
+    /// Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
+    /// it, with the icon and detail of `side`, and the child takes the width the label leaves. The row is as high as
+    /// the child (plus the label line when the label stacks). `ui` is the body's `Ui`; `key` makes the child's id.
+    pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output {
+        let id = self.id.with(key);
+        let env = Env::of(ui);
+        let mut child = child;
+        let under = Some((self.resolved.enabled, self.resolved.size));
+        let ideal = super::measure_under(&mut child, &*ui, Some(id), Proposal::Ideal, under);
+        let avail = ui.available_rect_before_wrap();
+        // Tall enough for a stacked label above the child; only what the row used is allocated below.
+        let row = Rect::from_min_size(avail.min, Vec2::new(avail.width(), ideal.y * 2.0));
+        let at = LeafLabel {
+            id,
+            owner: self.resolved.id,
+            parent: None,
+            row,
+            text: &label,
+            side: &side,
+            enabled: self.resolved.enabled,
+            size: self.resolved.size,
+        };
+        let placed = label::leaf(ui, &env, &at, &mut child);
+        let control = Rect::from_min_size(placed.control.min, Vec2::new(placed.control.width(), ideal.y));
+        let output = super::run::show_leaf(super::Props::id(child, id), ui, ShowAt::Rect(control), None);
+        placed.finish(ui.ctx());
+        ui.allocate_space(Vec2::new(avail.width(), (control.bottom() - row.top()).max(ideal.y)));
+        output
     }
 }
 
