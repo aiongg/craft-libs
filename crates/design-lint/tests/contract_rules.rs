@@ -87,7 +87,7 @@ fn each_reject_fixture_reports_every_shape() {
 
 #[test]
 fn accept_fixtures_pass() {
-    for file in ["behavior-pipeline-only.rs", "props.rs", "style.rs", "entry.rs"] {
+    for file in ["behavior-pipeline-only.rs", "props.rs", "style.rs", "entry.rs", "contract-widget.rs"] {
         let findings = analyze_contract(&fixture("accept", file), Path::new(FAMILY), &scope(), false);
         assert!(findings.is_empty(), "{file}: {findings:?}");
     }

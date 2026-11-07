@@ -438,3 +438,24 @@ fn an_untaken_scoped_entry_is_dropped_with_its_instance() {
     frames.idle(3, &mut show);
     assert_eq!(taken.get(), 0, "the entry died with its instance");
 }
+
+/// Core 9.2: `Move` and `Size` have no default chord on macOS, where the title-row menu offers them.
+#[trial]
+fn window_move_and_size_have_no_default_chord_on_macos() {
+    use craft_host::target::Os;
+    use craft_ui::runtime::commands::WindowCommand;
+    use craft_ui::testing::Fixture;
+    let mut fixture = Fixture::new(|_| {});
+    let chords = |fixture: &mut Fixture, os: Os| {
+        fixture.os(os).frame(vec![]);
+        let chord = |command| resolve(fixture.ctx(), command).chord;
+        (chord(WindowCommand::Move), chord(WindowCommand::Size))
+    };
+    assert_eq!(chords(&mut fixture, Os::Mac), (None, None), "no default chord on macOS");
+    let (r#move, size) = chords(&mut fixture, Os::Windows);
+    assert_eq!(
+        (r#move.map(|c| c.key), size.map(|c| c.key)),
+        (Some(craft_keymap::Key::F7), Some(craft_keymap::Key::F8)),
+        "Alt+F7 and Alt+F8 elsewhere"
+    );
+}

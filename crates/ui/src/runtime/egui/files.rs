@@ -7,7 +7,8 @@ use egui::Context;
 pub(crate) struct Seen {
     /// The files held over the window: a drop is under way.
     pub hovered: Vec<OsFile>,
-    /// The files dropped on the window this pass.
+    /// The files dropped on the window this pass. Their media type is empty: egui reports it only while the files hover,
+    /// and the drag step carries it over. A file without a path carries its bytes.
     pub dropped: Vec<OsFile>,
 }
 
@@ -31,11 +32,12 @@ pub(crate) fn seen(ctx: &Context) -> Seen {
             .iter()
             .map(|file| {
                 let path = file.path();
+                let usable = !path.as_os_str().is_empty();
                 OsFile {
                     name: path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
-                    path: Some(path.to_path_buf()),
+                    path: usable.then(|| path.to_path_buf()),
                     mime: String::new(),
-                    bytes: None,
+                    bytes: if usable { None } else { file.bytes().ok().map(Into::into) },
                 }
             })
             .collect(),

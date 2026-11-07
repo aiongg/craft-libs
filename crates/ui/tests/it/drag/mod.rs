@@ -448,3 +448,23 @@ fn files_that_leave_the_window_end_the_drag_without_a_drop() {
     assert!(drag::active::<OsFiles>(&frames.ctx).is_none(), "the drag ends when the files leave");
     assert!(landed.borrow().rows.is_empty() && landed.borrow().window.is_empty(), "nothing landed");
 }
+
+#[trial]
+fn a_dropped_file_keeps_the_media_type_it_had_while_hovering() {
+    let seen = RefCell::new(Vec::new());
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let landed = RefCell::new(Landed::default());
+        FileList { common: Common::new(), landed: &landed }.id_salt("files").show_at(ui, LIST);
+        if let Some(files) = drag::active::<OsFiles>(ui.ctx()) {
+            *seen.borrow_mut() = files.files.iter().map(|file| (file.name.clone(), file.mime.clone())).collect();
+        }
+    };
+    frames.idle(2, &mut show);
+    frames.hover_typed_files(&[("a.png", "image/png"), ("b.txt", "text/plain")]);
+    frames.frame(vec![moved(LIST.center())], &mut show);
+    frames.drop_files(&["b.txt", "a.png", "c.bin"]);
+    frames.frame(vec![moved(LIST.center())], &mut show);
+    let expected = [("b.txt", "text/plain"), ("a.png", "image/png"), ("c.bin", "")].map(|(name, mime)| (name.to_owned(), mime.to_owned()));
+    assert_eq!(*seen.borrow(), expected, "a drop carries the type the file had while hovering, and none for a file never seen");
+}

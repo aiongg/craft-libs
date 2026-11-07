@@ -19,6 +19,7 @@ struct VariantAttrs {
     group: Option<LitStr>,
     modal: Option<LitStr>,
     defaults: Vec<LitStr>,
+    no_default_on: Vec<LitStr>,
     paths: Vec<LitStr>,
     aliases: Vec<LitStr>,
 }
@@ -72,6 +73,15 @@ fn check_scope(scope: &LitStr) -> syn::Result<()> {
     Ok(())
 }
 
+fn platform_tokens(platform: &LitStr) -> syn::Result<TokenStream> {
+    Ok(match platform.value().as_str() {
+        "mac" => quote!(::craft_ui::runtime::commands::Platform::Mac),
+        "windows" => quote!(::craft_ui::runtime::commands::Platform::Windows),
+        "linux" => quote!(::craft_ui::runtime::commands::Platform::Linux),
+        _ => return Err(syn::Error::new(platform.span(), "`no_default_on` is `\"mac\"`, `\"windows\"` or `\"linux\"`")),
+    })
+}
+
 fn modal_tokens(modal: &LitStr) -> syn::Result<TokenStream> {
     Ok(match modal.value().as_str() {
         "blocked" => quote!(::craft_ui::runtime::commands::ModalRule::Blocked),
@@ -95,6 +105,7 @@ fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
             () if meta.path.is_ident("group") => attrs.group = Some(value(meta)?),
             () if meta.path.is_ident("modal") => attrs.modal = Some(value(meta)?),
             () if meta.path.is_ident("default") => attrs.defaults.push(value(meta)?),
+            () if meta.path.is_ident("no_default_on") => attrs.no_default_on.push(value(meta)?),
             () if meta.path.is_ident("path") => attrs.paths.push(value(meta)?),
             () if meta.path.is_ident("alias") => attrs.aliases.push(value(meta)?),
             () => return Ok(false),
@@ -132,7 +143,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Some(scope) => quote!(::craft_ui::runtime::commands::CommandScope::new(#scope)),
         None => quote!(::craft_ui::runtime::commands::CommandScope::APP),
     };
-    let (mut ids, mut arms, mut defs) = (Vec::new(), Vec::new(), Vec::new());
+    let (mut ids, mut arms, mut defs, mut bare) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
     for v in &data.variants {
         let attrs = variant(v)?;
         let name = &v.ident;
@@ -170,6 +181,10 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
                 def = def.with_default(::craft_ui::runtime::commands::Binding::parse(#text).map_err(|error| ::craft_ui::runtime::commands::CommandDefError::binding(#id, error))?);
             });
         }
+        for platform in &attrs.no_default_on {
+            let platform = platform_tokens(platform)?;
+            bare.push(quote!((#id, #platform)));
+        }
         arms.push(quote!(#id => ::core::option::Option::Some(Self::#name)));
         defs.push(quote! {
             {
@@ -205,6 +220,10 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
                 let mut out = ::std::vec::Vec::new();
                 #(#defs)*
                 ::core::result::Result::Ok(out)
+            }
+
+            fn no_default_on() -> ::std::vec::Vec<(&'static str, ::craft_ui::runtime::commands::Platform)> {
+                ::std::vec![#(#bare),*]
             }
         }
 

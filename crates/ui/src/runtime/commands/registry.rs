@@ -1,7 +1,7 @@
 //! The registry of command definitions: the sets `#[derive(CommandSet)]` registers, loaded at install.
 
-use craft_keymap::{BindingError, CommandDef};
-use std::collections::HashMap;
+use craft_keymap::{BindingError, CommandDef, Platform};
+use std::collections::{HashMap, HashSet};
 
 /// One registered command set.
 #[doc(hidden)]
@@ -12,12 +12,18 @@ pub struct SetEntry {
     pub name: fn() -> &'static str,
     /// The set's definitions.
     pub defs: fn() -> Result<Vec<CommandDef>, CommandDefError>,
+    /// The commands of the set without a default binding on a platform.
+    pub no_default_on: fn() -> Vec<(&'static str, Platform)>,
 }
 
 impl SetEntry {
     /// The entry of the set named `name`.
-    pub const fn new(name: fn() -> &'static str, defs: fn() -> Result<Vec<CommandDef>, CommandDefError>) -> Self {
-        SetEntry { name, defs }
+    pub const fn new(
+        name: fn() -> &'static str,
+        defs: fn() -> Result<Vec<CommandDef>, CommandDefError>,
+        no_default_on: fn() -> Vec<(&'static str, Platform)>,
+    ) -> Self {
+        SetEntry { name, defs, no_default_on }
     }
 }
 
@@ -34,8 +40,11 @@ macro_rules! __register_command_set {
         const _: () = {
             #[$crate::__private::linkme::distributed_slice($crate::runtime::commands::COMMAND_SETS)]
             #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::runtime::commands::SetEntry =
-                $crate::runtime::commands::SetEntry::new(::std::any::type_name::<$ty>, <$ty as $crate::runtime::commands::CommandSet>::defs);
+            static REGISTRATION: $crate::runtime::commands::SetEntry = $crate::runtime::commands::SetEntry::new(
+                ::std::any::type_name::<$ty>,
+                <$ty as $crate::runtime::commands::CommandSet>::defs,
+                <$ty as $crate::runtime::commands::CommandSet>::no_default_on,
+            );
         };
     };
 }
@@ -95,6 +104,8 @@ impl std::error::Error for CommandDefError {}
 pub(crate) struct Registry {
     defs: Vec<CommandDef>,
     index: HashMap<String, usize>,
+    /// Commands whose default bindings do not apply on a platform.
+    no_default: HashSet<(String, Platform)>,
 }
 
 impl Registry {
@@ -105,6 +116,7 @@ impl Registry {
             for def in (entry.defs)()? {
                 registry.add(def)?;
             }
+            registry.no_default.extend((entry.no_default_on)().into_iter().map(|(id, platform)| (id.to_owned(), platform)));
         }
         Ok(registry)
     }
@@ -124,5 +136,16 @@ impl Registry {
 
     pub(crate) fn defs(&self) -> &[CommandDef] {
         &self.defs
+    }
+
+    /// The definitions as `platform` binds them: a command with no default there has none.
+    pub(crate) fn defs_for(&self, platform: Platform) -> Vec<CommandDef> {
+        let mut defs = self.defs.clone();
+        for def in &mut defs {
+            if self.no_default.contains(&(def.command.id.clone(), platform)) {
+                def.defaults.clear();
+            }
+        }
+        defs
     }
 }

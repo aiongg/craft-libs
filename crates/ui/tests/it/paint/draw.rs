@@ -87,10 +87,11 @@ fn a_state_fill_replaces_the_surface_fill_instead_of_stacking() {
 #[trial]
 fn every_tool_names_a_catalog_icon_and_an_id_that_round_trips() {
     let mut ids = std::collections::HashSet::new();
-    for tool in ToolIcon::ALL {
+    let all = ToolIcon::ALL;
+    for tool in &all {
         assert!(has_icon(&tool.icon()), "{tool:?} names an icon the catalog lacks");
         assert!(ids.insert(tool.id()), "{tool:?} repeats the id {}", tool.id());
-        assert_eq!(ToolIcon::from_id(tool.id()), Some(tool));
+        assert_eq!(ToolIcon::from_id(tool.id()).as_ref(), Some(tool));
     }
     assert_eq!(ToolIcon::from_id("nonsense"), None);
 }

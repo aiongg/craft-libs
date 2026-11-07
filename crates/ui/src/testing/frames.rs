@@ -138,7 +138,12 @@ impl Frames {
     /// Files named `names` are dragged over the window from the OS, in this frame and every following one until they
     /// drop or leave.
     pub fn hover_files(&mut self, names: &[&str]) {
-        self.files.hovered = names.iter().map(|name| (*name).to_owned()).collect();
+        self.files.hovered = names.iter().map(|name| ((*name).to_owned(), String::new())).collect();
+    }
+
+    /// Like `hover_files`, with the media type the OS reports for each file while it hovers.
+    pub fn hover_typed_files(&mut self, files: &[(&str, &str)]) {
+        self.files.hovered = files.iter().map(|(name, mime)| ((*name).to_owned(), (*mime).to_owned())).collect();
     }
 
     /// The hovering files leave the window without a drop.

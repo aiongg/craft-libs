@@ -6,7 +6,7 @@ mod library;
 mod registry;
 
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
-pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule};
+pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule, Platform};
 pub use library::{EditCommands, WindowCommand};
 pub use registry::CommandDefError;
 #[doc(hidden)]
@@ -36,6 +36,10 @@ pub trait CommandSet: Copy + Send + Sync + 'static {
 
     #[doc(hidden)]
     fn defs() -> Result<Vec<CommandDef>, CommandDefError>;
+
+    /// The commands that have no default binding on a platform, as `(id, platform)`.
+    #[doc(hidden)]
+    fn no_default_on() -> Vec<(&'static str, Platform)>;
 }
 
 /// A command a surface or a key fired, as the instance or the app takes it.

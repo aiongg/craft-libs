@@ -195,7 +195,7 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
                     scopes = scopes.with_panel(def.scope.as_str());
                 }
             }
-            let mut keymap = Keymap::new(board.registry.defs().to_vec(), scopes, platform);
+            let mut keymap = Keymap::new(board.registry.defs_for(platform), scopes, platform);
             if let Some(overrides) = &input.overrides {
                 keymap.set_overrides((**overrides).clone());
             }
