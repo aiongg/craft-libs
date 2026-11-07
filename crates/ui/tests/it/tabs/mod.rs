@@ -2,7 +2,7 @@
 //! click on its body does not.
 
 use craft_host::target::Os;
-use craft_ui::contract::{Props as _, Show as _};
+use craft_ui::contract::Show as _;
 use craft_ui::tabs::{CloseSide, Tab, TabKind, TabPartEvent, close_side};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Event, Modifiers, PointerButton, Pos2};
