@@ -85,7 +85,7 @@ name = "Outcome"
 old = "craft_ui::dialog::Outcome"
 new = ""
 status = "removed"
-note = "Escape and the close action close the dialog and write its open state; footer buttons act in the footer closure and call `FooterCx::request_close`. Enter as OK needs a hook the contract lacks (report: contract misfit)."
+note = "`Dialog::on_close(|why| ..)` reports how the dialog closed as a `CloseReason`: `Escape` is the cancel, `Enter` the OK of `close_on_enter(true)`, and a footer button calls `FooterCx::request_close_as(why)` (`Activated` for OK, `Requested` for Cancel). The close action reports `Requested`."
 
 [[type]]
 name = "DialogResponse"
@@ -256,8 +256,8 @@ note = "The body edits the app's values by closure capture."
 [[setter]]
 type = "Dialog"
 old = "show_with_below(..)"
-new = ""
-note = "Removed: the contract has no non-scrolling region between body and footer."
+new = "footer(|ui, fx| ..)"
+note = "Moved: the footer region does not scroll, and its closure shows anything above the buttons (a preview under the parameters, a note), so the content `show_with_below` took goes at the start of the footer closure."
 
 [[setter]]
 type = "Dialog"

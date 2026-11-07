@@ -13,7 +13,6 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, pointer};
-use crate::style::Flags;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, Intent, OwnerClass};
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui};
@@ -583,28 +582,34 @@ impl PopupHandle {
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
         let core = &mut cx.core;
         let ctx = core.ctx.clone();
-        let resting = core.response.hovered() || core.state.flags.contains(Flags::FOCUS_VISIBLE);
+        // Step 12 fills the state flags, so the focus facts come from the focus service.
+        let resting = core.response.hovered() || focus::focus_visible(&ctx, core.id);
         let toggled = match trigger {
             Trigger::Click => core.activation.is_some(),
             Trigger::Press => core.press.phase.is_press(),
             Trigger::Context => core.intents.take(Intent::ContextMenu),
-            Trigger::Hover => self.dwell(&ctx, core.memory, resting, super::tooltip::DELAY),
-            Trigger::Hold => self.dwell(&ctx, core.memory, core.press.phase.is_press(), HOLD),
+            Trigger::Hover => self.dwell(&ctx, core.memory, "dwell", resting, super::tooltip::DELAY),
+            Trigger::Hold => self.dwell(&ctx, core.memory, "dwell", core.press.phase.is_press(), HOLD),
             Trigger::Manual => false,
         };
         if toggled {
             queue(&ctx, self.id, if matches!(trigger, Trigger::Click | Trigger::Press) { OpenOp::Toggle } else { OpenOp::Open });
         } else if trigger != Trigger::Manual && core.intents.take(Intent::Open) {
             queue(&ctx, self.id, OpenOp::Open);
-        } else if trigger == Trigger::Hover && !resting && open_now(core.memory, self.id) && !pointer_in_popup(&ctx, self.id) {
-            queue(&ctx, self.id, OpenOp::Close);
+        } else if trigger == Trigger::Hover && open_now(core.memory, self.id) {
+            // The pointer may cross the gap between the opener and the popup: the popup closes after a grace period
+            // with the pointer on neither.
+            let over = resting || pointer_in_popup(&ctx, self.id);
+            if self.dwell(&ctx, core.memory, "leave", !over, super::tooltip::GRACE) {
+                queue(&ctx, self.id, OpenOp::Close);
+            }
         }
     }
 
-    /// Whether `held` has lasted `delay` seconds, for a hold or hover trigger; asks for a pass at the deadline.
-    fn dwell(self, ctx: &Context, stage: &mut MemoryStage, held: bool, delay: f64) -> bool {
+    /// Whether `held` has lasted `delay` seconds, timed in the slot `name`; asks for a pass at the deadline.
+    fn dwell(self, ctx: &Context, stage: &mut MemoryStage, name: &'static str, held: bool, delay: f64) -> bool {
         let now = frame::clock(ctx);
-        let since = stage.shown::<Dwell>(sub(self.id, "dwell"));
+        let since = stage.shown::<Dwell>(sub(self.id, name));
         if !held {
             since.0 = None;
             return false;
@@ -692,7 +697,7 @@ impl<'a> OverlayUi<'a> {
             let mut shown_open = open;
             let mut bcx = BodyCx::new(popup.id, env.view(), resolved, rect, &mut stage, &mut shown_open, None);
             result = Some(body(ui, &mut bcx));
-            requested = bcx.close_requested();
+            requested = bcx.close_requested().is_some();
             stage.write_back();
         });
         if open {
@@ -895,6 +900,21 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     LayerOut { dismissed }
 }
 
+/// The layer-stack side of an OS-window mount: records the window as an entry of its viewport's stack (rank, key
+/// class, scope; no egui layer) and decides its dismissal after the body ran. `rect` is the window's inner rect.
+pub(crate) fn host_window(ctx: &Context, layer: &Layer<'_>, rect: Rect) -> LayerOut {
+    let overlay = layer.overlay;
+    let mut memory = recall(layer, ctx);
+    let scope = (overlay.focus != FocusPolicy::NONE).then_some(overlay.focus);
+    let mut entry = OpenEntry::new(layer.id, overlay.rank, overlay.keys, rect, areas::layer_of(overlay.rank.tier(), area_id(layer.id)));
+    entry.scoped = scope.is_some();
+    entry.window = true;
+    overlay::record(ctx, entry);
+    let dismissed = dismissal(ctx, layer, rect, Rect::ZERO, scope, &mut memory);
+    remember(layer, ctx, memory);
+    LayerOut { dismissed }
+}
+
 /// The dismissal rules of 15.4, decided after the body ran so a field inside still commits in the press pass.
 fn dismissal(
     ctx: &Context,
@@ -953,14 +973,22 @@ fn dismissal(
     None
 }
 
-/// Escape reaches only the top layer, and only when focus is inside its scope: a component inside that takes the
-/// Escape (a draft, a gesture) keeps it, and a captured press goes first.
+/// Whether the focused stop sits in no scope that belongs to a shown layer.
+fn focus_in_no_layer(ctx: &Context) -> bool {
+    focus::focused_rec(ctx).is_none_or(|rec| focus::scope_chain(ctx, &rec).iter().all(|scope| overlay::entry(ctx, *scope).is_none()))
+}
+
+/// Escape reaches only the top layer, and only when focus is inside its scope (a modal also when it is in no layer):
+/// a component inside that takes the Escape (a draft, a gesture) keeps it, and a captured press goes first.
 fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>) -> Option<CloseReason> {
     let policy = scope?;
     if policy.cancel == CancelRule::Ignore || overlay::top(ctx) != Some(layer.id) {
         return None;
     }
-    if focus::focus_in_scope(ctx, layer.id) != Some(true) {
+    // A modal on top also owns Escape while the focus is in no layer (nothing focused, or a stop of the window
+    // below): its card may have nothing to focus.
+    let inside = focus::focus_in_scope(ctx, layer.id) == Some(true);
+    if !inside && !(layer.overlay.rank.is_modal() && focus_in_no_layer(ctx)) {
         return None;
     }
     let step = keys::scope_escape(ctx, policy.cancel, pointer::press_captured(ctx), false)?;

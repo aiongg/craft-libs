@@ -6,6 +6,7 @@ use crate::contract::{
     ShowContainer as _, WordSetCx as _,
 };
 use crate::runtime::env::Label;
+use crate::runtime::overlay::CloseReason;
 use crate::sections::{FooterBar, HeaderAction, HeaderStrength, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
@@ -17,7 +18,7 @@ const TITLE_LEVEL: usize = 1;
 /// What a footer closure reaches: the footer bar's body context, and a request to close the dialog.
 pub struct FooterCx<'a, 'b> {
     bar: &'a mut BodyCx<'b>,
-    close: &'a mut bool,
+    close: &'a mut Option<CloseReason>,
 }
 
 impl<'b> FooterCx<'_, 'b> {
@@ -26,9 +27,15 @@ impl<'b> FooterCx<'_, 'b> {
         self.bar
     }
 
-    /// Asks the dialog to close: step 15 closes it.
+    /// Asks the dialog to close, as `CloseReason::Requested`: step 15 closes it.
     pub fn request_close(&mut self) {
-        *self.close = true;
+        self.request_close_as(CloseReason::Requested);
+    }
+
+    /// Asks the dialog to close and tells it why: `Activated` for the OK button, `Requested` for Cancel. The first
+    /// request of a pass keeps its reason.
+    pub fn request_close_as(&mut self, why: CloseReason) {
+        self.close.get_or_insert(why);
     }
 }
 
@@ -46,10 +53,10 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 /// Fills the footer region with the caller's closure inside a footer bar.
 pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<FooterFn<'_>>) {
     let Some(content) = content.as_mut() else { return };
-    let mut close = false;
+    let mut close = None;
     FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
-    if close {
-        cx.request_close();
+    if let Some(why) = close {
+        cx.request_close_as(why);
     }
 }
 

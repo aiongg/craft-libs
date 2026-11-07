@@ -6,6 +6,7 @@ use crate::contract::{
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::{EnterRule, FocusPolicy, Initial};
+use crate::runtime::overlay::CloseReason;
 use crate::sections::HeaderAction;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
@@ -35,6 +36,7 @@ pub struct FullWindowDialog<'a> {
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
     actions: Vec<HeaderAction>,
+    on_close: Option<Box<dyn FnMut(CloseReason) + 'a>>,
 }
 
 impl<'a> FullWindowDialog<'a> {
@@ -46,7 +48,7 @@ impl<'a> FullWindowDialog<'a> {
             .pad(Pad::None)
             .header(HeaderRegion::new().rule(true))
             .focus(FocusPolicy::DIALOG.initial(Initial::Keep));
-        FullWindowDialog { common: Common::new(), props, open: None, footer: None, actions: Vec::new() }.label(title)
+        FullWindowDialog { common: Common::new(), props, open: None, footer: None, actions: Vec::new(), on_close: None }.label(title)
     }
 
     /// Binds the open state to `open`.
@@ -67,6 +69,13 @@ impl<'a> FullWindowDialog<'a> {
     #[must_use]
     pub fn enter(mut self, rule: EnterRule) -> Self {
         self.props.focus = FocusPolicy { enter: rule, ..self.props.focus };
+        self
+    }
+
+    /// Reports how the dialog closed. Called once for each close.
+    #[must_use]
+    pub fn on_close(mut self, report: impl FnMut(CloseReason) + 'a) -> Self {
+        self.on_close = Some(Box::new(report));
         self
     }
 
@@ -129,5 +138,11 @@ impl Container for FullWindowDialog<'_> {
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         frame::footer(ui, cx, &mut self.footer);
+    }
+
+    fn closed(&mut self, why: CloseReason) {
+        if let Some(report) = self.on_close.as_mut() {
+            report(why);
+        }
     }
 }

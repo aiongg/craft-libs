@@ -1,9 +1,9 @@
 //! Trials of the dialog shells' layer behaviour: initial focus, Escape and a closed dialog's keys.
 
-use super::Dialog;
+use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::controls::check::Checkbox;
-use crate::runtime::overlay::{OpenFilter, any_open};
+use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
 use crate::testing::focus::is_focused;
 use crate::testing::input::key_press;
 use crate::testing::{Frames, trial};
@@ -67,4 +67,66 @@ fn a_closed_dialogs_layer_owns_no_keys() {
     frames.idle(30, &mut ui);
     assert!(!any_open(&frames.ctx, OpenFilter::Keys), "a closed dialog's layer takes no keys");
     assert!(!any_open(&frames.ctx, OpenFilter::Modal), "a closed dialog blocks nothing");
+}
+
+#[trial]
+fn a_dialog_reports_how_it_closed() {
+    let run = |keys: Vec<egui::Event>, enter: bool| {
+        let (open, reason) = (Cell::new(true), Cell::new(None));
+        let mut frames = Frames::new();
+        let mut ui = |ui: &mut Ui| {
+            let mut now = open.get();
+            let mut snap = false;
+            Dialog::new("Options")
+                .opened(Bind::bound(&mut now))
+                .close_on_enter(enter)
+                .on_close(|why| reason.set(Some(why)))
+                .show(ui, |ui, _| {
+                    Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
+                });
+            open.set(now);
+        };
+        frames.idle(30, &mut ui);
+        frames.frame(keys, &mut ui);
+        frames.idle(2, &mut ui);
+        (open.get(), reason.get())
+    };
+    assert_eq!(run(vec![key_press(Key::Escape, Modifiers::NONE)], false), (false, Some(CloseReason::Escape)), "Escape cancels");
+    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], true), (false, Some(CloseReason::Enter)), "Enter is the OK");
+    assert_eq!(run(vec![key_press(Key::Enter, Modifiers::NONE)], false), (true, None), "Enter closes only when asked to");
+}
+
+#[trial]
+fn escape_closes_a_cancellable_overlay_with_nothing_to_focus() {
+    let open = Cell::new(true);
+    let mut frames = Frames::new();
+    let mut ui = |ui: &mut Ui| {
+        let mut now = open.get();
+        BlockingOverlay::new("Working").opened(Bind::bound(&mut now)).cancellable(true).show(ui, |_, _| {});
+        open.set(now);
+    };
+    frames.idle(30, &mut ui);
+    assert!(open.get(), "the overlay is open");
+    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
+    frames.idle(2, &mut ui);
+    assert!(!open.get(), "Escape closed the overlay though nothing inside takes the focus");
+}
+
+#[trial]
+fn a_full_window_dialog_is_modal_and_closes_on_escape() {
+    let open = Cell::new(true);
+    let mut frames = Frames::new();
+    let mut ui = |ui: &mut Ui| {
+        let mut now = open.get();
+        let mut snap = false;
+        FullWindowDialog::new("Preferences").opened(Bind::bound(&mut now)).show(ui, |ui, _| {
+            Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
+        });
+        open.set(now);
+    };
+    frames.idle(30, &mut ui);
+    assert!(any_open(&frames.ctx, OpenFilter::Modal), "the full-window dialog blocks the window below");
+    frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
+    frames.idle(2, &mut ui);
+    assert!(!open.get(), "Escape closed the full-window dialog");
 }

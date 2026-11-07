@@ -8,7 +8,7 @@ use crate::contract::{
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
-use crate::runtime::overlay::{Backdrop, Rank};
+use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::{Pos2, Response, Ui};
@@ -39,6 +39,7 @@ pub struct Dialog<'a> {
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
     closable: bool,
+    on_close: Option<Box<dyn FnMut(CloseReason) + 'a>>,
 }
 
 impl<'a> Dialog<'a> {
@@ -46,7 +47,7 @@ impl<'a> Dialog<'a> {
     pub fn new(title: impl Into<Label>) -> Self {
         let overlay = Overlay::dialog().resizable(false);
         let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(HeaderRegion::new().band(DragBand::Move).rule(true));
-        Dialog { common: Common::new(), props, open: None, footer: None, closable: true }.label(title)
+        Dialog { common: Common::new(), props, open: None, footer: None, closable: true, on_close: None }.label(title)
     }
 
     fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
@@ -111,6 +112,24 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// Whether Enter, pressed with the focus inside and left untaken by the focused part, closes the dialog with
+    /// `CloseReason::Enter` (the OK of the dialog).
+    #[must_use]
+    pub fn close_on_enter(self, on: bool) -> Self {
+        self.with_overlay(|mut overlay| {
+            overlay.dismiss = overlay.dismiss.enter(on);
+            overlay
+        })
+    }
+
+    /// Reports how the dialog closed: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
+    /// `Requested` what a footer button asked for with `FooterCx::request_close_as`. Called once for each close.
+    #[must_use]
+    pub fn on_close(mut self, report: impl FnMut(CloseReason) + 'a) -> Self {
+        self.on_close = Some(Box::new(report));
+        self
+    }
+
     /// Whether the title row has a close action.
     #[must_use]
     pub fn closable(mut self, on: bool) -> Self {
@@ -170,5 +189,11 @@ impl Container for Dialog<'_> {
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         frame::footer(ui, cx, &mut self.footer);
+    }
+
+    fn closed(&mut self, why: CloseReason) {
+        if let Some(report) = self.on_close.as_mut() {
+            report(why);
+        }
     }
 }

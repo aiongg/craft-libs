@@ -145,6 +145,9 @@ pub(crate) struct OpenEntry {
     pub(crate) scoped: bool,
     /// A press outside its family closes it and goes no further.
     pub(crate) absorbs: bool,
+    /// The entry is an OS window of the integration: it takes its place in the stack's order and facts, and no egui
+    /// layer is shown for it.
+    pub(crate) window: bool,
 }
 
 impl OpenEntry {
@@ -163,6 +166,7 @@ impl OpenEntry {
             cover: None,
             scoped: false,
             absorbs: false,
+            window: false,
         }
     }
 
@@ -239,7 +243,7 @@ pub fn is_open(ctx: &Context, id: Id) -> bool {
 pub fn request_close(ctx: &Context, id: Id, why: CloseReason) {
     let frame = pass::root_frame_nr(ctx);
     Service::<Closes>::of(ctx).with(|closes| closes.0.push((id, why, frame)));
-    ctx.request_repaint();
+    crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
 /// The queued close of `id`, once.
@@ -424,8 +428,10 @@ pub(crate) fn end_pass(ctx: &Context) {
         persist.stack.clear();
         for members in &families {
             for member in members {
-                order.extend(member.cover);
-                order.push(member.layer);
+                if !member.window {
+                    order.extend(member.cover);
+                    order.push(member.layer);
+                }
                 persist.stack.push(member.id);
             }
         }
@@ -444,7 +450,7 @@ pub(crate) fn end_pass(ctx: &Context) {
     let now = pass::root_frame_nr(ctx);
     Service::<Closes>::of(ctx).with(|closes| closes.0.retain(|(.., queued)| queued + 1 >= now));
     let top_modal = current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting);
-    if let Some(entry) = top_modal {
+    if let Some(entry) = top_modal.filter(|entry| !entry.window) {
         areas::set_modal_layer(ctx, entry.layer);
     }
     let any = {

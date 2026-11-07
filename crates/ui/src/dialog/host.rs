@@ -278,7 +278,7 @@ impl DialogHost {
             self.cancel_orphans(Some(ctx));
         }
         if self.open_next_queued() {
-            ctx.request_repaint();
+            crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
         }
     }
 

@@ -588,6 +588,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     host.run(id, ui, env, &mut |host_ui, host_at| pass(&mut run, host_ui, host_at));
     let (real_pass, activated) = (run.real, run.activated);
     drop(run);
+    // A layer's dismissal is decided after its body so a field inside commits in the press pass; its open state is
+    // written here, after the report (the one write point outside step 15, besides `request_close`).
     if real_pass && let Some(why) = host.dismissed() {
         hooks.dismissed(&mut comp, &mut cx, why);
     }
