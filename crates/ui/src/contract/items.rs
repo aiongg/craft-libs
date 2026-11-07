@@ -819,7 +819,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         eprintln!("DIAG hover resp={} outcome={} pos={:?} delta={:?} rect={:?}", cx.core.response.hovered(), hovered, frame.pos, frame.delta, rect);
         let Some(pos) = frame.pos.filter(|_| hovered && frame.delta != Vec2::ZERO) else { return };
         let pos = self.xf.map_or(pos, |map| map.to_layer(pos));
-        eprintln!("DIAG enabled {:?} shown3 {}", (0..4).map(|r| self.source.enabled(r)).collect::<Vec<_>>(), layout.shown(3));
         eprintln!("DIAG hover pos {:?} in {} hit {:?}", pos, rect.contains(pos), layout.hit(pos - rect.min.to_vec2(), offset));
         if !rect.contains(pos) {
             return;
