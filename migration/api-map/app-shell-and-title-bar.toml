@@ -43,3 +43,32 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+# Window edge zones, the drag strip and the caption record (contract-window-parts).
+
+[[type]]
+name = "CaptionRegions"
+old = "craft_ui::title_bar::CaptionRegions"
+new = ""
+status = "replaced"
+note = "A trait with `button`, `drag` and `native_hit_test` methods becomes the record `craft_ui::shell::CaptionRegions`: a bar builds it with `CaptionRegions::new(drag).button(caption, rect)` and calls `publish(ui, viewport)` every pass; `WindowHost::caption_regions(viewport)` reads it."
+
+[[type]]
+name = "Caption"
+old = "craft_ui::title_bar::Caption"
+new = "craft_ui::shell::Caption"
+status = "moved"
+
+[[type]]
+name = "resize_zones_only"
+old = "craft_ui::title_bar::resize_zones_only"
+new = ""
+status = "replaced"
+note = "`WindowEdges::new(viewport).holes(&holes).show(ui)`; `native_hit_test` is the field of the published `CaptionRegions`, and the zones leave out a maximized or full-screen window themselves."
+
+[[type]]
+name = "release_after_os_resize"
+old = "craft_ui::title_bar::release_after_os_resize"
+new = ""
+status = "replaced"
+note = "The runtime ends a press the operating system took over; an app installs no raw-input hook for it."

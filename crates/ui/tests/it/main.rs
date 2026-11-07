@@ -47,6 +47,9 @@ mod prompts;
 mod rails;
 mod runtime;
 mod sections;
+
+// Window parts (contract-window-parts).
+mod shell;
 mod style;
 mod table;
 mod tabs;

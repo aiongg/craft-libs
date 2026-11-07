@@ -2174,6 +2174,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn desktop_pointer(&self) -> Option<Pos2>`. The system pointer in desktop points, as the platform tells it or, failing that, as the window a drag
   - `pub fn warp_pointer(&self, to: Pos2) -> bool`. Moves the system pointer to `to` in desktop points; false where the platform cannot.
   - `pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2>`. The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
+  - `pub fn caption_regions(&self, viewport: ViewportId) -> Option<CaptionRegions>`. The caption regions the title bar of `viewport` published in the running pass or the one before; `None`
 - `craft_ui::runtime::windows::act`: `pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
 
 ## `craft_ui::runtime::words`

@@ -340,7 +340,7 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
 /// The multi-window driver of one context.
 #[derive(Clone)]
 pub struct WindowHost {
-    ctx: Context,
+    pub(crate) ctx: Context,
 }
 
 impl WindowHost {

@@ -38,6 +38,20 @@ old = "craft_ui::layout::resize::ResizeHandle"
 new = "craft_ui::docking::ResizeHandle"
 status = "pending"
 
+[[type]]
+name = "resize_edges"
+old = "craft_ui::docking::render::native::resize_edges"
+new = ""
+status = "replaced"
+note = "Internal band of a native dock window; the window's root `Ui` shows `WindowEdges::new(viewport).holes(&buttons).show(ui)` instead."
+
+[[type]]
+name = "resize_bands"
+old = "craft_ui::docking::render::native::resize_bands"
+new = ""
+status = "replaced"
+note = "Internal; the eight zones are `WindowEdges`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
