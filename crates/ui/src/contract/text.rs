@@ -171,7 +171,7 @@ fn facts<C: Component>(
     masked: bool,
     read_only: bool,
 ) {
-    if !crate::runtime::egui::access::enabled(&cx.core.ctx) {
+    if !crate::runtime::egui::access::enabled(&cx.core.ctx, widget) {
         state.rows = None;
         return;
     }
@@ -191,6 +191,7 @@ pub(crate) fn run<C: Component>(
     keys: crate::runtime::focus::KeyUse,
     rtl: bool,
     ink: egui::Color32,
+    underline: f32,
 ) {
     let Some(decl) = step.decl.take() else { return };
     let Ok(resolve) = decl.resolve.downcast::<Resolve<ValueOf<C>>>() else {
@@ -202,7 +203,7 @@ pub(crate) fn run<C: Component>(
     let state_id = sub(id, "text_state");
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
     let widget = adapter::text_id(id, decl.key);
-    let focused = ctx.memory(|memory| memory.has_focus(widget));
+    let focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
     let was_focused = state.focused;
     let now = cx.now();
     let caret_visible = !focused || cx.blink(state.caret_moved);
@@ -228,6 +229,7 @@ pub(crate) fn run<C: Component>(
             intents: &mut cx.core.intents,
             placeholder: decl.options.placeholder.as_ref().map(|label| label.as_str()),
             caret_visible,
+            underline,
             now,
         },
     );

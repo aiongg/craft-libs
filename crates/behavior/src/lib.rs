@@ -32,8 +32,8 @@ pub mod one_press;
 pub mod overlay;
 pub mod part;
 pub mod press;
-pub mod role_rule;
 pub mod quantity;
+pub mod role_rule;
 pub mod scroll;
 pub mod selection;
 pub mod sense;
@@ -43,6 +43,7 @@ pub mod value;
 pub mod value_drag;
 pub mod wheel;
 
+pub use accesskit::{Action as AccessAction, ActionData as AccessData};
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
 pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText};
@@ -72,10 +73,10 @@ pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
     PressState, PressStep, count_clicks,
 };
-pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
 pub use quantity::Reader;
+pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
+pub use selection::{CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};

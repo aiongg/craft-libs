@@ -1,12 +1,13 @@
 //! Raw egui scenarios the `egui_surface` trials read: each runs a few frames on a bare context and returns what
 //! egui did, so the trials pin the egui behaviours the runtime relies on without calling egui themselves.
 
+pub use super::areas::{LayerOrder, layer_order};
 use super::fixture;
-use egui::{Area, Context, Event, Id, LayerId, Order, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
+use egui::{Context, Event, Id, Plugin, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
-fn raw(time: f64, events: Vec<Event>) -> RawInput {
-    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))), time: Some(time), events, ..RawInput::default() }
+pub(super) fn raw(time: f64, events: Vec<Event>) -> RawInput {
+    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::from([800.0, 600.0]))), time: Some(time), events, ..RawInput::default() }
 }
 
 /// What the plugin hooks of one context saw around a nested immediate viewport.
@@ -28,7 +29,7 @@ enum Entry {
 
 struct Recorder(Arc<Mutex<Vec<Entry>>>);
 
-impl egui::Plugin for Recorder {
+impl Plugin for Recorder {
     fn debug_name(&self) -> &'static str {
         "craft_ui.surface.recorder"
     }
@@ -103,8 +104,8 @@ pub struct PressHits {
 pub fn press_hits() -> PressHits {
     let ctx = fixture::bare_context();
     let (a, b) = (Id::new("craft_ui.surface.a"), Id::new("craft_ui.surface.b"));
-    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0));
-    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), Vec2::splat(40.0));
+    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
+    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), Vec2::from([40.0; 2]));
     let mut show = |ui: &mut Ui| {
         ui.interact(rect_a, a, Sense::click());
         ui.interact(rect_b, b, Sense::click());
@@ -120,55 +121,12 @@ pub fn press_hits() -> PressHits {
     PressHits { press_last_is_press_target: first == Some(b), move_last_is_move_target: second == Some(a) }
 }
 
-/// The layer order after `Context::set_layer_order`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct LayerOrder {
-    /// The listed layer is the topmost of the layers shown.
-    pub listed_on_top: bool,
-    /// The unlisted layers keep their relative order.
-    pub unlisted_keep_order: bool,
-    /// A listed id that is no layer does not become one.
-    pub unknown_ignored: bool,
-}
-
-/// Two frames over three areas; the second lists the first area and an unknown layer.
-pub fn layer_order() -> LayerOrder {
-    let ctx = fixture::bare_context();
-    let ids = [Id::new("craft_ui.surface.la"), Id::new("craft_ui.surface.lb"), Id::new("craft_ui.surface.lc")];
-    let layers = ids.map(|id| LayerId::new(Order::Middle, id));
-    let ghost = LayerId::new(Order::Middle, Id::new("craft_ui.surface.ghost"));
-    let mut frame = |time: f64, list: &[LayerId]| {
-        let mut output = ctx.run_ui(raw(time, Vec::new()), |ui| {
-            let ctx = ui.ctx().clone();
-            for id in ids {
-                Area::new(id).show(&ctx, |ui| {
-                    ui.label("layer");
-                });
-            }
-            if !list.is_empty() {
-                ctx.set_layer_order(list);
-            }
-        });
-        output.textures_delta.clear();
-        ctx.memory(|memory| memory.layer_ids().filter(|layer| layers.contains(layer) || *layer == ghost).collect::<Vec<_>>())
-    };
-    let before = frame(1.0, &[]);
-    let after = frame(2.0, &[layers[0], ghost]);
-    let rest = |order: &[LayerId]| order.iter().copied().filter(|layer| *layer != layers[0]).collect::<Vec<_>>();
-    LayerOrder {
-        listed_on_top: after.last() == Some(&layers[0]),
-        unlisted_keep_order: rest(&before) == rest(&after),
-        unknown_ignored: !after.contains(&ghost),
-    }
-}
-
 /// Whether a member that registered no egui widget, given `register_accesskit_parent`, has its node among the
 /// children of its parent's node.
 pub fn registered_parent_owns_member_node() -> bool {
     let ctx = fixture::bare_context();
     let (parent, member) = (Id::new("craft_ui.surface.parent"), Id::new("craft_ui.surface.member"));
-    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0));
+    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
     let mut output = ctx.run_ui(raw(1.0, Vec::new()), |ui| {
         let ctx = ui.ctx().clone();
         ui.interact(rect, parent, Sense::click());

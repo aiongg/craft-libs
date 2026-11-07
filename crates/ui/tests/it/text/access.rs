@@ -5,11 +5,27 @@ use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::testing::access::{Declared, NodeKey};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
-use craft_ui::testing::text::{caret, run_node, set_value_request, text_selection_request};
+use craft_ui::testing::text::{caret, run_end, run_node, set_value_request, text_selection_request};
 use craft_ui::testing::{Frames, trial};
 use craft_ui::text::{NumberField, SelectableText};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
+
+/// The value a refused commit leaves.
+const KEPT: f64 = 1.0;
+
+/// A position maps to the run that holds its byte and the character index in it.
+#[trial]
+fn a_position_maps_to_the_run_that_holds_its_byte_and_the_character_index_in_it() {
+    let owner = egui::Id::new("owner");
+    let runs = [(0, 0..3, "abc"), (0, 3..7, "d\u{e9}f"), (1, 0..2, "xy")];
+    let at = |line, byte| run_end(owner, &runs, craft_behavior::TextPos::new(line, byte));
+    assert_eq!(at(0, 1), Some((run_node(owner, 0, 0), 1)));
+    assert_eq!(at(0, 6), Some((run_node(owner, 0, 1), 2)), "a byte after a two-byte character");
+    assert_eq!(at(0, 7), Some((run_node(owner, 0, 1), 3)), "the end of the line is the end of its last run");
+    assert_eq!(at(1, 2), Some((run_node(owner, 1, 0), 2)));
+    assert_eq!(at(2, 0), None);
+}
 
 /// The node carries the text as its value with a run node under it, declares `SetValue` and `SetTextSelection`,
 /// serves a selection by run node and character, and a `SetValue` becomes the field's value.
@@ -55,7 +71,7 @@ fn a_rejected_draft_shows_invalid_until_it_is_restored() {
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
     frames.frame(vec![], &mut show);
     assert!(frames.tree().invalid(seen.get()), "a refused commit keeps the run open and the field invalid");
-    assert_eq!(*value.borrow(), Some(1.0), "and leaves the value");
+    assert_eq!(*value.borrow(), Some(KEPT), "and leaves the value");
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut show);
     frames.frame(vec![], &mut show);
     assert!(!frames.tree().invalid(seen.get()), "Escape restores the value and clears the mark");

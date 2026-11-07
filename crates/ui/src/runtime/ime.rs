@@ -177,9 +177,3 @@ pub(crate) fn end_pass(ctx: &Context) {
         _ => {}
     }
 }
-
-/// The pass's IME output, for tests.
-#[cfg(feature = "testing")]
-pub(crate) fn output(ctx: &Context) -> Option<egui::output::IMEOutput> {
-    os::current(ctx)
-}

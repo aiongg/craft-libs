@@ -24,6 +24,11 @@ pub(crate) fn widget(ui: &Ui, id: Id, rect: Rect, sense: Sense) -> Response {
     ui.interact(rect, id, to_egui(sense))
 }
 
+/// Whether a pointer button went down on `response`'s widget and is still down.
+pub(crate) fn is_pressed(response: &Response) -> bool {
+    response.is_pointer_button_down_on()
+}
+
 /// What a member's `Response` reports, from the arena's resolution.
 #[derive(Clone, Copy, Debug, Default)]
 pub(crate) struct MemberView {

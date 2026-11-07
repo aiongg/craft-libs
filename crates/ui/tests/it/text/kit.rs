@@ -13,6 +13,7 @@ pub const TEXT: PartKey = PartKey::new("text");
 
 /// What the last frame's field reported.
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct Seen {
     pub rect: Rect,
     pub id: Id,
@@ -27,6 +28,7 @@ impl Default for Seen {
     }
 }
 
+#[non_exhaustive]
 pub struct Rig {
     pub frames: Frames,
     pub text: String,

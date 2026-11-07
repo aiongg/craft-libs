@@ -86,6 +86,8 @@ pub(crate) struct AdapterIn<'a> {
     pub placeholder: Option<&'a str>,
     /// Whether the caret stroke shows, from the blink.
     pub caret_visible: bool,
+    /// The width of the preedit underline.
+    pub underline: f32,
     pub now: f64,
 }
 
@@ -147,7 +149,7 @@ fn replace(text: &mut String, selection: (usize, usize), insert: &str) -> usize 
 fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, widget: Id) -> bool {
     let ctx = input.ctx;
     let mut changed = false;
-    let selection = |text: &str| text_edit::selection(ctx, widget).map_or((text.chars().count(), text.chars().count()), |s| s);
+    let selection = |text: &str| text_edit::selection(ctx, widget).unwrap_or((text.chars().count(), text.chars().count()));
     if let Some(preedit) = ime::take_leaving(ctx, widget).filter(|preedit| !preedit.is_empty()) {
         let at = state.preedit.take().map_or_else(|| text.chars().count(), |p| p.at);
         let caret = replace(text, (at, at), &preedit);
@@ -250,6 +252,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
             preedit: preedit.clone(),
             rtl: input.rtl,
             caret_visible: input.caret_visible,
+            underline: input.underline,
         },
     );
     // egui's own IME output is dropped: the engine writes the pass's.

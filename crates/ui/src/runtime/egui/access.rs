@@ -3,6 +3,8 @@
 //! reads a finished tree update. What a node says is decided in `runtime::access`.
 
 mod node;
+#[cfg(feature = "testing")]
+pub(crate) mod parity;
 mod patch;
 mod roles;
 mod text;
@@ -22,6 +24,9 @@ pub use tree::{AccessTree, Declared, NodeKey};
 /// The AccessKit role of a node.
 pub(crate) type NodeRole = accesskit::Role;
 
+/// The AccessKit vocabulary the parity trials read a tree in.
+pub(crate) use accesskit::{Action, Role, Toggled};
+
 /// The AccessKit node number of `id`, the key an action request's target is matched by.
 pub(crate) fn node_key(id: Id) -> u64 {
     id.accesskit_id().0
@@ -38,9 +43,9 @@ pub(crate) fn create_node(ctx: &Context, id: Id) -> bool {
     ctx.accesskit_node_builder(id, |_| ()).is_some()
 }
 
-/// Whether AccessKit is running: nodes are built only then.
-pub(crate) fn enabled(ctx: &Context) -> bool {
-    ctx.is_accesskit_enabled()
+/// Whether AccessKit is running and the widget `id` is visible: nodes are built only then. Creates the node of `id`.
+pub(crate) fn enabled(ctx: &Context, id: Id) -> bool {
+    create_node(ctx, id)
 }
 
 /// Reports `id` as the focused node of this pass.

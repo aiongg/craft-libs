@@ -1,6 +1,5 @@
 //! A fixed-rate frame driver over a context.
 
-use crate::runtime::InstallSpec;
 use crate::runtime::commands::CommandInput;
 use crate::runtime::egui::access::AccessTree;
 use crate::runtime::egui::{areas, fixture};

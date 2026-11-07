@@ -2,6 +2,14 @@
 
 use egui::{Context, Ui};
 
+/// Turns off egui's own caret blink in `ui`, and hides the caret stroke unless `visible`: the runtime blinks it.
+pub(crate) fn set_text_cursor(ui: &mut Ui, visible: bool) {
+    ui.visuals_mut().text_cursor.blink = false;
+    if !visible {
+        ui.visuals_mut().text_cursor.stroke.color = egui::Color32::TRANSPARENT;
+    }
+}
+
 /// Whether egui considers `ui` enabled.
 pub(crate) fn is_enabled(ui: &Ui) -> bool {
     ui.is_enabled()

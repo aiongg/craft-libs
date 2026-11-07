@@ -136,7 +136,8 @@ pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Syn
                 .into_iter()
                 .find(|button| buttons.contains(Buttons::of(*button)))
                 .unwrap_or(PointerButton::Primary);
-            board.session = Some(Session { source, viewport: pass::current_viewport(ctx), button, payload, preview, mark: None, released: None, taken: false });
+            board.session =
+                Some(Session { source, viewport: pass::current_viewport(ctx), button, payload, preview, mark: None, released: None, taken: false });
             board.ended = None;
             board.started += 1;
         }
@@ -162,7 +163,7 @@ pub fn started(ctx: &Context) -> u64 {
 /// The mark of the target that would take a drop now.
 #[doc(hidden)]
 pub fn mark(ctx: &Context) -> Option<DropMark> {
-    board(ctx, |board| board.session.as_ref().and_then(|session| session.mark))
+    board(ctx, |board| board.session.as_ref().and_then(|session| session.mark.map(|(_, mark)| mark)))
 }
 
 /// Whether a session runs.
@@ -294,9 +295,8 @@ pub(crate) fn end_pass(ctx: &Context) {
     let over_this_window = pointer::frame(ctx).pos.is_some();
     let primary_down = pointer::pass_pointer(ctx).primary_down;
     let buttons = pointer::frame(ctx).buttons;
-    let held = board(ctx, |board| board.session.as_ref().map(|session| session.button)).is_none_or(|button| {
-        if button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(button)) }
-    });
+    let held = board(ctx, |board| board.session.as_ref().map(|session| session.button))
+        .is_none_or(|button| if button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(button)) });
     let frame = pass::root_frame_nr(ctx);
     let source = source_viewport(ctx);
     let is_source = source == Some(viewport);

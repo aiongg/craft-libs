@@ -104,7 +104,7 @@ impl<C: Component> Cx<'_, C> {
             ime::note_caret(ctx, info.widget, info.rect, state.caret, masked);
         }
         ime::note_editor(ctx, info.widget, state.revision, info.edited, (state.can_undo, state.can_redo));
-        if !egui_access::enabled(ctx) {
+        if !egui_access::enabled(ctx, info.widget) {
             return;
         }
         let lines = state

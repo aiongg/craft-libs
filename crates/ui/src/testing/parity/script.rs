@@ -8,8 +8,8 @@
 
 use std::fmt::Write as _;
 
+use crate::runtime::egui::access::{Action, Role};
 use egui::Key;
-use egui::accesskit::{Action, Role};
 use egui_kittest::Harness;
 
 use super::ParityState;

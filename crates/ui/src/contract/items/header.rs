@@ -271,7 +271,7 @@ impl Header {
             }
             if resizable {
                 match cx.part(GRIP.at(hash)).press.phase {
-                    PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } => {
+                    PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } => {
                         let from = match &self.memory.grab {
                             Some(Grab::Resize { key: held, from }) if *held == key => *from,
                             _ => {

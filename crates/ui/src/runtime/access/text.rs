@@ -92,7 +92,7 @@ pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
                 );
                 let index = u64::try_from(entries.len()).ok();
                 keys::register_node(ctx, id, owner, Some(PartRef { key: RUN, index }), false);
-                entries.push(Entry { node: id.accesskit_id().0, line: line_at, bytes: run.bytes.clone(), text: text.to_owned() });
+                entries.push(Entry { node: adapter::node_key(id), line: line_at, bytes: run.bytes.clone(), text: text.to_owned() });
             }
         }
     }
@@ -130,22 +130,13 @@ pub(crate) fn requested_selection(ctx: &Context, owner: Id, request: &AccessRequ
     })
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn entry(node: u64, line: usize, bytes: Range<usize>, text: &str) -> Entry {
-        Entry { node, line, bytes, text: text.to_owned() }
-    }
-
-    #[test]
-    fn a_position_maps_to_the_run_that_holds_its_byte_and_the_character_index_in_it() {
-        let owner = Id::new("owner");
-        let entries = [entry(1, 0, 0..3, "abc"), entry(2, 0, 3..7, "d\u{e9}f"), entry(3, 1, 0..2, "xy")];
-        assert_eq!(end_of(&entries, owner, TextPos::new(0, 1)), Some((run_id(owner, 0, 0), 1)));
-        assert_eq!(end_of(&entries, owner, TextPos::new(0, 6)), Some((run_id(owner, 0, 1), 2)), "a byte after a two-byte character");
-        assert_eq!(end_of(&entries, owner, TextPos::new(0, 7)), Some((run_id(owner, 0, 1), 3)), "the end of the line is the end of its last run");
-        assert_eq!(end_of(&entries, owner, TextPos::new(1, 2)), Some((run_id(owner, 1, 0), 2)));
-        assert_eq!(end_of(&entries, owner, TextPos::new(2, 0)), None);
-    }
+/// The run and character index a position maps to among runs given as `(line, bytes, text)`, for trials.
+#[cfg(feature = "testing")]
+pub(crate) fn end_of_runs(owner: Id, runs: &[(usize, Range<usize>, &str)], pos: TextPos) -> Option<(Id, usize)> {
+    let entries: Vec<Entry> = runs
+        .iter()
+        .enumerate()
+        .map(|(at, (line, bytes, text))| Entry { node: at as u64, line: *line, bytes: bytes.clone(), text: (*text).to_owned() })
+        .collect();
+    end_of(&entries, owner, pos)
 }

@@ -70,7 +70,7 @@ struct Driver<A> {
 }
 
 impl<A: ShellApp> eframe::App for Driver<A> {
-    fn raw_input_hook(&mut self, ctx: &Context, _: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &Context, _: &mut crate::runtime::egui::input::RawInput) {
         let output = take_output(ctx);
         self.app.output(output);
         set_input(ctx, self.app.frame_input());

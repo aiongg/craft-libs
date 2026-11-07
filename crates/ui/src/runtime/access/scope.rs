@@ -106,7 +106,17 @@ struct Stack(Vec<Scope>);
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
     Service::<Stack>::of(ctx).with(|stack| {
-        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, control_min: None, scrub: false })
+        stack.0.push(Scope {
+            container,
+            owner,
+            kind,
+            nodes: Vec::new(),
+            open: Vec::new(),
+            baseline: None,
+            reset: None,
+            control_min: None,
+            scrub: false,
+        })
     });
 }
 
@@ -249,7 +259,7 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
                 store::put(ctx, scrub_slot, true);
                 memory::adopt::<bool>(ctx, scope.owner, scrub_slot);
             } else {
-                drop(store::take::<bool>(ctx, scrub_slot));
+                let _ = store::take::<bool>(ctx, scrub_slot);
             }
         }
         Kind::Merge => {

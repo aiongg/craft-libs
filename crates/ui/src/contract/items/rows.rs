@@ -7,7 +7,7 @@ use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
 use crate::runtime::{focus, layout_memory};
 use crate::style::Flags;
-use craft_behavior::{ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
+use craft_behavior::{CellRange, ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
 use egui::{Context, Id, Vec2};
 use std::sync::Arc;
 
@@ -87,7 +87,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         match layout.column_key(self.lead.column) {
             Some(lead_column) => {
                 let rows = self.range(from, to);
-                self.change(SelectionChange::Cells { rows, columns: first as u32..last as u32 + 1, lead_column });
+                self.change(SelectionChange::Cells(CellRange::new(rows, first as u32..last as u32 + 1, lead_column)));
             }
             None => self.change(SelectionChange::Set(self.range(from, to))),
         }

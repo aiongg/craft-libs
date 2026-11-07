@@ -44,10 +44,7 @@ pub enum Drive {
     /// Typed text.
     Type(&'static str),
     /// Open, then Down and Enter on the row.
-    Pick {
-        /// The row picked.
-        row: usize,
-    },
+    Pick(usize),
     /// The story's own drive.
     Custom(fn(&mut Fixture)),
     /// The story shows a state and changes nothing.

@@ -330,7 +330,7 @@ pub(crate) fn activated_inside(ctx: &Context, id: Id) -> bool {
 /// The input hook: removes the primary presses that land outside the top menu family, its anchors and its parents,
 /// so nothing below the menu sees them (`Outside::Absorb`), and keeps the first one for the layers' dismissal.
 /// Returns whether it removed one.
-pub(crate) fn absorb_presses(ctx: &Context, input: &mut egui::RawInput) -> bool {
+pub(crate) fn absorb_presses(ctx: &Context, input: &mut crate::runtime::egui::input::RawInput) -> bool {
     let zone = with_persist(ctx, input.viewport_id, |persist| persist.absorb_zone.clone());
     let Some(zone) = zone else { return false };
     let before = input.events.len();

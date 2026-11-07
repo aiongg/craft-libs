@@ -51,7 +51,7 @@ impl Fixture {
             frames: Frames::new(),
             show: Box::new(show),
             root: RootEnv::default(),
-            room: Vec2::new(400.0, 300.0),
+            room: Vec2::from([400.0, 300.0]),
             tree: AccessTree::none(),
             shown: Rect::NOTHING,
             data: Rc::default(),
@@ -211,7 +211,7 @@ impl Fixture {
 
     /// The sub-node of `part` below the component `component`.
     pub fn part(&self, component: Id, part: impl Into<PartRef>) -> Option<Target> {
-        let id = crate::runtime::egui::access::sub_node_id(component, part.into());
+        let id = crate::runtime::access::sub_node_id(component, part.into());
         self.target(NodeKey::of(id))
     }
 

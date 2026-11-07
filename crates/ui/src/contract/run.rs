@@ -4,8 +4,7 @@
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{
-    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show,
-    TipFn, Validity,
+    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show, TipFn, Validity,
 };
 use super::{Inner, ItemFn};
 use super::{overlay, tooltip};
@@ -403,7 +402,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     // 8b text part
     if text_widget.is_some() {
         let ink = crate::style::ink_color(&env.tokens, env.ink);
-        super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink);
+        super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink, env.tokens.stroke.thin);
     } else if holder_widget.is_some() {
         super::editor::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS));
     }

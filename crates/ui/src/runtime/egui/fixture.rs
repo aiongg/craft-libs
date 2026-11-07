@@ -1,6 +1,6 @@
 //! The egui calls `craft_ui::testing` needs: frames, raw input and options that apps reach only through the runtime.
 
-use egui::{Context, Event, Key, Modifiers, Pos2, RawInput, Rect, Shape, Ui, ViewportCommand};
+use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
 
 /// What a frame sent out that trials read.
 pub(crate) struct FrameResult {
@@ -246,8 +246,38 @@ pub(crate) fn set_os(ctx: &Context, os: craft_host::target::Os) {
     ctx.set_os(match os {
         craft_host::target::Os::Mac => egui::os::OperatingSystem::Mac,
         craft_host::target::Os::Windows => egui::os::OperatingSystem::Windows,
-        craft_host::target::Os::Linux => egui::os::OperatingSystem::Nix,
+        _ => egui::os::OperatingSystem::Nix,
     });
+}
+
+/// An IME preedit event of `text` with no cursor range.
+pub fn ime_preedit(text: &str) -> Event {
+    Event::Ime(egui::ImeEvent::Preedit { text: text.into(), active_range_chars: None })
+}
+
+pub use egui::{FullOutput, RawInput};
+
+/// The id of the widget egui is dragging.
+pub fn dragged_id(ctx: &Context) -> Option<egui::Id> {
+    ctx.dragged_id()
+}
+
+/// Adds a plugin to `ctx` that records, for each input hook call, the viewport of the raw input and the
+/// viewport that is current on the context.
+pub fn record_input_hooks(ctx: &Context, log: std::sync::Arc<std::sync::Mutex<Vec<(egui::ViewportId, egui::ViewportId)>>>) {
+    struct Recorder(std::sync::Arc<std::sync::Mutex<Vec<(egui::ViewportId, egui::ViewportId)>>>);
+    impl egui::Plugin for Recorder {
+        fn debug_name(&self) -> &'static str {
+            "craft_ui.fixture.input_hooks"
+        }
+
+        fn input_hook(&mut self, ctx: &Context, input: &mut RawInput) {
+            if let Ok(mut log) = self.0.lock() {
+                log.push((input.viewport_id, ctx.viewport_id()));
+            }
+        }
+    }
+    ctx.add_plugin(Recorder(log));
 }
 
 /// The id of the widget egui has focused.
@@ -266,7 +296,7 @@ pub(crate) fn text_event(text: &str) -> Event {
 }
 
 /// An AccessKit `SetValue` request carrying `text` for the node of `target`.
-pub(crate) fn set_value_request(target: egui::Id, text: &str) -> Event {
+pub fn set_value_request(target: egui::Id, text: &str) -> Event {
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
     Event::AccessKitActionRequest(accesskit::ActionRequest {
         action: accesskit::Action::SetValue,
@@ -278,7 +308,7 @@ pub(crate) fn set_value_request(target: egui::Id, text: &str) -> Event {
 
 /// An AccessKit `SetTextSelection` request for the node of `target`, from character `anchor.1` of the run node
 /// `anchor.0` to character `focus.1` of `focus.0`.
-pub(crate) fn text_selection_request(target: egui::Id, anchor: (egui::Id, usize), focus: (egui::Id, usize)) -> Event {
+pub fn text_selection_request(target: egui::Id, anchor: (egui::Id, usize), focus: (egui::Id, usize)) -> Event {
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
     let position = |(node, character_index): (egui::Id, usize)| accesskit::TextPosition { node: node.accesskit_id(), character_index };
     Event::AccessKitActionRequest(accesskit::ActionRequest {

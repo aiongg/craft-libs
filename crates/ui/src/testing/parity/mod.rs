@@ -11,6 +11,11 @@
 mod script;
 mod tree;
 
+/// A node of a kittest harness and the trait that walks them, for the AccessKit adapter that reads them.
+pub(crate) use egui_kittest::Node as KitNode;
+pub(crate) use egui_kittest::kittest::NodeT as KitNodeT;
+pub(crate) use tree::Line;
+
 use egui_kittest::Harness;
 use std::fmt;
 use std::path::{Path, PathBuf};
@@ -33,14 +38,14 @@ impl ParityState for () {
 const STEP_DT: f32 = 1.0 / 60.0;
 
 /// The size of the surface a story is shown on, in points.
-const SURFACE: egui::Vec2 = egui::Vec2::new(640.0, 1200.0);
+const SURFACE: [f32; 2] = [640.0, 1200.0];
 
 /// A harness for a story: the runtime installed, the capture's surface size and frame length. `app` shows the story.
 // TK-MERGE: TK-a (the fixture builds this harness, with the suite's fonts and the story's theme and scale)
 pub fn harness<'a, S: ParityState + 'a>(state: S, app: impl FnMut(&mut egui::Ui, &mut S) + 'a) -> Harness<'a, S> {
     Harness::builder()
         .allow_missing_glyphs()
-        .with_size(SURFACE)
+        .with_size(egui::Vec2::from(SURFACE))
         .with_step_dt(STEP_DT)
         .with_accessibility_check(false)
         .with_context_setup(|ctx| {

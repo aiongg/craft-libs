@@ -227,7 +227,7 @@ pub struct Opener {
     /// The opener's rect in its layer space.
     pub rect: Rect,
     /// The opener's egui layer: its rect maps to the screen through this layer's transform.
-    pub layer: egui::LayerId,
+    pub layer: areas::Layer,
     /// The trigger.
     pub trigger: Trigger,
 }
@@ -750,7 +750,7 @@ fn recall(layer: &Layer<'_>, ctx: &Context) -> LayerMemory {
 }
 
 fn remember(layer: &Layer<'_>, ctx: &Context, memory: LayerMemory) {
-    let mut stage = MemoryStage::open_owned(ctx, layer.id, layer.owner);
+    let mut stage = MemoryStage::open_owned(ctx, memory_slot(layer.id), layer.owner);
     *stage.shown::<LayerMemory>(memory_slot(layer.id)) = memory;
     stage.write_back();
 }
@@ -758,7 +758,7 @@ fn remember(layer: &Layer<'_>, ctx: &Context, memory: LayerMemory) {
 /// The layer `id` is hidden: it forgets what it remembered, so its next appearance starts fresh. Every host caller
 /// calls it when the layer's presence is hidden.
 pub(crate) fn forget_layer(ctx: &Context, id: Id, owner: Id) {
-    let mut stage = MemoryStage::open_owned(ctx, id, owner);
+    let mut stage = MemoryStage::open_owned(ctx, memory_slot(id), owner);
     let _ = stage.take::<LayerMemory>(memory_slot(id));
     stage.write_back();
 }

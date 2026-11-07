@@ -62,10 +62,9 @@ serde = { workspace = true }
 # Icon rasterising; the version egui_extras's `svg` feature uses, so apps build one copy.
 resvg = { version = "0.45.1", default-features = false }
 
-# `shell::title_bar::sync_movable` (`NSWindow.movable`); eframe's winit already uses these.
+# `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
+craft-window = { workspace = true, features = ["ui"] }
 
 # build.rs reads icons/icons.toml.
 [build-dependencies]

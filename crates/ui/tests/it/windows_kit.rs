@@ -8,7 +8,8 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::testing::Frames;
 use craft_ui::testing::windows::FakeSystem;
-use egui::{Context, Event, Pos2, RawInput, Rect, Ui, Vec2, ViewportCommand, ViewportId, ViewportInfo};
+use craft_ui::testing::windows::{FullOutput, RawInput};
+use egui::{Context, Event, Pos2, Rect, Ui, Vec2, ViewportCommand, ViewportId, ViewportInfo};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -24,7 +25,7 @@ thread_local! {
     static COMMANDS: RefCell<Vec<(ViewportId, ViewportCommand)>> = const { RefCell::new(Vec::new()) };
 }
 
-fn keep_commands(output: &egui::FullOutput) {
+fn keep_commands(output: &FullOutput) {
     COMMANDS.with(|kept| {
         let mut kept = kept.borrow_mut();
         for (id, viewport) in &output.viewport_output {
@@ -47,6 +48,7 @@ fn render_child(ctx: &Context, viewport: egui::ImmediateViewport<'_>) {
 }
 
 /// What a frame sent out.
+#[non_exhaustive]
 pub struct Out {
     /// The title each viewport asked for.
     pub titles: Vec<(ViewportId, String)>,
@@ -55,6 +57,7 @@ pub struct Out {
 }
 
 /// A context with the runtime installed whose child viewports are OS windows.
+#[non_exhaustive]
 pub struct Windows {
     pub ctx: Context,
     root_info: RefCell<ViewportInfo>,

@@ -184,6 +184,28 @@ fn measure() -> Option<MacInset> {
     None
 }
 
+/// Sets the `movable` flag of the key window when it has a full-size content view and visible window buttons;
+/// floating panels in their own windows keep their own flag, which AppKit also needs to resize them. `applied`
+/// holds the value last set. Does nothing off macOS.
+pub fn set_movable(movable: bool, applied: &mut Option<bool>) {
+    #[cfg(all(feature = "ui", target_os = "macos"))]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
+
+        // eframe runs the app on the main thread; anywhere else AppKit is out of reach.
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        let Some(window) = NSApplication::sharedApplication(mtm).keyWindow() else { return };
+        let buttons = window.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden());
+        if window.styleMask().contains(NSWindowStyleMask::FullSizeContentView) && buttons {
+            window.setMovable(movable);
+            *applied = Some(movable);
+        }
+    }
+    #[cfg(not(all(feature = "ui", target_os = "macos")))]
+    let _ = (movable, applied);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
