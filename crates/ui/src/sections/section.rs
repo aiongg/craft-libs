@@ -5,7 +5,7 @@ use super::group_box::SECTION_LEVEL;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{
     Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Props as _, Role,
-    SaveKey, Show as _, WordSetCx as _,
+    SaveKey, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
@@ -45,9 +45,9 @@ impl Outcome for SectionOutput {
 /// The closure that fills a section's trailing header region.
 type Controls<'a> = Box<dyn FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
-/// An inline section of a panel: a section-strength title row over a body, separated by a rule. The open state is
-/// the container's own (it starts open), the caller's binding, or remembered across runs under a key; a fixed
-/// section is always open and shows the title alone.
+/// An inline section of a panel that fills the width offered: a section-strength title row over a body, separated by
+/// a rule. The open state is the container's own (it starts open), the caller's binding, or remembered across runs
+/// under a key; a fixed section is always open and shows the title alone.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct Section<'a> {
@@ -70,12 +70,12 @@ pub struct Section<'a> {
 impl<'a> Section<'a> {
     /// A collapsible section titled `title`. It starts open.
     pub fn new(title: impl Into<Label>) -> Self {
-        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()))
+        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::Fill))
     }
 
     /// A section that is always open: the title alone, with no disclosure.
     pub fn fixed(title: impl Into<Label>) -> Self {
-        Section::build(title, false, ContainerProps::new())
+        Section::build(title, false, ContainerProps::new().sizing(Sizing::Fill))
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {

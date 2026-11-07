@@ -1,14 +1,14 @@
 //! Section headers: the whole row toggles a disclosure, the trailing region takes its own clicks, an inline header
 //! shares a line with its body, and an elided title shows whole in a tooltip.
 
-use craft_ui::choice::Checkbox;
+use craft_ui::choice::{Checkbox, Segmented};
 use craft_ui::contract::tooltip::DELAY;
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
 use craft_ui::sections::{ApplyRow, HeaderAction, Section, TitleRow};
 use craft_ui::testing::pointer::{click, moved};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, Ui};
+use egui::{Pos2, Rect, Ui, UiBuilder};
 use std::cell::Cell;
 
 const AREA: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 110.0) };
@@ -40,21 +40,27 @@ fn clicking_a_sections_title_toggles_it_and_a_click_on_its_menu_does_not() {
 #[trial]
 fn a_control_in_the_trailing_region_takes_its_clicks_without_toggling() {
     let mut frames = Frames::new();
-    let (mut open, mut pinned) = (true, false);
-    let show = |ui: &mut Ui, open: &mut bool, pinned: &mut bool| {
+    let (mut open, mut view) = (true, 1u8);
+    let entries = [Entry::new(1u8, "List"), Entry::new(2, "Grid")];
+    let mut show = |ui: &mut Ui, open: &mut bool, view: &mut u8| {
         Section::new("Options")
             .open(Bind::bound(open))
             .controls(|ui, _| {
-                Checkbox::new(Bind::bound(pinned)).label("Pin").show(ui);
+                Segmented::new("View", Bind::bound(view), &entries).show(ui);
             })
             .id_salt("section")
             .show_at(ui, AREA, |_, _| {});
     };
-    frames.idle(4, |ui| show(ui, &mut open, &mut pinned));
-    // The control sits at the end edge, so a point just inside it hits the control.
-    let control = Pos2::new(AREA.right() - MID, AREA.top() + MID);
-    click(&mut frames, control, &mut |ui| show(ui, &mut open, &mut pinned));
-    assert!(pinned, "the click reaches the control");
+    frames.idle(4, |ui| show(ui, &mut open, &mut view));
+    let tree = frames.tree();
+    let grid = tree
+        .keys()
+        .into_iter()
+        .find(|key| tree.name_of(*key) == Some("Grid"))
+        .and_then(|key| tree.bounds_of(key))
+        .expect("the Grid segment is a node");
+    click(&mut frames, grid.center(), &mut |ui| show(ui, &mut open, &mut view));
+    assert_eq!(view, 2, "the click reaches the control");
     assert!(open, "the click does not toggle the section");
 }
 
@@ -65,10 +71,12 @@ fn an_inline_header_and_its_body_share_one_line() {
     let mut frames = Frames::new();
     let (mut apply, row, body) = (true, Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
     let mut show = |ui: &mut Ui| {
-        let shown = ApplyRow::new("Opacity", Bind::bound(&mut apply)).id_salt("apply").show_at(ui, AREA, |ui, _| {
-            body.set(Checkbox::new(Bind::given(false)).label("Body").show(ui).response.rect);
+        ui.scope_builder(UiBuilder::new().max_rect(AREA), |ui| {
+            let shown = ApplyRow::new("Opacity", Bind::bound(&mut apply)).id_salt("apply").show(ui, |ui, _| {
+                body.set(Checkbox::new(Bind::given(false)).label("Body").show(ui).response.rect);
+            });
+            row.set(shown.output.response.rect);
         });
-        row.set(shown.output.response.rect);
     };
     frames.idle(5, &mut show);
     let (row, body) = (row.get(), body.get());
@@ -89,18 +97,15 @@ fn an_elided_titles_tooltip_is_the_full_title() {
             TitleRow::new(title).id_salt("row").show_at(ui, area);
         };
         frames.idle(3, &mut show);
-        let named = |frames: &mut Frames| {
-            let tree = frames.tree();
-            tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some(title)).count()
-        };
-        let before = named(&mut frames);
         frames.frame(vec![moved(Pos2::new(area.left() + 20.0, area.center().y))], &mut show);
         frames.advance(DELAY);
         frames.idle(4, &mut show);
-        (any_open(&frames.ctx, OpenFilter::Any), named(&mut frames) > before)
+        // The row paints an elided title cut; the tooltip paints it whole.
+        let whole = frames.texts().iter().filter(|text| text.text == title && !text.elided).count();
+        (any_open(&frames.ctx, OpenFilter::Any), whole)
     };
     const NARROW: f32 = 120.0;
     const WIDE: f32 = 300.0;
-    assert_eq!(tooltip_after_rest(LONG, NARROW), (true, true), "an elided title opens a tooltip that names the full title");
+    assert_eq!(tooltip_after_rest(LONG, NARROW), (true, 1), "an elided title opens a tooltip that shows the full title");
     assert!(!tooltip_after_rest("Options", WIDE).0, "a title that fits opens none");
 }
