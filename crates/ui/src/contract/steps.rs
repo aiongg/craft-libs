@@ -916,15 +916,17 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let platform = craft_keymap::egui::platform(ctx);
     let (hint, shortcut) = core.command.as_deref().map_or((None, None), |command| command_facts(command, platform));
     let shortcut = shortcut.as_deref();
-    if access.description.is_none() {
-        access.description = validity_message(cx);
+    for (_, label) in &mut access.custom_actions {
+        *label = core.env.resolve(label);
     }
-    let tooltip = resolved.tooltip.map(|tooltip| tooltip.spec().text.as_str());
+    let validity = validity_message(cx);
+    let tooltip_text = resolved.tooltip.map(|tooltip| core.env.resolve(&tooltip.spec().text));
+    let tooltip = tooltip_text.as_ref().map(Label::as_str);
     let paint = core.paint.borrow();
     if role == Role::Merged {
         let facts = scope::Merged {
             name: resolved.label.to_owned(),
-            description: access.description.clone().or_else(|| resolved.description.map(str::to_owned)),
+            description: access.description.clone().or_else(|| resolved.description.map(str::to_owned)).or_else(|| validity.clone()),
             flags,
             enabled: resolved.enabled,
         };
@@ -946,6 +948,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         tooltip,
         elided: paint.elided.as_deref(),
         description: resolved.description,
+        validity: validity.as_deref(),
         hint,
         shortcut,
         display: C::INPUT == craft_behavior::Input::Display,
@@ -1009,6 +1012,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             tooltip: None,
             elided: None,
             description: None,
+            validity: None,
             hint: None,
             shortcut: None,
             display: false,

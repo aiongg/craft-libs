@@ -158,3 +158,23 @@ fn an_unnamed_button_is_a_role_rule_finding() {
     let id = seen.borrow().id.expect("updated");
     assert_eq!(frames.tree().name(id), Some("Save the file"), "an icon-only control takes its tooltip as its name");
 }
+
+// A word tooltip that names an icon-only control is read in the scope's language.
+#[trial]
+fn a_word_tooltip_is_resolved_in_the_scopes_language() {
+    use craft_ui::runtime::env::{Overrides, Word, WordRows, WordsOverride, with_env};
+    const SAVE: Word = Word::keyed("trial.save", "Save");
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    frames.frame(vec![], |ui| {
+        with_env(
+            ui,
+            |o: &mut Overrides| o.words = Some(WordsOverride::Overlay(WordRows::new().row(SAVE, "Sichern"))),
+            |ui| {
+                Probe::new(&seen).label("").tooltip(SAVE).show(ui);
+            },
+        );
+    });
+    let id = seen.borrow().id.expect("updated");
+    assert_eq!(frames.tree().name(id), Some("Sichern"));
+}

@@ -22,6 +22,9 @@ pub(crate) struct Own<'a> {
     /// The full text of the first elided run, the name when nothing else names the node.
     pub elided: Option<&'a str>,
     pub description: Option<&'a str>,
+    /// What the control's check says while it warns or refuses: the description after `Common.description`,
+    /// until a field container's label scope shows it as the field's error text.
+    pub validity: Option<&'a str>,
     /// The bound command's hint.
     pub hint: Option<&'a str>,
     /// The bound command's shortcut.
@@ -197,6 +200,7 @@ pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
         .description
         .as_deref()
         .or(own.description)
+        .or(own.validity)
         .or(own.hint)
         .or_else(|| own.tooltip.filter(|tip| own.display || name.text.as_deref() != Some(*tip)));
     let shortcut = access.shortcut.as_deref().or(own.shortcut);
