@@ -300,3 +300,19 @@ fn words_rows_are_checked() {
     let braces = words(quote! { struct W { saved: template "w.saved" = "Saved {name"; } });
     assert!(braces.contains("unmatched"), "{braces}");
 }
+
+#[test]
+fn text_and_icon_fields_are_listed_in_field_order() {
+    let tokens = crate::style::derive(quote! {
+        struct Look {
+            #[style(metrics)] metrics: Metrics,
+            #[style(text)] label: TextLook,
+            #[style(text)] hint: Option<TextLook>,
+            #[style(icon)] glyph: IconLook,
+        }
+    })
+    .map(|tokens| tokens.to_string().split_whitespace().collect::<String>());
+    let tokens = tokens.unwrap_or_default();
+    assert!(tokens.contains("out.push(&self.label);out.extend(self.hint.as_ref());"), "{tokens}");
+    assert!(tokens.contains("fnicons"), "{tokens}");
+}

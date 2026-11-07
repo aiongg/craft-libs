@@ -11,6 +11,8 @@ enum Part {
     Surface,
     Focus,
     Metrics,
+    Text,
+    Icon,
 }
 
 fn part_of(field: &Field) -> syn::Result<Option<Part>> {
@@ -23,8 +25,14 @@ fn part_of(field: &Field) -> syn::Result<Option<Part>> {
                 Part::Focus
             } else if meta.path.is_ident("metrics") {
                 Part::Metrics
+            } else if meta.path.is_ident("text") {
+                Part::Text
+            } else if meta.path.is_ident("icon") {
+                Part::Icon
             } else {
-                return Err(meta.error("a field is `#[style(surface)]`, `#[style(focus)]` or `#[style(metrics)]`"));
+                return Err(
+                    meta.error("a field is `#[style(surface)]`, `#[style(focus)]`, `#[style(metrics)]`, `#[style(text)]` or `#[style(icon)]`")
+                );
             };
             if part.replace(found).is_some() {
                 return Err(meta.error("a field carries one `#[style(..)]` part"));
@@ -50,12 +58,40 @@ fn variants(attrs: &[Attribute]) -> syn::Result<Option<Vec<Expr>>> {
     Ok(found)
 }
 
+/// The accessor listing every field marked as one look kind, in field order; `None` when no field is.
+fn collector(fields: &[&Field], name: &str, ty: TokenStream) -> Option<TokenStream> {
+    if fields.is_empty() {
+        return None;
+    }
+    let name = Ident::new(name, proc_macro2::Span::call_site());
+    let adds = fields.iter().filter_map(|field| {
+        let member = field.ident.as_ref()?;
+        Some(if wrapped(&field.ty, "Option").is_some() { quote!(out.extend(self.#member.as_ref());) } else { quote!(out.push(&self.#member);) })
+    });
+    Some(quote! {
+        fn #name(&self) -> ::std::vec::Vec<&#ty> {
+            let mut out = ::std::vec::Vec::new();
+            #(#adds)*
+            out
+        }
+    })
+}
+
 pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let fields = named_fields(&input, "ComponentStyle")?;
     let (mut surface, mut focus, mut metrics): (Option<&Field>, Option<&Field>, Option<&Field>) = (None, None, None);
+    let (mut texts, mut icons): (Vec<&Field>, Vec<&Field>) = (Vec::new(), Vec::new());
     for field in &fields {
         let slot = match part_of(field)? {
+            Some(Part::Text) => {
+                texts.push(field);
+                continue;
+            }
+            Some(Part::Icon) => {
+                icons.push(field);
+                continue;
+            }
             Some(Part::Surface) => &mut surface,
             Some(Part::Focus) => &mut focus,
             Some(Part::Metrics) => &mut metrics,
@@ -81,6 +117,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     };
     let surface = accessor(surface, "surface", quote!(::craft_ui::style::SurfaceLook));
     let focus = accessor(focus, "focus", quote!(::craft_ui::style::FocusLook));
+    let texts = collector(&texts, "texts", quote!(::craft_ui::style::TextLook));
+    let icons = collector(&icons, "icons", quote!(::craft_ui::style::IconLook));
     let metrics_field = &metrics.ident;
     let variants = variants(&input.attrs)?.map(|list| {
         let list = Punctuated::<Expr, Token![,]>::from_iter(list);
@@ -92,6 +130,8 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
             #variants
             #surface
             #focus
+            #texts
+            #icons
 
             fn metrics(&self) -> ::craft_ui::style::Metrics {
                 self.#metrics_field

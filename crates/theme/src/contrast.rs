@@ -1,6 +1,16 @@
 //! WCAG 2.x contrast and lightness-based contrast repair.
 
 use super::color::{Oklch, Rgba};
+use super::theme::Contrast;
+use super::values;
+
+/// The least contrast ratio text needs against its background: WCAG AA, and the higher minimum under high contrast.
+pub fn text_contrast_min(contrast: Contrast) -> f64 {
+    match contrast {
+        Contrast::Standard => values::TEXT_MIN.0,
+        Contrast::High => values::TEXT_MIN.1,
+    }
+}
 
 /// WCAG relative luminance, 0 (black) to 1 (white). Alpha is ignored.
 pub fn relative_luminance(c: Rgba) -> f64 {

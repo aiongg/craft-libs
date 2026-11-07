@@ -6,7 +6,7 @@ use crate::runtime::env::{AppValues, Scale};
 use crate::style::{ComponentStyle, EnvKey, Ink, StyleCx, StyleKey, UiTokens, resolve_style};
 use craft_host::target::Os;
 use craft_i18n::Direction;
-use craft_theme::{Appearance, Contrast, ControlSize, Mode, Size, TextSize, Variant, builtins, resolve};
+use craft_theme::{Appearance, Contrast, ControlSize, Mode, Size, TextSize, Variant, Variants, builtins, resolve};
 use egui::{Context, Shape};
 use std::cell::RefCell;
 use std::sync::Arc;
@@ -25,6 +25,25 @@ pub fn tokens_named(name: &str, mode: Mode, contrast: Contrast) -> UiTokens {
     let appearance = Appearance { mode, contrast, size: Size::Compact, text_size: TextSize::Small, reduced_motion: false };
     let resolved = resolve(&builtins()[index], appearance, None);
     UiTokens::new(Arc::new(resolved.tokens))
+}
+
+/// Every built-in theme in each mode it has, at `contrast`, as (`<theme>.<mode>`, tokens).
+pub fn themes_at(contrast: Contrast) -> Vec<(String, UiTokens)> {
+    let mut out = Vec::new();
+    for theme in builtins() {
+        let modes = match theme.variants {
+            Variants::Both => &[Mode::Light, Mode::Dark][..],
+            Variants::LightOnly => &[Mode::Light],
+            Variants::DarkOnly => &[Mode::Dark],
+        };
+        let id = theme.id.as_str();
+        let name = id.strip_prefix("craft.").unwrap_or(id);
+        for &mode in modes {
+            let mode_name = if mode == Mode::Light { "light" } else { "dark" };
+            out.push((format!("{name}.{mode_name}"), tokens_named(name, mode, contrast)));
+        }
+    }
+    out
 }
 
 /// The `EnvKey` of `tokens` in a left-to-right Linux window at scale 1 with no style-affecting app values.
@@ -93,6 +112,10 @@ pub struct StyleLooks {
     pub surface: Option<crate::style::SurfaceLook>,
     /// The focus ring, when the style has one.
     pub focus: Option<crate::style::FocusLook>,
+    /// The text looks, in field order.
+    pub texts: Vec<crate::style::TextLook>,
+    /// The icon looks, in field order.
+    pub icons: Vec<crate::style::IconLook>,
     style: std::sync::Arc<dyn std::any::Any + Send + Sync>,
     equal: fn(&dyn std::any::Any, &dyn std::any::Any) -> bool,
 }
@@ -115,6 +138,8 @@ pub(crate) fn style_looks<T: crate::contract::Component + 'static>(
         variants: <T::Style as crate::style::ComponentStyle>::VARIANTS,
         surface: style.surface().cloned(),
         focus: style.focus().copied(),
+        texts: style.texts().into_iter().cloned().collect(),
+        icons: style.icons().into_iter().cloned().collect(),
         style: std::sync::Arc::new(style),
         equal: |a, b| matches!((a.downcast_ref::<T::Style>(), b.downcast_ref::<T::Style>()), (Some(a), Some(b)) if a == b),
     })

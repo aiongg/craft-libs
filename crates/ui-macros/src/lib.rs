@@ -69,7 +69,8 @@ pub fn derive_props(input: TokenStream) -> TokenStream {
     expanded(props::derive(input.into()))
 }
 
-/// Writes `ComponentStyle` from `#[style(surface)]`, `#[style(focus)]` and `#[style(metrics)]` fields and
+/// Writes `ComponentStyle` from `#[style(surface)]`, `#[style(focus)]` and `#[style(metrics)]` fields (one each),
+/// any number of `#[style(text)]` (`TextLook`) and `#[style(icon)]` (`IconLook`) fields, and
 /// `#[style(variants = [..])]` on the type.
 #[proc_macro_derive(ComponentStyle, attributes(style))]
 pub fn derive_component_style(input: TokenStream) -> TokenStream {

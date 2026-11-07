@@ -238,6 +238,16 @@ pub trait ComponentStyle: Clone + PartialEq + Send + Sync + 'static {
         None
     }
 
+    /// The component's text looks, in field order.
+    fn texts(&self) -> Vec<&TextLook> {
+        Vec::new()
+    }
+
+    /// The component's icon looks, in field order.
+    fn icons(&self) -> Vec<&IconLook> {
+        Vec::new()
+    }
+
     /// The component's layout metrics.
     fn metrics(&self) -> Metrics;
 }

@@ -1052,10 +1052,12 @@ impl Component for RowThumb<'_> {
 }
 
 /// The width of a character of a trailing text under fixed sizes.
+#[cfg(feature = "testing")]
 const FIXED_ADVANCE: f32 = 10.0;
 
 /// Where the label, the trailing items and the disclosure of `row` lie in a rect of `width` under fixed sizes, where
 /// each character of a trailing text is `FIXED_ADVANCE` wide: the geometry trials read it.
+#[cfg(feature = "testing")]
 pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement {
     let sizes = Sizes {
         row: 20.0,
@@ -1076,11 +1078,13 @@ pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bo
 }
 
 /// The indent steps of `row`.
+#[cfg(feature = "testing")]
 pub(crate) fn indent_steps(row: &ListRow<'_>) -> usize {
     row.steps()
 }
 
 /// A row's parts placed by [`placement_under_fixed_sizes`].
+#[cfg(feature = "testing")]
 #[non_exhaustive]
 pub struct RowPlacement {
     /// The label and detail.

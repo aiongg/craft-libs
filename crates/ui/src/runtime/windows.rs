@@ -127,6 +127,7 @@ pub(crate) fn os_of(ctx: &Context) -> Os {
 
 /// Makes the shell run on `os`, as a test of the OS matrix does: the capabilities and the menu placement of a
 /// native build follow it. egui's own OS is the caller's to set.
+#[cfg(feature = "testing")]
 pub(crate) fn set_os(ctx: &Context, os: Os) {
     shared(ctx, |shared| {
         let shell = shared.shell.get_or_insert_with(ShellInfo::default);
