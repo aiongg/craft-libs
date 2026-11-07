@@ -463,7 +463,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn host(&mut self, comp: &C, at: super::run::HostCx<'_>) -> Box<dyn super::run::Host> {
-        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open, &comp.common(Internal::new()).label);
+        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open, at.label);
         if mounted.exiting {
             self.exiting = true;
             self.open = true;
@@ -846,7 +846,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 scoped.transform = props.transform;
                 scoped.enabled &= enabled;
-                scoped.in_scroll |= scroll.is_some();
+                if scroll.is_some() {
+                    scoped.scroll_owner = Some(id);
+                }
                 if let Some(size) = props.child_size {
                     scoped.size = size;
                 }
@@ -928,9 +930,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         sense: response::to_egui(cx.core.root_sense),
                         rect: rect.intersect(ui.clip_rect()),
                     };
-                    areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), body_rect.intersect(ui.clip_rect()), |area_ui| {
-                        run(area_ui, body_rect, &mut bcx)
-                    })
+                    let body_layer = areas::BodyLayer {
+                        parent,
+                        layer,
+                        transform: tf,
+                        at: body_rect.min,
+                        clip: body_rect.intersect(ui.clip_rect()),
+                        forward: Some(forward),
+                    };
+                    areas::show_body_layer(&ctx, body_layer, |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
                 None => run(ui, body_rect, &mut bcx),
             };

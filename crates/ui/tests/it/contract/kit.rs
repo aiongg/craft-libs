@@ -48,7 +48,7 @@ pub struct Seen {
 }
 
 /// Records what the pipeline gave the component in `update`.
-fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], cx: &mut Cx<'_, C>) {
+fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], takes_cancel: bool, cx: &mut Cx<'_, C>) {
     let mut seen = seen.borrow_mut();
     seen.updates += 1;
     seen.rect = cx.rect;
@@ -64,7 +64,7 @@ fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], cx: &mut Cx<'_
         }
     }
     seen.activations += u32::from(cx.activation().is_some());
-    seen.cancels += u32::from(cx.intents().take(Intent::Cancel));
+    seen.cancels += u32::from(takes_cancel && cx.intents().take(Intent::Cancel));
     seen.active = cx.active_part();
 }
 
@@ -82,12 +82,13 @@ pub struct Probe<'a> {
     size: Vec2,
     sense: Option<Sense>,
     parts: &'a [PartSpec],
+    takes_cancel: bool,
     seen: &'a RefCell<Seen>,
 }
 
 impl<'a> Probe<'a> {
     pub fn new(seen: &'a RefCell<Seen>) -> Self {
-        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], seen }.label("Probe")
+        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], takes_cancel: true, seen }.label("Probe")
     }
 
     pub fn size(mut self, size: Vec2) -> Self {
@@ -102,6 +103,12 @@ impl<'a> Probe<'a> {
 
     pub fn parts(mut self, parts: &'a [PartSpec]) -> Self {
         self.parts = parts;
+        self
+    }
+
+    /// The probe leaves Escape untaken, so the scope around it applies its cancel rule.
+    pub fn leaves_cancel(mut self) -> Self {
+        self.takes_cancel = false;
         self
     }
 }
@@ -134,7 +141,7 @@ impl Component for Probe<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        record(self.seen, self.parts, cx);
+        record(self.seen, self.parts, self.takes_cancel, cx);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
@@ -190,7 +197,7 @@ impl Component for Panel<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if let Some(seen) = self.seen {
-            record(seen, &[], cx);
+            record(seen, &[], true, cx);
         }
     }
 

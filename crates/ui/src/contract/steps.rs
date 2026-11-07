@@ -678,7 +678,7 @@ fn route_to_scroll_owner(core: &mut CxCore<'_>) {
     if moves.is_empty() && !reveal {
         return;
     }
-    let Some(owner) = wheel::nearest_scroll_owner(&core.ctx, core.rect) else { return };
+    let Some(owner) = core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&core.ctx, core.rect)) else { return };
     store::Service::<ScrollMoves>::of(&core.ctx).with(|queue| queue.0.extend(moves.into_iter().map(|mv| (owner, mv))));
     if reveal {
         store::Service::<Reveals>::of(&core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect: core.rect }));
@@ -1034,7 +1034,7 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     let owner = cx.core.id;
     super::overlay::write_open(&mut *cx.core.memory, owner);
     if let Some(rect) = cx.core.reveal.take()
-        && let Some(owner) = wheel::nearest_scroll_owner(&cx.core.ctx, rect)
+        && let Some(owner) = cx.core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&cx.core.ctx, rect))
     {
         store::Service::<Reveals>::of(&cx.core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect }));
         repaint::request(&cx.core.ctx);
@@ -1102,7 +1102,8 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access.expanded = input.expanded;
     }
     if access.position.is_none() {
-        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
+        access.position =
+            input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
     }
     let paint = core.paint.borrow();
     if role == Role::Merged {

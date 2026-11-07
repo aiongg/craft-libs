@@ -87,9 +87,11 @@ fn scrolling(ui: &mut Ui, props: ContainerProps, seen: &Seen2, probes: &RefCell<
         let out = Holder::new(props, &close).id_salt("panel").show(ui, |ui, cx| {
             seen.view.set(Some(cx.rect));
             for line in 0..40 {
+                // The cursor, not the response: a response's rect is clipped to the view once the line scrolls out.
+                let top = ui.next_widget_position().y;
                 let response = Probe::new(probes).id_salt(line).size(LINE).show(ui);
                 if line == 0 {
-                    seen.first_top.set(response.rect.min.y);
+                    seen.first_top.set(top);
                     seen.focus_id.set(Some(response.id));
                 }
             }
@@ -232,7 +234,7 @@ fn escape_closes_a_collapsible_container_through_its_scope_rule() {
         let close = Cell::new(false);
         Holder::new(props.clone(), &close).id_salt("pane").show(ui, |ui, _| {
             ran.set(true);
-            Probe::new(&probes).size(LINE).show(ui);
+            Probe::new(&probes).size(LINE).leaves_cancel().show(ui);
         });
     };
     frames.idle(3, &mut show);
@@ -249,7 +251,7 @@ fn escape_closes_a_collapsible_container_through_its_scope_rule() {
 fn an_animated_collapse_keeps_the_body_while_it_closes() {
     let (height, ran) = (Cell::new(0.0), Cell::new(false));
     let close = Cell::new(false);
-    let props = ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::Content);
+    let props = ContainerProps::new().header(HeaderRegion::new()).collapse(Collapse::new()).sizing(Sizing::Content);
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| {
         ran.set(false);
@@ -262,6 +264,8 @@ fn an_animated_collapse_keeps_the_body_while_it_closes() {
     frames.idle(4, &mut show);
     let open = height.get();
     close.set(true);
+    // The pass that requests the close shows the body open; the next one starts the presence from open.
+    frames.frame(vec![], &mut show);
     frames.frame(vec![], &mut show);
     frames.advance(0.05);
     frames.frame(vec![], &mut show);

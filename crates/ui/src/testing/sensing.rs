@@ -334,7 +334,8 @@ fn show_root(ui: &mut Ui, ctx: &Context, root: &ProbeRoot) -> RootReport {
         sensing::set_layer(ctx, arena, layer);
         let visible = root.rect.intersect(ui.clip_rect());
         let forward = Forward { id: sub(id, "transform"), sense: response::to_egui(result.sense), rect: visible };
-        areas::show_body_layer(ctx, parent, layer, map, root.rect.min, Some(forward), visible, |body_ui| {
+        let body_layer = areas::BodyLayer { parent, layer, transform: map, at: root.rect.min, clip: visible, forward: Some(forward) };
+        areas::show_body_layer(ctx, body_layer, |body_ui| {
             if let Some(size) = root.blocker {
                 fixture::allocate_blocker(body_ui, size);
             }
