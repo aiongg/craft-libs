@@ -1612,6 +1612,26 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn elide(self) -> Self`. Cuts the run with an ellipsis at the end.
   - `pub fn full_text(&self) -> String`. The text of every span, joined.
 - `craft_ui::primitives::TextureCache`: re-export of `craft_ui::primitives::textures::TextureCache`.
+- `craft_ui::primitives::CachedTexture`: re-export of `craft_ui::primitives::textures::CachedTexture`.
+- `craft_ui::primitives::LoadFailure`: re-export of `craft_ui::primitives::textures::LoadFailure`.
+- `craft_ui::primitives::LoadResult`: re-export of `craft_ui::primitives::textures::LoadResult`.
+- `craft_ui::primitives::LoadedPicture`: re-export of `craft_ui::primitives::textures::LoadedPicture`.
+- `craft_ui::primitives::LoaderOptions`: re-export of `craft_ui::primitives::textures::LoaderOptions`.
+- `craft_ui::primitives::MAX_TEXTURE`: re-export of `craft_ui::primitives::textures::MAX_TEXTURE`.
+- `craft_ui::primitives::Priority`: re-export of `craft_ui::primitives::textures::Priority`.
+- `craft_ui::primitives::Revision`: re-export of `craft_ui::primitives::textures::Revision`.
+- `craft_ui::primitives::TextureBudget`: re-export of `craft_ui::primitives::textures::TextureBudget`.
+- `craft_ui::primitives::TextureKey`: re-export of `craft_ui::primitives::textures::TextureKey`.
+- `craft_ui::primitives::TextureLoader`: re-export of `craft_ui::primitives::textures::TextureLoader`.
+- `craft_ui::primitives::TextureState`: re-export of `craft_ui::primitives::textures::TextureState`.
+- `craft_ui::primitives::TextureStatistics`: re-export of `craft_ui::primitives::textures::TextureStatistics`.
+- `craft_ui::primitives::TextureStore`: re-export of `craft_ui::primitives::textures::TextureStore`.
+- `craft_ui::primitives::TextureStoreOptions`: re-export of `craft_ui::primitives::textures::TextureStoreOptions`.
+- `craft_ui::primitives::TextureWords`: re-export of `craft_ui::primitives::textures::TextureWords`.
+- `craft_ui::primitives::fit_image`: re-export of `craft_ui::primitives::textures::fit_image`.
+- `craft_ui::primitives::reduce_image`: re-export of `craft_ui::primitives::textures::reduce_image`.
+- `craft_ui::primitives::texture_factor`: re-export of `craft_ui::primitives::textures::texture_factor`.
+- `craft_ui::primitives::texture_side`: re-export of `craft_ui::primitives::textures::texture_side`.
 - `craft_ui::primitives::Tick`: `pub struct Tick { pub at: f32, pub major: bool }`. One tick: where it sits along its edge and whether it is a major one.
   - `pub const fn new(at: f32, major: bool) -> Self`. A tick at `at`.
 - `craft_ui::primitives::TickEdge`: `pub enum TickEdge { Bottom, Top, Left, Right }`. Which edge of a rect a tick row sits on, and so which way its marks point.
@@ -1634,7 +1654,7 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
 
 ## `craft_ui::primitives::textures`
 
-`TextureCache`, the one texture path.
+`TextureCache`, the icon texture path, and beside it the keyed `TextureStore` with its background `TextureLoader`.
 
 - `craft_ui::primitives::textures::TextureCache`: `pub struct TextureCache`. The texture cache of a context: components keep a cache key and ask for the texture when they paint.
   - `pub const CAPACITY: usize`. The number of textures above which the cache drops those no frame asked for lately.
@@ -1642,6 +1662,63 @@ Painters, `Draw`, the sensing core, the text adapter and `ImeSurface`.
   - `pub fn len(ctx: &Context) -> usize`. The number of textures the context holds.
   - `pub fn is_empty(ctx: &Context) -> bool`. Whether the context holds no texture.
   - `pub fn clear(ctx: &Context)`. Drops every texture of the context; the next request loads again.
+- `craft_ui::primitives::textures::CachedTexture`: `pub struct CachedTexture { pub id: TextureId, pub size: [u32; 2] }`. A stored picture as a painter draws it: `painter.image(texture.id, rect, uv, tint)`.
+  - `pub fn size_vec2(&self) -> Vec2`. `size` as a vector, for fitting: only the aspect matters to a cell.
+  - `pub fn sized(&self) -> SizedTexture`. The texture with its size, the form `PreviewPane` and egui's image widgets take.
+- `craft_ui::primitives::textures::LoadFailure`: `pub enum LoadFailure { Missing, Unreadable, Panicked, Message(String) }`. Why a job made no picture. A job carries no text: the state carries this value and the painter words it at run time with `LoadFailure::text`.
+  - `pub fn text<'a>(&'a self, words: &'a TextureWords) -> &'a str`. The failure tooltip in the words of the scope (`cx.words::<TextureWords>()`).
+- `craft_ui::primitives::textures::LoadResult`: `pub type LoadResult = Result<LoadedPicture, LoadFailure>`. What a loader job returns: a `LoadedPicture`, or why there is none.
+- `craft_ui::primitives::textures::LoadedPicture`: `pub enum LoadedPicture { Image(ColorImage), Blank }`. What a background job makes when it succeeds: a picture, or the answer that the key has none.
+- `craft_ui::primitives::textures::LoaderOptions`: `pub struct LoaderOptions { pub store: TextureStoreOptions, pub lanes: usize, pub jobs: Option<Arc<dyn Jobs>> }`. A loader's settings, read when it is created (`TextureLoader::in_context`).
+  - `pub fn new() -> Self`. Thumbnail budgets, the machine's lanes, the host's jobs.
+  - `pub fn store(mut self, store: TextureStoreOptions) -> Self`. Settings of the loader's store.
+  - `pub fn lanes(mut self, lanes: usize) -> Self`. Jobs running at once.
+  - `pub fn jobs(mut self, jobs: Arc<dyn Jobs>) -> Self`. Where the lanes run.
+- `craft_ui::primitives::textures::MAX_TEXTURE`: `pub const MAX_TEXTURE: u32`. The largest texture side the library uploads.
+- `craft_ui::primitives::textures::Priority`: re-export of `craft_host::queue::Priority`.
+- `craft_ui::primitives::textures::Revision`: `pub struct Revision(_)`. The version of a key's picture, computed by the app; a new revision means "this key's picture changed", the same revision means "keep it".
+  - `pub const fn new(value: u64) -> Revision`. The revision `value` (a document's own change counter).
+  - `pub const fn get(self) -> u64`. The number.
+  - `pub fn of(value: &impl Hash) -> Revision`. The revision of anything hashable.
+- `craft_ui::primitives::textures::TextureBudget`: `pub struct TextureBudget { pub max_bytes: usize, pub max_entries: usize, pub uploads_per_pass: usize, pub upload_bytes_per_pass: usize }`. How much a store may hold and upload.
+  - `pub const fn new(max_bytes: usize, max_entries: usize) -> Self`. Holds `max_bytes` and `max_entries`; a loader uploads 16 pictures and 16 MiB per frame.
+  - `pub const fn uploads(mut self, count: usize, bytes: usize) -> Self`. Other upload limits per frame.
+- `craft_ui::primitives::textures::TextureKey`: `pub trait TextureKey: Clone + Eq + Hash + Send + Sync + 'static`. What can key a stored texture; every type with these bounds is one.
+- `craft_ui::primitives::textures::TextureLoader`: `pub struct TextureLoader<K: TextureKey>`. A `TextureStore` whose pictures are made by background jobs on a `JobQueue` of the context.
+  - `pub fn in_context(ctx: &Context, salt: impl Hash + Debug, options: LoaderOptions) -> Self`. The loader of `ctx` under `salt`, made with `options` the first time.
+  - `pub fn cache(&self) -> &TextureStore<K>`. The loader's store.
+  - `pub fn request<J>(&self, ctx: &Context, key: &K, revision: Revision, priority: Priority, job: impl FnOnce() -> J) -> TextureState`. What `key` shows for `revision`, queueing the job `job()` makes when none is queued or stored.
+  - `pub fn ask(&self, ctx: &Context, key: &K, revision: Revision, priority: Priority) -> Option<TextureState>`. What `key` shows when that is known without a new job; `None` when a job is needed.
+  - `pub fn submit(&self, ctx: &Context, key: K, revision: Revision, priority: Priority, job: impl FnOnce(&Cancel) -> LoadResult + Send + 'static) -> TextureState`. Queues `job` making `key`'s picture at `revision`.
+  - `pub fn shutdown(&self, timeout: Duration) -> bool`. Stops the loader's queue and waits up to `timeout` for running jobs.
+- `craft_ui::primitives::textures::TextureState`: `pub enum TextureState { Missing, Loading { stand_in: Option<CachedTexture> }, Ready(CachedTexture), Empty, Failed { failure: LoadFailure } }`. What a key shows for a revision.
+  - `pub fn shown(&self) -> Option<CachedTexture>`. The picture to draw now: the ready one, or the stand-in while loading.
+- `craft_ui::primitives::textures::TextureStatistics`: `pub struct TextureStatistics { pub entries: usize, pub bytes: usize, pub uploads: usize, pub upload_bytes: usize, pub evicted: usize }`. What a store holds and did, for automation, stories and tests.
+- `craft_ui::primitives::textures::TextureStore`: `pub struct TextureStore<K: TextureKey>`. Textures by key and revision, with byte and entry budgets, kept in runtime memory of the context.
+  - `pub fn in_context(ctx: &Context, salt: impl Hash + Debug, options: TextureStoreOptions) -> Self`. The store of `ctx` under `salt`, made with `options` the first time.
+  - `pub fn state(&self, ctx: &Context, key: &K, revision: Revision) -> TextureState`. What `key` shows for `revision`, and marks the entry seen this frame.
+  - `pub fn put(&self, ctx: &Context, key: K, revision: Revision, image: ColorImage) -> CachedTexture`. Stores `image` as `key`'s picture at `revision`: in place when the key has a texture, else a new one.
+  - `pub fn put_region(&self, ctx: &Context, key: &K, revision: Revision, origin: [u32; 2], image: ColorImage) -> Option<CachedTexture>`. Updates part of `key`'s picture in place and moves the entry to `revision`.
+  - `pub fn get_or_put(&self, ctx: &Context, key: K, revision: Revision, make: impl FnOnce() -> ColorImage) -> CachedTexture`. `key`'s picture at `revision`, calling `make` only when the entry has another revision or none.
+  - `pub fn put_empty(&self, ctx: &Context, key: K, revision: Revision)`. Records that `key` has no picture at `revision`; frees its texture.
+  - `pub fn put_failure(&self, ctx: &Context, key: K, revision: Revision, failure: LoadFailure)`. Records that making `key`'s picture failed; frees its texture.
+  - `pub fn forget(&self, ctx: &Context, key: &K)`. Drops `key`'s entry and frees its texture.
+  - `pub fn retain(&self, ctx: &Context, keep: impl FnMut(&K) -> bool)`. Keeps only the entries whose key `keep` accepts.
+  - `pub fn clear(&self, ctx: &Context)`. Drops every entry.
+  - `pub fn allow_upload(&self, ctx: &Context, bytes: usize) -> bool`. Whether this frame's upload allowance has room for one more upload of `bytes`.
+  - `pub fn statistics(&self, ctx: &Context) -> TextureStatistics`. What the store holds and uploaded this frame.
+  - `pub fn options(&self) -> TextureStoreOptions`. The options the store was made with.
+- `craft_ui::primitives::textures::TextureStoreOptions`: `pub struct TextureStoreOptions { pub budget: TextureBudget, pub filter: TextureOptions }`. A store's settings, read when the store is created.
+  - `pub const fn thumbnails() -> Self`. Row and grid thumbnails: 32 MiB and 512 entries.
+  - `pub const fn pages() -> Self`. Document pages: 128 MiB and 64 entries.
+  - `pub const fn frames() -> Self`. Video frames and other named images: 64 MiB and 512 entries.
+  - `pub const fn filter(mut self, filter: TextureOptions) -> Self`. The sampling of every texture.
+  - `pub const fn budget(mut self, budget: TextureBudget) -> Self`. Other limits.
+- `craft_ui::primitives::textures::TextureWords`: `pub struct TextureWords { pub missing: String, pub unreadable: String, pub panicked: String }`. The words a painter shows for a failed texture.
+- `craft_ui::primitives::textures::fit_image`: `pub fn fit_image(image: ColorImage, max_side: u32) -> ColorImage`. `image` reduced to at most `max_side` texels per side, or unchanged when it fits.
+- `craft_ui::primitives::textures::reduce_image`: `pub fn reduce_image(image: &ColorImage, factor: u32) -> ColorImage`. `image` box-averaged by the whole `factor`, in premultiplied values.
+- `craft_ui::primitives::textures::texture_factor`: `pub fn texture_factor(size: [u32; 2], side: u32) -> u32`. How many document pixels per side one texel of the base texture holds: 1 when it fits.
+- `craft_ui::primitives::textures::texture_side`: `pub fn texture_side(ctx: &Context) -> u32`. The texture side on this device: `MAX_TEXTURE`, or the device's smaller limit.
 
 ## `craft_ui::runtime`
 
