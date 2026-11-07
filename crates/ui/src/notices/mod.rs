@@ -9,7 +9,7 @@ mod words;
 #[cfg(feature = "testing")]
 mod stories;
 
-pub use center::{NoticeCenter, PostedNotice};
+pub use center::{NoticeCenter, NoticeCenterOutput, NoticeEnd, PostedNotice};
 pub use notice::{Notice, NoticeAction, NoticeIcon, NoticeLayout, NoticeOutput, NoticeStyle};
-pub use settings::{SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices, SettingsStatus};
+pub use settings::{SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices, SettingsNoticesOutput, SettingsStatus};
 pub use words::NoticeWords;

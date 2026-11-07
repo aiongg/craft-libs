@@ -4,10 +4,11 @@
 
 use super::notice::Notice;
 use super::words::NoticeWords;
-use crate::contract::{Politeness, Props as _, Show as _};
+use crate::contract::{NoValue, Outcome, Politeness, Props as _, Show as _};
+use crate::runtime::egui::repaint;
 use crate::runtime::env::{Env, Label};
 use craft_theme::variant::Tone;
-use egui::Ui;
+use egui::{Context, Response, Ui};
 
 /// Failed saves in a row before the "can't be saved" notice shows beside the status line.
 pub const SAVE_NOTICE_AFTER: u32 = 3;
@@ -101,8 +102,9 @@ impl SettingsNoticeState {
         SettingsNoticeState::default()
     }
 
-    /// Reads the store's load report once at startup.
-    pub fn loaded(&mut self, load: &SettingsLoad) {
+    /// Reads the store's load report once at startup and asks `ctx` for a pass to show what it found.
+    pub fn loaded(&mut self, ctx: &Context, load: &SettingsLoad) {
+        repaint::request(ctx);
         if !load.reset.is_empty() {
             self.reset.clone_from(&load.reset);
         }
@@ -114,8 +116,9 @@ impl SettingsNoticeState {
         }
     }
 
-    /// Counts failed saves and clears them on success.
-    pub fn ticked(&mut self, result: &SaveResult) {
+    /// Counts failed saves and clears them on success, and asks `ctx` for a pass to show the change.
+    pub fn ticked(&mut self, ctx: &Context, result: &SaveResult) {
+        repaint::request(ctx);
         match result {
             SaveResult::Failed(error) => {
                 self.failures = self.failures.saturating_add(1);
@@ -166,7 +169,7 @@ impl SettingsNotices {
     }
 
     /// Shows the notices in the flow of `ui`.
-    pub fn show(self, ui: &mut Ui) {
+    pub fn show(self, ui: &mut Ui) -> SettingsNoticesOutput {
         let env = Env::of(ui);
         let words = env.words::<NoticeWords>();
         let app = match &self.app {
@@ -186,5 +189,22 @@ impl SettingsNotices {
             let body = words.reset_body.fill(&[("app", app.as_str()), ("paths", paths.as_str())]);
             Notice::new(Tone::Warn, body).title(words.reset_title.clone()).announce(Politeness::Polite).id_salt("settings-reset").show(ui);
         }
+        SettingsNoticesOutput { response: ui.response() }
+    }
+}
+
+/// What `SettingsNotices::show` reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct SettingsNoticesOutput {
+    /// The response of the `Ui` the notices were shown in.
+    pub response: Response,
+}
+
+impl Outcome for SettingsNoticesOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
 }

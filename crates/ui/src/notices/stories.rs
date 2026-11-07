@@ -58,9 +58,9 @@ fn notice_centred(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(SettingsNotices, covers = [], drive = Drive::Never)]
 fn settings_notices(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let mut state = SettingsNoticeState::new();
-    state.loaded(&SettingsLoad::new().reset(vec!["interface.uiScale".to_owned(), "tools.brushSize".to_owned()]));
+    state.loaded(ui.ctx(), &SettingsLoad::new().reset(vec!["interface.uiScale".to_owned(), "tools.brushSize".to_owned()]));
     for _ in 0..3 {
-        state.ticked(&SaveResult::Failed("disk full".to_owned()));
+        state.ticked(ui.ctx(), &SaveResult::Failed("disk full".to_owned()));
     }
     SettingsNotices::new(&state).app("Studio").show(ui);
     Text::new("Preferences").show(ui).into()
@@ -73,5 +73,6 @@ fn notice_center(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         let notice = PostedNotice::new("Exported").lines(vec!["poster.png".to_owned()]).tone(Tone::Good);
         NoticeCenter::new().post(&ctx, &notice, &[]);
     }
+    NoticeCenter::new().show(ui);
     Text::new("Notices").show(ui).into()
 }

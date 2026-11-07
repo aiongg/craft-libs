@@ -12,21 +12,21 @@ name = "Notice"
 old = "craft_ui::composites::notice::Notice"
 new = "craft_ui::notices::Notice"
 status = "moved"
-note = "A `Component` shown with `Show::show`; `Notice::new(Tone::Warn, message).show(ui)` replaces `Notice::new(message).tone(Tone::Warn).show(ui)`. The output is `NoticeOutput { response, action, dismissed }`. `Notice::style(tokens, tone)` is gone; the look is `NoticeStyle`."
+note = "A `Component` shown with `Show::show`; `Notice::new(Tone::Warn, message).show(ui)` replaces `Notice::new(message).tone(Tone::Warn).show(ui)`. The output is `NoticeOutput { response, action, dismissed }`. `Notice::style(tokens, tone)` is gone; the look is `NoticeStyle`. A notice announces nothing by default; callers add `.announce(Politeness::..)` to keep the legacy behaviour (Bad `Politeness::Assertive` as an ALERT, every other tone `Politeness::Polite` as a STATUS)."
 
 [[type]]
 name = "SettingsNotices"
 old = "craft_ui::composites::settings_notice::SettingsNotices"
 new = "craft_ui::notices::SettingsNotices"
 status = "moved"
-note = "A pattern built from the app's `SettingsNoticeState` (the failure count and messages, owned by the app instead of kept in the pattern): `SettingsNotices::new(&state).app(name).show(ui)`. `loaded` and `ticked` are methods of `SettingsNoticeState` and take plain values (`SettingsLoad`, `SaveResult`) instead of craft-settings reports and an egui context."
+note = "A pattern built from the app's `SettingsNoticeState` (the failure count and messages, owned by the app instead of kept in the pattern): `SettingsNotices::new(&state).app(name).show(ui)`, which returns `SettingsNoticesOutput`. Every caller passes `.app(..)`: the name is no longer read from `Host`, and the notices say \"The app\" without it. `loaded` and `ticked` are methods of `SettingsNoticeState`; they take the egui context (they request a repaint through it, as the legacy methods did) and plain values (`SettingsLoad`, `SaveResult`) instead of craft-settings reports."
 
 [[type]]
 name = "NoticeCenter"
 old = "craft_ui::composites::notice_center::NoticeCenter"
 new = "craft_ui::notices::NoticeCenter"
 status = "moved"
-note = "A pattern over `runtime::toast`: `NoticeCenter::new().post(ctx, &PostedNotice, &silenced)` returns the toast id. The queue, timers and cards are the toast service's and the shell's `ToastHost`; `show(ctx, body)` and the returned `NoticeEnd` list are gone."
+note = "A pattern over `runtime::toast`: `NoticeCenter::new().post(ctx, &PostedNotice, &silenced)` returns the toast id, `keep(ctx, id)` makes a posted notice sticky, and `NoticeCenter::new().show(ui)` returns `NoticeCenterOutput { response, ends }` with the `NoticeEnd` list (`Closed`, `Expired`, `Silenced { id, key }`). The queue, the cap of three cards, the timers and the cards are the toast service's and the shell's `ToastHost`; a notice with a dismiss key carries the `common.dontShowAgain` action. The default timeout is `toast::TIMEOUT`, six seconds."
 
 [[type]]
 name = "PostedNotice"
@@ -38,16 +38,16 @@ note = "Built with `PostedNotice::new(title)` and setters (`lines`, `tone`, `dis
 [[type]]
 name = "NoticeEnd"
 old = "craft_ui::composites::notice_center::NoticeEnd"
-new = ""
-status = "removed"
-note = "The toast service does not report why a toast left; see the request for toast end reports."
+new = "craft_ui::notices::NoticeEnd"
+status = "replaced"
+note = "`Closed(ToastId)`, `Expired(ToastId)` and `Silenced { id, key }`, read from `NoticeCenter::show(ui).ends`; `Dropped` is not reported (the cap drops the oldest card without an action)."
 
 [[type]]
 name = "NoticePost"
 old = "craft_ui::composites::notice_center::NoticePost"
 new = ""
 status = "removed"
-note = "`NoticeCenter::post` returns `Option<ToastId>`; the cap lives in the toast service."
+note = "`NoticeCenter::post` returns `Option<ToastId>`; the cap of three cards lives in the toast service (`toast::MAX_CARDS`)."
 
 [[type]]
 name = "ToastStack"
@@ -61,7 +61,7 @@ name = "Toast"
 old = "craft_ui::composites::toast::Toast"
 new = "craft_ui::runtime::toast::Toast"
 status = "replaced"
-note = "`Toast::new(message)` with `timeout(Option<f32>)` and `politeness(Politeness)`; `tone`, `lines`, `action` and `persistent` follow the toast data request."
+note = "`Toast::new(message)` with `timeout(Option<f32>)`, `politeness(Politeness)`, `tone(Tone)`, `title(Label)` and `action(ToastAction)`; `toast::end(ctx, id)` reads how the toast ended (`ToastEnd::Action(index)`, `Dismissed`, `Expired`). The message is the lines joined by newlines; `persistent` is `timeout(None)`."
 
 [[type]]
 name = "ToastStyle"
@@ -75,7 +75,7 @@ name = "EmptyState"
 old = "craft_ui::composites::empty_state::EmptyState"
 new = ""
 status = "replaced"
-note = "`craft_ui::notices::Notice`: `Notice::new(Tone::Neutral, message).layout(NoticeLayout::Centred).title(heading).action(NoticeAction::new(label))`; the title takes the heading role and the height comes from layout."
+note = "`craft_ui::notices::Notice`: `Notice::new(Tone::Neutral, message).layout(NoticeLayout::Centred).title(heading).action(NoticeAction::new(label))`; the title takes the heading role and the height comes from layout. `EmptyState::new(message)` (an inline message) becomes `Notice::new(Tone::Neutral, message)` in the default `Inline` layout."
 
 [[type]]
 name = "EmptyStateStyle"
@@ -142,12 +142,12 @@ new = "id_salt(impl Hash)"
 [[setter]]
 type = "SettingsNotices"
 old = "loaded(&Context, &LoadReport)"
-new = "SettingsNoticeState::loaded(&SettingsLoad)"
+new = "SettingsNoticeState::loaded(&Context, &SettingsLoad)"
 
 [[setter]]
 type = "SettingsNotices"
 old = "ticked(&Context, &TickResult)"
-new = "SettingsNoticeState::ticked(&SaveResult)"
+new = "SettingsNoticeState::ticked(&Context, &SaveResult)"
 
 [[setter]]
 type = "SettingsNotices"

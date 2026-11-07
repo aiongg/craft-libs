@@ -1,22 +1,19 @@
-//! The toast host (15.5): one layer per viewport that shows each queued toast as a card.
+//! The toast host (15.5): one layer per viewport that shows each queued toast as a `Notice` in `NoticeLayout::Card`.
 
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
-use super::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Show};
-use crate::primitives::{TextRun, Wrap};
+use super::{Props as _, Show as _};
+use crate::notices::{Notice, NoticeAction, NoticeLayout};
 use crate::runtime::egui::memory as store;
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use crate::runtime::motion;
-use crate::runtime::toast;
-use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind, SurfaceLook};
-use craft_behavior::Metrics;
+use crate::runtime::toast::{self, Toast, ToastEnd};
 use craft_behavior::overlay::{Align, Side};
-use craft_theme::Stateful;
-use egui::{Align2, Rect, Ui, Vec2};
+use egui::{Align2, Rect, Ui};
 
-/// The texts of the cards shown last, so the layer's exit fade still shows them after the queue emptied.
+/// The toasts of the cards shown last, so the layer's exit fade still shows them after the queue emptied.
 #[derive(Clone, Default)]
-struct Shown(Vec<String>);
+struct Shown(Vec<Toast>);
 
 /// The layer that shows the toast queue of a viewport. The shell calls `show` once per pass.
 #[derive(Clone, Copy, Debug, Default)]
@@ -38,23 +35,35 @@ impl ToastHost {
             let _ = store::take::<Shown>(ctx, sub(id, "shown"));
             return;
         }
-        let texts: Vec<String> = if open {
-            cards.iter().map(|card| env.view().resolve(&card.toast.message).as_str().to_owned()).collect()
+        let toasts: Vec<Toast> = if open {
+            cards.iter().map(|card| card.toast.clone()).collect()
         } else {
             store::peek_clone::<Shown>(ctx, sub(id, "shown")).unwrap_or_default().0
         };
         if open {
-            store::put(ctx, sub(id, "shown"), Shown(texts.clone()));
+            store::put(ctx, sub(id, "shown"), Shown(toasts.clone()));
         }
         let overlay = Overlay::toast().place(Place::anchored(Anchor::Viewport(corner(&env)), Side::Above, Align::End));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::NOTHING, env: &env, exiting: !open, fade: presence.t };
         overlay::host(ctx, &layer, &mut |ui| {
-            for (at, text) in texts.iter().enumerate() {
+            for (at, toast) in toasts.iter().enumerate() {
                 let card = cards.get(at);
                 let salt = ("toast", card.map(|card| card.id), card.is_none().then_some(at));
-                let hovered = ToastCard { common: Common::default(), text }.id_salt(salt).show(ui).hovered();
-                if let Some(card) = cards.get(at) {
-                    toast::shown(ctx, card.id, text, hovered);
+                let mut notice = Notice::new(toast.tone, toast.message.clone()).layout(NoticeLayout::Card).dismiss().id_salt(salt);
+                if let Some(title) = &toast.title {
+                    notice = notice.title(title.clone());
+                }
+                for action in &toast.actions {
+                    notice = notice.action(NoticeAction::new(action.label.clone()));
+                }
+                let out = notice.show(ui);
+                if let Some(card) = card {
+                    toast::shown(ctx, card.id, &announcement(&env, toast), out.response.hovered());
+                    if let Some(taken) = out.action {
+                        toast::close(ctx, card.id, ToastEnd::Action(taken));
+                    } else if out.dismissed {
+                        toast::close(ctx, card.id, ToastEnd::Dismissed);
+                    }
                 }
             }
         });
@@ -66,58 +75,12 @@ fn corner(env: &Env) -> Align2 {
     if env.direction.is_rtl() { Align2::LEFT_BOTTOM } else { Align2::RIGHT_BOTTOM }
 }
 
-/// The look of a toast card.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct CardStyle {
-    #[style(surface)]
-    surface: SurfaceLook,
-    #[style(metrics)]
-    metrics: Metrics,
-}
-
-/// One toast's text on a floating surface.
-// F8-LATER: `Notice` shows the card (tone, icon, actions).
-#[derive(crate::contract::Component)]
-#[component(sample = ToastCard::sample)]
-struct ToastCard<'a> {
-    #[common]
-    common: Common,
-    text: &'a str,
-}
-
-impl ToastCard<'static> {
-    #[cfg(feature = "testing")]
-    fn sample() -> Self {
-        ToastCard { common: Common::default(), text: "Saved" }
-    }
-}
-
-impl Component for ToastCard<'_> {
-    const ROLE: Role = Role::STATUS;
-    const PARTS: bool = false;
-    const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
-    type Style = CardStyle;
-    type Output = egui::Response;
-
-    fn style(cx: &StyleCx<'_>, _: ToastCardStyleKey) -> CardStyle {
-        let fill = StyleColor(cx.surface(SurfaceKind::Floating).fill);
-        CardStyle { surface: SurfaceLook::new(Stateful::new(fill)).kind(SurfaceKind::Floating), metrics: cx.control().metrics() }
-    }
-
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(self.text).wrap(Wrap::Wrap)).size()
-    }
-
-    fn sense(&self) -> craft_behavior::Sense {
-        craft_behavior::Sense::HOVER
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.draw().text(cx.content_rect, &TextRun::new(self.text).wrap(Wrap::Wrap));
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
-        cx.response.clone()
+/// What the card announces when it first shows: the title and the message.
+fn announcement(env: &Env, toast: &Toast) -> String {
+    let view = env.view();
+    let message = view.resolve(&toast.message);
+    match &toast.title {
+        Some(title) => format!("{}, {}", view.resolve(title).as_str(), message.as_str()),
+        None => message.as_str().to_owned(),
     }
 }
