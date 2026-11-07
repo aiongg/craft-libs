@@ -25,3 +25,14 @@ fn range_slider_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_over = |range: &(f64, f64)| if range.1 > CAP { Validity::Refuse(Message::new("Above the limit")) } else { Validity::Ok };
     RangeSlider::new(Bind::bound(data.value("over", (30.0, 95.0))).check(refuse_over), RANGE).label("Level").show(ui).into()
 }
+
+#[story(RangeSlider<'static>, covers = [], drive = Drive::Never)]
+fn range_slider_labelled_marks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let marks = [(0.0, "Dark"), (50.0, "Mid"), (100.0, "Light")];
+    RangeSlider::new(Bind::bound(data.value("range", (20.0, 60.0))), RANGE).marks_labelled(marks).label("Level").show(ui).into()
+}
+
+#[story(RangeSlider<'static>, covers = [], drive = Drive::Never)]
+fn range_slider_ticks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    RangeSlider::new(Bind::bound(data.value("range", (20.0, 60.0))), RANGE).ticks(10).label("Level").show(ui).into()
+}

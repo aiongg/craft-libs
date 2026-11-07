@@ -38,9 +38,9 @@ note = "Read-only style struct of the new component, built from tokens by `Compo
 [[type]]
 name = "SliderThumb"
 old = "craft_ui::controls::slider::SliderThumb"
-new = ""
-status = "removed"
-note = "The triangle thumb of the colour channel sliders is not built; the colour sliders draw their own pointer under the track as a face or a content painter."
+new = "craft_ui::value_drag::SliderThumb"
+status = "moved"
+note = "`Round` and `Triangle`, a prop of `Slider`: `.thumb(SliderThumb::Triangle)`."
 
 [[type]]
 name = "Scale"
@@ -213,6 +213,15 @@ note = "`RowOp::new(thumb, ThumbOp)`; `ThumbOp` is `Move(NavMove, MoveMods)` or 
 
 # One entry per renamed, removed or reshaped setter or constructor.
 
+[[type]]
+name = "TrackFace"
+old = ""
+new = "craft_ui::value_drag::TrackFace"
+status = "replaced"
+note = "New: `TrackFace::new(component)` wraps a component that is shown as the look of the groove; pass it to `Slider::track_face` or `RangeSlider::track_face`."
+
+# One entry per renamed, removed or reshaped setter or constructor.
+
 [[setter]]
 type = "Slider"
 old = "new(id_salt, label, value, range)"
@@ -273,8 +282,8 @@ note = "The wheel moves one step, as an arrow key does."
 [[setter]]
 type = "Slider"
 old = "value_text(impl Into<String>)"
-new = ""
-note = "Not built: the numeric value of the access node is the value; a slider that shows its value sits in a `NumberField` with `popup_slider` or beside a `Text`."
+new = "value_text(impl Into<Label>)"
+note = "Sets the text assistive technology reads in place of the number; the legacy setter never painted it."
 
 [[setter]]
 type = "Slider"
@@ -291,38 +300,38 @@ note = "A slider's length is content (eight icon sides) or the width its contain
 [[setter]]
 type = "Slider"
 old = "track_colors(impl IntoIterator<Item = impl Into<Srgba>>)"
-new = ""
-note = "Not built: the colour channel tracks are the colour picker's own painters."
+new = "track_face(TrackFace)"
+note = "The colour picker shows a gradient component as the groove with `TrackFace::new(..)`; a face replaces the fill."
 
 [[setter]]
 type = "Slider"
 old = "fill(bool)"
-new = ""
-note = "Not built: the fill from the start edge to the thumb is always drawn while the value is shown."
+new = "fill(bool)"
+note = "A prop, on by default."
 
 [[setter]]
 type = "Slider"
 old = "marks(&[f64])"
-new = ""
-note = "Not built: marks, labelled marks and ticks have no counterpart yet."
+new = "marks(&[f64])"
+note = "Marks are snap targets within half a thumb of the pointer and are drawn under the track."
 
 [[setter]]
 type = "Slider"
 old = "marks_labelled(impl IntoIterator<Item = (f64, impl Into<String>)>)"
-new = ""
-note = "See `marks(&[f64])`."
+new = "marks_labelled(impl IntoIterator<Item = (f64, impl Into<Label>)>)"
+note = "Captions are drawn under the marks and add one caption line to the height."
 
 [[setter]]
 type = "Slider"
 old = "ticks(usize)"
-new = ""
-note = "See `marks(&[f64])`; the content-paint kit has `ticks`."
+new = "ticks(usize)"
+note = "A prop: count + 1 evenly spaced ticks under the track, no snapping."
 
 [[setter]]
 type = "Slider"
 old = "thumb(SliderThumb)"
-new = ""
-note = "See `SliderThumb`."
+new = "thumb(SliderThumb)"
+note = "A prop."
 
 [[setter]]
 type = "RangeSlider"
@@ -504,4 +513,28 @@ type = "Thumb"
 old = "default_value(f64)"
 new = ""
 note = "A reset restores the binding's reset value (`Bind::reset`) for the whole row; a thumb has no default of its own."
+
+[[setter]]
+type = "RangeSlider"
+old = "marks(&[f64])"
+new = "marks(&[f64])"
+note = "New on the range slider; a thumb near a mark snaps to it."
+
+[[setter]]
+type = "RangeSlider"
+old = "marks_labelled(..)"
+new = "marks_labelled(impl IntoIterator<Item = (f64, impl Into<Label>)>)"
+note = "New on the range slider."
+
+[[setter]]
+type = "RangeSlider"
+old = "ticks(usize)"
+new = "ticks(usize)"
+note = "New on the range slider."
+
+[[setter]]
+type = "RangeSlider"
+old = "track_face(TrackFace)"
+new = "track_face(TrackFace)"
+note = "New on the range slider."
 
