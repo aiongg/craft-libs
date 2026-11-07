@@ -33,6 +33,7 @@ impl ToggleState {
 #[non_exhaustive]
 pub enum ToggleFace {
     /// An icon while on; the off icon shows under the pointer, or always with `always_visible`.
+    #[non_exhaustive]
     Icons {
         /// Drawn while on (and while mixed).
         on: IconId,

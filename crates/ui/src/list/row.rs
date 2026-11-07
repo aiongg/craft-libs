@@ -24,6 +24,7 @@ use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
 /// The thumbnail setting of a list, which the host stores.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum ThumbSize {
     /// No thumbnail: rows are one control high.
     #[default]
@@ -56,6 +57,7 @@ impl ThumbSize {
 
 /// One of a row's thumbnails.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ThumbTarget {
     /// The first thumbnail ([`ListRow::thumb`]).
     First,
@@ -81,11 +83,13 @@ pub enum RowInk {
 #[non_exhaustive]
 pub enum RowEvent {
     /// The disclosure part of a group row was clicked: `open` is the state it asks for.
+    #[non_exhaustive]
     Open {
         /// The state the click asks for.
         open: bool,
     },
     /// The link glyph before an extra thumbnail was clicked: `linked` is the state it asks for.
+    #[non_exhaustive]
     LinkToggled {
         /// The extra thumbnail the glyph belongs to, counted from 0 in the order added.
         thumb: usize,
@@ -201,16 +205,24 @@ pub struct ListRow<'a> {
     pub(super) spacer: bool,
     pub(super) cells: Vec<(ColumnKey, Rect)>,
     pub(super) toggles: Vec<ToggleCell>,
+    /// An icon before the label. A thumbnail takes its place.
+    #[prop]
     pub(super) icon: Option<IconSpec<'a>>,
     pub(super) thumb: ThumbSize,
     pub(super) thumb_side: Option<Vec2>,
     pub(super) first: Option<ThumbPaint<'a>>,
     pub(super) extras: Vec<Thumb<'a>>,
+    /// The thumbnail the row's editing is aimed at: framed with corner brackets whether or not the row is selected.
+    #[prop(name = "thumb_target")]
     pub(super) target: Option<ThumbTarget>,
     pub(super) trailing: Vec<Trailing<'a>>,
     /// The row's depth in a tree, which indents it; `None` for a row of a flat list.
+    /// The row is at `depth` levels of a tree: indented by it, an `AccessKit` tree item.
+    #[prop]
     pub(super) depth: Option<usize>,
     /// `Some(open)` for a tree row that has children, which shows the disclosure part.
+    /// The row is a tree group with children, `open` or closed: it shows the disclosure part.
+    #[prop]
     pub(super) group: Option<bool>,
     pub(super) event: Option<RowEvent>,
     pub(super) label_rect: Rect,
@@ -277,13 +289,6 @@ impl<'a> ListRow<'a> {
         self
     }
 
-    /// An icon before the label. A thumbnail takes its place.
-    #[must_use]
-    pub fn icon(mut self, icon: IconSpec<'a>) -> Self {
-        self.icon = Some(icon);
-        self
-    }
-
     /// A thumbnail of `size` before the label, framed just outside; `paint` draws into the thumbnail's rect.
     /// `ThumbSize::None` draws none.
     #[must_use]
@@ -322,13 +327,6 @@ impl<'a> ListRow<'a> {
         self
     }
 
-    /// The thumbnail the row's editing is aimed at: framed with corner brackets whether or not the row is selected.
-    #[must_use]
-    pub fn thumb_target(mut self, target: ThumbTarget) -> Self {
-        self.target = Some(target);
-        self
-    }
-
     /// An item at the trailing end, `heights` control heights wide, that always shows. The first item added is the
     /// outermost.
     #[must_use]
@@ -341,20 +339,6 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn optional(mut self, heights: f32, show: impl FnOnce(&mut PaintUi<'_>, Rect) + 'a) -> Self {
         self.trailing.push(Trailing { heights, optional: true, paint: Some(Box::new(show)) });
-        self
-    }
-
-    /// The row is at `depth` levels of a tree: indented by it, an `AccessKit` tree item.
-    #[must_use]
-    pub fn depth(mut self, depth: usize) -> Self {
-        self.depth = Some(depth);
-        self
-    }
-
-    /// The row is a tree group with children, `open` or closed: it shows the disclosure part.
-    #[must_use]
-    pub fn group(mut self, open: bool) -> Self {
-        self.group = Some(open);
         self
     }
 }
@@ -965,7 +949,7 @@ struct RowThumbStyle {
 /// The picture of a row's thumbnail, painted by the host through the content painter, which is clipped to the
 /// thumbnail's rect.
 #[derive(crate::contract::Component)]
-#[component(content_painter, exempt(case = "stories", reason = "A part of `ListRow`, shown by its stories."))]
+#[component(content_painter, exempt(case = "face-only", reason = "A part of `ListRow`, shown by its stories."))]
 struct RowThumb<'a> {
     #[common]
     common: Common,
@@ -1003,11 +987,10 @@ impl Component for RowThumb<'_> {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const SIZES: Sizes = Sizes {
+/// Where the label, the trailing items and the disclosure of `row` lie in a rect of `width` under fixed sizes: the
+/// geometry trials read it.
+pub(crate) fn placement_under_fixed_sizes(row: &ListRow<'_>, width: f32, rtl: bool) -> RowPlacement {
+    let sizes = Sizes {
         row: 20.0,
         icon: 16.0,
         pad: 6.0,
@@ -1020,52 +1003,23 @@ mod tests {
         label_line: 16.0,
         detail_line: 12.0,
     };
+    let placed = row.place(&sizes, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, sizes.row)), rtl);
+    RowPlacement { label: placed.label, items: placed.items, disclosure: placed.disclosure, min_label: sizes.min_label }
+}
 
-    fn row_in(row: &ListRow<'_>, width: f32, rtl: bool) -> Placed {
-        row.place(&SIZES, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, SIZES.row)), rtl)
-    }
+/// The indent steps of `row`.
+pub(crate) fn indent_steps(row: &ListRow<'_>) -> usize {
+    row.steps()
+}
 
-    #[test]
-    fn optional_items_drop_out_before_the_label_gets_too_narrow() {
-        let row = ListRow::new("Layer").trailing(1.0, |_, _| {}).optional(2.0, |_, _| {});
-        assert!(row_in(&row, 150.0, false).items.iter().all(Option::is_some));
-        let narrow = row_in(&row, 120.0, false);
-        assert!(narrow.items[0].is_some() && narrow.items[1].is_none());
-        assert!(narrow.label.width() >= SIZES.min_label);
-    }
-
-    #[test]
-    fn a_row_too_narrow_for_its_required_parts_keeps_the_label_at_its_least_width() {
-        let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
-        let placed = row_in(&row, 60.0, false);
-        assert_eq!(placed.label.width(), SIZES.min_label);
-        assert!(placed.items[0].is_some_and(|item| item.right() > 60.0), "the item moves out with the label and the row's edge cuts it");
-    }
-
-    #[test]
-    fn the_indent_shrinks_before_the_label_does_and_the_disclosure_column_keeps_its_room() {
-        let row = ListRow::new("Group").depth(5).group(true);
-        let placed = row_in(&row, 120.0, false);
-        assert_eq!(placed.label.width(), SIZES.min_label);
-        let disclosure = placed.disclosure.expect("a group row has a disclosure column");
-        assert!(disclosure.right() <= placed.label.left());
-        assert_eq!(placed.label.left() - disclosure.right(), 0.0);
-    }
-
-    #[test]
-    fn the_row_mirrors_under_right_to_left() {
-        let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
-        let (ltr, rtl) = (row_in(&row, 200.0, false), row_in(&row, 200.0, true));
-        assert_eq!(ltr.label.left(), 200.0 - rtl.label.right());
-        assert_eq!(ltr.items[0].map(|item| item.left()), rtl.items[0].map(|item| 200.0 - item.right()));
-    }
-
-    #[test]
-    fn a_leaf_inside_a_group_indents_one_level_more_than_its_depth() {
-        let leaf = ListRow::new("Leaf").depth(1);
-        let top = ListRow::new("Leaf").depth(0);
-        assert_eq!(leaf.steps(), 2);
-        assert_eq!(top.steps(), 0);
-        assert_eq!(ListRow::new("Group").depth(1).group(false).steps(), 1);
-    }
+/// A row's parts placed by [`placement_under_fixed_sizes`].
+pub struct RowPlacement {
+    /// The label and detail.
+    pub label: Rect,
+    /// The trailing items, `None` for one that dropped out.
+    pub items: Vec<Option<Rect>>,
+    /// The disclosure column of a group row.
+    pub disclosure: Option<Rect>,
+    /// The label's least width under the fixed sizes.
+    pub min_label: f32,
 }

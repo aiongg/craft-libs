@@ -12,6 +12,21 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Ui};
 
+/// What a dialog calls when it closes: a closure over the reason.
+pub struct CloseHandler<'a>(Box<dyn FnMut(CloseReason) + 'a>);
+
+impl<'a, F: FnMut(CloseReason) + 'a> From<F> for CloseHandler<'a> {
+    fn from(report: F) -> Self {
+        CloseHandler(Box::new(report))
+    }
+}
+
+impl CloseHandler<'_> {
+    pub(super) fn report(&mut self, why: CloseReason) {
+        (self.0)(why);
+    }
+}
+
 /// The heading level AccessKit reports for a dialog's title.
 const TITLE_LEVEL: usize = 1;
 
@@ -83,7 +98,7 @@ pub struct DialogFrameStyle {
 
 /// The look of a dialog in the flow of its parent: the dialog surface, a title row, the body and a footer. It has no
 /// layer, no focus scope and no placement; `Dialog` is the same chrome on an egui layer.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct DialogFrame<'a> {
     #[common]
@@ -91,6 +106,8 @@ pub struct DialogFrame<'a> {
     #[container]
     props: ContainerProps,
     footer: Option<FooterFn<'a>>,
+    /// Whether the title row has a close action; the container closes itself when it is taken.
+    #[prop]
     closable: bool,
 }
 
@@ -98,13 +115,6 @@ impl<'a> DialogFrame<'a> {
     /// A frame titled `title`.
     pub fn new(title: impl Into<Label>) -> Self {
         DialogFrame { common: Common::new(), props: chrome_props(), footer: None, closable: false }.label(title)
-    }
-
-    /// Whether the title row has a close action; the container closes itself when it is taken.
-    #[must_use]
-    pub fn closable(mut self, on: bool) -> Self {
-        self.closable = on;
-        self
     }
 
     /// The larger frame margin.

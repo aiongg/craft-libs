@@ -61,13 +61,17 @@ impl<T: Value> Outcome for SplitOutput<T> {
 /// A button whose end opens a menu. A press on the arrow part opens the menu below the button; a press on the main
 /// part runs the action and never opens it. The button is one Tab stop: Space and Enter run the action, Alt+Down and
 /// Down open the menu with its first row active, Escape closes it with focus back on the button.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay, probe(SplitButton<'static, u8>))]
 pub struct SplitButton<'a, T: Value + 'static> {
     #[common]
     common: Common,
     entries: &'a [SelectOption<T>],
+    /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
+    #[prop(into)]
     arrow_label: Option<Label>,
+    /// A leading icon on the main part.
+    #[prop]
     icon: Option<IconId>,
     chosen: Option<T>,
 }
@@ -76,20 +80,6 @@ impl<'a, T: Value + 'static> SplitButton<'a, T> {
     /// A split button showing `label` whose arrow opens `entries`.
     pub fn new(label: impl Into<Label>, entries: &'a [SelectOption<T>]) -> Self {
         SplitButton { common: Common::new(), entries, arrow_label: None, icon: None, chosen: None }.label(label)
-    }
-
-    /// The arrow's accessible name and tooltip ("Tracing Presets"); the label alone names it without one.
-    #[must_use]
-    pub fn arrow_label(mut self, label: impl Into<Label>) -> Self {
-        self.arrow_label = Some(label.into());
-        self
-    }
-
-    /// A leading icon on the main part.
-    #[must_use]
-    pub fn icon(mut self, icon: IconId) -> Self {
-        self.icon = Some(icon);
-        self
     }
 
     fn spec<'s>(&'s self, label: &'s str) -> FaceSpec<'s> {

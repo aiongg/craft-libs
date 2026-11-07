@@ -1,6 +1,6 @@
 //! Sections and title rows: `TitleRow`, `FooterBar`, `Section` and `GroupBox`.
 
-mod footer;
+pub(crate) mod footer;
 mod group_box;
 #[cfg(feature = "testing")]
 mod stories;

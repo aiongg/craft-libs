@@ -16,6 +16,7 @@ pub mod focus;
 pub mod frames;
 pub mod index;
 pub mod input;
+pub mod internals;
 pub mod layout;
 pub mod memory;
 pub mod parity;

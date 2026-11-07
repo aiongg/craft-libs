@@ -92,7 +92,7 @@ enum Content {
 }
 
 /// The indexes of `roles` in display order: by role rank, and in the given order within a rank.
-fn display_order(roles: &[DialogRole], windows: bool) -> Vec<usize> {
+pub(crate) fn display_order(roles: &[DialogRole], windows: bool) -> Vec<usize> {
     let mut order: Vec<usize> = (0..roles.len()).collect();
     order.sort_by_key(|&at| roles[at].rank(windows));
     order
@@ -168,15 +168,3 @@ impl Component for FooterBar {
 }
 
 impl Container for FooterBar {}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn accept_is_last_off_windows_and_first_on_windows() {
-        let roles = [DialogRole::Accept, DialogRole::Cancel, DialogRole::Other];
-        assert_eq!(display_order(&roles, false), vec![2, 1, 0]);
-        assert_eq!(display_order(&roles, true), vec![0, 1, 2]);
-    }
-}

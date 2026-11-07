@@ -1,8 +1,2 @@
 config_version = 1
 
-[[exception]]
-name = "action-face-stories"
-kind = "probe"
-rule = "probe/exempt/stories"
-path = "crates/ui/src/sections/title_row.rs"
-reason = "A face of the title row's action parts, shown only inside it."

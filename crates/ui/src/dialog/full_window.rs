@@ -1,6 +1,6 @@
 //! `FullWindowDialog` (16.5): a dialog over the whole window, on the panel surface, with the dialog focus trap.
 
-use super::frame::{self, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, HeaderRegion, Mount, Pad, Props as _, Role, SaveKey,
 };
@@ -26,17 +26,21 @@ pub struct FullWindowDialogStyle {
 /// - Open state: bound with [`opened`](FullWindowDialog::opened), else a session slot that starts open.
 /// - Focus: the dialog trap, with nothing focused at first unless [`initial_focus`](FullWindowDialog::initial_focus)
 ///   says otherwise.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct FullWindowDialog<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
+    /// Binds the open state to `open`.
+    #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
     actions: Vec<HeaderAction>,
-    on_close: Option<Box<dyn FnMut(CloseReason) + 'a>>,
+    /// Reports how the dialog closed. Called once for each close.
+    #[prop(into)]
+    on_close: Option<CloseHandler<'a>>,
 }
 
 impl<'a> FullWindowDialog<'a> {
@@ -51,13 +55,6 @@ impl<'a> FullWindowDialog<'a> {
         FullWindowDialog { common: Common::new(), props, open: None, footer: None, actions: Vec::new(), on_close: None }.label(title)
     }
 
-    /// Binds the open state to `open`.
-    #[must_use]
-    pub fn opened(mut self, open: Bind<'a, bool>) -> Self {
-        self.open = Some(open);
-        self
-    }
-
     /// The action parts at the end of the title row, in reading order; the close action closes the dialog.
     #[must_use]
     pub fn actions(mut self, actions: impl IntoIterator<Item = HeaderAction>) -> Self {
@@ -69,13 +66,6 @@ impl<'a> FullWindowDialog<'a> {
     #[must_use]
     pub fn enter(mut self, rule: EnterRule) -> Self {
         self.props.focus = FocusPolicy { enter: rule, ..self.props.focus };
-        self
-    }
-
-    /// Reports how the dialog closed. Called once for each close.
-    #[must_use]
-    pub fn on_close(mut self, report: impl FnMut(CloseReason) + 'a) -> Self {
-        self.on_close = Some(Box::new(report));
         self
     }
 
@@ -142,7 +132,7 @@ impl Container for FullWindowDialog<'_> {
 
     fn closed(&mut self, why: CloseReason) {
         if let Some(report) = self.on_close.as_mut() {
-            report(why);
+            report.report(why);
         }
     }
 }

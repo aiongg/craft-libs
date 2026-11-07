@@ -317,26 +317,3 @@ impl Component for FindingsSummary<'_> {
         cx.response.clone()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::runtime::env::WordSet as _;
-
-    fn sample() -> Vec<Finding> {
-        vec![
-            Finding::new(Severity::Error, "Missing font"),
-            Finding::new(Severity::Warning, "Low resolution").detail("page 2"),
-            Finding::new(Severity::Warning, "Overset text"),
-        ]
-    }
-
-    #[test]
-    fn the_summary_counts_errors_and_warnings() {
-        let words = FindingsWords::english();
-        assert_eq!(summary_text(&words, &[]), "No errors");
-        assert_eq!(summary_text(&words, &sample()), "1 error, 2 warnings");
-        assert_eq!(summary_text(&words, &sample()[1..]), "0 errors, 2 warnings");
-        assert_eq!(summary_text(&words, &sample()[..1]), "1 error, 0 warnings");
-    }
-}

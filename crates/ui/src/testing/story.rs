@@ -45,6 +45,7 @@ pub enum Drive {
     /// Typed text.
     Type(&'static str),
     /// Open, then Down and Enter on the row; a second run clicks the row.
+    #[non_exhaustive]
     Pick {
         /// The row to pick.
         row: usize,

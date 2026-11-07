@@ -253,39 +253,3 @@ impl Collection for EventList<'_> {
         super::findings::EmptyNote::new().label(words.none.clone()).show_at(ui, cx.rect);
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::runtime::env::WordSet as _;
-
-    fn log() -> Vec<LogEvent> {
-        vec![
-            LogEvent::new(1, EventLevel::Info, "Open", "File opened", 0),
-            LogEvent::new(2, EventLevel::Error, "Render", "Out of memory", 10_000),
-            LogEvent::new(3, EventLevel::Warning, "Auto-save", "Disk almost full", 20_000).count(3),
-        ]
-    }
-
-    #[test]
-    fn the_log_shows_newest_first_at_or_above_the_level() {
-        let events = log();
-        let all = EventLog::new(&events, &EventLogState::default());
-        assert_eq!((0..all.len()).map(|at| all.key(at)).collect::<Vec<_>>(), [3, 2, 1]);
-        let serious = EventLog::new(&events, &EventLogState { min_level: EventLevel::Warning });
-        assert_eq!((0..serious.len()).map(|at| serious.key(at)).collect::<Vec<_>>(), [3, 2]);
-        assert_eq!(serious.index_of(&1), None);
-        assert_eq!(serious.counts(), LevelCounts { info: 1, warning: 1, error: 1 });
-    }
-
-    #[test]
-    fn a_repeated_event_shows_its_count_and_a_future_event_is_new() {
-        let words = EventWords::english();
-        let events = log();
-        assert_eq!(events[2].message_with_count(&words), "Disk almost full  (\u{d7}3)");
-        assert_eq!(events[1].message_with_count(&words), "Out of memory");
-        assert_eq!(events[1].age_seconds(5_000), 0);
-        assert_eq!(events[1].age_seconds(70_000), 60);
-        assert_eq!(events[2].details_line(&words, "2 min ago"), "Warning \u{b7} Auto-save \u{b7} 2 min ago");
-    }
-}

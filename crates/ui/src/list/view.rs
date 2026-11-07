@@ -41,7 +41,11 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The selection the caller owns.
     #[prop]
     selection: Option<Bind<'a, Selection<K>>>,
+    /// Scrolls the row of `key` into view once.
+    #[prop]
     reveal: Option<K>,
+    /// A tree: rows are indented by depth and groups open and close.
+    #[prop]
     tree: bool,
 }
 
@@ -91,20 +95,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn empty(mut self, text: impl Into<Label>) -> Self {
         self.items = self.items.empty(text);
-        self
-    }
-
-    /// Scrolls the row of `key` into view once.
-    #[must_use]
-    pub fn reveal(mut self, key: K) -> Self {
-        self.reveal = Some(key);
-        self
-    }
-
-    /// A tree: rows are indented by depth and groups open and close.
-    #[must_use]
-    pub fn tree(mut self, tree: bool) -> Self {
-        self.tree = tree;
         self
     }
 

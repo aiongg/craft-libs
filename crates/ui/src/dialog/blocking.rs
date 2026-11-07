@@ -25,14 +25,18 @@ pub struct BlockingOverlayStyle {
 ///   every pass the work lasts, or bind the state to the work.
 /// - Cancel: Escape closes it when [`cancellable`](BlockingOverlay::cancellable) says so; the open state then
 ///   reads `false`.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct BlockingOverlay<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
+    /// Binds the open state to `open`.
+    #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
+    /// The cursor while the overlay is shown.
+    #[prop]
     cursor: CursorIcon,
 }
 
@@ -50,20 +54,6 @@ impl<'a> BlockingOverlay<'a> {
         if let Mount::Layer(overlay) = &mut self.props.mount {
             change(overlay);
         }
-        self
-    }
-
-    /// Binds the open state to `open`.
-    #[must_use]
-    pub fn opened(mut self, open: Bind<'a, bool>) -> Self {
-        self.open = Some(open);
-        self
-    }
-
-    /// The cursor while the overlay is shown.
-    #[must_use]
-    pub fn cursor(mut self, cursor: CursorIcon) -> Self {
-        self.cursor = cursor;
         self
     }
 

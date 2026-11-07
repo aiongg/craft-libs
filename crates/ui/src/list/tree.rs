@@ -51,20 +51,3 @@ impl<K: Hash + Eq + Clone> OpenSet<K> {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::OpenSet;
-
-    #[test]
-    fn apply_opens_one_group_or_every_group() {
-        let groups = ["a", "b"];
-        let mut open = OpenSet::new();
-        open.apply(&"a", true, false, groups.iter());
-        assert_eq!((open.is_open(&"a"), open.is_open(&"b")), (true, false));
-        open.apply(&"a", true, true, groups.iter());
-        assert!(open.is_open(&"b"));
-        open.apply(&"b", false, true, groups.iter());
-        assert!(!open.is_open(&"a") && !open.is_open(&"b"));
-    }
-}

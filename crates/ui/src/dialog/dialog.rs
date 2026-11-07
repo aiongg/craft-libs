@@ -1,7 +1,7 @@
 //! `Dialog` (16.5): `DialogFrame`'s chrome on an egui layer: modal or modeless, movable by its header, with a
 //! focus trap, placement and size remembered under a `SaveKey`.
 
-use super::frame::{self, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
     BindMut, BodyCx, Bind, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
@@ -29,17 +29,24 @@ pub struct DialogStyle {
 /// - Placement and size: saved across runs under [`remember`](Dialog::remember); a resizable dialog also saves the
 ///   size the user left it at.
 /// - A modal dialog blocks input below it in every window; a press outside does nothing.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct Dialog<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
+    /// Binds the open state to `open`.
+    #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
+    /// Whether the title row has a close action.
+    #[prop]
     closable: bool,
-    on_close: Option<Box<dyn FnMut(CloseReason) + 'a>>,
+    /// Reports how the dialog closed: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
+    /// `Requested` what a footer button asked for with `FooterCx::request_close_as`. Called once for each close.
+    #[prop(into)]
+    on_close: Option<CloseHandler<'a>>,
 }
 
 impl<'a> Dialog<'a> {
@@ -56,13 +63,6 @@ impl<'a> Dialog<'a> {
             _ => Overlay::dialog().resizable(false),
         };
         self.props = self.props.mount(Mount::Layer(change(overlay)));
-        self
-    }
-
-    /// Binds the open state to `open`.
-    #[must_use]
-    pub fn opened(mut self, open: Bind<'a, bool>) -> Self {
-        self.open = Some(open);
         self
     }
 
@@ -122,21 +122,6 @@ impl<'a> Dialog<'a> {
         })
     }
 
-    /// Reports how the dialog closed: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
-    /// `Requested` what a footer button asked for with `FooterCx::request_close_as`. Called once for each close.
-    #[must_use]
-    pub fn on_close(mut self, report: impl FnMut(CloseReason) + 'a) -> Self {
-        self.on_close = Some(Box::new(report));
-        self
-    }
-
-    /// Whether the title row has a close action.
-    #[must_use]
-    pub fn closable(mut self, on: bool) -> Self {
-        self.closable = on;
-        self
-    }
-
     /// Whether the dialog holds one outer gesture over its body's fields, from open to close.
     #[must_use]
     pub fn outer_gesture(mut self, on: bool) -> Self {
@@ -193,7 +178,7 @@ impl Container for Dialog<'_> {
 
     fn closed(&mut self, why: CloseReason) {
         if let Some(report) = self.on_close.as_mut() {
-            report(why);
+            report.report(why);
         }
     }
 }

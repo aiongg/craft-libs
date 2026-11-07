@@ -260,30 +260,3 @@ impl Component for UndoRow<'_> {
         UndoRowOutput { response: cx.response.clone(), event: self.picked.then_some(UndoRowEvent::Picked) }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::runtime::env::WordSet as _;
-
-    #[test]
-    fn a_mark_covers_the_row_and_every_newer_one() {
-        let mut mark = UndoMark::default();
-        assert!(!mark.contains(&0));
-        mark.apply(SelectionChange::Set(vec![2]));
-        assert_eq!((mark.contains(&0), mark.contains(&2), mark.contains(&3)), (true, true, false));
-        assert_eq!(mark.actions(), 3);
-        mark.apply(SelectionChange::Clear);
-        assert_eq!(mark.actions(), 0);
-    }
-
-    #[test]
-    fn the_footer_counts_marked_actions_and_a_pick_undoes_through_its_row() {
-        let words = UndoWords::english();
-        assert_eq!(footer_text(&words, &UndoMark::default()), None);
-        assert_eq!(footer_text(&words, &UndoMark::at(0)).as_deref(), Some("Undo 1 Action"));
-        assert_eq!(footer_text(&words, &UndoMark::at(3)).as_deref(), Some("Undo 4 Actions"));
-        assert_eq!(undo_count(&[CollectionEvent::LeadMoved(1)]), None);
-        assert_eq!(undo_count(&[CollectionEvent::Item(2, UndoRowEvent::Picked)]), Some(3));
-    }
-}

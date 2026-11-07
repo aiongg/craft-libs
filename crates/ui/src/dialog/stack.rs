@@ -92,35 +92,3 @@ impl DialogStack {
         self.entries.iter().map(|(id, _)| *id)
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_last_opened_is_the_top_and_parents_know_their_children() {
-        let (a, b, c) = (dialog_id("a"), dialog_id("b"), dialog_id("c"));
-        let mut stack = DialogStack::default();
-        stack.push(a, None);
-        stack.push(b, Some(a));
-        stack.push(b, Some(a));
-        stack.push(c, None);
-        assert_eq!(stack.ids().collect::<Vec<_>>(), [a, b, c]);
-        assert!(stack.is_top(c) && stack.has_child(a) && !stack.has_child(b));
-        assert_eq!(stack.children(a).collect::<Vec<_>>(), [b]);
-        stack.remove(c);
-        assert!(stack.is_top(b));
-    }
-
-    #[test]
-    fn remove_tree_takes_the_descendants_and_leaves_the_rest() {
-        let (a, b, c, d) = (dialog_id("a"), dialog_id("b"), dialog_id("c"), dialog_id("d"));
-        let mut stack = DialogStack::default();
-        stack.push(a, None);
-        stack.push(b, Some(a));
-        stack.push(c, Some(b));
-        stack.push(d, None);
-        stack.remove_tree(a);
-        assert_eq!(stack.ids().collect::<Vec<_>>(), [d]);
-    }
-}

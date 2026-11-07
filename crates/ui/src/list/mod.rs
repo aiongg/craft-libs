@@ -2,7 +2,7 @@
 
 mod events;
 mod findings;
-mod row;
+pub(crate) mod row;
 #[cfg(feature = "testing")]
 mod stories;
 mod toggle;

@@ -15,7 +15,7 @@ mod words;
 
 pub use blocking::{BlockingOverlay, BlockingOverlayStyle};
 pub use dialog::{Dialog, DialogStyle};
-pub use frame::{DialogFrame, DialogFrameStyle, FooterCx};
+pub use frame::{CloseHandler, DialogFrame, DialogFrameStyle, FooterCx};
 pub use full_window::{FullWindowDialog, FullWindowDialogStyle};
 pub use host::{DialogHost, DialogResult, StackDialog, StartupStage};
 pub use stack::{DialogId, DialogStack, dialog_id};
