@@ -163,7 +163,7 @@ impl Units {
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
     /// the unit spellings that convert to `kind`, in the user's language and in English.
     pub fn reader(&self, kind: Option<UnitKind>) -> Reader {
-        let (decimal, group) = self.separators();
+        let (decimal, group) = self.format.separators();
         let mut reader = Reader::new().decimal(decimal);
         if let Some(group) = group {
             reader = reader.group(group);
@@ -185,18 +185,4 @@ impl Units {
         }
         reader
     }
-
-    /// The decimal and group separators of the format, read from a number that shows both.
-    fn separators(&self) -> (char, Option<char>) {
-        let sample = self.format.number(1_234_567.5, 1);
-        let marks: Vec<char> = sample.chars().filter(|c| !c.is_alphanumeric() && !c.is_whitespace() && !is_bidi(*c)).collect();
-        let decimal = marks.last().copied().unwrap_or('.');
-        let group = marks.first().copied().filter(|group| *group != decimal);
-        (decimal, group)
-    }
-}
-
-/// Bidi formatting marks that surround numbers in right-to-left locales.
-fn is_bidi(c: char) -> bool {
-    matches!(c, '\u{200e}' | '\u{200f}' | '\u{061c}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
 }

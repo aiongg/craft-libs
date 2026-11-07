@@ -233,7 +233,7 @@ fn digit(c: char) -> Option<(u32, u8)> {
 }
 
 /// Marks bidi formatting adds around numbers: LRM, RLM, ALM, embeddings, overrides and isolates.
-fn is_bidi_mark(c: char) -> bool {
+pub(crate) fn is_bidi_mark(c: char) -> bool {
     matches!(c, '\u{200e}' | '\u{200f}' | '\u{061c}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}')
 }
 
