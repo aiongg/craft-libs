@@ -78,21 +78,12 @@ pub struct PressStart {
     pub time: f64,
     /// 1 for a single press, 2 for a double press, and so on.
     pub clicks: u32,
-    /// The button went down in this pass. [`PressMachine`] sets it for the pass of the press and clears it for the
-    /// passes that follow; a start built by [`PressStart::new`] has it false.
-    pub went_down_now: bool,
 }
 
 impl PressStart {
     /// A press of `button` at `origin`.
     pub const fn new(origin: Pos2, button: PointerButton, time: f64, clicks: u32) -> Self {
-        PressStart { origin, button, time, clicks, went_down_now: false }
-    }
-
-    /// Whether this is the pass in which a second or later primary press went down: true once per double click,
-    /// false while the button is held.
-    pub const fn is_double_press(&self) -> bool {
-        self.went_down_now && self.clicks >= 2 && matches!(self.button, PointerButton::Primary)
+        PressStart { origin, button, time, clicks }
     }
 }
 
@@ -262,6 +253,8 @@ pub struct PressState {
     pub sample: Option<PointerSample>,
     /// A drag holds the pointer: nothing else hovers.
     pub captured: bool,
+    /// The button went down in this pass.
+    pub went_down: bool,
 }
 
 impl PressState {
@@ -270,7 +263,7 @@ impl PressState {
 
     /// A state in `phase` with no modifiers, sample or capture.
     pub const fn new(phase: PressPhase) -> Self {
-        PressState { phase, mods: Mods::NONE, sample: None, captured: false }
+        PressState { phase, mods: Mods::NONE, sample: None, captured: false, went_down: false }
     }
 
     /// The modifiers held.
@@ -291,11 +284,17 @@ impl PressState {
         self
     }
 
+    /// Whether the button went down in this pass.
+    pub const fn went_down(mut self, went_down: bool) -> Self {
+        self.went_down = went_down;
+        self
+    }
+
     /// Whether the second press of a double click went down in this pass: true once, false while the button is held
     /// and for a first press. Every double-click reader uses this, never `clicks >= 2` on a held phase.
     pub const fn double_pressed(&self) -> bool {
         match self.phase.start() {
-            Some(start) => start.is_double_press(),
+            Some(start) => self.went_down && start.clicks >= 2 && matches!(start.button, PointerButton::Primary),
             None => false,
         }
     }
@@ -419,11 +418,13 @@ pub struct PressStep<T> {
     pub dragging: bool,
     /// The target released as a click in this pass.
     pub activated: Option<T>,
+    /// The button went down in this pass.
+    pub went_down: bool,
 }
 
 impl<T> Default for PressStep<T> {
     fn default() -> Self {
-        PressStep { target: None, phase: None, dragging: false, activated: None }
+        PressStep { target: None, phase: None, dragging: false, activated: None, went_down: false }
     }
 }
 
@@ -474,9 +475,7 @@ impl<T: Copy> PressMachine<T> {
     /// when no shape of this root takes the press.
     pub fn step(&mut self, input: PassInput<'_>, mut pick: impl FnMut(Pos2) -> Option<(T, Sense)>) -> PressStep<T> {
         let mut pos = input.pos;
-        if let Some(open) = &mut self.open {
-            open.start.went_down_now = false;
-        }
+        let mut went_down = false;
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
@@ -521,10 +520,11 @@ impl<T: Copy> PressMachine<T> {
                         .map(|(target, sense)| Open {
                             target,
                             sense,
-                            start: PressStart { went_down_now: true, ..PressStart::new(at, button, time, clicks) },
+                            start: PressStart::new(at, button, time, clicks),
                             dragging: false,
                             abandoned: false,
                         });
+                    went_down = self.open.is_some();
                     drag_started = false;
                 }
                 PointerEvent::Released { button, pos: at } => {
@@ -545,7 +545,7 @@ impl<T: Copy> PressMachine<T> {
         }
         if let Some((target, start, reason)) = cancelled {
             let phase = PressPhase::Cancel { start, reason };
-            return PressStep { target: Some(target), phase: Some(phase), dragging: false, activated: None };
+            return PressStep { target: Some(target), phase: Some(phase), dragging: false, activated: None, went_down };
         }
         if let Some((target, start, at, was_dragging, click)) = released {
             let phase = PressPhase::Release { start, pos: at, click };
@@ -554,6 +554,7 @@ impl<T: Copy> PressMachine<T> {
                 phase: Some(phase),
                 dragging: was_dragging,
                 activated: (click && start.button == PointerButton::Primary).then_some(target),
+                went_down,
             };
         }
         let Some(open) = self.open else { return PressStep::default() };
@@ -564,7 +565,7 @@ impl<T: Copy> PressMachine<T> {
         } else {
             PressPhase::Down { start: open.start }
         };
-        PressStep { target: Some(open.target), phase: Some(phase), dragging: open.dragging, activated: None }
+        PressStep { target: Some(open.target), phase: Some(phase), dragging: open.dragging, activated: None, went_down }
     }
 }
 
@@ -613,7 +614,7 @@ mod tests {
 
     #[test]
     fn a_double_press_reads_true_once_while_a_first_press_never_does() {
-        let reading = |step: &PressStep<u8>| PressState::new(step.phase.unwrap()).double_pressed();
+        let reading = |step: &PressStep<u8>| PressState::new(step.phase.unwrap()).went_down(step.went_down).double_pressed();
         let mut machine = PressMachine::new();
         let step = pass(&mut machine, &[PointerEvent::pressed(pos2(0.0, 0.0), 1.0, 1)], Sense::CLICK);
         assert!(!reading(&step), "a first press");
