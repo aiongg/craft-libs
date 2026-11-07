@@ -80,7 +80,7 @@ pub(super) fn on_parts(cx: &StyleCx<'_>) -> VariantParts {
 
 /// The focus ring of a button.
 pub(super) fn focus(cx: &StyleCx<'_>) -> FocusLook {
-    crate::controls::focus_look(cx)
+    cx.focus_look()
 }
 
 /// The size of the face: its parts and the gaps between them.

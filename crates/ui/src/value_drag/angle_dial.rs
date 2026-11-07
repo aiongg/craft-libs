@@ -241,7 +241,7 @@ impl Component for AngleDial<'_> {
         AngleDialStyle {
             surface: SurfaceLook::new(face).radius(CornerRadius::same((side / 2.0).round() as u8)).border(edge, cx.tokens.stroke.thin),
             metrics: Metrics::new().min_size(Vec2::splat(side)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             needle: states(colors.accent.solid, colors.accent.hover, colors.accent.pressed, colors.text.disabled),
             hub_fill: states(colors.text.muted, colors.text.muted, colors.text.muted, colors.text.disabled),
             needle_inset: control.gap,

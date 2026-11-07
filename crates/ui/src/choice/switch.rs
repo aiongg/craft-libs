@@ -68,7 +68,7 @@ impl Component for Switch<'_> {
         let thumb = Stateful::new(knob).on(States::new(on_knob, on_knob, on_knob, knob));
         SwitchStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             track,
             edge,
             thumb,

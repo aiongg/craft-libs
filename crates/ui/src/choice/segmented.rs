@@ -122,7 +122,7 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
         let control = cx.control();
         SegmentedStyle {
             metrics: Metrics::new().min_size(Vec2::new(0.0, control.height)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             pad_x: control.pad_x,
             gap: cx.tokens.space.gap.tight,
             icon: control.icon,

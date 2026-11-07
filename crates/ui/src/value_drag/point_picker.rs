@@ -167,7 +167,7 @@ impl Component for PointPicker<'_> {
         let control = cx.control();
         PointPickerStyle {
             metrics: Metrics::new().min_size(Vec2::new(control.height * WIDTH_IN_HEIGHTS, control.height * HEIGHT_IN_HEIGHTS)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             cross: control.icon,
         }
     }

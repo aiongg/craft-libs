@@ -64,7 +64,7 @@ impl Component for Checkbox<'_> {
         let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on(solid)).when(Flags::INVALID, cx.tone(Tone::Bad));
         CheckboxStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             fill,
             edge,
             mark: cx.color(colors.text.on_strong),

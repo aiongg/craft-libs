@@ -180,7 +180,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         let control = cx.control();
         RadioStyle {
             metrics: control.metrics(),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             icon: control.icon,
             ring: cx.ink(Ink::OnPanel),
             dot: cx.tone(craft_theme::variant::Tone::Accent),

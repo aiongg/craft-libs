@@ -82,7 +82,7 @@ impl Component for Rating<'_> {
         let look = |rest| IconLook::new(control.icon, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))));
         RatingStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             lit: look(cx.ink(Ink::OnPanel)),
             unlit: look(cx.color(text.muted)),
             cell: control.height,

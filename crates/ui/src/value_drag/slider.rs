@@ -300,7 +300,7 @@ impl Component for Slider<'_> {
         let accent = &colors.accent;
         SliderStyle {
             metrics: Metrics::new().min_size(Vec2::new(control.icon * LENGTH_IN_ICONS, control.height)),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             mark_text: track::mark_text(cx),
             track: TrackLook::new(cx),
             thumb: track::states(cx, colors.surface.knob, colors.surface.knob, colors.surface.knob),
