@@ -2,12 +2,12 @@
 //! lead column (17.7) and auto-height rows measured into `LayoutMemory` (17.3, I1).
 
 use super::{ItemsHooks, key_hash};
-use crate::contract::{Collection, SelectMode};
+use crate::contract::{Collection, Cx, SelectMode};
 use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
 use crate::runtime::{focus, layout_memory};
 use crate::style::Flags;
-use craft_behavior::{CellAt, CellRange, ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
+use craft_behavior::{CellAt, CellRange, ItemLayout, MoveMods, NavMove, NavShape, SelectionChange, SelectionModel};
 use egui::{Context, Id, Vec2};
 use std::sync::Arc;
 
@@ -64,15 +64,21 @@ pub(super) fn record_widest(ctx: &Context, collection: Id, widest: f32) {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
-    /// Forward on the lead row enters its first focusable child or part (17.5). A closed parent expands instead,
-    /// and a row with no children leaves the move to the navigation core. `true` when focus moved in.
-    pub(super) fn enter_children(&self, ctx: &Context, collection: Id, at: usize) -> bool {
+    /// The row-child move of 17.5, tried before the navigation core: Forward on the lead row enters its first
+    /// focusable child or part. A closed parent expands instead, a row with no children leaves the move to the
+    /// core (an open parent then moves to its first child row), and so does every other move. `true` when focus
+    /// moved in and the move is taken.
+    pub(super) fn row_child_move(&self, cx: &Cx<'_, C>, layout: &C::ItemLayout, mv: NavMove, mods: MoveMods) -> bool {
+        if !is_forward(mv, mods) || matches!(layout.nav(), NavShape::Cell) {
+            return false;
+        }
+        let Some(at) = self.lead.key.as_ref().and_then(|key| self.index_of(key)) else { return false };
         if self.source.has_children(at) && !self.source.open(at) {
             return false;
         }
-        let item = sub(collection, ("key", key_hash(&self.source.key(at))));
+        let item = sub(cx.core.id, ("key", key_hash(&self.source.key(at))));
         let group = row_group(item);
-        focus::row_has_stops(ctx, group) && focus::enter_row(ctx, group)
+        focus::row_has_stops(&cx.core.ctx, group) && focus::enter_row(&cx.core.ctx, group)
     }
 
     /// A move of the lead in a sheet (17.7): the lead cell moves to `row` and `column`, and the selection follows
@@ -145,6 +151,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 }
 
 /// Whether the move is the one that enters a row's children.
-pub(super) fn is_forward(mv: NavMove, mods: MoveMods) -> bool {
+fn is_forward(mv: NavMove, mods: MoveMods) -> bool {
     mv == NavMove::Forward && !mods.extend && !mods.lead
 }
