@@ -165,7 +165,10 @@ fn thumbnails_render_a_few_per_pass_and_the_rest_wait_with_no_picture() {
     let mut states = Vec::new();
     once(&mut frames, |_| states = (0..KEYS).map(|key| ask(&thumbs, &source, &ctx, key)).collect());
     assert_eq!(states.iter().filter(|state| matches!(state, TextureState::Ready(_))).count(), BUDGET);
-    assert_eq!(states.iter().filter(|state| matches!(state, TextureState::Loading { stand_in: None })).count(), KEYS as usize - BUDGET);
+    assert_eq!(
+        states.iter().filter(|state| matches!(state, TextureState::Loading { .. }) && state.shown().is_none()).count(),
+        KEYS as usize - BUDGET
+    );
     once(&mut frames, |_| states = (0..KEYS).map(|key| ask(&thumbs, &source, &ctx, key)).collect());
     assert!(states.iter().all(|state| matches!(state, TextureState::Ready(_))), "the rest land in the next pass");
 }
@@ -183,7 +186,7 @@ fn a_held_thumbnail_keeps_its_picture_until_released() {
     thumbs.hold(true);
     let mut state = TextureState::Missing;
     once(&mut frames, |_| state = ask(&thumbs, &source, &ctx, 1));
-    assert_eq!(state, TextureState::Loading { stand_in: Some(shown) });
+    assert!(matches!(state, TextureState::Loading { .. }) && state.shown() == Some(shown), "the old picture stands in: {state:?}");
     thumbs.hold(false);
     once(&mut frames, |_| state = ask(&thumbs, &source, &ctx, 1));
     let TextureState::Ready(updated) = state else { panic!("expected Ready, got {state:?}") };
