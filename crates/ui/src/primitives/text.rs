@@ -201,7 +201,13 @@ impl TextRun<'_> {
             _ => text_layout::layout(ctx, self.job(env, self.spans.iter().map(|s| (s, s.text.as_ref())), max_width)),
         };
         let elided = galley.elided || self.wrap == Wrap::ElidePath && galley.job.text != full;
-        TextLayout::new(anchored_at_start(galley), elided, full)
+        let mut galley = anchored_at_start(galley);
+        // A path cut by `layout_elided_path` is a whole galley to egui; the painted galley carries the layout's
+        // verdict, so whatever reads the painted shapes sees the same elision the record holds.
+        if galley.elided != elided {
+            Arc::make_mut(&mut galley).elided = elided;
+        }
+        TextLayout::new(galley, elided, full)
     }
 
     fn job<'s>(&self, env: &TextEnv<'_>, parts: impl Iterator<Item = (&'s Span<'s>, &'s str)>, max_width: f32) -> LayoutJob {
