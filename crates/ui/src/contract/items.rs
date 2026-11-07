@@ -3,12 +3,12 @@
 pub(super) mod rows;
 
 use super::collection::{
-    CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
-use super::{Bind, Collection, Cx, ItemCx, ItemFn, PartsCx, Props, Show as _};
+use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, PartsCx, Props, Show as _};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, child, memory as store};
@@ -238,7 +238,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
-        comp.items().command_scope
+        comp.props(Internal::new()).command_scope
     }
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
@@ -291,7 +291,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let width = if room.x.is_finite() { room.x } else { 0.0 };
         self.header.measure(scx);
         let mut layout = comp.item_layout(self.source, width, scx);
-        if self.header.height > 0.0 {
+        if self.header.has_columns() {
             layout.set_columns(&self.header.columns(width));
         }
         let ctx = ui.ctx();
@@ -392,7 +392,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
         let extra: Vec<usize> = keep.into_iter().flatten().filter_map(|key| self.source.index_of(key)).filter(|at| !shown.contains(at)).collect();
         let order: Vec<usize> = shown.iter().copied().chain(extra).collect();
-        let command_scope = comp.items().command_scope;
+        let command_scope = comp.props(Internal::new()).command_scope;
         if let Some(scope) = command_scope {
             crate::runtime::commands::register_instance(&ctx, scope, id);
         }
@@ -628,7 +628,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     None => self.pick(comp, at, mods.shift, mods.cmd),
                 }
                 self.move_lead(at);
-                if start.clicks == 2 {
+                let activates = match props.activate {
+                    ActivateOn::DoubleClick => start.clicks == 2,
+                    ActivateOn::Click => primary && start.clicks == 1,
+                };
+                if activates {
                     self.events.push(CollectionEvent::Activate(key));
                 }
             }
@@ -714,7 +718,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         {
             self.pick(comp, row, false, mode != SelectMode::Single);
         }
-        if cx.core.intents.take(Intent::Activate)
+        // The pass's `update_inputs` turned an `Activate` intent into the keyed activation.
+        let activated = cx.core.intents.take(Intent::Activate) || cx.core.activation.is_some_and(|activation| activation.by_key);
+        if activated
+            && !header_held
             && let Some(row) = lead_at
         {
             self.events.push(CollectionEvent::Activate(self.source.key(row)));

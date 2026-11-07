@@ -24,6 +24,9 @@ pub enum ColumnWidth {
     Content,
     /// The app's width.
     Fixed(f32),
+    /// This many control heights; the owner that knows the control height resolves it with
+    /// [`ColumnWidth::in_unit`] before the widths are computed.
+    Controls(f32),
     /// A share of the remaining width, by weight.
     #[non_exhaustive]
     Fill {
@@ -33,6 +36,14 @@ pub enum ColumnWidth {
 }
 
 impl ColumnWidth {
+    /// The width with `Controls(n)` turned into `Fixed(n * unit)`.
+    pub fn in_unit(self, unit: f32) -> Self {
+        match self {
+            Self::Controls(count) => Self::Fixed(count * unit),
+            other => other,
+        }
+    }
+
     /// A share of the remaining width with `weight` among the `Fill` columns.
     pub const fn fill(weight: f32) -> Self {
         Self::Fill { weight }

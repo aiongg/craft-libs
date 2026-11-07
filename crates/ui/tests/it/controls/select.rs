@@ -8,6 +8,8 @@ use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
 
+const FADE_FRAMES: usize = 10;
+
 struct Rig {
     fixture: Fixture,
     value: Rc<Cell<u8>>,
@@ -37,9 +39,10 @@ impl Rig {
         self.fixture.idle(2);
     }
 
+    /// A key, then enough frames for a closing listbox to finish fading out.
     fn press(&mut self, key: Key) {
         self.fixture.key(key, Modifiers::NONE);
-        self.fixture.idle(2);
+        self.fixture.idle(FADE_FRAMES);
     }
 
     fn listbox_shown(&self) -> bool {

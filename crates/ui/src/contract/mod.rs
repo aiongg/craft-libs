@@ -29,7 +29,7 @@ pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use collection::{
-    CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest, ListDrag,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest, ListDrag,
     OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
 };
 pub use container::{

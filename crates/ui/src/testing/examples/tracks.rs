@@ -16,7 +16,6 @@ use crate::contract::{
 use crate::controls::select::row_look;
 use crate::primitives::{PaintShape, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::grid::resolve_columns;
 use craft_behavior::{
     ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, Intent, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout,
 };
@@ -144,9 +143,9 @@ impl TrackStack {
     /// A track stack named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self {
         let columns = vec![
-            ColumnSpec::new(NAME, "Track", ColumnWidth::Fixed(0.0)),
-            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(0.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
-            ColumnSpec::new(LOCK, "Lock", ColumnWidth::Fixed(0.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+            ColumnSpec::new(NAME, "Track", ColumnWidth::Controls(NAME_IN_HEIGHTS)),
+            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+            ColumnSpec::new(LOCK, "Lock", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
             ColumnSpec::new(LANE, "Clips", ColumnWidth::fill(1.0)),
         ];
         TrackStack { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Single).columns(columns) }
@@ -179,13 +178,9 @@ impl Collection for TrackStack {
         &self.items
     }
 
-    /// Toggle columns are one control height wide, the name column a fixed share, and the lane takes the rest.
+    /// The column widths come from the specs; a row is `TRACK_IN_HEIGHTS` control heights tall.
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
-        let height = cx.control().height;
-        let kinds = [ColumnWidth::Fixed(height * NAME_IN_HEIGHTS), ColumnWidth::Fixed(height), ColumnWidth::Fixed(height), ColumnWidth::fill(1.0)];
-        let widths = resolve_columns(&kinds, &[], width, 0.0);
-        let keys = [NAME, MUTE, LOCK, LANE];
-        SpanLayout::new(source, width, height * TRACK_IN_HEIGHTS).columns(keys.into_iter().zip(widths).collect())
+        SpanLayout::new(source, width, cx.control().height * TRACK_IN_HEIGHTS)
     }
 }
 

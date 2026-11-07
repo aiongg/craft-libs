@@ -165,7 +165,7 @@ impl<'a> Probe<'a> {
     }
 
     fn scoped(mut self, name: &'static str) -> Self {
-        self.items = self.items.command_scope(SCOPE);
+        self.props = self.props.command_scope(SCOPE);
         self.name = name;
         self
     }

@@ -107,6 +107,7 @@ impl<C: Component> Cx<'_, C> {
         if !egui_access::enabled(ctx, info.widget) {
             return;
         }
+        egui_access::set_label(ctx, info.widget, self.core.resolved.label);
         let lines = state
             .lines
             .iter()
