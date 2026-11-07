@@ -3,8 +3,8 @@
 
 use craft_behavior::{GesturePhase, Metrics, PressPhase, Sense, ValueDrag};
 use craft_ui::contract::{
-    Accessible as _, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, PaintUi, Props as _,
-    Remember as _, Role, SideLabel,
+    Accessible as _, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, PaintUi,
+    Props as _, Remember as _, Role, SideLabel,
 };
 use craft_ui::primitives::TextRun;
 use craft_ui::style::{ComponentStyle, StyleCx};
@@ -101,7 +101,9 @@ impl Component for Dial<'_> {
                     cx.propose(next);
                 }
             }
-            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => cx.commit(),
+            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => {
+                cx.commit()
+            }
             _ => {}
         }
     }

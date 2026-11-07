@@ -3,7 +3,7 @@
 //! child, so the two line up and behave alike.
 
 use super::{Component, Props};
-use super::{Cx, MeasureCx, PartsCx, PaintUi, Show as _};
+use super::{Cx, MeasureCx, PaintUi, PartsCx, Show as _};
 use crate::primitives::TextRun;
 use crate::runtime::access::scope::{self, FieldLabel};
 use crate::runtime::egui::{access, alloc, child};
@@ -268,14 +268,19 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
             (width, f32::INFINITY)
         }
     };
-    let placed = crate::layout::place_label(&kids, input.scope, &LabelColumn::new(column, stack_below, gap), flow, natural.min(Vec2::new(column, natural.y)), baseline);
+    let placed = crate::layout::place_label(
+        &kids,
+        input.scope,
+        &LabelColumn::new(column, stack_below, gap),
+        flow,
+        natural.min(Vec2::new(column, natural.y)),
+        baseline,
+    );
     let label_id_for_scope = sub(input.scope, "label");
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);
     Env::restore(&ctx, installed);
-    if shown.double_click || shown.dot_click {
-        if let Some(fact) = reset {
-            keys::route(&ctx, fact.control, Intent::Reset);
-        }
+    if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
+        keys::route(&ctx, fact.control, Intent::Reset);
     }
     let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str()).role(input.side.role).with_press(shown.press);
     scope::begin(&ctx, input.scope, scope::Kind::Label(label));

@@ -185,7 +185,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Some(side) => {
                 let parent = matches!(C::ROLE, Role::Node(_)).then_some(id);
                 let resolved = cx.core.resolved;
-                let input = LabelIn { scope: id, parent, row: rect, text: resolved.label_value, side: &side, enabled: resolved.enabled, size: resolved.size };
+                let input =
+                    LabelIn { scope: id, parent, row: rect, text: resolved.label_value, side: &side, enabled: resolved.enabled, size: resolved.size };
                 label::run(ui, env, &input)
             }
             None => rect,

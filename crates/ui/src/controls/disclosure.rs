@@ -1,8 +1,6 @@
 //! `Disclosure`: the open/closed toggle of a section, a title row's lead and a tree row's expander.
 
-use crate::contract::{
-    Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, spec,
-};
+use crate::contract::{Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, spec};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx};
 use craft_behavior::{Metrics, Sense};
@@ -17,6 +15,7 @@ const ARM: f32 = 0.2;
 /// The glyph of a disclosure: a chevron that turns from pointing to the end of the line (closed) to pointing down
 /// (open) as `open` goes from 0 to 1.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DisclosureGlyph {
     /// The turn, 0 closed to 1 open.
     pub open: f32,
@@ -25,6 +24,11 @@ pub struct DisclosureGlyph {
 }
 
 impl DisclosureGlyph {
+    /// A chevron `open` of the way turned, reading in `direction`.
+    pub const fn new(open: f32, direction: Direction) -> Self {
+        DisclosureGlyph { open, direction }
+    }
+
     /// The chevron's path in `rect`.
     pub fn path(&self, rect: Rect) -> Vec<Pos2> {
         let rtl = self.direction == Direction::Rtl;
@@ -53,11 +57,13 @@ pub struct DisclosureStyle {
 }
 
 /// A button bound to an open state, with the expanded state. A face shown by a title row or a tree row has no node.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Disclosure<'a> {
     #[common]
     common: Common,
     open: Bind<'a, bool>,
+    /// Whether the disclosure is its own AccessKit node; a part of another component's node turns it off.
+    #[prop]
     node: bool,
 }
 
@@ -65,13 +71,6 @@ impl<'a> Disclosure<'a> {
     /// A disclosure of `open`.
     pub fn new(open: Bind<'a, bool>) -> Self {
         Disclosure { common: Common::new(), open, node: true }
-    }
-
-    /// Whether the disclosure is its own AccessKit node; a part of another component's node turns it off.
-    #[must_use]
-    pub fn node(mut self, on: bool) -> Self {
-        self.node = on;
-        self
     }
 }
 
@@ -114,7 +113,7 @@ impl Component for Disclosure<'_> {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let open = cx.anim_bool("open", cx.value().copied().unwrap_or(false), spec::OPEN_RISE);
-        let glyph = DisclosureGlyph { open, direction: cx.env.direction() };
+        let glyph = DisclosureGlyph::new(open, cx.env.direction());
         ui.draw().stroke(&PaintShape::Path(glyph.path(cx.rect)), StrokeWidth::Medium, cx.style.ink);
     }
 

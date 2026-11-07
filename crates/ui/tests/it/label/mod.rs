@@ -12,6 +12,13 @@ use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Shape, Ui, Vec2};
 use std::cell::RefCell;
 
+/// The label drag of the scrub trial, in points.
+const DRAG: f32 = 30.0;
+/// How far a scrub may differ from the drag: pixel rounding.
+const ROUNDING: f64 = 1.5;
+/// The value the double-click trial starts from.
+const START: f64 = 10.0;
+
 const ROW_A: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
 const ROW_B: Rect = Rect { min: Pos2::new(10.0, 60.0), max: Pos2::new(310.0, 90.0) };
 
@@ -51,7 +58,7 @@ fn settled(direction: Direction, side: SideLabel) -> (Frames, Rows) {
     let mut root = RootEnv::new();
     root.direction = direction;
     frames.root(root);
-    let mut rows = Rows::new(10.0);
+    let mut rows = Rows::new(START);
     frames.idle(3, |ui| rows.show(ui, side));
     (frames, rows)
 }
@@ -102,9 +109,12 @@ fn dragging_a_label_that_scrubs_changes_the_value() {
     for container in [true, false] {
         let before = if container { rows.container } else { rows.leaf };
         let from = rows.label(container).rect.center();
-        drag(&mut frames, from, Vec2::new(30.0, 0.0), &mut |ui| rows.show(ui, side));
+        drag(&mut frames, from, Vec2::new(DRAG, 0.0), &mut |ui| rows.show(ui, side));
         let after = if container { rows.container } else { rows.leaf };
-        assert!((after - before - 30.0).abs() < 1.5, "a drag of 30 points on the label scrubs by 30: {before} -> {after} (container: {container})");
+        assert!(
+            (after - before - f64::from(DRAG)).abs() < ROUNDING,
+            "a drag on the label scrubs by its length: {before} -> {after} (container: {container})"
+        );
     }
 }
 
@@ -183,14 +193,14 @@ fn a_label_that_describes_leaves_the_control_its_name() {
 fn double_clicking_a_value_component_resets_it_and_a_single_click_does_not() {
     let mut frames = Frames::new();
     let seen = RefCell::new(Seen::default());
-    let mut value = 10.0;
-    let mut show = |ui: &mut Ui, value: &mut f64| {
+    let mut value = START;
+    let show = |ui: &mut Ui, value: &mut f64| {
         Dial::new(value, &seen).id_salt("alone").show_at(ui, ROW_A);
     };
     frames.idle(2, |ui| show(ui, &mut value));
     let at = ROW_A.center();
     craft_ui::testing::pointer::click(&mut frames, at, &mut |ui| show(ui, &mut value));
-    assert_eq!(value, 10.0, "one click leaves the value");
+    assert_eq!(value, START, "one click leaves the value");
     double_click(&mut frames, at, &mut |ui| show(ui, &mut value));
     assert_eq!(value, RESET, "a double click on the control's root restores the reset value");
 }

@@ -2,8 +2,8 @@
 //! anywhere in its body, join its arena and register with its `GroupHandle`.
 
 use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, GroupHandle, GroupKind, GroupState, MeasureCx,
-    PaintUi, Pointer as _, Props as _, Remember as _, Role,
+    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, GroupHandle, GroupKind, GroupState, MeasureCx, PaintUi,
+    Pointer as _, Props as _, Remember as _, Role,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, StyleColor, StyleCx};

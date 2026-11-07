@@ -3,8 +3,8 @@
 
 use super::words::SectionWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{PaintShape, Span, StrokeWidth, TextRun};
@@ -75,13 +75,19 @@ pub struct TitleRowStyle {
 
 /// A title with an optional subtitle, a lead (a disclosure bound to the container's open state, or a check box
 /// bound to its gate) and action parts.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct TitleRow<'a> {
     #[common]
     common: Common,
+    /// The header's weight.
     #[style_key]
+    #[prop]
     strength: HeaderStrength,
+    /// The heading level AccessKit reports.
+    #[prop]
     level: usize,
+    /// Text after the title.
+    #[prop(into)]
     subtitle: Option<Label>,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
@@ -92,28 +98,8 @@ impl<'a> TitleRow<'a> {
     /// A title row for `title`.
     pub fn new(title: impl Into<Label>) -> Self {
         let common = Common::new();
-        TitleRow { common, strength: HeaderStrength::Normal, level: 2, subtitle: None, lead: Lead::None, actions: Vec::new(), taken: None }.label(title)
-    }
-
-    /// The header's weight.
-    #[must_use]
-    pub fn strength(mut self, strength: HeaderStrength) -> Self {
-        self.strength = strength;
-        self
-    }
-
-    /// The heading level AccessKit reports.
-    #[must_use]
-    pub fn level(mut self, level: usize) -> Self {
-        self.level = level;
-        self
-    }
-
-    /// Text after the title.
-    #[must_use]
-    pub fn subtitle(mut self, subtitle: impl Into<Label>) -> Self {
-        self.subtitle = Some(subtitle.into());
-        self
+        TitleRow { common, strength: HeaderStrength::Normal, level: 2, subtitle: None, lead: Lead::None, actions: Vec::new(), taken: None }
+            .label(title)
     }
 
     /// A check box lead bound to the container's gate.
@@ -300,7 +286,11 @@ impl Component for CheckFace {
         draw.stroke(&PaintShape::Rect(square, egui::CornerRadius::ZERO), StrokeWidth::Thin, cx.style.ink);
         if self.checked {
             let (c, u) = (square.center(), side / 4.0);
-            draw.stroke(&PaintShape::Path(vec![c + Vec2::new(-u, 0.0), c + Vec2::new(-u / 3.0, u * 0.8), c + Vec2::new(u, -u)]), StrokeWidth::Medium, cx.style.ink);
+            draw.stroke(
+                &PaintShape::Path(vec![c + Vec2::new(-u, 0.0), c + Vec2::new(-u / 3.0, u * 0.8), c + Vec2::new(u, -u)]),
+                StrokeWidth::Medium,
+                cx.style.ink,
+            );
         }
     }
 
@@ -352,7 +342,11 @@ impl Component for ActionFace {
                 }
             }
             HeaderAction::Float => {
-                draw.stroke(&PaintShape::Rect(Rect::from_center_size(c, Vec2::splat(u * 2.0)), egui::CornerRadius::ZERO), StrokeWidth::Thin, cx.style.ink);
+                draw.stroke(
+                    &PaintShape::Rect(Rect::from_center_size(c, Vec2::splat(u * 2.0)), egui::CornerRadius::ZERO),
+                    StrokeWidth::Thin,
+                    cx.style.ink,
+                );
             }
         }
     }

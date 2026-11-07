@@ -56,7 +56,7 @@ fn a_title_rows_lead_toggles_its_value_and_an_action_part_is_reported() {
 fn a_title_rows_lead_and_actions_are_one_roving_stop() {
     let mut frames = Frames::new();
     let (mut value, out) = (false, RefCell::new(Out::default()));
-    let mut show = |ui: &mut Ui, value: &mut bool| {
+    let show = |ui: &mut Ui, value: &mut bool| {
         frame(ui, value, false, &out);
         ui.add_space(4.0);
     };

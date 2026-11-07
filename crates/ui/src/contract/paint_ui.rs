@@ -1,9 +1,9 @@
 //! `PaintUi` (5.3): what `paint` and `paint_over` get instead of a `Ui`. It lives in the contract (layer 4)
 //! because `child` and `face` show components; `Draw` and the painters stay in `primitives`.
 
+use super::SideLabel;
 use super::label::{self, LabelIn};
 use super::run::{self, FaceSource, ShowAt};
-use super::SideLabel;
 use super::{ContentPainter, Cx, Show, TipFn};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};

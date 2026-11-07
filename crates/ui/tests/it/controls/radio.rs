@@ -70,7 +70,11 @@ fn radio_group_click_selects_one_tab_stop_arrows_move() {
     assert_eq!(focused_member(&frames, &shown), Some(1), "Tab arrives at the selected member");
     tap(&mut frames, Key::ArrowRight, &mut value, &mut shown);
     assert_eq!(value, 2, "ArrowRight moves focus, not the selection");
-    assert_eq!((focused_member(&frames, &shown), egui_focused(&frames.ctx)), (Some(2), group), "focus moved to the third member; egui focus stays on the group");
+    assert_eq!(
+        (focused_member(&frames, &shown), egui_focused(&frames.ctx)),
+        (Some(2), group),
+        "focus moved to the third member; egui focus stays on the group"
+    );
     tap(&mut frames, Key::Space, &mut value, &mut shown);
     assert_eq!(value, 3, "Space selects the focused radio");
     tap(&mut frames, Key::ArrowLeft, &mut value, &mut shown);
