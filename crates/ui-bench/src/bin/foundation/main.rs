@@ -8,7 +8,7 @@ mod kit;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, ColumnWidth, Selection};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection};
 use craft_host::target::ShellInfo;
 use craft_ui::contract::ColumnSpec;
 use craft_ui::contract::{
@@ -22,6 +22,7 @@ use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
 use craft_ui::table::Table;
+use craft_ui::tabs::{Tab, TabKind, TabStrip};
 use craft_ui::text::{NumberField, TextField};
 use craft_ui::tile_grid::{Tile, TileGrid};
 use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, gate_failures, print_table, read_json, run_all, write_json};
@@ -79,6 +80,7 @@ impl Library for Foundation {
             ),
             "second-viewport" => (Box::new(ViewportScene), "a container with Mount::viewport (the fallback layer, as under an embedded backend)"),
             "dialog-20-fields" => (Box::new(DialogScene::new()), "a modal Dialog open from the first frame over 10 NumberFields and 10 TextFields"),
+            "tab-strip-60" => (Box::new(TabStripScene), "a TabStrip of 60 TabKind::Document tabs that overflow, tab 30 shown"),
             "readout-and-content-column" => (
                 Box::new(ReadoutScene),
                 // F8-MERGE: layout: the grid's `Content` column and the status bar's end slot.
@@ -333,6 +335,43 @@ impl Scene for ViewportScene {
                 let _ = Block::new(PANEL_ROW).id_salt(i).show(ui);
             }
         });
+    }
+}
+
+const STRIP_TABS: usize = 60;
+
+/// Documents keyed by position.
+struct StripDocuments;
+
+impl DisplayOrder<usize> for StripDocuments {
+    fn len(&self) -> usize {
+        STRIP_TABS
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < STRIP_TABS).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        (at < STRIP_TABS).then(|| std::borrow::Cow::Owned(format!("Document {at}.indd")))
+    }
+}
+
+impl ItemSource<usize> for StripDocuments {}
+
+struct TabStripScene;
+
+impl Scene for TabStripScene {
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let _ = TabStrip::new("Documents")
+            .kind(TabKind::Document)
+            .shown(30)
+            .id_salt("strip")
+            .show_items(ui, &StripDocuments, &mut |key, _| Tab::new(format!("Document {key}.indd")).closable(true));
     }
 }
 
