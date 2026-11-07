@@ -10,17 +10,39 @@ use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource};
 use egui::Ui;
 
-/// What the story popovers hold: two buttons.
-fn body(ui: &mut Ui) {
-    Stack::new().show(ui, |ui, _| {
-        Button::new("Snap to grid").show(ui);
-        Button::new("Show rulers").show(ui);
-    });
+/// What the story popovers hold: two buttons; whether one was clicked.
+fn body(ui: &mut Ui) -> bool {
+    Stack::new()
+        .show(ui, |ui, _| {
+            let snap = Button::new("Snap to grid").show(ui);
+            let rulers = Button::new("Show rulers").show(ui);
+            snap.clicked() || rulers.clicked()
+        })
+        .inner
+        .unwrap_or(false)
 }
 
-fn popover_with(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(Popover<'_>) -> Popover<'_>) -> StoryOutput {
-    let opener = Button::new("Grid").show(ui);
-    build(Popover::new("Grid options", Bind::bound(data.value("open", true))).opened_by(&opener)).show(ui, |ui, _| body(ui)).output.into()
+/// Shows `story` in a row as wide as the room: the opener sits at the start edge and the popup hangs from it, so the
+/// popup's place mirrors with the direction.
+fn in_row(ui: &mut Ui, mut story: impl FnMut(&mut Ui) -> StoryOutput) -> StoryOutput {
+    let shown = Stack::new().fill().show(ui, |ui, _| story(ui));
+    match shown.inner {
+        Some(output) => output,
+        None => shown.output.into(),
+    }
+}
+
+fn popover_with(ui: &mut Ui, data: &mut StoryData, build: impl Fn(Popover<'_>) -> Popover<'_>) -> StoryOutput {
+    in_row(ui, |ui| {
+        let opener = Button::new("Grid").show(ui);
+        let mut clicked = false;
+        let shown = build(Popover::new("Grid options", Bind::bound(data.value("open", true))).opened_by(&opener)).show(ui, |ui, _| {
+            clicked = body(ui);
+        });
+        let mut output = StoryOutput::from(shown.output);
+        output.clicked |= clicked;
+        output
+    })
 }
 
 #[story(Popover<'static>, covers = [Default], drive = Drive::Never)]
@@ -59,19 +81,21 @@ impl ItemSource<usize> for Names<'_> {}
 #[story(PopupList<'static>, covers = [Default], drive = Drive::Never)]
 fn popup_list(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let names = ["Round", "Square", "Chisel", "Fan"];
-    let opener = Button::new("Brush tip").show(ui);
-    PopupList::new("Brush tips", Bind::bound(data.value("open", true)))
-        .opened_by(&opener)
-        .show(ui, |ui, _| {
-            List::<usize>::new("Brush tips")
-                .select(SelectMode::Single)
-                .activate(ActivateOn::Click)
-                .lead_on_open(LeadOnOpen::First)
-                .lead_follows_hover(true)
-                .focus_on_press(false)
-                .show_items(ui, &Names(&names), &mut |key, _| ListRow::new(names[*key]));
-        })
-        .output
-        .response
-        .into()
+    in_row(ui, |ui| {
+        let opener = Button::new("Brush tip").show(ui);
+        PopupList::new("Brush tips", Bind::bound(data.value("open", true)))
+            .opened_by(&opener)
+            .show(ui, |ui, _| {
+                List::<usize>::new("Brush tips")
+                    .select(SelectMode::Single)
+                    .activate(ActivateOn::Click)
+                    .lead_on_open(LeadOnOpen::First)
+                    .lead_follows_hover(true)
+                    .focus_on_press(false)
+                    .show_items(ui, &Names(&names), &mut |key, _| ListRow::new(names[*key]));
+            })
+            .output
+            .response
+            .into()
+    })
 }

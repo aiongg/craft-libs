@@ -103,9 +103,10 @@ fn window_instance(props: &ContainerProps, id: Id) -> Option<Id> {
     (overlay.movable || overlay.resize.grips).then(|| if props.command_scope == Some(WindowCommand::SCOPE) { id } else { sub(id, "window") })
 }
 
-/// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit.
+/// The scroll region of a container: its own, or for a layer the vertical one that takes the overflow of any fit
+/// (none when the body is one collection, which owns the scroll).
 fn scroll_of(props: &ContainerProps) -> Option<Scroll> {
-    props.scroll.or_else(|| overlay_of(props).map(|_| Scroll::vertical()))
+    props.scroll.or_else(|| overlay_of(props).filter(|_| !props.collection_body).map(|_| Scroll::vertical()))
 }
 
 /// The keyboard mode of a floating container (16.3): arrows move or resize it until Enter or Escape.
