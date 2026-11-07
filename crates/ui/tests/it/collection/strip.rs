@@ -22,6 +22,8 @@ const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(400.0, 60.0);
 const GLYPH: f32 = 8.0;
 const MIN: f32 = 8.0;
+/// How far a measured position may differ from the expected one.
+const CLOSE: f32 = 1.0;
 /// The label lengths of the items, in glyphs.
 const LABELS: [usize; 3] = [3, 12, 6];
 
@@ -217,7 +219,7 @@ fn a_drag_over_an_item_of_a_one_row_layout_marks_the_gap_on_the_inline_axis() {
         assert!(drag::active::<ListDrag<usize>>(&frames.ctx).is_some_and(|payload| payload.grabbed == 2), "{direction:?}");
         match drag::mark(&frames.ctx) {
             Some(DropMark::Line { from, to, .. }) => {
-                assert!((from.x - edge).abs() < 1.0 && (to.x - edge).abs() < 1.0, "{direction:?}: the mark lies on the x of item 0's far edge")
+                assert!((from.x - edge).abs() < CLOSE && (to.x - edge).abs() < CLOSE, "{direction:?}: the mark lies on the x of item 0's far edge")
             }
             other => panic!("{direction:?}: the drag shows an insertion line, found {other:?}"),
         }
