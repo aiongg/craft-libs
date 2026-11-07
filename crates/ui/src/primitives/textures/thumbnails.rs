@@ -450,7 +450,7 @@ pub fn fit_rect(cell: Rect, picture: Vec2) -> Rect {
 /// counted from the frame's top left (the caller adds the frame's origin). `sample` returns sRGBA, unmultiplied. A
 /// frame smaller than the side is sampled nearest, larger ones point-sampled at texel centres.
 pub fn thumb_image(frame: PixelSize, longest_side: u32, mut sample: impl FnMut(u32, u32) -> [u8; 4]) -> ColorImage {
-    let PixelSize { width, height } = thumb_size(frame, longest_side);
+    let PixelSize { width, height, .. } = thumb_size(frame, longest_side);
     let (frame_width, frame_height) = (u64::from(frame.width.max(1)), u64::from(frame.height.max(1)));
     let mut pixels = Vec::with_capacity(width as usize * height as usize);
     for ty in 0..height {
@@ -615,7 +615,7 @@ fn fake_hue(key: &impl std::hash::Hash) -> f32 {
 /// `revision % 8` white texels along the bottom row.
 #[cfg(feature = "testing")]
 fn fake_picture(frame: PixelSize, hue: f32, revision: u64) -> ColorImage {
-    let PixelSize { width, height } = frame;
+    let PixelSize { width, height, .. } = frame;
     let bars = (revision % 8) as u32;
     thumb_image(frame, width.max(height), |x, y| {
         if y + 1 == height && x % 2 == 0 && x / 2 < bars {
