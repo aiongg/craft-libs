@@ -21,8 +21,8 @@ fn values() -> StatusValues {
 fn status_readout(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let values = values();
     Bar::new("Status", BarKind::Status)
-        .show(ui, |ui, cx| {
-            StatusReadout::new(Bind::bound(data.value("zoom", Some(66.67f64))), StatusItem::DocumentSizes, &values).show_in(ui, cx);
+        .show(ui, |ui, _| {
+            StatusReadout::new(Bind::bound(data.value("zoom", Some(66.67f64))), StatusItem::DocumentSizes, &values).show(ui);
         })
         .output
         .into()

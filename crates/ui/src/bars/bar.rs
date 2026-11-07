@@ -3,16 +3,16 @@
 use super::words::BarWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, Gap, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
-    Show as _, Sizing, WordSetCx as _,
+    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, EndRegion, Gap, NoValue, Outcome, Pad, Politeness, Props as _,
+    Role, Scroll, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::access::Name;
+use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{IconId, Metrics, NavShape, Roving, Sense};
 use craft_theme::ControlSize;
 use egui::{Response, Ui};
-use std::borrow::Cow;
 use std::num::NonZeroU8;
 
 /// What a bar is for; it picks the bar's role, spacing and name.
@@ -27,7 +27,21 @@ pub enum BarKind {
     Status,
 }
 
-/// The style of a bar: the gap between the members of its body.
+/// The commands of a bar's end region. They belong to the bar that shows them: a chord reaches the bar that holds
+/// key focus.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
+#[command(prefix = "bar", scope = "bar")]
+#[non_exhaustive]
+pub enum BarCommands {
+    /// Accept the edit the options bar belongs to.
+    #[command(label = "Commit", icon = "check", default = "Enter")]
+    Commit,
+    /// Abandon the edit the options bar belongs to.
+    #[command(label = "Cancel", icon = "ban", default = "Escape")]
+    Cancel,
+}
+
+/// The style of a bar: it paints its surface and takes its spacing from the body gap its props name.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct BarStyle {
@@ -58,7 +72,9 @@ impl Outcome for BarOutput {
 /// A bar over a chrome surface whose body holds the members in reading order at the small control size. They are
 /// one roving group. The bar is as tall as its tallest member plus the control padding. A bar of one row lays its
 /// body out as a row; a bar of several rows, or a vertical one, as a stack whose rows the caller makes with `Row`.
-/// A bar with `commit_cancel` ends with a cancel and a commit button.
+/// The body scrolls along the row axis (along y for a vertical bar), so a member past the edge is reached by Tab
+/// and revealed. A bar with `commit_cancel` ends with a cancel and a commit button in its end region, outside the
+/// scroll; they run `BarCommands`.
 #[derive(crate::contract::Component)]
 #[component(container)]
 pub struct Bar {
@@ -66,7 +82,6 @@ pub struct Bar {
     common: Common,
     #[container]
     props: ContainerProps,
-    #[style_key]
     kind: BarKind,
     rows: NonZeroU8,
     vertical: bool,
@@ -83,14 +98,18 @@ impl Bar {
             BarKind::Options => Gap::Row,
             BarKind::Status => Gap::Section,
         };
-        let props = ContainerProps::new()
+        let mut props = ContainerProps::new()
             .surface(SurfaceKind::Chrome)
             .pad(Pad::Control)
             .sizing(Sizing::Fill)
             .body_gap(gap)
             .child_size(ControlSize::Sm)
             .roving(Roving::new(NavShape::Flat))
-            .layout(BodyLayout::row());
+            .layout(BodyLayout::row())
+            .scroll(Scroll::horizontal());
+        if kind == BarKind::Status {
+            props = props.live(Politeness::Polite);
+        }
         Bar { common: Common::new(), props, kind, rows: NonZeroU8::MIN, vertical: false, commit_cancel: None, committed: false, cancelled: false }
             .label(label)
     }
@@ -109,18 +128,19 @@ impl Bar {
         self.lay_out()
     }
 
-    /// Ends the bar with a cancel and a commit button named `cancel` and `commit`; their tooltips add Esc and Enter,
-    /// which the caller's session handles as keys.
+    /// Ends the bar with a cancel and a commit button named `cancel` and `commit`. They run `BarCommands::Cancel`
+    /// and `BarCommands::Commit`, so their tooltips carry the chords the registry binds.
     #[must_use]
     pub fn commit_cancel(mut self, commit: impl Into<Label>, cancel: impl Into<Label>) -> Self {
         self.commit_cancel = Some((commit.into(), cancel.into()));
-        self.props = self.props.header(HeaderRegion::new().inline(true).trailing(true));
+        self.props = self.props.end(EndRegion::new()).command_scope(BarCommands::SCOPE);
         self
     }
 
     fn lay_out(mut self) -> Self {
         let layout = if self.vertical || self.rows.get() > 1 { BodyLayout::stack() } else { BodyLayout::row() };
-        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::Fill });
+        let scroll = if self.vertical { Scroll::vertical() } else { Scroll::horizontal() };
+        self.props = self.props.layout(layout).sizing(if self.vertical { Sizing::Content } else { Sizing::Fill }).scroll(scroll);
         self
     }
 }
@@ -134,13 +154,8 @@ impl Component for Bar {
     type Style = BarStyle;
     type Output = BarOutput;
 
-    fn style(cx: &StyleCx<'_>, key: BarStyleKey) -> BarStyle {
-        let gap = match key.kind {
-            BarKind::Tool => cx.tokens.space.gap.tight,
-            BarKind::Options => cx.tokens.space.gap.row,
-            BarKind::Status => cx.tokens.space.gap.section,
-        };
-        BarStyle { metrics: Metrics::new().gap(gap) }
+    fn style(_: &StyleCx<'_>, _: BarStyleKey) -> BarStyle {
+        BarStyle { metrics: Metrics::new() }
     }
 
     fn sense(&self) -> Sense {
@@ -162,28 +177,31 @@ impl Component for Bar {
         if cx.resolved.label.is_empty() {
             let words = cx.words::<BarWords>();
             let name = match self.kind {
-                BarKind::Tool => &words.tool,
-                BarKind::Options => &words.options,
-                BarKind::Status => &words.status,
+                BarKind::Tool => &words.bar_tool,
+                BarKind::Options => &words.bar_options,
+                BarKind::Status => &words.bar_status,
             };
             access.name(Name::Text(name.as_str().to_owned()));
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> BarOutput {
+    /// The commit and cancel commands that ran this pass, from the buttons or from their chords.
+    fn finish(mut self, mut cx: Cx<'_, Self>) -> BarOutput {
+        while let Some((command, _)) = cx.take_command::<BarCommands>() {
+            match command {
+                BarCommands::Commit => self.committed = true,
+                BarCommands::Cancel => self.cancelled = true,
+            }
+        }
         BarOutput { response: cx.response.clone(), committed: self.committed, cancelled: self.cancelled }
     }
 }
 
 impl Container for Bar {
     /// The cancel button, then the commit button at the reading end.
-    fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+    fn end(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
         let Some((commit, cancel)) = &self.commit_cancel else { return };
-        let words = cx.env.words::<BarWords>();
-        let tip = |label: &Label, key: &Label| Label::from_cow(Cow::Owned(format!("{} ({})", cx.env.resolve(label).as_str(), key.as_str())));
-        let cancel_tip = tip(cancel, &words.escape_key);
-        let commit_tip = tip(commit, &words.enter_key);
-        self.cancelled |= crate::contract::clicked(&IconButton::new(IconId::new("ban")).label(cancel.clone()).tooltip(cancel_tip).show(ui));
-        self.committed |= crate::contract::clicked(&IconButton::new(IconId::new("check")).label(commit.clone()).tooltip(commit_tip).show(ui));
+        IconButton::command(IconId::new("ban"), BarCommands::Cancel).label(cancel.clone()).show(ui);
+        IconButton::command(IconId::new("check"), BarCommands::Commit).label(commit.clone()).show(ui);
     }
 }

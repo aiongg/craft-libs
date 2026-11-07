@@ -3,13 +3,13 @@
 use super::words::BarWords;
 use crate::buttons::{Button, IconButton, ToggleButton};
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    Show as _, ShowContainer as _, WordSetCx as _,
+    Access, Common, Component, Cx, MeasureCx, Name, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
+    WordSetCx as _,
 };
 use crate::display::Divider;
 use crate::menu::{Menu, MenuItem};
 use crate::primitives::IconSpec;
-use crate::runtime::commands::{self, CommandAccess as _, CommandRef, FireSource, ResolvedCommand};
+use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Axis, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
@@ -32,7 +32,7 @@ pub enum ItemDisplay {
     IconText,
 }
 
-/// Whether an item may move into the overflow menu.
+/// Whether an item may move into the overflow menu, or lives there.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FitKeep {
@@ -41,6 +41,8 @@ pub enum FitKeep {
     Free,
     /// The item stays in the strip however narrow it gets.
     Pinned,
+    /// The item is only in the menu, whatever the room: the strip always shows its "More" part.
+    Menu,
 }
 
 /// One command of a `BarItems` strip.
@@ -133,38 +135,50 @@ fn run_extent(items: &[FitItem], shown: &[bool], gap: f64, section_gap: f64) -> 
     total
 }
 
-/// Decides which items stay in a strip `available` long. Everything fits: all items show. Otherwise the last
-/// `Free` item leaves first, one at a time, until the rest and an overflow control `overflow_extent` long, set off
-/// by `gap`, fit; `Pinned` items stay even when they alone are longer than `available`. Negative and non-finite
-/// lengths count as zero.
+/// Decides which items stay in a strip `available` long. Everything fits and no item is `Menu`: all items show.
+/// Otherwise the `Menu` items are in the menu, and the last `Free` item leaves first, one at a time, until the rest
+/// and an overflow control `overflow_extent` long, set off by `gap`, fit; `Pinned` items stay even when they alone
+/// are longer than `available`. Negative and non-finite lengths count as zero.
 pub fn fit_items(items: &[FitItem], available: f32, gap: f32, section_gap: f32, overflow_extent: f32) -> Fit {
     let (available, gap, section_gap, overflow_extent) = (extent(available), extent(gap), extent(section_gap), extent(overflow_extent));
-    let mut shown = vec![true; items.len()];
-    if run_extent(items, &shown, gap, section_gap) <= available {
+    let mut shown: Vec<bool> = items.iter().map(|item| item.keep != FitKeep::Menu).collect();
+    if shown.iter().all(|shown| *shown) && run_extent(items, &shown, gap, section_gap) <= available {
         return Fit { shown: (0..items.len()).collect(), overflow: Vec::new() };
     }
-    while let Some(last) = (0..items.len()).rev().find(|&at| shown[at] && items[at].keep == FitKeep::Free) {
-        shown[last] = false;
+    let fits = |shown: &[bool]| {
         let before_control = if shown.iter().any(|shown| *shown) { gap } else { 0.0 };
-        if run_extent(items, &shown, gap, section_gap) + before_control + overflow_extent <= available {
-            break;
-        }
+        run_extent(items, shown, gap, section_gap) + before_control + overflow_extent <= available
+    };
+    while !fits(&shown) {
+        let Some(last) = (0..items.len()).rev().find(|&at| shown[at] && items[at].keep == FitKeep::Free) else { break };
+        shown[last] = false;
     }
     let (kept, left): (Vec<usize>, Vec<usize>) = (0..items.len()).partition(|&at| shown[at]);
     Fit { shown: kept, overflow: left }
 }
 
-/// The style of a bar item strip: the gap between items.
+/// The style of a bar item strip: the gap between items and the space around the rule of a section change.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct BarItemsStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// Between an item and the rule of a section change.
+    joint: f32,
+    /// The clear space of a section change, on both sides of its rule together.
+    section_gap: f32,
+}
+
+/// An item whose command resolved this pass.
+#[derive(Clone)]
+struct Present {
+    item: BarItem,
+    resolved: ResolvedCommand,
 }
 
 /// Where the parts of a strip sit this pass.
 struct Laid {
-    resolved: Vec<ResolvedCommand>,
+    present: Vec<Present>,
     shown: Vec<(usize, Rect)>,
     rules: Vec<Rect>,
     overflow: Vec<usize>,
@@ -209,15 +223,16 @@ fn icon_of(resolved: &ResolvedCommand) -> Option<IconSpec<'static>> {
 }
 
 /// What the item shows: its display, or its label when the command has no icon for it.
-fn display_of(item: &BarItem, resolved: &ResolvedCommand) -> ItemDisplay {
-    if item.display != ItemDisplay::Text && icon_of(resolved).is_none() { ItemDisplay::Text } else { item.display }
+fn display_of(present: &Present) -> ItemDisplay {
+    if present.item.display != ItemDisplay::Text && icon_of(&present.resolved).is_none() { ItemDisplay::Text } else { present.item.display }
 }
 
-/// The face of `item`: an icon button, a toggle for a command with a checked state, or a text button.
-fn face_of(item: &BarItem, resolved: &ResolvedCommand) -> Face {
+/// The face of an item: an icon button, a toggle for a command with a checked state, or a text button.
+fn face_of(present: &Present) -> Face {
+    let (item, resolved) = (&present.item, &present.resolved);
     let icon = icon_of(resolved);
     let toggle = resolved.checked.is_some();
-    match (display_of(item, resolved), icon) {
+    match (display_of(present), icon) {
         (ItemDisplay::Icon, Some(icon)) if toggle => Face::Toggle(ToggleButton::command(item.command.clone()).icon(icon).icon_only()),
         (ItemDisplay::Icon, Some(icon)) => Face::Action(IconButton::command(icon, item.command.clone())),
         (ItemDisplay::IconText, Some(icon)) if toggle => Face::Toggle(ToggleButton::command(item.command.clone()).icon(icon)),
@@ -253,8 +268,9 @@ fn slot(rect: Rect, axis: Axis, rtl: bool, from: f32, length: f32) -> Rect {
 
 /// A strip of command items. Each item is a part that wears the face of a button resolved from its command: an
 /// icon button, a toggle for a command with a checked state, or a text button. The items are one Tab stop with
-/// arrow keys between them. When the room is too short, the last `Free` items move into a menu behind a "More"
-/// part, as rows of the same commands.
+/// arrow keys between them, and the strip joins the roving group of the body it is shown in. An icon item's tooltip
+/// is the command's label and its chord. When the room is too short, the last `Free` items move into a menu behind
+/// a "More" part, as rows of the same commands; `Menu` items are always there.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay)]
 pub struct BarItems {
@@ -273,20 +289,26 @@ impl BarItems {
         BarItems { common: Common::new(), items, axis: Axis::X, laid: None }
     }
 
-    fn resolve_all(&self, ctx: &egui::Context) -> Vec<ResolvedCommand> {
-        self.items.iter().map(|item| commands::resolve(ctx, item.command.clone())).collect()
+    /// The items whose command the registry knows.
+    fn present(&self, cx: &MeasureCx<'_, Self>) -> Vec<Present> {
+        let resolve = |item: &BarItem| cx.resolve_command(item.command.clone()).map(|resolved| Present { item: item.clone(), resolved });
+        self.items.iter().filter_map(resolve).collect()
     }
 
-    fn sizes(&self, cx: &MeasureCx<'_, Self>, resolved: &[ResolvedCommand]) -> Sizes {
+    fn sizes(&self, cx: &MeasureCx<'_, Self>, present: &[Present]) -> Sizes {
         let axis = self.axis;
-        let items = self.items.iter().zip(resolved).map(|(item, resolved)| face_of(item, resolved).size(cx)).collect();
+        let items = present.iter().map(|present| face_of(present).size(cx)).collect();
         let rule = if axis == Axis::Y { cx.face(Divider::horizontal()).y } else { cx.face(Divider::vertical()).x };
-        let more = cx.face(IconButton::new(IconId::new("more")).label(cx.env.words::<BarWords>().more.clone()));
+        let more = cx.face(IconButton::new(IconId::new("more")).label(cx.env.words::<BarWords>().items_more.clone()));
         Sizes { items, rule, more }
     }
 
-    fn fit_items_of(&self, sizes: &Sizes) -> Vec<FitItem> {
-        self.items.iter().zip(&sizes.items).map(|(item, size)| FitItem::new(along(self.axis, *size), item.section, item.keep)).collect()
+    fn fit_items_of(&self, sizes: &Sizes, present: &[Present]) -> Vec<FitItem> {
+        present
+            .iter()
+            .zip(&sizes.items)
+            .map(|(present, size)| FitItem::new(along(self.axis, *size), present.item.section, present.item.keep))
+            .collect()
     }
 }
 
@@ -296,19 +318,20 @@ impl Component for BarItems {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: BarItemsStyleKey) -> BarItemsStyle {
-        BarItemsStyle { metrics: Metrics::new().gap(cx.tokens.space.gap.inline) }
+        let gap = cx.tokens.space.gap.inline;
+        BarItemsStyle { metrics: Metrics::new().gap(gap), joint: gap, section_gap: gap * 2.0 }
     }
 
     /// The whole strip, or the room along the strip when that is shorter.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        if self.items.is_empty() {
+        let present = self.present(cx);
+        if present.is_empty() {
             return Vec2::ZERO;
         }
-        let resolved = self.resolve_all(cx.ui.ctx());
-        let sizes = self.sizes(cx, &resolved);
-        let gap = cx.gap();
-        let all = vec![true; self.items.len()];
-        let natural = run_extent(&self.fit_items_of(&sizes), &all, f64::from(gap), f64::from(gap * 2.0 + sizes.rule)) as f32;
+        let sizes = self.sizes(cx, &present);
+        let all = vec![true; present.len()];
+        let section_gap = cx.style.section_gap + sizes.rule;
+        let natural = run_extent(&self.fit_items_of(&sizes, &present), &all, f64::from(cx.gap()), f64::from(section_gap)) as f32;
         let cross = sizes.items.iter().map(|size| across(self.axis, *size)).fold(across(self.axis, sizes.more), f32::max);
         match self.axis {
             Axis::Y => Vec2::new(cross, natural),
@@ -324,21 +347,21 @@ impl Component for BarItems {
     /// declares the items and "More" as one roving group in reading order.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let axis = self.axis;
-        let resolved = self.resolve_all(cx.ui.ctx());
-        let sizes = self.sizes(cx, &resolved);
-        let (gap, rtl) = (cx.gap(), cx.flow.is_rtl());
-        let section_gap = gap * 2.0 + sizes.rule;
+        let present = self.present(cx);
+        let sizes = self.sizes(cx, &present);
+        let (gap, joint, rtl, os) = (cx.gap(), cx.style.joint, cx.flow.is_rtl(), cx.env.shell().os);
+        let section_gap = cx.style.section_gap + sizes.rule;
         let more_length = along(axis, sizes.more);
-        let fit = fit_items(&self.fit_items_of(&sizes), along(axis, rect.size()), gap, section_gap, more_length);
+        let fit = fit_items(&self.fit_items_of(&sizes, &present), along(axis, rect.size()), gap, section_gap, more_length);
         let (mut at, mut previous) = (0.0, None::<u16>);
         let (mut shown, mut rules) = (Vec::new(), Vec::new());
         for &index in &fit.shown {
-            let section = self.items[index].section;
+            let section = present[index].item.section;
             if let Some(before) = previous {
                 if before == section {
                     at += gap;
                 } else {
-                    rules.push(slot(rect, axis, rtl, at + gap, sizes.rule));
+                    rules.push(slot(rect, axis, rtl, at + joint, sizes.rule));
                     at += section_gap;
                 }
             }
@@ -353,26 +376,28 @@ impl Component for BarItems {
         });
         for &(index, cell) in &shown {
             let part = cx.part(ITEM.at(index as u64), cell).sense(Sense::CLICK | Sense::FOCUS).focusable();
-            if display_of(&self.items[index], &resolved[index]) == ItemDisplay::Icon {
-                part.tooltip(Label::Shared(resolved[index].label.clone()));
+            if display_of(&present[index]) == ItemDisplay::Icon {
+                let resolved = &present[index].resolved;
+                part.tooltip(match &resolved.chord {
+                    Some(chord) => Label::from(format!("{} ({})", resolved.label, chord.display(os))),
+                    None => Label::Shared(resolved.label.clone()),
+                });
             }
         }
         if let Some(more) = more {
             cx.part(MORE, more).sense(Sense::CLICK | Sense::FOCUS).focusable().toggles("menu");
         }
         cx.roving(Roving::new(NavShape::Flat));
-        self.laid = Some(Laid { resolved, shown, rules, overflow: fit.overflow, more });
+        self.laid = Some(Laid { present, shown, rules, overflow: fit.overflow, more });
     }
 
-    /// A click or the activation key on an item runs its command.
+    /// The strip joins the body's roving group; a click or the activation key on an item runs its command.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        cx.join_roving();
         let Some(laid) = &self.laid else { return };
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for &(index, _) in &laid.shown {
-            let part = ITEM.at(index as u64);
-            let source = if by_key == Some(part) { FireSource::Key } else { FireSource::Pointer };
-            if cx.part(part).press.phase.is_click() || by_key == Some(part) {
-                commands::fire(cx.command_ctx(), self.items[index].command.clone(), source);
+            if let Some(source) = cx.part_activated(ITEM.at(index as u64)) {
+                cx.fire(laid.present[index].item.command.clone(), source);
             }
         }
     }
@@ -381,13 +406,13 @@ impl Component for BarItems {
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let Some(laid) = self.laid.as_ref().filter(|laid| laid.more.is_some()) else { return };
         let popup = cx.popup("menu");
-        let (items, overflow) = (&self.items, &laid.overflow);
+        let (present, overflow) = (&laid.present, &laid.overflow);
         let name = cx.label();
         ui.show(popup, crate::menu::layer(false), |ui, _| {
             Menu::inline(name.clone()).show(ui, |ui, _| {
                 let mut previous: Option<u16> = None;
                 for &index in overflow {
-                    let item = &items[index];
+                    let item = &present[index].item;
                     if previous.is_some_and(|section| section != item.section) {
                         Divider::horizontal().show(ui);
                     }
@@ -401,14 +426,14 @@ impl Component for BarItems {
     /// A strip the caller did not label is named by the words of the family.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         if cx.resolved.label.is_empty() {
-            access.name(Name::Text(cx.words::<BarWords>().items.as_str().to_owned()));
+            access.name(Name::Text(cx.words::<BarWords>().items_actions.as_str().to_owned()));
         }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(laid) = &self.laid else { return };
         for &(index, _) in &laid.shown {
-            face_of(&self.items[index], &laid.resolved[index]).paint(ui, ITEM.at(index as u64));
+            face_of(&laid.present[index]).paint(ui, ITEM.at(index as u64));
         }
         for (at, rule) in laid.rules.iter().enumerate() {
             if self.axis == Axis::Y {
@@ -418,7 +443,7 @@ impl Component for BarItems {
             }
         }
         if laid.more.is_some() {
-            ui.face(MORE, IconButton::new(IconId::new("more")).label(cx.words::<BarWords>().more.clone()));
+            ui.face(MORE, IconButton::new(IconId::new("more")).label(cx.words::<BarWords>().items_more.clone()));
         }
     }
 

@@ -1,48 +1,63 @@
-//! `AlignBar`: the Align and Distribute controls of the Move tool's options bar. A pattern over the children of a
-//! `Bar`: six align buttons, optionally eight distribute buttons after a divider, and a menu listing all fourteen.
+//! `AlignBar`: the Align and Distribute controls of the Move tool's options bar. A pattern over `BarItems`: the six
+//! align commands, then the eight distribute commands after a rule, which overflow into the "More" menu or live in
+//! it.
 
-use super::words::AlignWords;
-use crate::buttons::IconButton;
-use crate::contract::{BodyCx, Entry, Props as _, Remember as _, Show as _, WordSetCx as _};
-use crate::display::Divider;
-use crate::runtime::env::Label;
-use craft_behavior::IconId;
+use super::items::{BarItem, BarItems, FitKeep};
+use super::words::BarWords;
+use crate::contract::{NoValue, Outcome, Props as _, Show as _};
+use crate::runtime::env::Env;
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
 
-/// One align or distribute command.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// One align or distribute command. The commands are app commands: the app gates them with command state and takes
+/// them when they run, from a button, the menu or a chord.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, craft_ui_macros::CommandSet)]
+#[command(prefix = "align")]
 #[non_exhaustive]
 pub enum AlignAction {
     /// Align the layers' left edges.
+    #[command(label = "Align Left Edges", icon = "align_edge_left")]
     AlignLeftEdges,
     /// Align the layers' horizontal centres.
+    #[command(label = "Align Horizontal Centers", icon = "align_edge_hcenter")]
     AlignHorizontalCenters,
     /// Align the layers' right edges.
+    #[command(label = "Align Right Edges", icon = "align_edge_right")]
     AlignRightEdges,
     /// Align the layers' top edges.
+    #[command(label = "Align Top Edges", icon = "align_edge_top")]
     AlignTopEdges,
     /// Align the layers' vertical centres.
+    #[command(label = "Align Vertical Centers", icon = "align_edge_vcenter")]
     AlignVerticalCenters,
     /// Align the layers' bottom edges.
+    #[command(label = "Align Bottom Edges", icon = "align_edge_bottom")]
     AlignBottomEdges,
     /// Space the layers' top edges evenly.
+    #[command(label = "Distribute Top Edges", icon = "distribute_top")]
     DistributeTopEdges,
     /// Space the layers' vertical centres evenly.
+    #[command(label = "Distribute Vertical Centers", icon = "distribute_vcenter")]
     DistributeVerticalCenters,
     /// Space the layers' bottom edges evenly.
+    #[command(label = "Distribute Bottom Edges", icon = "distribute_bottom")]
     DistributeBottomEdges,
     /// Space the layers' left edges evenly.
+    #[command(label = "Distribute Left Edges", icon = "distribute_left")]
     DistributeLeftEdges,
     /// Space the layers' horizontal centres evenly.
+    #[command(label = "Distribute Horizontal Centers", icon = "distribute_hcenter")]
     DistributeHorizontalCenters,
     /// Space the layers' right edges evenly.
+    #[command(label = "Distribute Right Edges", icon = "distribute_right")]
     DistributeRightEdges,
     /// Equal gaps between the layers, left to right.
+    #[command(label = "Distribute Horizontally", icon = "distribute_horizontal")]
     DistributeHorizontally,
     /// Equal gaps between the layers, top to bottom.
+    #[command(label = "Distribute Vertically", icon = "distribute_vertical")]
     DistributeVertically,
 }
 
@@ -69,49 +84,9 @@ impl AlignAction {
         AlignAction::DistributeVertically,
     ];
 
-    /// The command's icon.
-    pub fn icon(self) -> IconId {
-        IconId::new(match self {
-            AlignAction::AlignLeftEdges => "align_edge_left",
-            AlignAction::AlignHorizontalCenters => "align_edge_hcenter",
-            AlignAction::AlignRightEdges => "align_edge_right",
-            AlignAction::AlignTopEdges => "align_edge_top",
-            AlignAction::AlignVerticalCenters => "align_edge_vcenter",
-            AlignAction::AlignBottomEdges => "align_edge_bottom",
-            AlignAction::DistributeTopEdges => "distribute_top",
-            AlignAction::DistributeVerticalCenters => "distribute_vcenter",
-            AlignAction::DistributeBottomEdges => "distribute_bottom",
-            AlignAction::DistributeLeftEdges => "distribute_left",
-            AlignAction::DistributeHorizontalCenters => "distribute_hcenter",
-            AlignAction::DistributeRightEdges => "distribute_right",
-            AlignAction::DistributeHorizontally => "distribute_horizontal",
-            AlignAction::DistributeVertically => "distribute_vertical",
-        })
-    }
-
     /// Whether the command is one of the six align commands rather than a distribute command.
     pub fn is_align(self) -> bool {
         Self::ALIGN.contains(&self)
-    }
-
-    /// The command's own name, without its group.
-    fn name(self, words: &AlignWords) -> &Label {
-        match self {
-            AlignAction::AlignLeftEdges | AlignAction::DistributeLeftEdges => &words.left_edges,
-            AlignAction::AlignHorizontalCenters | AlignAction::DistributeHorizontalCenters => &words.horizontal_centers,
-            AlignAction::AlignRightEdges | AlignAction::DistributeRightEdges => &words.right_edges,
-            AlignAction::AlignTopEdges | AlignAction::DistributeTopEdges => &words.top_edges,
-            AlignAction::AlignVerticalCenters | AlignAction::DistributeVerticalCenters => &words.vertical_centers,
-            AlignAction::AlignBottomEdges | AlignAction::DistributeBottomEdges => &words.bottom_edges,
-            AlignAction::DistributeHorizontally => &words.horizontally,
-            AlignAction::DistributeVertically => &words.vertically,
-        }
-    }
-
-    /// The command's name with its group, "Align: Left Edges": the tooltip and the accessible name.
-    fn full_name(self, words: &AlignWords) -> Label {
-        let group = if self.is_align() { &words.align } else { &words.distribute };
-        Label::from(words.tooltip.fill(&[("group", group.as_str()), ("action", self.name(words).as_str())]))
     }
 }
 
@@ -119,10 +94,10 @@ impl AlignAction {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum DistributeButtons {
-    /// In the menu only, with the align commands.
+    /// In the menu only.
     #[default]
     Menu,
-    /// Also as a second group of buttons after a divider.
+    /// Also as a second group of buttons after a rule; they move into the menu when the room runs out.
     Row,
 }
 
@@ -130,30 +105,28 @@ pub enum DistributeButtons {
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct AlignBarOutput {
-    /// The command picked, from a button or from the menu.
-    pub picked: Option<AlignAction>,
-    /// The response of the menu button.
-    pub more: Response,
+    /// The strip's response.
+    pub response: Response,
+}
+
+impl Outcome for AlignBarOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 /// The align buttons, the optional distribute buttons and the menu button, shown as children of a `Bar`.
 #[derive(crate::contract::Pattern)]
-pub struct AlignBar<'a> {
-    enabled: Box<dyn Fn(AlignAction) -> bool + 'a>,
+pub struct AlignBar {
     distribute: DistributeButtons,
 }
 
-impl<'a> AlignBar<'a> {
-    /// An align bar with every command enabled and the distribute commands in the menu.
+impl AlignBar {
+    /// An align bar with the distribute commands in the menu.
     pub fn new() -> Self {
-        AlignBar { enabled: Box::new(|_| true), distribute: DistributeButtons::Menu }
-    }
-
-    /// Which commands are enabled now. A disabled command's button and menu row are disabled.
-    #[must_use]
-    pub fn enabled(mut self, enabled: impl Fn(AlignAction) -> bool + 'a) -> Self {
-        self.enabled = Box::new(enabled);
-        self
+        AlignBar { distribute: DistributeButtons::Menu }
     }
 
     /// Where the distribute commands sit.
@@ -163,38 +136,18 @@ impl<'a> AlignBar<'a> {
         self
     }
 
-    /// Shows the bar as children of the bar body `cx` belongs to.
-    pub fn show_in(self, ui: &mut Ui, cx: &mut BodyCx<'_>) -> AlignBarOutput {
-        let words = cx.words::<AlignWords>();
-        let mut picked = None;
-        let mut button = |ui: &mut Ui, action: AlignAction| {
-            let response = IconButton::new(action.icon()).label(action.full_name(&words)).enabled((self.enabled)(action)).id_salt(action).show(ui);
-            if crate::contract::clicked(&response) {
-                picked = Some(action);
-            }
-        };
-        for action in AlignAction::ALIGN {
-            button(ui, action);
-        }
-        if self.distribute == DistributeButtons::Row {
-            Divider::vertical().show(ui);
-            for action in AlignAction::DISTRIBUTE {
-                button(ui, action);
-            }
-        }
-        let more = IconButton::new(IconId::new("more")).label(words.more.clone()).id_salt("more").show(ui);
-        let entry = |action: AlignAction| Entry::new(action, action.full_name(&words)).icon(action.icon()).enabled((self.enabled)(action));
-        let mut entries: Vec<Entry<AlignAction>> = AlignAction::ALIGN.into_iter().map(entry).collect();
-        entries.push(Entry::separator());
-        entries.extend(AlignAction::DISTRIBUTE.into_iter().map(entry));
-        let mut open = *cx.memory_at::<bool>("more_menu") || crate::contract::clicked(&more);
-        let chosen = crate::menu::pick_from(ui, words.more.clone(), &more, &entries, &mut open).picked;
-        *cx.memory_at::<bool>("more_menu") = open;
-        AlignBarOutput { picked: chosen.or(picked), more }
+    /// Shows the bar. Each command's enabled state is the app's command state.
+    pub fn show(self, ui: &mut Ui) -> AlignBarOutput {
+        let name = Env::of(ui).words::<BarWords>().align_bar.clone();
+        let distribute_keep = if self.distribute == DistributeButtons::Row { FitKeep::Free } else { FitKeep::Menu };
+        let align = AlignAction::ALIGN.into_iter().map(BarItem::new);
+        let distribute = AlignAction::DISTRIBUTE.into_iter().map(|action| BarItem::new(action).section(1).keep(distribute_keep));
+        let response = BarItems::new(align.chain(distribute).collect()).label(name).show(ui);
+        AlignBarOutput { response }
     }
 }
 
-impl Default for AlignBar<'_> {
+impl Default for AlignBar {
     fn default() -> Self {
         AlignBar::new()
     }
