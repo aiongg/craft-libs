@@ -28,6 +28,7 @@ pub struct Frames {
     copied: Vec<String>,
     texts: Vec<fixture::PaintedText>,
     bounds: Vec<egui::Rect>,
+    overshoot: Vec<f32>,
     modifiers: egui::Modifiers,
     /// The modifiers the context was last told about.
     told: egui::Modifiers,
@@ -64,6 +65,7 @@ impl Frames {
             copied: Vec::new(),
             texts: Vec::new(),
             bounds: Vec::new(),
+            overshoot: Vec::new(),
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
             files: fixture::OsFiles::default(),
@@ -184,6 +186,7 @@ impl Frames {
         self.copied = result.copied;
         self.texts = result.texts;
         self.bounds = result.bounds;
+        self.overshoot = result.overshoot;
         result.closed
     }
 
@@ -205,6 +208,11 @@ impl Frames {
     /// The visual bounds of the shapes the last frame painted.
     pub fn shape_bounds(&self) -> &[egui::Rect] {
         &self.bounds
+    }
+
+    /// Half the stroke width of the shape behind each of `shape_bounds`.
+    pub fn shape_overshoot(&self) -> &[f32] {
+        &self.overshoot
     }
 
     /// The AccessKit tree the last frame produced.

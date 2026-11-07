@@ -96,6 +96,10 @@ impl<'a> Draw<'a> {
             record.elided = Some(layout.full.clone());
         }
         drop(record);
+        // A run cut to nothing (an elided label in no room) has no glyphs, and egui gives it NaN bounds.
+        if !layout.galley.mesh_bounds.is_finite() {
+            return;
+        }
         self.painter.galley(pos, layout.galley.clone(), ink_color(self.env.tokens, self.env.ink));
     }
 

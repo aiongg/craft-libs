@@ -20,8 +20,10 @@ pub(crate) struct FrameResult {
     /// The text runs the frame painted.
     pub texts: Vec<PaintedText>,
     /// The visual bounds of every shape the frame painted, within its clip rect. A shape with no extent (egui reports an empty galley's
-    /// bounds as NaN) has none.
+    /// bounds as NaN) has none, and a shadow (a blurred rect) is no paint bound.
     pub bounds: Vec<Rect>,
+    /// Half the stroke width of the shape behind `bounds[i]`: how far its edge may overshoot a rect it was drawn to.
+    pub overshoot: Vec<f32>,
 }
 
 /// A text run a frame painted.
@@ -84,11 +86,12 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
         flat.extend(shapes.into_iter().map(|shape| (shape, clipped.clip_rect)));
     }
     // A shape shows only inside its clip rect.
-    let bounds = flat
+    let (bounds, overshoot): (Vec<Rect>, Vec<f32>) = flat
         .iter()
-        .map(|(shape, clip)| shape.visual_bounding_rect().intersect(*clip))
-        .filter(|rect| rect.is_finite() && rect.min.x <= rect.max.x && rect.min.y <= rect.max.y)
-        .collect();
+        .filter(|(shape, _)| !is_shadow(shape) && shape.visual_bounding_rect().is_finite())
+        .map(|(shape, clip)| (shape.visual_bounding_rect().intersect(*clip), stroke_width(shape) / 2.0))
+        .filter(|(rect, _)| rect.is_finite() && rect.min.x <= rect.max.x && rect.min.y <= rect.max.y)
+        .unzip();
     let texts = flat
         .iter()
         .filter_map(|(shape, _)| match shape {
@@ -113,6 +116,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
         copied,
         texts,
         bounds,
+        overshoot,
         cursor: output.platform_output.cursor_icon,
         repaint_delay,
         tree: crate::runtime::egui::access::tree_of(&mut output),
@@ -194,6 +198,22 @@ pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, ui: impl FnMut(&mut Ui)
         flatten(clipped.shape, &mut flat);
     }
     flat
+}
+
+/// A blurred rect: the shadow of a surface.
+fn is_shadow(shape: &Shape) -> bool {
+    matches!(shape, Shape::Rect(rect) if rect.blur_width > 0.0)
+}
+
+fn stroke_width(shape: &Shape) -> f32 {
+    match shape {
+        Shape::Circle(circle) => circle.stroke.width,
+        Shape::Ellipse(ellipse) => ellipse.stroke.width,
+        Shape::LineSegment { stroke, .. } => stroke.width,
+        Shape::Path(path) => path.stroke.width,
+        Shape::Rect(rect) => rect.stroke.width,
+        _ => 0.0,
+    }
 }
 
 fn flatten_ref<'a>(shape: &'a Shape, out: &mut Vec<&'a Shape>) {
