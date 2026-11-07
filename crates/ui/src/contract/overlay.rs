@@ -286,7 +286,10 @@ impl Opener {
     /// The opener the layer's open slot says opened it, else the first.
     fn active(&self, ctx: &Context) -> (&Opener, bool) {
         let by = with_popups(ctx, |popups| popups.opened_by.get(&self.id).copied());
-        match by.and_then(|(id, pointer)| self.all().find(|opener| opener.id == id).map(|opener| (opener, pointer))) {
+        let found = by.and_then(|(id, trigger, pointer)| {
+            self.all().find(|opener| opener.id == id && opener.trigger == trigger).map(|opener| (opener, pointer))
+        });
+        match found {
             Some(active) => active,
             None => (self, false),
         }
@@ -609,9 +612,9 @@ struct Popups {
     shown: Vec<(Id, Id)>,
     /// Every popup an owner showed or kept closed this pass, for the anchor's access node.
     anchors: Vec<(Id, PopupShown)>,
-    /// The opener that opened each layer with openers, by the layer's first opener: its id and whether a pointer
-    /// release opened it.
-    opened_by: HashMap<Id, (Id, bool)>,
+    /// The opener that opened each layer with openers, by the layer's first opener: its id and trigger (two
+    /// openers on one response differ by trigger) and whether a pointer release opened it.
+    opened_by: HashMap<Id, (Id, Trigger, bool)>,
 }
 
 fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
@@ -1412,8 +1415,8 @@ struct OpenerOpen {
     open: bool,
     /// The root frame an opener's trigger was last applied in: a frame's passes apply it once.
     applied: u64,
-    /// The opener that opened the layer, and whether a pointer release did.
-    by: Option<(Id, bool)>,
+    /// The opener that opened the layer by id and trigger, and whether a pointer release did.
+    by: Option<(Id, Trigger, bool)>,
 }
 
 /// The open state of a container with no binding: the slot of its first opener, with the triggers of every opener
@@ -1429,14 +1432,14 @@ pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
     if let Some(opener) = first.all().find(|opener| opener.fired) {
         if slot.applied != frame {
             slot.open = !slot.open;
-            slot.by = Some((opener.id, opener.by_pointer));
+            slot.by = Some((opener.id, opener.trigger, opener.by_pointer));
         }
         slot.applied = frame;
     } else if let Some((opener, true)) = held
         && !slot.open
     {
         slot.open = true;
-        slot.by = Some((opener.id, false));
+        slot.by = Some((opener.id, opener.trigger, false));
     }
     let (open, by) = (slot.open, slot.by);
     with_popups(&ctx, |popups| match by {
