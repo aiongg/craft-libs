@@ -27,7 +27,7 @@ fn banned(path: &[String], in_use: bool) -> Option<String> {
     if let Some(w) = path.windows(2).find(|w| w[0] == "focus" && SCOPE_FNS.contains(&w[1].as_str())) {
         return Some(w[1].clone());
     }
-    (in_use && path == &PRESS_MODULE).then(|| "press".to_owned())
+    (in_use && path == PRESS_MODULE).then(|| "press".to_owned())
 }
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
