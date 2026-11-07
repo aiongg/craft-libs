@@ -7,40 +7,58 @@
 use super::PanelKey;
 use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
 use craft_behavior::{DockSide, GroupId};
+use craft_theme::Tokens;
 use egui::{Context, Pos2, Rect};
-
-/// Depth of a group's side zones with `DockConfig::side_edge_zones`.
-pub const SIDE_EDGE_ZONE_DEPTH: f32 = 40.0;
 
 /// Share of a group's body, from each edge, that means "beside" without `DockConfig::side_edge_zones`: of its width
 /// from the start and end edges, of its height from the top and bottom edges.
 pub const SIDE_ZONE_FRACTION: f32 = 1.0 / 3.0;
 
-/// The most of a body's smaller side that a side zone with `SIDE_EDGE_ZONE_DEPTH` reaches, so a body always keeps a
+/// The most of a body's smaller side that a side zone with `DockSizes::zone_depth` reaches, so a body always keeps a
 /// middle.
 pub const SIDE_ZONE_DEPTH_SHARE: f32 = 0.25;
-
-/// Width of the band along the layout's outer edge that splits at the root, at most `EDGE_BAND_SHARE` of the
-/// layout's width and height.
-pub const EDGE_BAND: f32 = 28.0;
 
 /// The most of the layout's width and height the outer edge band takes.
 pub const EDGE_BAND_SHARE: f32 = 0.25;
 
-/// Width of the outer edge band with `DockConfig::side_edge_zones`.
-pub const SIDE_EDGE_BAND: f32 = 8.0;
+/// The sizes of a dock's drop bands, zones and preview line, read from the theme's tokens.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct DockSizes {
+    /// Depth of a group's side zones with `DockConfig::side_edge_zones` (the rail width).
+    pub zone_depth: f32,
+    /// Width of the band along the layout's outer edge that splits at the root (the standard control height).
+    pub edge_band: f32,
+    /// Width of the outer edge band with `DockConfig::side_edge_zones` (the least hit size).
+    pub side_edge_band: f32,
+    /// Height of the band centred on the seam between two stacked groups in a dock column (the standard control
+    /// height).
+    pub seam_band: f32,
+    /// Width of the band centred on each edge of a dock column, where a drop makes a new column (the standard
+    /// control height).
+    pub column_edge_band: f32,
+    /// Width of the band along the docked area's start and end edges, and inside an empty dock, that makes a new
+    /// dock (the standard control height).
+    pub new_dock_band: f32,
+    /// Thickness of the line that previews a drop on an edge band, a seam or a tab insertion (the heavy stroke).
+    pub line: f32,
+}
 
-/// Height of the band centred on the seam between two stacked groups in a dock column.
-pub const SEAM_BAND: f32 = 28.0;
-
-/// Width of the band centred on each edge of a dock column, where a drop makes a new column.
-pub const COLUMN_EDGE_BAND: f32 = 28.0;
-
-/// Width of the band along the docked area's start and end edges, and inside an empty dock, that makes a new dock.
-pub const NEW_DOCK_BAND: f32 = 28.0;
-
-/// Thickness of the line that previews a drop on an edge band, a seam or a tab insertion.
-pub const DROP_LINE_WIDTH: f32 = 4.0;
+impl DockSizes {
+    /// The sizes the theme's `tokens` give.
+    pub fn from_tokens(tokens: &Tokens) -> Self {
+        let size = &tokens.size;
+        DockSizes {
+            zone_depth: size.rail.width,
+            edge_band: size.control.md,
+            side_edge_band: size.hit.target,
+            seam_band: size.control.md,
+            column_edge_band: size.control.md,
+            new_dock_band: size.control.md,
+            line: tokens.stroke.thick,
+        }
+    }
+}
 
 /// Where a drop would land.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -110,7 +128,7 @@ impl DockSpot {
     }
 
     /// Which spot wins where rects of one layer overlap: the outer bands, then seams and columns, then a tab
-    /// strip, then the sides of a group, then its middle. A border band reaches only `DROP_LINE_WIDTH` into a
+    /// strip, then the sides of a group, then its middle. A border band reaches only `DockSizes::line` into a
     /// tab strip, so the strip keeps the rest of its height.
     const fn priority(&self) -> u8 {
         match self {
@@ -128,7 +146,7 @@ impl DockSpot {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ZoneRule {
-    /// Zones `SIDE_EDGE_ZONE_DEPTH` deep, at most `SIDE_ZONE_DEPTH_SHARE` of the body's smaller side.
+    /// Zones `DockSizes::zone_depth` deep, at most `SIDE_ZONE_DEPTH_SHARE` of the body's smaller side.
     Depth,
     /// Zones `SIDE_ZONE_FRACTION` of the body's width (start, end) and height (top, bottom).
     Fraction,
@@ -138,10 +156,10 @@ impl ZoneRule {
     /// The zones of `body`, the part of a group below its tab strip: the start and end zones along its full height,
     /// the top and bottom zones between them, and the middle. The rects do not overlap. A body too small for the
     /// zones gives them an empty rect.
-    pub fn zones(self, body: Rect) -> [(DockSide, Rect); 5] {
+    pub fn zones(self, body: Rect, sizes: &DockSizes) -> [(DockSide, Rect); 5] {
         let (across, down) = match self {
             ZoneRule::Depth => {
-                let depth = SIDE_EDGE_ZONE_DEPTH.min(body.width().min(body.height()) * SIDE_ZONE_DEPTH_SHARE).max(0.0);
+                let depth = sizes.zone_depth.min(body.width().min(body.height()) * SIDE_ZONE_DEPTH_SHARE).max(0.0);
                 (depth, depth)
             }
             ZoneRule::Fraction => (body.width() * SIDE_ZONE_FRACTION, body.height() * SIDE_ZONE_FRACTION),

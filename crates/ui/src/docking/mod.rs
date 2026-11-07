@@ -20,7 +20,7 @@ pub use event::{DockEvent, FloatSpace, HidePanels};
 pub use panels::DockPanels;
 pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};
-pub use targets::{DockSpot, DockTargets, GroupDrag, ZoneRule};
+pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
 
 use crate::contract::{

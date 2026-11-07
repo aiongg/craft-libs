@@ -40,12 +40,12 @@ impl DockSides {
     }
 }
 
-/// How a dock behaves. The sizes of its drop bands and zones are the named constants of `docking::targets`; the
+/// How a dock behaves. The sizes of its drop bands and zones are `DockSizes`; the
 /// look is the dock's style; the words are `DockWords`.
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct DockConfig {
-    /// The picture-frame profile: a group's side zones are `SIDE_EDGE_ZONE_DEPTH` deep and the outer edge band
+    /// The picture-frame profile: a group's side zones are `DockSizes::zone_depth` deep and the outer edge band
     /// also runs along the start and end edges, where a drop adds a full-height column. Off: only the top and
     /// bottom edges add a full-width row, a group's zones are `SIDE_ZONE_FRACTION` of its body and every preview
     /// is a line or a tab outline.
