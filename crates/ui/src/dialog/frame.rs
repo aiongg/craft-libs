@@ -162,6 +162,8 @@ impl<'a> DialogFrame<'a> {
 
 impl Component for DialogFrame<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = DialogFrameStyle;
     type Output = Response;
 

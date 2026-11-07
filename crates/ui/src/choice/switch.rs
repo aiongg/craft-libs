@@ -51,6 +51,7 @@ impl<'a> Switch<'a> {
 
 impl Component for Switch<'_> {
     const ROLE: Role = Role::SWITCH;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = SwitchStyle;
     type Output = EditResponse<bool>;

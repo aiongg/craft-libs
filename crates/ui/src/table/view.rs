@@ -4,8 +4,8 @@
 //! it shows.
 
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, ColumnSpec, Common, Component, ContainerProps,
-    Cx, EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, ColumnSpec, Common, Component, ContainerProps, Cx,
+    EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::list::{DropTest, ListRow, RowEvent, RowTest, SourceTest};
 use crate::runtime::commands::CommandScope;
@@ -179,6 +179,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for Table<'_, K> {
     const ROLE: Role = Role::TABLE;
+    const PARTS: bool = false;
     type Style = TableStyle;
     type Output = CollectionResponse<K, RowEvent>;
 

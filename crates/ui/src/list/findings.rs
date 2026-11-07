@@ -175,6 +175,7 @@ impl<'a> FindingsList<'a> {
 
 impl Component for FindingsList<'_> {
     const ROLE: Role = Role::LIST;
+    const PARTS: bool = false;
     type Style = FindingsListStyle;
     type Output = CollectionResponse<u64, RowEvent>;
 
@@ -261,6 +262,8 @@ impl<'a> FindingsSummary<'a> {
 
 impl Component for FindingsSummary<'_> {
     const ROLE: Role = Role::LABEL;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = FindingsSummaryStyle;
     type Output = Response;
 

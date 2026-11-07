@@ -91,6 +91,7 @@ fn dashes(width: f32, thickness: f32) -> Vec<(f32, f32)> {
 
 impl Component for Progress {
     const ROLE: Role = Role::PROGRESS_INDICATOR;
+    const PARTS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const SHOWS_LABEL: bool = false;
     const OVERLAYS: bool = false;

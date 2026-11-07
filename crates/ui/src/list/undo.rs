@@ -149,6 +149,7 @@ impl<'a> UndoList<'a> {
 
 impl Component for UndoList<'_> {
     const ROLE: Role = Role::LIST_BOX;
+    const PARTS: bool = false;
     type Style = UndoListStyle;
     type Output = CollectionResponse<usize, RowEvent>;
 

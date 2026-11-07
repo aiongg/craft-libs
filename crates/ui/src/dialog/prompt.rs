@@ -186,15 +186,7 @@ pub struct Prompt<'a> {
 impl<'a> Prompt<'a> {
     /// A prompt titled `title` asking `message`; add its answers with `answers`.
     pub fn new(title: impl Into<Label>, message: impl Into<Label>) -> Self {
-        Prompt {
-            title: title.into(),
-            message: message.into(),
-            answers: Vec::new(),
-            extras: Extras::default(),
-            open: None,
-            escape: None,
-            enter: true,
-        }
+        Prompt { title: title.into(), message: message.into(), answers: Vec::new(), extras: Extras::default(), open: None, escape: None, enter: true }
     }
 
     /// The answers, one footer button each.

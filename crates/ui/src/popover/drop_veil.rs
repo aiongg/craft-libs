@@ -54,6 +54,8 @@ impl VeilCard {
 
 impl Component for VeilCard {
     const ROLE: Role = Role::LABEL;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const OVERLAYS: bool = false;

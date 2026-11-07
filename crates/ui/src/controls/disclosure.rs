@@ -80,6 +80,7 @@ impl<'a> Disclosure<'a> {
 
 impl Component for Disclosure<'_> {
     const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     type Style = DisclosureStyle;

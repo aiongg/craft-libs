@@ -466,6 +466,8 @@ impl HeaderText {
 
 impl Component for HeaderText {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = HeaderTextStyle;
     type Output = Response;
 

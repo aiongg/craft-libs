@@ -69,6 +69,8 @@ impl<'a> Field<'a> {
 
 impl Component for Field<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = FieldRowStyle;
     type Output = Response;
 

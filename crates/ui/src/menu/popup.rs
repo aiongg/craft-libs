@@ -189,6 +189,8 @@ impl<'a> Menu<'a> {
 
 impl Component for Menu<'_> {
     const ROLE: Role = Role::MENU;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = MenuStyle;
     type Output = MenuOutput;
 

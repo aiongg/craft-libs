@@ -308,6 +308,7 @@ impl TipText<'static> {
 
 impl Component for TipText<'_> {
     const ROLE: super::Role = super::Role::TOOLTIP;
+    const PARTS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     type Style = TipStyle;
     type Output = egui::Response;

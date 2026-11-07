@@ -70,6 +70,11 @@ impl Host for Inline {
 pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
+    /// Whether the shape's own `parts` hook can declare parts, which the component's `PARTS = false` does not cover.
+    fn declares_parts(&self) -> bool {
+        true
+    }
+
     /// Where steps 6 to 16 run.
     fn host(&mut self, comp: &C, at: HostCx<'_>) -> Box<dyn Host>;
 
@@ -173,6 +178,10 @@ struct LeafHooks;
 impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn shape(&self) -> ShapeKind {
         ShapeKind::Leaf
+    }
+
+    fn declares_parts(&self) -> bool {
+        false
     }
 
     fn host(&mut self, _: &C, _: HostCx<'_>) -> Box<dyn Host> {
@@ -334,6 +343,75 @@ fn own_sense<C: Component>(hooks: &dyn ShapeHooks<C>, comp: &C, resolved: &Resol
     }
 }
 
+/// The widget that holds the component's text or editor and the keys it keeps, when it has either.
+fn text_holder<C: Component>(id: Id, parts: &PartsStep) -> (Option<Id>, Option<focus::KeyUse>) {
+    let text = parts
+        .text
+        .decl
+        .as_ref()
+        .map(|decl| (crate::primitives::text_adapter::text_id(id, decl.key), crate::primitives::text_adapter::keys_of(C::KEYS, &decl.options)));
+    let editor = parts
+        .text
+        .editor
+        .as_ref()
+        .map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(C::KEYS, decl.purpose)));
+    match (text, editor) {
+        (Some((widget, keys)), _) | (None, Some((widget, keys))) => (Some(widget), Some(keys)),
+        (None, None) => (None, None),
+    }
+}
+
+/// What the stops of a component read: the owner, its place in a member group and the text it holds.
+struct StopsStep<'a> {
+    ctx: &'a Context,
+    id: Id,
+    rtl: bool,
+    env: &'a Env,
+    resolved: &'a Resolved<'a>,
+    inert: bool,
+    holder_widget: Option<Id>,
+    member: Option<crate::runtime::env::ArenaId>,
+    own: Sense,
+    text_keys: Option<focus::KeyUse>,
+}
+
+/// Registers the focus stops of a component that has any; one that sets `STOPS = false` has none, which a debug build checks.
+fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: &mut C, parts: &PartsStep) {
+    let StopsStep { ctx, id, rtl, env, resolved, inert, holder_widget, member, own, text_keys } = at;
+    let body_roving = hooks.roving(comp);
+    if !C::STOPS && body_roving.is_none() {
+        debug_assert!(
+            !own.contains(Sense::FOCUS) && parts.decls.iter().all(|(_, extras)| !extras.focusable),
+            "`{}` sets `STOPS = false` and has a stop",
+            std::any::type_name::<C>()
+        );
+        return;
+    }
+    let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
+    let text = holder_widget.is_some();
+    let keys = text_keys.unwrap_or(C::KEYS);
+    let role = hooks.key_role(comp);
+    // A bound component that keeps the arrows reads them as value steps; a text value sets `steps_value` in its text options.
+    let arrows = keys.keep == crate::runtime::focus::KeepKeys::BlockArrows;
+    let value = role.value || keys.value || (comp.bind().is_some() && !role.nudge && !text && arrows);
+    steps::register_stops(&StopsIn {
+        ctx,
+        id,
+        holder: holder_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
+        focusable: !inert && steps::takes_focus(resolved) && own.contains(Sense::FOCUS) && env.item != Some(id),
+        parts_focus: !inert && steps::takes_focus(resolved),
+        text,
+        keys,
+        role: role.resettable(resettable).value(value).text(text),
+        rtl,
+        parts,
+        group: steps::member_group(ctx, env.roving, id),
+        body_roving,
+        row: env.row,
+        default_stop: resolved.default_stop,
+    });
+}
+
 fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
@@ -359,7 +437,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
         parts.text.parts_follow_value = comp.parts_follow_value();
     }
-    if !inert {
+    // A component that declares no parts skips the step; a debug build runs it anyway to check the declaration.
+    let declares_parts = C::PARTS || p.hooks.declares_parts();
+    if !inert && (declares_parts || cfg!(debug_assertions)) {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room: p.room };
         let measure = steps::measure_cx::<C>(&input, p.style, resolved, cx.shown.as_deref());
@@ -380,48 +460,15 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     if C::CANVAS_CONTROL && p.trace.recording() {
         inspect::canvas_control(&ctx, std::any::type_name::<C>());
     }
+    debug_assert!(declares_parts || steps::declares_none(&parts), "`{}` sets `PARTS = false` and declares a part", std::any::type_name::<C>());
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
-    let text_keys = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::keys_of(C::KEYS, &decl.options));
-    let text_widget = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::text_id(id, decl.key));
-    let editor_keys = parts
-        .text
-        .editor
-        .as_ref()
-        .map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(C::KEYS, decl.purpose)));
-    let (holder_widget, text_keys) = match (text_widget, text_keys, editor_keys) {
-        (Some(widget), keys, _) => (Some(widget), keys),
-        (None, _, Some((widget, keys))) => (Some(widget), Some(keys)),
-        (None, keys, None) => (None, keys),
-    };
+    let (holder_widget, text_keys) = text_holder::<C>(id, &parts);
     let own = own_sense(&*p.hooks, comp, resolved, inert);
     // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
     let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
-    let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
-    steps::register_stops(&StopsIn {
-        ctx: &ctx,
-        id,
-        holder: holder_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
-        focusable: !inert && steps::takes_focus(resolved) && own.contains(Sense::FOCUS) && env.item != Some(id),
-        parts_focus: !inert && steps::takes_focus(resolved),
-        text: holder_widget.is_some(),
-        keys: text_keys.unwrap_or(C::KEYS),
-        role: {
-            let role = p.hooks.key_role(comp);
-            // A bound component that keeps the arrows reads them as value steps; a text value sets `steps_value` in its text options.
-            let text = holder_widget.is_some();
-            let arrows = text_keys.unwrap_or(C::KEYS).keep == crate::runtime::focus::KeepKeys::BlockArrows;
-            let value = role.value || text_keys.unwrap_or(C::KEYS).value || (comp.bind().is_some() && !role.nudge && !text && arrows);
-            role.resettable(resettable).value(value).text(text)
-        },
-        rtl,
-        parts: &parts,
-        group: steps::member_group(&ctx, env.roving, id),
-        body_roving: p.hooks.roving(comp),
-        row: env.row,
-        default_stop: resolved.default_stop,
-    });
+    stops_step::<C>(StopsStep { ctx: &ctx, id, rtl, env, resolved, inert, holder_widget, member, own, text_keys }, &*p.hooks, comp, &parts);
     // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel.
     if !inert && p.hooks.shape() != ShapeKind::Body {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());
@@ -434,6 +481,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         Some(arena) => {
             let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own, parts: &decls, enabled });
             (sensed.response, sensed.parts, sensed.press, sensed.activated, None, Sense::empty())
+        }
+        None if own.is_empty() && decls.is_empty() && !arena => {
+            let sensed = sensing::sense_none(ui, id, rect);
+            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member, sensed.sense)
         }
         None => {
             let sensed = sensing::sense_root(ui, RootSpec { id, rect, own_sense: own, own: &decls, enabled });
@@ -502,7 +553,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         overlay::begin_owner(&ctx, id);
     }
     // 8b text part
-    if text_widget.is_some() {
+    if parts.text.decl.is_some() {
         let ink = crate::style::ink_color(&env.tokens, env.ink);
         super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink, env.tokens.stroke.thin);
     } else if holder_widget.is_some() {

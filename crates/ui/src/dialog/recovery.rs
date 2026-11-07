@@ -107,10 +107,8 @@ impl StackDialog for RecoveryDialog {
             Reply::new(words.discard.clone(), DialogRole::Other, None),
             Reply::new(words.recover.clone(), DialogRole::Accept, None).enabled(!blocked),
         ];
-        let mut prompt = Prompt::new(words.title.clone(), message)
-            .answers(buttons(&replies, os_of(ui.ctx())))
-            .enter(!blocked)
-            .opened(Bind::bound(&mut self.open));
+        let mut prompt =
+            Prompt::new(words.title.clone(), message).answers(buttons(&replies, os_of(ui.ctx()))).enter(!blocked).opened(Bind::bound(&mut self.open));
         if let Some(reason) = &self.document.blocked {
             prompt = prompt.tone(Tone::Warn, reason.clone());
         }

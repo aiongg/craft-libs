@@ -19,7 +19,8 @@ fn titles_that_do_not_fit_go_into_an_overflow_menu() {
 
 #[trial]
 fn help_search_ranks_by_label_and_matches_the_path_and_the_english_label() {
-    let texts = [["Curves…", "", "Image › Adjustments"], ["Levels…", "", "Image › Adjustments"], ["All", "", "Select"], ["Level Horizon", "", "Select"]];
+    let texts =
+        [["Curves…", "", "Image › Adjustments"], ["Levels…", "", "Image › Adjustments"], ["All", "", "Select"], ["Level Horizon", "", "Select"]];
     assert_eq!(search_order(" LEV ", &texts), [1, 3], "a label starting with the query, in menu order");
     assert_eq!(search_order("adjust", &texts), [0, 1], "the path matches");
     assert_eq!(search_order("levels", &[["Niveaux…", "Levels…", "Image"]]), [0], "the English label matches");

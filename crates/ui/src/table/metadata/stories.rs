@@ -14,7 +14,10 @@ fn groups() -> Vec<MetadataGroup> {
                 MetadataRow::new("Description", "A long free-text description that runs past the width of its column and wraps"),
             ],
         ),
-        MetadataGroup::new("XMP", vec![MetadataRow::new("Creator", "A. Photographer").key("dc:creator"), MetadataRow::new("File", "IMG_0001.RAW").locked()]),
+        MetadataGroup::new(
+            "XMP",
+            vec![MetadataRow::new("Creator", "A. Photographer").key("dc:creator"), MetadataRow::new("File", "IMG_0001.RAW").locked()],
+        ),
     ]
 }
 

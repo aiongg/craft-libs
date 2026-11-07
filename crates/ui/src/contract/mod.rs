@@ -220,6 +220,13 @@ pub trait Component: Meta + Sized {
     const INPUT: Input = Input::Pointer;
     /// Whether the component hosts popups: `false` skips the overlay bookkeeping of steps 9, 10, 12, 15 and 16.
     const OVERLAYS: bool = true;
+    /// Whether the component declares parts, a text part or an editor part: `false` skips the parts step (the parts
+    /// hook, the measure view it reads and the memory of the last state) and leaves the sense step with no part
+    /// regions. A shape that declares parts of its own (a body's scroll parts, an item layout) still runs its hook.
+    const PARTS: bool = true;
+    /// Whether the component or its parts can take key focus: `false` skips the stop registration of step 7, except
+    /// for the roving group of a body the shape declares.
+    const STOPS: bool = true;
     /// Keys the focused component keeps from egui and the shortcut dispatcher.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
     /// Whether the component paints its label as visible text. `false` for a face that shows only an icon or a

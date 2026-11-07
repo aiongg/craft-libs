@@ -104,6 +104,8 @@ impl<'a> FullWindowDialog<'a> {
 
 impl Component for FullWindowDialog<'_> {
     const ROLE: Role = Role::DIALOG;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = FullWindowDialogStyle;
     type Output = DialogOutput;
 

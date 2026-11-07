@@ -13,8 +13,9 @@ use craft_behavior::{
 };
 use craft_keymap::Mods;
 use craft_theme::HitSizes;
-use egui::{Context, Id, Pos2, Vec2};
+use egui::{Context, Id, Pos2, Vec2, ViewportId};
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Points one wheel line adds to `PointerFrame.scroll`; scroll owners apply their own notch (the wheel service).
 pub(crate) const WHEEL_LINE_POINTS: f32 = 40.0;
@@ -158,7 +159,7 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
         press_targets: targets,
         focus_lost: read.focus_lost,
     };
-    PerViewport::<Stamped<PassPointer>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| *record = pass_pointer);
+    PerViewport::<Stamped<Arc<PassPointer>>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| *record = Arc::new(pass_pointer));
     PerViewport::<Shapes>::with(ctx, viewport, |shapes| shapes.last = std::mem::take(&mut shapes.this));
 }
 
@@ -168,15 +169,16 @@ pub(crate) fn pass_of(ctx: &Context) -> u64 {
 }
 
 /// What the begin hook read of the running pass.
-pub(crate) fn pass_pointer(ctx: &Context) -> PassPointer {
-    with_pass_pointer(ctx, |pointer| pointer.clone())
+pub(crate) fn pass_pointer(ctx: &Context) -> Arc<PassPointer> {
+    let viewport = pass::current_viewport(ctx);
+    PerViewport::<Stamped<Arc<PassPointer>>>::with_pass(ctx, viewport, pass::pass_nr(ctx, viewport), |_, _| {}, |record| Arc::clone(record))
 }
 
 /// Reads what the begin hook read of the running pass in place, without cloning its events.
 pub(crate) fn with_pass_pointer<R>(ctx: &Context, f: impl FnOnce(&PassPointer) -> R) -> R {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
-    PerViewport::<Stamped<PassPointer>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| f(record))
+    PerViewport::<Stamped<Arc<PassPointer>>>::with_pass(ctx, viewport, pass_nr, |_, _| {}, |record| f(record))
 }
 
 /// Reads the running pass's pointer frame, `None` before the begin hook, and its hover position in place.
@@ -234,13 +236,21 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
 /// Writes `shapes` of the arena rooted at `root` into the running pass's shape record under `layer`. Stack
 /// positions are per arena, so each root's shapes stay apart.
 pub(crate) fn record_shapes(ctx: &Context, layer: Layer, root: Id, shapes: impl IntoIterator<Item = Shape<Id>>) {
-    let viewport = pass::current_viewport(ctx);
+    record_shapes_in(ctx, pass::current_viewport(ctx), layer, root, shapes);
+}
+
+/// `record_shapes` for a caller that already read the running viewport.
+pub(crate) fn record_shapes_in(ctx: &Context, viewport: ViewportId, layer: Layer, root: Id, shapes: impl IntoIterator<Item = Shape<Id>>) {
     PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().entry(root).or_default().shapes.extend(shapes));
 }
 
 /// Records the egui widgets that stand for the root at `root` (`click` when they sense a click).
 pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[Id], click: bool) {
-    let viewport = pass::current_viewport(ctx);
+    record_widgets_in(ctx, pass::current_viewport(ctx), layer, root, widgets, click);
+}
+
+/// `record_widgets` for a caller that already read the running viewport.
+pub(crate) fn record_widgets_in(ctx: &Context, viewport: ViewportId, layer: Layer, root: Id, widgets: &[Id], click: bool) {
     PerViewport::<Shapes>::with(ctx, viewport, |record| {
         let entry = record.this.entry(layer).or_default().entry(root).or_default();
         entry.widgets.extend_from_slice(widgets);

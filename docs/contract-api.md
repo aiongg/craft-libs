@@ -910,6 +910,8 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `const ALT_ROLES: &'static [Role]`. Roles `access` may pick per instance.
   - `const INPUT: Input`. How input reaches the component.
   - `const OVERLAYS: bool`. Whether the component hosts popups: `false` skips the overlay bookkeeping of steps 9, 10, 12, 15 and 16.
+  - `const PARTS: bool`. Whether the component declares parts, a text part or an editor part: `false` skips the parts step (the parts
+  - `const STOPS: bool`. Whether the component or its parts can take key focus: `false` skips the stop registration of step 7, except
   - `const KEYS: crate::runtime::focus::KeyUse`. Keys the focused component keeps from egui and the shortcut dispatcher.
   - `const SHOWS_LABEL: bool`. Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
   - `type Style`. The style type.

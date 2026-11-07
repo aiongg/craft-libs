@@ -79,6 +79,7 @@ impl<'a> ToggleButton<'a> {
 
 impl Component for ToggleButton<'_> {
     const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = ToggleButtonStyle;
     type Output = EditResponse<bool>;

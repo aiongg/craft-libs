@@ -35,6 +35,7 @@ impl Splitter {
 
 impl Component for Splitter {
     const ROLE: Role = Role::SPLITTER;
+    const PARTS: bool = false;
     type Style = SplitterStyle;
     type Output = Response;
 

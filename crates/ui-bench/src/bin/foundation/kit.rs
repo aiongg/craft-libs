@@ -146,6 +146,7 @@ impl BenchList {
 
 impl Component for BenchList {
     const ROLE: Role = Role::LIST;
+    const PARTS: bool = false;
     type Style = PlainStyle;
     type Output = CollectionResponse<usize, Infallible>;
 
@@ -194,6 +195,8 @@ impl Block {
 
 impl Component for Block {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = PlainStyle;
     type Output = Response;
 
@@ -293,6 +296,7 @@ impl<'a> Panel<'a> {
 
 impl Component for Panel<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
     type Style = PlainStyle;
     type Output = Response;
 

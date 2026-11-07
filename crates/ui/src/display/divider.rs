@@ -53,6 +53,8 @@ impl Divider {
 
 impl Component for Divider {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const SHOWS_LABEL: bool = false;
     const OVERLAYS: bool = false;

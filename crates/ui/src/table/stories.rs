@@ -22,7 +22,12 @@ struct File {
 
 fn files(count: usize) -> Vec<File> {
     (0..count)
-        .map(|n| File { name: format!("Report {}.pdf", n + 1), pages: 3 + (n as u32 * 7) % 40, kilobytes: 120 + (n as u32 * 53) % 900, keep: n % 2 == 0 })
+        .map(|n| File {
+            name: format!("Report {}.pdf", n + 1),
+            pages: 3 + (n as u32 * 7) % 40,
+            kilobytes: 120 + (n as u32 * 53) % 900,
+            keep: n % 2 == 0,
+        })
         .collect()
 }
 

@@ -111,8 +111,7 @@ impl StackDialog for UnsavedChangesDialog {
         let replies = self.replies(&words, prompt_words.cancel.clone(), os_of(ui.ctx()));
         let answers: Vec<CloseAnswer> = replies.iter().map(|(answer, _)| *answer).collect();
         let replies: Vec<Reply> = replies.into_iter().map(|(_, reply)| reply).collect();
-        let mut prompt =
-            Prompt::new(words.title.clone(), message).answers(buttons(&replies, os_of(ui.ctx()))).opened(Bind::bound(&mut self.open));
+        let mut prompt = Prompt::new(words.title.clone(), message).answers(buttons(&replies, os_of(ui.ctx()))).opened(Bind::bound(&mut self.open));
         if self.remaining > 1 && self.scope != CloseScope::Revert {
             let (apply_to_all, label) = (&mut self.apply_to_all, words.apply_to_all.clone());
             prompt = prompt.extras(move |ui| {

@@ -78,6 +78,7 @@ impl<'a, T: Value + 'static> RadioGroup<'a, T> {
 
 impl<T: Value + 'static> Component for RadioGroup<'_, T> {
     const ROLE: Role = Role::RADIO_GROUP;
+    const PARTS: bool = false;
     type Style = GroupStyle;
     type Output = EditResponse<T>;
 
@@ -161,6 +162,7 @@ impl<T: Value + 'static> Radio<T> {
 
 impl<T: Value + 'static> Component for Radio<T> {
     const ROLE: Role = Role::RADIO_BUTTON;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RadioStyle;
     type Output = egui::Response;

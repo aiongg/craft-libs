@@ -108,6 +108,8 @@ fn shown_of(value: Option<&Option<f64>>) -> Mixed<Option<f64>> {
 
 impl Component for UnitSelect<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = UnitSelectStyle;
     type Output = UnitSelectOutput;

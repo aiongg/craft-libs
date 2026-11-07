@@ -212,6 +212,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
     const ROLE: Role = Role::LIST;
+    const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::LIST_BOX];
     type Style = ListStyle;
     type Output = CollectionResponse<K, RowEvent>;

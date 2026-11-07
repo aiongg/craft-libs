@@ -1130,6 +1130,8 @@ impl<'a> RowThumb<'a> {
 
 impl Component for RowThumb<'_> {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RowThumbStyle;
     type Output = Response;

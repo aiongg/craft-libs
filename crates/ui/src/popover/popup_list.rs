@@ -61,6 +61,8 @@ impl<'a> PopupList<'a> {
 
 impl Component for PopupList<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = PopupListStyle;
     type Output = PopoverOutput;
 

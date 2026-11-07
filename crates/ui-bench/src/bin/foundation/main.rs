@@ -10,10 +10,10 @@ use std::sync::Arc;
 
 use craft_behavior::{ColumnKey, ColumnWidth, Selection};
 use craft_host::target::ShellInfo;
+use craft_ui::contract::ColumnSpec;
 use craft_ui::contract::{
     Bind, Collapse, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
 };
-use craft_ui::contract::ColumnSpec;
 use craft_ui::dialog::Dialog;
 use craft_ui::layout::ColumnGroup;
 use craft_ui::list::{List, ListRow};

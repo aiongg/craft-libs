@@ -4,8 +4,8 @@ use crate::contract::kit::{Panel, Probe, Seen};
 use crate::label::kit::{Dial, Field, PlainStyle, SIZE, Seen as DialSeen};
 use craft_behavior::Sense;
 use craft_ui::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, Props as _, Role as UiRole, Show as _,
-    ShowContainer as _, SideLabel, Validity,
+    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, FieldLabel, MeasureCx, Props as _, Role as UiRole,
+    Show as _, ShowContainer as _, SideLabel, Validity,
 };
 use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;

@@ -129,6 +129,7 @@ impl Kbd {
 
 impl Component for Kbd {
     const ROLE: Role = Role::LABEL;
+    const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const OVERLAYS: bool = false;

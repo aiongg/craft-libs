@@ -1,8 +1,6 @@
 //! Stories of the notices family.
 
-use super::{
-    Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices,
-};
+use super::{Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices};
 use crate::contract::{Politeness, Show as _};
 use crate::display::Text;
 use crate::runtime::toast;

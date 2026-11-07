@@ -56,6 +56,7 @@ impl Default for Spinner {
 
 impl Component for Spinner {
     const ROLE: Role = Role::PROGRESS_INDICATOR;
+    const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const SHOWS_LABEL: bool = false;

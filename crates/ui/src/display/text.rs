@@ -90,6 +90,7 @@ impl Text {
 
 impl Component for Text {
     const ROLE: Role = Role::LABEL;
+    const PARTS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const OVERLAYS: bool = false;
     type Style = TextStyle;
