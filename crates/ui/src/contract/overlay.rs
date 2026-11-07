@@ -461,10 +461,11 @@ impl Overlay {
         overlay
     }
 
-    /// A floating panel: a window-rank layer with no scope.
+    /// A floating panel or document window: a window-rank layer that is a pane of the app. F6 reaches it and Escape
+    /// does not close it.
     pub fn floating() -> Overlay {
         let mut overlay =
-            Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
+            Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::PANE);
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
@@ -1451,8 +1452,9 @@ fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>, inside: 
         return None;
     }
     // A modal on top also owns Escape while the focus is in no layer (nothing focused, or a stop of the window
-    // below): its card may have nothing to focus. So does a keep-anchor popup, which leaves the focus where it was.
-    let owns_loose = layer.overlay.rank.is_modal() || policy.initial == Initial::KeepAnchor;
+    // below): its card may have nothing to focus. So does a popup, whose body may have nothing to focus, and a
+    // keep-anchor popup, which leaves the focus where it was.
+    let owns_loose = layer.overlay.rank.is_modal() || layer.overlay.rank == Rank::Popup || policy.initial == Initial::KeepAnchor;
     if inside != Some(true) && !(owns_loose && focus_in_no_layer(ctx)) {
         return None;
     }

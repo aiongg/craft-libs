@@ -9,7 +9,6 @@ use crate::contract::{
     Props as _, Role, SaveKey, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
-use crate::runtime::focus::FocusPolicy;
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use crate::sections::{HeaderAction, HeaderStrength, TitleRow};
@@ -82,8 +81,7 @@ pub struct DocumentWindow<'a> {
 impl DocumentWindow<'_> {
     /// A window titled `title`, resizable, with the installed decision's frame.
     pub fn new(title: impl Into<Label>) -> Self {
-        // A document window is a pane of the app: F6 reaches it and Escape does not close it.
-        let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable).focus(FocusPolicy::PANE);
+        let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable);
         let props = ContainerProps::new()
             .surface(SurfaceKind::Background)
             .pad(Pad::None)

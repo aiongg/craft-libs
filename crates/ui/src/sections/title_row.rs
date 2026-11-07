@@ -122,6 +122,10 @@ pub struct TitleRow<'a> {
     /// parts.
     #[prop]
     fill: bool,
+    /// The accessible name of the disclosure lead, for a row whose title is empty (a column bar names its toggle by
+    /// the action it does). It defaults to the title.
+    #[prop(into)]
+    lead_name: Option<Label>,
     /// Whether the title band is the grab handle of a reorderable container: it shows the grab cursor and, under
     /// the pointer, a handle mark at its end.
     #[prop]
@@ -153,6 +157,7 @@ impl<'a> TitleRow<'a> {
             subtitle: None,
             icon: None,
             fill: true,
+            lead_name: None,
             handle: false,
             lead: Lead::None,
             actions: Vec::new(),
@@ -331,7 +336,10 @@ impl Component for TitleRow<'_> {
         let value = cx.value().copied().unwrap_or(false);
         match &self.lead {
             Lead::None => {}
-            Lead::Disclosure(_) => ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(cx.resolved.label.to_owned())),
+            Lead::Disclosure(_) => {
+                let name = self.lead_name.as_ref().map_or_else(|| cx.resolved.label.to_owned(), |name| name.as_str().to_owned());
+                ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(name));
+            }
             Lead::Check(_) => ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone())),
         }
         for (at, action) in self.actions.iter().enumerate() {

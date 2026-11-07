@@ -354,7 +354,12 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded:
     let menu_words = body.words::<MenuWords>();
     let mut open = expanded;
     let actions: &[HeaderAction] = if menu_button { &[HeaderAction::Menu] } else { &[] };
-    let shown = TitleRow::new(Label::default()).disclosure(Bind::bound(&mut open)).actions(actions.iter().copied()).show_at(ui, rect);
+    let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
+    let shown = TitleRow::new(Label::default())
+        .disclosure(Bind::bound(&mut open))
+        .lead_name(Label::from(toggle.to_owned()))
+        .actions(actions.iter().copied())
+        .show_at(ui, rect);
     let opener = shown.edit.response.id;
     {
         let mut record = locked(shared);
@@ -365,7 +370,6 @@ pub(super) fn show_bar(ui: &mut Ui, body: &mut BodyCx<'_>, rect: Rect, expanded:
             record.bar.opener = Some(opener);
         }
     }
-    let toggle = if expanded { words.collapse_column.as_str() } else { words.expand_column.as_str() };
     let rows = vec![
         PanelRow::Item(crate::contract::Entry::new(GroupItem::CollapseToIcons, Label::from(toggle.to_owned()))),
         PanelRow::Item(

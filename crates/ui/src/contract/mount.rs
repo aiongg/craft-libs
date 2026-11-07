@@ -170,7 +170,14 @@ impl Host for LayerHost {
         let own = Rect::from_min_max(parent.cursor().min, parent.cursor().min);
         let anchor = overlay::resolve_anchor(&ctx, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade };
-        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(at.unwrap_or(ShowAt::Flow)), None));
+        let out = overlay::host(&ctx, &layer, &mut |ui| {
+            pass(ui, Some(at.unwrap_or(ShowAt::Flow)), None);
+            // A body shown at a rect takes no room in the layer's flow: the layer covers the rect, so the pointer
+            // finds the layer under the body and its rect holds what the body paints.
+            if let Some(ShowAt::Rect(rect)) = at {
+                crate::runtime::egui::alloc::advance_past(ui, rect);
+            }
+        });
         self.dismissed = out.dismissed;
     }
 

@@ -50,7 +50,7 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
 }
 
 /// Escape closes the layer: no layer that takes keys is left on top of it. A layer whose scope ignores Escape (a
-/// blocking overlay nobody can cancel) is not asked to.
+/// blocking overlay nobody can cancel, or a pane such as a floating panel) is not asked to.
 pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
     if !is_body(subject) {
         return Ok(());
@@ -85,7 +85,7 @@ pub(super) fn layer_traps_focus(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(id) = fixture.root_id() else { continue };
-        let traps = crate::runtime::focus::with(fixture.ctx(), |state| state.last_scopes.get(&id).is_none_or(|scope| scope.policy.trap));
+        let traps = crate::runtime::focus::with(fixture.ctx(), |state| state.last_scopes.get(&id).is_some_and(|scope| scope.policy.trap));
         if !traps {
             continue;
         }
