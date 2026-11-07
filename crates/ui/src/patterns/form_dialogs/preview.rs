@@ -294,12 +294,10 @@ impl Component for PreviewPane {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Release { start, pos, click: true, .. } => {
-                if start.clicks >= 2 && self.fit.is_some() {
-                    self.refit = true;
-                } else if self.click_centres {
-                    next.offset += well.center() - pos;
-                }
+            // The second press of a double click returns to fit, as the other double-click readers detect it.
+            PressPhase::Down { start } if start.clicks >= 2 && self.fit.is_some() => self.refit = true,
+            PressPhase::Release { start, pos, click: true, .. } if self.click_centres && !(start.clicks >= 2 && self.fit.is_some()) => {
+                next.offset += well.center() - pos;
             }
             _ => {}
         }
