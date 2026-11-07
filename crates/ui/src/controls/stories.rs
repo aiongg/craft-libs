@@ -1,9 +1,8 @@
-//! Stories of the value controls: `Checkbox`, `Slider`, `RadioGroup` and `Radio`.
+//! Stories of the value controls: `Checkbox`, `RadioGroup` and `Radio`.
 
 use super::check::Checkbox;
 use super::disclosure::Disclosure;
 use super::radio::{Radio, RadioGroup};
-use super::slider::{Slider, THUMB};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::Message;
@@ -36,35 +35,6 @@ fn checkbox_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn checkbox_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("Snap to the grid");
     Checkbox::new(Bind::bound(data.value("on", false))).label("Snap").tooltip(tooltip).show(ui).into()
-}
-
-const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
-const CAP: f64 = 80.0;
-
-#[story(Slider<'static>, covers = [Default], drive = Drive::Step)]
-fn slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
-}
-
-#[story(Slider<'static>, covers = [], drive = Drive::Drag(THUMB))]
-fn slider_drag(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").show(ui).into()
-}
-
-#[story(Slider<'static>, covers = [Mixed], drive = Drive::Never)]
-fn slider_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound_mixed(data.value("mixed", Mixed::Mixed)), RANGE).label("Opacity").show(ui).into()
-}
-
-#[story(Slider<'static>, covers = [Invalid], drive = Drive::Never)]
-fn slider_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let refuse_over = |value: &f64| if *value > CAP { Validity::Refuse(Message::new("Above the limit")) } else { Validity::Ok };
-    Slider::new(Bind::bound(data.value("over", 95.0)).check(refuse_over), RANGE).label("Opacity").show(ui).into()
-}
-
-#[story(Slider<'static>, covers = [], drive = Drive::Never)]
-fn slider_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).label("Opacity").enabled(false).show(ui).into()
 }
 
 /// Members spread over nested layouts, with the group's body between them: one group, one value.
