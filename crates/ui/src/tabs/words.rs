@@ -9,3 +9,11 @@ craft_ui::words! {
         modified: template "tabs.tabModified" = "{tab}, modified";
     }
 }
+
+craft_ui::words! {
+    /// The words of a tab strip.
+    pub struct StripWords {
+        /// The name of the button that opens the menu of tabs.
+        more: "tabs.stripMore" = "More tabs";
+    }
+}
