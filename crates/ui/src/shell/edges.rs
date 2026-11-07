@@ -87,7 +87,7 @@ impl WindowEdges {
     /// with an area and every other zone reaches outside it, so it is its own widget above the viewport's panels.
     /// Call it after the panels, so the zones are registered last.
     pub fn place(self, ui: &mut Ui) -> WindowEdgesOutput {
-        let corner = Env::of(ui).tokens().tokens().size.handle.md;
+        let corner = Env::of(ui).tokens.tokens().size.handle.md;
         let at = Rect::from_min_size(ui.ctx().content_rect().min, Vec2::splat(corner));
         <Self as crate::contract::Show>::show_at(self, ui, at)
     }
