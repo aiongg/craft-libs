@@ -45,6 +45,7 @@ pub(super) struct PanelTab {
 }
 
 impl PanelTab {
+    #[cfg(feature = "testing")]
     fn sample() -> Self {
         PanelTab::new(GroupId::new(0), PanelKey::new(0), Label::from("Layers"), true)
     }

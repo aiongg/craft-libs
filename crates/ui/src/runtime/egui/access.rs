@@ -25,6 +25,7 @@ pub use tree::{AccessTree, Declared, NodeKey};
 pub(crate) type NodeRole = accesskit::Role;
 
 /// The AccessKit vocabulary the parity trials read a tree in.
+#[cfg(feature = "testing")]
 pub(crate) use accesskit::{Action, Role, Toggled};
 
 /// The AccessKit node number of `id`, the key an action request's target is matched by.
