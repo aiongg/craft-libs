@@ -23,11 +23,23 @@ fn row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(Stack, covers = [Default])]
+#[story(Stack<'static>, covers = [Default])]
 fn stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Stack::new()
         .show(ui, |ui, _| {
             Block::new(cell(ui)).show(ui);
+            Block::new(cell(ui)).show(ui);
+        })
+        .into()
+}
+
+#[story(Stack<'static>, covers = [])]
+fn stack_footer(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Stack::new()
+        .footer(|ui, _| {
+            Block::new(cell(ui)).show(ui);
+        })
+        .show(ui, |ui, _| {
             Block::new(cell(ui)).show(ui);
         })
         .into()

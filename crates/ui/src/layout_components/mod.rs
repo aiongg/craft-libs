@@ -127,12 +127,7 @@ layout_component!(
 impl<'a> Stack<'a> {
     /// A stack that takes the size of its children.
     pub fn new() -> Self {
-        Stack {
-            common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()),
-            header: None,
-            footer: None,
-        }
+        Stack { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()), header: None, footer: None }
     }
 
     /// The header's content: the closure fills a region above the body, outside its scroll.

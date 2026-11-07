@@ -8,3 +8,4 @@ mod memory;
 mod nested;
 mod reorder_band;
 mod slot;
+mod stack_regions;
