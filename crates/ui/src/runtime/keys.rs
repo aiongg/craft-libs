@@ -1126,7 +1126,6 @@ pub(crate) fn request_context(ctx: &Context, id: Id, rect: egui::Rect) {
 }
 
 /// The rect `id`'s context request of this pass opens at, when it made one. A `Trigger::Context` opener reads it.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the overlay triggers (F5) read it"))]
 pub(crate) fn context_request(ctx: &Context, id: Id) -> Option<egui::Rect> {
     current(ctx, |stage| stage.contexts.iter().find(|(owner, _)| *owner == id).map(|(_, rect)| *rect))
 }

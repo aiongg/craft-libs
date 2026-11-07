@@ -1050,7 +1050,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Alt+arrow moves the lead's row; the rename command starts an edit of its name.
     fn reorder_and_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
-        let ctx = cx.core.ctx.clone();
         if let Some(forward) = crate::contract::reorder::take_move_item(&mut cx.core.intents)
             && props.reorder.is_some()
             && let Some(at) = lead_at

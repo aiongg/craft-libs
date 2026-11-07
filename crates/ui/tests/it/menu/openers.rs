@@ -46,7 +46,7 @@ fn a_menu_opens_from_each_of_its_openers_at_the_anchor_of_the_one_that_opened_it
     let under_button = menu_rect(&fixture).expect("a press on the button opens the menu");
     assert!(under_button.top() >= button.rect.bottom() - 1.0, "the menu hangs under the button");
     fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(30);
+    fixture.settle();
     assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
 
     let at = area.center();
@@ -71,7 +71,7 @@ fn the_menu_key_on_a_context_opener_opens_the_menu_and_escape_returns_the_focus_
     let menu = menu_rect(&fixture).expect("the Menu key opens the menu");
     assert!(menu.top() >= area.rect.top(), "a menu a key opened hangs from the opener");
     fixture.key(Key::Escape, Modifiers::NONE);
-    fixture.idle(30);
+    fixture.settle();
     assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
     assert_eq!(fixture.focused(), ids.area.get(), "the focus is back on the opener that opened the menu");
 }
@@ -100,7 +100,7 @@ fn a_menu_a_held_press_opened_runs_the_row_the_press_ends_on() {
     let row = fixture.by_role(Role::MENU_ITEM).into_iter().find(|row| fixture.tree().name_of(row.node) == Some("Second")).expect("the row shows");
     fixture.frame(vec![pointer::moved(row.center())]);
     fixture.frame(vec![pointer::release(row.center())]);
-    fixture.idle(30);
+    fixture.settle();
     assert_eq!(ran.get(), Some("Second"), "the release ran the row under it");
     assert!(menu_rect(&fixture).is_none(), "running the row closed the menu");
 }
