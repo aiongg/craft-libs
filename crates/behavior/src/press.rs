@@ -459,9 +459,7 @@ impl<T: Copy> PressMachine<T> {
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
-        if let (Some(reason), Some(open)) = (input.cancel, self.open)
-            && (open.dragging || matches!(reason, PressCancel::Disabled | PressCancel::Removed))
-        {
+        if let (Some(reason), Some(open)) = (input.cancel, self.open) {
             cancelled = Some((open.target, open.start, reason));
             self.open = None;
         }
@@ -628,12 +626,14 @@ mod tests {
     }
 
     #[test]
-    fn a_cancel_before_the_drag_starts_leaves_the_press_alone() {
+    fn an_escape_before_the_drag_starts_cancels_the_press_and_the_release_clicks_nothing() {
         let mut machine = PressMachine::new();
         pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK | Sense::DRAG);
         let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(PressCancel::Escape));
         let step = machine.step(held, |_| Some((1, Sense::CLICK | Sense::DRAG)));
-        assert!(matches!(step.phase, Some(PressPhase::Down { .. })));
+        assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: PressCancel::Escape, .. })));
+        let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK | Sense::DRAG);
+        assert_eq!(step, PressStep::default());
     }
 
     #[test]

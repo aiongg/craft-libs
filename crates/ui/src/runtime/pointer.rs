@@ -81,8 +81,8 @@ struct Memory {
     press_targets: PressTargets,
     /// A cancel a service requested for the running pass.
     requested: Option<(u64, PressCancel)>,
-    /// Whether any arena of the viewport holds a dragging press; sensing registers it, as the layer above.
-    drag_probe: Option<fn(&Context) -> bool>,
+    /// Whether any arena of the viewport holds an open press; sensing registers it, as the layer above.
+    press_probe: Option<fn(&Context) -> bool>,
 }
 
 /// What one root registered on one layer: its shapes and its egui widgets.
@@ -202,14 +202,14 @@ pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
     PerViewport::<Memory>::with(ctx, viewport, |memory| memory.requested = Some((pass_nr, reason)));
 }
 
-/// Registers how the viewport tells that a press is captured by a drag. Sensing owns the arenas' machines.
-pub(crate) fn register_drag_probe(ctx: &Context, probe: fn(&Context) -> bool) {
-    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.drag_probe = Some(probe));
+/// Registers how the viewport tells that a press is captured. Sensing owns the arenas' machines.
+pub(crate) fn register_press_probe(ctx: &Context, probe: fn(&Context) -> bool) {
+    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.press_probe = Some(probe));
 }
 
-/// Whether a press of the running viewport is captured by a drag: Escape cancels it before anything else.
+/// Whether a press of the running viewport is open: Escape cancels it before anything else.
 pub(crate) fn press_captured(ctx: &Context) -> bool {
-    let probe = PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.drag_probe);
+    let probe = PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| memory.press_probe);
     probe.is_some_and(|probe| probe(ctx))
 }
 
@@ -257,7 +257,12 @@ pub(crate) fn drag_parts(ctx: &Context, root: Id) -> Vec<craft_behavior::PartRef
 #[cfg(feature = "testing")]
 pub(crate) fn registered_widgets(ctx: &Context) -> std::collections::HashSet<Id> {
     PerViewport::<Shapes>::with(ctx, egui::ViewportId::ROOT, |record| {
-        record.this.values().flat_map(|roots| roots.iter()).flat_map(|(root, rec)| std::iter::once(*root).chain(rec.widgets.iter().copied())).collect()
+        record
+            .this
+            .values()
+            .flat_map(|roots| roots.iter())
+            .flat_map(|(root, rec)| std::iter::once(*root).chain(rec.widgets.iter().copied()))
+            .collect()
     })
 }
 
