@@ -82,6 +82,11 @@ impl<'a> Draw<'a> {
         layout
     }
 
+    /// Lays `run` out in `max_width` without painting it.
+    pub(crate) fn layout(&self, run: &TextRun<'_>, max_width: f32) -> TextLayout {
+        run.layout(self.painter.ctx(), &self.text_env(), max_width)
+    }
+
     /// Paints a laid-out run at `pos`. Records the first baseline and, when the layout cut text, the full text, as
     /// `text` does.
     pub fn galley(&self, pos: Pos2, layout: &TextLayout) {

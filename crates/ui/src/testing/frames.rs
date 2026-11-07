@@ -25,6 +25,9 @@ pub struct Frames {
     host: Option<Arc<Host>>,
     commands: CommandInput,
     tree: Option<AccessTree>,
+    modifiers: egui::Modifiers,
+    /// The modifiers the context was last told about.
+    told: egui::Modifiers,
 }
 
 impl Default for Frames {
@@ -52,6 +55,8 @@ impl Frames {
             host: None,
             commands: CommandInput::new(),
             tree: None,
+            modifiers: egui::Modifiers::NONE,
+            told: egui::Modifiers::NONE,
         }
     }
 
@@ -108,6 +113,11 @@ impl Frames {
         fixture::run_frame_shapes(&self.ctx, self.time, &mut ui)
     }
 
+    /// The modifiers held in every following frame.
+    pub fn hold(&mut self, modifiers: egui::Modifiers) {
+        self.modifiers = modifiers;
+    }
+
     /// Moves the clock on by `seconds` before the next frame.
     pub fn advance(&mut self, seconds: f64) {
         self.time += seconds;
@@ -120,8 +130,12 @@ impl Frames {
         }
     }
 
-    fn run(&mut self, events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> bool {
+    fn run(&mut self, mut events: Vec<Event>, ui: impl FnMut(&mut Ui)) -> bool {
         self.time += DT;
+        if self.told != self.modifiers {
+            self.told = self.modifiers;
+            events.insert(0, fixture::modifiers_changed(self.modifiers));
+        }
         let result = fixture::run_frame(&self.ctx, self.time, events, ui);
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;

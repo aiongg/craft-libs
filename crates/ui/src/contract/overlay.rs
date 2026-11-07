@@ -871,9 +871,14 @@ fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>) -> Optio
     matches!(step, craft_behavior::focus::EscapeStep::CloseScope).then_some(CloseReason::Escape)
 }
 
-/// Paints the ghost egui layer from runtime data: the painted cursor the cursor service settled on. The end hook
-/// calls it once per pass, popup or no popup. F5b adds the drag preview and drop mark here.
+/// Paints the ghost egui layer from runtime data: the drag preview and drop mark, and the painted cursor the cursor
+/// service settled on. The end hook calls it once per pass, popup or no popup.
 pub fn paint_frame_layers(ctx: &Context) {
+    super::ghost::paint(ctx);
+    paint_cursor(ctx);
+}
+
+fn paint_cursor(ctx: &Context) {
     let Some(at) = areas::pointer_pos(ctx) else { return };
     let Some(craft_behavior::Cursor::Painted(cursor)) = crate::runtime::cursor::current(ctx) else { return };
     let Some(env) = Env::root_of(ctx) else { return };

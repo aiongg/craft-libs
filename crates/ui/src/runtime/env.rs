@@ -356,6 +356,13 @@ impl Env {
         if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
     }
 
+    /// The running viewport's root env: what code with no `Ui` (the ghost layer) paints with.
+    pub(crate) fn of_root(ctx: &Context) -> Env {
+        let viewport = pass::current_viewport(ctx);
+        let found = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root.clone());
+        found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)))
+    }
+
     /// The `Host` of the running viewport's root env.
     pub(crate) fn host_of(ctx: &Context) -> Option<Arc<Host>> {
         PerViewport::<ViewportEnvs>::with(ctx, pass::current_viewport(ctx), |envs| envs.root.as_ref().and_then(|env| env.host.clone()))

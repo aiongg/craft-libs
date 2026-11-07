@@ -39,6 +39,11 @@ pub fn secondary(pos: Pos2, pressed: bool) -> Event {
     fixture::secondary_button(pos, pressed)
 }
 
+/// The middle button going down or up at `pos`.
+pub fn middle(pos: Pos2, pressed: bool) -> Event {
+    fixture::middle_button(pos, pressed)
+}
+
 /// A vertical wheel event of `dy` points with Ctrl or Cmd held, which zooms.
 pub fn zoom_wheel(dy: f32) -> Event {
     fixture::zoom_wheel_event(dy)

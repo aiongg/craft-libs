@@ -4,6 +4,7 @@ mod access;
 mod callsites;
 mod commands;
 mod contract;
+mod drag;
 mod egui_surface;
 mod focus;
 mod layout;
