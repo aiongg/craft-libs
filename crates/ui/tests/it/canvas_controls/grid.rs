@@ -14,6 +14,8 @@ const SIDE: f32 = 400.0;
 /// A canvas wide enough to show more lines than the cap allows.
 const HUGE_SIDE: f32 = 1.0e6;
 const MAJOR: f64 = 100.0;
+/// A step wide enough to draw (six points or more) that still puts more lines than the cap in `HUGE_SIDE`.
+const DENSE: f64 = 10.0;
 
 /// A view of a `SIDE` square canvas showing the document from (0, 0) at `zoom` points per unit.
 fn space(zoom: f64) -> CanvasSpace {
@@ -65,7 +67,7 @@ fn an_axis_with_a_step_under_six_points_or_no_step_draws_nothing() {
 
 #[trial]
 fn lines_per_axis_are_capped() {
-    let many = CanvasGrid::new("Grid").spacing(step(1.0, 1.0)).lines(&square_space(HUGE_SIDE, 1.0));
+    let many = CanvasGrid::new("Grid").spacing(step(DENSE, DENSE)).lines(&square_space(HUGE_SIDE, 1.0));
     assert_eq!(many.x.major.len(), MAX_LINES);
     assert_eq!(many.y.major.len(), MAX_LINES);
 }

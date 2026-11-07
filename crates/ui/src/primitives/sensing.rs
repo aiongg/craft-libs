@@ -316,7 +316,7 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     let response = response::widget(ui, spec.id, spec.rect.intersect(clip), sense);
     // Each edge or handle part that reaches outside the root rect gets its own widget, resolved as the root.
     let mut widgets = vec![spec.id, sub(spec.id, "transform")];
-    for part in spec.own.iter().filter(|part| part.priority.level >= HitLevel::Edge) {
+    for part in spec.own.iter().filter(|part| !part.over && part.priority.level >= HitLevel::Edge) {
         let bounds = part.shape.bounds();
         if !spec.rect.contains_rect(bounds) {
             let id = sub(spec.id, ("edge", part.key, part.index));
@@ -325,6 +325,7 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
             widgets.push(id);
         }
     }
+    widgets.extend(over_parts(spec.own).map(|part| over_widget(spec.id, part)));
     let mut shapes = own_shapes(spec.own, spec.id, read.target());
     if !spec.own_sense.is_empty() {
         shapes.push(Shape::new(spec.rect.into(), spec.own_sense, spec.id, None, HitPriority::new(HitLevel::Background, 0), 0));
@@ -354,6 +355,27 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
         activation,
         activated_member,
         sense,
+    }
+}
+
+/// The `over` parts that take a press: stack position 3 (8.3), above the body's members and nested roots.
+fn over_parts(own: &[PartDecl]) -> impl Iterator<Item = &PartDecl> {
+    own.iter().filter(|part| part.over && part.sense.takes_press())
+}
+
+fn over_widget(root: Id, part: &PartDecl) -> Id {
+    sub(root, ("over", part.key, part.index))
+}
+
+/// Registers the egui widgets of the root's `over` parts after its body ran. egui picks the later widget, so a press
+/// on such a part goes to this root and not to a root nested in the body, as the stacking order says. The ids are
+/// part of the root's widgets from step 8.
+pub(crate) fn place_over_widgets(ui: &Ui, root: Id, own: &[PartDecl]) {
+    let (ctx, clip) = (ui.ctx(), ui.clip_rect());
+    for part in over_parts(own) {
+        let id = over_widget(root, part);
+        response::widget(ui, id, part.shape.bounds().intersect(clip), part.sense);
+        crate::runtime::egui::access::hide(ctx, id);
     }
 }
 

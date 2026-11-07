@@ -676,6 +676,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     }
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
     ui.set_clip_rect(outer_clip);
+    if member.is_none() {
+        sensing::place_over_widgets(ui, id, &decls);
+    }
     // 15 settle
     p.trace.mark(Step::Settle);
     p.hooks.settle(comp, cx);

@@ -152,8 +152,12 @@ pub struct RulersStyle {
     marker: StyleColor,
 }
 
+/// The type role of the tick labels.
+const LABEL_ROLE: TypeRole = TypeRole::Caption;
+
+/// A strip is as thick as its tick labels need, and no thinner than a small icon.
 fn thickness(tokens: &UiTokens) -> f32 {
-    tokens.size.icon.sm
+    tokens.size.icon.sm.max(tokens.typography.get(LABEL_ROLE).line_height)
 }
 
 /// The top strip, the left strip and the corner inside `rect`.
@@ -345,7 +349,7 @@ impl Component for Rulers<'_> {
             pad: cx.tokens.space.gap.tight,
             fill: cx.color(c.surface.chrome),
             margin: cx.color(c.surface.sunken),
-            label: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(c.text.muted))),
+            label: TextLook::new(LABEL_ROLE, Stateful::new(cx.color(c.text.muted))),
             marker: cx.color(c.text.normal),
         }
     }
@@ -527,6 +531,9 @@ impl Component for Rulers<'_> {
         let numbers = cx.env.units();
         let label = &style.label;
         let color = cx.resolve(&label.color);
+        // A label is painted where the strip shows it: it overlaps the strip and stays inside the rulers' rect, so a
+        // label that hangs off an end of the strip is left out.
+        let shows = |strip: Rect, text: Rect| text.intersects(strip) && cx.rect.contains_rect(text);
         for (part, strip, edge) in [(RulerPart::Horizontal, top, TickEdge::Bottom), (RulerPart::Vertical, left, TickEdge::Right)] {
             let vertical = part == RulerPart::Vertical;
             let ticks = self.axis_ticks(&level, strip, part, zero);
@@ -540,12 +547,18 @@ impl Component for Rulers<'_> {
                     let mut y = at + style.pad;
                     for ch in text.chars() {
                         let layout = draw.layout(&TextRun::new(ch.to_string()).role(label.role).color(color), f32::INFINITY);
-                        draw.galley(Pos2::new(strip.center().x - layout.size().x / 2.0, y), &layout);
+                        let at = Pos2::new(strip.center().x - layout.size().x / 2.0, y);
+                        if shows(strip, Rect::from_min_size(at, layout.size())) {
+                            draw.galley(at, &layout);
+                        }
                         y += layout.size().y;
                     }
                 } else {
                     let layout = draw.layout(&TextRun::new(text).role(label.role).color(color), f32::INFINITY);
-                    draw.galley(Pos2::new(at + style.pad, strip.top()), &layout);
+                    let at = Pos2::new(at + style.pad, strip.top());
+                    if shows(strip, Rect::from_min_size(at, layout.size())) {
+                        draw.galley(at, &layout);
+                    }
                 }
             }
         }

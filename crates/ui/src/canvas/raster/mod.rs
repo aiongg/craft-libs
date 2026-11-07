@@ -44,7 +44,7 @@ enum Level {
     Detail(DetailPlan),
 }
 
-/// What `update` leaves for `paint`: the textures to draw and the view to draw them through.
+/// What `update` leaves for `paint` and `finish`: the textures to draw and the view to draw them through.
 struct Shown {
     view: CanvasView,
     size: PixelSize,
@@ -215,7 +215,7 @@ impl Component for RasterDisplay<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(shown) = self.shown.take() else { return };
+        let Some(shown) = &self.shown else { return };
         let painter = ui.content_painter(cx);
         let corners = shown.view.quad(Rect64::new(0.0, 0.0, f64::from(shown.size.width), f64::from(shown.size.height)));
         if self.checkerboard {

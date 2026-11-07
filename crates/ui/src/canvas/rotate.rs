@@ -15,7 +15,7 @@ use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use craft_behavior::{CancelReason, CanvasView, CursorIcon, HitLevel, HitPriority, HitShape, Metrics, PartKey, PressPhase, Sense};
 use egui::{Pos2, Rect, Response, Ui, Vec2};
 
-const RIM: PartKey = PartKey::new("rim");
+pub(super) const RIM: PartKey = PartKey::new("rim");
 
 /// The compass shows while the view is turned by more than this many degrees.
 const VISIBLE_DEG: f64 = 0.05;

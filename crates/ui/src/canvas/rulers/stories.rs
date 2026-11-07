@@ -4,6 +4,7 @@ use super::{CORNER, Rulers};
 use crate::canvas::{Canvas, RulerText, ToolPath};
 use crate::contract::{Bind, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::{Env, Message, UnitKind};
+use crate::testing::pointer;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Mixed, RulerUnits};
@@ -18,6 +19,9 @@ const CENTRE: Point = Point::new(200.0, 150.0);
 /// The least x the invalid story accepts for the zero point.
 const LEAST_X: f64 = 0.0;
 
+/// The units the menu story offers.
+const UNITS: [UnitKind; 2] = [UnitKind::Pixels, UnitKind::Points];
+
 const CANVAS_AT: ToolPath = ToolPath::Command("the New Guide... command");
 
 fn pixels() -> RulerText {
@@ -29,6 +33,17 @@ fn drag_corner(fixture: &mut Fixture) {
     let Some(corner) = fixture.part(id, CORNER) else { return };
     let travel = DRAG_THRESHOLDS * crate::testing::input::max_click_dist(fixture.ctx());
     fixture.drag(&corner, Vec2::splat(travel));
+}
+
+/// Opens the units menu with a secondary click on the corner.
+fn open_units_menu(fixture: &mut Fixture) {
+    let Some(id) = fixture.root_id() else { return };
+    let Some(corner) = fixture.part(id, CORNER) else { return };
+    let at = corner.center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.idle(2);
 }
 
 /// Shows `rulers` as the only canvas control of a canvas whose view lies inside the strips.
@@ -44,6 +59,13 @@ fn zero_point(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let zero = data.value("zero", Point::ZERO);
     let text = pixels();
     on_canvas(ui, |ui, at| Rulers::new("Rulers", &text, &text, Bind::bound(&mut *zero)).show_at(ui, at))
+}
+
+#[story(Rulers<'static>, covers = [Open], drive = Drive::Custom(open_units_menu))]
+fn units_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let zero = data.value("zero", Point::ZERO);
+    let text = pixels();
+    on_canvas(ui, |ui, at| Rulers::new("Rulers", &text, &text, Bind::bound(&mut *zero)).units(&UNITS).show_at(ui, at))
 }
 
 #[story(Rulers<'static>, covers = [Mixed], drive = Drive::Custom(drag_corner))]
