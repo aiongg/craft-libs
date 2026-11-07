@@ -1,6 +1,7 @@
 //! Stories of `MetadataTable`: grouped fields, the check column, a search with no match and no fields at all.
 
 use super::{MetadataGroup, MetadataRow, MetadataTable};
+use crate::contract::Bind;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -30,7 +31,7 @@ fn metadata_table(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn metadata_table_chooser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut filter = data.value("filter", String::new()).clone();
     let mut chosen = data.value("chosen", vec!["Make".to_owned()]).clone();
-    let out = MetadataTable::new("Metadata", &groups()).filter(&mut filter).choose(&mut chosen).show(ui);
+    let out = MetadataTable::new("Metadata", &groups()).filter(Bind::bound(&mut filter)).choose(Bind::bound(&mut chosen)).show(ui);
     *data.value("filter", String::new()) = filter;
     *data.value("chosen", Vec::new()) = chosen;
     out.into()
@@ -39,7 +40,7 @@ fn metadata_table_chooser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(MetadataTable<'static>, covers = [Empty], drive = Drive::Never)]
 fn metadata_table_no_match(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let mut filter = data.value("filter", "zzz".to_owned()).clone();
-    let out = MetadataTable::new("Metadata", &groups()).filter(&mut filter).show(ui);
+    let out = MetadataTable::new("Metadata", &groups()).filter(Bind::bound(&mut filter)).show(ui);
     *data.value("filter", String::new()) = filter;
     out.into()
 }

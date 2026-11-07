@@ -1,7 +1,7 @@
 //! Stories of `Table`: rows with a text in each cell, a sorted column, a toggle column and a tree.
 
 use super::{Table, sort_rows};
-use crate::contract::{ColumnKind, ColumnSort, ColumnSpec, ShowCollection as _, ToggleColumn};
+use crate::contract::{CollectionEvent, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ShowCollection as _, ToggleColumn};
 use crate::list::{ListRow, ToggleCell};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource};
@@ -58,11 +58,18 @@ impl ItemSource<usize> for Files<'_> {
     }
 }
 
-fn columns(keep: bool) -> Vec<ColumnSpec> {
+/// The widths the user dragged the columns to, which the story applies to the next pass.
+type Widths = Vec<(ColumnKey, f32)>;
+
+fn width_of(widths: &Widths, key: &ColumnKey, default: ColumnWidth) -> ColumnWidth {
+    widths.iter().find(|(held, _)| held == key).map_or(default, |(_, width)| ColumnWidth::Fixed(*width))
+}
+
+fn columns(keep: bool, widths: &Widths) -> Vec<ColumnSpec> {
     let mut columns = vec![
         ColumnSpec::new(NAME, "File name", ColumnWidth::fill(2.0)).sortable().resizable().movable(),
-        ColumnSpec::new(PAGES, "Pages", ColumnWidth::Controls(3.0)).sortable().resizable(),
-        ColumnSpec::new(SIZE, "Size (KB)", ColumnWidth::Controls(4.0)).sortable().resizable(),
+        ColumnSpec::new(PAGES, "Pages", width_of(widths, &PAGES, ColumnWidth::Controls(3.0))).numeric().sortable().resizable(),
+        ColumnSpec::new(SIZE, "Size (KB)", width_of(widths, &SIZE, ColumnWidth::Controls(4.0))).numeric().sortable().resizable(),
     ];
     if keep {
         columns.insert(0, ColumnSpec::new(KEEP, "Keep", ColumnWidth::Controls(1.5)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
@@ -70,17 +77,17 @@ fn columns(keep: bool) -> Vec<ColumnSpec> {
     columns
 }
 
-fn table(ui: &mut Ui, mut rows: Vec<File>, sort: Option<ColumnSort>, keep: bool, striped: bool) -> StoryOutput {
+fn table(ui: &mut Ui, data: &mut StoryData, mut rows: Vec<File>, sort: Option<ColumnSort>, keep: bool, striped: bool) -> StoryOutput {
+    let widths = data.value("widths", Widths::new()).clone();
     sort_rows(&mut rows, sort.as_ref(), |a, b, column| match column {
         c if *c == PAGES => a.pages.cmp(&b.pages),
         c if *c == SIZE => a.kilobytes.cmp(&b.kilobytes),
         _ => a.name.cmp(&b.name),
     });
-    Table::<usize>::new("Files", columns(keep))
-        .striped(striped)
-        .sort(sort)
-        .empty("No files")
-        .show_items(ui, &Files(&rows), &mut |key, icx| {
+    let out = Table::<usize>::new("Files", columns(keep, &widths)).striped(striped).sort(sort).empty("No files").show_items(
+        ui,
+        &Files(&rows),
+        &mut |key, icx| {
             let file = &rows[*key];
             let row = ListRow::new(file.name.clone())
                 .cells(icx.cells())
@@ -88,26 +95,35 @@ fn table(ui: &mut Ui, mut rows: Vec<File>, sort: Option<ColumnSort>, keep: bool,
                 .cell(PAGES, file.pages.to_string())
                 .cell(SIZE, file.kilobytes.to_string());
             if keep { row.toggle(ToggleCell::check(KEEP, crate::list::ToggleState::of(file.keep), "Keep {row}")) } else { row }
-        })
-        .into()
+        },
+    );
+    let widths = data.value("widths", Widths::new());
+    for event in &out.events {
+        let CollectionEvent::Column(ColumnEvent::Resized { key, width }) = event else { continue };
+        match widths.iter_mut().find(|(held, _)| held == key) {
+            Some((_, held)) => *held = *width,
+            None => widths.push((key.clone(), *width)),
+        }
+    }
+    out.into()
 }
 
 #[story(Table<'static, usize>, covers = [Default, Many], drive = Drive::Never)]
-fn table_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    table(ui, files(40), Some(ColumnSort::ascending(NAME)), false, true)
+fn table_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    table(ui, data, files(40), Some(ColumnSort::ascending(NAME)), false, true)
 }
 
 #[story(Table<'static, usize>, covers = [One], drive = Drive::Never)]
-fn table_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    table(ui, files(1), None, false, false)
+fn table_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    table(ui, data, files(1), None, false, false)
 }
 
 #[story(Table<'static, usize>, covers = [Empty], drive = Drive::Never)]
-fn table_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    table(ui, Vec::new(), None, false, false)
+fn table_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    table(ui, data, Vec::new(), None, false, false)
 }
 
 #[story(Table<'static, usize>, covers = [], drive = Drive::Never)]
-fn table_sorted_descending_with_toggles(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    table(ui, files(12), Some(ColumnSort::descending(SIZE)), true, false)
+fn table_sorted_descending_with_toggles(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    table(ui, data, files(12), Some(ColumnSort::descending(SIZE)), true, false)
 }
