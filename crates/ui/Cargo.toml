@@ -60,10 +60,9 @@ smallvec = { workspace = true }
 linkme = "0.3"
 serde = { workspace = true }
 
-# `shell::title_bar::sync_movable` (`NSWindow.movable`); eframe's winit already uses these.
+# `shell::title_bar::sync_movable` sets `NSWindow.movable` through craft-window's AppKit code.
 [target.'cfg(target_os = "macos")'.dependencies]
-objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
-objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
+craft-window = { workspace = true, features = ["ui"] }
 
 [dev-dependencies]
 craft-ui = { path = ".", features = ["testing"] }

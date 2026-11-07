@@ -2,10 +2,11 @@
 //! egui did, so the trials pin the egui behaviours the runtime relies on without calling egui themselves.
 
 use super::fixture;
+pub use super::areas::{LayerOrder, layer_order};
 use egui::{Area, Context, Plugin, Event, Id, LayerId, Order, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
-fn raw(time: f64, events: Vec<Event>) -> RawInput {
+pub(super) fn raw(time: f64, events: Vec<Event>) -> RawInput {
     RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::from([800.0, 600.0]))), time: Some(time), events, ..RawInput::default() }
 }
 
@@ -118,49 +119,6 @@ pub fn press_hits() -> PressHits {
     let first = run(2.0, vec![Event::PointerMoved(rect_a.center()), fixture::primary_button(rect_b.center(), true)]);
     let second = run(3.0, vec![fixture::primary_button(rect_b.center(), true), Event::PointerMoved(rect_a.center())]);
     PressHits { press_last_is_press_target: first == Some(b), move_last_is_move_target: second == Some(a) }
-}
-
-/// The layer order after `Context::set_layer_order`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub struct LayerOrder {
-    /// The listed layer is the topmost of the layers shown.
-    pub listed_on_top: bool,
-    /// The unlisted layers keep their relative order.
-    pub unlisted_keep_order: bool,
-    /// A listed id that is no layer does not become one.
-    pub unknown_ignored: bool,
-}
-
-/// Two frames over three areas; the second lists the first area and an unknown layer.
-pub fn layer_order() -> LayerOrder {
-    let ctx = fixture::bare_context();
-    let ids = [Id::new("craft_ui.surface.la"), Id::new("craft_ui.surface.lb"), Id::new("craft_ui.surface.lc")];
-    let layers = ids.map(|id| LayerId::new(Order::Middle, id));
-    let ghost = LayerId::new(Order::Middle, Id::new("craft_ui.surface.ghost"));
-    let mut frame = |time: f64, list: &[LayerId]| {
-        let mut output = ctx.run_ui(raw(time, Vec::new()), |ui| {
-            let ctx = ui.ctx().clone();
-            for id in ids {
-                Area::new(id).show(&ctx, |ui| {
-                    ui.label("layer");
-                });
-            }
-            if !list.is_empty() {
-                ctx.set_layer_order(list);
-            }
-        });
-        output.textures_delta.clear();
-        ctx.memory(|memory| memory.layer_ids().filter(|layer| layers.contains(layer) || *layer == ghost).collect::<Vec<_>>())
-    };
-    let before = frame(1.0, &[]);
-    let after = frame(2.0, &[layers[0], ghost]);
-    let rest = |order: &[LayerId]| order.iter().copied().filter(|layer| *layer != layers[0]).collect::<Vec<_>>();
-    LayerOrder {
-        listed_on_top: after.last() == Some(&layers[0]),
-        unlisted_keep_order: rest(&before) == rest(&after),
-        unknown_ignored: !after.contains(&ghost),
-    }
 }
 
 /// Whether a member that registered no egui widget, given `register_accesskit_parent`, has its node among the

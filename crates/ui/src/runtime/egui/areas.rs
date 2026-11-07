@@ -266,3 +266,48 @@ pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::Pai
 pub(crate) fn pointer_pos(ctx: &Context) -> Option<Pos2> {
     ctx.input(|input| input.pointer.latest_pos())
 }
+
+/// The layer order after `Context::set_layer_order`.
+#[cfg(feature = "testing")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct LayerOrder {
+    /// The listed layer is the topmost of the layers shown.
+    pub listed_on_top: bool,
+    /// The unlisted layers keep their relative order.
+    pub unlisted_keep_order: bool,
+    /// A listed id that is no layer does not become one.
+    pub unknown_ignored: bool,
+}
+
+/// Two frames over three areas; the second lists the first area and an unknown layer.
+#[cfg(feature = "testing")]
+pub fn layer_order() -> LayerOrder {
+    let ctx = super::fixture::bare_context();
+    let ids = [Id::new("craft_ui.surface.la"), Id::new("craft_ui.surface.lb"), Id::new("craft_ui.surface.lc")];
+    let layers = ids.map(|id| LayerId::new(Order::Middle, id));
+    let ghost = LayerId::new(Order::Middle, Id::new("craft_ui.surface.ghost"));
+    let mut frame = |time: f64, list: &[LayerId]| {
+        let mut output = ctx.run_ui(super::surface::raw(time, Vec::new()), |ui| {
+            let ctx = ui.ctx().clone();
+            for id in ids {
+                egui::Area::new(id).show(&ctx, |ui| {
+                    ui.label("layer");
+                });
+            }
+            if !list.is_empty() {
+                ctx.set_layer_order(list);
+            }
+        });
+        output.textures_delta.clear();
+        ctx.memory(|memory| memory.layer_ids().filter(|layer| layers.contains(layer) || *layer == ghost).collect::<Vec<_>>())
+    };
+    let before = frame(1.0, &[]);
+    let after = frame(2.0, &[layers[0], ghost]);
+    let rest = |order: &[LayerId]| order.iter().copied().filter(|layer| *layer != layers[0]).collect::<Vec<_>>();
+    LayerOrder {
+        listed_on_top: after.last() == Some(&layers[0]),
+        unlisted_keep_order: rest(&before) == rest(&after),
+        unknown_ignored: !after.contains(&ghost),
+    }
+}

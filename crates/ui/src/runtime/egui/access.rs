@@ -4,6 +4,8 @@
 
 mod node;
 mod patch;
+#[cfg(feature = "testing")]
+pub(crate) mod parity;
 mod roles;
 mod text;
 #[cfg(feature = "testing")]
@@ -21,6 +23,9 @@ pub use tree::{AccessTree, Declared, NodeKey};
 
 /// The AccessKit role of a node.
 pub(crate) type NodeRole = accesskit::Role;
+
+/// The AccessKit vocabulary the parity trials read a tree in.
+pub(crate) use accesskit::{Action, Role, Toggled};
 
 /// The AccessKit node number of `id`, the key an action request's target is matched by.
 pub(crate) fn node_key(id: Id) -> u64 {

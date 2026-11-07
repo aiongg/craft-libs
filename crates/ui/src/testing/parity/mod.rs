@@ -11,6 +11,11 @@
 mod script;
 mod tree;
 
+/// A node of a kittest harness and the trait that walks them, for the AccessKit adapter that reads them.
+pub(crate) use egui_kittest::Node as KitNode;
+pub(crate) use egui_kittest::kittest::NodeT as KitNodeT;
+pub(crate) use tree::Line;
+
 use egui_kittest::Harness;
 use std::fmt;
 use std::path::{Path, PathBuf};
