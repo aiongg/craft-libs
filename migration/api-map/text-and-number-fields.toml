@@ -73,9 +73,9 @@ note = "A `Component` over one `Bind<[Option<f64>; N]>` and a link `Bind<bool>`;
 [[type]]
 name = "ApplyRow"
 old = "craft_ui::controls::mixed::ApplyRow"
-new = "craft_ui::sections::GroupBox::apply"
-status = "moved"
-note = "A container: `GroupBox::apply(label, Bind<bool>).show(ui, |ui, _| field)`, a `GroupBox` configuration with no frame and an inline gate header. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
+new = ""
+status = "removed"
+note = "Replaced by `sections::GroupBox::apply`, a container: `GroupBox::apply(label, Bind<bool>).show(ui, |ui, _| field)`, a `GroupBox` configuration with no frame and an inline gate header. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
 
 [[type]]
 name = "NumberOutput"
