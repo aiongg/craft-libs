@@ -309,3 +309,20 @@ pub(crate) fn snapshot(ctx: &Context) -> egui::InputState {
 pub(crate) fn replace_events(ctx: &Context, events: Vec<Event>) {
     ctx.input_mut(|input| input.events = events);
 }
+
+/// Removes the events a modal layer in another viewport blocks: pointer buttons, wheel, keys, text, clipboard and
+/// touch. Pointer moves stay, so the pointer position stays right. Returns whether anything went and whether a
+/// pointer press did.
+pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
+    let before = input.events.len();
+    let mut press = false;
+    input.events.retain(|event| {
+        let blocked = matches!(
+            event,
+            Event::PointerButton { .. } | Event::MouseWheel { .. } | Event::Key { .. } | Event::Text(_) | Event::Copy | Event::Cut | Event::Paste(_) | Event::Touch { .. }
+        );
+        press |= matches!(event, Event::PointerButton { pressed: true, .. });
+        !blocked
+    });
+    (input.events.len() != before, press)
+}

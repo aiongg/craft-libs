@@ -769,12 +769,20 @@ pub struct BodyCx<'a> {
     /// The body's rect.
     pub rect: Rect,
     pub(crate) memory: &'a mut MemoryStage,
+    /// A popup body asked to close its popup.
+    pub(crate) close_requested: bool,
 }
 
 impl<'a> BodyCx<'a> {
     pub(crate) fn new(id: Id, env: EnvView<'a>, resolved: &'a Resolved<'a>, rect: Rect, memory: &'a mut MemoryStage) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory }
+        BodyCx { id, env, resolved, rect, memory, close_requested: false }
+    }
+
+    /// Asks the popup this body belongs to to close. The close is decided after the body ran, so a field inside still
+    /// commits its draft in this pass, and step 15 writes the open state.
+    pub fn request_close(&mut self) {
+        self.close_requested = true;
     }
 }
 

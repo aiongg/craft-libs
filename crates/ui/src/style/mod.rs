@@ -27,5 +27,5 @@ pub use surface::{SurfaceEdge, SurfaceStyle};
 pub use tokens::UiTokens;
 
 pub(crate) use cache::resolve_style;
-pub(crate) use paint::{ink_color, rule_look};
+pub(crate) use paint::{ink_color, rule_look, scrim_color};
 pub(crate) use surface::surface_style;

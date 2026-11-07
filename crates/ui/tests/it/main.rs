@@ -8,6 +8,7 @@ mod egui_surface;
 mod focus;
 mod layout;
 mod motion;
+mod overlay;
 mod paint;
 mod runtime;
 mod style;

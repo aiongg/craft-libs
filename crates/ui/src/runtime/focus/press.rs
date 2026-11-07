@@ -75,9 +75,23 @@ impl State {
                 }
                 None => focused.map(Act::Surrender).into_iter().collect(),
             },
-            PressFocus::Unclaimed if focused == self.press.focus_at_begin => focused.map(Act::Surrender).into_iter().collect(),
+            PressFocus::Unclaimed if focused == self.press.focus_at_begin && !self.in_trapping_scope() => focused.map(Act::Surrender).into_iter().collect(),
             _ => Vec::new(),
         }
+    }
+
+    /// Whether the focused stop sits in a scope that traps focus (a dialog or modal): an unclaimed press, such as one on
+    /// its scrim, leaves focus inside it.
+    fn in_trapping_scope(&self) -> bool {
+        let mut at = self.stop_of_focus().and_then(|rec| rec.scope);
+        while let Some(id) = at {
+            let Some(scope) = self.scopes.get(&id).or_else(|| self.last_scopes.get(&id)) else { return false };
+            if scope.policy.trap {
+                return true;
+            }
+            at = scope.parent;
+        }
+        false
     }
 
     fn take_focus(&mut self, plan: &Plan) -> Vec<Act> {
