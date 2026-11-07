@@ -9,6 +9,7 @@ mod contract;
 mod controls;
 mod drag;
 mod egui_surface;
+mod examples;
 mod focus;
 mod label;
 mod layout;
