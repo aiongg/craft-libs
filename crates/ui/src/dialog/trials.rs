@@ -7,6 +7,7 @@ use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
 use crate::testing::focus::is_focused;
 use crate::testing::input::key_press;
 use crate::testing::{Frames, trial};
+use crate::text::TextField;
 use egui::{Id, Key, Modifiers, Ui};
 use std::cell::Cell;
 
@@ -69,6 +70,8 @@ fn a_closed_dialogs_layer_owns_no_keys() {
     assert!(!any_open(&frames.ctx, OpenFilter::Modal), "a closed dialog blocks nothing");
 }
 
+/// The field is a text field: a check box takes Enter as its own activation, so only a field that leaves Enter untaken
+/// lets it reach the dialog as the OK.
 #[trial]
 fn a_dialog_reports_how_it_closed() {
     let run = |keys: Vec<egui::Event>, enter: bool| {
@@ -76,9 +79,9 @@ fn a_dialog_reports_how_it_closed() {
         let mut frames = Frames::new();
         let mut ui = |ui: &mut Ui| {
             let mut now = open.get();
-            let mut snap = false;
+            let mut name = String::new();
             Dialog::new("Options").opened(Bind::bound(&mut now)).close_on_enter(enter).on_close(|why| reason.set(Some(why))).show(ui, |ui, _| {
-                Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
+                TextField::new("Name", Bind::bound(&mut name)).show(ui);
             });
             open.set(now);
         };

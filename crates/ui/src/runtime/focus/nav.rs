@@ -311,9 +311,10 @@ pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
         return Vec::new();
     }
     let Some(policy) = state.scopes.get(&scope).map(|rec| rec.policy) else { return Vec::new() };
+    let body = state.body_from.remove(&scope).map(|body| body.max(first).min(state.stops.len()));
     let stops = &state.stops[first.min(state.stops.len())..];
     let pick = match policy.initial {
-        Initial::First => stops.first(),
+        Initial::First => body.and_then(|body| state.stops.get(body)).or_else(|| stops.first()),
         Initial::Default => stops.iter().find(|rec| rec.stop.default).or_else(|| stops.first()),
         Initial::Key(name) => stops.iter().find(|rec| rec.stop.name == Some(name)),
         _ => None,

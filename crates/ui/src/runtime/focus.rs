@@ -88,6 +88,8 @@ pub(crate) struct State {
     pub(crate) scope_order: Vec<Id>,
     pub(crate) last_scope_order: Vec<Id>,
     pub(super) open: Vec<(Id, usize)>,
+    /// Where a scope's body begins in `stops`: `Initial::First` skips the header's stops before it.
+    pub(super) body_from: HashMap<Id, usize>,
     pub(crate) groups: HashMap<Id, Group>,
     pub(crate) last_groups: HashMap<Id, Group>,
     pub(crate) focused: HashMap<Id, StopKey>,
@@ -128,6 +130,17 @@ pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
     with(ctx, |state| {
         let scope = state.open.last().map(|(id, _)| *id);
         state.stops.push(StopRec { stop, scope });
+    });
+}
+
+/// Marks the stops registered from here on in the innermost open scope as its body's: initial focus goes to the
+/// first of them, not to the title row's close action. The first mark of a pass stands.
+pub(crate) fn begin_body(ctx: &Context) {
+    with(ctx, |state| {
+        if let Some((scope, _)) = state.open.last().copied() {
+            let at = state.stops.len();
+            state.body_from.entry(scope).or_insert(at);
+        }
     });
 }
 

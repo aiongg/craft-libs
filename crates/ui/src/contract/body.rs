@@ -847,6 +847,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             close = close.or(bcx.close_requested());
             self.header_size = Some(self.region_size(&header_ui));
         }
+        crate::runtime::focus::begin_body(&ctx);
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
         let mut body_rect = regions.body;
         if let Some(side) = props.label {
