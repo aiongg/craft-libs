@@ -206,6 +206,40 @@ impl IconLook {
     }
 }
 
+/// A value track: a groove with the part a value fills over it, and the marks and ticks along it. A slider, a
+/// range slider, a thumb row and a progress bar paint the same track.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct TrackLook {
+    /// The groove: the part the value does not fill.
+    pub unfilled: Stateful<StyleColor>,
+    /// The part of the groove the value fills.
+    pub filled: Stateful<StyleColor>,
+    /// The edge around the groove, for a track drawn as a bar.
+    pub edge: Stateful<StyleColor>,
+    /// The width of the edge.
+    pub edge_width: f32,
+    /// The thickness of the groove.
+    pub thickness: f32,
+    /// The corner radius of the groove and its fill.
+    pub radius: CornerRadius,
+    /// The length of a mark or tick below the groove.
+    pub mark_length: f32,
+    /// The thickness of a mark or tick.
+    pub mark_width: f32,
+    /// The colour of marks and ticks.
+    pub mark_color: Stateful<StyleColor>,
+    /// How near a mark, along the track, a drag snaps to it.
+    pub snap: f32,
+}
+
+impl TrackLook {
+    /// The groove across the middle of `rect`.
+    pub fn groove(&self, rect: egui::Rect) -> egui::Rect {
+        egui::Rect::from_center_size(rect.center(), egui::Vec2::new(rect.width(), self.thickness))
+    }
+}
+
 /// A component's focus ring.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]

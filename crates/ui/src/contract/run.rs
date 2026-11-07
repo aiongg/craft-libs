@@ -255,6 +255,9 @@ fn paint_ui<'a, C: Component>(ui: &'a mut Ui, env: &'a Env, cx: &'a Cx<'_, C>) -
         results: &cx.core.results,
         response: &cx.core.response,
         active: focus.filter(|_| cx.core.state.flags.contains(crate::style::Flags::FOCUSED)),
+        // Only a composite with parts paints faces, so the others skip the look list.
+        text: if cx.core.results.is_empty() { None } else { cx.style.texts().first().map(|text| &text.color) },
+        flags: cx.core.state.flags & HOST_FLAGS,
         enabled: cx.core.resolved.enabled,
         size: cx.core.resolved.size,
         kids: None,
@@ -728,6 +731,10 @@ pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &Ui, id: Option<Id>,
     steps::measure(comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO)
 }
 
+/// The flags a host passes to its faces: the validity of its value. The rest (focus, selection, open) belong to the
+/// host's own parts.
+pub(crate) const HOST_FLAGS: crate::style::Flags = crate::style::Flags::INVALID.union(crate::style::Flags::WARN);
+
 /// What a face reads of the composite that paints it.
 pub(crate) struct FaceSource<'a> {
     pub id: Id,
@@ -735,6 +742,11 @@ pub(crate) struct FaceSource<'a> {
     /// `Some(keyboard visible)` when the part is the active part of the focused composite.
     pub focus: Option<bool>,
     pub response: &'a Response,
+    /// The text colour of the host part, which a face reads through `StyleCx::host_ink`; `None` when the host has no
+    /// text look.
+    pub ink: Option<&'a crate::style::Stateful<crate::style::StyleColor>>,
+    /// The flags the host owns for its faces: whether its value is invalid or warns.
+    pub flags: crate::style::Flags,
 }
 
 /// A face run is steps 1, 2, 4 (read only), 12 and 13 of the face component, inside the composite's step 13. It
@@ -746,6 +758,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     debug_assert!(common.tooltip.is_none(), "a face instance carries no tooltip; use `PartBuilder::tooltip`");
     let step1 = steps::env::<C>(&ctx, &env, &common);
     let scx = steps::style_cx(&ctx, &env, &step1);
+    let scx = source.ink.map_or(scx, |ink| scx.hosted(ink));
     let style = steps::style::<C>(&ctx, &scx, face.style_key());
     let id = face_id(source.id, part);
     let resolved = steps::resolved(id, &step1, &common);
@@ -756,7 +769,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let rect = source.result.rect;
     let flow = Flow::new(rect, env.direction.is_rtl());
     let part_state = steps::part_state(source.result, step1.enabled, source.focus);
-    let flags = part_state.flags | face.flags();
+    let flags = part_state.flags | face.flags() | source.flags;
     let on = f32::from(u8::from(flags.intersects(crate::style::Flags::ON)));
     let state = StateSet::new(part_state.state, flags, crate::style::StateMix::new(part_state.t.hover, part_state.t.press, on));
     let mut core = blank_core(env.view(), &resolved, &mut stage, ctx.clone(), env.ink, source.response.clone(), None);
@@ -782,6 +795,8 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
             results: &results,
             response: source.response,
             active: None,
+            text: None,
+            flags: crate::style::Flags::empty(),
             enabled: step1.enabled,
             size: step1.size,
             kids: None,

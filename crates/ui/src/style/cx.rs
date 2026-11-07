@@ -1,7 +1,7 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink};
-use super::look::{FocusLook, StyleColor, SurfaceKind, SurfaceLook};
+use super::look::{FocusLook, StyleColor, SurfaceKind, SurfaceLook, TrackLook};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
@@ -37,6 +37,8 @@ pub struct StyleCx<'a> {
     pub active: bool,
     /// The key of everything above that the style cache depends on.
     pub key: EnvKey,
+    /// The text colour of the part this component is shown as the face of.
+    host: Option<&'a Stateful<StyleColor>>,
     ctx: &'a Context,
     values: &'a AppValues,
 }
@@ -62,6 +64,21 @@ struct GroupCache {
     paths: Vec<(&'static str, TypeId)>,
 }
 
+/// A hash of every colour and flag mask of `ink`.
+fn ink_hash(ink: &Stateful<StyleColor>) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let states = |states: &States<StyleColor>| [states.rest, states.hover, states.pressed, states.disabled];
+    let mut colors: Vec<StyleColor> = states(&ink.off).to_vec();
+    colors.extend(ink.on.iter().flat_map(states));
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    colors.iter().for_each(|color| color.egui().to_array().hash(&mut hasher));
+    for (mask, color) in &ink.when {
+        mask.0.hash(&mut hasher);
+        color.egui().to_array().hash(&mut hasher);
+    }
+    hasher.finish()
+}
+
 fn egui_color(c: Rgba) -> Color32 {
     let [r, g, b, a] = c.0;
     Color32::from_rgba_unmultiplied(r, g, b, a)
@@ -82,12 +99,18 @@ impl<'a> StyleCx<'a> {
         active: bool,
         key: EnvKey,
     ) -> Self {
-        StyleCx { tokens, size, variant, direction, scale, os, active, key, ctx, values }
+        StyleCx { tokens, size, variant, direction, scale, os, active, key, host: None, ctx, values }
     }
 
     /// The same context with another variant.
     pub(crate) fn with_variant(&self, variant: Variant) -> StyleCx<'a> {
         StyleCx { variant, ..*self }
+    }
+
+    /// The same context for a component shown as the face of a part whose text colour is `ink`. The key folds the
+    /// ink in, so a face's cached styles are per host look.
+    pub(crate) fn hosted(&self, ink: &'a Stateful<StyleColor>) -> StyleCx<'a> {
+        StyleCx { host: Some(ink), key: self.key.folded(ink_hash(ink)), ..*self }
     }
 
     /// An app value set by a scope. Its hash is part of the style cache key.
@@ -121,6 +144,44 @@ impl<'a> StyleCx<'a> {
             Tone::Bad => c.status.bad.fg,
             _ => c.text.normal,
         })
+    }
+
+    /// A text or icon colour that is `base` when the component stands alone and the text colour of the host part
+    /// when it is shown as that part's face, so a face reads on whatever fill the host draws under it.
+    pub fn host_ink(&self, base: Stateful<StyleColor>) -> Stateful<StyleColor> {
+        self.host.cloned().unwrap_or(base)
+    }
+
+    /// The fill of an accent control that is on or filled: the strong accent at rest, with its hover and pressed
+    /// shades, and the disabled fill when disabled.
+    pub fn accent_fill(&self) -> Stateful<StyleColor> {
+        let (accent, state) = (&self.tokens.color.accent, &self.tokens.color.state);
+        let rest = self.color(accent.strong);
+        Stateful::new(rest).off(States::new(
+            rest,
+            self.color(accent.strong_hover),
+            self.color(accent.strong_pressed),
+            self.color(state.disabled_fill),
+        ))
+    }
+
+    /// The look of a value track: a groove of `size.groove` with the part a value fills over it, and its marks.
+    pub fn track(&self) -> TrackLook {
+        let colors = &self.tokens.color;
+        let sunken = self.color(colors.surface.sunken);
+        let disabled = self.color(colors.state.disabled_fill);
+        TrackLook {
+            unfilled: Stateful::new(sunken).off(States::new(sunken, sunken, sunken, disabled)),
+            filled: self.accent_fill(),
+            edge: Stateful::new(self.color(colors.line.control_edge)),
+            edge_width: self.tokens.stroke.thin,
+            thickness: self.tokens.size.groove,
+            radius: UiTokens::corner(self.tokens.shape.radius.pill),
+            mark_length: self.tokens.space.gap.tight,
+            mark_width: self.tokens.stroke.thin,
+            mark_color: Stateful::new(self.color(colors.line.mark)),
+            snap: self.control().icon / 2.0,
+        }
     }
 
     /// The colour text and icons on a surface read in.
