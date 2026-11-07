@@ -155,6 +155,7 @@ pub struct Thumb {
     follow: Option<Follow>,
     order: Order,
     unset: Option<f64>,
+    reset: Option<f64>,
     falling: bool,
     split: bool,
 }
@@ -163,7 +164,17 @@ impl Thumb {
     /// A thumb named `label`, free among the others, with the row's range and step. The label is the accessible
     /// name, a whole phrase the app translates.
     pub fn new(label: impl Into<String>) -> Self {
-        Thumb { label: label.into(), face: None, scale: None, follow: None, order: Order::Free, unset: None, falling: false, split: false }
+        Thumb {
+            label: label.into(),
+            face: None,
+            scale: None,
+            follow: None,
+            order: Order::Free,
+            unset: None,
+            reset: None,
+            falling: false,
+            split: false,
+        }
     }
 
     /// The triangle's fill, a colour from data; the theme's knob colour by default.
@@ -192,6 +203,14 @@ impl Thumb {
     #[must_use]
     pub fn unset_at(mut self, value: f64) -> Self {
         self.unset = Some(value);
+        self
+    }
+
+    /// The value a reset of this thumb restores: Reset while it is focused and a double click on it set this thumb
+    /// alone; a thumb without one resets the whole binding.
+    #[must_use]
+    pub fn reset(mut self, value: f64) -> Self {
+        self.reset = Some(value);
         self
     }
 
@@ -767,12 +786,16 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 Some(Half::High) => (xs[i], size.x / 2.0),
             };
             let thumb = Rect::from_min_size(pos2(left, top), Vec2::new(width, size.y));
-            cx.part(THUMB.at(i as u64), thumb)
+            let part = cx
+                .part(THUMB.at(i as u64), thumb)
                 .sense(Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
                 .focusable()
                 .focus_shape(FocusShape::Rect)
                 .value_part();
+            if rules.thumbs[i].reset.is_some() {
+                part.own_reset();
+            }
         }
         cx.roving(Roving::new(NavShape::Flat).home_end(false));
     }
@@ -829,6 +852,19 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
                 _ => {}
             }
         }
+        if let Some(part) = cx.reset_part().filter(|part| part.key == THUMB)
+            && let Some(thumb) = part.index.map(|i| i as usize).filter(|i| *i < N)
+            && let Some(value) = rules.thumbs[thumb].reset
+        {
+            let current = cx.value().copied().unwrap_or(row);
+            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(value)), &current));
+        }
+        for thumb in 0..N {
+            if let Some(next) = cx.intents().take_set_value_at(THUMB.at(thumb as u64)) {
+                let current = cx.value().copied().unwrap_or(row);
+                cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(next)), &current));
+            }
+        }
         let focused = cx.active_part().filter(|part| part.key == THUMB).and_then(|part| part.index).map(|i| i as usize).filter(|i| *i < N);
         let Some(thumb) = focused else { return };
         let direction = |mv: NavMove| if rules.thumbs[thumb].falling { against(mv) } else { mv };
@@ -847,10 +883,6 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             let mv = if along > 0.0 { NavMove::Forward } else { NavMove::Back };
             let current = cx.value().copied().unwrap_or(row);
             cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Move(direction(mv), MoveMods::PLAIN)), &current));
-        }
-        if let Some(next) = cx.intents().take_set_value() {
-            let current = cx.value().copied().unwrap_or(row);
-            cx.set(rules.apply(&RowOp::new(thumb, ThumbOp::Set(next)), &current));
         }
     }
 

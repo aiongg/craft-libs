@@ -7,8 +7,8 @@ use std::fmt::Write as _;
 
 use crate::{
     BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FontSlot, Gaps, HandleSizes, HitSizes,
-    IconSizes, Motion, MotionTokens, Pads, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens, StrokeTokens,
-    ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    IconSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens, SpaceTokens,
+    StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -95,7 +95,7 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker } = size;
+    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -122,6 +122,10 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.hit.slop", len(*slop));
     out.line("size.hit.target", len(*target));
     out.line("size.checker", len(*checker));
+    out.line("size.dial", len(*dial));
+    let PlotSizes { width, height } = plot;
+    out.line("size.plot.width", len(*width));
+    out.line("size.plot.height", len(*height));
 }
 
 fn slot(s: FontSlot) -> &'static str {

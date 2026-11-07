@@ -447,7 +447,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);
     Env::restore(&ctx, installed);
     if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
-        keys::route(&ctx, fact.control, Intent::Reset);
+        keys::route_whole_reset(&ctx, fact.control);
     }
     let label = field_label(env, input, label_id_for_scope, placed.label).with_press(shown.press);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
