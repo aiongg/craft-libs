@@ -7,6 +7,7 @@ pub(crate) mod body;
 mod buttons;
 mod callsites;
 mod canvas;
+mod canvas_controls;
 mod choice;
 mod collection;
 mod commands;
