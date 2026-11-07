@@ -26,23 +26,28 @@ pub enum EditCommands {
     /// Redo the last undone edit.
     #[command(label = "Redo", icon = "redo", default = "Cmd+Shift+Z")]
     Redo,
+    /// Delete the selection. Delete and Backspace both bind it (the key labelled Delete on macOS reports Backspace).
+    /// It carries no text-edit intent: a text part's own Delete key stays its deletion.
+    #[command(label = "Delete", icon = "trash", default = "Delete", default = "Backspace")]
+    Delete,
 }
 
 impl EditCommands {
-    /// Every edit command.
+    /// Every edit command that a focused component can take as an `Intent::Edit`.
     pub const ALL: [EditCommands; 6] =
         [EditCommands::Cut, EditCommands::Copy, EditCommands::Paste, EditCommands::SelectAll, EditCommands::Undo, EditCommands::Redo];
 
-    /// The intent a component takes this command as.
-    pub const fn edit(self) -> EditCommand {
-        match self {
+    /// The intent a component takes this command as; `None` for a command that is always the app's.
+    pub const fn edit(self) -> Option<EditCommand> {
+        Some(match self {
             EditCommands::Cut => EditCommand::Cut,
             EditCommands::Copy => EditCommand::Copy,
             EditCommands::Paste => EditCommand::Paste,
             EditCommands::SelectAll => EditCommand::SelectAll,
             EditCommands::Undo => EditCommand::Undo,
             EditCommands::Redo => EditCommand::Redo,
-        }
+            EditCommands::Delete => return None,
+        })
     }
 
     /// The command an edit intent comes from.

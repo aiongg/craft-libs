@@ -4,8 +4,8 @@
 
 use crate::buttons::ToggleButton;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, Input, MeasureCx, Name, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, SetPosition,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Input, MeasureCx, Name, PaintUi, PartsCx, Props as _, Role,
+    SetPosition,
 };
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
@@ -126,9 +126,8 @@ impl<T: Value + 'static> Component for Segmented<'_, T> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let current = self.position_of(cx.value());
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for (at, entry) in self.entries.iter().enumerate() {
-            let hit = cx.part(Self::part(at)).press.phase.is_click() || by_key == Some(Self::part(at));
+            let hit = cx.part_activated(Self::part(at)).is_some();
             if let Some(value) = entry.value().filter(|_| entry.is_enabled() && hit && current != Some(at)) {
                 cx.set(value.clone());
             }
