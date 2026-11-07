@@ -107,7 +107,7 @@ impl Component for Tap<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         if let Some(on) = self.on {
-            on.set(craft_ui::contract::Styled::state(&cx).flags.contains(craft_ui::style::Flags::ON));
+            on.set(craft_ui::contract::Styled::state(&cx).flags.intersects(craft_ui::style::Flags::ON));
         }
         cx.response.clone()
     }

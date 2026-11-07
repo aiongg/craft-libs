@@ -981,7 +981,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, expa
     }
     let shown_on = cx.shown.as_deref().and_then(|value| (value as &dyn std::any::Any).downcast_ref::<bool>()).copied();
     let command_on = cx.core.command.as_deref().and_then(|command| command.checked);
-    if shown_on.or(command_on) == Some(true) {
+    if shown_on == Some(true) || command_on == Some(true) {
         flags |= Flags::CHECKED;
     }
     if let Some(facts) = cx.core.env.facts_of(cx.core.id) {
