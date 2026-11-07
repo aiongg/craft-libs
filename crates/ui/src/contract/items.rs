@@ -362,7 +362,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let ctx = ui.ctx();
         rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));
         rows::measured_widths(ctx, |width| {
-            for at in (0..self.source.len()).filter(|&at| layout.is_auto_width(at)) {
+            let asking: Vec<usize> = (0..self.source.len()).filter(|&at| layout.is_auto_width(at)).collect();
+            for at in asking {
                 if let Some((ideal, min)) = width(rows::measured_width_id(id, &self.source.key(at))) {
                     layout.set_width(at, ideal, min);
                 }
