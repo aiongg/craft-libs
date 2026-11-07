@@ -35,6 +35,11 @@ pub struct FullWindowDialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
+    /// Lets the host refuse the close of a button: `allows` gets the index of a picked button that would close the
+    /// dialog (not `Cancel`, not one marked `stays_open`) and returns whether it may. On `false` the dialog stays
+    /// open, with `DialogOutput::picked` still reporting the pick; the host shows why.
+    #[prop(boxed, name = "close_guard")]
+    guard: Option<Box<dyn FnMut(usize) -> bool + 'a>>,
     buttons: Vec<FooterButton>,
     /// Whether the title row has a close action.
     #[prop]
@@ -52,8 +57,18 @@ impl<'a> FullWindowDialog<'a> {
             .pad(Pad::None)
             .header(HeaderRegion::new().rule(true))
             .focus(FocusPolicy::DIALOG.initial(Initial::Keep));
-        FullWindowDialog { common: Common::new(), props, open: None, footer: None, buttons: Vec::new(), closable: false, closed: None, picked: None }
-            .label(title)
+        FullWindowDialog {
+            common: Common::new(),
+            props,
+            open: None,
+            footer: None,
+            guard: None,
+            buttons: Vec::new(),
+            closable: false,
+            closed: None,
+            picked: None,
+        }
+        .label(title)
     }
 
     /// Who gets Enter: the dialog's submit, or the body.
@@ -85,7 +100,8 @@ impl<'a> FullWindowDialog<'a> {
     }
 
     /// The dialog buttons in the footer, in the platform's order for their roles. A click closes the dialog: `Cancel`
-    /// as `CloseReason::Requested`, every other role as `CloseReason::Activated`; `DialogOutput::picked` says which.
+    /// as `CloseReason::Requested`, every other role as `CloseReason::Activated` unless the button `stays_open`;
+    /// `DialogOutput::picked` says which.
     #[must_use]
     pub fn buttons(mut self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
         self.props = self.props.footer(FOOTER);
@@ -132,7 +148,7 @@ impl Container for FullWindowDialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked);
+        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked, &mut self.guard);
     }
 
     fn closed(&mut self, why: CloseReason) {

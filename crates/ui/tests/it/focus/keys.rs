@@ -502,7 +502,11 @@ fn drive_fixture(in_modal: bool) -> (craft_ui::testing::Fixture, std::rc::Rc<Ref
         };
         if in_modal {
             let mut open = true;
-            Dialog::new("Pick").opened(Bind::bound(&mut open)).buttons([FooterButton::new("Cancel", DialogRole::Cancel)]).show(ui, |ui, _| body(ui));
+            Dialog::new("Pick")
+                .collection_body()
+                .opened(Bind::bound(&mut open))
+                .buttons([FooterButton::new("Cancel", DialogRole::Cancel)])
+                .show(ui, |ui, _| body(ui));
         } else {
             body(ui);
         }

@@ -131,7 +131,8 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
     })
 }
 
-/// A forwarded builder: its name, its parameter type as written in the expansion, and its doc line.
+/// A forwarded builder: its name, its parameter type as written in the expansion (empty for a builder with no
+/// parameter), and its doc line.
 type Forwarded = (&'static str, &'static str, &'static str);
 
 /// The public `CollectionProps` builders a `#[collection]` field forwards. A new `CollectionProps` builder is added
@@ -174,6 +175,7 @@ const CONTAINER: &[Forwarded] = &[
     ("live", "::craft_ui::contract::Politeness", "The body is a live region announced with this politeness."),
     ("end", "::craft_ui::contract::EndRegion", "The region at the line's end edge, outside the body scroll."),
     ("position", "::craft_ui::contract::SetPosition", "The component's place in its set, for assistive technology."),
+    ("collection_body", "", "The body holds one collection that owns the scroll: a layer's own body scroll is off."),
 ];
 
 fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) -> syn::Result<Vec<TokenStream>> {
@@ -190,6 +192,16 @@ fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) 
     list.iter()
         .map(|(name, ty, doc)| {
             let name = Ident::new(name, field_name.span());
+            if ty.is_empty() {
+                return Ok(quote! {
+                    #[doc = #doc]
+                    #[must_use]
+                    pub fn #name(mut self) -> Self {
+                        self.#field_name = self.#field_name.#name();
+                        self
+                    }
+                });
+            }
             let ty: Type = syn::parse_str(ty)?;
             Ok(quote! {
                 #[doc = #doc]

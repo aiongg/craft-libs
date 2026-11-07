@@ -76,6 +76,9 @@ impl<'b> FooterCx<'_, 'b> {
 /// The footer closure of a dialog shell.
 pub(super) type FooterFn<'a> = Box<dyn FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a>;
 
+/// The host's answer to a closing button: given the button's index, whether the dialog may close.
+pub(super) type CloseGuard<'a> = Box<dyn FnMut(usize) -> bool + 'a>;
+
 /// Fills the header region: the title and, for a closable shell, the close action.
 pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction]) {
     let shown = TitleRow::new(cx.label()).strength(HeaderStrength::Strong).level(TITLE_LEVEL).actions(actions.iter().copied()).show(ui);
@@ -85,8 +88,16 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
 }
 
 /// Fills the footer region: the caller's content closure in a footer bar, and under it the dialog buttons, whose
-/// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`).
-pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<FooterFn<'_>>, buttons: &[FooterButton], picked: &mut Option<usize>) {
+/// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`). A
+/// button that stays open never closes; `guard` can refuse the close of any other button but Cancel.
+pub(super) fn footer(
+    ui: &mut Ui,
+    cx: &mut BodyCx<'_>,
+    content: &mut Option<FooterFn<'_>>,
+    buttons: &[FooterButton],
+    picked: &mut Option<usize>,
+    guard: &mut Option<CloseGuard<'_>>,
+) {
     let mut close = None;
     if let Some(content) = content.as_mut() {
         FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
@@ -94,7 +105,11 @@ pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<Foot
     if !buttons.is_empty() {
         *picked = FooterBar::buttons(buttons.iter().cloned()).show_footer(ui).picked;
         if let Some(at) = *picked {
-            close.get_or_insert(if buttons[at].role() == DialogRole::Cancel { CloseReason::Requested } else { CloseReason::Activated });
+            if buttons[at].role() == DialogRole::Cancel {
+                close.get_or_insert(CloseReason::Requested);
+            } else if buttons[at].closes() && guard.as_mut().is_none_or(|allows| allows(at)) {
+                close.get_or_insert(CloseReason::Activated);
+            }
         }
     }
     if let Some(why) = close {
@@ -107,9 +122,10 @@ pub(super) fn close_action(closable: bool) -> &'static [HeaderAction] {
     if closable { &[HeaderAction::Close] } else { &[] }
 }
 
-/// The props every dialog shell starts from: the dialog surface, a header with a rule under it and a vertical scroll.
+/// The props every dialog shell starts from: the dialog surface and a header with a rule under it. A layer scrolls its
+/// body vertically unless the body is a collection; a frame in a parent's flow asks for the scroll itself.
 pub(super) fn chrome_props() -> ContainerProps {
-    ContainerProps::new().surface(SurfaceKind::Dialog).pad(Pad::Regular).header(HeaderRegion::new().rule(true)).scroll(Scroll::vertical())
+    ContainerProps::new().surface(SurfaceKind::Dialog).pad(Pad::Regular).header(HeaderRegion::new().rule(true))
 }
 
 /// The footer region of a shell that has footer content.
@@ -141,7 +157,7 @@ pub struct DialogFrame<'a> {
 impl<'a> DialogFrame<'a> {
     /// A frame titled `title`.
     pub fn new(title: impl Into<Label>) -> Self {
-        DialogFrame { common: Common::new(), props: chrome_props(), footer: None, closable: false }.label(title)
+        DialogFrame { common: Common::new(), props: chrome_props().scroll(Scroll::vertical()), footer: None, closable: false }.label(title)
     }
 
     /// The larger frame margin.
@@ -186,6 +202,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer, &[], &mut None);
+        footer(ui, cx, &mut self.footer, &[], &mut None, &mut None);
     }
 }

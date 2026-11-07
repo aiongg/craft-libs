@@ -749,3 +749,28 @@ type = "FooterButton"
 old = "min_width(f32)"
 new = ""
 note = "Removed: buttons size from their content."
+
+[[setter]]
+type = "Dialog"
+old = ""
+new = "collection_body()"
+
+[[setter]]
+type = "FullWindowDialog"
+old = ""
+new = "collection_body()"
+
+[[setter]]
+type = "Dialog"
+old = ""
+new = "close_guard(FnMut(usize) -> bool)"
+
+[[setter]]
+type = "FullWindowDialog"
+old = ""
+new = "close_guard(FnMut(usize) -> bool)"
+
+[[setter]]
+type = "FooterButton"
+old = ""
+new = "stays_open(bool)"
