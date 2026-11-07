@@ -101,33 +101,35 @@ impl<'a> ParamRows<'a> {
         let env = Env::of(ui);
         let words = env.words::<ParamWords>();
         let units = env.units();
-        let before = match fields.reborrow().get() {
-            Some(Mixed::Same(held)) => held,
-            _ => DialogFields::new(),
-        };
-        let mut filled = before.clone();
-        fill_defaults(params, &mut filled);
-        let state = match seed.as_mut().and_then(|seed| seed.reborrow().get()) {
-            Some(Mixed::Same(state)) => Some(state),
-            _ => None,
-        };
-        let mut pass = Pass::new(&words, &units, &filled);
+        let name: Arc<str> = label.as_str().into();
+        let mut pass = Pass::new(&words, &units);
+        let mut changed = false;
+        let mut values = None;
         let shown = FieldGroup::new(label.clone()).show(ui, |ui, cx| {
+            let before = match fields.reborrow().read(cx) {
+                Some(Mixed::Same(held)) => held,
+                _ => DialogFields::new(),
+            };
+            let mut filled = before.clone();
+            fill_defaults(params, &mut filled);
+            let state = match seed.as_mut().and_then(|seed| seed.reborrow().read(cx)) {
+                Some(Mixed::Same(state)) => Some(state),
+                _ => None,
+            };
             pass.begin(&filled, state, cx.keep::<Memo>().clone());
             pass.rows(ui, params);
             *cx.keep::<Memo>() = pass.memo.clone();
+            changed = pass.work != filled;
+            values = (pass.work != before).then(|| pass.work.clone());
+            if let Some(after) = &values {
+                let event = EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name.clone(), None);
+                let _ = fields.reborrow().write(cx, &event);
+            }
+            if let (Some(bind), Some(next)) = (seed.as_mut(), pass.seed) {
+                let held = Mixed::Same(state.unwrap_or(SEED_START));
+                let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), held, next, name.clone(), None));
+            }
         });
-        let changed = pass.work != filled;
-        let values = (pass.work != before).then(|| pass.work.clone());
-        if let Some(after) = &values {
-            let name: Arc<str> = label.as_str().into();
-            let _ = fields.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after.clone(), name, None));
-        }
-        if let (Some(bind), Some(next)) = (seed.as_mut(), pass.seed) {
-            let name: Arc<str> = label.as_str().into();
-            let held = Mixed::Same(state.unwrap_or(SEED_START));
-            let _ = bind.reborrow().apply(&EditEvent::set(GestureId::default(), held, next, name, None));
-        }
         ParamRowsOutput { response: shown.output, changed, values, pick_color: pass.color, path: pass.path, eyedropper: pass.eyedropper }
     }
 }
@@ -176,8 +178,18 @@ impl Line<'_> {
 }
 
 impl<'p> Pass<'p> {
-    fn new(words: &'p ParamWords, units: &'p Units, work: &DialogFields) -> Self {
-        Pass { words, units, work: work.clone(), memo: Memo::default(), seed: None, start: SEED_START, color: None, path: None, eyedropper: None }
+    fn new(words: &'p ParamWords, units: &'p Units) -> Self {
+        Pass {
+            words,
+            units,
+            work: DialogFields::new(),
+            memo: Memo::default(),
+            seed: None,
+            start: SEED_START,
+            color: None,
+            path: None,
+            eyedropper: None,
+        }
     }
 
     /// Starts a body run over `work`: the body may run more than once in a pass, and each run starts clean.
