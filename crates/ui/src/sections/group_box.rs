@@ -10,6 +10,9 @@ use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::Ui;
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The heading level AccessKit reports for a section header.
 pub(super) const SECTION_LEVEL: usize = 3;
 

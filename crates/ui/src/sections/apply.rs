@@ -1,14 +1,15 @@
 //! `ApplyRow`: a bulk-edit row whose check box turns "apply this value to the selection" on, with the caller's field
-//! as the body.
+//! as the body. It is a group box configuration: the same header and gate, with the header inline so the check and
+//! the field share one line.
 
 #[cfg(feature = "testing")]
 mod stories;
 
+use super::title_row::{HeaderStrength, TitleRow};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Pad, Props as _, Role, Show as _,
     WordSetCx as _,
 };
-use crate::sections::{HeaderStrength, TitleRow};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::Ui;
@@ -37,7 +38,7 @@ pub struct ApplyRow<'a> {
 impl<'a> ApplyRow<'a> {
     /// A row labelled `label` that edits `apply`.
     pub fn new(label: impl Into<crate::runtime::env::Label>, apply: Bind<'a, bool>) -> Self {
-        let props = ContainerProps::new().pad(Pad::None).header(HeaderRegion::new());
+        let props = ContainerProps::new().pad(Pad::None).header(HeaderRegion::new().inline(true));
         ApplyRow { common: Common::new(), props, apply }.label(label)
     }
 }
@@ -67,7 +68,7 @@ impl Component for ApplyRow<'_> {
 impl Container for ApplyRow<'_> {
     /// The apply check's shown copy goes to the check box; the container applies a change at step 15.
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        let row = TitleRow::new(cx.label()).strength(HeaderStrength::Normal);
+        let row = TitleRow::new(cx.label()).strength(HeaderStrength::Normal).fill(false);
         match cx.gate() {
             Some(gate) => row.gate(Bind::bound(gate)).show(ui),
             None => row.show(ui),

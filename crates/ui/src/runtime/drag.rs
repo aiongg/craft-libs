@@ -6,6 +6,7 @@ use crate::runtime::egui::areas::{self, Layer};
 use crate::runtime::egui::{files, memory::Service, pass};
 use crate::runtime::env::Label;
 use crate::runtime::frame::PerViewport;
+use crate::runtime::overlay::{self, LayerKeys};
 use crate::runtime::windows::{self, WindowHost};
 use crate::runtime::{cursor, frame, pointer};
 use craft_behavior::keys::drop_operation;
@@ -155,6 +156,8 @@ struct Registration {
     owner: Id,
     ordinal: u32,
     layer: Layer,
+    /// The overlay layer whose body registered the target; `None` for the window's own content.
+    scope: Option<Id>,
     mark: DropMark,
     /// The target covers the whole window: any target over a component beats it.
     window: bool,
@@ -323,10 +326,16 @@ pub(crate) fn register(ctx: &Context, owner: Id, layer: Layer, mark: DropMark, w
         Some(map) => mark.mapped(|point| map.to_screen(point)),
         None => mark,
     };
+    let scope = overlay::drawing_parent(ctx);
     PerViewport::<Targets>::with(ctx, pass::current_viewport(ctx), |targets| {
         let ordinal = targets.this.iter().filter(|registration| registration.owner == owner).count() as u32;
-        targets.this.push(Registration { owner, ordinal, layer, mark, window });
+        targets.this.push(Registration { owner, ordinal, layer, scope, mark, window });
     });
+}
+
+/// Whether `owner`'s `ordinal`th target was the one that would take a drop at the pointer in the last pass.
+pub(crate) fn winning(ctx: &Context, owner: Id, ordinal: u32) -> bool {
+    PerViewport::<Targets>::with(ctx, pass::current_viewport(ctx), |targets| targets.winner == Some((owner, ordinal)))
 }
 
 /// The ordinal the next registration of `owner` gets in this pass.
@@ -390,6 +399,10 @@ pub(crate) fn ended<P: 'static>(ctx: &Context, source: Id) -> Option<DropOperati
 /// window holds the drop, it waits there for one more frame so that window's pass takes it.
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
+    // A modal holds input: targets on layers below it, and on the window, never accept.
+    let scopes: Vec<Option<Id>> =
+        PerViewport::<Targets>::with(ctx, viewport, |targets| targets.this.iter().map(|registration| registration.scope).collect());
+    let open: Vec<bool> = scopes.iter().map(|scope| overlay::key_layer(ctx, scope.as_slice()) != LayerKeys::Blocked).collect();
     let winner = PerViewport::<Targets>::with(ctx, viewport, |targets| {
         // The topmost layer in the order the overlay host handed egui wins, then the target registered last: a target
         // shown later lies over an enclosing one.
@@ -397,6 +410,7 @@ pub(crate) fn end_pass(ctx: &Context) {
             .this
             .iter()
             .enumerate()
+            .filter(|(at, _)| open[*at])
             .max_by_key(|(at, registration)| (!registration.window, areas::layer_position(ctx, registration.layer), *at))
             .map(|(_, registration)| registration);
         let best = best.map(|registration| ((registration.owner, registration.ordinal), registration.mark));
