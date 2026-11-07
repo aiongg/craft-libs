@@ -72,7 +72,7 @@ fn text_field_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 const SIZE: f64 = 12.5;
-const HUGE: f64 = 123_456_789_012_345.678;
+const HUGE: f64 = 123_456_789_012_345.0;
 
 #[story(NumberField<'static>, covers = [Default], drive = Drive::Type("42"))]
 fn number_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

@@ -6,8 +6,13 @@ use super::fixture;
 use egui::{Context, Event, Id, Plugin, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
+/// The screen the scenarios run on.
+const SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+/// The side of a click widget in the scenarios.
+const WIDGET: Vec2 = Vec2::new(40.0, 40.0);
+
 pub(super) fn raw(time: f64, events: Vec<Event>) -> RawInput {
-    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::from([800.0, 600.0]))), time: Some(time), events, ..RawInput::default() }
+    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)), time: Some(time), events, ..RawInput::default() }
 }
 
 /// What the plugin hooks of one context saw around a nested immediate viewport.
@@ -103,9 +108,9 @@ pub struct PressHits {
 /// Three frames over two click widgets: one to register them, then the two event orders.
 pub fn press_hits() -> PressHits {
     let ctx = fixture::bare_context();
-    let (a, b) = (Id::new("craft_ui.surface.a"), Id::new("craft_ui.surface.b"));
-    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
-    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), Vec2::from([40.0; 2]));
+    let (a, b) = (Id::unique("craft_ui.surface.a"), Id::unique("craft_ui.surface.b"));
+    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), WIDGET);
+    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), WIDGET);
     let mut show = |ui: &mut Ui| {
         ui.interact(rect_a, a, Sense::click());
         ui.interact(rect_b, b, Sense::click());
@@ -125,8 +130,8 @@ pub fn press_hits() -> PressHits {
 /// children of its parent's node.
 pub fn registered_parent_owns_member_node() -> bool {
     let ctx = fixture::bare_context();
-    let (parent, member) = (Id::new("craft_ui.surface.parent"), Id::new("craft_ui.surface.member"));
-    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
+    let (parent, member) = (Id::unique("craft_ui.surface.parent"), Id::unique("craft_ui.surface.member"));
+    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), WIDGET);
     let mut output = ctx.run_ui(raw(1.0, Vec::new()), |ui| {
         let ctx = ui.ctx().clone();
         ui.interact(rect, parent, Sense::click());

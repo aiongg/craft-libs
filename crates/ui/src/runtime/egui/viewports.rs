@@ -153,7 +153,7 @@ pub(crate) fn write_movable(ctx: &Context, movable: bool) {
 }
 
 fn movable_id(viewport: ViewportId) -> egui::Id {
-    egui::Id::new(("craft_ui.title_bar.movable", viewport))
+    egui::Id::unique(("craft_ui.title_bar.movable", viewport))
 }
 
 /// Sets the `movable` flag of the key window when it has a full-size content view and visible window buttons;

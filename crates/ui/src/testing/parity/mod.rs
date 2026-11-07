@@ -35,7 +35,7 @@ impl ParityState for () {
 }
 
 /// The size of the surface a story is shown on, in points. A fixture's frames run at the capture's step length.
-const SURFACE: [f32; 2] = [640.0, 1200.0];
+const SURFACE: Vec2 = Vec2::new(640.0, 1200.0);
 
 /// A story shown by a fixture at the capture's surface size, with the state its args are read from.
 pub struct Scene<S> {
@@ -60,7 +60,7 @@ pub fn scene<S: ParityState>(state: S, mut app: impl FnMut(&mut egui::Ui, &mut S
     let state = Rc::new(RefCell::new(state));
     let shown = state.clone();
     let mut fixture = Fixture::new(move |ui| app(ui, &mut shown.borrow_mut()));
-    fixture.room(Vec2::from(SURFACE));
+    fixture.room(SURFACE);
     Scene { fixture, state }
 }
 

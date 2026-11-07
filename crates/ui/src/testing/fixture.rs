@@ -51,7 +51,7 @@ impl Fixture {
             frames: Frames::new(),
             show: Box::new(show),
             root: RootEnv::default(),
-            room: Vec2::from([400.0, 300.0]),
+            room: Vec2::new(400.0, 300.0),
             tree: AccessTree::none(),
             shown: Rect::NOTHING,
             data: Rc::default(),
