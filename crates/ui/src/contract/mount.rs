@@ -6,14 +6,17 @@ use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
 use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
+use crate::runtime::egui::memory as store;
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{areas, viewports};
-use crate::runtime::env::Env;
+use crate::runtime::egui::areas;
+use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::CloseReason;
+use crate::runtime::windows::{self, ViewportOpen, WindowHost};
+use craft_host::target::WindowKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host a mount chose, and whether it shows the container fading out.
@@ -24,7 +27,7 @@ pub(super) struct Mounted {
 }
 
 /// The host for `props.mount`. A layer-like mount of a closed container shows nothing once its exit fade ended.
-pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool) -> Mounted {
+pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &Label) -> Mounted {
     let ctx = at.ui.ctx();
     let layer = |overlay: &Overlay| {
         let presence = if at.ui.is_sizing_pass() {
@@ -47,13 +50,22 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool) -> Mount
             (None, _) => closed(),
         },
         Mount::Viewport { fallback } => {
-            if !viewports::available(ctx) {
+            if !WindowHost::of(ctx).viewports_available() {
                 return match layer(fallback) {
                     (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), props.save.clone(), exiting, fade)), exiting },
                     (None, _) => closed(),
                 };
             }
-            if open { Mounted { host: Box::new(ViewportHost { focus: fallback.focus }), exiting: false } } else { closed() }
+            if open {
+                let viewport = ViewportHost {
+                    focus: fallback.focus,
+                    title: title.clone(),
+                    save: props.save.as_ref().map(|key| key.as_str().to_owned()),
+                };
+                Mounted { host: Box::new(viewport), exiting: false }
+            } else {
+                closed()
+            }
         }
     }
 }
@@ -169,14 +181,19 @@ impl Host for FullWindowHost {
 struct ViewportHost {
     /// The fallback overlay's focus policy: the viewport's root scope.
     focus: FocusPolicy,
+    title: Label,
+    /// The key the window's placement is saved under.
+    save: Option<String>,
 }
 
 impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        let size = layout_memory::read(&ctx, id);
         let focus = self.focus;
-        viewports::show_immediate(&ctx, viewports::viewport_id(id), "", size, |ui| {
+        let title = env.resolve(&self.title);
+        let open =
+            ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind: WindowKind::Tool };
+        windows::show_viewport(&ctx, &open, |ui| {
             let installed = Env::install_for(ui, env.clone());
             let window = ui.max_rect();
             let scoped = focus != FocusPolicy::NONE && !ui.is_sizing_pass();

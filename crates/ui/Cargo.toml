@@ -50,11 +50,20 @@ eframe = { version = "0.37", default-features = false, features = ["wgpu", "x11"
 egui_kittest = { version = "0.37", default-features = false, optional = true }
 libtest-mimic = { version = "0.8", optional = true }
 craft-host = { workspace = true }
+# `WindowSystem` and `restore::Store`, which viewport mounts place windows through.
+craft-window = { workspace = true }
+# `quit` and the close guard `runtime::windows` routes a root close through.
+craft-quit = { workspace = true }
 craft-i18n = { workspace = true }
 log = "0.4"
 smallvec = { workspace = true }
 linkme = "0.3"
 serde = { workspace = true }
+
+# `shell::title_bar::sync_movable` (`NSWindow.movable`); eframe's winit already uses these.
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6.4", default-features = false, features = ["std"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSApplication", "NSButton", "NSControl", "NSResponder", "NSView", "NSWindow"] }
 
 [dev-dependencies]
 craft-ui = { path = ".", features = ["testing"] }

@@ -19,6 +19,7 @@ mod runtime;
 mod sections;
 mod style;
 mod values;
+mod windows_kit;
 
 use craft_ui::testing::{TRIALS, registered, suite};
 use libtest_mimic::{Arguments, Trial};

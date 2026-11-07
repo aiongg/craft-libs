@@ -893,6 +893,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         );
                         let (width, height) =
                             (if scroll.horizontal_on() { big } else { seen.width() }, if scroll.vertical_on() { big } else { seen.height() });
+        // The OS asked a viewport mount's window to close: the container closes at step 15.
+        if matches!(props.mount, Mount::Viewport { .. }) && crate::runtime::windows::take_close_request(cx.core.memory.ctx(), cx.core.id) {
+            self.close = true;
+        }
                         let x = if scroll.horizontal_on() { off.x as f32 } else { 0.0 };
                         let min_x = if rtl { seen.max.x - width + x } else { seen.min.x - x };
                         let max = Rect::from_min_size(Pos2::new(min_x, seen.min.y - off.y as f32), Vec2::new(width, height));

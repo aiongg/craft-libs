@@ -44,7 +44,7 @@ pub fn harness<'a, S: ParityState + 'a>(state: S, app: impl FnMut(&mut egui::Ui,
         .with_step_dt(STEP_DT)
         .with_accessibility_check(false)
         .with_context_setup(|ctx| {
-            let installed = crate::install(ctx, crate::runtime::InstallSpec::new());
+            let installed = crate::install(ctx, crate::testing::install_spec());
             debug_assert!(installed.is_ok(), "the context takes the runtime once");
         })
         .build_ui_state(app, state)

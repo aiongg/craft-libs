@@ -5,7 +5,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
-use crate::runtime::{access, cursor, drag, focus, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel};
+use crate::runtime::{access, cursor, drag, focus, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel, windows};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -177,6 +177,7 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
         ran
     });
     commands::set_input(ctx, &commands);
+    windows::set_input(ctx);
     debug_assert!(hooks_ran, "the runtime plugin's hooks did not run for the previous pass: drive frames with `Context::run_ui` or `run_pass`");
     scale::set_interface_scale(ctx, scale.0);
 }
@@ -273,7 +274,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     let stripped = keys::input_hook(ctx, input);
     // H3b: a press outside the top menu family goes no further than the menu's dismissal.
     let absorbed = overlay::absorb_presses(ctx, input);
-    if held_back || stripped || absorbed {
+    // H4: release after an OS resize.
+    let released = windows::input_hook(ctx, input);
+    if held_back || stripped || absorbed || released {
         raw_input::request_repaint_of(ctx, viewport);
     }
 }
@@ -299,6 +302,8 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     if cancelled {
         raw_input::stop_dragging(&ctx);
     }
+    // H5: this viewport's window info; a press H3 dropped under a modal raises the modal's window.
+    windows::begin(&ctx);
     // H5: the pointer snapshot, before any component runs.
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::fallback(&ctx)));
     pointer::begin(&ctx, frame_hit(&ctx));
@@ -343,6 +348,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     memory::evict(&ctx);
     layout_memory::end_hook(&ctx);
     motion::end_pass(&ctx);
+    windows::end(&ctx);
     let live = pass::live_viewports(&ctx);
     let prunes: Vec<fn(&Context, &[ViewportId])> = store::with::<FrameState, _>(&ctx, |state| {
         state.passes_open = state.passes_open.saturating_sub(1);

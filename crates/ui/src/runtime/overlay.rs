@@ -471,7 +471,6 @@ pub(crate) fn note_dropped_press(ctx: &Context, viewport: ViewportId) {
 
 /// Whether the input hook dropped a press for `viewport` since the last call; the window host raises the modal's
 /// window for it.
-#[expect(dead_code, reason = "the window host (F7) raises the modal's window for a dropped press")]
 pub(crate) fn take_dropped_press(ctx: &Context, viewport: ViewportId) -> bool {
     with_persist(ctx, viewport, |persist| std::mem::take(&mut persist.dropped_press))
 }
@@ -509,6 +508,11 @@ pub(crate) fn key_layer(ctx: &Context, scopes: &[Id]) -> LayerKeys {
         return LayerKeys::Blocked;
     }
     inside.map_or(LayerKeys::Window, |entry| LayerKeys::Class(entry.keys))
+}
+
+/// A viewport other than `viewport` that has a modal layer open: the window a blocked press raises.
+pub(crate) fn modal_viewport(ctx: &Context, viewport: ViewportId) -> Option<ViewportId> {
+    pass::live_viewports(ctx).into_iter().filter(|other| *other != viewport).find(|other| with_persist(ctx, *other, |persist| persist.modal))
 }
 
 /// Whether a layer of key class `class` that is not fading out was shown last frame.

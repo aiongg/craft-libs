@@ -6,6 +6,7 @@ use crate::runtime::egui::areas::{self, Layer};
 use crate::runtime::egui::{input, memory::Service, pass};
 use crate::runtime::env::Label;
 use crate::runtime::frame::PerViewport;
+use crate::runtime::windows::{self, WindowHost};
 use crate::runtime::{cursor, frame, pointer};
 use craft_behavior::keys::drop_operation;
 use craft_behavior::{Buttons, CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, PointerButton, PressCancel};
@@ -76,13 +77,19 @@ pub trait DropTarget<P> {
 struct Session {
     source: Id,
     /// The viewport whose pass started the session and the button whose press it follows: only that viewport's end
-    /// hook reads the button, so another window repainting mid-drag does not end the session.
+    /// hook reads the button, so another window repainting mid-drag does not end the session. Its release ends the
+    /// session, and its window loss cancels it.
     viewport: ViewportId,
     button: PointerButton,
     payload: Arc<dyn Any + Send + Sync>,
     preview: DragPreview,
-    /// The mark of the target that would take a drop now, in screen space.
-    mark: Option<DropMark>,
+    /// The mark of the target that would take a drop now, in screen space of the viewport that registered it.
+    mark: Option<(ViewportId, DropMark)>,
+    /// The root frame in which the source viewport saw the release while a target in another window held the
+    /// drop: the session lives until that window's pass takes it.
+    released: Option<u64>,
+    /// A target took the drop.
+    taken: bool,
 }
 
 /// A drop a target took: the source's `drag_ended` reads it in the next frame.
@@ -129,7 +136,7 @@ pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Syn
                 .into_iter()
                 .find(|button| buttons.contains(Buttons::of(*button)))
                 .unwrap_or(PointerButton::Primary);
-            board.session = Some(Session { source, viewport: pass::current_viewport(ctx), button, payload, preview, mark: None });
+            board.session = Some(Session { source, viewport: pass::current_viewport(ctx), button, payload, preview, mark: None, released: None, taken: false });
             board.ended = None;
             board.started += 1;
         }
@@ -173,9 +180,21 @@ pub fn cancel(ctx: &Context, reason: CancelReason) {
 
 /// The begin hook: the window losing focus ends the session.
 pub(crate) fn begin(ctx: &Context) {
-    if running(ctx) && pointer::pass_pointer(ctx).focus_lost {
+    if source_viewport(ctx) == Some(pass::current_viewport(ctx)) && pointer::pass_pointer(ctx).focus_lost {
         cancel(ctx, CancelReason::Blur);
     }
+}
+
+/// The viewport the running session started in.
+fn source_viewport(ctx: &Context) -> Option<ViewportId> {
+    board(ctx, |board| board.session.as_ref().map(|session| session.viewport))
+}
+
+/// The pointer in `viewport` for a drag that started in another window: the desktop pointer mapped into this
+/// window, when it lies inside. `None` without a session, in the source window, or outside this window.
+pub(crate) fn cross_window_pointer(ctx: &Context, viewport: ViewportId) -> Option<Pos2> {
+    let source = source_viewport(ctx)?;
+    (source != viewport).then(|| WindowHost::of(ctx).pointer_in(viewport)).flatten()
 }
 
 /// The running session's payload of type `P` and the pointer in screen space.
@@ -210,7 +229,9 @@ pub(crate) fn current_operation(ctx: &Context) -> DropOperation {
 
 /// Whether the primary button was released in this pass.
 fn released(ctx: &Context) -> bool {
+    let viewport = pass::current_viewport(ctx);
     pointer::frame(ctx).release == Some(PointerButton::Primary)
+        || board(ctx, |board| board.session.as_ref().is_some_and(|session| session.released.is_some() && session.viewport != viewport))
 }
 
 /// Takes the drop for `owner`'s `ordinal`th target when it won last pass and the primary button was released in this
@@ -221,12 +242,14 @@ pub(crate) fn take_drop<P: 'static>(ctx: &Context, owner: Id, ordinal: u32, op: 
         return false;
     }
     let frame = pass::root_frame_nr(ctx);
-    board(ctx, |board| match &board.session {
-        Some(session) if board.ended.as_ref().is_none_or(|ended| ended.frame != frame) => {
-            board.ended = Some(Ended { source: session.source, payload: TypeId::of::<P>(), op, frame });
-            true
+    board(ctx, |board| {
+        let Some(session) = board.session.as_mut() else { return false };
+        if session.taken || board.ended.as_ref().is_some_and(|ended| ended.frame == frame) {
+            return false;
         }
-        _ => false,
+        session.taken = true;
+        board.ended = Some(Ended { source: session.source, payload: TypeId::of::<P>(), op, frame });
+        true
     })
 }
 
@@ -243,7 +266,8 @@ pub(crate) fn ended<P: 'static>(ctx: &Context, source: Id) -> Option<DropOperati
 }
 
 /// The end hook: resolves this pass's registrations for the next pass, records the mark, requests the cursor,
-/// and ends the session once its button is up.
+/// and ends the session once its button is up. The session ends in the source window; when a target in another
+/// window holds the drop, it waits there for one more frame so that window's pass takes it.
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let winner = PerViewport::<Targets>::with(ctx, viewport, |targets| {
@@ -264,18 +288,44 @@ pub(crate) fn end_pass(ctx: &Context) {
     let over_this_window = pointer::frame(ctx).pos.is_some();
     let primary_down = pointer::pass_pointer(ctx).primary_down;
     let buttons = pointer::frame(ctx).buttons;
+    let held = board(ctx, |board| board.session.as_ref().map(|session| session.button)).is_none_or(|button| {
+        if button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(button)) }
+    });
+    let frame = pass::root_frame_nr(ctx);
+    let source = source_viewport(ctx);
+    let is_source = source == Some(viewport);
+    if is_source {
+        windows::note_source_pointer(ctx, viewport, pointer::frame(ctx).pos);
+    }
+    let foreign_target = is_source && !held && foreign_winner(ctx, viewport);
     let running = board(ctx, |board| {
-        if let Some(session) = board.session.as_ref().filter(|session| session.viewport == viewport) {
-            let held = if session.button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(session.button)) };
-            if !held {
+        if let Some(session) = &mut board.session {
+            let expired = session.released.is_some_and(|released| frame > released + 1);
+            let ended_here = is_source && !held && session.released.is_none();
+            if expired || (ended_here && !foreign_target) {
                 board.session = None;
+            } else if ended_here {
+                session.released = Some(frame);
             }
         }
         if let Some(session) = &mut board.session {
-            session.mark = winner;
+            match winner {
+                Some(mark) => session.mark = Some((viewport, mark)),
+                None if session.mark.is_some_and(|(marked, _)| marked == viewport) => session.mark = None,
+                None => {}
+            }
         }
         board.session.is_some()
     });
+    if !running {
+        windows::clear_source_pointer(ctx);
+    }
+    if running && is_source {
+        // The windows the pointer may be over resolve their targets again.
+        for other in pass::live_viewports(ctx).into_iter().filter(|other| *other != viewport) {
+            crate::runtime::egui::repaint::request_of(ctx, other);
+        }
+    }
     if running && over_this_window {
         match winner {
             None => cursor::request(ctx, Cursor::System(CursorIcon::NotAllowed), CursorPriority::Drag),
@@ -291,6 +341,14 @@ pub(crate) fn end_pass(ctx: &Context) {
     }
 }
 
+/// Whether a viewport other than `viewport` has a target that took the pointer in its last pass.
+fn foreign_winner(ctx: &Context, viewport: ViewportId) -> bool {
+    pass::live_viewports(ctx)
+        .into_iter()
+        .filter(|other| *other != viewport)
+        .any(|other| PerViewport::<Targets>::with(ctx, other, |targets| targets.winner.is_some()))
+}
+
 /// What the ghost layer paints: the session's preview and the mark of the target that would take a drop.
 pub(crate) struct Ghost {
     pub preview: DragPreview,
@@ -299,5 +357,11 @@ pub(crate) struct Ghost {
 
 /// The running session's ghost data.
 pub(crate) fn ghost(ctx: &Context) -> Option<Ghost> {
-    board(ctx, |board| board.session.as_ref().map(|session| Ghost { preview: session.preview.clone(), mark: session.mark }))
+    let viewport = pass::current_viewport(ctx);
+    board(ctx, |board| {
+        board.session.as_ref().map(|session| Ghost {
+            preview: session.preview.clone(),
+            mark: session.mark.and_then(|(marked, mark)| (marked == viewport).then_some(mark)),
+        })
+    })
 }

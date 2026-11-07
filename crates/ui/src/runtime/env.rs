@@ -8,10 +8,11 @@ use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{child, input as raw_input, pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
+use crate::runtime::windows;
 use crate::style::{EnvKey, Ink, UiTokens};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
-use craft_host::target::Os;
+use craft_host::target::{Os, ShellInfo};
 pub use craft_i18n::Direction;
 pub use craft_i18n::{Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_theme::{
@@ -262,6 +263,8 @@ pub struct Scoped {
     pub(crate) os: Os,
     /// Whether the window is active.
     pub(crate) active: bool,
+    /// The platform and the running viewport's window facts.
+    pub(crate) shell: Arc<ShellInfo>,
     /// The text and icon ink of the surface the scope sits on, set by a container for its body.
     pub ink: Ink,
     /// The built-in text of the scope.
@@ -347,14 +350,15 @@ impl Env {
         let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
         let os = raw_input::os(ctx);
         let scale = Scale(pixels_per_point);
-        // F3-LATER: runtime::windows (`WindowInfo.active` per viewport)
-        let active = true;
+        let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
+        let active = shell.window.active;
         Env {
             scoped: Arc::new(Scoped {
                 key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()),
                 tokens,
                 os,
                 active,
+                shell,
                 ink: Ink::default(),
                 size: ControlSize::Md,
                 enabled: true,
@@ -581,6 +585,12 @@ impl<'a> EnvView<'a> {
 
     pub(crate) fn command_chain(&self) -> &CommandChain {
         &self.scoped.commands
+    }
+
+    /// The platform and the running viewport's window facts: the OS, the capabilities and the window's kind,
+    /// chrome, state, insets and focus.
+    pub fn shell(&self) -> &'a ShellInfo {
+        &self.scoped.shell
     }
 
     /// The app's `Host`, from `FrameInput.host`.

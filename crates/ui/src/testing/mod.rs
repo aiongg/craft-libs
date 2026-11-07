@@ -25,6 +25,7 @@ pub mod style;
 pub mod surface;
 pub mod suite;
 pub mod wheel;
+pub mod windows;
 
 pub use crate::contract::{Exemption, Probe, Registration};
 pub use craft_ui_macros::{story, trial};
@@ -33,6 +34,7 @@ pub use frames::Frames;
 #[doc(hidden)]
 pub use story::STORIES;
 pub use story::{Drive, EditKind, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot};
+pub use windows::install_spec;
 
 /// One registered trial.
 #[derive(Clone, Copy, Debug)]
