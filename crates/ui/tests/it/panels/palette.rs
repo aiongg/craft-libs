@@ -115,7 +115,10 @@ fn escape_clears_the_query_before_it_closes_the_palette() {
 #[trial]
 fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
     let mut rig = rig();
+    let first = rig.fixture.by_label("Undo").expect("the row is listed").center();
     let resting = rig.fixture.by_label("Select All").expect("the row is listed").center();
+    // The pointer moves onto the last row, which makes it the active one; then it rests there.
+    rig.fixture.frame(vec![pointer::moved(first)]);
     rig.fixture.frame(vec![pointer::moved(resting)]);
     rig.fixture.idle(2);
     rig.fixture.key(Key::ArrowUp, Modifiers::NONE);
