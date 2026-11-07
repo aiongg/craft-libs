@@ -2,6 +2,7 @@
 //! (the body step, the item step, the size of a body or collection) goes through `ShapeHooks`.
 
 use super::cx::PartsCx;
+use super::label::{self, LabelIn};
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
@@ -10,13 +11,13 @@ use super::{
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::access::{Role, scope};
+use crate::runtime::access::{Politeness, Role, scope};
 use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, focus, inspect, keys, layout_memory, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
-use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, ScrollPos, Sense};
+use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, ScrollPos, Sense};
 use craft_theme::ControlSize;
 use egui::{Context, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::RefCell;
@@ -58,6 +59,16 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
         false
+    }
+
+    /// The roving rules of the body's members, when the shape's body forms one group.
+    fn roving(&self, _comp: &C) -> Option<Roving> {
+        None
+    }
+
+    /// The politeness of a live region the shape's body is.
+    fn live(&self, _comp: &C) -> Option<Politeness> {
+        None
     }
 
     /// What the shape adds to the content size at step 5, before padding and `min_size`.
@@ -124,6 +135,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         comp.props(Internal::new()).arena
     }
 
+    fn roving(&self, comp: &C) -> Option<Roving> {
+        comp.props(Internal::new()).roving
+    }
+
+    fn live(&self, comp: &C) -> Option<Politeness> {
+        comp.props(Internal::new()).live
+    }
+
     fn extent(&mut self, _: &C, ui: &Ui, at: ShowAt, id: Id, _: &StyleCx<'_>) -> Vec2 {
         self.remembered = layout_memory::read(ui.ctx(), id);
         self.room = match at {
@@ -144,7 +163,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         };
         let body_id = sub(id, "body");
         let props = comp.props(Internal::new());
-        let (arena, command_scope) = (props.arena, props.command_scope);
+        let (arena, command_scope, roving, label) = (props.arena, props.command_scope, props.roving, props.label);
         if let Some(scope) = command_scope {
             commands::register_instance(&cx.core.ctx, scope, id);
         }
@@ -154,10 +173,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if arena {
                 scoped.arena = Some(ArenaId::new(id));
             }
+            if roving.is_some() {
+                scoped.roving = Some(steps::body_group(id));
+            }
             if let Some(scope) = command_scope {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
         });
+        // F5-MERGE: F5c. The label step takes its place as body sub-step B2, after the header and before the body.
+        let rect = match label {
+            Some(side) => {
+                let parent = matches!(C::ROLE, Role::Node(_)).then_some(id);
+                let resolved = cx.core.resolved;
+                let input = LabelIn { scope: id, parent, row: rect, text: resolved.label_value, side: &side, enabled: resolved.enabled, size: resolved.size };
+                label::run(ui, env, &input)
+            }
+            None => rect,
+        };
         let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id);
         // The body's nodes are the container's children; a role with no node leaves them where egui puts them.
         let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
@@ -286,6 +318,7 @@ fn blank_core<'a>(
         claims: Vec::new(),
         reveal: None,
         press_cancel: None,
+        roving_arrival: None,
     }
 }
 
@@ -386,6 +419,8 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
         role: KeyRole::new().resettable(resettable),
         rtl,
         parts: &parts,
+        group: env.roving,
+        body_roving: p.hooks.roving(comp),
     });
     if !inert {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());
@@ -440,6 +475,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::edit_intents(comp, cx);
     comp.update(cx);
     p.hooks.updated(comp, cx);
+    if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
+        focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected(arrival));
+    }
     // 10 overlay
     p.trace.mark(Step::Overlay);
     comp.overlay(&mut OverlayUi::new(), cx);
@@ -449,6 +487,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     p.trace.mark(Step::Apply);
     steps::apply_values(comp, cx);
     p.hooks.apply(comp, cx);
+    steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
     steps::state(comp, cx, false, env.ink);
@@ -475,7 +514,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::settle(comp, cx);
     // 16 report. F5-LATER: the tooltip runs from `tip` here.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own });
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp) });
     let _ = p.tip.take();
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -570,6 +609,12 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     if real_pass {
         trace.mark(Step::Finish);
         steps::before_finish(&mut cx, activated);
+        if shape == ShapeKind::Leaf {
+            let baseline = cx.core.paint.borrow().baseline;
+            if let Some(baseline) = baseline {
+                scope::record_baseline(&ctx, baseline - cx.core.rect.top());
+            }
+        }
     }
     let output = comp.finish(cx);
     if real_pass {

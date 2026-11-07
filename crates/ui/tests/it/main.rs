@@ -6,6 +6,7 @@ mod commands;
 mod contract;
 mod egui_surface;
 mod focus;
+mod label;
 mod layout;
 mod motion;
 mod paint;

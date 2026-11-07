@@ -86,12 +86,17 @@ impl<'a> Draw<'a> {
     /// `text` does.
     pub fn galley(&self, pos: Pos2, layout: &TextLayout) {
         let mut record = self.record.borrow_mut();
-        record.baseline.get_or_insert(layout.first_baseline);
+        record.baseline.get_or_insert(pos.y + layout.first_baseline);
         if layout.elided && record.elided.is_none() {
             record.elided = Some(layout.full.clone());
         }
         drop(record);
         self.painter.galley(pos, layout.galley.clone(), ink_color(self.env.tokens, self.env.ink));
+    }
+
+    /// Paints the reset dot of `look` centred on `center`.
+    pub fn reset_mark(&self, look: &crate::style::ResetMarkLook, center: Pos2) {
+        self.painter.extend(super::ResetMark::shapes(look, center));
     }
 
     /// Paints the line of `kind` from `from` to `to`.

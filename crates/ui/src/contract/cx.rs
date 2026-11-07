@@ -85,6 +85,16 @@ pub struct CxCore<'a> {
     pub(crate) claims: Vec<Chord>,
     pub(crate) reveal: Option<Rect>,
     pub(crate) press_cancel: Option<PressCancel>,
+    /// The member of the container's roving group Tab arrives at, set by the group's pick.
+    pub(crate) roving_arrival: Option<Id>,
+}
+
+impl CxCore<'_> {
+    /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the
+    /// first enabled member when none is named.
+    pub fn roving_arrival(&mut self, member: Id) {
+        self.roving_arrival = Some(member);
+    }
 }
 
 impl sealed::Sealed for CxCore<'_> {}

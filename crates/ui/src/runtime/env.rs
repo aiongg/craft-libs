@@ -284,6 +284,9 @@ pub struct Scoped {
     pub scale: Scale,
     /// The innermost arena: components shown under it join it.
     pub arena: Option<ArenaId>,
+    /// The roving group of the innermost body with `ContainerProps.roving`: components shown under it put
+    /// their stops in it instead of the scope's Tab order.
+    pub(crate) roving: Option<Id>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
     /// The container instances above that receive scoped commands.
@@ -333,6 +336,7 @@ impl Env {
                 ids_stable: true,
                 scale,
                 arena: None,
+                roving: None,
                 transform: None,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
@@ -370,6 +374,7 @@ impl Env {
     pub fn capture(&self) -> EnvCapture {
         EnvCapture(self.derive(|s| {
             s.arena = None;
+            s.roving = None;
             s.transform = None;
             s.ink = Ink::default();
         }))

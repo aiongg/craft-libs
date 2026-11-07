@@ -19,10 +19,12 @@ pub(crate) fn patch_label(ctx: &Context, container: Id, label: &FieldLabel, node
         }
     });
     let target = label.id.accesskit_id();
+    let describes = label.role == crate::runtime::access::scope::FieldLabelRole::Describes;
     match nodes {
         [(control, keeps_name)] => {
+            let keeps_name = describes || *keeps_name;
             ctx.accesskit_node_builder(*control, |node| {
-                if *keeps_name {
+                if keeps_name {
                     let mut described = node.described_by().to_vec();
                     described.push(target);
                     node.set_described_by(described);

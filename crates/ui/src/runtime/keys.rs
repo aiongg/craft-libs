@@ -482,6 +482,12 @@ pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
     });
 }
 
+/// Routes `intent` to the component `target` for the rest of this pass, as if the key stage had: the label step
+/// sends `Reset` to the control behind a label.
+pub(crate) fn route(ctx: &Context, target: Id, intent: Intent) {
+    current(ctx, |stage| push(&mut stage.routed, Some(target), intent, false));
+}
+
 /// Takes an untaken `Submit` for the innermost scope with a default action.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn take_submit(ctx: &Context) -> bool {

@@ -14,7 +14,7 @@ use std::ops::RangeInclusive;
 
 pub use live::announce;
 pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
-pub use scope::FieldLabel;
+pub use scope::{FieldLabel, FieldLabelRole};
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

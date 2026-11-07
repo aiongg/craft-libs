@@ -9,7 +9,8 @@ use egui::Id;
 pub(crate) struct PaintRecord {
     /// The full text of the first elided run, shown as the tooltip and accessible name when no tooltip is set.
     pub elided: Option<String>,
-    /// The first text's baseline, which `LabelColumn` aligns a row label to next frame.
+    /// The screen y of the first text's baseline; step 17 turns it into a distance from the component's top, which
+    /// `LabelColumn` aligns a row label to next frame.
     pub baseline: Option<f32>,
     /// The faces painted this frame.
     pub faces: Vec<FaceRecord>,

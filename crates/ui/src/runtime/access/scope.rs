@@ -4,8 +4,22 @@
 //! one child's node.
 
 use crate::runtime::egui::{access as adapter, memory::Service};
+use crate::runtime::layout_memory;
+use crate::runtime::memory::sub;
+use craft_behavior::PressState;
 use craft_theme::Flags;
-use egui::{Context, Id, Rect};
+use egui::{Context, Id, Rect, Vec2};
+
+/// Whether a field label names its control or describes it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FieldLabelRole {
+    /// The label is the control's name.
+    #[default]
+    Names,
+    /// The control keeps its own name and the label describes it.
+    Describes,
+}
 
 /// The label a container shows beside its body.
 #[derive(Clone, Debug, PartialEq)]
@@ -15,16 +29,37 @@ pub struct FieldLabel {
     pub id: Id,
     /// The label's rect.
     pub rect: Rect,
-    /// The label is pressed this pass; a press on it focuses the control.
-    pub pressed: bool,
+    /// The label's press this pass, for a control that scrubs by its label.
+    pub press: PressState,
     /// The label's text.
     pub text: String,
+    /// Whether it names or describes the controls.
+    pub role: FieldLabelRole,
 }
 
 impl FieldLabel {
     /// A label of `text` at `rect`, the node `id`.
     pub fn new(id: Id, rect: Rect, text: impl Into<String>) -> Self {
-        FieldLabel { id, rect, pressed: false, text: text.into() }
+        FieldLabel { id, rect, press: PressState::IDLE, text: text.into(), role: FieldLabelRole::Names }
+    }
+
+    /// Whether the label names or describes the controls.
+    #[must_use]
+    pub fn role(mut self, role: FieldLabelRole) -> Self {
+        self.role = role;
+        self
+    }
+
+    /// The label's press this pass.
+    #[must_use]
+    pub fn with_press(mut self, press: PressState) -> Self {
+        self.press = press;
+        self
+    }
+
+    /// The label is held down or being dragged.
+    pub fn pressed(&self) -> bool {
+        self.press.phase.is_press()
     }
 }
 
@@ -32,7 +67,6 @@ impl FieldLabel {
 #[derive(Clone, Debug)]
 pub(crate) enum Kind {
     /// The controls inside are named by this label.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the container body step opens label scopes (F5)"))]
     Label(FieldLabel),
     /// The body shows one component whose node takes the container's facts.
     Merge,
@@ -42,6 +76,19 @@ struct Scope {
     container: Id,
     kind: Kind,
     nodes: Vec<(Id, bool)>,
+    /// The first baseline of the first control, from the control's top.
+    baseline: Option<f32>,
+    /// The control that registered a reset value and whether its value differs from it.
+    reset: Option<ResetFact>,
+}
+
+/// What a control tells its label scope about its reset (10.2).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct ResetFact {
+    /// The control that takes `Intent::Reset`.
+    pub control: Id,
+    /// The value differs from the reset value.
+    pub differs: bool,
 }
 
 #[derive(Default)]
@@ -49,7 +96,7 @@ struct Stack(Vec<Scope>);
 
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, kind: Kind) {
-    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new() }));
+    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), baseline: None, reset: None }));
 }
 
 /// The innermost label scope's label, read by `cx.field_label()`.
@@ -71,6 +118,33 @@ pub(crate) fn register(ctx: &Context, id: Id, keeps_name: bool) {
     });
 }
 
+/// Records the first baseline of a control inside the innermost label scope, measured from the control's top.
+/// The first control to report wins.
+pub(crate) fn record_baseline(ctx: &Context, baseline: f32) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.baseline.get_or_insert(baseline);
+        }
+    });
+}
+
+/// Registers the reset of the control `control` with the innermost label scope.
+pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.reset.get_or_insert(ResetFact { control, differs });
+        }
+    });
+}
+
+/// The reset fact the label scope of `container` recorded last frame.
+pub(crate) fn last_reset(ctx: &Context, container: Id) -> Option<ResetFact> {
+    Service::<Resets>::of(ctx).with(|resets| resets.0.get(&container).copied())
+}
+
+#[derive(Default)]
+struct Resets(std::collections::HashMap<Id, ResetFact>);
+
 /// What a merged container adds to its child's node.
 pub(crate) struct Merged {
     pub name: String,
@@ -86,7 +160,16 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
         Service::<Stack>::of(ctx).with(|stack| (stack.0.last().is_some_and(|scope| scope.container == container)).then(|| stack.0.pop()).flatten());
     let Some(scope) = scope else { return };
     match scope.kind {
-        Kind::Label(label) => adapter::patch_label(ctx, scope.container, &label, &scope.nodes),
+        Kind::Label(label) => {
+            adapter::patch_label(ctx, scope.container, &label, &scope.nodes);
+            if let Some(baseline) = scope.baseline {
+                layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
+            }
+            Service::<Resets>::of(ctx).with(|resets| match scope.reset {
+                Some(fact) => resets.0.insert(scope.container, fact),
+                None => resets.0.remove(&scope.container),
+            });
+        }
         Kind::Merge => {
             debug_assert_eq!(scope.nodes.len(), 1, "a merged container shows exactly one component");
             if let (Some(merged), Some((child, _))) = (merged, scope.nodes.first()) {

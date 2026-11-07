@@ -1,6 +1,8 @@
 //! The component traits, context types, `PaintUi`, `Looks`, the pipeline and its step functions, the label, body and item steps, the mount and overlay hosts and `contract::tooltip`.
 
 mod cx;
+mod group;
+mod label;
 mod looks;
 mod paint_ui;
 mod props;
@@ -17,6 +19,8 @@ pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Twe
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
+pub use group::{GroupHandle, GroupKind, GroupState};
+pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, SideLabel};
 pub use looks::Looks;
 pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
