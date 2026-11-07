@@ -230,7 +230,7 @@ impl<'a, K: Value + Eq + Hash + 'static> TreePicker<'a, K> {
 
     /// What the field shows: the picked item's path; else, in the muted look, the mixed word for a mixed value or the
     /// placeholder.
-    fn face(&self, value: Option<&Option<K>>, words: &PickerWords, separator: &str, env: &EnvView<'_>) -> SelectFace {
+    fn face(&self, value: Option<&Option<K>>, words: &PickerWords, separator: &str, env: &EnvView<'_>) -> SelectFace<'_> {
         let Some(value) = value else {
             return SelectFace::new(env.resolve(&words.mixed)).placeholder();
         };

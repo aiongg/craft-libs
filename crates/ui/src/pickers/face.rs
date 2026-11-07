@@ -49,7 +49,9 @@ pub struct SelectFace<'a> {
     #[prop(flag)]
     placeholder: bool,
     thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
-    /// Whether the text shows beside the thumbnail; it is the face's accessible name either way.
+    /// Whether the text shows beside the thumbnail; `false` shows the thumbnail alone. The text is the face's
+    /// accessible name either way.
+    #[prop]
     name: bool,
 }
 
@@ -64,14 +66,6 @@ impl<'a> SelectFace<'a> {
     #[must_use]
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = Some((aspect, Box::new(paint)));
-        self
-    }
-
-    /// Whether the text shows beside the thumbnail. `false` shows the thumbnail alone; the text stays the face's
-    /// accessible name.
-    #[must_use]
-    pub fn name(mut self, show: bool) -> Self {
-        self.name = show;
         self
     }
 
