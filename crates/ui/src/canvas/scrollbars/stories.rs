@@ -38,7 +38,8 @@ fn drag_thumb(fixture: &mut Fixture) {
     let Some(id) = fixture.root_id() else { return };
     let Some(track) = fixture.part(id, HORIZONTAL) else { return };
     let threshold = crate::testing::input::max_click_dist(fixture.ctx());
-    let grip = Target { node: track.node, rect: Rect::from_center_size(track.rect.left_center() + vec2(GRIP_THRESHOLDS * threshold, 0.0), Vec2::ZERO) };
+    let grip =
+        Target { node: track.node, rect: Rect::from_center_size(track.rect.left_center() + vec2(GRIP_THRESHOLDS * threshold, 0.0), Vec2::ZERO) };
     fixture.drag(&grip, Vec2::new(DRAG_THRESHOLDS * threshold, 0.0));
 }
 
