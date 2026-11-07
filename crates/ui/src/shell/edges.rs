@@ -2,11 +2,12 @@
 //! hands the resize to the operating system.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role};
+use crate::runtime::env::Env;
 use crate::runtime::windows::{ResizeEdge, WindowAction, WindowHost};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::target::{Caps, WindowChrome, WindowState};
-use egui::{Pos2, Rect, Response, Vec2, ViewportId};
+use egui::{Pos2, Rect, Response, Ui, Vec2, ViewportId};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -56,8 +57,9 @@ impl Outcome for WindowEdgesOutput {
 ///   the frame, or when the window procedure answers the hit test itself (`CaptionRegions::native_hit_test` on
 ///   Windows).
 /// - A corner wins over the edges it overlaps.
+/// - Show it with [`place`](Self::place), not `show`: the root has no size of its own.
 /// - The zones take no key focus: the operating system provides the keyboard path to size a window.
-#[must_use = "show the zones with `show`"]
+#[must_use = "show the zones with `place`"]
 #[derive(crate::contract::Component)]
 pub struct WindowEdges {
     #[common]
@@ -79,6 +81,15 @@ impl WindowEdges {
     pub fn holes(mut self, holes: &[Rect]) -> Self {
         self.holes = holes.to_vec();
         self
+    }
+
+    /// Shows the zones. The root takes the corner square at the window's top left corner, a leaf needs a rect
+    /// with an area and every other zone reaches outside it, so it is its own widget above the viewport's panels.
+    /// Call it after the panels, so the zones are registered last.
+    pub fn place(self, ui: &mut Ui) -> WindowEdgesOutput {
+        let corner = Env::of(ui).tokens().tokens().size.handle.md;
+        let at = Rect::from_min_size(ui.ctx().content_rect().min, Vec2::splat(corner));
+        <Self as crate::contract::Show>::show_at(self, ui, at)
     }
 
     /// Whether the window has zones now.
@@ -159,7 +170,6 @@ impl Component for WindowEdges {
         Sense::empty()
     }
 
-    /// Every zone reaches outside the root's empty rect, so each is its own widget above the viewport's panels.
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         self.pieces.clear();
         let ctx = cx.ui.ctx().clone();

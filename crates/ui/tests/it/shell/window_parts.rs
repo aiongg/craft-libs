@@ -50,7 +50,7 @@ fn moves(sent: &[ViewportCommand]) -> usize {
 
 /// Shows the zones with `holes` each frame and keeps the edges they report.
 fn zones<'a>(holes: &'a [Rect], started: &'a mut Vec<ResizeEdge>) -> impl FnMut(&mut Ui) + 'a {
-    move |ui| started.extend(WindowEdges::new(ViewportId::ROOT).holes(holes).show(ui).started)
+    move |ui| started.extend(WindowEdges::new(ViewportId::ROOT).holes(holes).place(ui).started)
 }
 
 #[trial]
