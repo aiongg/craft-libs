@@ -3,11 +3,11 @@
 use super::words::BarWords;
 use crate::buttons::{Button, IconButton, ToggleButton};
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    Show as _, WordSetCx as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role,
+    Show as _, ShowContainer as _, WordSetCx as _,
 };
 use crate::display::Divider;
-use crate::menu::MenuItem;
+use crate::menu::{Menu, MenuItem};
 use crate::primitives::IconSpec;
 use crate::runtime::commands::{self, CommandAccess as _, CommandRef, FireSource, ResolvedCommand};
 use crate::runtime::env::Label;
@@ -366,7 +366,6 @@ impl Component for BarItems {
 
     /// A click or the activation key on an item runs its command.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let _ = cx.popup("menu");
         let Some(laid) = &self.laid else { return };
         let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for &(index, _) in &laid.shown {
@@ -380,19 +379,22 @@ impl Component for BarItems {
 
     /// The overflow menu: one command row per overflowed item, a rule between sections.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
+        let Some(laid) = self.laid.as_ref().filter(|laid| laid.more.is_some()) else { return };
         let popup = cx.popup("menu");
-        let Some(laid) = &self.laid else { return };
         let (items, overflow) = (&self.items, &laid.overflow);
-        ui.show(popup, Overlay::menu(), |ui, _| {
-            let mut previous: Option<u16> = None;
-            for &index in overflow {
-                let item = &items[index];
-                if previous.is_some_and(|section| section != item.section) {
-                    Divider::horizontal().show(ui);
+        let name = cx.label();
+        ui.show(popup, crate::menu::layer(false), |ui, _| {
+            Menu::inline(name.clone()).show(ui, |ui, _| {
+                let mut previous: Option<u16> = None;
+                for &index in overflow {
+                    let item = &items[index];
+                    if previous.is_some_and(|section| section != item.section) {
+                        Divider::horizontal().show(ui);
+                    }
+                    MenuItem::command(item.command.clone()).show(ui);
+                    previous = Some(item.section);
                 }
-                MenuItem::command(item.command.clone()).show(ui);
-                previous = Some(item.section);
-            }
+            });
         });
     }
 

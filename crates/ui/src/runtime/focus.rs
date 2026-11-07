@@ -388,6 +388,11 @@ pub(crate) fn scope_chain(ctx: &Context, rec: &StopRec) -> Vec<Id> {
     })
 }
 
+/// Whether focus sits inside a menu and arrived by keyboard.
+pub(crate) fn keyboard_in_menu(ctx: &Context) -> bool {
+    focused_rec(ctx).is_some_and(|rec| menu_scope(ctx, &rec).is_some()) && with(ctx, |state| state.visible)
+}
+
 /// The innermost menu scope `rec` sits in: plain typed text inside a menu goes to its container.
 pub(crate) fn menu_scope(ctx: &Context, rec: &StopRec) -> Option<Id> {
     with(ctx, |state| {

@@ -97,7 +97,6 @@ struct LevelState {
     marks: bool,
     icons: bool,
     keyboard: bool,
-    keyboard_now: bool,
     pending: Option<Id>,
     close: bool,
     submenu: bool,
@@ -146,7 +145,7 @@ impl MenuLevel {
 
     /// Starts a pass over the level: the rows that registered last pass get their letters, and the rows of this pass
     /// register again.
-    fn begin(&self, submenu: bool) {
+    fn begin(&self, submenu: bool, keyboard: bool) {
         self.with(|state| {
             let letters = {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
@@ -155,8 +154,7 @@ impl MenuLevel {
             state.shown = state.now.iter().zip(letters).map(|(row, letter)| Assigned { id: row.id, letter, enabled: row.enabled }).collect();
             state.marks = state.now.iter().any(|row| row.mark);
             state.icons = state.now.iter().any(|row| row.icon);
-            state.keyboard = state.keyboard_now;
-            state.keyboard_now = false;
+            state.keyboard = keyboard;
             state.now.clear();
             state.submenu = submenu;
         });
@@ -189,13 +187,9 @@ impl MenuLevel {
         self.with(|state| state.icons)
     }
 
-    /// Whether a row of the level held keyboard focus in the last pass: the mnemonics show.
+    /// Whether the keyboard drives a menu: the mnemonics show.
     fn keyboard(&self) -> bool {
         self.with(|state| state.keyboard)
-    }
-
-    fn note_keyboard(&self) {
-        self.with(|state| state.keyboard_now = true);
     }
 
     pub(crate) fn set_pending(&self, id: Id) {
@@ -229,7 +223,7 @@ impl MenuLevel {
 /// The level a menu container puts into its body's env: the rows of the body register with it.
 pub(crate) fn level_env<C: Component>(cx: &Cx<'_, C>, values: &mut AppValues, submenu: bool) {
     let level = MenuLevel::of(&cx.recall::<LevelMemory>());
-    level.begin(submenu);
+    level.begin(submenu, crate::runtime::focus::keyboard_in_menu(&cx.core.ctx));
     values.set(level);
 }
 
@@ -486,9 +480,6 @@ impl Component for MenuItem<'_> {
             mark: self.marked_row(command.as_deref()),
             icon: self.lead_icon(command.as_deref()).is_some(),
         });
-        if cx.focus_visible() {
-            level.note_keyboard();
-        }
         let mut ran = enabled && cx.activation().is_some();
         let (mut forward, mut back) = (false, false);
         while let Some((step, _)) = cx.intents().take_move() {
