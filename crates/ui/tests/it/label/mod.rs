@@ -3,14 +3,18 @@
 pub mod kit;
 
 use self::kit::{Dial, Field, LabelledDial, RESET, Seen, Wide};
+use craft_host::target::ShellInfo;
 use craft_i18n::Direction;
 use craft_ui::contract::{FieldLabel, FieldLabelRole, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::pointer::{drag, moved, press, release};
+use craft_ui::testing::windows::FakeSystem;
 use craft_ui::testing::{Frames, trial};
 use egui::{Pos2, Rect, Shape, Ui, Vec2};
 use std::cell::RefCell;
+use std::sync::Arc;
 
 /// The label drag of the scrub trial, in points.
 const DRAG: f32 = 30.0;
@@ -120,6 +124,48 @@ fn dragging_a_label_that_scrubs_changes_the_value() {
             "a drag on the label scrubs by its length: {before} -> {after} (container: {container})"
         );
     }
+}
+
+/// The window's right edge as the scrub trial's pointer reaches it, and the point the warp puts it at.
+const EDGE_X: f32 = 799.0;
+const LANDED_X: f32 = 4.0;
+
+#[trial]
+fn a_wrapped_scrub_keeps_its_value_continuous() {
+    let system = Arc::new(FakeSystem::new());
+    let mut frames = Frames::uninstalled();
+    let installed = craft_ui::install(&frames.ctx, InstallSpec::new(ShellInfo::default(), system.clone()));
+    assert!(installed.is_ok(), "the context takes the runtime once");
+    let side = SideLabel::new().scrub(true);
+    let seen = RefCell::new(Seen::default());
+    let mut value = START;
+    let show = |ui: &mut Ui, value: &mut f64| {
+        Field::new("Opacity", side).id_salt("warp").show_at(ui, ROW_A, |ui, _| {
+            Dial::new(value, &seen).warping().show(ui);
+        });
+    };
+    frames.idle(3, |ui| show(ui, &mut value));
+    let label = seen.borrow().label.clone().map(|label| label.rect.center());
+    let from = label.unwrap_or_else(|| panic!("the dial ran inside a label scope"));
+    let step = |frames: &mut Frames, value: &mut f64, events: Vec<egui::Event>, at: Pos2| {
+        system.set_pointer(Some([at.x, at.y]));
+        frames.frame(events, |ui| show(ui, value));
+    };
+    step(&mut frames, &mut value, vec![moved(from)], from);
+    step(&mut frames, &mut value, vec![press(from)], from);
+    step(&mut frames, &mut value, vec![moved(from + Vec2::new(20.0, 0.0))], from + Vec2::new(20.0, 0.0));
+    let edge = Pos2::new(EDGE_X, from.y);
+    step(&mut frames, &mut value, vec![moved(edge)], edge);
+    assert_eq!(system.warps().len(), 1, "reaching the edge warps the pointer once");
+    assert_eq!(frames.cursor_icon(), egui::CursorIcon::None, "the scrub hides the pointer");
+    let before = value;
+    let landed = Pos2::new(LANDED_X, from.y);
+    step(&mut frames, &mut value, vec![moved(landed)], landed);
+    assert!((value - before).abs() < 0.01, "the warp does not move the value: {before} -> {value}");
+    let on = landed + Vec2::new(DRAG, 0.0);
+    step(&mut frames, &mut value, vec![moved(on)], on);
+    assert!((value - before - f64::from(DRAG)).abs() < 0.01, "the drag goes on from the value before the warp: {before} -> {value}");
+    assert_eq!(system.warps().len(), 1, "the pointer far from an edge does not warp again");
 }
 
 fn double_click(frames: &mut Frames, at: Pos2, show: &mut impl FnMut(&mut Ui)) {

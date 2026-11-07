@@ -47,11 +47,18 @@ pub struct Dial<'a> {
     common: Common,
     value: Bind<'a, f64>,
     seen: &'a RefCell<Seen>,
+    warping: bool,
 }
 
 impl<'a> Dial<'a> {
     pub fn new(value: &'a mut f64, seen: &'a RefCell<Seen>) -> Self {
-        Dial { common: Common::new(), value: Bind::bound(value).reset(RESET), seen }
+        Dial { common: Common::new(), value: Bind::bound(value).reset(RESET), seen, warping: false }
+    }
+
+    /// The label scrub warps the pointer at the window edge and hides it.
+    pub fn warping(mut self) -> Self {
+        self.warping = true;
+        self
     }
 }
 
@@ -77,7 +84,9 @@ impl Component for Dial<'_> {
     }
 
     fn scrub(&self) -> Option<Scrub<f64>> {
-        Some(Scrub::new(ValueDrag::relative(RATE, RANGE), |value| *value, |value| value))
+        let drag = ValueDrag::relative(RATE, RANGE);
+        let drag = if self.warping { drag.warp(true).hide_cursor(true) } else { drag };
+        Some(Scrub::new(drag, |value| *value, |value| value))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {

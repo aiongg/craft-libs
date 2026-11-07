@@ -15,13 +15,15 @@ use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Drives as _, spec};
+use crate::runtime::windows::WindowHost;
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
-    CancelReason, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PartRef, PressCancel, Proposal, Roving, Sense, Value,
+    CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartRef,
+    PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
-use egui::{Context, Id, Rect, Response, Ui, Vec2};
+use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -659,6 +661,34 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
 #[derive(Clone, Default)]
 struct ScrubStart(f64);
 
+/// The pointer warps of the running label scrub.
+#[derive(Clone, Default)]
+struct ScrubWarp(DragWarp);
+
+/// The total warp of the running scrub. A scrub that warps moves the pointer to the other side of the window when
+/// it reaches an edge, once the pointer from the last warp has shown up at its new place; a platform that cannot
+/// warp leaves the drag as it is.
+fn scrub_warp<C: Component>(cx: &mut Cx<'_, C>, drag: &ValueDrag, pos: Pos2) -> Vec2 {
+    if !drag.warps() {
+        return Vec2::ZERO;
+    }
+    let id = sub(cx.core.id, "scrub_warp");
+    let ctx = cx.core.ctx.clone();
+    let warp = &mut cx.core.memory.shown::<ScrubWarp>(id).0;
+    let shift = warp.shift(pos);
+    if warp.pending() {
+        return shift;
+    }
+    let Some(screen) = crate::runtime::pointer::frame(&ctx).pos else { return shift };
+    let hosts = WindowHost::of(&ctx);
+    if let (Some(by), Some(desktop)) = (drag.warp_by(screen, ctx.content_rect()), hosts.desktop_pointer())
+        && hosts.warp_pointer(desktop + by)
+    {
+        warp.sent(pos, by);
+    }
+    shift
+}
+
 /// Step 9, before the component: a drag on the side label scrubs the value of a component that opts in with
 /// `Component::scrub`. The control registers with its label scope so the label senses the drag from the next pass on.
 pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
@@ -675,16 +705,27 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     match label.press.phase {
         PressPhase::DragStart { .. } => {
             cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, scrub.read);
+            *cx.core.memory.shown::<ScrubWarp>(sub(cx.core.id, "scrub_warp")) = ScrubWarp::default();
+            hide_scrub_cursor(cx, &scrub.drag);
             cx.begin();
         }
-        PressPhase::Drag { .. } => {
+        PressPhase::Drag { pos, .. } => {
+            hide_scrub_cursor(cx, &scrub.drag);
             let start = cx.core.memory.shown::<ScrubStart>(start_id).0;
-            if let Some(next) = scrub.drag.value(start, &label.press, rtl) {
+            let shift = scrub_warp(cx, &scrub.drag, pos);
+            if let Some(next) = scrub.drag.value_shifted(start, &label.press, rtl, shift) {
                 cx.propose((scrub.write)(next));
             }
         }
         PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => cx.commit(),
         _ => {}
+    }
+}
+
+/// A scrub that hides the pointer asks for no cursor while it runs.
+fn hide_scrub_cursor<C: Component>(cx: &Cx<'_, C>, drag: &ValueDrag) {
+    if drag.hides_cursor() {
+        crate::runtime::cursor::request(&cx.core.ctx, Cursor::Painted(PaintedCursor::Hidden), CursorPriority::Drag);
     }
 }
 
