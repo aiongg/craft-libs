@@ -2,7 +2,7 @@
 
 mod derives;
 mod fixes;
-mod kit;
+pub(crate) mod kit;
 mod pipeline;
 mod pointer;
 mod style;

@@ -10,9 +10,10 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
+use crate::runtime::motion::{Animate as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
-use craft_behavior::{KeyRole, MotionMode, PartRef, Proposal, Roving, Sense};
+use craft_behavior::{KeyRole, PartRef, Proposal, Roving, Sense};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
@@ -468,35 +469,13 @@ pub(crate) fn after_update(core: &mut CxCore<'_>) {
 #[derive(Clone, Copy, Default)]
 pub(crate) struct LastState(pub bool, pub bool);
 
-/// The eased hover, press and on values of a component.
-#[derive(Clone, Copy, Default)]
-struct Eased {
-    mix: [f32; 3],
-}
-
-// F3-LATER: motion service (F4: `Animate`, `MotionSpec`, one clock and one repaint scheduler). Frame-based easing.
-fn ease(core: &mut CxCore<'_>, targets: [bool; 3]) -> StateMix {
-    let mode = core.env.motion().mode;
-    let id = core.id;
-    let face = core.face_mode;
-    let mut moving = false;
-    let mix = {
-        let eased = core.memory.shown::<Eased>(sub(id, "eased"));
-        for (value, target) in eased.mix.iter_mut().zip(targets) {
-            let goal = f32::from(u8::from(target));
-            *value = if face || mode == MotionMode::Off { goal } else { *value + (goal - *value) * 0.25 };
-            if (*value - goal).abs() < 0.01 {
-                *value = goal;
-            } else {
-                moving = true;
-            }
-        }
-        eased.mix
-    };
-    if moving {
-        repaint::request(&core.ctx);
+/// The eased hover, press and on values of a component; a face shows its targets.
+fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
+    let [hover, press, on] = targets;
+    if core.face_mode {
+        return StateMix::new(f32::from(u8::from(hover)), f32::from(u8::from(press)), f32::from(u8::from(on)));
     }
-    StateMix::new(mix[0], mix[1], mix[2])
+    StateMix::new(core.anim_bool("hover", hover, spec::HOVER), core.anim_bool("press", press, spec::HOVER), core.anim_bool("on", on, spec::CHECK))
 }
 
 /// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.

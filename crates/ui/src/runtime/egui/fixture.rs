@@ -8,6 +8,8 @@ pub(crate) struct FrameResult {
     pub closed: bool,
     /// The cursor the frame's output asked for.
     pub cursor: egui::CursorIcon,
+    /// The wait egui asks for before the root viewport's next pass; `Duration::MAX` when it asks for none.
+    pub repaint_delay: std::time::Duration,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -17,7 +19,8 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
-    FrameResult { closed, cursor: output.platform_output.cursor_icon }
+    let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
+    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay }
 }
 
 /// A key press event with `modifiers`.
@@ -209,4 +212,9 @@ pub(crate) fn window_blurred() -> Event {
 /// Gives key focus to the widget `id`.
 pub(crate) fn focus(ctx: &Context, id: egui::Id) {
     ctx.memory_mut(|memory| memory.request_focus(id));
+}
+
+/// Whether a repaint was requested since the last pass.
+pub(crate) fn repaint_requested(ctx: &Context) -> bool {
+    ctx.has_requested_repaint()
 }
