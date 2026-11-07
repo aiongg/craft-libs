@@ -118,3 +118,14 @@ fn each_section_reports_its_place_in_the_stack() {
         assert_eq!(fixture.tree().position(*id), Some((index, TITLES.len())), "section {index} is {} of {}", index + 1, TITLES.len());
     }
 }
+
+#[trial]
+fn zz_debug_stack() {
+    let (mut fixture, _) = scene();
+    let mut out = String::new();
+    for _ in 0..6 {
+        fixture.idle(1);
+        out += &format!("{:?} passes {}; ", fixture.shown(), fixture.passes());
+    }
+    panic!("{out}");
+}
