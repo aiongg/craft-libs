@@ -14,6 +14,8 @@ pub(crate) struct Edit<'a> {
     pub read_only: bool,
     /// Whether the widget senses focus and input; a disabled one declares neither to AccessKit.
     pub enabled: bool,
+    /// The widget takes key focus, which a disabled one does while its reason shows on focus.
+    pub focusable: bool,
     pub multiline: bool,
     pub password: bool,
     pub hint: Option<&'a str>,
@@ -43,8 +45,25 @@ pub(crate) struct Shown {
 
 /// Runs the widget at `edit.rect`.
 pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
-    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } =
-        edit;
+    let Edit {
+        id,
+        rect,
+        text,
+        read_only,
+        enabled,
+        focusable,
+        multiline,
+        password,
+        hint,
+        mono,
+        ink,
+        filter,
+        char_limit,
+        preedit,
+        rtl,
+        caret_visible,
+        underline,
+    } = edit;
     let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
     let font_id = font.resolve(ui.style());
     let had_focus = ui.memory(|memory| memory.has_focus(id));
@@ -68,7 +87,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     let output = ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
         // The text shows only inside the text part, however wide the line is.
         ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-        if !enabled {
+        if !enabled && !focusable {
             ui.disable();
         }
         super::style::set_text_cursor(ui, caret_visible);
@@ -78,7 +97,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                 let mut edit = if multiline { egui::TextEdit::multiline($buffer) } else { egui::TextEdit::singleline($buffer) };
                 edit = edit
                     .id(id)
-                    .interactive(enabled)
+                    .interactive(focusable)
                     .frame(egui::Frame::NONE)
                     .desired_width(rect.width())
                     .min_size(rect.size())
@@ -96,7 +115,19 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                 edit.show(ui)
             }};
         }
-        if read_only { build!(&mut read) } else { build!(&mut *text) }
+        let shown = if read_only { build!(&mut read) } else { build!(&mut *text) };
+        // egui gives a widget of a disabled `Ui` no focus stop and drops its focus; a disabled part whose reason shows
+        // on focus keeps both (as `response::widget` does for a root).
+        if focusable && !ui.is_enabled() {
+            let layer = ui.layer_id();
+            ui.ctx().memory_mut(|memory| {
+                memory.interested_in_focus(id, layer);
+                if had_focus {
+                    memory.request_focus(id);
+                }
+            });
+        }
+        shown
     });
     let output = output.inner;
     let focused = output.response.has_focus();

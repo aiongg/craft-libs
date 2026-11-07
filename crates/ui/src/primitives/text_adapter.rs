@@ -88,6 +88,8 @@ pub(crate) struct AdapterIn<'a> {
     pub keys: KeyUse,
     pub read_only: bool,
     pub enabled: bool,
+    /// The widget can hold key focus: an enabled part, or a disabled one whose reason shows on focus.
+    pub focusable: bool,
     pub rtl: bool,
     /// The text widget holds key focus.
     pub focused: bool,
@@ -280,6 +282,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         text: &mut display,
         read_only: input.read_only,
         enabled: input.enabled,
+        focusable: input.focusable,
         multiline: input.options.multiline(),
         password: input.options.mask,
         hint: input.placeholder,

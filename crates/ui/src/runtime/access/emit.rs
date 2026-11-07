@@ -265,7 +265,14 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
     keys::register_expanded(ctx, own.id, expanded);
     scope::register(
         ctx,
-        scope::ScopeNode { id: own.id, keeps_name: own.keeps_name, name: name.text.clone(), description: spec.description.clone(), unnamed },
+        scope::ScopeNode {
+            id: own.id,
+            keeps_name: own.keeps_name,
+            name: name.text.clone(),
+            description: spec.description.clone(),
+            unnamed,
+            inner_stop: None,
+        },
     );
 }
 

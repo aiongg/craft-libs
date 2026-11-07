@@ -4,8 +4,8 @@
 //! one child's node.
 
 use super::emit;
-use crate::runtime::env::Message;
 use crate::runtime::egui::{access as adapter, memory as store, memory::Service};
+use crate::runtime::env::Message;
 use crate::runtime::inspect::Finding;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{self, sub};
@@ -100,8 +100,9 @@ struct Scope {
     kind: Kind,
     /// The direct controls: node components inside this scope that sit in no other node component of it.
     nodes: Vec<ScopeNode>,
-    /// Node components inside this scope whose step 16 has not come yet, outermost first.
-    open: Vec<Id>,
+    /// Node components inside this scope whose step 16 has not come yet, outermost first, with the number of focus stops
+    /// registered before they began.
+    open: Vec<(Id, usize)>,
     /// The first baseline of the first control, from the control's top.
     baseline: Option<f32>,
     /// The control that registered a reset value and whether its value differs from it.
@@ -124,6 +125,8 @@ pub(crate) struct ScopeNode {
     pub description: Option<String>,
     /// The missing-name finding of a node that may still be named by the scope: reported when it is not.
     pub unnamed: Option<Finding>,
+    /// The first focus stop inside a control that has none of its own: where a click on its label moves focus.
+    pub inner_stop: Option<crate::runtime::focus::FocusTarget>,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -171,7 +174,7 @@ pub(crate) fn field_label(ctx: &Context) -> Option<FieldLabel> {
 pub(crate) fn enter(ctx: &Context, id: Id) {
     Service::<Stack>::run(ctx, |stack| {
         if let Some(scope) = stack.0.last_mut() {
-            scope.open.push(id);
+            scope.open.push((id, crate::runtime::focus::stop_count(ctx)));
         }
     });
 }
@@ -181,8 +184,9 @@ pub(crate) fn enter(ctx: &Context, id: Id) {
 pub(crate) fn register(ctx: &Context, mut node: ScopeNode) {
     let unnamed = Service::<Stack>::run(ctx, |stack| {
         let Some(scope) = stack.0.last_mut() else { return node.unnamed.take() };
-        let direct = match scope.open.iter().rposition(|open| *open == node.id) {
+        let direct = match scope.open.iter().rposition(|(open, _)| *open == node.id) {
             Some(at) => {
+                node.inner_stop = crate::runtime::focus::first_stop_inside(ctx, node.id, scope.open[at].1);
                 scope.open.truncate(at);
                 at == 0
             }
@@ -400,7 +404,7 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             }
             // A click on a label, as on any form label, moves focus to its one control.
             if let (true, [only]) = (label.activated, &scope.nodes[..]) {
-                crate::runtime::focus::request(ctx, crate::runtime::focus::FocusTarget::Id(only.id));
+                crate::runtime::focus::request(ctx, only.inner_stop.unwrap_or(crate::runtime::focus::FocusTarget::Id(only.id)));
             }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));

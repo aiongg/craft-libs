@@ -6,12 +6,12 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::words::TreePickerWords;
 use super::SelectFace;
+use super::words::TreePickerWords;
 use crate::contract::overlay::{OverlayFit, ViewportShare};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, LeadOnOpen, MeasureCx, Overlay, OverlayUi,
-    Overlays as _, PaintUi, PartsCx, Props as _, Remember as _, Role, SelectMode, ShowCollection as _, Sizing, Trigger, WordSetCx as _,
+    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, SelectMode, ShowCollection as _, Sizing, Trigger, WordSetCx as _,
 };
 use crate::list::{List, ListRow, OpenSet, RowInk};
 use crate::primitives::IconSpec;
@@ -236,16 +236,21 @@ impl<K: Value + Eq + Hash + 'static> Component for TreePicker<'_, K> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        cx.part(FACE, rect).sense(Sense::HOVER);
+        cx.part(FACE, rect)
+            .sense(Sense::CLICK | Sense::HOVER | Sense::TAKE_FOCUS)
+            .pointer_only("Enter, Space and Alt+Down open the tree")
+            .toggles("tree");
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, Option<K>>> {
         Some(self.value.reborrow())
     }
 
-    /// A click, Enter, Space or Alt+Down toggles the popup.
+    /// A click on the face and Alt+Down open the popup through the face's `toggles`; Enter and Space toggle it here.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        cx.popup("tree").trigger(Trigger::Click, cx);
+        if cx.activation().is_some() {
+            cx.popup("tree").trigger(Trigger::Click, cx);
+        }
     }
 
     /// The popup: the tree with the folders closed except those holding the picked item, which is selected and in

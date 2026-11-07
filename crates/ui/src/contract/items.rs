@@ -359,7 +359,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A scrolling collection in a bounded room: `Content` takes its rows up to the room, `Fill` the room.
         match comp.props(Internal::new()).sizing {
             Sizing::Fill => Vec2::ZERO,
-            Sizing::Content => Vec2::new(if self.content_sized(comp) { self.content.x } else { 0.0 }, height.min(room.y)),
+            Sizing::Content | Sizing::FillWidth => Vec2::new(if self.content_sized(comp) { self.content.x } else { 0.0 }, height.min(room.y)),
         }
     }
 
@@ -367,7 +367,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let width = if self.room.x.is_finite() && !self.content_sized(comp) { self.room.x.max(size.x) } else { size.x };
         let height = match (self.scrolls && self.room.y.is_finite(), comp.props(Internal::new()).sizing) {
             (true, Sizing::Fill) => self.room.y,
-            (true, Sizing::Content) => size.y.min(self.room.y),
+            (true, Sizing::Content | Sizing::FillWidth) => size.y.min(self.room.y),
             (false, _) => size.y,
         };
         Vec2::new(width, height)

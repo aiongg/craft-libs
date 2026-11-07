@@ -102,6 +102,9 @@ pub enum Pad {
 pub enum Sizing {
     /// The available rect.
     Fill,
+    /// The available width and the height its content took last pass: a row of a column that gives no row the room
+    /// left under it.
+    FillWidth,
     /// The size its content took last pass.
     #[default]
     Content,

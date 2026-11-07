@@ -47,7 +47,7 @@ pub struct Field<'a> {
 impl<'a> Field<'a> {
     /// A field labelled `label`, beside its control, filling the width offered.
     pub fn new(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).footer(FooterRegion::new()).label(SideLabel::new());
+        let props = ContainerProps::new().sizing(Sizing::FillWidth).footer(FooterRegion::new()).label(SideLabel::new());
         Field { common: Common::new(), props, help: None }.label(label)
     }
 

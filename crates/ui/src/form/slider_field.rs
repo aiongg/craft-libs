@@ -70,7 +70,7 @@ impl<'a> SliderField<'a> {
     }
 
     fn slider(&self, name: &Label, shown: Mixed<f64>) -> Slider<'static> {
-        let slider = Slider::new(Bind::given(shown), self.range.clone()).scale(self.scale).label(name.clone());
+        let slider = Slider::new(self.given(shown), self.range.clone()).scale(self.scale).label(name.clone());
         let slider = match self.set_step() {
             Some(step) => slider.step(step),
             None => slider,
@@ -81,13 +81,27 @@ impl<'a> SliderField<'a> {
         }
     }
 
+    /// The binding a child shows `shown` through, with the reset value of this component's own.
+    fn given(&self, shown: Mixed<f64>) -> Bind<'static, f64> {
+        let bind = Bind::given(shown);
+        match self.value.reset_value() {
+            Some(default) => bind.reset(*default),
+            None => bind,
+        }
+    }
+
     fn field(&self, name: &Label, shown: Mixed<f64>) -> NumberField<'static> {
         let number = match shown {
             Mixed::Same(value) => Mixed::Same(Some(value)),
             Mixed::Mixed => Mixed::Mixed,
         };
+        let bind = Bind::given(number);
+        let bind = match self.value.reset_value() {
+            Some(default) => bind.reset(Some(*default)),
+            None => bind,
+        };
         let step = self.field_step();
-        let field = NumberField::new(name.clone(), Bind::given(number))
+        let field = NumberField::new(name.clone(), bind)
             .range(self.range.clone())
             .step(step)
             .snap_typed(self.set_step().is_some())
@@ -133,7 +147,13 @@ impl Component for SliderField<'_> {
         let flow = Flow::new(cx.rect, cx.env.direction().is_rtl());
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
         // The field is shown first, so it is the first Tab stop.
-        let typed = ui.child("field", place(field), self.field(&name, shown));
+        // The group has no stop, so its tooltip, and with it the reason it is disabled, is carried by the first stop.
+        let field_view = self.field(&name, shown);
+        let field_view = match cx.resolved.tooltip {
+            Some(tooltip) => field_view.tooltip(tooltip.clone()),
+            None => field_view,
+        };
+        let typed = ui.child("field", place(field), field_view);
         let dragged = ui.child("slider", place(track), self.slider(&name, shown));
         let start = *self.range.start();
         cx.adopt(&typed, &start, |value, mine| {

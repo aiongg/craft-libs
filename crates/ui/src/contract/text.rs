@@ -308,8 +308,9 @@ pub(crate) fn run<C: Component>(
     let now = cx.now();
     let caret_visible = !focused || cx.blink(state.caret_moved);
     let enabled = cx.core.resolved.enabled && decl.options.enabled;
+    let focusable = super::steps::takes_focus(cx.core.resolved) && decl.options.enabled;
     let read_only = cx.core.resolved.read_only || !enabled;
-    let ink = if decl.options.enabled { ink } else { crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.disabled) };
+    let ink = if enabled { ink } else { crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.disabled) };
     serve_access(cx, &mut state, widget, &decl.shown, read_only);
     cx.core.surface_slot = Some(ui.painter().add(egui::Shape::Noop));
     let out = adapter::run(
@@ -325,6 +326,7 @@ pub(crate) fn run<C: Component>(
             keys,
             read_only,
             enabled,
+            focusable,
             rtl,
             focused,
             ink,
