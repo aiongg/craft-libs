@@ -1,6 +1,5 @@
 //! The drawer's own logic: how an edit changes the toolbar and what a drop on the rail asks for.
 
-use craft_ui::contract::Show as _;
 use craft_ui::rails::{
     DrawerGroup, DropAt, LastUsed, RailTool, ToolDrag, ToolRail, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit, drop_edit,
 };

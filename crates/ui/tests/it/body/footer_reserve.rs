@@ -50,6 +50,6 @@ fn a_dialog_with_a_filling_body_keeps_its_footer_below_the_body_and_inside_the_s
     for label in ["Apply", "Cancel"] {
         let button = fixture.by_label(label).expect("the footer button is shown");
         assert!(screen.contains_rect(button.rect), "{label} is inside the screen: {:?} in {screen:?}", button.rect);
-        assert!(button.rect.top() >= body.bottom() - 0.5, "{label} is below the body: {:?} under {body:?}", button.rect);
+        assert!(craft_ui::testing::relations::above(body, button.rect), "{label} is below the body: {:?} under {body:?}", button.rect);
     }
 }
