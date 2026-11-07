@@ -331,7 +331,6 @@ pub(crate) fn active_part(ctx: &Context, id: Id) -> Option<PartRef> {
 }
 
 /// The text part that commits its draft in this pass because a press moved focus away from it (8.3).
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn commit_now(ctx: &Context) -> Option<Id> {
     with(ctx, |state| state.press.commit_now)
 }

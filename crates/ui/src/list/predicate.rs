@@ -39,7 +39,9 @@ impl SourceTest<'_> {
 
 /// Whether a drag may land at a spot, given the drag, the row under the pointer and the insert position:
 /// `List::accepts`.
-pub struct DropTest<'a, K>(Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>);
+pub struct DropTest<'a, K>(Box<DropFn<'a, K>>);
+
+type DropFn<'a, K> = dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a;
 
 impl<'a, K> DropTest<'a, K> {
     /// The test that runs `test`.

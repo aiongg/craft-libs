@@ -306,6 +306,16 @@ fn expand_for_overflow(ui: &mut Ui, at: ShowAt, rect: Rect, overflow: f32, rtl: 
     }
 }
 
+/// What the component senses itself: a disabled one that shows a reason on focus stays a Tab stop and senses nothing else.
+fn own_sense<C: Component>(hooks: &dyn ShapeHooks<C>, comp: &C, resolved: &Resolved, inert: bool) -> Sense {
+    match (inert, resolved.enabled) {
+        (true, _) => Sense::HOVER,
+        (false, true) => hooks.sense(comp, comp.sense()),
+        (false, false) if steps::takes_focus(resolved) => Sense::HOVER | comp.sense().intersection(Sense::FOCUS),
+        (false, false) => Sense::HOVER,
+    }
+}
+
 fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
@@ -364,13 +374,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         (None, _, Some((widget, keys))) => (Some(widget), Some(keys)),
         (None, keys, None) => (None, keys),
     };
-    let own = match (inert, resolved.enabled) {
-        (true, _) => Sense::HOVER,
-        (false, true) => p.hooks.sense(comp, comp.sense()),
-        // A disabled component that shows a reason on focus stays a Tab stop and senses nothing else.
-        (false, false) if steps::takes_focus(resolved) => Sense::HOVER | comp.sense().intersection(Sense::FOCUS),
-        (false, false) => Sense::HOVER,
-    };
+    let own = own_sense(&*p.hooks, comp, resolved, inert);
     // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
     let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
     let arena = p.hooks.arena(comp);
