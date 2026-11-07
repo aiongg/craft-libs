@@ -17,14 +17,14 @@ note = "A `Component` shown with `Show::show`; `ui.add(Button::new(..))` becomes
 [[type]]
 name = "ButtonVariant"
 old = "craft_theme::ButtonVariant"
-new = "craft_theme::Variant"
+new = ""
 status = "replaced"
 note = "Primary, Secondary, Ghost and Danger are `Variant::PRIMARY`, `SECONDARY`, `GHOST` and `DANGER`."
 
 [[type]]
 name = "ButtonTone"
 old = "craft_ui::controls::button::ButtonTone"
-new = "craft_theme::Variant"
+new = ""
 status = "replaced"
 note = "`ButtonTone::Accent` is `Variant::look(Emphasis::Outline, Tone::Accent)`: the label and icon take the accent colour and the edge takes the accent border."
 
@@ -69,13 +69,6 @@ old = "craft_ui::controls::link::Link"
 new = "craft_ui::buttons::Link"
 status = "moved"
 note = "A `Component`; the caller reads `clicked()`. Opening the URL needs `Cx::open_url` (not in the contract yet)."
-
-[[type]]
-name = "IconButton (deprecated)"
-old = "craft_ui::buttons::IconButton"
-new = "craft_ui::buttons::IconButton"
-status = "replaced"
-note = "The deprecated legacy `buttons::IconButton::new(label, size, &style).show(ui, paint_icon)` (app-supplied colours and painting) has no counterpart. Call sites use `IconButton::new(icon).label(label)` with a catalog icon and a theme variant; a custom painter is an app component."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 
@@ -219,3 +212,18 @@ new = "url(..)"
 type = "Link"
 old = "role(TypeRole)"
 new = "role(TypeRole)"
+
+[[call]]
+old = "craft_theme::ButtonVariant"
+new = "craft_theme::Variant"
+note = "Type `ButtonVariant` is replaced; the type entry above has the details."
+
+[[call]]
+old = "craft_ui::controls::button::ButtonTone"
+new = "craft_theme::Variant"
+note = "Type `ButtonTone` is replaced; the type entry above has the details."
+
+[[call]]
+old = "IconButton::new(label, size, &style).show(ui, paint_icon)"
+new = ""
+note = "The deprecated legacy `buttons::IconButton` (app-supplied colours and painting) has no counterpart. Call sites use `IconButton::new(icon).label(label)` with a catalog icon and a theme variant; a custom painter is an app component."

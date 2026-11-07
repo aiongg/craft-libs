@@ -111,7 +111,7 @@ note = "`Backdrop::None` stays the transparent backdrop. A `Dialog` defaults to 
 [[type]]
 name = "InitialFocus"
 old = "craft_ui::dialog::InitialFocus"
-new = "craft_ui::runtime::focus::Initial"
+new = ""
 status = "replaced"
 note = "Auto and FirstField are `Initial::First`, DefaultButton is `Initial::Default`, Field(id) is `Initial::Key(name)`, None is `Initial::Keep`."
 
@@ -181,7 +181,7 @@ note = "The body step sizes the scroll region."
 [[type]]
 name = "PlaceKey"
 old = "craft_ui::dialog::PlaceKey"
-new = "craft_ui::contract::SaveKey"
+new = ""
 status = "replaced"
 note = "`Dialog::remember(SaveKey::new(\"app.name\"))`."
 
@@ -202,7 +202,7 @@ note = "See `keep_on_screen`."
 [[type]]
 name = "any_modal"
 old = "craft_ui::dialog::any_modal"
-new = "craft_ui::runtime::overlay::any_open"
+new = ""
 status = "replaced"
 note = "`any_open(ctx, OpenFilter::Modal)`."
 
@@ -230,7 +230,7 @@ note = "A component style with the container's metrics; the look comes from the 
 [[type]]
 name = "FullWindowFx"
 old = "craft_ui::dialog::FullWindowFx"
-new = "craft_ui::dialog::FooterCx"
+new = ""
 status = "replaced"
 note = "The footer closure's context."
 
@@ -411,3 +411,23 @@ new = "cursor(CursorIcon)"
 type = "DialogHost"
 old = "show(ctx)"
 new = "run(ui)"
+
+[[call]]
+old = "craft_ui::dialog::InitialFocus"
+new = "craft_ui::runtime::focus::Initial"
+note = "Type `InitialFocus` is replaced; the type entry above has the details."
+
+[[call]]
+old = "craft_ui::dialog::PlaceKey"
+new = "craft_ui::contract::SaveKey"
+note = "Type `PlaceKey` is replaced; the type entry above has the details."
+
+[[call]]
+old = "craft_ui::dialog::any_modal"
+new = "craft_ui::runtime::overlay::any_open"
+note = "Type `any_modal` is replaced; the type entry above has the details."
+
+[[call]]
+old = "craft_ui::dialog::FullWindowFx"
+new = "craft_ui::dialog::FooterCx"
+note = "Type `FullWindowFx` is replaced; the type entry above has the details."
