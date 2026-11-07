@@ -44,8 +44,14 @@ pub enum Declared {
     Collapse,
     /// A custom action.
     Custom,
+    /// Scroll up by a page.
+    ScrollUp,
     /// Scroll down by a page.
     ScrollDown,
+    /// Scroll left by a page.
+    ScrollLeft,
+    /// Scroll right by a page.
+    ScrollRight,
 }
 
 impl Declared {
@@ -60,7 +66,10 @@ impl Declared {
             Declared::Expand => Action::Expand,
             Declared::Collapse => Action::Collapse,
             Declared::Custom => Action::CustomAction,
+            Declared::ScrollUp => Action::ScrollUp,
             Declared::ScrollDown => Action::ScrollDown,
+            Declared::ScrollLeft => Action::ScrollLeft,
+            Declared::ScrollRight => Action::ScrollRight,
         }
     }
 }

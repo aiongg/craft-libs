@@ -3,7 +3,7 @@
 use super::drive::{Plan, root_target, run, settled, variant_name, variants};
 use super::{ANY, Case, Subject};
 use crate::contract::ShapeKind;
-use crate::runtime::egui::access::{AccessTree, Declared};
+use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
 use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::Fixture;
 use crate::testing::pointer;
@@ -159,8 +159,9 @@ fn any_expanded(tree: &AccessTree) -> bool {
 
 /// Every intent the component takes has its AccessKit action declared on a node (core 12.2). The intents are read
 /// from what the keys the type keeps do on a focused story: an activation key or arrow that gives a click or changes
-/// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`; a key that
-/// opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
+/// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`, or, on a
+/// node that declares scroll actions on the arrow's axis (a view that pans), the scroll action of the arrow's
+/// direction; a key that opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
 fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     if matches!(probe.input, Input::Text | Input::Editor | Input::Display) {
@@ -174,6 +175,14 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
         (Key::ArrowLeft, true, Some(Declared::Decrement)),
         (Key::ArrowDown, true, Some(Declared::Decrement)),
     ];
+    // The scroll action each arrow is, and the pair of its axis.
+    let scroll_of = |key: Key| match key {
+        Key::ArrowRight => Some((Declared::ScrollRight, [Declared::ScrollLeft, Declared::ScrollRight])),
+        Key::ArrowLeft => Some((Declared::ScrollLeft, [Declared::ScrollLeft, Declared::ScrollRight])),
+        Key::ArrowDown => Some((Declared::ScrollDown, [Declared::ScrollUp, Declared::ScrollDown])),
+        Key::ArrowUp => Some((Declared::ScrollUp, [Declared::ScrollUp, Declared::ScrollDown])),
+        _ => None,
+    };
     for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Invalid)) {
         for &(key, _, step) in keys.iter().filter(|(_, kept, _)| *kept) {
             let (mut fixture, _) = settled(story, probe);
@@ -194,11 +203,16 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             if clicked || (changed && step.is_none()) {
                 needs.push(Declared::Click);
             }
+            let tree = fixture.tree();
+            // A view that pans declares the scroll actions of its axis on its own node, and the arrow is one of them.
+            let pans = crate::runtime::focus::focused_rec(fixture.ctx())
+                .map(|rec| NodeKey::of(rec.stop.id))
+                .zip(scroll_of(key))
+                .filter(|(node, (_, axis))| axis.iter().any(|d| tree.declares_key(*node, *d)));
             if let Some(step) = step.filter(|_| changed && !matches!(probe.shape, ShapeKind::Items)) {
-                needs.push(step);
+                needs.push(pans.map_or(step, |(_, (scroll, _))| scroll));
             }
             let opens = any_expanded(fixture.tree());
-            let tree = fixture.tree();
             for declared in needs {
                 if !tree.keys().into_iter().any(|node| tree.declares_key(node, declared)) {
                     return Err(format!("{}: {key:?} took an intent and no node declares {declared:?}", story.name));

@@ -8,6 +8,7 @@ craft_ui::words! {
         palette_placeholder: "panels.palettePlaceholder" = "Search commands, tools and panels…";
         palette_list: "panels.paletteList" = "Commands";
         palette_empty: "panels.paletteEmpty" = "No matching commands";
+        palette_hint: "panels.paletteHint" = "↑↓ navigate  Enter run  Esc close";
         palette_results: count "panels.paletteResults" = "{n} result" | "{n} results";
         tour_back: "panels.tourBack" = "Back";
         tour_next: "panels.tourNext" = "Next";

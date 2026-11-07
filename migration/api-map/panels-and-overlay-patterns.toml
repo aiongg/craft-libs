@@ -54,7 +54,7 @@ name = "CommandPalette"
 old = "craft_ui::patterns::command_palette::CommandPalette"
 new = "craft_ui::patterns::panels::CommandPalette"
 status = "moved"
-note = "A pattern on a modal `Popover`: `CommandPalette::new(label, &entries, open).recents(Bind<Vec<CommandRef>>).show(ui) -> PaletteOutput`. It no longer shows on `&Context`; the app runs `PaletteOutput::picked`."
+note = "A pattern on a modal `Popover`: `CommandPalette::new(label, &entries, open).recents(Bind<Vec<CommandRef>>).show(ui) -> PaletteOutput`. It no longer shows on `&Context`; the app runs `PaletteOutput::picked`. The list is the body of a `Stack` under the search field and above the key hint (`PanelWords::palette_hint`), so it scrolls inside the capped box; Escape clears the query before it closes the box."
 
 [[type]]
 name = "Tour"

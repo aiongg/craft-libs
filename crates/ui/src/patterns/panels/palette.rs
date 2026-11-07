@@ -3,6 +3,8 @@
 use super::words::PanelWords;
 use crate::contract::overlay::{OverlayFit, ViewportShare};
 use crate::contract::{Bind, CollectionEvent, Overlay, Pattern, Politeness, Props, Show as _, ShowCollection as _, ShowContainer as _, announce};
+use crate::display::{Shade, Text};
+use crate::layout_components::Stack;
 use crate::list::{List, ListRow};
 use crate::menu::search::{HelpEntry, search_order};
 use crate::popover::Popover;
@@ -11,9 +13,11 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::with_session;
 use crate::runtime::overlay::{self, CloseReason};
 use crate::runtime::words::common::CommonWords;
+use crate::style::TypeRole;
 use crate::text::TextField;
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
 use egui::{Response, Ui};
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -61,8 +65,8 @@ impl crate::contract::Outcome for PaletteOutput {
 ///   the label, the menu path under it and the command's chord at the end; a disabled command is listed and does
 ///   not run.
 /// - Empty query: the commands last run, newest first (the `recents` binding), else the first entries.
-/// - Keys: the field keeps the focus; Up, Down, Page Up, Page Down move the active row, Enter picks it, Escape and
-///   a press outside close the box. The number of results is announced politely.
+/// - Keys: the field keeps the focus; Up, Down, Page Up, Page Down move the active row, Enter picks it, Escape clears
+///   the query and, on an empty query, closes the box; a press outside closes it. A caption under the list names the keys. The number of results is announced politely.
 /// - Picking: the output's `picked` names the command and the box closes. With `recents` bound the command is also
 ///   put first in the list; [`CommandPalette::remember`] is the rule.
 #[derive(Pattern, Props)]
@@ -100,46 +104,63 @@ impl<'a> CommandPalette<'a> {
         let slot = ui.scope_id().with("palette-state");
         let mut picked: Option<CommandRef> = None;
         let shown = Popover::new(label.clone(), open)
+            .collection_body()
             .overlay(|_| {
                 let mut overlay = Overlay::modal();
                 overlay.fit = OverlayFit::ContentCapped(SHARE);
                 overlay
             })
             .show(ui, |ui, cx| {
-                let mut session = with_session(&ctx, slot, |held: &mut Session| held.clone());
+                let mut held = with_session(&ctx, slot, |held: &mut Session| held.clone());
                 // What the user typed in an earlier opening does not come back.
                 if overlay::drawing_parent(&ctx).is_some_and(|layer| overlay::opening(&ctx, layer)) {
-                    session = Session::default();
+                    held = Session::default();
                 }
+                let session = RefCell::new(held);
                 let texts = texts_of(entries, &cx.env);
-                let field = TextField::search(words.palette_search.clone(), Bind::bound(&mut session.query))
-                    .placeholder(words.palette_placeholder.clone())
-                    .drives(list_id);
-                field.show(ui);
                 let folder = cx.env.folder();
-                let listed = listing(entries, &session.query, &folder, &texts, &recent);
-                let rows = row_data(&ctx, entries, &texts, &listed, &cx.env);
-                let source = Listed { keys: &listed, rows: &rows };
-                let stamp = stamp_of(&session.query);
-                let events = List::options(words.palette_list.clone())
-                    .id(list_id)
-                    .empty(words.palette_empty.clone())
-                    .selection(Bind::given(Selection::<usize>::default()))
-                    .rows_stamp(stamp)
-                    .show_items(ui, &source, &mut |key, _| rows[position(&listed, *key)].row())
-                    .events;
-                for event in events {
-                    if let CollectionEvent::Activate(key) = event {
-                        picked = Some(entries[key].command().clone());
-                        cx.request_close();
-                    }
+                // The field is the stack's header and the key hint its footer, so the list takes the room left in
+                // the capped box and scrolls inside it.
+                Stack::new()
+                    .header(|ui, _| {
+                        let mut session = session.borrow_mut();
+                        TextField::search(words.palette_search.clone(), Bind::bound(&mut session.query))
+                            .placeholder(words.palette_placeholder.clone())
+                            .drives(list_id)
+                            .show(ui);
+                    })
+                    .footer(|ui, _| {
+                        Text::new(words.palette_hint.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
+                    })
+                    .show(ui, |ui, _| {
+                        let mut session = session.borrow_mut();
+                        let listed = listing(entries, &session.query, &folder, &texts, &recent);
+                        let rows = row_data(&ctx, entries, &texts, &listed, &cx.env);
+                        let source = Listed { keys: &listed, rows: &rows };
+                        let stamp = stamp_of(&session.query);
+                        let events = List::options(words.palette_list.clone())
+                            .id(list_id)
+                            .empty(words.palette_empty.clone())
+                            .selection(Bind::given(Selection::<usize>::default()))
+                            .rows_stamp(stamp)
+                            .show_items(ui, &source, &mut |key, _| rows[position(&listed, *key)].row())
+                            .events;
+                        for event in events {
+                            if let CollectionEvent::Activate(key) = event {
+                                picked = Some(entries[key].command().clone());
+                            }
+                        }
+                        if session.announced != Some(listed.len()) && !session.query.trim().is_empty() {
+                            let n = listed.len() as u64;
+                            announce(&ctx, words.palette_results.text(n, &cx.env.format().integer(n)), Politeness::Polite);
+                        }
+                        session.announced = Some(listed.len());
+                    });
+                if picked.is_some() {
+                    cx.request_close();
                 }
-                if session.announced != Some(listed.len()) && !session.query.trim().is_empty() {
-                    let n = listed.len() as u64;
-                    announce(&ctx, words.palette_results.text(n, &cx.env.format().integer(n)), Politeness::Polite);
-                }
-                session.announced = Some(listed.len());
-                with_session(&ctx, slot, |held: &mut Session| *held = session.clone());
+                let session = session.into_inner();
+                with_session(&ctx, slot, |held: &mut Session| *held = session);
             });
         if let Some(command) = &picked
             && let Some(bind) = recents.as_mut()

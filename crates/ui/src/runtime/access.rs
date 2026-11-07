@@ -257,6 +257,7 @@ pub struct Access {
     pub(crate) custom_actions: Vec<(i32, Label)>,
     pub(crate) live: Option<Politeness>,
     pub(crate) busy: bool,
+    pub(crate) pans: (bool, bool),
     pub(crate) nodes: Vec<SubNode>,
 }
 
@@ -379,6 +380,13 @@ impl Access {
     /// Makes the node a live region.
     pub fn live(&mut self, politeness: Politeness) -> &mut Self {
         self.live = Some(politeness);
+        self
+    }
+
+    /// The leaf pans its content along the vertical and horizontal axes: the node serves the scroll actions on them,
+    /// as a scrolling body does. A pan is the leaf's own view change, not a value step.
+    pub fn pans(&mut self, vertical: bool, horizontal: bool) -> &mut Self {
+        self.pans = (vertical, horizontal);
         self
     }
 
