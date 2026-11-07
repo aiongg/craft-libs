@@ -70,7 +70,7 @@ impl Component for PopupList<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PopoverOutput {
-        PopoverOutput { response: cx.response.clone(), closed: self.closed }
+        PopoverOutput::of(&cx, self.closed)
     }
 }
 

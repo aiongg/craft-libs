@@ -398,3 +398,17 @@ pub(crate) fn focus_in_scope(ctx: &Context, scope: Id) -> Option<bool> {
         false
     }))
 }
+
+/// Whether the focus is in the focus scope of the layer `layer`, or, for an `Initial::KeepAnchor` scope, on the stop
+/// the layer opened from: that scope leaves the focus on its opener while its list is in use. `None` when nothing
+/// is focused. The layer's dismissal and its Escape both read it.
+pub(crate) fn focus_in_layer(ctx: &Context, layer: Id) -> Option<bool> {
+    if focus_in_scope(ctx, layer)? {
+        return Some(true);
+    }
+    let opener = with(ctx, |state| {
+        let scope = state.scopes.get(&layer).or_else(|| state.last_scopes.get(&layer))?;
+        (scope.policy.initial == Initial::KeepAnchor).then_some(scope.opener).flatten()
+    });
+    Some(opener.is_some_and(|stop| focused_stop(ctx) == Some(stop)))
+}

@@ -15,7 +15,7 @@ use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, Intent, OwnerClass};
-use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui};
+use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
 
 pub use crate::runtime::overlay::{OpenFilter, any_open, family, is_open, request_close, top};
@@ -229,6 +229,8 @@ pub struct Opener {
     pub layer: areas::Layer,
     /// The trigger.
     pub trigger: Trigger,
+    /// Whether the opener was enabled in the pass that recorded it; a disabled opener closes the layer.
+    pub enabled: bool,
 }
 
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
@@ -259,10 +261,15 @@ pub struct Overlay {
     pub opener: Option<Opener>,
     /// What the anchor tells assistive technology it opens.
     pub popup: PopupKind,
+    /// The size an `OverlayFit::Resizable` layer has before the user resizes it; `None` sizes it from its content.
+    pub size: Option<Vec2>,
+    /// The least an `OverlayFit::Resizable` layer may be resized to.
+    pub min_size: Option<Vec2>,
 }
 
-/// The share of the viewport a dropdown list may take.
-const DROPDOWN_SHARE: ViewportShare = ViewportShare::new(1.0, 0.4);
+/// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
+/// edge of its anchor in a right-to-left layout.
+const DROPDOWN_SHARE: ViewportShare = ViewportShare::new(0.5, 0.4);
 /// The share of the viewport a dialog or modal may take.
 const DIALOG_SHARE: ViewportShare = ViewportShare::new(0.8, 0.9);
 /// The share of the viewport a tooltip or a toast card may take before its text wraps.
@@ -283,6 +290,8 @@ impl Overlay {
             motion: spec::OPEN_FADE,
             opener: None,
             popup: PopupKind::Dialog,
+            size: None,
+            min_size: None,
         }
     }
 
@@ -290,15 +299,19 @@ impl Overlay {
         Place::anchored(Anchor::Response, Side::Below, Align::Start)
     }
 
-    /// A popover: a popup anchored below, taking focus in.
+    /// A popover: a popup anchored below, taking focus in. It closes when the focus moves out of it.
     pub fn popover() -> Overlay {
-        Overlay::base(Rank::Popup, Overlay::below(), OverlayFit::Content, OwnerClass::Popup, FocusPolicy::POPUP)
+        let mut overlay = Overlay::base(Rank::Popup, Overlay::below(), OverlayFit::Content, OwnerClass::Popup, FocusPolicy::POPUP);
+        overlay.dismiss = Dismiss::new().focus_left(true);
+        overlay
     }
 
-    /// A dropdown list: as wide as its anchor, capped, focus stays on the anchor.
+    /// A dropdown list: from its content, at least as wide as its anchor and capped, focus stays on the anchor. It
+    /// closes when a row is activated.
     pub fn dropdown() -> Overlay {
         let focus = FocusPolicy::POPUP.trap(false).restore(false).initial(Initial::KeepAnchor);
         let mut overlay = Overlay::base(Rank::Popup, Overlay::below(), OverlayFit::ContentCapped(DROPDOWN_SHARE), OwnerClass::PassivePopup, focus);
+        overlay.dismiss = Dismiss::new().on_activate(true);
         overlay.min_width = MinWidth::Anchor;
         overlay.popup = PopupKind::Listbox;
         overlay
@@ -388,6 +401,27 @@ impl Overlay {
         self
     }
 
+    /// Hangs the layer from `anchor` on the side and alignment its preset gave. Without an opener, a point is in the
+    /// parent's layer space; a floating layer keeps its place.
+    pub fn anchor(mut self, anchor: Anchor) -> Overlay {
+        if let Place::Anchored { anchor: hung, .. } = &mut self.place {
+            *hung = anchor;
+        }
+        self
+    }
+
+    /// Sets the size a resizable layer has before the user resizes it.
+    pub fn size(mut self, size: Vec2) -> Overlay {
+        self.size = Some(size);
+        self
+    }
+
+    /// Sets the least a resizable layer may be resized to.
+    pub fn min_size(mut self, min_size: Vec2) -> Overlay {
+        self.min_size = Some(min_size);
+        self
+    }
+
     /// Sets the narrowest width.
     pub fn min_width(mut self, min_width: MinWidth) -> Overlay {
         self.min_width = min_width;
@@ -421,11 +455,8 @@ impl Overlay {
     /// Records the opener. An anchored layer hangs from the opener's rect, on the side and alignment its preset
     /// gave; a floating layer keeps its place, and the opener serves focus return and the trigger.
     pub fn opened_by(mut self, anchor: &Response, trigger: Trigger) -> Overlay {
-        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger });
-        if let Place::Anchored { anchor: hung, .. } = &mut self.place {
-            *hung = Anchor::Rect(anchor.rect);
-        }
-        self
+        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger, enabled: anchor.enabled() });
+        self.anchor(Anchor::Rect(anchor.rect))
     }
 }
 
@@ -747,6 +778,10 @@ struct LayerMemory {
     opener_stop: Option<Option<focus::StopKey>>,
     /// The pass time the layer first appeared, for `Dismiss.timeout`.
     since: Option<f64>,
+    /// The focus was in the layer last time it was read: `Dismiss.focus_left` fires on a move from inside to outside.
+    focus_inside: bool,
+    /// The layers opened from inside this one have been asked to close.
+    family_closed: bool,
 }
 
 fn memory_slot(id: Id) -> Id {
@@ -767,8 +802,20 @@ fn remember(layer: &Layer<'_>, ctx: &Context, memory: LayerMemory) {
 /// calls it when the layer's presence is hidden.
 pub(crate) fn forget_layer(ctx: &Context, id: Id, owner: Id) {
     let mut stage = MemoryStage::open_owned(ctx, memory_slot(id), owner);
-    let _ = stage.take::<LayerMemory>(memory_slot(id));
+    let taken = stage.take::<LayerMemory>(memory_slot(id));
     stage.write_back();
+    if taken.is_some_and(|memory| !memory.family_closed) {
+        overlay::close_descendants(ctx, id);
+    }
+}
+
+/// Asks the layers opened from inside `layer` to close once the layer closes or starts to fade out, in the pass that
+/// decided it.
+fn close_family(ctx: &Context, layer: &Layer<'_>, closing: bool, memory: &mut LayerMemory) {
+    if closing && !memory.family_closed {
+        memory.family_closed = true;
+        overlay::close_descendants(ctx, layer.id);
+    }
 }
 
 /// The egui layer id of the layer `id`.
@@ -853,7 +900,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     }
     let size = areas::layer_rect(ctx, area).map_or(egui::Vec2::ZERO, |rect| rect.size());
     let cap = match overlay.fit {
-        OverlayFit::ContentCapped(share) => egui::Vec2::new(bounds.width() * share.x, bounds.height() * share.y),
+        OverlayFit::ContentCapped(share) => {
+            egui::Vec2::new((bounds.width() * share.x).max(overlay.min_width.points(anchor.width())), bounds.height() * share.y)
+        }
         _ => bounds.size(),
     };
     let placed = placement(ctx, layer, size, bounds, anchor, cap);
@@ -894,6 +943,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
             focus::push_scope_from(ctx, layer.id, policy, None, opener);
         }
         areas::bound(ui, placed.room, min_width.min(placed.room.x));
+        if let (OverlayFit::Resizable, Some(least)) = (overlay.fit, overlay.min_size) {
+            ui.set_min_size(least.min(placed.room));
+        }
         body(ui);
         if scope.is_some() && real {
             focus::pop_scope(ctx);
@@ -914,6 +966,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     entry.absorbs = overlay.dismiss.outside == Outside::Absorb;
     overlay::record(ctx, entry);
     let dismissed = if layer.exiting { None } else { dismissal(ctx, layer, shown.rect, anchor, scope, &mut memory) };
+    close_family(ctx, layer, layer.exiting || dismissed.is_some(), &mut memory);
     remember(layer, ctx, memory);
     LayerOut { dismissed }
 }
@@ -929,6 +982,7 @@ pub(crate) fn host_window(ctx: &Context, layer: &Layer<'_>, rect: Rect) -> Layer
     entry.window = true;
     overlay::record(ctx, entry);
     let dismissed = dismissal(ctx, layer, rect, Rect::ZERO, scope, &mut memory);
+    close_family(ctx, layer, dismissed.is_some(), &mut memory);
     remember(layer, ctx, memory);
     LayerOut { dismissed }
 }
@@ -943,27 +997,28 @@ fn dismissal(
     memory: &mut LayerMemory,
 ) -> Option<CloseReason> {
     let dismiss = layer.overlay.dismiss;
-    if let Some(reason) = escape(ctx, layer, scope) {
+    // Both the Escape rule and the focus rule read the same fact: whether the focus is in the layer.
+    let inside = focus::focus_in_layer(ctx, layer.id);
+    let was_inside = memory.focus_inside;
+    if let Some(now) = inside {
+        memory.focus_inside = now;
+    }
+    if let Some(reason) = escape(ctx, layer, scope, inside) {
         return Some(reason);
     }
-    match dismiss.outside {
-        Outside::Keep => {}
-        // The input hook removed the press and recorded it; presses inside the family and its anchors never get here.
-        Outside::Absorb => {
-            if overlay::absorbed_press(ctx).is_some() {
-                return Some(CloseReason::Outside);
-            }
+    if dismiss.anchor_gone && layer.overlay.opener.is_some_and(|opener| !opener.enabled) {
+        return Some(CloseReason::AnchorGone);
+    }
+    // The input hook removed the press and recorded it; presses inside the family and its anchors never get here.
+    if dismiss.outside == Outside::Absorb {
+        if overlay::absorbed_press(ctx).is_some() {
+            return Some(CloseReason::Outside);
         }
-        Outside::Close => {
-            let press = pointer::frame(ctx).press.filter(|press| press.button == craft_behavior::PointerButton::Primary).map(|press| press.origin);
-            if let Some(press) = press {
-                let inside_family =
-                    overlay::family(ctx, layer.id).iter().filter_map(|id| overlay::entry(ctx, *id)).any(|entry| entry.rect.contains(press));
-                if !rect.contains(press) && !anchor.contains(press) && !inside_family {
-                    return Some(CloseReason::Outside);
-                }
-            }
+    } else if press_outside(ctx, layer, rect, anchor) {
+        if dismiss.outside == Outside::Close {
+            return Some(CloseReason::Outside);
         }
+        overlay::note_pressed_outside(ctx, layer.id);
     }
     if dismiss.on_activate && overlay::activated_inside(ctx, layer.id) {
         return Some(CloseReason::Activated);
@@ -974,7 +1029,8 @@ fn dismissal(
     if dismiss.focus_left
         && let Some(policy) = scope
         && policy.kind != craft_behavior::ScopeKind::Group
-        && focus::focus_in_scope(ctx, layer.id) == Some(false)
+        && was_inside
+        && inside == Some(false)
         && overlay::is_open(ctx, layer.id)
     {
         return Some(CloseReason::FocusLeft);
@@ -991,6 +1047,16 @@ fn dismissal(
     None
 }
 
+/// Whether a primary press landed outside the layer, its anchor and the layers opened from inside it.
+fn press_outside(ctx: &Context, layer: &Layer<'_>, rect: Rect, anchor: Rect) -> bool {
+    let Some(press) = pointer::frame(ctx).press.filter(|press| press.button == craft_behavior::PointerButton::Primary).map(|press| press.origin)
+    else {
+        return false;
+    };
+    let inside_family = overlay::family(ctx, layer.id).iter().filter_map(|id| overlay::entry(ctx, *id)).any(|entry| entry.rect.contains(press));
+    !rect.contains(press) && !anchor.contains(press) && !inside_family
+}
+
 /// Whether the focused stop sits in no scope that belongs to a shown layer.
 fn focus_in_no_layer(ctx: &Context) -> bool {
     focus::focused_rec(ctx).is_none_or(|rec| focus::scope_chain(ctx, &rec).iter().all(|scope| overlay::entry(ctx, *scope).is_none()))
@@ -998,15 +1064,14 @@ fn focus_in_no_layer(ctx: &Context) -> bool {
 
 /// Escape reaches only the top layer, and only when focus is inside its scope (a modal also when it is in no layer):
 /// a component inside that takes the Escape (a draft, a gesture) keeps it, and a captured press goes first.
-fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>) -> Option<CloseReason> {
+fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>, inside: Option<bool>) -> Option<CloseReason> {
     let policy = scope?;
     if policy.cancel == CancelRule::Ignore || overlay::top(ctx) != Some(layer.id) {
         return None;
     }
     // A modal on top also owns Escape while the focus is in no layer (nothing focused, or a stop of the window
     // below): its card may have nothing to focus.
-    let inside = focus::focus_in_scope(ctx, layer.id) == Some(true);
-    if !inside && !(layer.overlay.rank.is_modal() && focus_in_no_layer(ctx)) {
+    if inside != Some(true) && !(layer.overlay.rank.is_modal() && focus_in_no_layer(ctx)) {
         return None;
     }
     let step = keys::scope_escape(ctx, policy.cancel, pointer::press_captured(ctx), false)?;

@@ -1,15 +1,15 @@
 //! `Popover` (15, 16): a non-modal popup anchored to the control that opened it, holding a body the app builds.
 
-use crate::contract::overlay::{Outside, OverlayFit};
+use crate::contract::overlay::{Anchor, Dismiss, Outside, OverlayFit};
 use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Role, SaveKey, Trigger,
 };
 use crate::runtime::env::Label;
-use crate::runtime::focus::Initial;
+use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{Metrics, Sense};
-use egui::Response;
+use craft_behavior::{CancelRule, Metrics, Sense};
+use egui::{Pos2, Response, Vec2};
 
 /// The style of a popover: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -27,6 +27,17 @@ pub struct PopoverOutput {
     pub response: Response,
     /// How the popover closed in this pass; `None` while it stays open. Reported once for each close.
     pub closed: Option<CloseReason>,
+    /// A press landed outside the popover, its opener and the popups opened from it while an
+    /// [`Outside::Keep`] rule kept it open: the caller decides whether that closes it.
+    pub pressed_outside: bool,
+}
+
+impl PopoverOutput {
+    /// The output of the container `cx` that closed as `closed` in this pass.
+    pub(super) fn of<C: Component>(cx: &Cx<'_, C>, closed: Option<CloseReason>) -> Self {
+        let pressed_outside = crate::runtime::overlay::pressed_outside(&cx.core.ctx, cx.core.id);
+        PopoverOutput { response: cx.response.clone(), closed, pressed_outside }
+    }
 }
 
 impl Outcome for PopoverOutput {
@@ -63,9 +74,7 @@ pub struct Popover<'a> {
 impl<'a> Popover<'a> {
     /// A popover named `label`, open while `open` is true.
     pub fn new(label: impl Into<Label>, open: Bind<'a, bool>) -> Self {
-        let mut overlay = Overlay::popover();
-        overlay.dismiss = overlay.dismiss.focus_left(true);
-        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::Regular).mount(Mount::Layer(overlay));
+        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::Regular).mount(Mount::Layer(Overlay::popover()));
         Popover { common: Common::new(), props, open, closed: None }.label(label)
     }
 
@@ -88,7 +97,56 @@ impl<'a> Popover<'a> {
     /// [`remember`](Popover::remember).
     #[must_use]
     pub fn resizable(self, on: bool) -> Self {
-        self.with_overlay(|overlay| if on { overlay.resizable(true).fit(OverlayFit::Resizable) } else { overlay.resizable(false) })
+        self.with_overlay(|overlay| {
+            if on {
+                overlay.resizable(true).fit(OverlayFit::Resizable)
+            } else if overlay.fit == OverlayFit::Resizable {
+                overlay.resizable(false).fit(OverlayFit::Content)
+            } else {
+                overlay.resizable(false)
+            }
+        })
+    }
+
+    /// The size a [resizable](Popover::resizable) popover has until the user resizes it.
+    #[must_use]
+    pub fn size(self, size: Vec2) -> Self {
+        self.with_overlay(|overlay| overlay.size(size))
+    }
+
+    /// The least a [resizable](Popover::resizable) popover may be resized to.
+    #[must_use]
+    pub fn min_size(self, min_size: Vec2) -> Self {
+        self.with_overlay(|overlay| overlay.min_size(min_size))
+    }
+
+    /// Hangs the popover from `at`, a point in the parent's layer space, instead of from an opener.
+    #[must_use]
+    pub fn at_point(self, at: Pos2) -> Self {
+        self.with_overlay(|overlay| overlay.anchor(Anchor::Point(at)))
+    }
+
+    /// Hangs the popover from where the pointer was when it opened, instead of from an opener.
+    #[must_use]
+    pub fn at_pointer(self) -> Self {
+        self.with_overlay(|overlay| overlay.anchor(Anchor::Pointer))
+    }
+
+    /// Replaces the close rules the popover starts with, for callers that close it themselves: `Outside::Keep` with
+    /// [`PopoverOutput::pressed_outside`], or no close when the focus leaves.
+    #[must_use]
+    pub fn dismiss(self, dismiss: Dismiss) -> Self {
+        self.with_overlay(|overlay| overlay.dismiss(dismiss))
+    }
+
+    /// Whether Escape, with the focus inside, closes the popover. Off, a popover of a field that handles Escape
+    /// itself stays open.
+    #[must_use]
+    pub fn escape(self, on: bool) -> Self {
+        self.with_overlay(|mut overlay| {
+            overlay.focus.cancel = if on { FocusPolicy::POPUP.cancel } else { CancelRule::Ignore };
+            overlay
+        })
     }
 
     /// Saves the size under `key`, so a reopened resizable popover has the size the user left it at.
@@ -141,7 +199,7 @@ impl Component for Popover<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PopoverOutput {
-        PopoverOutput { response: cx.response.clone(), closed: self.closed }
+        PopoverOutput::of(&cx, self.closed)
     }
 }
 
@@ -154,3 +212,6 @@ impl Container for Popover<'_> {
         self.closed.get_or_insert(why);
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;

@@ -76,13 +76,19 @@ pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
     Ok(())
 }
 
-/// Tab and Shift+Tab stay inside the layer: a trap, since a layer owns its focus scope.
+/// Tab and Shift+Tab stay inside the layer: a trap, since a layer owns its focus scope. A scope that does not trap
+/// (a dropdown, whose focus stays on its opener) is not asked to.
 pub(super) fn layer_traps_focus(subject: &Subject) -> Result<(), String> {
     if !is_body(subject) {
         return Ok(());
     }
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
+        let Some(id) = fixture.root_id() else { continue };
+        let traps = crate::runtime::focus::with(fixture.ctx(), |state| state.last_scopes.get(&id).is_none_or(|scope| scope.policy.trap));
+        if !traps {
+            continue;
+        }
         let Some(container) = root(&fixture) else { continue };
         let stops = subtree(fixture.tree(), container.node).into_iter().filter(|key| is_interactive(fixture.tree(), *key)).count();
         if stops == 0 {
