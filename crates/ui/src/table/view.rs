@@ -4,13 +4,12 @@
 //! it shows.
 
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, ColumnSpec, Common, Component, ContainerProps, Cx,
-    EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSpec, Common, Component, ContainerProps, Cx, EditResponse, ListDrag,
+    Props as _, Role, SelectMode, Show as _, Sizing,
 };
 use crate::list::{DropTest, ListRow, RowEvent, RowTest, SourceTest};
-use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, StyleCx};
 use crate::text::TextField;
 use craft_behavior::{ItemSource, Metrics, Selection, SpanLayout};
 use egui::{Id, Rect, Ui};
@@ -37,6 +36,7 @@ pub struct Table<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[collection]
     items: CollectionProps,
     /// The selection the caller owns.
     #[prop]
@@ -82,98 +82,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> Table<'a, K> {
             takes_files: false,
         }
         .label(label)
-    }
-
-    /// What the user can select.
-    #[must_use]
-    pub fn select(mut self, mode: SelectMode) -> Self {
-        self.items = self.items.select(mode);
-        self
-    }
-
-    /// Rows reorder by dragging and by Alt with the arrow keys.
-    #[must_use]
-    pub fn reorder(mut self, rule: ReorderRule) -> Self {
-        self.items = self.items.reorder(rule);
-        self
-    }
-
-    /// Rows rename in place: a double click on the label, F2 or the rename command opens the editor.
-    #[must_use]
-    pub fn rename(mut self, on: bool) -> Self {
-        self.items = self.items.rename(on);
-        self
-    }
-
-    /// Odd rows are tinted: the item reads `ItemCx::row.striped`.
-    #[must_use]
-    pub fn striped(mut self, on: bool) -> Self {
-        self.items = self.items.striped(on);
-        self
-    }
-
-    /// A press on the empty space below the rows empties the selection.
-    #[must_use]
-    pub fn allow_empty(mut self, on: bool) -> Self {
-        self.items = self.items.allow_empty(on);
-        self
-    }
-
-    /// Which gesture activates a row.
-    #[must_use]
-    pub fn activate(mut self, on: ActivateOn) -> Self {
-        self.items = self.items.activate(on);
-        self
-    }
-
-    /// The order the app sorted the rows in, drawn on the column's header.
-    #[must_use]
-    pub fn sort(mut self, sort: impl Into<Option<ColumnSort>>) -> Self {
-        self.items = self.items.sort(sort);
-        self
-    }
-
-    /// Where the lead lands when the table first shows rows.
-    #[must_use]
-    pub fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
-        self.items = self.items.lead_on_open(at);
-        self
-    }
-
-    /// The rows are the set `stamp` names (a filtered set, for example); the lead and selection start over when the
-    /// stamp changes.
-    #[must_use]
-    pub fn rows_stamp(mut self, stamp: u64) -> Self {
-        self.items = self.items.rows_stamp(stamp);
-        self
-    }
-
-    /// How the table takes its size: to its content or to the room it has.
-    #[must_use]
-    pub fn sizing(mut self, sizing: Sizing) -> Self {
-        self.props = self.props.sizing(sizing);
-        self
-    }
-
-    /// Commands of `scope` reach the table while focus is in it.
-    #[must_use]
-    pub fn command_scope(mut self, scope: CommandScope) -> Self {
-        self.props = self.props.command_scope(scope);
-        self
-    }
-
-    /// The text of the empty state.
-    #[must_use]
-    pub fn empty(mut self, text: impl Into<Label>) -> Self {
-        self.items = self.items.empty(text);
-        self
-    }
-
-    /// The surface the table paints behind its rows.
-    #[must_use]
-    pub fn surface(mut self, surface: SurfaceKind) -> Self {
-        self.props = self.props.surface(surface);
-        self
     }
 }
 

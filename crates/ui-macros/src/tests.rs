@@ -316,3 +316,27 @@ fn text_and_icon_fields_are_listed_in_field_order() {
     assert!(tokens.contains("out.push(&self.label);out.extend(self.hint.as_ref());"), "{tokens}");
     assert!(tokens.contains("fnicons"), "{tokens}");
 }
+
+fn expansion(input: TokenStream) -> String {
+    crate::props::derive(input).map(|tokens| tokens.to_string().split_whitespace().collect::<String>()).unwrap_or_default()
+}
+
+#[test]
+fn a_collection_field_forwards_the_collection_builders_and_a_container_field_the_container_ones() {
+    let collection = expansion(quote! { struct Grid { #[collection] props: CollectionProps } });
+    for setter in ["select", "sort", "rows_stamp", "header"] {
+        assert!(collection.contains(&format!("pubfn{setter}(mutself,value:")), "{setter}: {collection}");
+    }
+    assert!(collection.contains("self.props=self.props.rows_stamp(value)"), "{collection}");
+    let container = expansion(quote! { struct Grid { #[container] props: ContainerProps } });
+    for setter in ["sizing", "surface"] {
+        assert!(container.contains(&format!("pubfn{setter}(mutself,value:")), "{setter}: {container}");
+    }
+    assert!(!container.contains("pubfnselect("), "{container}");
+}
+
+#[test]
+fn a_forwarding_attribute_needs_its_props_type() {
+    let message = error(crate::props::derive(quote! { struct Grid { #[collection] props: ContainerProps } }));
+    assert!(message.contains("CollectionProps"), "{message}");
+}

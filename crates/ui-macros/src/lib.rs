@@ -64,7 +64,11 @@ pub fn register_contract(input: TokenStream) -> TokenStream {
 /// The field's doc comment is the setter's. `#[prop(quantity = "..")]` names what a numeric prop measures; the
 /// `props/point-size` lint reads it as the declaration that the number is not a size in points, and it changes no
 /// generated code.
-#[proc_macro_derive(Props, attributes(prop))]
+///
+/// A field marked `#[collection]` (type `CollectionProps`) gets one forwarding setter per `CollectionProps`
+/// builder, and a field marked `#[container]` (type `ContainerProps`) one per `ContainerProps` builder a component
+/// takes under the builder's own name. The two lists are `COLLECTION` and `CONTAINER` in `props.rs`.
+#[proc_macro_derive(Props, attributes(prop, collection, container))]
 pub fn derive_props(input: TokenStream) -> TokenStream {
     expanded(props::derive(input.into()))
 }

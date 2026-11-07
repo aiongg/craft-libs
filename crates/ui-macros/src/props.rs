@@ -1,4 +1,5 @@
-//! `#[derive(Props)]`: one setter per `#[prop]` field.
+//! `#[derive(Props)]`: one setter per `#[prop]` field, and the forwarding setters of a `#[collection]` or
+//! `#[container]` field.
 
 use crate::util::{is_named, named_fields, wrapped};
 use proc_macro2::TokenStream;
@@ -109,12 +110,91 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
     })
 }
 
+/// A forwarded builder: its name, its parameter type as written in the expansion, and its doc line.
+type Forwarded = (&'static str, &'static str, &'static str);
+
+/// The public `CollectionProps` builders a `#[collection]` field forwards. A new `CollectionProps` builder is added
+/// here.
+const COLLECTION: &[Forwarded] = &[
+    ("select", "::craft_ui::contract::SelectMode", "What the user can select."),
+    ("reorder", "::craft_ui::contract::ReorderRule", "Rows reorder by dragging and by Alt with the arrow keys."),
+    ("rename", "bool", "Rows rename in place: a double click on the label, F2 or the rename command opens the editor."),
+    ("columns", "::std::vec::Vec<::craft_ui::contract::ColumnSpec>", "The columns."),
+    (
+        "sort",
+        "impl ::core::convert::Into<::core::option::Option<::craft_ui::contract::ColumnSort>>",
+        "The order the app sorted the rows in, drawn on the column's header.",
+    ),
+    ("activate", "::craft_ui::contract::ActivateOn", "Which gesture activates a row."),
+    ("striped", "bool", "Odd rows are tinted: the item reads `ItemCx::row.striped`."),
+    ("allow_empty", "bool", "A press on the empty space below the rows empties the selection."),
+    ("lead_on_open", "::craft_ui::contract::LeadOnOpen", "Where the lead lands when rows first show."),
+    ("lead_follows_hover", "bool", "The lead, and the selection with it, moves to the row under the pointer when the pointer moves."),
+    (
+        "rows_stamp",
+        "u64",
+        "The rows are the set `stamp` names (a filtered set, for example); the lead and selection start over when the stamp changes.",
+    ),
+    ("focus_on_press", "bool", "A primary press moves key focus to the collection; off, it picks and activates and focus stays where it is."),
+    ("empty", "impl ::core::convert::Into<::craft_ui::runtime::env::Label>", "The text of the empty state."),
+    ("space", "::craft_ui::contract::SpaceAction", "What Space does on the lead row."),
+    ("header", "bool", "The header row over the columns is shown."),
+    ("digit_keys", "bool", "Digit keys arrive as digit intents instead of type-ahead."),
+    ("marquee", "bool", "A drag on the background selects the rows it covers."),
+];
+
+/// The `ContainerProps` builders a `#[container]` field forwards: the ones a collection or container takes from its
+/// caller under the builder's own name. A new `ContainerProps` builder of that kind is added here. Builders whose name
+/// a component writes itself (`label`, `header`, `footer`, `scroll`) stay off the list.
+const CONTAINER: &[Forwarded] = &[
+    ("sizing", "::craft_ui::contract::Sizing", "How the component takes its size: to its content or to the room it has."),
+    ("command_scope", "::craft_ui::runtime::commands::CommandScope", "Commands of `scope` reach the component while focus is in it."),
+    ("surface", "::craft_ui::style::SurfaceKind", "The surface painted behind the body."),
+    ("live", "::craft_ui::contract::Politeness", "The body is a live region announced with this politeness."),
+    ("end", "::craft_ui::contract::EndRegion", "The region at the line's end edge, outside the body scroll."),
+    ("position", "::craft_ui::contract::SetPosition", "The component's place in its set, for assistive technology."),
+];
+
+fn forwarders(field: &Field, attr: &Attribute, owner: &str, list: &[Forwarded]) -> syn::Result<Vec<TokenStream>> {
+    let Some(field_name) = &field.ident else {
+        return Err(syn::Error::new_spanned(field, "`#[collection]` and `#[container]` need a named field"));
+    };
+    attr.meta.require_path_only()?;
+    if !is_named(&field.ty, owner) {
+        return Err(syn::Error::new_spanned(
+            &field.ty,
+            format!("`#[{}]` is for a field of type `{owner}`", attr.path().get_ident().map_or_else(String::new, ToString::to_string)),
+        ));
+    }
+    list.iter()
+        .map(|(name, ty, doc)| {
+            let name = Ident::new(name, field_name.span());
+            let ty: Type = syn::parse_str(ty)?;
+            Ok(quote! {
+                #[doc = #doc]
+                #[must_use]
+                pub fn #name(mut self, value: #ty) -> Self {
+                    self.#field_name = self.#field_name.#name(value);
+                    self
+                }
+            })
+        })
+        .collect()
+}
+
 pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let mut setters = Vec::new();
     for field in named_fields(&input, "Props")? {
         if let Some(attr) = field.attrs.iter().find(|attr| attr.path().is_ident("prop")) {
             setters.push(setter(&field, attr)?);
+        }
+        for attr in &field.attrs {
+            if attr.path().is_ident("collection") {
+                setters.extend(forwarders(&field, attr, "CollectionProps", COLLECTION)?);
+            } else if attr.path().is_ident("container") {
+                setters.extend(forwarders(&field, attr, "ContainerProps", CONTAINER)?);
+            }
         }
     }
     let ident = &input.ident;
