@@ -639,7 +639,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                 }
             }
 
-            if row_menu && let Some(target) = menu_target.or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
+            if row_menu && let Some(target) = menu_target.clone().or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
                 let at = row_of(&target).unwrap_or_default();
                 let group = rows[at].is_group();
                 let deletable = can_delete.as_ref().is_none_or(|test| test.passes(&target));
