@@ -1,13 +1,18 @@
 //! The label scope and the merge rule.
 
 use crate::contract::kit::{Panel, Probe, Seen};
+use crate::label::kit::{Dial, Field, PlainStyle, SIZE, Seen as DialSeen};
 use craft_behavior::Sense;
-use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, FieldLabel, Props as _, Role as UiRole, Show as _, ShowContainer as _};
+use craft_ui::contract::{
+    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, EditResponse, FieldLabel, MeasureCx, Props as _, Role as UiRole, Show as _,
+    ShowContainer as _, SideLabel, Validity,
+};
+use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::{AccessTree, NodeKey, begin_label_scope, name};
 use craft_ui::testing::memory::global;
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Rect, Response};
+use egui::{Id, Rect, Response, Vec2};
 use std::cell::RefCell;
 
 fn field_label() -> FieldLabel {
@@ -161,4 +166,107 @@ fn a_decorator_around_a_container_merges_into_the_container() {
     let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
     assert_eq!(tree.name(id(&child)), Some("Inbox"), "the grandchild keeps its own name");
     assert!(tree.name(id(&group)).is_some_and(|name| name.contains("3 unread")));
+}
+
+/// A container with no label whose labelled rows share one label column.
+#[derive(craft_ui::contract::Component)]
+#[component(container)]
+struct Form {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Form {
+    fn new() -> Self {
+        Form { common: Common::new(), props: ContainerProps::new().label_column(true) }
+    }
+}
+
+impl Component for Form {
+    const ROLE: UiRole = UiRole::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: FormStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::empty()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Form {}
+
+#[trial]
+fn labelled_rows_of_a_label_column_container_share_the_widest_label() {
+    let mut frames = Frames::new();
+    let (mut first, mut second) = (0.0, 0.0);
+    let (seen_first, seen_second) = (RefCell::new(DialSeen::default()), RefCell::new(DialSeen::default()));
+    frames.idle(4, |ui| {
+        Form::new().id_salt("form").show(ui, |ui, cx| {
+            cx.labelled(ui, "short", "Size".into(), SideLabel::new(), Dial::new(&mut first, &seen_first));
+            cx.labelled(ui, "long", "Background opacity".into(), SideLabel::new(), Dial::new(&mut second, &seen_second));
+        });
+    });
+    let (a, b) = (seen_first.borrow().rect, seen_second.borrow().rect);
+    assert_eq!(a.min.x.round(), b.min.x.round(), "both controls start after the same label column: {a:?} {b:?}");
+}
+
+/// A bound number whose check always warns.
+#[derive(craft_ui::contract::Component)]
+struct Warned<'a> {
+    #[common]
+    common: Common,
+    value: Bind<'a, f64>,
+}
+
+impl Component for Warned<'_> {
+    const ROLE: UiRole = UiRole::SLIDER;
+    type Style = PlainStyle;
+    type Output = EditResponse<f64>;
+
+    fn style(_: &StyleCx<'_>, _: WarnedStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        SIZE
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, f64>> {
+        Some(self.value.reborrow())
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<f64> {
+        cx.edit_response()
+    }
+}
+
+#[trial]
+fn a_controls_validity_message_describes_its_labelled_container_next_frame() {
+    let mut frames = Frames::new();
+    let mut value = 5.0;
+    let mut container = None;
+    let mut show = |frames: &mut Frames, count: usize| {
+        frames.idle(count, |ui| {
+            let out = Field::new("Amount", SideLabel::new()).id_salt("field").show(ui, |ui, _| {
+                let check = |_: &f64| Validity::Warn(Message::new("too large"));
+                Warned { common: Common::new(), value: Bind::bound(&mut value).check(check) }.show(ui);
+            });
+            container = Some(out.id);
+        });
+        frames.tree().description(container.expect("shown")).map(str::to_owned)
+    };
+    assert_eq!(show(&mut frames, 3).as_deref(), Some("too large"));
 }

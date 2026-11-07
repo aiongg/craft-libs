@@ -10,7 +10,7 @@ use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
 use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
 use crate::runtime::egui::{alloc, areas};
-use crate::runtime::env::{Env, EnvView, Label};
+use crate::runtime::env::{Env, EnvView, Label, Message};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::{Intents, MenuKey};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
@@ -1112,6 +1112,7 @@ pub struct BodyCx<'a> {
     open: &'a mut bool,
     gate: Option<&'a mut bool>,
     close: Option<CloseReason>,
+    field_message: Option<Message>,
 }
 
 impl<'a> BodyCx<'a> {
@@ -1125,7 +1126,18 @@ impl<'a> BodyCx<'a> {
         gate: Option<&'a mut bool>,
     ) -> Self {
         memory.claim(id);
-        BodyCx { id, env, resolved, rect, memory, open, gate, close: None }
+        BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None }
+    }
+
+    pub(crate) fn with_field_message(mut self, message: Option<Message>) -> Self {
+        self.field_message = message;
+        self
+    }
+
+    /// The validity message of the first control in the container's label scope, recorded last frame: the
+    /// container shows it as its error text. `None` when the container has no label or no control reported one.
+    pub fn field_message(&self) -> Option<&Message> {
+        self.field_message.as_ref()
     }
 
     /// Whether the body is open.

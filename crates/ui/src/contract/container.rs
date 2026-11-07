@@ -377,6 +377,8 @@ pub struct ContainerProps {
     pub outer_edit: bool,
     /// The body holds one collection that owns the scroll: a layer's own body scroll is off.
     pub collection_body: bool,
+    /// The labelled rows of the body share the widest label as one column.
+    pub label_column: bool,
 }
 
 impl Default for ContainerProps {
@@ -411,6 +413,7 @@ impl ContainerProps {
             save: None,
             outer_edit: false,
             collection_body: false,
+            label_column: false,
         }
     }
 
@@ -544,6 +547,13 @@ impl ContainerProps {
     /// One outer gesture over the body's fields.
     pub const fn outer_edit(mut self, on: bool) -> Self {
         self.outer_edit = on;
+        self
+    }
+
+    /// The labelled rows of the body share the widest label as one column. A nested container with its own
+    /// label column opens its own group; a row reads the innermost.
+    pub const fn label_column(mut self, on: bool) -> Self {
+        self.label_column = on;
         self
     }
 }

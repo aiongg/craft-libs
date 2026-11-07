@@ -3,6 +3,7 @@
 use super::{Elide, Shade, Text};
 use crate::contract::Show as _;
 use crate::style::TypeRole;
+use craft_theme::variant::Tone;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -19,4 +20,9 @@ fn text_role(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(Text, covers = [], drive = Drive::Never)]
 fn text_elided(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     Text::new("A layer name much longer than the room it is shown in").elide(Elide::End).show(ui).into()
+}
+
+#[story(Text, covers = [], drive = Drive::Never)]
+fn text_toned(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Text::new("Enter a value between 0 and 100").role(TypeRole::Caption).tone(Tone::Bad).show(ui).into()
 }
