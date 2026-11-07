@@ -9,3 +9,5 @@ mod preview;
 mod rows;
 
 mod size_model;
+
+mod about;

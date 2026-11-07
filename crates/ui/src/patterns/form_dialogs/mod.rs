@@ -27,3 +27,10 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod about;
+
+pub use about::{
+    AboutDialog, AboutInfo, AboutLink, AboutOutput, AboutTab, AboutWords, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
+    commit_day, commit_share, sorted_contributors,
+};
