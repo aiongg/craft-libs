@@ -4,7 +4,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
-use crate::runtime::{cursor, focus, keys, layout_memory, memory, pointer, wheel};
+use crate::runtime::{access, cursor, focus, keys, layout_memory, memory, pointer, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -297,12 +297,14 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
     }
     wheel::begin(&ctx);
+    access::begin_live_pass(&ctx);
 }
 
 /// The end hook.
 pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     cursor::end_pass(&ctx);
+    access::end_live_pass(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);

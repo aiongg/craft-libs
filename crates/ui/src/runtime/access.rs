@@ -1,6 +1,22 @@
-//! `Role` and the AccessKit emitter.
+//! `Role`, the access facts of a component and the AccessKit emitter (chapter 12).
+//!
+//! This module is the only one that calls egui's AccessKit APIs, through `runtime::egui::access`.
 
-use crate::runtime::egui::access::{NodeRole, roles};
+mod emit;
+mod live;
+mod rules;
+pub(crate) mod scope;
+
+use crate::runtime::env::Label;
+use craft_behavior::PartRef;
+use craft_theme::{Flags, Tone};
+use egui::Id;
+use std::ops::RangeInclusive;
+
+pub(crate) use emit::{Own, SubDecl, fill_own, fill_sub, sub_node_id};
+pub use live::announce;
+pub use scope::FieldLabel;
+pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -11,26 +27,426 @@ pub enum Role {
     /// The node merges into its container's node.
     Merged,
     /// A node of this AccessKit role.
-    Node(NodeRole),
+    Node(accesskit::Role),
+}
+
+macro_rules! roles {
+    ($($(#[$doc:meta])* $name:ident = $role:ident;)*) => {
+        impl Role {
+            $($(#[$doc])* pub const $name: Role = Role::Node(accesskit::Role::$role);)*
+        }
+    };
+}
+
+roles! {
+    /// A button.
+    BUTTON = Button;
+    /// A check box.
+    CHECK_BOX = CheckBox;
+    /// A radio button.
+    RADIO_BUTTON = RadioButton;
+    /// A switch.
+    SWITCH = Switch;
+    /// A link.
+    LINK = Link;
+    /// A grouping of controls.
+    GROUP = Group;
+    /// A radio group.
+    RADIO_GROUP = RadioGroup;
+    /// A list.
+    LIST = List;
+    /// A list item.
+    LIST_ITEM = ListItem;
+    /// A list box.
+    LIST_BOX = ListBox;
+    /// An option of a list box.
+    LIST_BOX_OPTION = ListBoxOption;
+    /// A slider.
+    SLIDER = Slider;
+    /// A spin button.
+    SPIN_BUTTON = SpinButton;
+    /// A progress bar.
+    PROGRESS_INDICATOR = ProgressIndicator;
+    /// A scroll bar.
+    SCROLL_BAR = ScrollBar;
+    /// A splitter between panes.
+    SPLITTER = Splitter;
+    /// A tab.
+    TAB = Tab;
+    /// A row of tabs.
+    TAB_LIST = TabList;
+    /// The panel a tab shows.
+    TAB_PANEL = TabPanel;
+    /// A menu.
+    MENU = Menu;
+    /// A menu bar.
+    MENU_BAR = MenuBar;
+    /// A menu item.
+    MENU_ITEM = MenuItem;
+    /// A menu item with a check mark.
+    MENU_ITEM_CHECK_BOX = MenuItemCheckBox;
+    /// A menu item that is one of a group.
+    MENU_ITEM_RADIO = MenuItemRadio;
+    /// A single-line text input.
+    TEXT_INPUT = TextInput;
+    /// A multi-line text input.
+    MULTILINE_TEXT_INPUT = MultilineTextInput;
+    /// Static text.
+    LABEL = Label;
+    /// A heading.
+    HEADING = Heading;
+    /// A dialog.
+    DIALOG = Dialog;
+    /// A combo box.
+    COMBO_BOX = ComboBox;
+    /// A tree.
+    TREE = Tree;
+    /// A tree item.
+    TREE_ITEM = TreeItem;
+    /// A table.
+    TABLE = Table;
+    /// A table row.
+    ROW = Row;
+    /// A table cell.
+    CELL = Cell;
+    /// A column header.
+    COLUMN_HEADER = ColumnHeader;
+    /// An image.
+    IMAGE = Image;
+    /// A tooltip.
+    TOOLTIP = Tooltip;
+    /// A status message.
+    STATUS = Status;
+    /// An alert.
+    ALERT = Alert;
+    /// A toolbar.
+    TOOLBAR = Toolbar;
 }
 
 impl Role {
-    /// A button.
-    pub const BUTTON: Role = Role::Node(roles::BUTTON);
-    /// A grouping of controls.
-    pub const GROUP: Role = Role::Node(roles::GROUP);
-    /// A radio group.
-    pub const RADIO_GROUP: Role = Role::Node(roles::RADIO_GROUP);
-    /// A list.
-    pub const LIST: Role = Role::Node(roles::LIST);
-    /// A list item.
-    pub const LIST_ITEM: Role = Role::Node(roles::LIST_ITEM);
-    /// A slider.
-    pub const SLIDER: Role = Role::Node(roles::SLIDER);
+    /// The role of a message of `tone`: status for the neutral tones, alert for a warning or a failure.
+    pub const fn of_tone(tone: Tone) -> Role {
+        match tone {
+            Tone::Warn | Tone::Bad => Role::ALERT,
+            _ => Role::STATUS,
+        }
+    }
 }
 
-/// The facts a component adds to its AccessKit node.
-// F3-LATER: runtime::access (name, description, value, numeric, relations, sub-nodes and actions are F4)
-#[derive(Debug, Default)]
+/// How a node or sub-node is named.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct Access {}
+pub enum Name {
+    /// The component's label (an enclosing field label replaces it).
+    #[default]
+    FromLabel,
+    /// This text.
+    Text(String),
+    /// These texts, joined with a comma.
+    Joined(Vec<String>),
+    /// The text of the node with this id.
+    LabelledBy(Id),
+    /// No name: the node is hidden from assistive technology.
+    Decorative,
+}
+
+/// A numeric value.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct Numeric {
+    /// The value, `None` while it has none (a mixed selection).
+    pub value: Option<f64>,
+    /// The range; a slider needs a finite one.
+    pub range: RangeInclusive<f64>,
+    /// The step of an increment or decrement; it declares both actions.
+    pub step: Option<f64>,
+    /// The value as the component shows it, when that differs from the number.
+    pub text: Option<String>,
+}
+
+impl Numeric {
+    /// A value in a range.
+    pub fn new(value: f64, range: RangeInclusive<f64>) -> Self {
+        Numeric { value: Some(value), range, step: None, text: None }
+    }
+
+    /// A range with no value.
+    pub fn empty(range: RangeInclusive<f64>) -> Self {
+        Numeric { value: None, range, step: None, text: None }
+    }
+
+    /// The step of an increment or decrement.
+    #[must_use]
+    pub fn step(mut self, step: f64) -> Self {
+        self.step = Some(step);
+        self
+    }
+
+    /// The value as shown.
+    #[must_use]
+    pub fn text(mut self, text: impl Into<String>) -> Self {
+        self.text = Some(text.into());
+        self
+    }
+}
+
+/// A node's place in its set, on the closed list of items it belongs to.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SetPosition {
+    /// The zero-based index.
+    pub index: usize,
+    /// The number of items, when known.
+    pub size: Option<usize>,
+    /// The depth in a tree.
+    pub level: Option<usize>,
+}
+
+impl SetPosition {
+    /// Position `index`.
+    pub const fn new(index: usize) -> Self {
+        SetPosition { index, size: None, level: None }
+    }
+
+    /// In a set of `size`.
+    #[must_use]
+    pub const fn of(mut self, size: usize) -> Self {
+        self.size = Some(size);
+        self
+    }
+
+    /// At depth `level`.
+    #[must_use]
+    pub const fn level(mut self, level: usize) -> Self {
+        self.level = Some(level);
+        self
+    }
+}
+
+/// How urgently a live announcement is read.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum Politeness {
+    /// After the current speech.
+    Polite,
+    /// At once.
+    Assertive,
+}
+
+/// Nodes a node relates to, by id.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Relations {
+    pub labelled_by: Vec<Id>,
+    pub described_by: Vec<Id>,
+    pub controls: Vec<Id>,
+    pub flow_to: Vec<Id>,
+}
+
+/// The facts a component adds to its AccessKit node: what the pipeline cannot derive from the label, the flags
+/// and the parts.
+#[derive(Clone, Debug, Default)]
+#[non_exhaustive]
+pub struct Access {
+    pub(crate) role: Option<Role>,
+    pub(crate) name: Name,
+    pub(crate) description: Option<String>,
+    pub(crate) placeholder: Option<String>,
+    pub(crate) value: Option<String>,
+    pub(crate) numeric: Option<Numeric>,
+    pub(crate) expanded: Option<bool>,
+    pub(crate) has_popup: Option<accesskit::HasPopup>,
+    pub(crate) level: Option<usize>,
+    pub(crate) position: Option<SetPosition>,
+    pub(crate) required: bool,
+    pub(crate) url: Option<String>,
+    pub(crate) shortcut: Option<String>,
+    pub(crate) access_key: Option<char>,
+    pub(crate) relations: Relations,
+    pub(crate) custom_actions: Vec<(i32, Label)>,
+    pub(crate) live: Option<Politeness>,
+    pub(crate) busy: bool,
+    pub(crate) nodes: Vec<SubNode>,
+}
+
+impl Access {
+    /// The role of this instance, one of the component's `ALT_ROLES`.
+    pub fn role(&mut self, role: Role) -> &mut Self {
+        self.role = Some(role);
+        self
+    }
+
+    /// How the node is named, when the label is not the name.
+    pub fn name(&mut self, name: Name) -> &mut Self {
+        self.name = name;
+        self
+    }
+
+    /// A description, over the bound command's hint and the tooltip.
+    pub fn description(&mut self, text: impl Into<String>) -> &mut Self {
+        self.description = Some(text.into());
+        self
+    }
+
+    /// The hint text of an empty input.
+    pub fn placeholder(&mut self, text: impl Into<String>) -> &mut Self {
+        self.placeholder = Some(text.into());
+        self
+    }
+
+    /// The text value of a text component.
+    pub fn value(&mut self, text: impl Into<String>) -> &mut Self {
+        self.value = Some(text.into());
+        self
+    }
+
+    /// The numeric value of a value component; a step also declares increment and decrement.
+    pub fn numeric(&mut self, numeric: Numeric) -> &mut Self {
+        self.numeric = Some(numeric);
+        self
+    }
+
+    /// Whether a disclosure is open, when no flag says it.
+    pub fn expanded(&mut self, on: bool) -> &mut Self {
+        self.expanded = Some(on);
+        self
+    }
+
+    /// What kind of popup the component opens.
+    pub fn has_popup(&mut self, kind: accesskit::HasPopup) -> &mut Self {
+        self.has_popup = Some(kind);
+        self
+    }
+
+    /// The heading level or tree depth.
+    pub fn level(&mut self, level: usize) -> &mut Self {
+        self.level = Some(level);
+        self
+    }
+
+    /// The place in a closed set.
+    pub fn position(&mut self, position: SetPosition) -> &mut Self {
+        self.position = Some(position);
+        self
+    }
+
+    /// The input must be filled in.
+    pub fn required(&mut self, on: bool) -> &mut Self {
+        self.required = on;
+        self
+    }
+
+    /// The target of a link.
+    pub fn url(&mut self, url: impl Into<String>) -> &mut Self {
+        self.url = Some(url.into());
+        self
+    }
+
+    /// The keyboard shortcut, over the bound command's.
+    pub fn shortcut(&mut self, text: impl Into<String>) -> &mut Self {
+        self.shortcut = Some(text.into());
+        self
+    }
+
+    /// The mnemonic letter.
+    pub fn access_key(&mut self, key: char) -> &mut Self {
+        self.access_key = Some(key);
+        self
+    }
+
+    /// The node `id` names this one. Targets are `cx.key(..)` ids; one shown in a later frame follows the
+    /// one-frame rule.
+    pub fn labelled_by(&mut self, id: Id) -> &mut Self {
+        self.relations.labelled_by.push(id);
+        self
+    }
+
+    /// The node `id` describes this one.
+    pub fn described_by(&mut self, id: Id) -> &mut Self {
+        self.relations.described_by.push(id);
+        self
+    }
+
+    /// This node controls the node `id` (the popup of an open combo box).
+    pub fn controls(&mut self, id: Id) -> &mut Self {
+        self.relations.controls.push(id);
+        self
+    }
+
+    /// Reading continues at the node `id`.
+    pub fn flow_to(&mut self, id: Id) -> &mut Self {
+        self.relations.flow_to.push(id);
+        self
+    }
+
+    /// Makes the node a live region.
+    pub fn live(&mut self, politeness: Politeness) -> &mut Self {
+        self.live = Some(politeness);
+        self
+    }
+
+    /// The node is working.
+    pub fn busy(&mut self, on: bool) -> &mut Self {
+        self.busy = on;
+        self
+    }
+
+    /// A node below this component's node, keyed by a `PartRef` (content painters key lines and runs as
+    /// `LINE.at(i)`), with the id `sub(id, ("node", part_ref))`.
+    pub fn node(&mut self, part: impl Into<PartRef>, role: Role) -> &mut SubNode {
+        self.nodes.push(SubNode::new(part.into(), role));
+        let at = self.nodes.len() - 1;
+        &mut self.nodes[at]
+    }
+
+    /// An action the component serves itself; it arrives through `cx.intents().take_access()`.
+    pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self {
+        self.custom_actions.push((id, label));
+        self
+    }
+}
+
+/// A node below a component's node, for a part, a cell or a line of a content painter.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct SubNode {
+    /// How the sub-node is named.
+    pub name: Name,
+    /// A description.
+    pub description: Option<String>,
+    /// A numeric value.
+    pub numeric: Option<Numeric>,
+    /// The place in a closed set.
+    pub position: Option<SetPosition>,
+    pub(crate) part: PartRef,
+    pub(crate) role: Role,
+    pub(crate) under: Option<PartRef>,
+    pub(crate) flags: Flags,
+    pub(crate) custom_actions: Vec<(i32, Label)>,
+}
+
+impl SubNode {
+    pub(crate) fn new(part: PartRef, role: Role) -> Self {
+        SubNode {
+            name: Name::FromLabel,
+            description: None,
+            numeric: None,
+            position: None,
+            part,
+            role,
+            under: None,
+            flags: Flags::empty(),
+            custom_actions: Vec::new(),
+        }
+    }
+
+    /// Nests this sub-node below another sub-node of the same component.
+    pub fn under(&mut self, other: impl Into<PartRef>) -> &mut Self {
+        self.under = Some(other.into());
+        self
+    }
+
+    /// An action the component serves itself, targeted at this sub-node.
+    pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self {
+        self.custom_actions.push((id, label));
+        self
+    }
+}

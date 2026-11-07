@@ -3,7 +3,6 @@
 use crate::runtime::memory::sub;
 use craft_behavior::PartRef;
 use egui::Id;
-use std::ops::RangeInclusive;
 
 /// What `Draw` calls record. Step 16 reads the elided text and step 17 the baseline.
 #[derive(Debug, Default)]
@@ -26,8 +25,10 @@ pub(crate) struct FaceRecord {
     pub name: String,
     /// The face's value flags.
     pub flags: crate::style::Flags,
-    /// The face's numeric value and range.
-    pub value: Option<(f64, RangeInclusive<f64>)>,
+    /// The face's role.
+    pub role: crate::runtime::access::Role,
+    /// The face's numeric value, from its `access`.
+    pub numeric: Option<crate::runtime::access::Numeric>,
 }
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover

@@ -4,6 +4,7 @@
 //! binary's runner collects them. The fixture half drives frames ([`Frames`]) and reaches the runtime's
 //! crate-private services the trials check.
 
+pub mod access;
 pub mod contract;
 pub mod focus;
 pub mod frames;

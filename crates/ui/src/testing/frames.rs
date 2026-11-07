@@ -1,6 +1,7 @@
 //! A fixed-rate frame driver over a context.
 
 use crate::runtime::egui::{areas, fixture};
+use crate::testing::access::AccessTree;
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use crate::runtime::{InstallSpec, install};
@@ -16,6 +17,7 @@ pub struct Frames {
     time: f64,
     root: RootEnv,
     cursor: egui::CursorIcon,
+    tree: Option<accesskit::TreeUpdate>,
 }
 
 impl Default for Frames {
@@ -34,7 +36,7 @@ impl Frames {
 
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
-        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default }
+        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default, tree: None }
     }
 
     /// Installs the runtime on the context.
@@ -88,7 +90,13 @@ impl Frames {
         self.time += DT;
         let result = fixture::run_frame(&self.ctx, self.time, events, ui);
         self.cursor = result.cursor;
+        self.tree = result.tree;
         result.closed
+    }
+
+    /// The AccessKit tree the last frame produced.
+    pub fn tree(&mut self) -> AccessTree {
+        AccessTree::new(self.tree.take().unwrap_or_else(AccessTree::no_frame))
     }
 
     /// The system cursor the last frame's output asked for.

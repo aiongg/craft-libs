@@ -8,6 +8,8 @@ pub(crate) struct FrameResult {
     pub closed: bool,
     /// The cursor the frame's output asked for.
     pub cursor: egui::CursorIcon,
+    /// The AccessKit tree update of the frame.
+    pub tree: Option<accesskit::TreeUpdate>,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -17,7 +19,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
-    FrameResult { closed, cursor: output.platform_output.cursor_icon }
+    FrameResult { closed, cursor: output.platform_output.cursor_icon, tree: output.platform_output.accesskit_update.take() }
 }
 
 /// A key press event with `modifiers`.
@@ -40,9 +42,11 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
     ctx.options_mut(|options| options.input_options.max_click_duration = seconds);
 }
 
-/// A fresh context with no plugin.
+/// A fresh context with no plugin and AccessKit on.
 pub(crate) fn bare_context() -> Context {
-    Context::default()
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    ctx
 }
 
 /// A paragraph of `text` wrapped to the available width.

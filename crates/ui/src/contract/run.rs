@@ -10,7 +10,8 @@ use super::{
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::egui::{alloc, child};
+use crate::runtime::access::{Role, scope};
+use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, inspect, keys, layout_memory, memory};
@@ -391,6 +392,14 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
             (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member)
         }
     };
+    // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
+    // widget, so it first registers the `Ui` it sits in as its parent.
+    let node = matches!(C::ROLE, Role::Node(_)) && {
+        if member.is_some() {
+            access::register_parent(&ctx, id, ui.unique_id());
+        }
+        access::with_node(&ctx, id, |_| ()).is_some()
+    };
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;
     cx.core.content_rect = flow.inset(metrics.padding);
@@ -407,6 +416,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     cx.core.intents = keys::intents_of(&ctx, Some(id), rtl);
     p.hooks.sensed(comp, cx);
     if inert {
+        if node {
+            steps::report_inert(cx);
+        }
         return;
     }
     // 9 update
@@ -434,6 +446,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::paint_focus(ui, cx);
     // 14 content, then `paint_over`
     if p.trace.mark(Step::Content) {
+        if C::ROLE == Role::Merged {
+            scope::begin(&ctx, id, scope::Kind::Merge);
+        }
         p.hooks.content(comp, ui, env, cx, &values);
     }
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
@@ -442,7 +457,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::settle(cx);
     // 16 report. F5-LATER: the tooltip runs from `tip` here.
     p.trace.mark(Step::Report);
-    steps::report(cx);
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own });
     let _ = p.tip.take();
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -646,5 +661,5 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = super::Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, value: None }
+    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take() }
 }
