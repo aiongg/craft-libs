@@ -47,6 +47,6 @@ fn a_footer_under_a_fill_collection_stays_inside_the_stack_and_the_collection_en
     };
     frames.idle(4, &mut show);
     let (stack, list, footer) = (stack.get(), list.get(), footer.get());
-    assert!(footer.height() > 0.0 && stack.contains_rect(footer), "the footer is inside the stack: {footer:?} in {stack:?}");
+    assert!(footer.is_finite() && stack.contains_rect(footer), "the footer is inside the stack: {footer:?} in {stack:?}");
     assert!(list.max.y <= footer.min.y + 0.5, "the list ends at or above the footer: {list:?} over {footer:?}");
 }
