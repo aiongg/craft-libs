@@ -89,6 +89,7 @@ use egui::Pos2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod drop;
 mod spec;
 mod targets;
 
