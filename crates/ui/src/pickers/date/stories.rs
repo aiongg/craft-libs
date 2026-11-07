@@ -1,6 +1,6 @@
 //! Stories of `DatePicker` and `Calendar`.
 
-use super::{Calendar, CalendarView, DatePicker, DatePrecision, PickedDate, dates_of};
+use super::{Calendar, CalendarView, DatePicker, DatePrecision, PickedDate};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -66,7 +66,7 @@ fn date_picker_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(Calendar, covers = [Default], drive = Drive::Never)]
 fn calendar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let dates = dates_of(None);
+    let dates = crate::runtime::env::Env::of(ui).dates();
     let view = *data.value("view", CalendarView::open(Some(today()), Some(today()), &[DatePrecision::Day], &dates));
     let out = Calendar::new("Pick a day", view, Some(today())).today(today()).show(ui);
     if let Some(next) = out.moved {

@@ -1,8 +1,13 @@
 //! Date values, codec, calendar maths and the calendar's keys.
 
 use craft_behavior::{Codec, NavMove};
-use craft_i18n::{DateFormat, Format, Weekday};
-use craft_ui::pickers::{CalendarView, DateCodec, DatePrecision, PickedDate, month_grid};
+use craft_i18n::{CalendarDate, DateFormat, Region, Weekday};
+use craft_ui::contract::Show as _;
+use craft_ui::pickers::{Calendar, CalendarView, DateCodec, DatePrecision, PickedDate, local_month_grid, month_grid};
+use craft_ui::testing::Fixture;
+use egui::{Key, Modifiers};
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 const YEAR: i32 = 2026;
@@ -63,21 +68,91 @@ fn the_codec_reads_what_the_picker_offers() {
     assert_eq!(codec.parse(&codec.format(&Some(day)), &None), Ok(Some(day)), "written text reads back");
 }
 
-/// The active day moves a week with Up and Down, stays at the month's ends, and paging keeps the place in the month
-/// at most the new month's last day.
+/// A step past the month's first or last row goes on into the neighbouring month, a day or a week from the cell; paging
+/// keeps the place in the month at most the new month's last day.
 #[craft_ui::testing::trial]
-fn the_calendar_moves_the_active_day_and_pages() {
-    let (dates, format) = (DateFormat::from_tag("en-US"), Format::from_tag("en-US"));
+fn the_calendar_crosses_months_past_the_grids_ends_and_pages() {
+    let dates = DateFormat::from_tag("en-US");
     let january = PickedDate::day(YEAR, JANUARY, 1);
     let view = CalendarView::open(Some(january), None, &[DatePrecision::Day], &dates);
     assert_eq!((view.year, view.month, view.active), (YEAR, JANUARY, 1));
-    assert_eq!(view.stepped(NavMove::Down, &dates, &format).active, 1 + WEEK);
-    assert_eq!(view.stepped(NavMove::Back, &dates, &format).active, 1, "nothing before the 1st");
-    assert_eq!(view.stepped(NavMove::Up, &dates, &format).active, 1);
+    let before = view.crossed(NavMove::Back, 1, &dates);
+    assert_eq!((before.year, before.month, before.active), (YEAR - 1, 12, i32::from(LAST_JANUARY_DAY)), "the day before the 1st");
+    let above = view.crossed(NavMove::Up, 3, &dates);
+    assert_eq!((above.year, above.month, above.active), (YEAR - 1, 12, 27), "a week before January 3rd");
+    let below = view.crossed(NavMove::Down, i32::from(LAST_JANUARY_DAY), &dates);
+    assert_eq!((below.month, below.active), (FEBRUARY, WEEK), "a week after January 31st");
 
     let last = PickedDate::day(YEAR, JANUARY, LAST_JANUARY_DAY);
     let end = CalendarView::open(Some(last), None, &[DatePrecision::Day], &dates);
-    let next = end.stepped(NavMove::PageDown, &dates, &format);
+    let next = end.crossed(NavMove::PageDown, end.active, &dates);
     assert_eq!((next.month, i32::from(FEBRUARY_DAYS)), (FEBRUARY, next.active));
-    assert_eq!(next.stepped(NavMove::PageUp, &dates, &format).month, JANUARY);
+    assert_eq!(next.crossed(NavMove::PageUp, next.active, &dates).month, JANUARY);
+    assert_eq!(view.crossed(NavMove::Start, 1, &dates), view, "Home is the grid's");
+}
+
+/// A month whose first day sits in the fourth column of the week, in the region the fixture runs in.
+fn month_starting_in_fourth_column() -> (u8, CalendarView, DateFormat) {
+    let dates = DateFormat::new(&Region::system());
+    let month = (2..=12u8)
+        .find(|month| local_month_grid(&dates, YEAR, *month).iter().position(Option::is_some) == Some(3))
+        .expect("every weekday starts a month between February and December");
+    let view = CalendarView::open(Some(PickedDate::day(YEAR, month, 1)), None, &[DatePrecision::Day], &dates);
+    (month, view, dates)
+}
+
+/// A calendar over `view` that records its page and the day picked.
+fn calendar(view: CalendarView) -> (Fixture, Rc<Cell<CalendarView>>, Rc<Cell<Option<PickedDate>>>) {
+    let page = Rc::new(Cell::new(view));
+    let picked = Rc::new(Cell::new(None));
+    let (shown, chose) = (page.clone(), picked.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let out = Calendar::new("Day", shown.get(), None).show(ui);
+        if let Some(next) = out.moved {
+            shown.set(next);
+        }
+        if out.picked.is_some() {
+            chose.set(out.picked);
+        }
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    (fixture, page, picked)
+}
+
+/// Down from the 1st of a month that starts in the fourth column lands on the 8th, in the same column of the next
+/// row, and Enter picks it.
+#[craft_ui::testing::trial]
+fn down_from_the_first_of_a_month_lands_on_the_same_weekday_a_week_later() {
+    let (month, view, _) = month_starting_in_fourth_column();
+    let (mut fixture, _, picked) = calendar(view);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(picked.get(), Some(PickedDate::day(YEAR, month, WEEK as u8 + 1)));
+}
+
+/// Up from the 1st has no row above: the previous month shows and focus lands a week before the 1st.
+#[craft_ui::testing::trial]
+fn up_from_the_first_moves_to_the_previous_month() {
+    let (month, view, _) = month_starting_in_fourth_column();
+    let (mut fixture, page, picked) = calendar(view);
+    fixture.key(Key::ArrowUp, Modifiers::NONE);
+    fixture.idle(3);
+    assert_eq!(page.get().month, month - 1);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    let days = CalendarDate::days_in_month(i64::from(YEAR), month - 1);
+    assert_eq!(picked.get(), Some(PickedDate::day(YEAR, month - 1, days - WEEK as u8 + 1)));
+}
+
+/// Enter on the focused day picks it.
+#[craft_ui::testing::trial]
+fn enter_on_a_focused_day_picks_it() {
+    let (month, view, _) = month_starting_in_fourth_column();
+    let (mut fixture, _, picked) = calendar(view);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(picked.get(), Some(PickedDate::day(YEAR, month, 2)));
 }

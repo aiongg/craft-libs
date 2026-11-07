@@ -756,6 +756,16 @@ impl<'a> EnvView<'a> {
         &self.scoped.format
     }
 
+    /// How the scope writes dates: the host's catalog format, else the system region's.
+    pub fn dates(&self) -> Arc<DateFormat> {
+        Arc::clone(&self.scoped.dates)
+    }
+
+    /// Today's date as the host supplied it with `RootEnv::today`; `None` when it gave none.
+    pub fn today(&self) -> Option<CalendarDate> {
+        self.scoped.today
+    }
+
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
         Units::new(self.scoped.format.clone(), self.words::<UnitWords>(), self.scoped.words.clone())
