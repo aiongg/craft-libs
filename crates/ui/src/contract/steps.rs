@@ -2,10 +2,13 @@
 //! them for every shape.
 
 use super::cx::gesture_key;
-use super::cx::{CxCore, Decls, MeasureCx};
+use super::cx::{CxCore, Decls, MeasureCx, PartExtras};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
-use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
+use crate::primitives::sensing::PartDecl;
+use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
+use crate::runtime::access::{Access, Role, SubNode, scope};
 use crate::runtime::commands::{self, ResolvedCommand};
+use crate::runtime::egui::access::{self as adapter, FaceFacts, Own, SubDecl};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
@@ -170,7 +173,7 @@ pub(crate) fn env<C: Component>(ctx: &Context, env: &Env, common: &Common) -> En
     let command = common.command.as_ref().map(|command| Arc::new(commands::resolve_bound(ctx, &env.commands, command)));
     let label = match (&common.label, &command) {
         (Label::Empty, Some(command)) => Label::Shared(command.label.clone()),
-        (label, _) => label.clone(),
+        (label, _) => label.resolved(&env.words),
     };
     EnvStep {
         enabled: common.enabled.unwrap_or(true) && env.enabled && command.as_ref().is_none_or(|command| command.enabled),
@@ -184,7 +187,7 @@ pub(crate) fn env<C: Component>(ctx: &Context, env: &Env, common: &Common) -> En
 }
 
 /// `Resolved` over the frame's locals.
-pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &Common) -> Resolved<'p> {
+pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &'p Common) -> Resolved<'p> {
     Resolved {
         id,
         label: step.label.as_str(),
@@ -195,6 +198,8 @@ pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &Common) -> Resolv
         variant: step.variant,
         selected: common.selected,
         keeps_name: common.keeps_name,
+        description: common.description.as_deref(),
+        tooltip: common.tooltip.as_ref(),
         doc_key: common.doc_key,
     }
 }
@@ -869,10 +874,140 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
 }
 
-/// Step 16, report: the cursor request.
-// F4-LATER: access (the AccessKit node, sub-nodes, actions and focus); F5-LATER: tooltips (`contract::tooltip`)
-pub(crate) fn report<C: Component>(cx: &Cx<'_, C>) {
+/// What step 16 reads that the pass computed before: whether step 8 made the node and the part declarations.
+pub(crate) struct ReportIn<'a> {
+    /// The node step 8 created, `None` for a role with no node or while AccessKit is off.
+    pub node: bool,
+    pub decls: &'a [(PartDecl, PartExtras)],
+    pub sense: Sense,
+}
+
+/// The bound command's hint and shortcut, which describe and key its node.
+// F4-MERGE: F4c (commands): `ResolvedCommand` carries `hint` and the shortcut text.
+fn command_facts(_command: &ResolvedCommand) -> (Option<&str>, Option<&str>) {
+    (None, None)
+}
+
+/// Step 16, report: the AccessKit node filled with its sub-nodes, the label-scope patch and the merge, then the
+/// cursor request.
+// F5-LATER: tooltips (`contract::tooltip`)
+pub(crate) fn report<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
+    report_access(comp, cx, input);
     super::cx::write_cursor(&cx.core);
+}
+
+fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
+    let core = &cx.core;
+    let (ctx, id) = (&core.ctx, core.id);
+    let mut access = Access::default();
+    comp.access(&mut access, cx);
+    let role = access.role.unwrap_or(C::ROLE);
+    debug_assert!(access.role.is_none_or(|alt| C::ALT_ROLES.contains(&alt)), "`Access::role` picks one of `ALT_ROLES`");
+    let flags = core.state.flags;
+    let resolved = core.resolved;
+    let (hint, shortcut) = core.command.as_deref().map_or((None, None), command_facts);
+    let tooltip = resolved.tooltip.map(|tooltip| tooltip.spec().text.as_str());
+    let paint = core.paint.borrow();
+    if role == Role::Merged {
+        let facts = scope::Merged {
+            name: resolved.label.to_owned(),
+            description: access.description.clone().or_else(|| resolved.description.map(str::to_owned)),
+            flags,
+            enabled: resolved.enabled,
+        };
+        scope::finish(ctx, id, Some(facts));
+        return;
+    }
+    scope::finish(ctx, id, None);
+    let Role::Node(role) = role else { return };
+    if !input.node {
+        return;
+    }
+    let focusable = resolved.enabled && input.sense.contains(Sense::FOCUS);
+    let own = Own {
+        id,
+        component: std::any::type_name::<C>(),
+        role,
+        rect: core.rect,
+        label: resolved.label,
+        tooltip,
+        elided: paint.elided.as_deref(),
+        description: resolved.description,
+        hint,
+        shortcut,
+        display: C::INPUT == craft_behavior::Input::Display,
+        flags,
+        enabled: resolved.enabled,
+        read_only: resolved.read_only,
+        focusable,
+        clickable: resolved.enabled && input.sense.contains(Sense::CLICK),
+        keeps_name: resolved.keeps_name,
+        access: &access,
+    };
+    adapter::fill_own(ctx, &own);
+    if core.member_of.is_some() && flags.contains(Flags::FOCUSED) {
+        adapter::set_focus(ctx, id);
+    }
+    let mut seen = Vec::new();
+    for node in &access.nodes {
+        seen.push(node.part);
+        report_sub(core, input, node, paint.faces.iter().find(|face| face.part == node.part));
+    }
+    for face in paint.faces.iter().filter(|face| !seen.contains(&face.part)) {
+        report_sub(core, input, &SubNode::new(face.part, face.role), Some(face));
+    }
+}
+
+fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Option<&FaceRecord>) {
+    let key = (node.part.key, node.part.index);
+    let result = core.results.get(&key);
+    let declared = input.decls.iter().find(|(decl, _)| (decl.key, decl.index) == key);
+    let mut node = node.clone();
+    node.flags |= result.map_or(Flags::empty(), |result| result.flags);
+    let decl = SubDecl {
+        owner: core.id,
+        component: "",
+        node: &node,
+        rect: result.map_or(core.rect, |result| result.rect),
+        enabled: core.resolved.enabled,
+        focusable: core.resolved.enabled && declared.is_some_and(|(_, extras)| extras.focusable),
+        clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
+        active: core.active == Some(node.part),
+        face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref() }),
+        label: core.resolved.label,
+        parent: node.under.map_or(core.id, |under| adapter::sub_node_id(core.id, under)),
+    };
+    adapter::fill_sub(&core.ctx, &decl);
+}
+
+/// A node of a component whose size failed the guard: the role and the label, nothing else.
+pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
+    let Role::Node(role) = C::ROLE else { return };
+    let core = &cx.core;
+    let access = Access::default();
+    adapter::fill_own(
+        &core.ctx,
+        &Own {
+            id: core.id,
+            component: std::any::type_name::<C>(),
+            role,
+            rect: core.rect,
+            label: core.resolved.label,
+            tooltip: None,
+            elided: None,
+            description: None,
+            hint: None,
+            shortcut: None,
+            display: false,
+            flags: Flags::empty(),
+            enabled: core.resolved.enabled,
+            read_only: core.resolved.read_only,
+            focusable: false,
+            clickable: false,
+            keeps_name: false,
+            access: &access,
+        },
+    );
 }
 
 /// Step 17, finish, before `C::finish`: the click flags of the response are rewritten, so every output built from it

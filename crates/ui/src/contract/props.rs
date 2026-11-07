@@ -149,8 +149,12 @@ pub struct Resolved<'p> {
     pub variant: Variant,
     /// `Common.selected`.
     pub selected: Option<bool>,
-    #[expect(dead_code, reason = "read by the label-scope patch of step 16 (F4)")]
+    /// Read by the label-scope patch: the name stays and the field label describes.
     pub(crate) keeps_name: bool,
+    /// `Common.description`.
+    pub(crate) description: Option<&'p str>,
+    /// `Common.tooltip`.
+    pub(crate) tooltip: Option<&'p Tooltip>,
     /// The undo adapter's key for edits of this component.
     pub(crate) doc_key: Option<DocKey>,
 }

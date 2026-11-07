@@ -10,7 +10,8 @@ use super::{
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::egui::{alloc, child};
+use crate::runtime::access::{Role, scope};
+use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, focus, inspect, keys, layout_memory, memory};
@@ -157,7 +158,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.commands = scoped.commands.pushed(scope, id);
             }
         });
-        let mut body_ui = alloc::child(ui, UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id));
+        let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id);
+        // The body's nodes are the container's children; a role with no node leaves them where egui puts them.
+        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
+        let mut body_ui = alloc::child(ui, builder);
         let installed = Env::install_for(&body_ui, inner.clone());
         {
             let mut body_cx = BodyCx::new(body_id, inner.view(), cx.core.resolved, rect, &mut *cx.core.memory);
@@ -210,6 +214,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             scoped.arena = Some(ArenaId::new(id));
         });
         let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(sub(id, "items"));
+        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
         let mut items_ui = alloc::child(ui, builder);
         items_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         let installed = Env::install_for(&items_ui, inner);
@@ -399,6 +404,14 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
             (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member)
         }
     };
+    // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
+    // widget, so it first registers the `Ui` it sits in as its parent.
+    let node = matches!(C::ROLE, Role::Node(_)) && {
+        if member.is_some() {
+            access::register_parent(&ctx, id, ui.unique_id());
+        }
+        access::create_node(&ctx, id)
+    };
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;
     cx.core.content_rect = flow.inset(metrics.padding);
@@ -415,6 +428,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     cx.core.intents = keys::intents_of(&ctx, Some(id), rtl);
     p.hooks.sensed(comp, cx);
     if inert {
+        if node {
+            steps::report_inert(cx);
+        }
         return;
     }
     // 9 update
@@ -448,6 +464,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::paint_focus(ui, cx);
     // 14 content, then `paint_over`
     if p.trace.mark(Step::Content) {
+        if C::ROLE == Role::Merged {
+            scope::begin(&ctx, id, scope::Kind::Merge);
+        }
         p.hooks.content(comp, ui, env, cx, &values);
     }
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
@@ -456,7 +475,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::settle(comp, cx);
     // 16 report. F5-LATER: the tooltip runs from `tip` here.
     p.trace.mark(Step::Report);
-    steps::report(cx);
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own });
     let _ = p.tip.take();
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -667,5 +686,5 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     // The face's own `access` adds its facts; the composite's step 16 fills the part's sub-node from the record.
     let mut access = super::Access::default();
     face.access(&mut access, &cx);
-    FaceRecord { part, name, flags, value: None }
+    FaceRecord { part, name, flags, role: C::ROLE, numeric: access.numeric.take() }
 }

@@ -222,3 +222,20 @@ fn command_set_derive_needs_a_prefix_and_labels() {
     assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A", kind = "x")] A }))).contains("kind"));
     assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A")] A(u8) }))).contains("unit"));
 }
+
+#[test]
+fn words(input: TokenStream) -> String {
+    error(crate::words::expand_words(input))
+}
+
+#[test]
+fn words_rows_are_checked() {
+    let id = words(quote! { struct W { save: "Save" = "Save"; } });
+    assert!(id.contains("module.camelCase"), "{id}");
+    let unit = words(quote! { struct W { size: unit "w.size" = "px"; } });
+    assert!(unit.contains("{n}"), "{unit}");
+    let count = words(quote! { struct W { items: count "w.items" = "{n} item" | "items"; } });
+    assert!(count.contains("{n}"), "{count}");
+    let braces = words(quote! { struct W { saved: template "w.saved" = "Saved {name"; } });
+    assert!(braces.contains("unmatched"), "{braces}");
+}

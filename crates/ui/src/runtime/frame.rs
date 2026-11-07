@@ -5,7 +5,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::commands::{self, CommandInput, Fired};
-use crate::runtime::{cursor, focus, keys, layout_memory, memory, motion, pointer, wheel};
+use crate::runtime::{access, cursor, focus, keys, layout_memory, memory, motion, pointer, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -314,6 +314,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     wheel::begin(&ctx);
     // H7: shortcuts the owner allows, through the gate.
     commands::begin(&ctx);
+    access::begin_live_pass(&ctx);
 }
 
 /// The end hook.
@@ -321,6 +322,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     cursor::end_pass(&ctx);
     commands::end(&ctx);
+    access::end_live_pass(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);

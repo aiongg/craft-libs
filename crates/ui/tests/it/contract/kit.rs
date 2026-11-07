@@ -2,7 +2,7 @@
 
 use craft_behavior::{Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout};
 use craft_ui::contract::{
-    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Role,
+    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Props as _, Role,
 };
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Rect, Response, Vec2};
@@ -87,7 +87,7 @@ pub struct Probe<'a> {
 
 impl<'a> Probe<'a> {
     pub fn new(seen: &'a RefCell<Seen>) -> Self {
-        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], seen }
+        Probe { common: Common::new(), size: Vec2::new(40.0, 20.0), sense: None, parts: &[], seen }.label("Probe")
     }
 
     pub fn size(mut self, size: Vec2) -> Self {

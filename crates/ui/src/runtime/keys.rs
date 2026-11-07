@@ -544,7 +544,6 @@ pub(crate) fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
 }
 
 /// Registers an AccessKit node so a request that targets it reaches `owner`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
     current(ctx, |stage| {
         stage.nodes.insert(node_key(node), Node { owner, part, focusable });

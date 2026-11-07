@@ -6,6 +6,8 @@
 // The derives' output names the crate as `craft_ui`, here as in every other crate.
 extern crate self as craft_ui;
 
+pub use craft_ui_macros::words;
+
 pub mod bars;
 pub mod buttons;
 pub mod canvas;

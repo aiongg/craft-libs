@@ -1,5 +1,6 @@
 //! A fixed-rate frame driver over a context.
 
+use crate::runtime::egui::access::AccessTree;
 use crate::runtime::egui::{areas, fixture};
 use crate::runtime::commands::CommandInput;
 use crate::runtime::env::RootEnv;
@@ -23,6 +24,7 @@ pub struct Frames {
     repaint_delay: Duration,
     host: Option<Arc<Host>>,
     commands: CommandInput,
+    tree: Option<AccessTree>,
 }
 
 impl Default for Frames {
@@ -49,6 +51,7 @@ impl Frames {
             repaint_delay: Duration::MAX,
             host: None,
             commands: CommandInput::new(),
+            tree: None,
         }
     }
 
@@ -122,7 +125,13 @@ impl Frames {
         let result = fixture::run_frame(&self.ctx, self.time, events, ui);
         self.cursor = result.cursor;
         self.repaint_delay = result.repaint_delay;
+        self.tree = result.tree;
         result.closed
+    }
+
+    /// The AccessKit tree the last frame produced.
+    pub fn tree(&mut self) -> AccessTree {
+        self.tree.take().unwrap_or_else(AccessTree::none)
     }
 
     /// The wait the last frame asked for before the next pass: `Duration::ZERO` for an immediate repaint,

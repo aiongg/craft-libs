@@ -4,6 +4,7 @@
 use super::{Component, EditResponse, Resolved, Show, Tooltip, Validity, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
+use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
@@ -16,6 +17,7 @@ use craft_behavior::{
     CancelReason, Cursor, CursorIcon, CursorPriority, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape, Mixed, PartRef,
     PressCancel, PressPhase, PressState, Proposal, Roving, Sense, Value, Wheel,
 };
+use craft_i18n::WordSet;
 use craft_keymap::Chord;
 use craft_theme::Flags;
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
@@ -686,22 +688,71 @@ impl<K> CommandAccess for ItemCx<'_, '_, K> {
 
 impl<K> Commands for ItemCx<'_, '_, K> {}
 
-/// The label a component shows (chapter 19).
-// F3-LATER: words (F4 adds `words::<L>()`)
+/// The label a component shows and the built-in text it reads (chapter 19).
 pub trait WordSetCx {
     /// The label as given, a cheap clone.
     fn label(&self) -> Label;
+
+    /// The word set `L` in the language of the scope; built once per installed `Words`.
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>;
 }
 
 impl WordSetCx for CxCore<'_> {
     fn label(&self) -> Label {
         self.resolved.label_value.clone()
     }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
+    }
 }
 
 impl<C: Component> WordSetCx for Cx<'_, C> {
     fn label(&self) -> Label {
         self.core.label()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.core.words()
+    }
+}
+
+impl<C: Component> WordSetCx for MeasureCx<'_, C> {
+    fn label(&self) -> Label {
+        self.resolved.label_value.clone()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
+    }
+}
+
+/// Live announcements and the enclosing field label (chapter 12).
+pub trait Accessible {
+    /// Announces transient text; it is flushed at frame end as one status node and returned in `FrameOutput`.
+    fn announce(&mut self, text: impl Into<String>, politeness: Politeness);
+
+    /// The label of the enclosing field container, when the component sits in one.
+    fn field_label(&self) -> Option<FieldLabel>;
+}
+
+impl Accessible for CxCore<'_> {
+    fn announce(&mut self, text: impl Into<String>, politeness: Politeness) {
+        access::announce(&self.ctx, text, politeness);
+    }
+
+    fn field_label(&self) -> Option<FieldLabel> {
+        access::scope::field_label(&self.ctx)
+    }
+}
+
+impl<C: Component> Accessible for Cx<'_, C> {
+    fn announce(&mut self, text: impl Into<String>, politeness: Politeness) {
+        self.core.announce(text, politeness);
+    }
+
+    fn field_label(&self) -> Option<FieldLabel> {
+        self.core.field_label()
     }
 }
 
@@ -746,6 +797,10 @@ impl StageAccess for BodyCx<'_> {
 impl WordSetCx for BodyCx<'_> {
     fn label(&self) -> Label {
         self.resolved.label_value.clone()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
     }
 }
 

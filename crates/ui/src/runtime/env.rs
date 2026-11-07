@@ -13,6 +13,7 @@ use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 use craft_host::target::Os;
 pub use craft_i18n::Direction;
+pub use craft_i18n::{Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_theme::{
     AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
 };
@@ -263,6 +264,8 @@ pub struct Scoped {
     pub(crate) active: bool,
     /// The text and icon ink of the surface the scope sits on, set by a container for its body.
     pub ink: Ink,
+    /// The built-in text of the scope.
+    pub(crate) words: Arc<Words>,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -302,6 +305,11 @@ impl EnvCapture {
 }
 
 impl Env {
+    /// The word set `L` in the scope's language.
+    pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.words.set::<L>()
+    }
+
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
         let tokens = root_tokens(ctx, root);
@@ -327,6 +335,7 @@ impl Env {
                 arena: None,
                 transform: None,
                 commands: CommandChain::default(),
+                words: host_words(ctx, host.as_ref()),
                 host,
                 values: root.values.clone(),
             }),
@@ -521,6 +530,11 @@ impl<'a> EnvView<'a> {
     pub fn get<T: EnvValue>(&self) -> T {
         self.scoped.values.get::<T>()
     }
+
+    /// The word set `L` in the scope's language, built once per `Words`.
+    pub fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.scoped.words.set::<L>()
+    }
 }
 
 /// Changes to the inherited values for a stretch of code.
@@ -537,8 +551,20 @@ pub struct Overrides {
     pub motion: Option<MotionMode>,
     /// Also the child `Ui`'s direction and layout.
     pub direction: Option<Direction>,
+    /// The words of the scope and everything inside it.
+    pub words: Option<WordsOverride>,
     /// App values set for the scope.
     pub values: AppValues,
+}
+
+/// How a scope changes the built-in text: the only override path for words.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub enum WordsOverride {
+    /// These words stand in for the inherited ones.
+    Replace(Arc<Words>),
+    /// These rows win over the inherited words; every other word reads as before.
+    Overlay(WordRows),
 }
 
 impl Overrides {
@@ -558,6 +584,11 @@ impl Overrides {
         if let Some(direction) = self.direction {
             scoped.direction = direction;
         }
+        match self.words {
+            Some(WordsOverride::Replace(words)) => scoped.words = words,
+            Some(WordsOverride::Overlay(rows)) => scoped.words = Arc::new(scoped.words.overlay(&rows)),
+            None => {}
+        }
         scoped.values.extend(&self.values);
     }
 }
@@ -576,5 +607,34 @@ pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnO
     child::scope(ui, disabled, direction, |child| {
         let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(child, inner)) };
         body(child)
+    })
+}
+
+/// The words of the installed `Host`, kept until the `Host` changes so that the word sets built from them are
+/// built once.
+#[derive(Default)]
+struct HostWords {
+    host: Option<std::sync::Weak<Host>>,
+    words: Option<Arc<Words>>,
+}
+
+/// The catalogs of `host` in its language, English without a host or a catalog.
+fn host_words(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Words> {
+    Service::<HostWords>::of(ctx).with(|cached| {
+        let same = match (&cached.host, host) {
+            (Some(kept), Some(host)) => std::sync::Weak::ptr_eq(kept, &Arc::downgrade(host)),
+            (None, None) => true,
+            _ => false,
+        };
+        if let (true, Some(words)) = (same, &cached.words) {
+            return Arc::clone(words);
+        }
+        let words = Arc::new(match host.and_then(|host| host.i18n_shared().map(|i18n| (Arc::clone(i18n), host.lang()))) {
+            Some((i18n, lang)) => Words::from_i18n(i18n, lang),
+            None => Words::english(),
+        });
+        cached.host = host.map(Arc::downgrade);
+        cached.words = Some(Arc::clone(&words));
+        words
     })
 }

@@ -10,6 +10,8 @@ pub(crate) struct FrameResult {
     pub cursor: egui::CursorIcon,
     /// The wait egui asks for before the root viewport's next pass; `Duration::MAX` when it asks for none.
     pub repaint_delay: std::time::Duration,
+    /// The AccessKit tree update of the frame.
+    pub tree: Option<crate::runtime::egui::access::AccessTree>,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -20,7 +22,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
     let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
-    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay }
+    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay, tree: crate::runtime::egui::access::tree_of(&mut output) }
 }
 
 /// A key press event with `modifiers`.
@@ -43,9 +45,11 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
     ctx.options_mut(|options| options.input_options.max_click_duration = seconds);
 }
 
-/// A fresh context with no plugin.
+/// A fresh context with no plugin and AccessKit on.
 pub(crate) fn bare_context() -> Context {
-    Context::default()
+    let ctx = Context::default();
+    ctx.enable_accesskit();
+    ctx
 }
 
 /// A paragraph of `text` wrapped to the available width.
