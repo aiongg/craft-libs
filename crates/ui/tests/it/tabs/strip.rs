@@ -1,0 +1,70 @@
+//! `TabStrip`: which tabs fit, and that a click on a tab reports it selected.
+
+use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
+use craft_ui::contract::{CollectionEvent, ShowCollection as _};
+use craft_ui::tabs::{Tab, TabStrip};
+use craft_ui::testing::{Fixture, trial};
+use egui::Vec2;
+use std::cell::RefCell;
+use std::rc::Rc;
+
+const TITLES: [&str; 6] = ["Untitled-1", "Photo.psd", "Poster final.psd", "Logo.ai", "Sketch", "Notes"];
+const WIDE: Vec2 = Vec2::new(900.0, 80.0);
+const NARROW: Vec2 = Vec2::new(220.0, 80.0);
+
+struct Titles;
+
+impl DisplayOrder<usize> for Titles {
+    fn len(&self) -> usize {
+        TITLES.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < TITLES.len()).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        TITLES.get(at).map(|title| std::borrow::Cow::Borrowed(*title))
+    }
+}
+
+impl ItemSource<usize> for Titles {}
+
+/// A strip of six tabs in `room` with the first one shown; the keys of every selection change it reports.
+fn rig(room: Vec2) -> (Fixture, Rc<RefCell<Vec<usize>>>) {
+    let picked = Rc::new(RefCell::new(Vec::new()));
+    let seen = picked.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let out = TabStrip::new("Documents").shown(0).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
+        for event in out.response.events {
+            if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event {
+                seen.borrow_mut().extend(keys);
+            }
+        }
+    });
+    fixture.room(room);
+    fixture.settle();
+    (fixture, picked)
+}
+
+/// A strip whose tabs fit shows no overflow button; one too narrow for them shows it.
+#[trial]
+fn the_overflow_button_shows_only_when_the_tabs_do_not_fit() {
+    let (wide, _) = rig(WIDE);
+    assert!(wide.by_label("More tabs").is_none());
+    let (narrow, _) = rig(NARROW);
+    assert!(narrow.by_label("More tabs").is_some());
+}
+
+/// A click on a tab reports it as the new selection.
+#[trial]
+fn a_click_on_a_tab_reports_it_selected() {
+    let (mut fixture, picked) = rig(WIDE);
+    let tab = fixture.by_label("Photo.psd").expect("the tab is named");
+    fixture.click(&tab);
+    assert_eq!(picked.borrow().as_slice(), &[1]);
+}

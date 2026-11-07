@@ -64,3 +64,6 @@ fn a_middle_click_closes_a_document_tab_only() {
     middle_click(&mut panels, at);
     assert_eq!(seen.get(), None);
 }
+
+// The strip and the document tabs.
+mod strip;
