@@ -2,8 +2,6 @@
 
 use std::fmt;
 
-use super::action::Placement;
-
 /// What may happen to a panel. [`Layout::apply_with_permissions`] enforces these for every
 /// action, whoever issues it. They also decide which gestures and menu items the renderer
 /// offers; a renderer hides the built-in close controls of a panel that stays closable by command.

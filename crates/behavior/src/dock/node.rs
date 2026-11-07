@@ -217,7 +217,7 @@ impl<P> Floating<P> {
     }
 }
 
-mod floating_serde {
+pub(super) mod floating_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     use super::{Floating, Group, Monitor, Node, fresh_window_id};
@@ -335,7 +335,7 @@ mod floating_serde {
     }
 
     /// Floating windows with a fresh id for each one whose id an earlier window took.
-    pub(super) fn unique_ids<'de, D: Deserializer<'de>, P: Deserialize<'de>>(deserializer: D) -> Result<Vec<Floating<P>>, D::Error> {
+    pub(in crate::dock) fn unique_ids<'de, D: Deserializer<'de>, P: Deserialize<'de>>(deserializer: D) -> Result<Vec<Floating<P>>, D::Error> {
         let mut windows = Vec::<Floating<P>>::deserialize(deserializer)?;
         let mut seen = std::collections::HashSet::new();
         for window in &mut windows {

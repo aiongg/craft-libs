@@ -1,7 +1,7 @@
 //! Where a panel goes ([`Placement`]), where it was ([`Location`]) and the transaction unit ([`Action`]).
 
 use super::{
-    groups::{Group, GroupLocation, Target},
+    groups::{GroupLocation, Target},
     node::{Monitor, Zone},
     split::SplitSize,
 };

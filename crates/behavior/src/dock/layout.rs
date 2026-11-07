@@ -4,7 +4,7 @@ use std::{collections::HashSet, hash::Hash};
 
 use super::{
     action::{Action, Location, Placement},
-    edit::{node_at, tree_panels, valid_column},
+    edit::{node_at, valid_column},
     groups::{Column, ColumnLocation, Group, GroupLocation, Moving, PanelState, Place, Side, Target},
     inner::{
         check_group, check_leaf, group_location, node_location, restore_around_subtree, restore_parent_size, restore_stack_kind, stack_entry_mut,
@@ -22,7 +22,7 @@ pub struct Layout<P> {
     /// The docked layout; `None` when nothing is docked.
     pub root: Option<Node<P>>,
     /// Floating windows, with unique ids.
-    #[serde(deserialize_with = "floating_serde::unique_ids")]
+    #[serde(deserialize_with = "super::node::floating_serde::unique_ids")]
     pub floating: Vec<Floating<P>>,
 }
 
