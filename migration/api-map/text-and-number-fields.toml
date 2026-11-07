@@ -67,7 +67,8 @@ note = "A `Component` over `Bind<Vec<String>>`: the value is the list of chip te
 name = "LinkedFields"
 old = "craft_ui::controls::linked::LinkedFields"
 new = "craft_ui::text::LinkedFields"
-status = "pending"
+status = "moved"
+note = "A `Component` over one `Bind<[Option<f64>; N]>` and a link `Bind<bool>`; the output is `LinkedOutput` (the values' `EditResponse` and the link's event). Captions are `.captions([..])`, ranges `.range(..)` and `.ranges([..])`, the link kind `.mode(LinkMode)`, the arrangement `.layout(LinkedLayout)`. Decimals and units are the `NumberField` codec's. `show_cells` and `LinkedSlot` are gone: place the fields yourself with `NumberField` and `link_toggle`."
 
 [[type]]
 name = "ApplyRow"
@@ -146,6 +147,61 @@ old = "craft_ui::controls::chips::chip_lines"
 new = ""
 status = "removed"
 note = "The field flows its own chips; a host that laid chips out itself places chip rows with `Flow`."
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""
+
+# One entry per renamed, removed or reshaped setter or constructor.
+
+[[type]]
+name = "LinkMode"
+old = "craft_ui::controls::linked::LinkMode"
+new = "craft_ui::text::LinkMode"
+status = "moved"
+
+[[type]]
+name = "LinkedLayout"
+old = "craft_ui::controls::linked::LinkedLayout"
+new = "craft_ui::text::LinkedLayout"
+status = "moved"
+
+[[type]]
+name = "LinkedSlot"
+old = "craft_ui::controls::linked::LinkedSlot"
+new = ""
+status = "removed"
+note = "`show_cells` is gone; a host that lays the fields out itself shows `NumberField`s and `link_toggle`."
+
+[[type]]
+name = "LinkedFieldsLabels"
+old = "craft_ui::controls::linked::LinkedFieldsLabels"
+new = "craft_ui::text::LinkedWords"
+status = "replaced"
+note = "The words of the link toggle are `LinkedWords`, read from the installed words; `LinkMode::label(&words)` picks one."
+
+[[type]]
+name = "LinkButton"
+old = "craft_ui::controls::linked::LinkButton"
+new = ""
+status = "replaced"
+note = "`craft_ui::text::link_toggle(mode.label(&words), Bind<bool>)`, a `ToggleButton` face."
+
+[[type]]
+name = "MixedValue"
+old = "craft_ui::controls::mixed::MixedValue"
+new = ""
+status = "replaced"
+note = "`craft_behavior::Mixed`: `Mixed::Same(v)` or `Mixed::Mixed`; a field binds it with `Bind::given` or `Bind::bound_mixed`."
+
+[[type]]
+name = "ApplyValue"
+old = "craft_ui::controls::mixed::ApplyValue"
+new = ""
+status = "replaced"
+note = "A `Mixed<T>` for the value and a `bool` for apply: `ApplyRow` binds the bool, the field binds the `Mixed<T>`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -466,4 +522,51 @@ new = "new(label, Bind<Vec<String>>)"
 type = "ChipField"
 old = "max_lines(usize)"
 new = ""
+
+[[setter]]
+type = "LinkedFields"
+old = "LinkedFields::new(id_salt, captions, values, &mut linked, mode, &numbers)"
+new = "LinkedFields::new(label, Bind::bound(&mut values), Bind::bound(&mut linked)).captions(captions).mode(mode)"
+
+[[setter]]
+type = "LinkedFields"
+old = "units(&ExprUnits)"
+new = ""
+note = "The units and decimals are the number codec's."
+
+[[setter]]
+type = "LinkedFields"
+old = "decimals(RangeInclusive<usize>)"
+new = ""
+note = "The units and decimals are the number codec's."
+
+[[setter]]
+type = "LinkedFields"
+old = "captions_as_names()"
+new = ""
+note = "Without `.captions(..)` no caption is shown and each field is named from the group's label."
+
+[[setter]]
+type = "LinkedFields"
+old = "size(ControlSize)"
+new = ""
+note = "The size is the scope's `ControlSize`."
+
+[[setter]]
+type = "LinkedFields"
+old = "labels(LinkedFieldsLabels)"
+new = ""
+note = "Words come from the installed `LinkedWords`."
+
+[[setter]]
+type = "ApplyRow"
+old = "ApplyRow::new(id_salt, label, &mut apply_value).show(ui, |ui, value| ..)"
+new = "ApplyRow::new(label, Bind::bound(&mut apply)).show(ui, |ui, _| ..)"
+note = "The row no longer owns the value: the field in the body binds its own `Mixed<T>`."
+
+[[setter]]
+type = "ApplyRow"
+old = "labels(ApplyRowLabels)"
+new = ""
+note = "The mixed text is the field's placeholder."
 
