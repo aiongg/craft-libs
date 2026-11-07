@@ -25,7 +25,7 @@ use super::app_shell::{AppShell, AppShellOutput, RegionFn, ShellRegion};
 use super::reveal::PanelsHidden;
 use super::screen_mode::ScreenMode;
 use super::words::AppShellWords;
-use crate::contract::{Bind, BodyCx, NoValue, Outcome, PaneEdge, ShellPane, ShowContainer as _};
+use crate::contract::{Bind, BodyCx, NoValue, Outcome, PaneEdge, Props as _, ShellPane, ShowContainer as _};
 use crate::runtime::env::{BodyMode, Env, Label, ShellEntry, WindowKey};
 use crate::runtime::frame::ChromeToggle;
 use crate::shell::Slot;
