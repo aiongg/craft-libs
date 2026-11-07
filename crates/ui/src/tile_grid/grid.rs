@@ -7,7 +7,7 @@
 mod stories;
 
 use super::layout::{ArrangeSpacing, GridLayout, TileGroup, Tiling, aspects_of, arrange};
-use super::{CaptionPlace, Tile};
+use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Focus as _,
     ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing, Styled as _,
@@ -37,20 +37,6 @@ pub enum RatingKeys {
     None,
     /// The digits 1 to 5 rate and 0 clears. Typed text is not matched against tile names while it is on.
     Digits,
-}
-
-/// What a tile reports about itself.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum TileEvent {
-    /// The pointer scrubbed the tile's picture: `fraction` of its width.
-    #[non_exhaustive]
-    Scrub {
-        /// How far along the picture, 0 to 1.
-        fraction: f32,
-    },
-    /// The stars were clicked: the rating to set, 0 clears.
-    Rate(u8),
 }
 
 /// What the grid reports besides the collection's events.
@@ -97,7 +83,7 @@ pub enum GridEvent<K> {
 #[must_use = "the host applies the grid's events"]
 pub struct TileGridOutput<K> {
     /// The collection's response and events.
-    pub response: CollectionResponse<K, TileEvent>,
+    pub response: CollectionResponse<K, TilePartEvent>,
     /// The grid's own events, in the order they happened.
     pub events: Vec<GridEvent<K>>,
 }
@@ -166,12 +152,9 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The tile size as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
     #[prop]
     zoom: f32,
-    /// Where a caption goes.
+    /// Where a caption goes; `CaptionPlace::None` keeps no room for one.
     #[prop]
     caption: CaptionPlace,
-    /// The tiles show no captions, so the layout keeps no room for them.
-    #[prop(flag)]
-    captionless: bool,
     /// The headers over runs of tiles, in display order.
     #[prop]
     groups: &'a [TileGroup],
@@ -225,7 +208,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             aspect: 1.0,
             zoom: 1.0,
             caption: CaptionPlace::Below,
-            captionless: false,
             groups: &[],
             collapsible: false,
             rating_keys: RatingKeys::None,
@@ -512,7 +494,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     type ItemLayout = GridLayout;
     type Selection = Selection<K>;
     type Item<'r> = Tile<'r>;
-    type ItemEvent = TileEvent;
+    type ItemEvent = TilePartEvent;
 
     fn items(&self) -> &CollectionProps {
         &self.items
@@ -529,14 +511,14 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
         let spacing = spacing(cx);
         let side = cx.tokens.size.thumb.md * self.zoom.max(f32::EPSILON);
-        let band = if !self.captionless && self.caption == CaptionPlace::Below { Tile::caption_height(cx) } else { 0.0 };
-        let start = if !self.captionless && self.caption == CaptionPlace::Start { Tile::start_width(cx) } else { 0.0 };
+        let around = Tile::around_picture(cx, self.caption, false);
+        let (start, band) = if self.caption == CaptionPlace::Start { (around.x, 0.0) } else { (0.0, around.y) };
         let layout = if self.justified || !self.groups.is_empty() {
             let tiling = if self.justified { Tiling::justified(side) } else { Tiling::cards(side, self.aspect, band) };
             GridLayout::arranged(arrange(&aspects_of(source), self.groups, width, tiling, spacing, start), width, start)
         } else {
             let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
-            let card = vec2(side + start, side / aspect + if start > 0.0 { 0.0 } else { band });
+            let card = vec2(side + around.x, side / aspect + around.y);
             GridLayout::equal(source, width, spacing.inset, card, spacing.gap)
         };
         *self.laid.borrow_mut() = Some(layout.clone());

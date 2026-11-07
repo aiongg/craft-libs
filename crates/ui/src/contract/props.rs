@@ -24,6 +24,7 @@ pub struct Common {
     /// Step 16 reads it into `Access` for the label-scope patch (`described_by` instead of `labelled_by`).
     pub(crate) keeps_name: bool,
     pub(crate) access_key: Option<char>,
+    pub(crate) default_stop: bool,
     pub(crate) doc_key: Option<DocKey>,
 }
 
@@ -43,6 +44,7 @@ impl Common {
             command: None,
             keeps_name: false,
             access_key: None,
+            default_stop: false,
             doc_key: None,
         }
     }
@@ -138,6 +140,17 @@ pub trait Props: Meta + Sized {
 
 impl<T: Meta> Props for T {}
 
+/// Crate-private setters of `Common`.
+pub(crate) trait StopProps: Meta + Sized {
+    /// Marks the component's stop as its focus scope's default (`Initial::Default`).
+    fn default_stop(mut self) -> Self {
+        self.common_mut(Internal::new()).default_stop = true;
+        self
+    }
+}
+
+impl<T: Meta> StopProps for T {}
+
 /// `Common` after step 1; it borrows locals of the pipeline frame, never the component.
 #[derive(Clone, Copy, Debug)]
 #[non_exhaustive]
@@ -162,6 +175,8 @@ pub struct Resolved<'p> {
     pub(crate) keeps_name: bool,
     /// `Common.access_key`.
     pub(crate) access_key: Option<char>,
+    /// `Common.default_stop`: the stop is its scope's default (`Initial::Default`).
+    pub(crate) default_stop: bool,
     /// `Common.description`.
     pub(crate) description: Option<&'p str>,
     /// `Common.tooltip`.

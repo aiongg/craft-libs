@@ -3,6 +3,8 @@
 //! The data types of a tile (badges, status, marks, the caption's place) live here; `TileGrid` shows tiles in
 //! rows and columns and reads the tile size from the value a `ThumbnailSlider` edits.
 
+mod grid;
+mod layout;
 mod slider;
 #[cfg(feature = "testing")]
 mod stories;
@@ -13,6 +15,8 @@ use crate::runtime::env::Label;
 use craft_behavior::IconId;
 use craft_theme::variant::Tone;
 
+pub use grid::{GridEvent, RatingKeys, TileGrid, TileGridOutput, TileGridStyle};
+pub use layout::{ArrangeSpacing, GridLayout, TileArrangement, TileGroup, TileRow, Tiling, arrange, aspects_of};
 pub use slider::{ThumbnailSlider, ThumbnailSliderStyle, TileZoom, ZoomStep};
 pub use tile::{Tile, TileOutput, TilePartEvent, TileStyle};
 pub use words::TileWords;

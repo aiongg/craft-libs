@@ -2,6 +2,7 @@
 
 use super::words::SectionWords;
 use crate::buttons::{Button, IconButton};
+use crate::contract::StopProps as _;
 use crate::contract::{
     Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, Outcome, Pad, Pointer as _, Props as _,
     Role, RowAlign, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
@@ -370,6 +371,8 @@ impl FooterBar {
                 let mut shown = Shown::default();
                 let (ctx, owner) = (ui.ctx().clone(), ui.scope_id());
                 let lettered = letters_reach_footer(&ctx);
+                // Initial focus lands on the first enabled Accept button on every OS.
+                let default_at = buttons.iter().position(|button| button.role == DialogRole::Accept && button.enabled);
                 for at in display_order(&roles, crate::runtime::windows::os_of(ui.ctx()) == Os::Windows) {
                     let button = &buttons[at];
                     let variant = match button.role {
@@ -380,6 +383,9 @@ impl FooterBar {
                     let mut widget = Button::new(button.label.clone()).variant(variant).enabled(button.enabled);
                     if let Some(letter) = button.letter {
                         widget = widget.access_key(letter.to_ascii_uppercase());
+                    }
+                    if default_at == Some(at) {
+                        widget = widget.default_stop();
                     }
                     if crate::contract::clicked(&widget.show(ui)) {
                         shown.picked = Some(at);

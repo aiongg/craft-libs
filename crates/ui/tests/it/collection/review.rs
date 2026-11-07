@@ -5,7 +5,8 @@
 use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::{CancelReason, CanvasTransform, EditEvent, Selection, keyed};
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
-use craft_ui::controls::select::{Select, SelectOption};
+use craft_ui::contract::Entry;
+use craft_ui::pickers::Select;
 use craft_ui::graph::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef};
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::in_region;
@@ -59,7 +60,7 @@ fn press(frames: &mut Frames, key: Key, mods: Modifiers, show: &mut impl FnMut(&
 #[trial]
 fn a_three_option_select_list_is_three_rows_tall() {
     let mut fixture = Fixture::new(|ui| {
-        let options = [SelectOption::new(0u8, "Normal"), SelectOption::new(1, "Multiply"), SelectOption::new(2, "Screen")];
+        let options = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply"), Entry::new(2, "Screen")];
         let mut mode = 0u8;
         Select::new("Blend mode", Bind::bound(&mut mode), &options).id_salt("mode").show(ui);
     });

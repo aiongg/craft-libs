@@ -43,13 +43,24 @@ pub struct FieldStyle {
 }
 
 impl FieldStyle {
-    fn at(cx: &StyleCx<'_>) -> FieldStyle {
+    /// The style a text-like field reads from the theme.
+    pub fn at(cx: &StyleCx<'_>) -> FieldStyle {
         let control = cx.control();
         let metrics = Metrics::new()
             .padding(Insets::new(control.pad_x, 0.0, control.pad_x, 0.0))
             .gap(control.gap)
             .min_size(Vec2::new(cx.tokens.size.length.field, control.height));
         FieldStyle { surface: cx.field(), metrics, glyph: IconLook::new(control.icon, Stateful::new(cx.ink(Ink::OnPanel))), button: control.height }
+    }
+
+    /// The field's padding, gap and minimum size.
+    pub fn metrics(&self) -> Metrics {
+        self.metrics
+    }
+
+    /// The look of a glyph adornment.
+    pub fn glyph(&self) -> &IconLook {
+        &self.glyph
     }
 }
 

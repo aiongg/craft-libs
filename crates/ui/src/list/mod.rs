@@ -18,6 +18,7 @@ mod words;
 pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};
 pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
 pub use predicate::{DropTest, RowTest, SourceTest};
+pub(crate) use row::RowThumb;
 pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget};
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};
 pub use tree::OpenSet;

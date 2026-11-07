@@ -37,7 +37,7 @@ fn rig() -> Rig {
 
 impl Rig {
     fn menu_shown(&self) -> bool {
-        !self.fixture.by_role(Role::LIST_BOX).is_empty()
+        !self.fixture.by_role(Role::MENU).is_empty()
     }
 
     fn press(&mut self, key: Key, modifiers: Modifiers) {

@@ -201,6 +201,7 @@ pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &'p Common) -> Res
         selected: common.selected,
         keeps_name: common.keeps_name,
         access_key: common.access_key,
+        default_stop: common.default_stop,
         description: common.description.as_deref(),
         tooltip: common.tooltip.as_ref(),
         doc_key: common.doc_key,
@@ -508,6 +509,8 @@ pub(crate) struct StopsIn<'a> {
     pub body_roving: Option<Roving>,
     /// The roving group of the collection row the component is shown in: stops with no group of their own join it.
     pub row: Option<Id>,
+    /// The component's stop is its scope's default.
+    pub default_stop: bool,
 }
 
 /// The id of the roving group a container's body forms.
@@ -546,6 +549,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     }
     let own = || {
         let stop = Stop::new(input.id, input.keys).root(input.holder).role(input.role);
+        let stop = if input.default_stop { stop.default_stop() } else { stop };
         if input.text { stop.text() } else { stop }
     };
     if input.focusable {

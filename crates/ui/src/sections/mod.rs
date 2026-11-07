@@ -8,7 +8,7 @@ mod section;
 mod title_row;
 mod words;
 
-pub use footer::{DialogRole, FooterAction, FooterBar, FooterButton};
+pub use footer::{DialogRole, DropAction, DropActionOutput, DropActionStyle, FooterAction, FooterBar, FooterButton, FooterDrop, FooterOutput};
 pub use group_box::{GroupBox, GroupBoxStyle};
 pub use section::{Section, SectionOutput, SectionStyle};
 pub use title_row::{HeaderAction, HeaderStrength, TitleOutput, TitleRow, TitleRowStyle};

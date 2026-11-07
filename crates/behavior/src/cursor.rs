@@ -60,6 +60,12 @@ impl IconId {
     }
 }
 
+impl From<Cow<'static, str>> for IconId {
+    fn from(name: Cow<'static, str>) -> Self {
+        IconId(name)
+    }
+}
+
 /// A mark beside a painted cursor.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]

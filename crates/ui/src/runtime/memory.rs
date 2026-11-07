@@ -585,7 +585,6 @@ pub(crate) fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
 }
 
 /// Cross-widget facts, registered in one pass and read in the next. Runtime services only.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the layers (F3)"))]
 pub(crate) struct Facts<T>(PhantomData<T>);
 
 /// The facts of one viewport: this pass's registrations and last pass's.
@@ -600,7 +599,6 @@ impl<T> Default for FactRecord<T> {
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the layers (F3)"))]
 impl<T: Clone + Send + Sync + 'static> Facts<T> {
     /// Registers `fact` for the next pass of the running viewport.
     pub(crate) fn register(ctx: &Context, fact: T) {

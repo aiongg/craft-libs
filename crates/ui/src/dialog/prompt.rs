@@ -134,7 +134,7 @@ impl Extras<'_> {
             Text::new(line).show(ui);
         }
         if let Some((label, text)) = details {
-            Section::new(label).show(ui, |ui, _| {
+            Section::new(label).initially_open(false).show(ui, |ui, _| {
                 Text::new(text.clone()).show(ui);
             });
         }

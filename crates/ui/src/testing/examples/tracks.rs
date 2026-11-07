@@ -13,7 +13,7 @@ use crate::contract::{
     Access, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Focus as _, ItemOutput,
     MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
 };
-use crate::controls::select::row_look;
+use crate::pickers::row_look;
 use crate::primitives::{PaintShape, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, Stateful, States, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};

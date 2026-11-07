@@ -11,3 +11,21 @@ craft_ui::words! {
         no_matches: "select.noMatches" = "No matches";
     }
 }
+
+craft_ui::words! {
+    /// The words of the combo box.
+    pub struct ComboBoxWords {
+        /// The name of the combo box's option list.
+        options: "comboBox.options" = "Options";
+    }
+}
+
+craft_ui::words! {
+    /// The words of the tree picker.
+    pub struct TreePickerWords {
+        /// Shown in a tree picker with no pick.
+        placeholder: "treePicker.placeholder" = "Choose…";
+        /// Between the names of a picked entry's path.
+        separator: "treePicker.separator" = " / ";
+    }
+}

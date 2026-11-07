@@ -1,5 +1,7 @@
 //! `Menu` and `MenuItem`: the mnemonic of each row of a level, and what running a row does to the menu.
 
+mod bar;
+
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::menu::{Menu, MenuItem};

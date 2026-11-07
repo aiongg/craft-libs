@@ -36,7 +36,7 @@ impl ThumbAspect {
         Self((f32::from(wide) / f32::from(high.max(1))).max(f32::EPSILON))
     }
 
-    fn of(self, height: f32) -> f32 {
+    pub(crate) fn of(self, height: f32) -> f32 {
         self.0 * height
     }
 }
@@ -1106,7 +1106,7 @@ struct RowThumbStyle {
 /// thumbnail's rect.
 #[derive(crate::contract::Component)]
 #[component(content_painter, sample = RowThumb::sample)]
-struct RowThumb<'a> {
+pub(crate) struct RowThumb<'a> {
     #[common]
     common: Common,
     paint: Option<ThumbPaint<'a>>,
@@ -1120,7 +1120,7 @@ impl RowThumb<'static> {
 }
 
 impl<'a> RowThumb<'a> {
-    fn new(paint: ThumbPaint<'a>) -> Self {
+    pub(crate) fn new(paint: ThumbPaint<'a>) -> Self {
         RowThumb { common: Common::new(), paint: Some(paint) }
     }
 }

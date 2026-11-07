@@ -48,6 +48,7 @@ pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
 pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
+pub(crate) use props::StopProps;
 #[doc(hidden)]
 #[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;

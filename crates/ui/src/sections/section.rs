@@ -93,6 +93,15 @@ impl<'a> Section<'a> {
         .label(title)
     }
 
+    /// Whether the section starts open (the default). The state lives in the container unless `open` binds it.
+    #[must_use]
+    pub fn initially_open(mut self, on: bool) -> Self {
+        if let Some(collapse) = self.props.collapse {
+            self.props = self.props.collapse(collapse.initially_open(on));
+        }
+        self
+    }
+
     /// Keeps the open state across runs in the slot `key`.
     #[must_use]
     pub fn remember(mut self, key: SaveKey) -> Self {
