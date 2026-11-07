@@ -160,7 +160,7 @@ fn any_expanded(tree: &AccessTree) -> bool {
 /// Every intent the component takes has its AccessKit action declared on a node (core 12.2). The intents are read
 /// from what the keys the type keeps do on a focused story: an activation key or arrow that gives a click or changes
 /// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`; a key that
-/// opens something needs `Expand` and `Collapse`. Text types take edit intents, which the text cases cover.
+/// opens something needs `Expand` and one that closes it needs `Collapse`, declared before the key. Text types take edit intents, which the text cases cover.
 fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
     let probe = subject.probe;
     if matches!(probe.input, Input::Text | Input::Editor | Input::Display) {
@@ -180,6 +180,11 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             fixture.key(Key::Tab, Modifiers::NONE);
             fixture.idle(2);
             let (before, was_open) = (fixture.data().snapshot(), any_expanded(fixture.tree()));
+            let declares_before = |declared| {
+                let tree = fixture.tree();
+                tree.keys().into_iter().any(|node| tree.declares_key(node, declared))
+            };
+            let (can_expand, can_collapse) = (declares_before(Declared::Expand), declares_before(Declared::Collapse));
             fixture.take_outputs();
             fixture.key(key, Modifiers::NONE);
             fixture.idle(2);
@@ -192,14 +197,16 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             if let Some(step) = step.filter(|_| changed && !matches!(probe.shape, ShapeKind::Items)) {
                 needs.push(step);
             }
-            if !was_open && any_expanded(fixture.tree()) {
-                needs.extend([Declared::Expand, Declared::Collapse]);
-            }
+            let opens = any_expanded(fixture.tree());
             let tree = fixture.tree();
             for declared in needs {
                 if !tree.keys().into_iter().any(|node| tree.declares_key(node, declared)) {
                     return Err(format!("{}: {key:?} took an intent and no node declares {declared:?}", story.name));
                 }
+            }
+            if (!was_open && opens && !can_expand) || (was_open && !opens && !can_collapse) {
+                let declared = if was_open { Declared::Collapse } else { Declared::Expand };
+                return Err(format!("{}: {key:?} took an intent and no node declares {declared:?}", story.name));
             }
         }
     }

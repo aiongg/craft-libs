@@ -6,7 +6,7 @@ use crate::contract::{
     Remember as _, Role, Styled as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
-use crate::runtime::focus::{KeepKeys, KeyUse};
+use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, ValueDrag};
@@ -95,7 +95,7 @@ impl<'a> Slider<'a> {
 impl Component for Slider<'_> {
     const ROLE: Role = Role::SLIDER;
     const OVERLAYS: bool = false;
-    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows);
+    const KEYS: KeyUse = KeyUse::of(Input::Pointer).with_keep(KeepKeys::BlockArrows).with_activate(ActivateKeys::Neither);
     type Style = SliderStyle;
     type Output = EditResponse<f64>;
 

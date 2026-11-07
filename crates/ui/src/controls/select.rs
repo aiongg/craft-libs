@@ -7,9 +7,9 @@
 use super::disclosure::DisclosureGlyph;
 use super::words::ControlWords;
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
-    EditResponse, Focus as _, LeadOnOpen, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
-    ShowCollection as _, Sizing, Styled as _, Trigger, WordSetCx as _,
+    Access, ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx,
+    Edit as _, EditResponse, Focus as _, LeadOnOpen, MeasureCx, Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role,
+    SelectMode, ShowCollection as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
@@ -114,6 +114,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             return;
         }
         let last = self.options.len() - 1;
+        if let Some(at) = cx.intents().take_set_value() {
+            let to = (at.round().max(0.0) as usize).min(last);
+            if self.position(cx.value()) != Some(to) {
+                cx.set(self.options[to].value.clone());
+            }
+        }
         while let Some((step, _)) = cx.intents().take_move() {
             let at = self.position(cx.value());
             let to = match step {
@@ -127,6 +133,16 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                 cx.set(self.options[to].value.clone());
             }
         }
+    }
+
+    /// The picked option's position among the options, shown as its label, so AccessKit steps and sets it.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let range = 0.0..=self.options.len().saturating_sub(1) as f64;
+        let numeric = match self.position(cx.value()) {
+            Some(at) => Numeric::new(at as f64, range).text(cx.env.resolve(&self.options[at].label).as_str()),
+            None => Numeric::empty(range),
+        };
+        access.numeric(numeric.step(1.0));
     }
 
     /// The listbox: one row per option, the highlighted row selected. A pick comes back from the list as `Activate`

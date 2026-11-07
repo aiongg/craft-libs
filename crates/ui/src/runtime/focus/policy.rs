@@ -262,6 +262,12 @@ impl KeyUse {
         self
     }
 
+    /// The same use with `activate` as the keys that activate: a value control that arrow and Page keys step takes none.
+    pub const fn with_activate(mut self, activate: ActivateKeys) -> Self {
+        self.activate = activate;
+        self
+    }
+
     pub(crate) const fn with_keep(mut self, keep: KeepKeys) -> Self {
         self.keep = keep;
         self

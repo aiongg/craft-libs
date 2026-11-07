@@ -1,7 +1,7 @@
 //! Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
 use super::Fixture;
-use crate::contract::{CollectionEvent, EditResponse, Inner};
+use crate::contract::{CollectionEvent, EditResponse, Inner, TooltipSpec};
 use craft_behavior::{EditEvent, PartKey, Value};
 use egui::{Id, Response, Ui};
 use std::any::{Any, TypeId};
@@ -68,17 +68,26 @@ pub struct Story {
     pub show: fn(&mut Ui, &mut StoryData) -> StoryOutput,
     /// How the runner changes the shown value.
     pub drive: Drive,
+    /// The reason a disabled control shows (`disabled_text` of its tooltip), when the story gives its control one.
+    pub disabled_text: Option<&'static str>,
 }
 
 impl Story {
     /// A story that shows with `show`.
     pub const fn new(name: &'static str, show: fn(&mut Ui, &mut StoryData) -> StoryOutput) -> Self {
-        Story { name, covers: &[], show, drive: Drive::Auto }
+        Story { name, covers: &[], show, drive: Drive::Auto, disabled_text: None }
     }
 
     /// The states the story shows.
     pub const fn covers(mut self, covers: &'static [Required]) -> Self {
         self.covers = covers;
+        self
+    }
+
+    /// The reason the story's control shows while disabled. The story gives its tooltip this text through
+    /// [`StoryData::tooltip`], and the `disabled` case then checks that the control stays a Tab stop and shows it.
+    pub const fn disabled_text(mut self, text: &'static str) -> Self {
+        self.disabled_text = Some(text);
         self
     }
 
@@ -124,6 +133,8 @@ pub struct StoryData {
     values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
     /// The values that print themselves for the parity replay, in the order they were first used.
     printed: Vec<Printed>,
+    /// The story's `disabled_text`.
+    disabled_text: Option<&'static str>,
 }
 
 /// A story value with its type erased: it copies and compares itself.
@@ -153,6 +164,20 @@ impl<T: Value> Shown for T {
 }
 
 impl StoryData {
+    /// The data of `story`'s runs.
+    pub(crate) fn of(story: &Story) -> Self {
+        StoryData { disabled_text: story.disabled_text, ..StoryData::default() }
+    }
+
+    /// A tooltip of `text`, with the story's `disabled_text` as the text it shows while disabled.
+    pub fn tooltip(&self, text: &'static str) -> TooltipSpec {
+        let spec = TooltipSpec::new(text);
+        match self.disabled_text {
+            Some(reason) => spec.disabled_text(reason),
+            None => spec,
+        }
+    }
+
     /// The value named `name` of type `T`, created from `init` on first use. A name used with two types names two
     /// values.
     #[allow(clippy::unreachable, reason = "the slot key holds the type, so the downcast cannot fail")]

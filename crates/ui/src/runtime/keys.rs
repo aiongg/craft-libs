@@ -103,6 +103,8 @@ struct Node {
     owner: Id,
     part: Option<PartRef>,
     focusable: bool,
+    /// The node's expanded state this pass, `None` when it has none.
+    expanded: Option<bool>,
 }
 
 #[derive(Default)]
@@ -592,6 +594,14 @@ fn route_access(
     }
     match request.kind() {
         ActionKind::Focus if node.focusable => {}
+        ActionKind::Expand | ActionKind::Collapse if node.expanded.is_some() => {
+            if node.expanded == Some(matches!(request.kind(), ActionKind::Collapse)) {
+                match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
+                    Some(rec) => route_activate(ctx, &rec, routed, activated),
+                    None => push(routed, owner, Intent::Activate, false),
+                }
+            }
+        }
         ActionKind::Click => match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
             Some(rec) => route_activate(ctx, &rec, routed, activated),
             None => push(routed, owner, Intent::Activate, false),
@@ -600,7 +610,9 @@ fn route_access(
         ActionKind::Decrement => push(routed, owner, Intent::Move(NavMove::Back, MoveMods::PLAIN), false),
         ActionKind::ShowContextMenu => push(routed, owner, Intent::ContextMenu, false),
         ActionKind::SetValue(value) => routed.entry(owner).or_default().set_value = Some(value),
-        ActionKind::Focus | ActionKind::Other => push(routed, owner, Intent::Access(request.request(node.part)), false),
+        ActionKind::Focus | ActionKind::Expand | ActionKind::Collapse | ActionKind::Other => {
+            push(routed, owner, Intent::Access(request.request(node.part)), false)
+        }
     }
 }
 
@@ -885,9 +897,19 @@ pub(crate) fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
     current(ctx, |stage| std::mem::take(&mut stage.menu))
 }
 
+/// Records the expanded state of the node registered by `register_node`: an `Expand` or `Collapse` request on a node
+/// with the state asks to change it, and acts as the node's activation.
+pub(crate) fn register_expanded(ctx: &Context, node: Id, expanded: Option<bool>) {
+    current(ctx, |stage| {
+        if let Some(entry) = stage.nodes.get_mut(&node_key(node)) {
+            entry.expanded = expanded;
+        }
+    });
+}
+
 /// Registers an AccessKit node so a request that targets it reaches `owner`.
 pub(crate) fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
     current(ctx, |stage| {
-        stage.nodes.insert(node_key(node), Node { owner, part, focusable });
+        stage.nodes.insert(node_key(node), Node { owner, part, focusable, expanded: None });
     });
 }
