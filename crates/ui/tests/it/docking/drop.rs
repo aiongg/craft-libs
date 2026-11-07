@@ -42,7 +42,7 @@ fn register(ctx: &Context) {
     DockTargets::register(ctx, dock, DockSpot::tab(TOP_GROUP, 1), rect(at(100.0, 0.0), Vec2::new(100.0, 24.0)));
     DockTargets::register(ctx, dock, DockSpot::tab(TOP_GROUP, 2), rect(at(0.0, 0.0), Vec2::new(24.0, 24.0)));
     DockTargets::register(ctx, dock, DockSpot::group(LOWER_GROUP, DockSide::Center), rect(at(0.0, 200.0), Vec2::new(COLUMN_WIDTH, 100.0)));
-    DockTargets::register(ctx, dock, DockSpot::NewDock(DockSide::End), rect(at(380.0, 0.0), Vec2::new(20.0, 300.0)));
+    DockTargets::register(ctx, dock, DockSpot::<u32>::NewDock(DockSide::End), rect(at(380.0, 0.0), Vec2::new(20.0, 300.0)));
 }
 
 /// Resolves a drop of `unit` at `pointer` in the pass after the spots were registered.
@@ -58,7 +58,7 @@ fn drop_of(unit: DragUnit<u32>, pointer: Pos2, permissions: impl Fn(&u32) -> Per
     let mut resolved = None;
     frames.frame(Vec::new(), |ui| {
         register(ui.ctx());
-        resolved = resolve_drop(ui.ctx(), dock_id(), &layout(), pointer, &Carried(unit), &permissions);
+        resolved = resolve_drop(ui.ctx(), dock_id(), &layout(), pointer, &Carried(unit.clone()), &permissions);
     });
     resolved
 }
