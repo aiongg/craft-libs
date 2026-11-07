@@ -327,7 +327,13 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
             OverflowPlace::AfterTabs => flow.take_start(report.tabs_end).1.take_start(report.overflow).0,
         };
         self.more = Some(slot);
-        cx.part(OVERFLOW, slot).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Edge, 0)).over().toggles("menu").on_press();
+        cx.part(OVERFLOW, slot)
+            .sense(Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Edge, 0))
+            .over()
+            .toggles("menu")
+            .on_press()
+            .pointer_only("Alt+Down opens the overflow menu");
     }
 
     /// A drag of this strip's tabs that no target takes is a tear-off.

@@ -3,9 +3,9 @@
 use super::{TabKind, TabStrip};
 use crate::contract::{ReorderRule, ShowCollection as _};
 use crate::tabs::Tab;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource};
-use egui::Ui;
+use egui::{Key, Modifiers, Ui};
 use std::borrow::Cow;
 
 const TITLES: [&str; 12] = [
@@ -23,49 +23,74 @@ const TITLES: [&str; 12] = [
     "Export",
 ];
 
-/// Tabs keyed by position and named by the title list.
-struct Documents(usize);
+/// The width the overflow story's room is held to.
+const OVERFLOW_ROOM: f32 = 240.0;
 
-impl DisplayOrder<usize> for Documents {
+const PANELS: [&str; 4] = ["Layers", "Channels", "Paths", "History"];
+
+/// The tabs still open, keyed by their place in the title list and named by it.
+struct Documents<'t> {
+    open: &'t [usize],
+    titles: &'static [&'static str],
+}
+
+impl DisplayOrder<usize> for Documents<'_> {
     fn len(&self) -> usize {
-        self.0
+        self.open.len()
     }
 
     fn key(&self, at: usize) -> usize {
-        at
+        self.open[at]
     }
 
     fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.0).then_some(*key)
+        self.open.iter().position(|open| open == key)
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
-        TITLES.get(at).map(|title| Cow::Borrowed(*title))
+        self.titles.get(self.open[at]).map(|title| Cow::Borrowed(*title))
     }
 }
 
-impl ItemSource<usize> for Documents {}
+impl ItemSource<usize> for Documents<'_> {}
 
-fn strip(ui: &mut Ui, strip: TabStrip<'_, usize>, count: usize, kind: TabKind) -> StoryOutput {
-    strip.kind(kind).show_items(ui, &Documents(count), &mut |key, _| Tab::new(TITLES[*key]).closable(true)).into()
+/// A strip of `count` tabs; a closed tab leaves the story's list.
+fn strip(ui: &mut Ui, data: &mut StoryData, strip: TabStrip<'_, usize>, titles: &'static [&'static str], count: usize, kind: TabKind) -> StoryOutput {
+    let open = data.value("open", (0..count).collect::<Vec<usize>>());
+    let out = strip.kind(kind).show_items(ui, &Documents { open, titles }, &mut |key, _| Tab::new(titles[*key]).closable(true));
+    open.retain(|key| !out.closed.contains(key));
+    out.into()
 }
 
 #[story(TabStrip<'static, usize>, covers = [Default, Many], drive = Drive::Never)]
-fn tab_strip_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Documents").shown(3).reorder(ReorderRule::new()), TITLES.len(), TabKind::Document)
+fn tab_strip_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    strip(ui, data, TabStrip::new("Documents").shown(3).reorder(ReorderRule::new()), &TITLES, TITLES.len(), TabKind::Document)
+}
+
+fn open_overflow(fixture: &mut Fixture) {
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+}
+
+#[story(TabStrip<'static, usize>, covers = [Open], drive = Drive::Custom(open_overflow))]
+fn tab_strip_overflow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    crate::testing::memory::scoped(ui, |ui| {
+        ui.set_max_width(OVERFLOW_ROOM);
+        strip(ui, data, TabStrip::new("Documents").shown(0), &TITLES, TITLES.len(), TabKind::Document)
+    })
 }
 
 #[story(TabStrip<'static, usize>, covers = [One], drive = Drive::Never)]
-fn tab_strip_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Documents").shown(0), 1, TabKind::Document)
+fn tab_strip_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    strip(ui, data, TabStrip::new("Documents").shown(0), &TITLES, 1, TabKind::Document)
 }
 
 #[story(TabStrip<'static, usize>, covers = [Empty], drive = Drive::Never)]
-fn tab_strip_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Documents"), 0, TabKind::Document)
+fn tab_strip_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    strip(ui, data, TabStrip::new("Documents"), &TITLES, 0, TabKind::Document)
 }
 
 #[story(TabStrip<'static, usize>, covers = [], drive = Drive::Never)]
-fn tab_strip_panel(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Panels").shown(1), 4, TabKind::Panel)
+fn tab_strip_panel(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    strip(ui, data, TabStrip::new("Panels").shown(1), &PANELS, PANELS.len(), TabKind::Panel)
 }

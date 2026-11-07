@@ -1368,7 +1368,8 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
 pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
     let Role::Node(role) = C::ROLE else { return };
     let core = &cx.core;
-    let access = Access::default();
+    let mut access = Access::default();
+    access.position = core.env.facts_of(core.id).map(|facts| facts.position);
     access::report(
         &core.ctx,
         &Own {
