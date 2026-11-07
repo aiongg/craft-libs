@@ -31,6 +31,7 @@ pub struct IconPickerItem<K> {
     #[prop]
     pub keywords: Vec<String>,
     /// The cell's icon; a cell without one shows the placeholder.
+    #[prop(into)]
     pub icon: Option<IconSpec<'static>>,
 }
 
@@ -38,13 +39,6 @@ impl<K> IconPickerItem<K> {
     /// A cell that picks `key`, named `label`, found by no other words.
     pub fn new(key: K, label: impl Into<String>) -> Self {
         Self { key, label: label.into(), keywords: Vec::new(), icon: None }
-    }
-
-    /// The icon the cell shows.
-    #[must_use]
-    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
-        self.icon = Some(icon.into());
-        self
     }
 
     /// Whether the name or a keyword matches `matcher`.
