@@ -1,7 +1,6 @@
 //! `AltTextField`: the decorative flag rule, the check beside a mixed or decorative description, and a click on a
 //! mixed check.
 
-use accesskit::Toggled;
 use craft_behavior::{Mixed, PartKey};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
@@ -63,10 +62,10 @@ fn decorative_alt_text_stays_visible_and_is_not_a_tab_stop() {
 fn checking_decorative_on_a_mixed_selection_marks_every_target_and_keeps_the_text_mixed() {
     let (mut fixture, value, id) = rig(AltText::parts(Mixed::Mixed, Mixed::Mixed));
     let check = fixture.part(id.get(), DECORATIVE).expect("the check has its own node");
-    assert_eq!(fixture.tree().toggled_of(check.node), Some(Toggled::Mixed), "the check reports a mixed state");
+    assert_eq!(fixture.tree().toggled_of(check.node), Some(Mixed::Mixed), "the check reports a mixed state");
     fixture.click(&check);
     fixture.idle(3);
     assert_eq!(*value.borrow(), AltText::parts(Mixed::Mixed, Mixed::Same(true)), "every target is decorative; the text stays per target");
     let check = fixture.part(id.get(), DECORATIVE).expect("the check keeps its node");
-    assert_eq!(fixture.tree().toggled_of(check.node), Some(Toggled::True), "the check reports checked");
+    assert_eq!(fixture.tree().toggled_of(check.node), Some(Mixed::Same(true)), "the check reports checked");
 }

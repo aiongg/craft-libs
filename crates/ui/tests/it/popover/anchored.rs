@@ -225,5 +225,6 @@ fn a_popover_at_a_point_opens_there() {
     let layer = scene.fixture.by_role(Role::DIALOG).first().copied().expect("the popover is shown");
     let tolerance = 2.0;
     assert!((layer.rect.min.x - at.x).abs() < tolerance, "the popover starts at the point's x: {:?}", layer.rect);
-    assert!(layer.rect.min.y >= at.y - tolerance && layer.rect.min.y < at.y + 40.0, "the popover hangs below the point: {:?}", layer.rect);
+    const NEAR: f32 = 40.0;
+    assert!(layer.rect.min.y >= at.y - tolerance && layer.rect.min.y < at.y + NEAR, "the popover hangs below the point: {:?}", layer.rect);
 }

@@ -48,15 +48,19 @@ type Controls<'a> = Box<dyn FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a>;
 /// An inline section of a panel: a section-strength title row over a body, separated by a rule. The open state is
 /// the container's own (it starts open), the caller's binding, or remembered across runs under a key; a fixed
 /// section is always open and shows the title alone.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct Section<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
+    /// Binds the open state to `open`.
+    #[prop]
     open: Option<Bind<'a, bool>>,
     collapsible: bool,
+    /// The header's weight: `Section` by default, `Caption` for a quiet heading.
+    #[prop]
     strength: HeaderStrength,
     actions: Vec<HeaderAction>,
     controls: Option<Controls<'a>>,
@@ -89,24 +93,10 @@ impl<'a> Section<'a> {
         .label(title)
     }
 
-    /// Binds the open state to `open`.
-    #[must_use]
-    pub fn open(mut self, open: Bind<'a, bool>) -> Self {
-        self.open = Some(open);
-        self
-    }
-
     /// Keeps the open state across runs in the slot `key`.
     #[must_use]
     pub fn remember(mut self, key: SaveKey) -> Self {
         self.props = self.props.save(key);
-        self
-    }
-
-    /// The header's weight: `Section` by default, `Caption` for a quiet heading.
-    #[must_use]
-    pub fn strength(mut self, strength: HeaderStrength) -> Self {
-        self.strength = strength;
         self
     }
 

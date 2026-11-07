@@ -128,7 +128,8 @@ fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
     fixture.type_text("5");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(shown.get(), [Mixed::Same(Some(5.0)), Mixed::Mixed], "the height part stays mixed");
+    let edited = [Mixed::Same(Some(5.0)), Mixed::Mixed];
+    assert_eq!(shown.get(), edited, "the height part stays mixed");
     let events = events.borrow();
     let commits: Vec<_> = events
         .iter()
@@ -137,5 +138,5 @@ fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
             _ => None,
         })
         .collect();
-    assert_eq!(commits, vec![[Mixed::Same(Some(5.0)), Mixed::Mixed]], "one edit: {events:?}");
+    assert_eq!(commits, vec![edited], "one edit: {events:?}");
 }

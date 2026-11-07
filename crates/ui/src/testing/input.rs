@@ -8,6 +8,11 @@ pub fn key_press(key: Key, modifiers: Modifiers) -> Event {
     fixture::key_press(key, modifiers)
 }
 
+/// Whether a press of `key` is still in this pass's input: no component claimed it.
+pub fn key_reached(ctx: &Context, key: Key) -> bool {
+    fixture::key_reached(ctx, key)
+}
+
 /// Gives egui back the option the runtime turns off at install: `Cmd` with `=` or `-` zooms the interface.
 pub fn allow_zoom_keys(ctx: &Context) {
     fixture::allow_zoom_keys(ctx);

@@ -237,8 +237,12 @@ impl AccessTree {
     }
 
     /// The toggled state of a node by key.
-    pub fn toggled_of(&self, key: NodeKey) -> Option<accesskit::Toggled> {
-        self.lookup(NodeId(key.0))?.toggled()
+    pub fn toggled_of(&self, key: NodeKey) -> Option<craft_behavior::Mixed<bool>> {
+        Some(match self.lookup(NodeId(key.0))?.toggled()? {
+            accesskit::Toggled::False => craft_behavior::Mixed::Same(false),
+            accesskit::Toggled::True => craft_behavior::Mixed::Same(true),
+            accesskit::Toggled::Mixed => craft_behavior::Mixed::Mixed,
+        })
     }
 
     /// The expanded state of a node by key.

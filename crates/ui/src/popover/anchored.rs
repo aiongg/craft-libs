@@ -78,7 +78,11 @@ impl<'a> Popover<'a> {
         Popover { common: Common::new(), props, open, closed: None }.label(label)
     }
 
-    fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
+    /// Changes the layer the popover shows in, for the settings without a setter of their own: the size a
+    /// [resizable](Popover::resizable) popover has until the user resizes it (`Overlay::size`) and the least it may be
+    /// resized to (`Overlay::min_size`).
+    #[must_use]
+    pub fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
         let overlay = match std::mem::take(&mut self.props.mount) {
             Mount::Layer(overlay) => overlay,
             _ => Overlay::popover(),
@@ -90,14 +94,14 @@ impl<'a> Popover<'a> {
     /// The control the popover hangs from. The popover closes when the opener is no longer shown.
     #[must_use]
     pub fn opened_by(self, opener: &Response) -> Self {
-        self.with_overlay(|overlay| overlay.opened_by(opener, Trigger::Manual))
+        self.overlay(|overlay| overlay.opened_by(opener, Trigger::Manual))
     }
 
     /// Whether edge grips resize the popover. The size the user leaves it at is saved under
     /// [`remember`](Popover::remember).
     #[must_use]
     pub fn resizable(self, on: bool) -> Self {
-        self.with_overlay(|overlay| {
+        self.overlay(|overlay| {
             if on {
                 overlay.resizable(true).fit(OverlayFit::Resizable)
             } else if overlay.fit == OverlayFit::Resizable {
@@ -108,42 +112,30 @@ impl<'a> Popover<'a> {
         })
     }
 
-    /// The size a [resizable](Popover::resizable) popover has until the user resizes it.
-    #[must_use]
-    pub fn size(self, size: Vec2) -> Self {
-        self.with_overlay(|overlay| overlay.size(size))
-    }
-
-    /// The least a [resizable](Popover::resizable) popover may be resized to.
-    #[must_use]
-    pub fn min_size(self, min_size: Vec2) -> Self {
-        self.with_overlay(|overlay| overlay.min_size(min_size))
-    }
-
     /// Hangs the popover from `at`, a point in the parent's layer space, instead of from an opener.
     #[must_use]
     pub fn at_point(self, at: Pos2) -> Self {
-        self.with_overlay(|overlay| overlay.anchor(Anchor::Point(at)))
+        self.overlay(|overlay| overlay.anchor(Anchor::Point(at)))
     }
 
     /// Hangs the popover from where the pointer was when it opened, instead of from an opener.
     #[must_use]
     pub fn at_pointer(self) -> Self {
-        self.with_overlay(|overlay| overlay.anchor(Anchor::Pointer))
+        self.overlay(|overlay| overlay.anchor(Anchor::Pointer))
     }
 
     /// Replaces the close rules the popover starts with, for callers that close it themselves: `Outside::Keep` with
     /// [`PopoverOutput::pressed_outside`], or no close when the focus leaves.
     #[must_use]
     pub fn dismiss(self, dismiss: Dismiss) -> Self {
-        self.with_overlay(|overlay| overlay.dismiss(dismiss))
+        self.overlay(|overlay| overlay.dismiss(dismiss))
     }
 
     /// Whether Escape, with the focus inside, closes the popover. Off, a popover of a field that handles Escape
     /// itself stays open.
     #[must_use]
     pub fn escape(self, on: bool) -> Self {
-        self.with_overlay(|mut overlay| {
+        self.overlay(|mut overlay| {
             overlay.focus.cancel = if on { FocusPolicy::POPUP.cancel } else { CancelRule::Ignore };
             overlay
         })
@@ -159,7 +151,7 @@ impl<'a> Popover<'a> {
     /// What takes the keyboard focus when the popover opens, such as the hex field of a colour picker.
     #[must_use]
     pub fn initial_focus(self, initial: Initial) -> Self {
-        self.with_overlay(|overlay| {
+        self.overlay(|overlay| {
             let focus = overlay.focus.initial(initial);
             overlay.focus(focus)
         })
@@ -169,7 +161,7 @@ impl<'a> Popover<'a> {
     /// `CloseReason::Enter`: pickers that commit by closing.
     #[must_use]
     pub fn close_on_enter(self, on: bool) -> Self {
-        self.with_overlay(|mut overlay| {
+        self.overlay(|mut overlay| {
             overlay.dismiss = overlay.dismiss.enter(on);
             overlay
         })
@@ -178,7 +170,7 @@ impl<'a> Popover<'a> {
     /// Whether the press that closes the popover from outside reaches nothing below it.
     #[must_use]
     pub fn absorb_outside(self, on: bool) -> Self {
-        self.with_overlay(|mut overlay| {
+        self.overlay(|mut overlay| {
             overlay.dismiss = overlay.dismiss.outside(if on { Outside::Absorb } else { Outside::Close });
             overlay
         })

@@ -141,6 +141,11 @@ pub(crate) fn run_viewport_pass(ctx: &Context, time: f64, viewport: egui::Viewpo
     let _ = ctx.run_ui(input, ui);
 }
 
+/// Whether a press of `key` is in this pass's input, that is, no component took it.
+pub(crate) fn key_reached(ctx: &Context, key: Key) -> bool {
+    ctx.input(|input| input.key_pressed(key))
+}
+
 /// A key press event with `modifiers`.
 pub(crate) fn key_press(key: Key, modifiers: Modifiers) -> Event {
     Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers }

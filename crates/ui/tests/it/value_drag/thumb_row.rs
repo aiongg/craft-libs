@@ -143,7 +143,8 @@ fn a_label_reset_restores_the_whole_row_while_a_thumb_with_a_default_is_focused(
     }
     frames.frame(vec![], &mut show);
     drop(show);
-    assert_eq!(value, Mixed::each([0.0, 100.0]));
+    let ends = Mixed::each([0.0, 100.0]);
+    assert_eq!(value, ends);
 }
 
 fn mixed_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
@@ -168,7 +169,8 @@ fn a_key_on_a_mixed_thumb_sets_that_thumb_alone() {
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
     let row = fixture.data().value("mixed", [Mixed::<f64>::Mixed, Mixed::Mixed]).clone();
-    assert_eq!(row, [Mixed::Same(1.0), Mixed::Mixed], "the first thumb steps from the start of its range; the second stays mixed");
+    let stepped = [Mixed::Same(1.0), Mixed::Mixed];
+    assert_eq!(row, stepped, "the first thumb steps from the start of its range; the second stays mixed");
 }
 
 const ROW: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(320.0, 50.0) };

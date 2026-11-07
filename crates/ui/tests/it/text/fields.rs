@@ -274,5 +274,6 @@ fn a_value_set_outside_ends_the_typing_run() {
     assert!(fixture.texts().iter().all(|run| !run.text.contains("12")), "the stale draft is gone");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    assert_eq!(*value.borrow(), Some(7.0), "Enter commits the value that was set, not the draft");
+    const SET: f64 = 7.0;
+    assert_eq!(*value.borrow(), Some(SET), "Enter commits the value that was set, not the draft");
 }

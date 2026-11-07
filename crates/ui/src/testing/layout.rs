@@ -110,6 +110,11 @@ pub fn in_region<R>(ui: &mut Ui, rect: egui::Rect, body: impl FnOnce(&mut Ui) ->
     crate::runtime::egui::child::block(ui, Some(rect), egui::Layout::top_down(egui::Align::Min), body).0
 }
 
+/// Runs `body` in a child `Ui` whose region is `rect`, laid out as a row with its items centred across.
+pub fn in_row_region<R>(ui: &mut Ui, rect: egui::Rect, body: impl FnOnce(&mut Ui) -> R) -> R {
+    crate::runtime::egui::child::block(ui, Some(rect), egui::Layout::left_to_right(egui::Align::Center), body).0
+}
+
 /// Takes `size` in the layout of `ui` and returns its rect.
 pub fn allocate(ui: &mut Ui, size: Vec2) -> egui::Rect {
     crate::runtime::egui::alloc::space(ui, size)

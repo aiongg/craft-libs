@@ -131,7 +131,7 @@ fn write_states(spec: &mut NodeSpec, flags: Flags, enabled: bool, read_only: boo
 fn write_position(spec: &mut NodeSpec, position: Option<SetPosition>, level: Option<usize>) {
     spec.position = position.map(|position| (position.index, position.size));
     spec.level = level.or_else(|| position.and_then(|position| position.level));
-    if let Some(position) = position.filter(|_| spec.role == accesskit::Role::Row) {
+    if let Some(position) = position.filter(|_| spec.role == adapter::NodeRole::Row) {
         spec.grid = GridPlace { row_index: Some(position.index), row_count: position.size, column_index: None, column_count: position.columns };
     }
 }

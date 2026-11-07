@@ -37,5 +37,6 @@ fn a_text_measures_the_same_width_at_every_scale() {
         fixture.shown().width()
     };
     let (one, two) = (width_at(1.0), width_at(2.0));
-    assert!((one - two).abs() < 1.0, "\"Layers\" is {one} wide at scale 1 and {two} at scale 2");
+    const SAME: f32 = 1.0;
+    assert!((one - two).abs() < SAME, "\"Layers\" is {one} wide at scale 1 and {two} at scale 2");
 }

@@ -380,17 +380,10 @@ fn a_rating_claims_only_the_digits_up_to_its_maximum() {
         let mut value = shown.get();
         Rating::new(Bind::bound(&mut value), 3).label("Rating").show(ui);
         shown.set(value);
-        ui.input(|input| {
-            let mut now = seen.get();
-            for event in &input.events {
-                match event {
-                    egui::Event::Key { key: Key::Num3, pressed: true, .. } => now[0] = true,
-                    egui::Event::Key { key: Key::Num4, pressed: true, .. } => now[1] = true,
-                    _ => {}
-                }
-            }
-            seen.set(now);
-        });
+        let mut now = seen.get();
+        now[0] |= craft_ui::testing::input::key_reached(ui.ctx(), Key::Num3);
+        now[1] |= craft_ui::testing::input::key_reached(ui.ctx(), Key::Num4);
+        seen.set(now);
     });
     fixture.settle();
     press(&mut fixture, Key::Tab);

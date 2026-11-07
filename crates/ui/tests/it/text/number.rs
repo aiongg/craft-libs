@@ -173,7 +173,8 @@ fn typing_over_a_mixed_value_commits_it() {
     frames.idle(1, &mut show);
     frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
     frames.idle(3, &mut show);
-    assert_eq!(*value.borrow(), Mixed::Same(Some(12.0)), "the typed number replaces the mixed value");
+    const TYPED: f64 = 12.0;
+    assert_eq!(*value.borrow(), Mixed::Same(Some(TYPED)), "the typed number replaces the mixed value");
 }
 
 /// What a fixture of a number field with presets shows: the value, the field's id and the events it reported.
@@ -239,7 +240,8 @@ fn presets_open_over_the_field_and_a_pick_sets_the_value() {
     fixture.idle(4);
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    assert_eq!(*shown.value.borrow(), Some(8.0), "the reopened list starts at the first row, a number row");
+    const FIRST: f64 = 8.0;
+    assert_eq!(*shown.value.borrow(), Some(FIRST), "the reopened list starts at the first row, a number row");
 }
 
 /// One drag of the popup slider is one Begin and one Commit, not a set per frame.

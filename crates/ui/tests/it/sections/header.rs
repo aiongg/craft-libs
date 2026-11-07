@@ -72,8 +72,9 @@ fn an_inline_header_and_its_body_share_one_line() {
     };
     frames.idle(5, &mut show);
     let (row, body) = (row.get(), body.get());
-    assert!(body.top() - row.top() < body.height() / 2.0, "the body starts on the header's line, not below it");
-    assert!(row.height() < 1.5 * body.height(), "the row is one line high");
+    let (half, line) = (body.height() / 2.0, body.height() * 1.5);
+    assert!(body.top() - row.top() < half, "the body starts on the header's line, not below it");
+    assert!(row.height() < line, "the row is one line high");
     assert!(body.left() > row.left(), "the body sits after the header");
 }
 
@@ -98,6 +99,8 @@ fn an_elided_titles_tooltip_is_the_full_title() {
         frames.idle(4, &mut show);
         (any_open(&frames.ctx, OpenFilter::Any), named(&mut frames) > before)
     };
-    assert_eq!(tooltip_after_rest(LONG, 120.0), (true, true), "an elided title opens a tooltip that names the full title");
-    assert!(!tooltip_after_rest("Options", 300.0).0, "a title that fits opens none");
+    const NARROW: f32 = 120.0;
+    const WIDE: f32 = 300.0;
+    assert_eq!(tooltip_after_rest(LONG, NARROW), (true, true), "an elided title opens a tooltip that names the full title");
+    assert!(!tooltip_after_rest("Options", WIDE).0, "a title that fits opens none");
 }

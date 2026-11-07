@@ -8,7 +8,7 @@ use craft_ui::contract::{CommandSet, Common, Component, Cx, MeasureCx, PaintUi, 
 use craft_ui::display::{Badge, Divider, Kbd, Progress, Text};
 use craft_ui::style::{ComponentStyle, Flags, StyleCx, TextLook, TypeRole};
 use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Align, Layout, Rect, Response, Vec2, vec2};
+use egui::{Rect, Response, Vec2, vec2};
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -213,9 +213,11 @@ fn a_vertical_divider_spans_its_row() {
     let seen = height.clone();
     let mut frames = Frames::new();
     frames.idle(3, move |ui| {
-        ui.allocate_ui_with_layout(vec2(200.0, 120.0), Layout::left_to_right(Align::Center), |ui| {
+        let row = Rect::from_min_size(ui.cursor().min, vec2(200.0, 120.0));
+        craft_ui::testing::layout::in_row_region(ui, row, |ui| {
             seen.set(Divider::vertical().id_salt("divider").show(ui).rect.height());
         });
     });
-    assert!(height.get() >= 119.0, "the divider fills the 120 point row, not one control: {}", height.get());
+    const ROW: f32 = 119.0;
+    assert!(height.get() >= ROW, "the divider fills the 120 point row, not one control: {}", height.get());
 }

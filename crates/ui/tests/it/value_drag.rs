@@ -93,11 +93,12 @@ fn a_track_press_near_the_upper_thumb_moves_and_focuses_it() {
     fixture.frame(vec![pointer::release(at)]);
     fixture.idle(2);
     let pressed = upper_end(&fixture);
-    assert_eq!(lower_end(&fixture), 20.0, "the lower thumb stays");
+    const LOWER: f64 = 20.0;
+    assert_eq!(lower_end(&fixture), LOWER, "the lower thumb stays");
     assert!(pressed > UPPER_END, "the upper thumb moved to the press: {pressed:?}");
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(lower_end(&fixture), 20.0, "the arrow does not step the lower thumb");
+    assert_eq!(lower_end(&fixture), LOWER, "the arrow does not step the lower thumb");
     let stepped = upper_end(&fixture);
     assert!(stepped > pressed, "the arrow steps the focused upper thumb: {pressed:?} then {stepped:?}");
 }
@@ -242,7 +243,8 @@ fn an_alt_click_on_the_track_sets_the_clicked_value_and_two_arrows_in_one_pass_s
     frames.hold(Modifiers::ALT);
     pointer::click(&mut frames, at, &mut show);
     frames.hold(Modifiers::NONE);
-    assert!((slide.value() - 20.0).abs() < 1e-3, "Alt does not scale a click: {}", slide.value());
+    const CLICKED: f64 = 20.0;
+    assert!((slide.value() - CLICKED).abs() < 1e-3, "Alt does not scale a click: {}", slide.value());
 
     let stepping = Slide { step: Some(5.0), ..Slide::new(START) };
     let mut frames = Frames::new();
@@ -250,7 +252,8 @@ fn an_alt_click_on_the_track_sets_the_clicked_value_and_two_arrows_in_one_pass_s
     focused(&mut frames, &mut show);
     frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE), key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
     frames.idle(2, &mut show);
-    assert_eq!(stepping.value(), START + 2.0 * STEP, "each arrow of the pass steps from the value the last one gave");
+    const ARROWS: f64 = 2.0;
+    assert_eq!(stepping.value(), START + ARROWS * STEP, "each arrow of the pass steps from the value the last one gave");
 }
 
 #[trial]
@@ -265,7 +268,8 @@ fn a_zero_scroll_wheel_changes_nothing_and_a_wheel_notch_is_the_wheel_step() {
         frames.idle(2, &mut show);
         slide.value()
     };
-    assert_eq!(wheel(0.0, None), 0.5, "a wheel event with no scroll moves nothing");
-    let notch = (wheel(30.0, Some(NOTCH)) - 0.5).abs();
+    const MIDDLE: f64 = 0.5;
+    assert_eq!(wheel(0.0, None), MIDDLE, "a wheel event with no scroll moves nothing");
+    let notch = (wheel(30.0, Some(NOTCH)) - MIDDLE).abs();
     assert!((notch - NOTCH).abs() < 1e-9, "one notch moves the wheel step, not the 0.0001 step: {notch}");
 }
