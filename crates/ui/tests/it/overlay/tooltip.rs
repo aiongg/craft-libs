@@ -5,7 +5,7 @@ use craft_behavior::IconId;
 use craft_ui::buttons::IconButton;
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::controls::slider::Slider;
+use craft_ui::value_drag::Slider;
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
 use craft_ui::testing::pointer::{moved, press};
 use craft_ui::testing::{Frames, trial};

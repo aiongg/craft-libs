@@ -71,7 +71,8 @@ fn show(
     range: &Option<RangeInclusive<f64>>,
     presets: &[Preset],
 ) {
-    let mut field = NumberField::new("Size", Bind::bound(&mut *value.borrow_mut())).id_salt("size");
+    let mut guard = value.borrow_mut();
+    let mut field = NumberField::new("Size", Bind::bound(&mut *guard)).id_salt("size");
     if let Some(range) = range {
         field = field.range(range.clone());
     }

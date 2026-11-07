@@ -207,7 +207,7 @@ impl<'a> RangeSlider<'a> {
         self
     }
 
-    fn scale(&self) -> Scale {
+    fn track_scale(&self) -> Scale {
         Scale::new(&self.range, self.step, self.scale)
     }
 
@@ -258,7 +258,7 @@ impl Component for RangeSlider<'_> {
     /// The track, and a thumb each that is its own Tab stop and takes the arrow keys.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         self.marks.lay_out(&cx.style.mark_text, |label| cx.env.resolve(label), |run| cx.layout(run).size());
-        let scale = self.scale();
+        let scale = self.track_scale();
         let area = self.marks.area(rect, &cx.style.track);
         let (lower, upper) = shown(&scale, cx.value().copied()).unwrap_or((scale.min, scale.min));
         if self.track_face.is_some() {
@@ -283,7 +283,7 @@ impl Component for RangeSlider<'_> {
         if cx.resolved.read_only || !cx.resolved.enabled {
             return;
         }
-        let scale = self.scale();
+        let scale = self.track_scale();
         let area = self.marks.area(cx.rect, &cx.style.track);
         let (rtl, half) = (cx.flow.is_rtl(), area.height() / 2.0);
         let length = (area.width() - area.height()).max(1.0);
@@ -372,7 +372,7 @@ impl Component for RangeSlider<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let scale = self.scale();
+        let scale = self.track_scale();
         let words = cx.words::<ValueDragWords>();
         let pair = shown(&scale, cx.value().copied());
         let label = cx.resolved.label;
@@ -393,7 +393,7 @@ impl Component for RangeSlider<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
         let flow = cx.flow;
-        let scale = self.scale();
+        let scale = self.track_scale();
         let area = self.marks.area(cx.rect, &style.track);
         let pair = shown(&scale, cx.value().copied());
         let (lower, upper) = pair.unwrap_or((scale.min, scale.min));

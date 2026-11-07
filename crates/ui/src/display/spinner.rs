@@ -1,7 +1,7 @@
 //! `Spinner`: the busy mark, an arc that turns once a period and stands still where motion is off. It shows in
 //! the flow, or as the face of a part (`ui.face(part, Spinner::new())`) where a component takes a busy state.
 
-use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
+use crate::contract::{Access, Animate as _, Common, Component, Cx, MeasureCx, PaintUi, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, IconLook, StyleCx};
 use craft_behavior::{Metrics, Sense};

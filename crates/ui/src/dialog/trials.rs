@@ -2,7 +2,7 @@
 
 use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use crate::controls::check::Checkbox;
+use crate::choice::Checkbox;
 use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
 use crate::sections::{DialogRole, FooterButton};
 use crate::testing::focus::is_focused;

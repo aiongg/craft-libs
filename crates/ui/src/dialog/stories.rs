@@ -2,7 +2,7 @@
 
 use super::{BlockingOverlay, Dialog, DialogFrame, FullWindowDialog};
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use crate::controls::check::Checkbox;
+use crate::choice::Checkbox;
 use crate::layout_components::Stack;
 use crate::runtime::focus::Initial;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};

@@ -6,7 +6,7 @@
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
 use craft_ui::contract::{Bind, Props as _, Scroll, Show as _, ShowContainer as _};
-use craft_ui::controls::radio::{Radio, RadioGroup};
+use craft_ui::choice::{Radio, RadioGroup};
 use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::{RootEnv, with_env};
 use craft_ui::runtime::frame::FrameInput;

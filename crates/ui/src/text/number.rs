@@ -463,7 +463,7 @@ impl Component for NumberField<'_> {
     type Output = NumberOutput;
 
     fn style(cx: &StyleCx<'_>, _: NumberFieldStyleKey) -> NumberStyle {
-        let FieldStyle { surface, metrics } = FieldStyle::at(cx);
+        let FieldStyle { surface, metrics, .. } = FieldStyle::at(cx);
         NumberStyle { surface, metrics, chevron: IconLook::new(cx.control().icon, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
 

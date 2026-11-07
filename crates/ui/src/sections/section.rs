@@ -5,7 +5,7 @@ use super::group_box::SECTION_LEVEL;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
 use crate::contract::{
     Bind, BindMut, BodyCx, Collapse, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, NoValue, Outcome, Props as _, Role,
-    SaveKey, Show as _,
+    SaveKey, Show as _, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};

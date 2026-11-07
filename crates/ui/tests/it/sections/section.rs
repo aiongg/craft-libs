@@ -19,7 +19,7 @@ fn disclosure() -> Pos2 {
 fn a_section_shows_its_body_while_its_binding_is_open_and_the_disclosure_flips_the_binding() {
     let mut frames = Frames::new();
     let (mut open, ran) = (true, Cell::new(false));
-    let mut show = |ui: &mut Ui, open: &mut bool| {
+    let show = |ui: &mut Ui, open: &mut bool| {
         ran.set(false);
         Section::new("Options", Bind::bound(open)).id_salt("section").show_at(ui, AREA, |_, _| ran.set(true));
     };
@@ -34,7 +34,7 @@ fn a_section_shows_its_body_while_its_binding_is_open_and_the_disclosure_flips_t
 fn a_saved_section_keeps_its_state_without_a_binding_and_a_fixed_section_is_always_open() {
     let mut frames = Frames::new();
     let ran = Cell::new(false);
-    let mut show = |ui: &mut Ui, fixed: bool| {
+    let show = |ui: &mut Ui, fixed: bool| {
         ran.set(false);
         let section = if fixed {
             Section::fixed("Options")

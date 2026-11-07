@@ -1,7 +1,7 @@
 //! Bypass detection: a raw egui widget fails the pass-end walk, a component's own widgets pass it.
 
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::controls::check::Checkbox;
+use craft_ui::choice::Checkbox;
 use craft_ui::testing::{Fixture, bypass, trial};
 use egui::{Rect, pos2};
 

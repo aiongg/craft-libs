@@ -1,7 +1,7 @@
 //! `ThumbRow` rules: the order thumbs keep, split halves, wrapping.
 
 use craft_behavior::{MoveMods, NavMove};
-use craft_ui::contract::{Bind, Props as _};
+use craft_ui::contract::Bind;
 use craft_ui::testing::trial;
 use craft_ui::value_drag::{Anchor, Order, RowOp, Thumb, ThumbOp, ThumbRow};
 
@@ -38,7 +38,7 @@ fn the_halves_of_a_split_thumb_do_not_cross() {
 /// A step past the end of a wrapping row comes back at the start; an unwrapping row stops at the end.
 #[trial]
 fn a_wrapping_row_comes_back_at_the_start() {
-    let wrapping = ThumbRow::new(Bind::given([359.0, 10.0]), 0.0..=360.0).step(1.0).wrap(true).thumbs([Thumb::new("From"), Thumb::new("To")]);
+    let wrapping = ThumbRow::new(Bind::given([359.0, 10.0]), 0.0..=360.0).step(1.0).wrap().thumbs([Thumb::new("From"), Thumb::new("To")]);
     assert_eq!(wrapping.rules().apply(&forward(0), &[359.0, 10.0]), [0.0, 10.0]);
     let plain = ThumbRow::new(Bind::given([359.0, 10.0]), 0.0..=360.0).step(1.0).thumbs([Thumb::new("From"), Thumb::new("To")]);
     assert_eq!(plain.rules().apply(&forward(0), &[360.0, 10.0]), [360.0, 10.0]);

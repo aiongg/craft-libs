@@ -1,7 +1,7 @@
 //! `Kbd`: a key chord as text, plain or in a keycap.
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, Name, PaintUi, Props, Role, Styled as _};
-use crate::primitives::{ChordText, TextRun};
+use crate::primitives::ChordText;
 use crate::runtime::commands::{CommandRef, ResolvedCommand};
 use crate::runtime::env::Label;
 use crate::runtime::windows::os_of;

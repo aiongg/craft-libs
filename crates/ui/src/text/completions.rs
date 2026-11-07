@@ -1,7 +1,7 @@
 //! The completion list of a text control (18.2): the popup shows the candidates the text adapter holds, and a click
 //! on a row hands the pick back to the adapter, which accepts it in its next run.
 
-use crate::contract::{ActivateOn, Bind, CollectionEvent, Component, Cx, LeadOnOpen, Overlay, OverlayUi, Overlays as _, Props as _, SelectMode, ShowCollection as _};
+use crate::contract::{ActivateOn, Bind, CollectionEvent, Component, Cx, LeadOnOpen, Overlay, OverlayUi, Overlays as _, SelectMode, ShowCollection as _, WordSetCx as _};
 use crate::list::{List, ListRow};
 use crate::primitives::TextKey;
 use crate::runtime::env::Label;

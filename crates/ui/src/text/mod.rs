@@ -18,13 +18,13 @@ pub use number::{NumberField, NumberOutput, NumberStyle, Preset};
 
 use crate::buttons::IconButton;
 use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PaintUi, PartsCx, Pointer as _, Props as _, Role, Scrub,
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, OverlayUi, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     Styled as _, WordSetCx as _,
 };
 use crate::primitives::{Completer, IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
-use craft_behavior::{Codec, Flow, IconId, Insets, Metrics, NumberCodec, PartKey, PlainText, Sense, ValueDrag};
+use craft_behavior::{Codec, Flow, IconId, Insets, Metrics, PartKey, PlainText, Sense};
 use craft_theme::Stateful;
 use egui::{Rect, Vec2};
 use std::borrow::Cow;

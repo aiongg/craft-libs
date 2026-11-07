@@ -281,7 +281,7 @@ impl<'a> Slider<'a> {
         self
     }
 
-    fn scale(&self) -> Scale {
+    fn track_scale(&self) -> Scale {
         Scale::new(&self.range, self.step, self.scale)
     }
 }
@@ -326,7 +326,7 @@ impl Component for Slider<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         self.marks.lay_out(&cx.style.mark_text, |label| cx.env.resolve(label), |run| cx.layout(run).size());
-        let scale = self.scale();
+        let scale = self.track_scale();
         let area = self.marks.area(rect, &cx.style.track);
         let value = cx.value().copied().unwrap_or_else(|| scale.middle());
         let thumb = thumb_rect(&scale, value, area, cx.flow);
@@ -349,7 +349,7 @@ impl Component for Slider<'_> {
         if cx.resolved.read_only || !cx.resolved.enabled {
             return;
         }
-        let scale = self.scale();
+        let scale = self.track_scale();
         let bounds = (scale.min, scale.max);
         let area = self.marks.area(cx.rect, &cx.style.track);
         let (rtl, half) = (cx.flow.is_rtl(), area.height() / 2.0);
@@ -413,7 +413,7 @@ impl Component for Slider<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let scale = self.scale();
+        let scale = self.track_scale();
         let range = scale.min..=scale.max;
         let numeric = match cx.value() {
             Some(value) => Numeric::new(*value, range),
@@ -429,7 +429,7 @@ impl Component for Slider<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
         let flow = cx.flow;
-        let scale = self.scale();
+        let scale = self.track_scale();
         let area = self.marks.area(cx.rect, &style.track);
         let value = cx.value().copied();
         let faced = match &self.track_face {

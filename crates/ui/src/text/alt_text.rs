@@ -8,7 +8,7 @@ use crate::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     WordSetCx as _,
 };
-use crate::controls::check::Checkbox;
+use crate::choice::Checkbox;
 use crate::primitives::{Span, TextOptions, TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};

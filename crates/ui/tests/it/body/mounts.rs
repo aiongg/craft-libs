@@ -8,7 +8,7 @@ use craft_behavior::CanvasTransform;
 use craft_host::target::{Caps, ShellInfo};
 use craft_ui::contract::{Bind, SaveKey};
 use craft_ui::contract::{ContainerProps, DragBand, HeaderRegion, Mount, Overlay, Props as _, Show as _, ShowContainer as _, Sizing};
-use craft_ui::controls::check::Checkbox;
+use craft_ui::choice::Checkbox;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{Block, in_region};

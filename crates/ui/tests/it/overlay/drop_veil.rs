@@ -2,7 +2,7 @@
 //! reports nothing.
 
 use craft_ui::contract::{Bind, OsFiles, Props as _, Show as _, ShowContainer as _};
-use craft_ui::controls::check::Checkbox;
+use craft_ui::choice::Checkbox;
 use craft_ui::popover::DropVeil;
 use craft_ui::testing::pointer::moved;
 use craft_ui::testing::{Frames, trial};
@@ -14,7 +14,7 @@ fn show(ui: &mut Ui, dropped: &RefCell<Vec<OsFiles>>) {
         .show(ui, |ui, _| {
             Checkbox::new(Bind::given(false)).label("Keep originals").show(ui);
         });
-    dropped.borrow_mut().extend(out.dropped);
+    dropped.borrow_mut().extend(out.dropped.clone());
 }
 
 #[trial]

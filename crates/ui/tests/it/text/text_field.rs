@@ -2,7 +2,7 @@
 //! empties the text.
 
 use craft_behavior::PartKey;
-use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;

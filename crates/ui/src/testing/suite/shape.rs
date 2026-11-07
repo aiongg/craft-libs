@@ -72,7 +72,7 @@ pub(super) fn trials(package: &'static str) -> Vec<Trial> {
 /// slider, because only shared code can break it.
 fn leaf_degenerate_rects() -> Result<(), Failed> {
     use crate::contract::{Bind, Props as _, Show as _};
-    use crate::controls::slider::Slider;
+    use crate::value_drag::Slider;
     use std::cell::RefCell;
     use std::rc::Rc;
     let nan = f32::NAN;

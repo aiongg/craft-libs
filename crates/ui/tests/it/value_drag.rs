@@ -46,7 +46,7 @@ fn a_press_halfway_along_a_log_track_sets_the_geometric_mean() {
     let slider = fixture.by_label("Size").expect("the slider is named by its label");
     fixture.click(&slider);
 
-    let value = *fixture.data().value("value", 1.0);
+    let value = *fixture.data().value("value", 1.0_f64);
     assert!((value - 10.0).abs() < 1e-6, "halfway along 1 to 100 is 10, got {value}");
 }
 

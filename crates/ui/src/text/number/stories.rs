@@ -1,7 +1,7 @@
 //! Stories of `NumberField`.
 
 use super::{NumberField, Preset};
-use crate::contract::{Bind, Props as _, Show as _, Validity};
+use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;

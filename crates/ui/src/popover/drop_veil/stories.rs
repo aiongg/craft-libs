@@ -2,7 +2,7 @@
 
 use super::DropVeil;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
-use crate::controls::check::Checkbox;
+use crate::choice::Checkbox;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -12,6 +12,7 @@ fn drop_veil(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .show(ui, |ui, _| {
             Checkbox::new(Bind::given(true)).label("Keep originals").show(ui);
         })
+        .output
         .response
         .into()
 }

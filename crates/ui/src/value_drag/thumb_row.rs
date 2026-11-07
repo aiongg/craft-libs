@@ -552,7 +552,7 @@ impl<'r, const N: usize> Layout<'r, N> {
     /// spread, unless the press moves it alone.
     fn moved(&self, anchor: &[f64; N], press: Press, state: &PressState) -> [f64; N] {
         let (origin, pos) = match state.phase {
-            PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, .. } => (start.origin, pos),
+            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, .. } => (start.origin, pos),
             _ => return *anchor,
         };
         let Some(i) = press.thumb(origin.x, pos.x) else { return *anchor };
@@ -663,6 +663,7 @@ fn against(mv: NavMove) -> NavMove {
 
 /// Thumbs on one row, tip up, each a value of its own.
 #[derive(crate::contract::Component, crate::contract::Props)]
+#[component(probe(ThumbRow<'static, 4>))]
 pub struct ThumbRow<'a, const N: usize> {
     #[common]
     common: Common,
@@ -721,7 +722,7 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
     type Style = ThumbRowStyle;
     type Output = EditResponse<[f64; N]>;
 
-    fn style(cx: &StyleCx<'_>, _: ThumbRowStyleKey) -> ThumbRowStyle {
+    fn style(cx: &StyleCx<'_>, _: ThumbRowStyleKey<N>) -> ThumbRowStyle {
         let control = cx.control();
         let colors = &cx.tokens.color;
         let (clear, soft, accent) = (Rgba::TRANSPARENT, colors.accent.soft, colors.accent.strong);
@@ -868,8 +869,8 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             let (lo, hi) = rules.reported_bounds(&shown, i);
             let label = &rules.thumbs[i].label;
             let name = match rules.partner(i) {
-                Some(j) if j > i => words.thumb_low.replace("{name}", label),
-                Some(j) => words.thumb_high.replace("{name}", &rules.thumbs[j].label),
+                Some(j) if j > i => words.thumb_low.fill(&[("name", label.as_str())]),
+                Some(j) => words.thumb_high.fill(&[("name", rules.thumbs[j].label.as_str())]),
                 None => label.clone(),
             };
             let step = rules.scale_of(i).key_step();
