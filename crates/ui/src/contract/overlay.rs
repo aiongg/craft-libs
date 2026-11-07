@@ -16,7 +16,7 @@ use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
-use craft_behavior::{CancelRule, Intent, OwnerClass, PressPhase};
+use craft_behavior::{CancelRule, Intent, OwnerClass, PointerButton, PressPhase};
 use craft_keymap::Mods;
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
@@ -461,12 +461,17 @@ impl Overlay {
     /// Records the opener. An anchored layer hangs from the opener's rect, on the side and alignment its preset
     /// gave; a floating layer keeps its place, and the opener serves focus return and the trigger.
     pub fn opened_by(mut self, anchor: &Response, trigger: Trigger) -> Overlay {
-        let fired = match trigger {
-            Trigger::Click => anchor.clicked(),
-            Trigger::Press => anchor.is_pointer_button_down_on() && anchor.ctx.input(|input| input.pointer.primary_pressed()),
-            Trigger::Context => anchor.secondary_clicked(),
-            Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
-        };
+        let fired = pointer::with_pass_pointer(&anchor.ctx, |pass| {
+            let Some(frame) = pass.frame.as_ref() else { return false };
+            let on_opener = pass.press_targets.click == Some(anchor.id);
+            let inside = frame.pos.is_some_and(|pos| anchor.rect.contains(pos));
+            match trigger {
+                Trigger::Click => on_opener && inside && frame.release == Some(PointerButton::Primary),
+                Trigger::Press => on_opener && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
+                Trigger::Context => inside && frame.release == Some(PointerButton::Secondary),
+                Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
+            }
+        });
         self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger, enabled: anchor.enabled(), fired });
         self.anchor(Anchor::Rect(anchor.rect))
     }

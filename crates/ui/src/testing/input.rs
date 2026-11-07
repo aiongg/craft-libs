@@ -8,6 +8,11 @@ pub fn key_press(key: Key, modifiers: Modifiers) -> Event {
     fixture::key_press(key, modifiers)
 }
 
+/// The auto-repeat event of a held `key`.
+pub fn key_repeat(key: Key, modifiers: Modifiers) -> Event {
+    fixture::key_repeat(key, modifiers)
+}
+
 /// An event of typed `text`.
 pub fn text(text: &str) -> Event {
     fixture::text_event(text)

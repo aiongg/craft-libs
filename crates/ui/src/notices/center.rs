@@ -1,9 +1,9 @@
 //! `NoticeCenter` (20.3): posts the app's notices (saved, exported, couldn't open) to the toast queue of
-//! `runtime::toast`, which the shell's `ToastHost` shows, and reports how each one ended.
+//! `runtime::toast`, which `ToastStack` shows, and reports how each one ended.
 
 use crate::contract::{NoValue, Outcome, Politeness};
-use crate::runtime::egui::memory as store;
 use crate::runtime::env::{Label, WordSet};
+use crate::runtime::memory::{unique, with_session};
 use crate::runtime::toast::{self, Toast, ToastAction, ToastEnd, ToastId};
 use crate::runtime::words::CommonWords;
 use craft_theme::variant::Tone;
@@ -84,7 +84,7 @@ impl Outcome for NoticeCenterOutput {
 struct Posted(Vec<(ToastId, Option<String>)>);
 
 fn posted_slot() -> egui::Id {
-    store::unique("craft_ui.notice_center")
+    unique("craft_ui.notice_center")
 }
 
 /// The app's way to post notices. It holds only its timeout: the queue, the timers, the cap of three cards, the
@@ -127,12 +127,12 @@ impl NoticeCenter {
             card = card.action(ToastAction::new(dont_show_again()));
         }
         let id = toast::post(ctx, card);
-        let mut posted = store::take::<Posted>(ctx, posted_slot()).unwrap_or_default();
-        posted.0.push((id, notice.dismiss_key.clone()));
-        if posted.0.len() > TRACKED {
-            posted.0.remove(0);
-        }
-        store::put(ctx, posted_slot(), posted);
+        with_session(ctx, posted_slot(), |posted: &mut Posted| {
+            posted.0.push((id, notice.dismiss_key.clone()));
+            if posted.0.len() > TRACKED {
+                posted.0.remove(0);
+            }
+        });
         Some(id)
     }
 
@@ -149,18 +149,18 @@ impl NoticeCenter {
     /// Collects how the notices posted through any center ended since the last pass.
     pub fn show(self, ui: &mut Ui) -> NoticeCenterOutput {
         let ctx = ui.ctx().clone();
-        let mut posted = store::take::<Posted>(&ctx, posted_slot()).unwrap_or_default();
         let mut ends = Vec::new();
-        posted.0.retain(|(id, key)| {
-            let Some(end) = toast::end(&ctx, *id) else { return true };
-            ends.push(match (end, key) {
-                (ToastEnd::Action(_), Some(key)) => NoticeEnd::Silenced { id: *id, key: key.clone() },
-                (ToastEnd::Action(_) | ToastEnd::Dismissed, _) => NoticeEnd::Closed(*id),
-                (ToastEnd::Expired, _) => NoticeEnd::Expired(*id),
+        with_session(&ctx, posted_slot(), |posted: &mut Posted| {
+            posted.0.retain(|(id, key)| {
+                let Some(end) = toast::end(&ctx, *id) else { return true };
+                ends.push(match (end, key) {
+                    (ToastEnd::Action(_), Some(key)) => NoticeEnd::Silenced { id: *id, key: key.clone() },
+                    (ToastEnd::Action(_) | ToastEnd::Dismissed, _) => NoticeEnd::Closed(*id),
+                    (ToastEnd::Expired, _) => NoticeEnd::Expired(*id),
+                });
+                false
             });
-            false
         });
-        store::put(&ctx, posted_slot(), posted);
         NoticeCenterOutput { response: ui.response(), ends }
     }
 }

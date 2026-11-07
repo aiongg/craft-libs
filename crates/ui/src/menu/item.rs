@@ -49,7 +49,7 @@ impl Mark {
 
 /// Whether the pointer at `now`, having come from `from`, heads for `submenu`: it lies inside the triangle from
 /// `from` to the submenu's edge nearer to it.
-fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
+pub(crate) fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
     let near = if from.x <= submenu.center().x { submenu.min.x } else { submenu.max.x };
     let (a, b) = (pos2(near, submenu.min.y), pos2(near, submenu.max.y));
     let side = |p: Pos2, q: Pos2, r: Pos2| (p.x - r.x) * (q.y - r.y) - (q.x - r.x) * (p.y - r.y);
@@ -768,19 +768,4 @@ fn glyph_span(layout: &TextLayout, at: usize) -> Option<(f32, f32)> {
 struct Rest {
     since: Option<f64>,
     focused: bool,
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn the_pointer_heads_for_the_submenu_inside_the_triangle_to_its_near_edge() {
-        let submenu = Rect::from_min_max(pos2(100.0, 0.0), pos2(200.0, 100.0));
-        let from = pos2(0.0, 50.0);
-        assert!(heads_toward(from, pos2(50.0, 50.0), submenu));
-        assert!(heads_toward(from, pos2(50.0, 30.0), submenu));
-        assert!(!heads_toward(from, pos2(50.0, 200.0), submenu));
-        assert!(!heads_toward(from, pos2(-20.0, 50.0), submenu));
-    }
 }

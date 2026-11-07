@@ -32,18 +32,23 @@ fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
     let mut fixture = Fixture::new(move |ui| {
         let order = shared.borrow().order.clone();
         let (mut ids, mut bodies) = (Vec::new(), Vec::new());
-        let shown = SectionStack::new(&order, |ui, key, slot| {
-            let out = Section::new(TITLES[usize::from(*key)])
-                .in_stack(slot)
-                .show(ui, |ui, _| {
-                    bodies.push(*key);
-                    ui.label("Body");
-                })
-                .output;
-            ids.push(out.response.id);
-            out
-        })
-        .show(ui);
+        let stack = SectionStack::new(&order);
+        let rows = stack.rows();
+        let shown = stack
+            .show(ui, |ui, _| {
+                rows.show(ui, |ui, key, slot| {
+                    let out = Section::new(TITLES[usize::from(*key)])
+                        .in_stack(slot)
+                        .show(ui, |ui, _| {
+                            bodies.push(*key);
+                            ui.label("Body");
+                        })
+                        .output;
+                    ids.push(out.response.id);
+                    out
+                });
+            })
+            .output;
         let mut seen = shared.borrow_mut();
         seen.ids = ids;
         seen.bodies = bodies;

@@ -151,6 +151,11 @@ pub(crate) fn key_press(key: Key, modifiers: Modifiers) -> Event {
     Event::Key { key, physical_key: Some(key), pressed: true, repeat: false, modifiers }
 }
 
+/// An auto-repeat event of a held `key`.
+pub(crate) fn key_repeat(key: Key, modifiers: Modifiers) -> Event {
+    Event::Key { key, physical_key: Some(key), pressed: true, repeat: true, modifiers }
+}
+
 /// Gives egui back the option the runtime turns off at install: `Cmd` with `=` or `-` zooms the interface.
 pub(crate) fn allow_zoom_keys(ctx: &Context) {
     ctx.options_mut(|options| options.zoom_with_keyboard = true);

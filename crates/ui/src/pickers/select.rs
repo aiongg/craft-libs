@@ -227,7 +227,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                     }
                     if let Some(rows) = header_menu.as_mut() {
                         let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).label(words.header_menu.clone()).show(ui);
-                        if more.clicked() {
+                        if crate::contract::clicked(&more) {
                             Popup::toggle(more.id, cx);
                         }
                         Menu::new(words.header_menu.clone()).opened_by(&more, Trigger::Manual).show(ui, |ui, menu| (rows.0)(ui, menu));

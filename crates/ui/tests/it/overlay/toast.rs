@@ -1,6 +1,6 @@
 //! Toasts: posted from a context, announced once, expired by their timer.
 
-use craft_ui::contract::toast::ToastHost;
+use craft_ui::notices::ToastStack;
 use craft_ui::runtime::toast::{self, Toast};
 use craft_ui::testing::{Frames, trial};
 use egui::Ui;
@@ -8,7 +8,7 @@ use egui::Ui;
 #[trial]
 fn a_toast_posts_announces_once_and_expires() {
     let mut frames = Frames::new();
-    let mut show = |ui: &mut Ui| ToastHost::show(ui);
+    let mut show = |ui: &mut Ui| ToastStack::show(ui);
     frames.idle(2, &mut show);
     toast::post(&frames.ctx, Toast::new("Saved").timeout(Some(1.0)));
     let mut announced = 0;
