@@ -16,15 +16,17 @@ status = "pending"
 [[type]]
 name = "FloatingFrame"
 old = "craft_ui::docking::chrome::FloatingFrame"
-new = "craft_ui::docking::FloatingFrame"
-status = "pending"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::docking::FloatingGroup`: a container on a layer (or an OS window with `native`) whose rect the caller owns. The eight edge handles are the body step's grips, the title bar is a `TitleRow`, auto height follows the caller's rect."
 
 [[type]]
 name = "TitleBar"
-old = ""
-# found in: craft_ui::docking::chrome::TitleBar, craft_ui::title_bar::TitleBar
-new = "craft_ui::docking::TitleBar"
-status = "pending"
+old = "craft_ui::docking::chrome::TitleBar"
+# `craft_ui::title_bar::TitleBar` is the window's title bar (title-bar tracks).
+new = ""
+status = "removed"
+note = "The docking title bar is the `TitleRow` of `FloatingGroup` and of dock groups, with `HeaderAction::{Menu, Float, Close}`."
 
 [[type]]
 name = "PaneHost"
@@ -532,21 +534,6 @@ new = "craft_ui::docking::stack::section_heights"
 status = "replaced"
 note = "The legacy accordion section sizing in `render::dock` and `render::mod` (private); a closed section is its title row, open ones share the rest."
 
-[[setter]]
-type = "Monitor"
-old = "Monitor { name, rect, scale }"
-new = "Monitor::new(name, rect, scale)"
-
-[[setter]]
-type = "Permissions"
-old = "Permissions { movable, floatable, closable, accepts_tabs, accepts_splits }"
-new = "Permissions::new(movable, floatable, closable, accepts_tabs, accepts_splits)"
-
-[[setter]]
-type = "Permissions"
-old = "Permissions { accepts_splits: true, ..Permissions::PROTECTED }"
-new = "Permissions::new(false, false, false, false, true)"
-
 # dock-columns-a: dock columns, iconic columns and flyouts.
 [[type]]
 name = "open_flyout"
@@ -668,21 +655,6 @@ old = "craft_ui::docking::SIDE_EDGE_ZONE_DEPTH"
 new = ""
 status = "removed"
 note = "`DockSizes::zone_depth`, from the rail width token."
-
-[[type]]
-name = "FloatingFrame"
-old = "craft_ui::docking::chrome::FloatingFrame"
-new = ""
-status = "removed"
-note = "Replaced by `craft_ui::docking::FloatingGroup`: a container on a layer (or an OS window with `native`) whose rect the caller owns. The eight edge handles are the body step's grips, the title bar is a `TitleRow`, auto height follows the caller's rect."
-
-[[type]]
-name = "TitleBar"
-old = "craft_ui::docking::chrome::TitleBar"
-# `craft_ui::title_bar::TitleBar` is the window's title bar (title-bar tracks).
-new = ""
-status = "removed"
-note = "The docking title bar is the `TitleRow` of `FloatingGroup` and of dock groups, with `HeaderAction::{Menu, Float, Close}`."
 
 # Floating frames (float-frame-a).
 

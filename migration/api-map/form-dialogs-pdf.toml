@@ -44,7 +44,7 @@ name = "PasswordSwitches"
 old = "craft_ui::dialog::export::pdf::PasswordSwitches"
 new = ""
 status = "removed"
-note = "The two "require a password" check boxes are state the dialog keeps in its own slot."
+note = "The two \"require a password\" check boxes are state the dialog keeps in its own slot."
 
 [[type]]
 name = "RangeError"
@@ -58,7 +58,7 @@ name = "check_range"
 old = "craft_ui::dialog::export::pdf::check_range"
 new = "craft_ui::patterns::form_dialogs::check_range"
 status = "moved"
-note = "Public now; the same rules for `"1-3, 5"`, `"3-"` and `"all"`."
+note = 'Public now; the same rules for `"1-3, 5"`, `"3-"` and `"all"`.'
 
 [[type]]
 name = "PdfExportOutput"

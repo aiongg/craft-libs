@@ -7,8 +7,8 @@
 
 mod crop;
 mod guide;
-mod space;
 mod readout;
+mod space;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
@@ -19,9 +19,9 @@ mod tool_host;
 
 pub use crop::{CropOverlay, CropStyle};
 pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+pub use readout::readout;
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
-pub use readout::readout;
 
 pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 pub use tool_groups::{PickStep, tool_pick};
@@ -36,13 +36,34 @@ pub use pasteboard::{PageBorder, PageFrame, Pasteboard, PasteboardColor, Pastebo
 pub use split::{SplitAt, SplitLayout, SplitOutput, SplitPane, SplitStyle, SplitViews};
 pub use words::SplitWords;
 
+mod raster;
+pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
+
+// canvas-navigate-a
+mod momentary;
+mod navigate;
+mod rotate;
+mod tools;
+mod zoom_motion;
+
+pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
+pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
+pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
+pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
+pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
+
+mod rulers;
+mod scrollbars;
+pub use rulers::{
+    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
+};
+pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{
-    CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel,
-};
+use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
 use egui::{Pos2, Rect, Response, Vec2};
 
 const BACKGROUND: PartKey = PartKey::new("background");
@@ -198,47 +219,3 @@ impl Component for Canvas {
 }
 
 impl Container for Canvas {}
-
-mod crop;
-mod guide;
-mod readout;
-mod space;
-#[cfg(feature = "testing")]
-mod stories;
-mod words;
-
-pub use crop::{CropOverlay, CropStyle};
-pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
-pub use readout::readout;
-pub use space::{CanvasSpace, RulerText, canvas_space};
-pub use words::CanvasWords;
-
-mod raster;
-pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
-
-use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
-use crate::runtime::env::Label;
-use crate::runtime::focus::KeyUse;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
-use egui::{Pos2, Rect, Response, Vec2};
-
-// canvas-navigate-a
-mod momentary;
-mod navigate;
-mod rotate;
-mod tools;
-mod zoom_motion;
-
-pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
-pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
-pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
-pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
-pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
-
-mod rulers;
-mod scrollbars;
-pub use rulers::{
-    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
-};
-pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};

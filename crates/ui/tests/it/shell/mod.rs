@@ -1,6 +1,8 @@
 //! The window skeleton's interface: what `ShellCx` answers by mode and reveal, and how a body reads it.
 
 mod caption_button;
+
+mod document_window;
 mod window_parts;
 
 // Start screen.
@@ -84,6 +86,3 @@ fn a_body_reads_the_shell_the_root_values_hold() {
 }
 
 mod app_shell;
-
-mod document_window;
-mod window_parts;

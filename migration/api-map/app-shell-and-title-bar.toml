@@ -23,9 +23,10 @@ note = "The body is set with `body(f)` and `show(ui)` returns `AppShellOutput`; 
 
 [[type]]
 name = "StartScreen"
-old = "craft_ui::shell::start::StartScreen"
+old = "craft_ui::shell::StartScreen"
 new = "craft_ui::shell::StartScreen"
-status = "pending"
+status = "same"
+note = "A `Pattern`: `StartScreen::new(Bind<RecentView>, Bind<RecentSort>, &[RecentFile], &Collator)`, `show(self, ui) -> StartOutput` (actions in `StartOutput.actions`)."
 
 [[type]]
 name = "TitleBar"
@@ -36,9 +37,10 @@ status = "pending"
 
 [[type]]
 name = "ViewportWindow"
-old = "craft_ui::viewport::window::ViewportWindow"
+old = "craft_ui::viewport::ViewportWindow"
 new = "craft_ui::shell::ViewportWindow"
-status = "pending"
+status = "moved"
+note = "A `Pattern` over `Dialog::viewport()`: `ViewportWindow::new(title).app_modal(bool).layer(Overlay).remember(SaveKey).show(ui, body) -> ViewportWindowOutput`. It has no viewport id and no builder: the dialog identifies and places the window."
 
 [[type]]
 name = "ShellCx"
@@ -313,32 +315,6 @@ type = "CanvasShell"
 old = "options(bool, f)"
 new = "options_bar(bool, f)"
 note = "Renamed: a method named `options` trips the egui-behaviour lint."
-
-[[type]]
-name = "AppShell"
-old = "craft_ui::shell::AppShell"
-new = "craft_ui::shell::AppShell"
-status = "pending"
-
-[[type]]
-name = "CanvasShell"
-old = "craft_ui::shell::canvas::CanvasShell"
-new = "craft_ui::shell::CanvasShell"
-status = "pending"
-
-[[type]]
-name = "StartScreen"
-old = "craft_ui::shell::StartScreen"
-new = "craft_ui::shell::StartScreen"
-status = "same"
-note = "A `Pattern`: `StartScreen::new(Bind<RecentView>, Bind<RecentSort>, &[RecentFile], &Collator)`, `show(self, ui) -> StartOutput` (actions in `StartOutput.actions`)."
-
-[[type]]
-name = "ViewportWindow"
-old = "craft_ui::viewport::ViewportWindow"
-new = "craft_ui::shell::ViewportWindow"
-status = "moved"
-note = "A `Pattern` over `Dialog::viewport()`: `ViewportWindow::new(title).app_modal(bool).layer(Overlay).remember(SaveKey).show(ui, body) -> ViewportWindowOutput`. It has no viewport id and no builder: the dialog identifies and places the window."
 
 # Start screen and app windows.
 

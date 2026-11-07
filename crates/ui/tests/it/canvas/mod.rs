@@ -7,6 +7,7 @@ mod tool;
 mod navigate;
 mod tools;
 
+
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
 use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
@@ -18,6 +19,11 @@ mod space;
 
 mod pasteboard;
 mod split;
+
+mod raster;
+
+mod rulers;
+mod scrollbars;
 
 fn crop() -> Rect {
     Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(100.0, 80.0))
@@ -64,11 +70,3 @@ fn an_arrow_on_a_focused_crop_corner_nudges_it() {
     let after = *shared.borrow();
     assert!(after.min.x > before.min.x && after.min.y == before.min.y, "the focused corner moved right: {before:?} -> {after:?}");
 }
-
-mod readout;
-mod tool;
-
-mod raster;
-
-mod rulers;
-mod scrollbars;

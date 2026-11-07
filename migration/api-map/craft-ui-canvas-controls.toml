@@ -30,7 +30,7 @@ status = "pending"
 name = "Marquee"
 old = "craft_ui::canvas::marquee::Marquee"
 new = "craft_ui::canvas_controls::Marquee"
-status = "pending"
+status = "moved"
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -518,30 +518,6 @@ note = "The style is built by the component's style hook."
 
 [[setter]]
 type = "SmartGuides"
-old = "color(Color32)"
-new = "color(DataColor)"
-
-[[setter]]
-type = "SmartGuides"
-old = "bounds(kurbo::Rect)"
-new = "bounds(craft_behavior::kurbo::Rect)"
-
-[[setter]]
-type = "SmartGuides"
-old = "show(ui, view)"
-new = "show_at(ui, body.rect) in the body of a Canvas that has a view"
-
-[[type]]
-name = "Guides"
-old = "craft_ui::canvas::guides::Guides"
-new = "craft_ui::canvas_controls::Guides"
-status = "pending"
-
-[[type]]
-name = "Marquee"
-old = "craft_ui::canvas::marquee::Marquee"
-new = "craft_ui::canvas_controls::Marquee"
-status = "moved"
 
 # canvas-controls-b: marquee, outlines, line preview, grids
 
@@ -753,6 +729,16 @@ new = "new(label, shape)"
 type = "HoverOutline"
 old = "color(Color32)"
 new = "color(DataColor)"
+
+[[setter]]
+type = "SmartGuides"
+old = "bounds(kurbo::Rect)"
+new = "bounds(craft_behavior::kurbo::Rect)"
+
+[[setter]]
+type = "SmartGuides"
+old = "show(ui, view)"
+new = "show_at(ui, body.rect) in the body of a Canvas that has a view"
 
 [[setter]]
 type = "HoverOutline"

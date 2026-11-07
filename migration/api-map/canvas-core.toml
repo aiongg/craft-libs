@@ -102,7 +102,146 @@ note = "The values a tool hands to `ToolContext::readout`, reported in `ToolHost
 name = "Rulers"
 old = "craft_ui::canvas::rulers::Rulers"
 new = "craft_ui::canvas::Rulers"
-status = "pending"
+status = "moved"
+note = "A canvas control: `Rulers::new(label, &RulerText, &RulerText, Bind::bound(&mut zero))` shown with `show_at(ui, body.rect)` inside the `Canvas` body, over a `Canvas::view`. The strips and the corner are parts at handle priority, so a drag from a strip reaches the rulers and not the canvas tool. The output is `RulerOutput`."
+
+[[type]]
+name = "RulerStyle"
+old = "craft_ui::canvas::rulers::RulerStyle"
+new = ""
+status = "removed"
+note = "`RulersStyle` is the component style; it comes from the tokens and is not built by callers."
+
+[[type]]
+name = "RulersStyle"
+old = ""
+new = "craft_ui::canvas::RulersStyle"
+status = "replaced"
+note = "The style type of `Rulers`; callers do not build it."
+
+[[type]]
+name = "RulersResponse"
+old = "craft_ui::canvas::rulers::RulersResponse"
+new = ""
+status = "removed"
+note = "`RulerOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
+
+[[type]]
+name = "RulerOutput"
+old = ""
+new = "craft_ui::canvas::RulerOutput"
+status = "replaced"
+note = "`RulerOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
+
+[[type]]
+name = "RulerPart"
+old = "craft_ui::canvas::rulers::RulerPart"
+new = "craft_ui::canvas::RulerPart"
+status = "moved"
+note = "Now `#[non_exhaustive]`."
+
+[[type]]
+name = "RulerNames"
+old = "craft_ui::canvas::rulers::RulerNames"
+new = ""
+status = "removed"
+note = "The accessible names are words (`canvas.rulerHorizontal`, `canvas.rulerVertical`, `canvas.rulerOrigin`); a host translates them with its word sets."
+
+[[type]]
+name = "RulerTick"
+old = "craft_ui::canvas::rulers::RulerTick"
+new = "craft_ui::canvas::RulerTick"
+status = "moved"
+note = "`RulerTick { value, major, step }`: the label text is written at paint time from `RulerText::tick_label`, and the mid-length tick is gone (`primitives::ticks` draws a minor and a major length)."
+
+[[type]]
+name = "TickRule"
+old = "craft_ui::canvas::rulers::TickRule"
+new = "craft_ui::canvas::TickRule"
+status = "moved"
+note = "Now `#[non_exhaustive]`; `Rulers::ticks(&RulerUnits, TickRule, zoom, values)` takes no style."
+
+[[type]]
+name = "INCH_SIXTEENTHS"
+old = "craft_ui::canvas::rulers::INCH_SIXTEENTHS"
+new = "craft_ui::canvas::INCH_SIXTEENTHS"
+status = "moved"
+
+[[type]]
+name = "INCH_EIGHTHS"
+old = "craft_ui::canvas::rulers::INCH_EIGHTHS"
+new = "craft_ui::canvas::INCH_EIGHTHS"
+status = "moved"
+
+[[type]]
+name = "unit_entries"
+old = "craft_ui::canvas::rulers::unit_entries"
+new = ""
+status = "removed"
+note = "The units menu is built inside `Rulers` over an `Entry<UnitKind>` list; pass the kinds with `Rulers::units(&[UnitKind])`."
+
+[[type]]
+name = "RulerCommands"
+old = ""
+new = "craft_ui::canvas::RulerCommands"
+status = "replaced"
+note = "The unit choice and Reset Zero Point as app commands (`canvas.rulers.unit_pixels`, `canvas.rulers.reset_zero`, ...); the menu rows and a menu bar offer the same actions."
+
+[[type]]
+name = "RulerMargins"
+old = ""
+new = "craft_ui::canvas::RulerMargins"
+status = "replaced"
+note = "The margin bands of the two strips, `RulerMargins::new(horizontal, vertical)`, set with `Rulers::margins`."
+
+[[type]]
+name = "ZeroSnap"
+old = ""
+new = "craft_ui::canvas::ZeroSnap"
+status = "replaced"
+note = "The app's snapping of the zero point; `Rulers::snap(|axis, value, mods| ..)` builds it."
+
+[[type]]
+name = "CanvasScrollbars"
+old = "craft_ui::canvas::scrollbars::CanvasScrollbars"
+new = "craft_ui::canvas::CanvasScrollbars"
+status = "moved"
+note = "A canvas control: `CanvasScrollbars::new(label, Bind::bound(&mut view), document)` shown with `show_at(ui, view_rect)` inside the `Canvas` body. The thumb drag and the page press run in the pipeline (`PartsCx::scroll`); the output is `ScrollbarsOutput`."
+
+[[type]]
+name = "ScrollbarStyle"
+old = "craft_ui::canvas::scrollbars::ScrollbarStyle"
+new = ""
+status = "removed"
+note = "`ScrollbarsStyle` is the component style; it comes from the tokens and is not built by callers."
+
+[[type]]
+name = "ScrollbarsStyle"
+old = ""
+new = "craft_ui::canvas::ScrollbarsStyle"
+status = "replaced"
+note = "The style type of `CanvasScrollbars`; callers do not build it."
+
+[[type]]
+name = "ScrollbarNames"
+old = "craft_ui::canvas::scrollbars::ScrollbarNames"
+new = ""
+status = "removed"
+note = "The accessible names are words (`canvas.scrollHorizontal`, `canvas.scrollVertical`)."
+
+[[type]]
+name = "ScrollbarsResponse"
+old = "craft_ui::canvas::scrollbars::ScrollbarsResponse"
+new = ""
+status = "removed"
+note = "`ScrollbarsOutput` replaces it: `changed` is read from `view.event`, `over` stays."
+
+[[type]]
+name = "ScrollbarsOutput"
+old = ""
+new = "craft_ui::canvas::ScrollbarsOutput"
+status = "replaced"
+note = "`ScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`."
 
 [[type]]
 name = "Navigator"
@@ -404,18 +543,6 @@ type = "SplitViews"
 old = "show(ui, rect, |ui, pane, rect| ..)"
 new = "show(ui, |ui, body| ..)"
 note = "The pane rects are `layout.rects(split_at, body.rect)`."
-
-[[type]]
-name = "Pasteboard"
-old = "craft_ui::canvas::pasteboard::Pasteboard"
-new = "craft_ui::canvas::Pasteboard"
-status = "pending"
-
-[[type]]
-name = "SplitViews"
-old = "craft_ui::canvas::split::SplitViews"
-new = "craft_ui::canvas::SplitViews"
-status = "pending"
 
 # Raster display and thumbnails.
 [[type]]
@@ -824,150 +951,6 @@ type = "RotateView"
 old = "compass_with(ui, view, tokens, labels)"
 new = "new(label, Bind<f64>, flip_x)"
 
-[[type]]
-name = "Rulers"
-old = "craft_ui::canvas::rulers::Rulers"
-new = "craft_ui::canvas::Rulers"
-status = "moved"
-note = "A canvas control: `Rulers::new(label, &RulerText, &RulerText, Bind::bound(&mut zero))` shown with `show_at(ui, body.rect)` inside the `Canvas` body, over a `Canvas::view`. The strips and the corner are parts at handle priority, so a drag from a strip reaches the rulers and not the canvas tool. The output is `RulerOutput`."
-
-[[type]]
-name = "RulerStyle"
-old = "craft_ui::canvas::rulers::RulerStyle"
-new = ""
-status = "removed"
-note = "`RulersStyle` is the component style; it comes from the tokens and is not built by callers."
-
-[[type]]
-name = "RulersStyle"
-old = ""
-new = "craft_ui::canvas::RulersStyle"
-status = "replaced"
-note = "The style type of `Rulers`; callers do not build it."
-
-[[type]]
-name = "RulersResponse"
-old = "craft_ui::canvas::rulers::RulersResponse"
-new = ""
-status = "removed"
-note = "`RulerOutput` replaces it: `origin` is `zero: EditResponse<Point>`, `reset_origin` is `reset_zero`, `id` is gone (the zero point is a `Bind`, and the host commands are `RulerCommands`), `context` and `unit_picked` stay."
-
-[[type]]
-name = "RulerOutput"
-old = ""
-new = "craft_ui::canvas::RulerOutput"
-status = "replaced"
-note = "`RulerOutput { zero: EditResponse<Point>, guide: Option<GuideDrag>, reset_zero, unit_picked: Option<UnitKind>, context: Option<RulerPart> }` with `content_rect()`. `guide` is the guide a drag from a strip is placing in this pass; the app forwards it to the guides control."
-
-[[type]]
-name = "RulerPart"
-old = "craft_ui::canvas::rulers::RulerPart"
-new = "craft_ui::canvas::RulerPart"
-status = "moved"
-note = "Now `#[non_exhaustive]`."
-
-[[type]]
-name = "RulerNames"
-old = "craft_ui::canvas::rulers::RulerNames"
-new = ""
-status = "removed"
-note = "The accessible names are words (`canvas.rulerHorizontal`, `canvas.rulerVertical`, `canvas.rulerOrigin`); a host translates them with its word sets."
-
-[[type]]
-name = "RulerTick"
-old = "craft_ui::canvas::rulers::RulerTick"
-new = "craft_ui::canvas::RulerTick"
-status = "moved"
-note = "`RulerTick { value, major, step }`: the label text is written at paint time from `RulerText::tick_label`, and the mid-length tick is gone (`primitives::ticks` draws a minor and a major length)."
-
-[[type]]
-name = "TickRule"
-old = "craft_ui::canvas::rulers::TickRule"
-new = "craft_ui::canvas::TickRule"
-status = "moved"
-note = "Now `#[non_exhaustive]`; `Rulers::ticks(&RulerUnits, TickRule, zoom, values)` takes no style."
-
-[[type]]
-name = "INCH_SIXTEENTHS"
-old = "craft_ui::canvas::rulers::INCH_SIXTEENTHS"
-new = "craft_ui::canvas::INCH_SIXTEENTHS"
-status = "moved"
-
-[[type]]
-name = "INCH_EIGHTHS"
-old = "craft_ui::canvas::rulers::INCH_EIGHTHS"
-new = "craft_ui::canvas::INCH_EIGHTHS"
-status = "moved"
-
-[[type]]
-name = "unit_entries"
-old = "craft_ui::canvas::rulers::unit_entries"
-new = ""
-status = "removed"
-note = "The units menu is built inside `Rulers` over an `Entry<UnitKind>` list; pass the kinds with `Rulers::units(&[UnitKind])`."
-
-[[type]]
-name = "RulerCommands"
-old = ""
-new = "craft_ui::canvas::RulerCommands"
-status = "replaced"
-note = "The unit choice and Reset Zero Point as app commands (`canvas.rulers.unit_pixels`, `canvas.rulers.reset_zero`, ...); the menu rows and a menu bar offer the same actions."
-
-[[type]]
-name = "RulerMargins"
-old = ""
-new = "craft_ui::canvas::RulerMargins"
-status = "replaced"
-note = "The margin bands of the two strips, `RulerMargins::new(horizontal, vertical)`, set with `Rulers::margins`."
-
-[[type]]
-name = "ZeroSnap"
-old = ""
-new = "craft_ui::canvas::ZeroSnap"
-status = "replaced"
-note = "The app's snapping of the zero point; `Rulers::snap(|axis, value, mods| ..)` builds it."
-
-[[type]]
-name = "CanvasScrollbars"
-old = "craft_ui::canvas::scrollbars::CanvasScrollbars"
-new = "craft_ui::canvas::CanvasScrollbars"
-status = "moved"
-note = "A canvas control: `CanvasScrollbars::new(label, Bind::bound(&mut view), document)` shown with `show_at(ui, view_rect)` inside the `Canvas` body. The thumb drag and the page press run in the pipeline (`PartsCx::scroll`); the output is `ScrollbarsOutput`."
-
-[[type]]
-name = "ScrollbarStyle"
-old = "craft_ui::canvas::scrollbars::ScrollbarStyle"
-new = ""
-status = "removed"
-note = "`ScrollbarsStyle` is the component style; it comes from the tokens and is not built by callers."
-
-[[type]]
-name = "ScrollbarsStyle"
-old = ""
-new = "craft_ui::canvas::ScrollbarsStyle"
-status = "replaced"
-note = "The style type of `CanvasScrollbars`; callers do not build it."
-
-[[type]]
-name = "ScrollbarNames"
-old = "craft_ui::canvas::scrollbars::ScrollbarNames"
-new = ""
-status = "removed"
-note = "The accessible names are words (`canvas.scrollHorizontal`, `canvas.scrollVertical`)."
-
-[[type]]
-name = "ScrollbarsResponse"
-old = "craft_ui::canvas::scrollbars::ScrollbarsResponse"
-new = ""
-status = "removed"
-note = "`ScrollbarsOutput` replaces it: `changed` is read from `view.event`, `over` stays."
-
-[[type]]
-name = "ScrollbarsOutput"
-old = ""
-new = "craft_ui::canvas::ScrollbarsOutput"
-status = "replaced"
-note = "`ScrollbarsOutput { view: EditResponse<CanvasView>, over: bool }`."
 
 [[setter]]
 type = "Rulers"
