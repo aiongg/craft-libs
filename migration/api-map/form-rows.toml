@@ -87,6 +87,13 @@ note = "A `Field` takes its looks from the theme."
 [[type]]
 name = "SliderRow"
 old = "craft_ui::composites::slider_row::SliderRow"
+new = ""
+status = "removed"
+note = "Replaced by `SliderField` (`craft_ui::form::SliderField`); see its entry."
+
+[[type]]
+name = "SliderField"
+old = ""
 new = "craft_ui::form::SliderField"
 status = "replaced"
 note = "`SliderField::new(label, Bind::bound(&mut value), range)` inside a `Field`: the slider and the number field share one row and one value. The caption is the `Field`'s label, which names both children and scrubs the number field. The value is a binding, not a `&LocaleNumbers` and a copied value; the label is the accessible name."
@@ -101,6 +108,13 @@ note = "Replaced by the `EditResponse<f64>` that `SliderField` returns: one edit
 [[type]]
 name = "SliderRowStyle"
 old = "craft_ui::composites::slider_row::SliderRowStyle"
+new = ""
+status = "removed"
+note = "Replaced by `SliderFieldStyle` (`craft_ui::form::SliderFieldStyle`); see its entry."
+
+[[type]]
+name = "SliderFieldStyle"
+old = ""
 new = "craft_ui::form::SliderFieldStyle"
 status = "replaced"
 note = "The style is built from tokens (`size.length.short` for the number field, the control gap) and has no public fields; `caption_role` and `caption` belong to the `Field`'s label."

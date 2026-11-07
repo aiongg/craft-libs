@@ -17,8 +17,15 @@ note = "A collection: `Table::new(label, columns: Vec<ColumnSpec>)`, shown with 
 [[type]]
 name = "TableColumn"
 old = "craft_ui::list::table::TableColumn"
+new = ""
+status = "removed"
+note = "Replaced by `ColumnSpec` (`craft_ui::contract::ColumnSpec`); see its entry."
+
+[[type]]
+name = "ColumnSpec"
+old = ""
 new = "craft_ui::contract::ColumnSpec"
-status = "moved"
+status = "replaced"
 note = "`ColumnSpec::new(ColumnKey::new(\"name\"), header, ColumnWidth::..)` with `sortable()`, `resizable()`, `movable()`, `frozen()` and `kind(..)`; the key is a `ColumnKey`, not a generic `C`. `min_width`, `initial_width`, `first_order`, `tip`, `hideable` and `numeric` have no setter: widths are `ColumnWidth` (`Fixed`, `Controls`, `Fill`, `Content`) and the user's resizes are the header's memory; the next sort order is the header's; a numeric cell is `ListRow::cell` text."
 
 [[type]]
@@ -31,8 +38,15 @@ note = "Column order, widths and the saved layout are the header row's memory un
 [[type]]
 name = "TableSort"
 old = "craft_ui::list::table::TableSort"
+new = ""
+status = "removed"
+note = "Replaced by `ColumnSort` (`craft_ui::contract::ColumnSort`); see its entry."
+
+[[type]]
+name = "ColumnSort"
+old = ""
 new = "craft_ui::contract::ColumnSort"
-status = "moved"
+status = "replaced"
 note = "`ColumnSort::new(key, descending)`, `ascending(key)`, `descending(key)`; `TableSort::apply` is `craft_ui::table::sort_rows`; `TableSort::clicked` is the header's next order in `ColumnEvent::Sort`."
 
 [[type]]
@@ -59,15 +73,29 @@ note = "The header row's own words (sort state, resize grips) and the header men
 [[type]]
 name = "TableOutput"
 old = "craft_ui::list::table::TableOutput"
+new = ""
+status = "removed"
+note = "Replaced by `CollectionResponse` (`craft_ui::contract::CollectionResponse`); see its entry."
+
+[[type]]
+name = "CollectionResponse"
+old = ""
 new = "craft_ui::contract::CollectionResponse"
-status = "moved"
+status = "replaced"
 note = "`CollectionResponse<K, RowEvent>`: `ColumnEvent::Sort` (the next order), `Resized`, `Moved`, `CollectionEvent::Selection`, `Activate`, `ContextMenu`, `HeaderMenu`, `Open`, `Reorder`, `Rename`. `drop_target` is the drop mark the item step paints."
 
 [[type]]
 name = "TableEvent"
 old = "craft_ui::list::table::TableEvent"
+new = ""
+status = "removed"
+note = "Replaced by `CollectionEvent` (`craft_ui::contract::CollectionEvent`); see its entry."
+
+[[type]]
+name = "CollectionEvent"
+old = ""
 new = "craft_ui::contract::CollectionEvent"
-status = "moved"
+status = "replaced"
 note = "`Sort` and `Layout` are `CollectionEvent::Column(ColumnEvent)`; `Unsorted` is the app removing a hidden column's sort; the rest map to the same-named events."
 
 [[type]]
