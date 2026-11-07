@@ -50,7 +50,9 @@ pub struct SelectStyle {
 const HEADER_MENU_ICON: &str = "more";
 
 /// The rows of the menu a select's popup header opens: the host's menu body.
-struct HeaderMenu<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
+struct HeaderMenu<'a>(Box<HeaderRows<'a>>);
+
+type HeaderRows<'a> = dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a;
 
 impl<'a> HeaderMenu<'a> {
     fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {

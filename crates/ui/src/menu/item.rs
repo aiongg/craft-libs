@@ -518,7 +518,7 @@ impl<'a> MenuItem<'a> {
     fn columns(&self, cx: &MeasureCx<'_, Self>, level: &MenuLevel) -> Columns {
         let side = cx.icon();
         let command = cx.command();
-        let marked = self.mark(command, &level).is_some() || level.marks();
+        let marked = self.mark(command, level).is_some() || level.marks();
         let iconed = self.lead_icon(command).is_some() || level.icons();
         let detail = self.detail.as_ref().map_or(0.0, |detail| {
             let detail = cx.env.resolve(detail);

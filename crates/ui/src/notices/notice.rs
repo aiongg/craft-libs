@@ -5,8 +5,8 @@
 use super::words::NoticeWords;
 use crate::buttons::{Button, IconButton, Link};
 use crate::contract::{
-    Access, Accessible as _, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Politeness,
-    Props as _, Remember as _, Role, Styled as _, WordSetCx as _,
+    Access, Accessible as _, Common, Component, Cx, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Politeness, Props as _, Remember as _, Role,
+    Styled as _, WordSetCx as _,
 };
 use crate::primitives::{HAlign, IconSpec, TextRun, Wrap};
 use crate::runtime::commands::CommandRef;

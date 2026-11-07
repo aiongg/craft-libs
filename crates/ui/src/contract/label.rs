@@ -449,7 +449,7 @@ fn field_label(env: &Env, input: &LabelIn<'_>, id: Id, rect: Rect) -> FieldLabel
     let label = FieldLabel::new(id, rect, input.text.as_str()).role(input.side.role);
     let described: Vec<String> =
         [input.side.detail.as_ref(), input.help].into_iter().flatten().map(|text| env.view().resolve(text).as_str().to_owned()).collect();
-    if described.is_empty() { label } else { label.detail(&described.join(". ")) }
+    if described.is_empty() { label } else { label.detail(described.join(". ")) }
 }
 
 /// What the label step needs of one leaf child it labels (`PaintUi::labelled`, `BodyCx::labelled`).

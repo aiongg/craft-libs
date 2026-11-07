@@ -100,11 +100,6 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
     ran
 }
 
-/// The menu of commands that hangs from `opener` and opens on a press of it, one row per entry.
-pub(crate) fn pick_from<T: Value + 'static>(ui: &mut Ui, label: impl Into<Label>, opener: &Response, entries: &[Entry<T>]) -> MenuPick<T> {
-    Menu::new(label).opened_by(opener, Trigger::Press).pick(ui, entries)
-}
-
 /// The value menu that hangs from `opener` and opens on a press of it: every row is a radio item, the checked entry
 /// carries the mark and holds the lead when the menu opens.
 pub(crate) fn pick_values_from<T: Value + 'static>(ui: &mut Ui, label: impl Into<Label>, opener: &Response, entries: &[Entry<T>]) -> MenuPick<T> {

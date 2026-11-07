@@ -259,7 +259,7 @@ impl<'a> MetadataTable<'a> {
             .striped(true)
             .header(false)
             .lead_on_open(LeadOnOpen::First)
-            .rows_stamp(egui::Id::new(query).value())
+            .rows_stamp(egui::Id::unique(query).value())
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
                 Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),

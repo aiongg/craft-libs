@@ -867,19 +867,18 @@ pub struct OverlayUi<'a> {
     pub(crate) parts: Vec<(PartRef, Rect)>,
 }
 
+/// The component whose overlays are shown: its id, its rect and the rects of its parts that toggle a popup.
+pub(crate) struct OverlayOwner {
+    pub(crate) id: Id,
+    pub(crate) anchor: Rect,
+    pub(crate) parts: Vec<(PartRef, Rect)>,
+}
+
 impl<'a> OverlayUi<'a> {
-    pub(crate) fn new(
-        ctx: &'a Context,
-        owner: Id,
-        anchor: Rect,
-        ui: &Ui,
-        resolved: &'a Resolved<'a>,
-        env: Env,
-        open: HashMap<Id, bool>,
-        parts: Vec<(PartRef, Rect)>,
-    ) -> Self {
+    pub(crate) fn new(ctx: &'a Context, owner: OverlayOwner, ui: &Ui, resolved: &'a Resolved<'a>, env: Env, open: HashMap<Id, bool>) -> Self {
         let to_screen = areas::layer_to_screen(ctx, ui.layer_id());
-        OverlayUi { ctx, owner, anchor, to_screen, resolved, env, open, closed: Vec::new(), parts }
+        let OverlayOwner { id, anchor, parts } = owner;
+        OverlayUi { ctx, owner: id, anchor, to_screen, resolved, env, open, closed: Vec::new(), parts }
     }
 
     /// The anchor at the rect of the toggling part `part` of the owner. The layer's placement mirrors the side and

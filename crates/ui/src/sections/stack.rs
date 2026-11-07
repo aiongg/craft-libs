@@ -106,8 +106,10 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
     /// Shows every section in order and returns the moves the user made.
     pub fn show(mut self, ui: &mut Ui) -> SectionStackOutput<K> {
         let (order, seen) = (self.order, Arc::clone(&self.seen));
-        let Some(mut each) = self.each.take() else { unreachable!("a stack is shown once") };
+        let mut each = self.each.take();
         let shown = ShowContainer::show(self, ui, move |ui, _| {
+            // `each` is taken out of the stack only here, once, so it is present for the one pass the body runs.
+            let Some(each) = each.as_mut() else { return };
             let mut rows = Vec::with_capacity(order.len());
             for (index, key) in order.iter().enumerate() {
                 let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: Id::unique(("section", slot_hash(key))) };

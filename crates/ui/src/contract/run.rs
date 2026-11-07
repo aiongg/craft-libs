@@ -420,6 +420,25 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
     });
 }
 
+/// The key and index of every declared part whose extras `has` accepts.
+fn declared_with(parts: &PartsStep, has: impl Fn(&super::cx::PartExtras) -> bool) -> Vec<(craft_behavior::PartKey, Option<u64>)> {
+    parts.decls.iter().filter(|(_, extras)| has(extras)).map(|(decl, _)| (decl.key, decl.index)).collect()
+}
+
+/// The activation this pass: none for a component that takes none; a key or AccessKit activation of a member
+/// (`keyed`); else the click, or the release of a press that opened a popup and ended over this row.
+fn activation_of(ctx: &Context, ui: &Ui, rect: Rect, resolved: &Resolved<'_>, keyed: bool, root_sense: Sense, clicked: bool) -> Option<Activation> {
+    if !steps::takes_activation(resolved) {
+        return None;
+    }
+    if keyed {
+        return Some(Activation { by_key: true });
+    }
+    let released = root_sense.contains(Sense::CLICK)
+        && crate::runtime::overlay::released_inside(ctx, crate::runtime::egui::areas::layer_to_screen(ctx, ui.layer_id()) * rect);
+    (clicked || released).then_some(Activation { by_key: false })
+}
+
 fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
@@ -525,7 +544,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.focus = focus::facts(&ctx, id);
     cx.core.active = cx.core.focus.part.filter(|part| results.contains_key(&(part.key, part.index)));
     cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
-    cx.core.value_parts = parts.decls.iter().filter(|(_, extras)| extras.value).map(|(decl, _)| (decl.key, decl.index)).collect();
+    cx.core.value_parts = declared_with(&parts, |extras| extras.value);
     cx.core.toggles = parts
         .decls
         .iter()
@@ -533,23 +552,14 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             extras.toggles.map(|toggle| super::cx::Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false })
         })
         .collect();
-    cx.core.own_reset_parts = parts.decls.iter().filter(|(_, extras)| extras.own_reset).map(|(decl, _)| (decl.key, decl.index)).collect();
+    cx.core.own_reset_parts = declared_with(&parts, |extras| extras.own_reset);
     cx.core.results = results;
     cx.core.root_sense = root_sense;
     cx.core.press = press;
     cx.core.member_of = member.map(|arena| arena.0);
     // A key or AccessKit activation of a member reaches its arena root, which names the member.
     let keyed = member.is_some_and(|arena| keys::activated_member(&ctx, arena.0) == Some(id));
-    cx.core.activation = if !steps::takes_activation(resolved) {
-        None
-    } else if keyed {
-        Some(Activation { by_key: true })
-    } else {
-        // A press that opened a popup ended over this row: the release picks it.
-        let released = root_sense.contains(Sense::CLICK)
-            && crate::runtime::overlay::released_inside(&ctx, crate::runtime::egui::areas::layer_to_screen(&ctx, ui.layer_id()) * rect);
-        (activation || released).then_some(Activation { by_key: false })
-    };
+    cx.core.activation = activation_of(&ctx, ui, rect, resolved, keyed, root_sense, activation);
     cx.core.activated_member = activated_member.or_else(|| arena.then(|| keys::activated_member(&ctx, id)).flatten());
     cx.core.intents = keys::intents_of(&ctx, Some(id), rtl);
     p.hooks.sensed(comp, cx);
@@ -593,7 +603,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             .iter()
             .filter_map(|toggle| cx.core.results.get(&(toggle.part.key, toggle.part.index)).map(|result| (toggle.part, result.rect)))
             .collect();
-        let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open, parts);
+        let mut overlays = OverlayUi::new(&ctx, overlay::OverlayOwner { id, anchor: rect, parts }, &*ui, resolved, env.clone(), open);
         comp.overlay(&mut overlays, cx);
         overlay::apply_closes(&ctx, overlays.closed);
     }

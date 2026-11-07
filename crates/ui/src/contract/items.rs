@@ -450,7 +450,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.marquee_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
-        self.intent_actions(comp, cx, &props, &layout, at, lead_at, header_held);
+        self.intent_actions(comp, cx, &props, lead_at, header_held);
+        self.context_key(cx, &layout, at, lead_at);
         self.reorder_and_rename(comp, cx, &props, lead_at);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         self.layout = Some(layout);
@@ -525,7 +526,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     striped: striped && {
                         let run = self.stripe_run(stripe, at);
                         stripe = Some((at, run));
-                        run % 2 == 0 && !self.source.is_section(at)
+                        run.is_multiple_of(2) && !self.source.is_section(at)
                     },
                     dragging: self.drags.grabbed.as_ref() == Some(&key),
                     drop_target: self.drags.over.as_ref() == Some(&key),
@@ -918,7 +919,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// The pass's moves: lead, selection, expand and collapse.
     fn navigate(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, view: f32, header_held: bool) {
-        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
         let len = self.source.len();
         let mode = Self::select_mode(comp);
         let outline = Outline::new(self.source).columns(layout.column_count()).layout(layout);
@@ -963,17 +963,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
-    /// Toggle, activate and context menu at the lead.
-    fn intent_actions(
-        &mut self,
-        comp: &C,
-        cx: &mut Cx<'_, C>,
-        props: &CollectionProps,
-        layout: &C::ItemLayout,
-        at: Placement,
-        lead_at: Option<usize>,
-        header_held: bool,
-    ) {
+    /// Space and activation at the lead.
+    fn intent_actions(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>, header_held: bool) {
         if !header_held
             && cx.core.intents.take(Intent::Space)
             && let Some(row) = lead_at
@@ -988,6 +979,10 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         {
             self.events.push(CollectionEvent::Activate(self.source.key(row)));
         }
+    }
+
+    /// The context-menu key at the lead: the request is at the row's bottom start corner.
+    fn context_key(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, lead_at: Option<usize>) {
         if cx.core.intents.take(Intent::ContextMenu)
             && let Some(row) = lead_at
         {

@@ -119,7 +119,8 @@ fn click(fixture: &mut Fixture, label: &str) {
 /// equal cards, justified rows and groups alike.
 #[trial]
 fn a_three_by_two_picture_keeps_its_aspect_in_every_tiling() {
-    let tilings: [(&str, fn(TileGrid<'_, usize>) -> TileGrid<'_, usize>); 3] = [
+    type Tiling = fn(TileGrid<'_, usize>) -> TileGrid<'_, usize>;
+    let tilings: [(&str, Tiling); 3] = [
         ("equal", |grid| grid.aspect(ASPECT)),
         ("justified", |grid| grid.justified()),
         ("grouped", |grid| {

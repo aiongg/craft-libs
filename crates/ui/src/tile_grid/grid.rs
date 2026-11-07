@@ -466,7 +466,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let (style, rtl) = (cx.style, cx.flow.is_rtl());
+        let style = cx.style;
         for placed in &self.placed {
             let Some(group) = self.groups.get(placed.group) else { continue };
             let rect = placed.rect;

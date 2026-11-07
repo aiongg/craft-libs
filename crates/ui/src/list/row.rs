@@ -11,8 +11,8 @@ use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, RowState, Styled as _, WordSetCx as _,
+    Access, Bind, ColumnAlign, ColumnSpec, Common, Component, Cx, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, RowState, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, HAlign, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};

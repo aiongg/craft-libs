@@ -508,7 +508,7 @@ impl Component for MenuBar<'_> {
             let titles = &mut self.titles;
             let step = ui.show(popup, layer, |ui, _| {
                 Menu::inline(Label::from(name.clone()))
-                    .show(ui, |ui, body| match slot {
+                    .show(ui, |ui, _| match slot {
                         Open::Title(at) => {
                             if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
                                 TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
@@ -541,7 +541,7 @@ impl Component for MenuBar<'_> {
                             (titles[*at].body)(ui);
                         }
                         Open::More => {
-                            for (at, title) in titles.iter_mut().enumerate().skip(found.shown) {
+                            for title in titles.iter_mut().skip(found.shown) {
                                 super::popup::submenu_rows(ui, title.label.clone(), |ui, _| (title.body)(ui));
                             }
                         }

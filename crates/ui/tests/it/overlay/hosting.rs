@@ -2,7 +2,7 @@
 //! rows, injected activations and the opening reader.
 
 use super::kit::PlainStyle;
-use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, Sense};
+use craft_behavior::{HitLevel, HitPriority, PartKey, Sense};
 use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::{Dismiss, Outside, Popup};
 use craft_ui::contract::{

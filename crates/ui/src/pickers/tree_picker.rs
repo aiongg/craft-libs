@@ -12,8 +12,8 @@ use super::face::toggle_on_key;
 use super::words::PickerWords;
 use crate::contract::overlay::{Dismiss, Popup};
 use crate::contract::{
-    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Overlay, OverlayUi, Overlays as _,
-    PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, ShowCollection as _, WordSetCx as _,
+    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi,
+    PartsCx, Props as _, Remember as _, Role, ShowCollection as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow, OpenSet, RowInk};
 use crate::primitives::IconSpec;
@@ -33,7 +33,10 @@ const FACE: PartKey = PartKey::new("face");
 /// the icon and whether it can be picked.
 #[derive(Clone, Debug)]
 pub struct TreeEntry<K> {
-    entry: Entry<K>,
+    key: K,
+    label: Label,
+    icon: Option<IconSpec<'static>>,
+    enabled: bool,
     parent: Option<K>,
     folder: bool,
     blocked: Option<Label>,
@@ -42,7 +45,7 @@ pub struct TreeEntry<K> {
 impl<K> TreeEntry<K> {
     /// An item at the top, named `name`, that can be picked.
     pub fn new(key: K, name: impl Into<Label>) -> Self {
-        TreeEntry { entry: Entry::new(key, name), parent: None, folder: false, blocked: None }
+        TreeEntry { key, label: name.into(), icon: None, enabled: true, parent: None, folder: false, blocked: None }
     }
 
     /// A folder at the top, named `name`: it is for browsing, not picking.
@@ -60,7 +63,7 @@ impl<K> TreeEntry<K> {
     /// The entry cannot be picked: it shows dimmed with `reason` as its tooltip.
     #[must_use]
     pub fn blocked_by(mut self, reason: impl Into<Label>) -> Self {
-        self.entry = self.entry.enabled(false);
+        self.enabled = false;
         self.blocked = Some(reason.into());
         self
     }
@@ -68,20 +71,17 @@ impl<K> TreeEntry<K> {
     /// An icon before the name.
     #[must_use]
     pub fn with_icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
-        self.entry = self.entry.icon(icon);
+        self.icon = Some(icon.into());
         self
     }
 
-    /// The key a pick reports. An entry is built from `Entry::new`, so it always has one.
+    /// The key a pick reports.
     fn key(&self) -> &K {
-        match self.entry.value() {
-            Some(key) => key,
-            None => unreachable!("a tree entry is built from `Entry::new`"),
-        }
+        &self.key
     }
 
     fn name(&self) -> &Label {
-        self.entry.label()
+        &self.label
     }
 }
 
@@ -189,7 +189,7 @@ impl<K: Clone + Hash + Eq> DisplayOrder<K> for Rows<'_, '_, K> {
     }
 
     fn enabled(&self, at: usize) -> bool {
-        self.tree.entries[self.shown[at]].entry.is_enabled()
+        self.tree.entries[self.shown[at]].enabled
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -311,7 +311,7 @@ impl<K: Value + Eq + Hash + 'static> Component for TreePicker<'_, K> {
                 if entry.folder {
                     row = row.group(open.is_open(key));
                 }
-                if let Some(icon) = entry.entry.icon_spec() {
+                if let Some(icon) = entry.icon.as_ref() {
                     row = row.icon(icon.clone());
                 }
                 match &reasons[at] {
@@ -329,7 +329,7 @@ impl<K: Value + Eq + Hash + 'static> Component for TreePicker<'_, K> {
                         let browsing = cx.memory::<Browsing<K>>();
                         let now = browsing.open.is_open(&key);
                         browsing.open.set(&key, !now);
-                    } else if entry.entry.is_enabled() {
+                    } else if entry.enabled {
                         cx.propose(Some(key));
                         cx.commit();
                         popup.close(cx);

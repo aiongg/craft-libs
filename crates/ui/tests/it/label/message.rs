@@ -4,13 +4,13 @@
 use craft_behavior::Sense;
 use craft_theme::variant::Tone;
 use craft_ui::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Props as _, Role,
-    Show as _, ShowContainer as _, SideLabel, Validity,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Props as _, Role, Show as _,
+    ShowContainer as _, SideLabel, Validity,
 };
 use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Response, Ui, Vec2};
+use egui::{Rect, Response, Ui};
 use std::cell::Cell;
 
 use super::kit::PlainStyle;

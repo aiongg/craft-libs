@@ -181,6 +181,32 @@ struct Regions {
     footer: Rect,
 }
 
+/// Registers the container as an instance of its command scope and of the window scope of its window.
+fn register_instances(ctx: &Context, props: &ContainerProps, id: Id, window: Option<Id>) {
+    if let Some(scope) = props.command_scope {
+        commands::register_instance(ctx, scope, id);
+    }
+    if let Some(window) = window {
+        commands::register_instance(ctx, WindowCommand::SCOPE, window);
+    }
+}
+
+/// What every region of a container shares: its id, direction, whether it is an AccessKit node and its env.
+struct RegionFrame<'e> {
+    id: Id,
+    rtl: bool,
+    node: bool,
+    env: &'e Env,
+}
+
+impl RegionFrame<'_> {
+    /// The ui builder of the region `name` in `rect`.
+    fn region(&self, name: &'static str, rect: Rect) -> UiBuilder {
+        let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(self.rtl)).scope_id(sub(self.id, name));
+        if self.node { access::with_parent(builder, self.id) } else { builder }
+    }
+}
+
 /// One axis of a scroll region: its track and its span.
 struct Bar {
     key: PartKey,
@@ -424,6 +450,54 @@ impl<'b> BodyHooks<'b> {
             layout::widen_cell(ui, took);
             alloc::advance_past(ui, real.union(rect));
         }
+    }
+
+    /// The header region (B1): the trailing controls take the end edge first (their first control sits at the edge)
+    /// and the header fills what they leave. Records the header's size and returns the close it asked for.
+    fn header_region<C: Container>(
+        &mut self,
+        comp: &mut C,
+        ui: &mut Ui,
+        bcx: &mut BodyCx<'_>,
+        frame: &RegionFrame<'_>,
+        header: Rect,
+        trailing: bool,
+    ) -> Option<CloseReason> {
+        let ctx = ui.ctx().clone();
+        let (id, rtl) = (frame.id, frame.rtl);
+        let mut header_rect = header;
+        let mut controls = Vec2::ZERO;
+        if trailing {
+            let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
+            let builder = UiBuilder::new().max_rect(header).layout(layout).scope_id(sub(id, "controls"));
+            let builder = if frame.node { access::with_parent(builder, id) } else { builder };
+            let mut controls_ui = alloc::child(ui, builder);
+            let installed = Env::install_for(&controls_ui, frame.env.clone());
+            comp.controls(&mut controls_ui, bcx);
+            Env::restore(&ctx, installed);
+            controls = controls_ui.min_rect().size();
+            if controls.x > 0.0 {
+                let cut = controls.x + self.region_gap;
+                if rtl {
+                    header_rect.min.x = (header_rect.min.x + cut).min(header_rect.max.x);
+                } else {
+                    header_rect.max.x = (header_rect.max.x - cut).max(header_rect.min.x);
+                }
+            }
+        }
+        let mut header_ui = alloc::child(ui, frame.region("header", header_rect));
+        let installed = Env::install_for(&header_ui, frame.env.clone());
+        comp.header(&mut header_ui, bcx);
+        Env::restore(&ctx, installed);
+        let mut took = self.region_size(&header_ui);
+        // A header that took the whole room records no width (see `region_size`); the trailing region adds to a
+        // width that is known.
+        if took.x > 0.0 && controls.x > 0.0 {
+            took.x += controls.x + self.region_gap;
+        }
+        took.y = took.y.max(controls.y);
+        self.header_size = Some(took);
+        bcx.close_requested()
     }
 
     fn region_size(&self, ui: &Ui) -> Vec2 {
@@ -953,12 +1027,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.gate = cx.shown.as_deref().and_then(|value| (value as &dyn Any).downcast_ref::<bool>()).copied();
         self.gate_at_read = self.gate;
         let window = window_instance(&props, id).filter(|window| *window != id);
-        if let Some(scope) = props.command_scope {
-            commands::register_instance(&ctx, scope, id);
-        }
-        if let Some(window) = window {
-            commands::register_instance(&ctx, WindowCommand::SCOPE, window);
-        }
+        register_instances(&ctx, &props, id, window);
         let region_env = env.derive(|scoped| {
             if let Some(window) = window {
                 scoped.commands = scoped.commands.pushed(WindowCommand::SCOPE, window);
@@ -971,10 +1040,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         });
         let body_id = sub(id, "body");
-        let region = |name: &'static str, rect: Rect| {
-            let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(sub(id, name));
-            if node { access::with_parent(builder, id) } else { builder }
-        };
+        let frame = RegionFrame { id, rtl, node, env: &region_env };
         let (resolved, env_view) = (cx.core.resolved, region_env.view());
         let mut open = self.open;
         let mut gate = self.gate;
@@ -984,41 +1050,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if props.header.is_some() {
             let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.header, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message.clone());
-            let mut header_rect = regions.header;
-            let mut controls = Vec2::ZERO;
-            if props.header.is_some_and(|header| header.trailing) {
-                // The trailing region takes the end edge first (its first control sits at the edge); the header
-                // fills what it leaves.
-                let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
-                let builder = UiBuilder::new().max_rect(regions.header).layout(layout).scope_id(sub(id, "controls"));
-                let builder = if node { access::with_parent(builder, id) } else { builder };
-                let mut controls_ui = alloc::child(ui, builder);
-                let installed = Env::install_for(&controls_ui, region_env.clone());
-                comp.controls(&mut controls_ui, &mut bcx);
-                Env::restore(&ctx, installed);
-                controls = controls_ui.min_rect().size();
-                if controls.x > 0.0 {
-                    let cut = controls.x + self.region_gap;
-                    if rtl {
-                        header_rect.min.x = (header_rect.min.x + cut).min(header_rect.max.x);
-                    } else {
-                        header_rect.max.x = (header_rect.max.x - cut).max(header_rect.min.x);
-                    }
-                }
-            }
-            let mut header_ui = alloc::child(ui, region("header", header_rect));
-            let installed = Env::install_for(&header_ui, region_env.clone());
-            comp.header(&mut header_ui, &mut bcx);
-            Env::restore(&ctx, installed);
-            close = close.or(bcx.close_requested());
-            let mut took = self.region_size(&header_ui);
-            // A header that took the whole room records no width (see `region_size`); the trailing region adds to a
-            // width that is known.
-            if took.x > 0.0 && controls.x > 0.0 {
-                took.x += controls.x + self.region_gap;
-            }
-            took.y = took.y.max(controls.y);
-            self.header_size = Some(took);
+            let trailing = props.header.is_some_and(|header| header.trailing);
+            close = close.or(self.header_region(comp, ui, &mut bcx, &frame, regions.header, trailing));
         }
         crate::runtime::focus::begin_body(&ctx);
         // B2 label: the control gets the rect the label leaves; the label column adds to the container's extent.
@@ -1196,7 +1229,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
             let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message);
-            let mut footer_ui = alloc::child(ui, region("footer", footer_rect));
+            let mut footer_ui = alloc::child(ui, frame.region("footer", footer_rect));
             let installed = Env::install_for(&footer_ui, region_env.clone());
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);

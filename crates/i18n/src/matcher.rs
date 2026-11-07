@@ -78,8 +78,9 @@ mod tests {
     #[test]
     fn accents_and_case_fold() {
         let en = Folder::new("en");
-        let ranges = Matcher::new(&en, "cafe").score("Café").map(|found| found.ranges);
-        assert_eq!(ranges, Some(vec![0.."Café".len()]));
+        let ranges = Matcher::new(&en, "cafe").score("Café").map(|found| found.ranges).unwrap_or_default();
+        assert_eq!(ranges.len(), 1);
+        assert_eq!(ranges.first().cloned(), Some(0.."Café".len()));
     }
 
     #[test]

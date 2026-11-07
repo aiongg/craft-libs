@@ -19,7 +19,7 @@ pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState,
 pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
 pub use predicate::{DropTest, RowTest, SourceTest};
 pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget};
-pub(crate) use row::{RowThumb, row_ink, row_surface};
+pub(crate) use row::{RowThumb, row_surface};
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};
 pub use tree::OpenSet;
 pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRows, footer_text, undo_count};

@@ -91,7 +91,7 @@ fn bar_items_and_a_button_are_one_tab_stop() {
 /// The status bar is a polite live region; the zoom readout in it is not.
 #[trial]
 fn the_status_bar_is_live_and_the_zoom_readout_is_not() {
-    let (bar, zoom): (Rc<Cell<Option<Id>>>, Rc<Cell<Option<Id>>>) = Default::default();
+    let (bar, zoom) = (Rc::new(Cell::<Option<Id>>::new(None)), Rc::new(Cell::<Option<Id>>::new(None)));
     let (shown_bar, shown_zoom) = (bar.clone(), zoom.clone());
     let mut fixture = Fixture::new(move |ui| {
         let values = StatusValues::default();

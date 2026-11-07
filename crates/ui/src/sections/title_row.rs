@@ -5,8 +5,8 @@ use super::words::SectionWords;
 use crate::buttons::IconButton;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
-    Props as _, Role, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
+    Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{IconSpec, Span, TextRun};

@@ -6,12 +6,11 @@
 use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, Common, Component, ContainerProps, Cx,
-    EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
+    LeadOnOpen, ListDrag, Props as _, Role, SelectMode, Show as _, Sizing,
 };
-use crate::runtime::commands::CommandScope;
 use crate::runtime::env::{Env, Label};
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use crate::style::{ComponentStyle, StyleCx};
 use crate::text::TextField;
 use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
 use craft_i18n::matcher::Matcher;
