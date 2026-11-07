@@ -2,15 +2,14 @@
 
 use craft_theme::{GroupValues, Tokens, TypeRole};
 use egui::{CornerRadius, FontFamily, FontId};
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
 
-static NEXT_KEY: AtomicU64 = AtomicU64::new(1);
-
-/// One resolved token set with the theme's token-group values and a key distinct per set. Each theme scope
-/// (mode, contrast, theme, density, text size) resolves its own. It derefs to the craft-theme tokens, which only
-/// `style` reads.
+/// One resolved token set with the theme's token-group values and a key of their content. Each theme scope
+/// (mode, contrast, theme, density, text size) resolves its own; equal sets share a key, so the caches keyed by
+/// it hold one entry per distinct set however often a set is rebuilt. It derefs to the craft-theme tokens, which
+/// only `style` reads.
 #[derive(Clone, Debug)]
 pub struct UiTokens {
     tokens: Arc<Tokens>,
@@ -21,12 +20,14 @@ pub struct UiTokens {
 impl UiTokens {
     /// A token set with no theme values for token groups.
     pub fn new(tokens: Arc<Tokens>) -> Self {
-        UiTokens { tokens, groups: Arc::new(GroupValues::new()), key: NEXT_KEY.fetch_add(1, Ordering::Relaxed) }
+        let groups = Arc::new(GroupValues::new());
+        UiTokens { key: content_key(&tokens, &groups), tokens, groups }
     }
 
-    /// The same tokens with the theme's values under token group paths. It is a different set: a new key.
+    /// The same tokens with the theme's values under token group paths. It is a different set: its own key.
     pub fn with_groups(&self, groups: GroupValues) -> Self {
-        UiTokens { tokens: self.tokens.clone(), groups: Arc::new(groups), key: NEXT_KEY.fetch_add(1, Ordering::Relaxed) }
+        let groups = Arc::new(groups);
+        UiTokens { key: content_key(&self.tokens, &groups), tokens: self.tokens.clone(), groups }
     }
 
     /// The source tokens.
@@ -39,7 +40,7 @@ impl UiTokens {
         &self.groups
     }
 
-    /// Distinct per token set; the token-group and style caches key on it.
+    /// Equal for equal sets and distinct for different ones; the token-group and style caches key on it.
     pub fn key(&self) -> u64 {
         self.key
     }
@@ -58,6 +59,13 @@ impl UiTokens {
     pub(crate) fn corner(px: f32) -> CornerRadius {
         CornerRadius::same(px.round().clamp(0.0, 255.0) as u8)
     }
+}
+
+/// The key of a token set: the hash of its resolved values, which are all `f32` and so have no `Hash`.
+fn content_key(tokens: &Tokens, groups: &GroupValues) -> u64 {
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    format!("{tokens:?}{groups:?}").hash(&mut hasher);
+    hasher.finish()
 }
 
 impl Deref for UiTokens {

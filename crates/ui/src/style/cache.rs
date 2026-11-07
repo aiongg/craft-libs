@@ -23,13 +23,16 @@ pub struct Accepted {
 }
 
 /// A component accepts its `VARIANTS` plus every custom variant built for its style key. Any other variant gives
-/// the default, the first of `VARIANTS`; a component with none takes every request as the default look.
+/// the default, the first of `VARIANTS`; a component with none takes every other request as the default look.
 pub fn accepted_variant<K: StyleKey, S: ComponentStyle>(requested: Variant) -> Accepted {
-    let Some(default) = S::VARIANTS.first().copied() else {
-        return Accepted { variant: Variant::SECONDARY, fell_back: false };
-    };
-    let accepted = S::VARIANTS.contains(&requested) || matches!(requested, Variant::Custom(custom) if custom.key_type() == TypeId::of::<K>());
-    if accepted { Accepted { variant: requested, fell_back: false } } else { Accepted { variant: default, fell_back: true } }
+    let custom = matches!(requested, Variant::Custom(custom) if custom.key_type() == TypeId::of::<K>());
+    if custom || S::VARIANTS.contains(&requested) {
+        return Accepted { variant: requested, fell_back: false };
+    }
+    match S::VARIANTS.first().copied() {
+        Some(default) => Accepted { variant: default, fell_back: true },
+        None => Accepted { variant: Variant::SECONDARY, fell_back: false },
+    }
 }
 
 /// `StyleKey` erased: equality and hashing through `Any`, so one map serves every component.
@@ -106,8 +109,8 @@ pub(crate) fn resolve_style<K: StyleKey, S: ComponentStyle>(
     let style = Arc::new(build(&cx.with_variant(accepted.variant), key));
     let entry = Entry { ty: TypeId::of::<K>(), key: Box::new(key), env, variant: accepted.variant, size, style: style.clone() };
     service.with(|cache| {
-        if accepted.fell_back {
-            cache.fallbacks.insert((TypeId::of::<K>(), cx.variant));
+        if accepted.fell_back && cache.fallbacks.insert((TypeId::of::<K>(), cx.variant)) {
+            log::warn!("{} does not accept the variant {:?}; the default look stands in", std::any::type_name::<K>(), cx.variant);
         }
         let bucket = cache.buckets.entry(hash).or_default();
         match bucket.iter_mut().find(|e| e.ty == entry.ty && e.env == env && e.variant == entry.variant && e.size == size && e.key.eq_dyn(&key)) {

@@ -10,8 +10,16 @@ pub(crate) fn never_surrender_focus(ctx: &Context) {
 /// The key filter a focused component keeps: egui keeps the keys it lists from moving focus. Arrows and Enter
 /// stay in raw input for egui's `TextEdit`; Escape is the runtime's, so the filter keeps it only for a
 /// component that claims it.
-pub(crate) fn filter(tab: bool, horizontal_arrows: bool, vertical_arrows: bool, escape: bool) -> EventFilter {
-    EventFilter { tab, horizontal_arrows, vertical_arrows, escape }
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct KeyFilter {
+    pub(crate) tab: bool,
+    pub(crate) horizontal_arrows: bool,
+    pub(crate) vertical_arrows: bool,
+    pub(crate) escape: bool,
+}
+
+pub(crate) fn filter(tab: bool, horizontal_arrows: bool, vertical_arrows: bool, escape: bool) -> KeyFilter {
+    KeyFilter { tab, horizontal_arrows, vertical_arrows, escape }
 }
 
 /// The widget egui holds key focus on.
@@ -20,7 +28,9 @@ pub(crate) fn focused(ctx: &Context) -> Option<Id> {
 }
 
 /// Gives `id` key focus with `filter`, applied from this pass: a filter set afterwards acts a pass late.
-pub(crate) fn focus_with_filter(ctx: &Context, id: Id, filter: EventFilter) {
+pub(crate) fn focus_with_filter(ctx: &Context, id: Id, filter: KeyFilter) {
+    let filter =
+        EventFilter { tab: filter.tab, horizontal_arrows: filter.horizontal_arrows, vertical_arrows: filter.vertical_arrows, escape: filter.escape };
     ctx.memory_mut(|memory| memory.request_focus_with_filter(id, filter));
 }
 

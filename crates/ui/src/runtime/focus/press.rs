@@ -71,7 +71,7 @@ impl State {
             PressFocus::Release if plan.was_text => match plan.pane {
                 Some(pane) => {
                     self.focused.remove(&focused.unwrap_or(pane));
-                    vec![Act::Focus(pane, egui::EventFilter::default())]
+                    vec![Act::Focus(pane, Default::default())]
                 }
                 None => focused.map(Act::Surrender).into_iter().collect(),
             },
@@ -85,7 +85,7 @@ impl State {
         let key: StopKey = (owner, plan.part);
         match self.find_stop(key).or_else(|| self.find_stop((owner, None))) {
             Some(stop) => self.focus_stop(stop),
-            None => vec![Act::Focus(plan.root.unwrap_or(owner), egui::EventFilter::default())],
+            None => vec![Act::Focus(plan.root.unwrap_or(owner), Default::default())],
         }
     }
 }

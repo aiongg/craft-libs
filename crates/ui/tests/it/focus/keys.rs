@@ -1,11 +1,11 @@
 //! The key stage: what egui never sees, what components receive, claims and menu-bar keys.
 
 use super::{control, event_is_key, focus, focused, id, stop_with, tap};
-use craft_behavior::{AccessRequest, EditCommand, Input, Intent, NavMove, PartKey};
-use craft_keymap::Chord;
-use craft_ui::runtime::focus::register_menu_bar;
-use craft_ui::runtime::focus::{EditSet, KeyUse, is_focused};
-use craft_ui::runtime::keys::{MenuKey, claim, intents_of, register_node, take_claimed, take_menu_keys};
+use craft_behavior::{AccessRequest, EditCommand, Input, Intent, KeyRole, NavMove, PartKey};
+use craft_keymap::{Chord, Mods};
+use craft_ui::runtime::focus::{EditSet, KeyUse};
+use craft_ui::testing::focus::Stop;
+use craft_ui::testing::focus::{MenuKey, claim, intents_of, register_menu_bar, register_stop, take_claimed, take_menu_keys, widget};
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -113,7 +113,7 @@ fn a_state_dependent_claim_holds_from_the_next_frame() {
     let taken = Cell::new(false);
     let mut show = |ui: &mut egui::Ui| {
         stop_with(ui, "field", KeyUse::of(Input::Text));
-        claim(ui.ctx(), Chord::plain(craft_keymap::Key::Down));
+        claim(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down));
         taken.set(take_claimed(ui.ctx(), id("field"), Chord::plain(craft_keymap::Key::Down)));
     };
     frames.idle(2, &mut show);
@@ -149,7 +149,7 @@ fn listed_edit_commands_arrive_as_intents_once() {
 /// `Increment` is `Forward`, `Focus` focuses a focusable node and other actions arrive as `Intent::Access`.
 #[trial]
 fn accesskit_requests_reach_the_owner_of_their_node() {
-    use craft_ui::testing::focus::{AccessActionKind as Action, access_request};
+    use craft_ui::testing::focus::{AccessActionKind as Action, access_request, is_focused, register_node};
     let mut frames = Frames::new();
     let other = PartKey::new("other");
     let log = RefCell::new((false, None, None));
@@ -217,7 +217,7 @@ fn menu_bar_keys_reach_a_registered_menu_bar_only() {
 /// programmatic request leaves it as it was.
 #[trial]
 fn keyboard_use_shows_focus_and_a_pointer_press_hides_it() {
-    use craft_ui::runtime::focus::focus_visible;
+    use craft_ui::testing::focus::focus_visible;
     let mut frames = Frames::new();
     let visible = Cell::new(false);
     let mut show = |ui: &mut egui::Ui| {
@@ -234,4 +234,89 @@ fn keyboard_use_shows_focus_and_a_pointer_press_hides_it() {
     frames.idle(1, &mut show);
     focus(&mut frames, "b", &mut show);
     assert!(!visible.get(), "a pointer press hides the ring, and a request leaves modality unchanged");
+}
+
+/// 9.2: claims match through craft-keymap's layout rules, so a claimed `Shift+;` also holds the `:` egui reports.
+#[trial]
+fn a_claim_matches_through_the_layout_not_the_exact_chord() {
+    const CLAIMS: &[Chord] = &[Chord::new(Mods::SHIFT, craft_keymap::Key::Semicolon)];
+    let mut frames = Frames::new();
+    let taken = Cell::new(false);
+    let mut show = |ui: &mut egui::Ui| {
+        stop_with(ui, "canvas", KeyUse::CANVAS.with_claims(CLAIMS));
+        taken.set(take_claimed(ui.ctx(), id("canvas"), CLAIMS[0]));
+    };
+    frames.idle(2, &mut show);
+    focus(&mut frames, "canvas", &mut show);
+    frames.idle(1, &mut show);
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::Colon, Modifiers::SHIFT)], &mut show);
+    assert!(taken.get());
+}
+
+/// 9.3: a state-dependent claim holds only while its owner is the focused component.
+#[trial]
+fn a_state_dependent_claim_holds_only_while_its_owner_has_focus() {
+    let mut frames = Frames::new();
+    let reads = RefCell::new((Vec::new(), false));
+    let mut show = |ui: &mut egui::Ui| {
+        control(ui, "a");
+        control(ui, "b");
+        claim(ui.ctx(), id("b"), Chord::plain(craft_keymap::Key::Down));
+        let mut reads = reads.borrow_mut();
+        reads.0.extend(intents_of(ui.ctx(), Some(id("a")), false).take_move().map(|(mv, _)| mv));
+        reads.1 = take_claimed(ui.ctx(), id("b"), Chord::plain(craft_keymap::Key::Down));
+    };
+    frames.idle(2, &mut show);
+    focus(&mut frames, "a", &mut show);
+    frames.idle(1, &mut show);
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
+    assert_eq!(reads.borrow().0, [NavMove::Down], "the unfocused component's claim left the key to the focused one");
+    assert!(!reads.borrow().1);
+    focus(&mut frames, "b", &mut show);
+    frames.idle(1, &mut show);
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::ArrowDown, Modifiers::NONE)], &mut show);
+    assert!(reads.borrow().1, "the focused owner's claim holds");
+}
+
+/// 9.2: Ctrl+Tab is the focused component's only when it switches pages and does not keep Tab.
+#[trial]
+fn ctrl_tab_is_stripped_only_for_a_component_that_switches_pages() {
+    let seen_by_egui = |keys: KeyUse, role: KeyRole| {
+        let mut frames = Frames::new();
+        let kept = Cell::new(false);
+        let mut show = |ui: &mut egui::Ui| {
+            widget(ui, id("x"));
+            register_stop(ui.ctx(), Stop::new(id("x"), keys).role(role));
+            kept.set(ui.input(|i| i.events.iter().any(|e| event_is_key(e, Key::Tab))));
+        };
+        frames.idle(2, &mut show);
+        focus(&mut frames, "x", &mut show);
+        frames.idle(1, &mut show);
+        frames.frame(vec![craft_ui::testing::input::key_press(Key::Tab, Modifiers::CTRL)], &mut show);
+        kept.get()
+    };
+    let pages = KeyRole::new().pages(true);
+    assert!(seen_by_egui(KeyUse::of(Input::Pointer), KeyRole::new()), "no pages: Ctrl+Tab stays in the raw input");
+    assert!(!seen_by_egui(KeyUse::of(Input::Pointer), pages), "a component with pages takes it");
+    assert!(seen_by_egui(KeyUse::CODE, pages), "a component that keeps Tab keeps Ctrl+Tab too");
+}
+
+/// 9.7: the menu keys of a pass are that pass's: unread keys do not wait for a later pass.
+#[trial]
+fn unread_menu_keys_do_not_pile_up_across_passes() {
+    let mut frames = Frames::new();
+    let read = Cell::new(false);
+    let keys = RefCell::new(Vec::new());
+    let mut show = |ui: &mut egui::Ui| {
+        control(ui, "a");
+        register_menu_bar(ui.ctx());
+        if read.get() {
+            keys.borrow_mut().extend(take_menu_keys(ui.ctx()));
+        }
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![craft_ui::testing::input::key_press(Key::F10, Modifiers::NONE)], &mut show);
+    read.set(true);
+    frames.frame(Vec::new(), &mut show);
+    assert!(keys.borrow().is_empty());
 }

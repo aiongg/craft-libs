@@ -69,6 +69,8 @@ impl Block {
     }
 }
 
+impl crate::layout::arrange::sealed::Sealed for Block {}
+
 impl Show for Block {
     fn measure_in(&mut self, _: &mut Ui, _: Id, _: Proposal) -> Vec2 {
         self.0

@@ -137,7 +137,7 @@ struct Seen(u64);
 
 /// Registers `owner`'s pass, at step 3: eviction tests only owners. Shown entries of an owner not registered
 /// for 3 passes of the viewport that last showed it and 0.5 s are evicted by `evict`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn register_owner(ctx: &Context, owner: Id) {
     let viewport = pass::current_viewport(ctx);
     let (pass_nr, at) = (pass::pass_nr(ctx, viewport), frame::clock(ctx));
@@ -173,13 +173,13 @@ pub(crate) fn evict(ctx: &Context) {
 }
 
 /// Removes the session slots under `id` (all types). The only way a session slot goes.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn forget(ctx: &Context, id: Id) {
     forget_tier(ctx, id, SESSION);
 }
 
 /// Removes the saved slots of `key`. The only way a saved slot goes.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 commands"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the commands (F3)"))]
 pub(crate) fn forget_saved(ctx: &Context, key: &SaveKey) {
     forget_tier(ctx, key.id(), SAVED);
 }
@@ -199,7 +199,7 @@ fn forget_tier(ctx: &Context, id: Id, tier: u8) {
 }
 
 /// Registers a slot the motion service wrote straight into context data, so it goes with its owner's shown entries.
-#[expect(dead_code, reason = "used by F2 motion")]
+#[expect(dead_code, reason = "used by motion (F3)")]
 pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
     fn remove<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
         take_raw::<T>(data, id)
@@ -210,7 +210,7 @@ pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: 
 }
 
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn dispose_evicted(ctx: &Context) {
     let queue = Service::<Registry>::of(ctx).with(|reg| std::mem::take(&mut reg.graveyard));
     drop(queue);
@@ -244,10 +244,10 @@ pub struct MemoryStage {
     pub(crate) face: bool,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 impl MemoryStage {
     /// A stage whose entries belong to `base`.
-    #[expect(dead_code, reason = "used by F2 pipeline")]
+    #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
     }
@@ -296,12 +296,12 @@ impl MemoryStage {
     }
 
     /// Read-only access for `measure_in`: opens no stage.
-    #[expect(dead_code, reason = "used by F2 pipeline")]
+    #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn peek<T: Slot>(ctx: &Context, id: Id) -> T {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
-    #[expect(dead_code, reason = "used by F2 pipeline")]
+    #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn owner(&self) -> Id {
         self.owner
     }
@@ -516,7 +516,7 @@ pub(crate) fn global(name: &'static str, scope: impl Hash + Debug) -> Id {
 }
 
 /// Cross-widget facts, registered in one pass and read in the next. Runtime services only.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 layers"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the layers (F3)"))]
 pub(crate) struct Facts<T>(PhantomData<T>);
 
 /// The facts of one viewport: this pass's registrations and last pass's.
@@ -531,7 +531,7 @@ impl<T> Default for FactRecord<T> {
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 layers"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the layers (F3)"))]
 impl<T: Clone + Send + Sync + 'static> Facts<T> {
     /// Registers `fact` for the next pass of the running viewport.
     pub(crate) fn register(ctx: &Context, fact: T) {

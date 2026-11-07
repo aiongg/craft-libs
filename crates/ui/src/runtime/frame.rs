@@ -7,6 +7,7 @@ use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::{cursor, focus, keys, layout_memory, memory, pointer, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
+use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
 use egui::{Context, Ui, ViewportId};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -57,6 +58,9 @@ pub struct FrameOutput {
 #[derive(Default)]
 struct FrameState {
     input: Option<FrameInput>,
+    /// The pointer tolerances of the app's resolved tokens (`tokens.size.hit`) and the `sizes` they came from:
+    /// the input hook writes the slop before any `Env` exists, and the press lifecycle reads the hit target.
+    hit: Option<(Arc<AppSizes>, HitSizes)>,
     output: FrameOutput,
     /// Passes between their begin and end hooks: nested viewport passes count.
     passes_open: u32,
@@ -146,11 +150,33 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
     let hooks_ran = store::with::<FrameState, _>(ctx, |state| {
         debug_assert!(state.passes_open == 0, "set_input was called during a pass");
         let ran = state.root_passes_hooked == root_passes;
+        if !state.hit.as_ref().is_some_and(|(sizes, _)| Arc::ptr_eq(sizes, &input.root.sizes)) {
+            state.hit = Some((input.root.sizes.clone(), resolved_hit(&input.root.sizes)));
+        }
         state.input = Some(input);
         ran
     });
     debug_assert!(hooks_ran, "the runtime plugin's hooks did not run for the previous pass: drive frames with `Context::run_ui` or `run_pass`");
     scale::set_interface_scale(ctx, scale.0);
+}
+
+/// The tolerances the app's `sizes` give the default density: the built-in sets and the overrides apply in
+/// `craft_theme`'s resolve, whichever theme carries them.
+fn resolved_hit(sizes: &AppSizes) -> HitSizes {
+    let appearance =
+        Appearance { mode: Mode::Light, contrast: Contrast::Standard, size: Size::default(), text_size: TextSize::default(), reduced_motion: false };
+    resolve_sized(suite_default_theme(), appearance, None, sizes).tokens.size.hit
+}
+
+/// The built-in theme the tolerances resolve under.
+fn suite_default_theme() -> &'static ThemeDef {
+    let themes = builtins();
+    themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0])
+}
+
+/// The tolerances of the running frame: the app's, else the default density's.
+fn frame_hit(ctx: &Context) -> HitSizes {
+    store::with::<FrameState, _>(ctx, |state| state.hit.as_ref().map(|(_, hit)| *hit)).unwrap_or_else(|| resolved_hit(&AppSizes::default()))
 }
 
 /// Called by `install`: the passes the context ran before the plugin existed have no hooks to wait for.
@@ -214,15 +240,13 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     // H0: one press per pass.
     let frame = pass::frame_nr(ctx, viewport);
     let held_back = PerViewport::<ViewportRecord>::with(ctx, viewport, |record| raw_input::hold_back_presses(input, frame, &mut record.held));
+    // H2: click options.
+    raw_input::set_click_options(ctx, frame_hit(ctx).slop);
     // H3: the key stage strips what the runtime owns; egui decides on a repaint from the events left.
     let stripped = keys::input_hook(ctx, input);
     if held_back || stripped {
         raw_input::request_repaint_of(ctx, viewport);
     }
-    // H2: click options.
-    let slop =
-        store::with::<FrameState, _>(ctx, |state| state.input.as_ref().map_or_else(|| RootEnv::default().hit.slop, |input| input.root.hit.slop));
-    raw_input::set_click_options(ctx, slop);
 }
 
 /// The begin hook, where the viewport is current.
@@ -248,7 +272,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     }
     // H5: the pointer snapshot, before any component runs.
     let input = frame_input.unwrap_or_else(|| FrameInput::new(RootEnv::default()));
-    pointer::begin(&ctx, input.root.hit);
+    pointer::begin(&ctx, frame_hit(&ctx));
     // H5: install the root `Env` and the theme styles' direction from `FrameInput.root`.
     let env = Env::from_root(&input.root, input.host, scale::pixels_per_point(&ctx));
     style::set_theme_direction(&ctx, ui, env.direction.is_rtl());

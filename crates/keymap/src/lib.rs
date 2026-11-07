@@ -139,7 +139,7 @@ pub mod chord;
 pub mod command;
 mod commands;
 pub mod editor;
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 pub mod egui;
 pub mod import;
 pub mod keymap;
@@ -148,7 +148,7 @@ mod parity;
 #[cfg(test)]
 mod parity_tests;
 pub mod profiles;
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 mod raw_clipboard;
 pub mod reserved;
 pub mod scope;
@@ -167,7 +167,7 @@ pub use keymap::{
 };
 pub use layout::{COMMON_SYMBOLS, KeyInput, Layout, SYMBOL_TABLE, SymbolLayout};
 pub use parity::ReturnGlyph;
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 pub use parity::{ClipboardPress, clipboard_presses};
 pub use profiles::{Builtins, MAX_EXPORT_BYTES, MAX_SET_NAME, MAX_SETS, ProfileError, Profiles, SetProblem};
 pub use scope::{Active, MAX_SCOPE_NAME, Scope, ScopeKind, Scopes};

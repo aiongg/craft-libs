@@ -51,7 +51,7 @@ pub(crate) fn scope<R>(ui: &mut Ui, disabled: bool, direction: Option<bool>, bod
 }
 
 /// Runs `f` on a child `Ui` of `ui`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by F2 pipeline"))]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn scoped<R>(ui: &mut Ui, f: impl FnOnce(&mut Ui) -> R) -> R {
     ui.scope(f).inner
 }

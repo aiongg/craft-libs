@@ -10,7 +10,7 @@ use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
 use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_host::target::Os;
-use craft_keymap::{Chord, Key, Mods};
+use craft_keymap::{Chord, Key, KeyInput, Layout, Mods};
 use egui::{Context, Id, Vec2, ViewportId};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -51,6 +51,7 @@ struct Batch {
 }
 
 #[derive(Clone)]
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 struct Item {
     intent: Intent,
     /// A physical left or right arrow: under right-to-left text it reads as the opposite logical move.
@@ -82,8 +83,9 @@ struct Stage {
     batch: Batch,
     routed: HashMap<Option<Id>, Routed>,
     claimed: Vec<(Id, Chord)>,
-    claims: Vec<Chord>,
+    claims: Vec<(Id, Chord)>,
     menu: Vec<MenuKey>,
+    layout: Layout,
     nodes: HashMap<u64, Node>,
     last_nodes: HashMap<u64, Node>,
     activated: HashMap<Id, Id>,
@@ -101,7 +103,9 @@ fn current<R>(ctx: &Context, f: impl FnOnce(&mut Stage) -> R) -> R {
 /// What the strip of one event decided.
 struct Strip<'a> {
     os: Os,
+    layout: &'a Layout,
     keeps_tab: bool,
+    pages: bool,
     claims: &'a [Chord],
     edits: &'a dyn Fn(EditCommand) -> bool,
     menu_bar: bool,
@@ -111,9 +115,9 @@ impl Strip<'_> {
     /// Records `event` in `batch` and returns whether egui keeps it.
     fn event(&self, batch: &mut Batch, alt: &mut AltTrack, event: KeyEvent) -> bool {
         match event {
-            KeyEvent::Press { key, mods, .. } => {
+            KeyEvent::Press { key, input } => {
                 alt.other_key = true;
-                self.press(batch, key, mods)
+                self.press(batch, key, &input)
             }
             KeyEvent::Text(text) => {
                 alt.other_key = true;
@@ -151,13 +155,15 @@ impl Strip<'_> {
         alt.down = held;
     }
 
-    fn press(&self, batch: &mut Batch, key: Key, mods: Mods) -> bool {
-        let chord = Chord::new(mods, key);
+    fn press(&self, batch: &mut Batch, key: Key, input: &KeyInput) -> bool {
+        let mods = input.mods;
+        let claimed = self.claims.iter().find(|chord| self.layout.matches(chord, input, self.os));
         let ctrl_tab = key == Key::Tab && (if self.os == Os::Mac { mods.ctrl && !mods.cmd } else { mods.cmd });
+        let ctrl_tab = ctrl_tab && self.pages && !self.keeps_tab;
         let bare_tab = key == Key::Tab && !mods.cmd && !mods.ctrl && !mods.alt;
         let mnemonic = self.menu_bar && self.os != Os::Mac && mods == Mods::ALT && key.is_letter();
-        if self.claims.contains(&chord) {
-            batch.claimed.push(chord);
+        if let Some(chord) = claimed {
+            batch.claimed.push(*chord);
             false
         } else if bare_tab && !self.keeps_tab {
             batch.nav.tabs.push(!mods.shift);
@@ -195,9 +201,18 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let before = input.events.len();
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
-        claims.extend(stage.claims.iter().copied());
+        claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
         let edits = |command| keys.is_some_and(|keys| keys.edits.contains(command));
-        let strip = Strip { os, keeps_tab: keys.is_some_and(|keys| keys.keep == focus::KeepKeys::Tab), claims: &claims, edits: &edits, menu_bar };
+        stage.layout.set_latin(input.keyboard_layout_is_latin);
+        let strip = Strip {
+            os,
+            layout: &stage.layout,
+            keeps_tab: keys.is_some_and(|keys| keys.keep == focus::KeepKeys::Tab),
+            pages: record.pages,
+            claims: &claims,
+            edits: &edits,
+            menu_bar,
+        };
         let mut batch = Batch::default();
         let mut visible = None;
         input.events.retain(|event| {
@@ -259,13 +274,13 @@ pub(crate) fn begin(ctx: &Context) {
     }
     let claimed = batch.claimed.iter().filter_map(|chord| focused.map(|id| (id, *chord))).collect::<Vec<_>>();
     for request in &batch.access {
-        route_access(ctx, request, &nodes, &mut routed);
+        route_access(ctx, request, &nodes, &mut routed, &mut activated);
     }
     current(ctx, |stage| {
         stage.routed = routed;
         stage.claimed = claimed;
         stage.activated = activated;
-        stage.menu.extend(batch.menu);
+        stage.menu = batch.menu;
     });
 }
 
@@ -281,7 +296,7 @@ fn route_press(ctx: &Context, os: Os, rec: &StopRec, press: &Press, routed: &mut
     let plain = press.mods.is_none();
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
-            if focus::roving_move(ctx, rec.stop.key(), mv, mods).is_none() {
+            if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
             }
         }
@@ -328,7 +343,13 @@ fn nudge_of(key: Key, mods: Mods) -> Option<(Vec2, Mods)> {
 }
 
 /// Routes an AccessKit action request to the owner of its target node, whatever the focus (9.2 rule 2).
-fn route_access(ctx: &Context, request: &Action, nodes: &HashMap<u64, Node>, routed: &mut HashMap<Option<Id>, Routed>) {
+fn route_access(
+    ctx: &Context,
+    request: &Action,
+    nodes: &HashMap<u64, Node>,
+    routed: &mut HashMap<Option<Id>, Routed>,
+    activated: &mut HashMap<Id, Id>,
+) {
     let Some(node) = nodes.get(&request.node()).copied() else { return };
     let owner = Some(node.owner);
     if node.focusable {
@@ -337,7 +358,10 @@ fn route_access(ctx: &Context, request: &Action, nodes: &HashMap<u64, Node>, rou
     }
     match request.kind() {
         ActionKind::Focus if node.focusable => {}
-        ActionKind::Click => push(routed, owner, Intent::Activate, false),
+        ActionKind::Click => match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
+            Some(rec) => route_activate(&rec, routed, activated),
+            None => push(routed, owner, Intent::Activate, false),
+        },
         ActionKind::Increment => push(routed, owner, Intent::Move(NavMove::Forward, MoveMods::PLAIN), false),
         ActionKind::Decrement => push(routed, owner, Intent::Move(NavMove::Back, MoveMods::PLAIN), false),
         ActionKind::ShowContextMenu => push(routed, owner, Intent::ContextMenu, false),
@@ -408,8 +432,8 @@ impl Intents {
 }
 
 /// The intents routed to `id` this pass, with physical horizontal moves read in the component's direction.
-#[doc(hidden)]
-pub fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
     let routed = current(ctx, |stage| stage.routed.get(&id).cloned()).unwrap_or_default();
     let flip = |mv| match (rtl, mv) {
         (true, NavMove::Back) => NavMove::Forward,
@@ -428,8 +452,8 @@ pub fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
-#[doc(hidden)]
-pub fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
     current(ctx, |stage| {
         let Some(routed) = stage.routed.get_mut(&id) else { return };
         let mut taken = intents.items.iter().map(|(_, taken)| *taken);
@@ -444,11 +468,12 @@ pub fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
 }
 
 /// Takes an untaken `Submit` for the innermost scope with a default action.
-#[doc(hidden)]
-pub fn take_submit(ctx: &Context) -> bool {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn take_submit(ctx: &Context) -> bool {
     take_untaken(ctx, &Intent::Submit)
 }
 
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     let focused = focus::focused_rec(ctx).map(|rec| rec.stop.id);
     current(ctx, |stage| {
@@ -465,8 +490,8 @@ fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
 
 /// What an untaken Escape does in a scope: `None` when no Escape arrived or a component took it. One scope
 /// takes each Escape.
-#[doc(hidden)]
-pub fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool, scope_clearable: bool) -> Option<EscapeStep> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool, scope_clearable: bool) -> Option<EscapeStep> {
     if !take_untaken(ctx, &Intent::Cancel) {
         return None;
     }
@@ -476,8 +501,8 @@ pub fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool, scope
 
 /// Reads the claimed chord: whether it arrived this pass for `id`, consuming it. Also true for a chord
 /// withheld from the component's text or editor part.
-#[doc(hidden)]
-pub fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
     current(ctx, |stage| match stage.claimed.iter().position(|(owner, claimed)| *owner == id && *claimed == chord) {
         Some(at) => {
             stage.claimed.remove(at);
@@ -487,27 +512,28 @@ pub fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
     })
 }
 
-/// A state-dependent claim, held from the next frame's input hook on.
-#[doc(hidden)]
-pub fn claim(ctx: &Context, chord: Chord) {
-    current(ctx, |stage| stage.claims.push(chord));
+/// A state-dependent claim of `owner`, held from the next frame's input hook on while `owner` is the focused
+/// component.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn claim(ctx: &Context, owner: Id, chord: Chord) {
+    current(ctx, |stage| stage.claims.push((owner, chord)));
 }
 
 /// The member whose `Activate` the group `root` reads this pass.
-#[doc(hidden)]
-pub fn activated_member(ctx: &Context, root: Id) -> Option<Id> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn activated_member(ctx: &Context, root: Id) -> Option<Id> {
     current(ctx, |stage| stage.activated.get(&root).copied())
 }
 
 /// The menu-bar keys of the pass (spec 9.7).
-#[doc(hidden)]
-pub fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
     current(ctx, |stage| std::mem::take(&mut stage.menu))
 }
 
 /// Registers an AccessKit node so a request that targets it reaches `owner`.
-#[doc(hidden)]
-pub fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
+pub(crate) fn register_node(ctx: &Context, node: Id, owner: Id, part: Option<PartRef>, focusable: bool) {
     current(ctx, |stage| {
         stage.nodes.insert(node_key(node), Node { owner, part, focusable });
     });

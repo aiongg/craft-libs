@@ -97,7 +97,7 @@ impl Layout {
     }
 }
 
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 impl crate::egui::Dispatcher {
     /// Whether Delete and Backspace match each other's bindings: a binding on Delete also runs
     /// from Backspace (the Mac's "delete" key), and Backspace from Delete (⌥⌫ and ⌥Delete both
@@ -111,7 +111,7 @@ impl crate::egui::Dispatcher {
 
 /// A clipboard chord read from a frame's events: the press and the Copy, Cut or Paste event it
 /// caused, paired.
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 #[derive(Clone, Debug, PartialEq)]
 pub struct ClipboardPress {
     /// The chord pressed (Cmd+V, Shift+Insert).
@@ -134,7 +134,7 @@ pub struct ClipboardPress {
 // after ⌘ was held and before any other key, is a swallowed ⌘V, #6329, not read here; Ctrl+Insert copies and
 // Shift+Insert pastes, mapped by hand on Linux). The pairing is egui.rs `clipboard_event_follows`,
 // shared.
-#[cfg(feature = "ui")]
+#[cfg(feature = "egui")]
 pub fn clipboard_presses(input: &egui::InputState, layout: &Layout, platform: Platform) -> Vec<ClipboardPress> {
     use crate::egui::{clipboard_chord, clipboard_event_follows, clipboard_kind, event_clip, key_input};
     use egui::Event;

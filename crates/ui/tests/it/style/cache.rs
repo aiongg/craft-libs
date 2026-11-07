@@ -119,3 +119,14 @@ fn an_app_replacement_wins_and_two_for_one_key_fail_the_install() {
     twice.push::<FirstKey, SharedStyle>(replacement).push::<FirstKey, SharedStyle>(replacement);
     assert!(matches!(install(&other.ctx, InstallSpec::new().looks(twice)), Err(InstallError::DuplicateStyle(_))));
 }
+
+/// The key of a token set is its content, so rebuilding an equal set adds no cache entries.
+#[trial]
+fn equal_token_sets_share_a_key_and_different_ones_do_not() {
+    let light = tokens(Mode::Light, Contrast::Standard);
+    assert_eq!(light.key(), tokens(Mode::Light, Contrast::Standard).key());
+    assert_ne!(light.key(), tokens(Mode::Dark, Contrast::Standard).key());
+    let mut values = craft_theme::GroupValues::new();
+    values.set_color("clip", "audio", craft_theme::Rgba::rgb(200, 100, 50));
+    assert_ne!(light.key(), light.with_groups(values).key(), "token group values are part of the set");
+}

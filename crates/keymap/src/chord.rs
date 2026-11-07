@@ -16,36 +16,7 @@ pub mod foreign;
 pub const MAX_CHORD_TEXT: usize = 72;
 
 /// The platform a keymap is used on. It decides display text and whether `ctrl` folds into `cmd`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-#[non_exhaustive]
-pub enum Platform {
-    #[allow(missing_docs)]
-    Mac,
-    #[allow(missing_docs)]
-    Windows,
-    #[allow(missing_docs)]
-    Linux,
-}
-
-impl Platform {
-    /// The platform this build runs on. Web builds count as Linux; with the `ui` feature,
-    /// `egui::platform` gives the browser's operating system.
-    pub const fn current() -> Platform {
-        if cfg!(target_os = "macos") {
-            Platform::Mac
-        } else if cfg!(target_os = "windows") {
-            Platform::Windows
-        } else {
-            Platform::Linux
-        }
-    }
-
-    /// Whether this is macOS.
-    pub const fn is_mac(self) -> bool {
-        matches!(self, Platform::Mac)
-    }
-}
+pub use craft_host::target::Os as Platform;
 
 macro_rules! keys {
     ($($variant:ident => $name:literal),* $(,)?) => {

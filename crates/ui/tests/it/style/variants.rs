@@ -58,3 +58,21 @@ fn a_component_accepts_its_variants_and_the_custom_ones_built_for_its_key() {
     let unlisted = accepted_variant::<ButtonKey, ButtonStyle>(Variant::look(Emphasis::Soft, Tone::Good));
     assert_eq!((unlisted.variant, unlisted.fell_back), (Variant::SECONDARY, true), "an unlisted built-in variant");
 }
+
+#[derive(Clone, PartialEq)]
+struct BareStyle;
+
+// derive output
+impl ComponentStyle for BareStyle {
+    fn metrics(&self) -> Metrics {
+        Metrics::new()
+    }
+}
+
+#[trial]
+fn a_component_without_listed_variants_still_accepts_the_custom_ones_built_for_its_key() {
+    let custom = accepted_variant::<ButtonKey, BareStyle>(Variant::Custom(RECORD));
+    assert_eq!((custom.variant, custom.fell_back), (Variant::Custom(RECORD), false));
+    let other = accepted_variant::<ButtonKey, BareStyle>(Variant::PRIMARY);
+    assert_eq!((other.variant, other.fell_back), (Variant::SECONDARY, false), "every other request is the default look");
+}

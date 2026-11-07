@@ -1,6 +1,6 @@
 //! The layout services: `LabelColumn`, `ColumnGroup`, the `Grid` cursor, `measure_slot` and `arrange`.
 
-mod arrange;
+pub(crate) mod arrange;
 mod body;
 mod column_group;
 mod label;
