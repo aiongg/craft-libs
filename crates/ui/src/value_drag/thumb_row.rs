@@ -11,17 +11,17 @@ use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Remember as _, Role, Styled as _, WordSetCx as _,
+    Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, FocusShape, KeepKeys, KeyUse};
-use crate::style::{ComponentStyle, DataColor, FocusLook, StyleColor, StyleCx, TrackLook};
+use crate::style::{ComponentStyle, DataColor, FocusLook, Mix, StateSet, StyleColor, StyleCx, TrackLook};
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::part::PartRef;
 use craft_behavior::{HitLevel, HitPriority, Metrics, Mixed, MoveMods, NavMove, PartKey, PressPhase, PressState, Sense, Wheel, wheel_step};
-use craft_theme::{Rgba, Stateful, States};
+use craft_theme::{Rgba, State, StateMix, Stateful, States};
 use egui::{Pos2, Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
 
@@ -32,6 +32,13 @@ mod stories;
 pub(crate) const ROW: PartKey = PartKey::new("row");
 /// One thumb, `THUMB.at(i)`.
 pub(crate) const THUMB: PartKey = PartKey::new("thumb");
+
+/// `look` of `part`, in the hover state when `lit` and the part is at rest.
+fn resolve_lit<T: Mix, const N: usize>(cx: &Cx<'_, ThumbRow<'_, N>>, part: PartRef, lit: bool, look: &Stateful<T>) -> T {
+    let set = cx.core.part_state(part);
+    let set = if lit && set.state == State::Rest { StateSet::new(State::Hover, set.flags, StateMix::new(1.0, set.t.press, set.t.on)) } else { set };
+    set.resolve(look)
+}
 
 /// The style of a thumb row.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -862,8 +869,18 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
         let size = Vec2::splat(style.thumb);
-        let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), 0.0, false);
+        let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), style.hit, false);
         let xs = layout.xs(&shown);
+        // The thumbs a press at the pointer would move take the hover look.
+        let lit = std::iter::once(PartRef::from(ROW))
+            .chain((0..N).map(|i| THUMB.at(i as u64)))
+            .find_map(|part| cx.hover_pos(part))
+            .and_then(|at| layout.press(&shown, at.x))
+            .map_or_else(Vec::new, |press| match press {
+                Press::Grab(i) | Press::Jump(i) => vec![i],
+                Press::Either { first, last } => vec![first, last],
+                Press::Span => Vec::new(),
+            });
         let thumbs = band(cx.rect, self.track_face.is_some().then_some(style.track.thickness));
         let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
@@ -874,13 +891,14 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             }
             let points = triangle(pos2(xs[i], top), size, halves[i], cx.flow.is_rtl());
             let part = THUMB.at(i as u64);
-            draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), cx.resolve_part(part, &style.ring));
+            let lit = lit.contains(&i);
+            draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), resolve_lit(cx, part, lit, &style.ring));
             let shape = PaintShape::Polygon(points);
             match rules.thumbs[i].face {
                 Some(face) => draw.data_fill(&shape, face),
-                None => draw.fill(&shape, cx.resolve_part(part, &style.face)),
+                None => draw.fill(&shape, resolve_lit(cx, part, lit, &style.face)),
             }
-            draw.stroke(&shape, StrokeWidth::Thin, cx.resolve_part(part, &style.edge));
+            draw.stroke(&shape, StrokeWidth::Thin, resolve_lit(cx, part, lit, &style.edge));
         }
     }
 

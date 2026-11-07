@@ -31,13 +31,15 @@ pub struct PartResult {
     pub press: PressState,
     /// The pointer is over it and nothing above takes the hover.
     pub hovered: bool,
+    /// The pointer's position while `hovered`, in the owner's layer space.
+    pub hover_pos: Option<Pos2>,
     /// The value flags the component set on the part.
     pub flags: Flags,
 }
 
 impl PartResult {
     /// What a read returns for a part with no press history: face mode, or a part first registered this pass.
-    pub const IDLE: PartResult = PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, flags: Flags::empty() };
+    pub const IDLE: PartResult = PartResult { rect: Rect::NOTHING, press: PressState::IDLE, hovered: false, hover_pos: None, flags: Flags::empty() };
 }
 
 /// A text part's result this pass.
@@ -363,7 +365,7 @@ pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> Mem
     let view = member_view(&outcome, spec.id, local, pointer_pos);
     MemberResult {
         response: response::member(ui, spec.id, spec.rect, spec.enabled, view),
-        parts: part_results_in(&outcome, &known, mods, sample, spec.id, spec.parts),
+        parts: part_results_in(&outcome, &known, (mods, sample, pointer_pos), spec.id, spec.parts),
         press: shape_press_in(&outcome, mods, sample, spec.id),
         activated: view.clicked,
     }
@@ -530,15 +532,15 @@ fn known_parts(ctx: &Context, arena: ArenaId, owner: Id) -> Vec<(PartKey, Option
 pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[PartDecl]) -> PartResults {
     let outcome = read_outcome(ctx, arena);
     let known = known_parts(ctx, arena, owner);
-    let (mods, sample) = pointer::with_frame(ctx, |frame, _| (frame.map_or(Mods::NONE, |frame| frame.mods), frame.and_then(|frame| frame.sample)));
-    part_results_in(&outcome, &known, mods, sample, owner, decls)
+    let pointer =
+        pointer::with_frame(ctx, |frame, hover| (frame.map_or(Mods::NONE, |frame| frame.mods), frame.and_then(|frame| frame.sample), hover));
+    part_results_in(&outcome, &known, pointer, owner, decls)
 }
 
 fn part_results_in(
     outcome: &Outcome,
     known: &[(PartKey, Option<u64>)],
-    mods: Mods,
-    sample: Option<PointerSample>,
+    (mods, sample, at): (Mods, Option<PointerSample>, Option<Pos2>),
     owner: Id,
     decls: &[PartDecl],
 ) -> PartResults {
@@ -549,7 +551,9 @@ fn part_results_in(
             let is_known = known.contains(&key);
             let mine = |hit: &Hit| hit.owner == owner && hit.part == Some(decl.part_ref());
             let won = outcome.target.filter(|target| is_known && mine(target));
-            let hovered = is_known && outcome.hover.is_some_and(|hit| mine(&hit));
+            let hover = outcome.hover.filter(|hit| is_known && mine(hit));
+            let hovered = hover.is_some();
+            let hover_pos = hover.zip(at).map(|(hit, at)| if hit.local { outcome.xf.map_or(at, |map| map.to_layer(at)) } else { at });
             let phase = match (won, outcome.phase) {
                 (Some(target), Some(phase)) => in_owner_space(phase, &target, outcome.xf),
                 _ if hovered => PressPhase::Hover,
@@ -557,7 +561,7 @@ fn part_results_in(
             };
             let captured = won.is_some() && outcome.dragging && phase.is_drag();
             let press = PressState::new(phase).mods(mods).sample(sample).captured(captured);
-            (key, PartResult { rect: decl.shape.bounds(), press, hovered, flags: decl.flags })
+            (key, PartResult { rect: decl.shape.bounds(), press, hovered, hover_pos, flags: decl.flags })
         })
         .collect()
 }

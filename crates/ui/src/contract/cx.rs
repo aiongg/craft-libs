@@ -248,6 +248,10 @@ pub trait Pointer {
     /// The result of `part` this pass, `None` when `parts` did not declare it: for parts that exist only under a
     /// condition.
     fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult>;
+    /// Where the pointer is over `part` this pass, in the component's layer space; `None` when `part` is not hovered.
+    fn hover_pos(&self, part: impl Into<PartRef>) -> Option<Pos2> {
+        self.part_if_declared(part).and_then(|result| result.hover_pos)
+    }
     /// The component's own press.
     fn press(&self) -> &PressState;
     /// The pointer is over the component's own shapes.
