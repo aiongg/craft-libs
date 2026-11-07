@@ -10,7 +10,7 @@ mod shell;
 mod steps;
 mod values;
 
-pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, Role, SetPosition, SubNode, announce};
+pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use craft_ui_macros::{Component, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};

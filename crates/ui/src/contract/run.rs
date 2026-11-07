@@ -151,7 +151,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 scoped.arena = Some(ArenaId::new(id));
             }
         });
-        let mut body_ui = alloc::child(ui, UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id));
+        let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id);
+        // The body's nodes are the container's children; a role with no node leaves them where egui puts them.
+        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
+        let mut body_ui = alloc::child(ui, builder);
         let installed = Env::install_for(&body_ui, inner);
         {
             let mut body_cx = BodyCx::new(body_id, cx.core.env, cx.core.resolved, rect, &mut *cx.core.memory);
@@ -204,6 +207,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             scoped.arena = Some(ArenaId::new(id));
         });
         let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(sub(id, "items"));
+        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
         let mut items_ui = alloc::child(ui, builder);
         items_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         let installed = Env::install_for(&items_ui, inner);
@@ -398,7 +402,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
         if member.is_some() {
             access::register_parent(&ctx, id, ui.unique_id());
         }
-        access::with_node(&ctx, id, |_| ()).is_some()
+        access::create_node(&ctx, id)
     };
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;

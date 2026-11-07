@@ -9,7 +9,7 @@ pub(crate) struct FrameResult {
     /// The cursor the frame's output asked for.
     pub cursor: egui::CursorIcon,
     /// The AccessKit tree update of the frame.
-    pub tree: Option<accesskit::TreeUpdate>,
+    pub tree: Option<crate::runtime::egui::access::AccessTree>,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -19,7 +19,7 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
-    FrameResult { closed, cursor: output.platform_output.cursor_icon, tree: output.platform_output.accesskit_update.take() }
+    FrameResult { closed, cursor: output.platform_output.cursor_icon, tree: crate::runtime::egui::access::tree_of(&mut output) }
 }
 
 /// A key press event with `modifiers`.

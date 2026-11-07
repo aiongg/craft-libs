@@ -1,0 +1,88 @@
+//! The `Role` constants: one per AccessKit role the library uses.
+
+use crate::runtime::access::Role;
+
+impl Role {
+    /// A button.
+    pub const BUTTON: Role = Role::Node(accesskit::Role::Button);
+    /// A check box.
+    pub const CHECK_BOX: Role = Role::Node(accesskit::Role::CheckBox);
+    /// A radio button.
+    pub const RADIO_BUTTON: Role = Role::Node(accesskit::Role::RadioButton);
+    /// A switch.
+    pub const SWITCH: Role = Role::Node(accesskit::Role::Switch);
+    /// A link.
+    pub const LINK: Role = Role::Node(accesskit::Role::Link);
+    /// A grouping of controls.
+    pub const GROUP: Role = Role::Node(accesskit::Role::Group);
+    /// A radio group.
+    pub const RADIO_GROUP: Role = Role::Node(accesskit::Role::RadioGroup);
+    /// A list.
+    pub const LIST: Role = Role::Node(accesskit::Role::List);
+    /// A list item.
+    pub const LIST_ITEM: Role = Role::Node(accesskit::Role::ListItem);
+    /// A list box.
+    pub const LIST_BOX: Role = Role::Node(accesskit::Role::ListBox);
+    /// An option of a list box.
+    pub const LIST_BOX_OPTION: Role = Role::Node(accesskit::Role::ListBoxOption);
+    /// A slider.
+    pub const SLIDER: Role = Role::Node(accesskit::Role::Slider);
+    /// A spin button.
+    pub const SPIN_BUTTON: Role = Role::Node(accesskit::Role::SpinButton);
+    /// A progress bar.
+    pub const PROGRESS_INDICATOR: Role = Role::Node(accesskit::Role::ProgressIndicator);
+    /// A scroll bar.
+    pub const SCROLL_BAR: Role = Role::Node(accesskit::Role::ScrollBar);
+    /// A splitter between panes.
+    pub const SPLITTER: Role = Role::Node(accesskit::Role::Splitter);
+    /// A tab.
+    pub const TAB: Role = Role::Node(accesskit::Role::Tab);
+    /// A row of tabs.
+    pub const TAB_LIST: Role = Role::Node(accesskit::Role::TabList);
+    /// The panel a tab shows.
+    pub const TAB_PANEL: Role = Role::Node(accesskit::Role::TabPanel);
+    /// A menu.
+    pub const MENU: Role = Role::Node(accesskit::Role::Menu);
+    /// A menu bar.
+    pub const MENU_BAR: Role = Role::Node(accesskit::Role::MenuBar);
+    /// A menu item.
+    pub const MENU_ITEM: Role = Role::Node(accesskit::Role::MenuItem);
+    /// A menu item with a check mark.
+    pub const MENU_ITEM_CHECK_BOX: Role = Role::Node(accesskit::Role::MenuItemCheckBox);
+    /// A menu item that is one of a group.
+    pub const MENU_ITEM_RADIO: Role = Role::Node(accesskit::Role::MenuItemRadio);
+    /// A single-line text input.
+    pub const TEXT_INPUT: Role = Role::Node(accesskit::Role::TextInput);
+    /// A multi-line text input.
+    pub const MULTILINE_TEXT_INPUT: Role = Role::Node(accesskit::Role::MultilineTextInput);
+    /// Static text.
+    pub const LABEL: Role = Role::Node(accesskit::Role::Label);
+    /// A heading.
+    pub const HEADING: Role = Role::Node(accesskit::Role::Heading);
+    /// A dialog.
+    pub const DIALOG: Role = Role::Node(accesskit::Role::Dialog);
+    /// A combo box.
+    pub const COMBO_BOX: Role = Role::Node(accesskit::Role::ComboBox);
+    /// A tree.
+    pub const TREE: Role = Role::Node(accesskit::Role::Tree);
+    /// A tree item.
+    pub const TREE_ITEM: Role = Role::Node(accesskit::Role::TreeItem);
+    /// A table.
+    pub const TABLE: Role = Role::Node(accesskit::Role::Table);
+    /// A table row.
+    pub const ROW: Role = Role::Node(accesskit::Role::Row);
+    /// A table cell.
+    pub const CELL: Role = Role::Node(accesskit::Role::Cell);
+    /// A column header.
+    pub const COLUMN_HEADER: Role = Role::Node(accesskit::Role::ColumnHeader);
+    /// An image.
+    pub const IMAGE: Role = Role::Node(accesskit::Role::Image);
+    /// A tooltip.
+    pub const TOOLTIP: Role = Role::Node(accesskit::Role::Tooltip);
+    /// A status message.
+    pub const STATUS: Role = Role::Node(accesskit::Role::Status);
+    /// An alert.
+    pub const ALERT: Role = Role::Node(accesskit::Role::Alert);
+    /// A toolbar.
+    pub const TOOLBAR: Role = Role::Node(accesskit::Role::Toolbar);
+}

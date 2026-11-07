@@ -1,7 +1,7 @@
 //! A fixed-rate frame driver over a context.
 
+use crate::runtime::egui::access::AccessTree;
 use crate::runtime::egui::{areas, fixture};
-use crate::testing::access::AccessTree;
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use crate::runtime::{InstallSpec, install};
@@ -17,7 +17,7 @@ pub struct Frames {
     time: f64,
     root: RootEnv,
     cursor: egui::CursorIcon,
-    tree: Option<accesskit::TreeUpdate>,
+    tree: Option<AccessTree>,
 }
 
 impl Default for Frames {
@@ -96,7 +96,7 @@ impl Frames {
 
     /// The AccessKit tree the last frame produced.
     pub fn tree(&mut self) -> AccessTree {
-        AccessTree::new(self.tree.take().unwrap_or_else(AccessTree::no_frame))
+        self.tree.take().unwrap_or_else(AccessTree::none)
     }
 
     /// The system cursor the last frame's output asked for.

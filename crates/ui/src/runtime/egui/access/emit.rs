@@ -1,9 +1,8 @@
 //! Step 16's fill of the nodes step 8 created, and of the sub-nodes below them (12.2).
 
+use super::NodeRole;
 use super::rules::{RoleFacts, role_violations};
-use super::{Access, Name, Numeric, Role, SetPosition, SubNode, scope};
-use crate::primitives::FaceRecord;
-use crate::runtime::egui::access as adapter;
+use crate::runtime::access::{Access, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, scope};
 use crate::runtime::env::Label;
 use crate::runtime::inspect::{self, Finding};
 use crate::runtime::{keys, memory::sub};
@@ -16,7 +15,7 @@ use egui::{Context, Id, Rect};
 pub(crate) struct Own<'a> {
     pub id: Id,
     pub component: &'static str,
-    pub role: accesskit::Role,
+    pub role: NodeRole,
     pub rect: Rect,
     pub label: &'a str,
     pub tooltip: Option<&'a str>,
@@ -49,11 +48,18 @@ pub(crate) struct SubDecl<'a> {
     pub clickable: bool,
     /// The part is the component's active part: AccessKit focus goes to it.
     pub active: bool,
-    pub face: Option<&'a FaceRecord>,
+    pub face: Option<FaceFacts<'a>>,
     /// The component's label, the name of a sub-node with `Name::FromLabel` and no face.
     pub label: &'a str,
     /// The node the sub-node attaches to.
     pub parent: Id,
+}
+
+/// What the face painted for a part adds to the part's sub-node.
+pub(crate) struct FaceFacts<'a> {
+    pub name: &'a str,
+    pub flags: Flags,
+    pub numeric: Option<&'a Numeric>,
 }
 
 /// The id of the sub-node of `part` below the component `id`.
@@ -92,21 +98,26 @@ fn ids(ids: &[Id]) -> Vec<accesskit::NodeId> {
     ids.iter().map(|id| id.accesskit_id()).collect()
 }
 
-const CHECKABLE: &[accesskit::Role] =
-    &[accesskit::Role::CheckBox, accesskit::Role::Switch, accesskit::Role::RadioButton, accesskit::Role::MenuItemCheckBox, accesskit::Role::MenuItemRadio];
-const SELECTABLE: &[accesskit::Role] =
-    &[accesskit::Role::Tab, accesskit::Role::ListItem, accesskit::Role::ListBoxOption, accesskit::Role::TreeItem, accesskit::Role::Row, accesskit::Role::Cell];
+const CHECKABLE: &[accesskit::Role] = &[
+    accesskit::Role::CheckBox,
+    accesskit::Role::Switch,
+    accesskit::Role::RadioButton,
+    accesskit::Role::MenuItemCheckBox,
+    accesskit::Role::MenuItemRadio,
+];
+const SELECTABLE: &[accesskit::Role] = &[
+    accesskit::Role::Tab,
+    accesskit::Role::ListItem,
+    accesskit::Role::ListBoxOption,
+    accesskit::Role::TreeItem,
+    accesskit::Role::Row,
+    accesskit::Role::Cell,
+];
 const EXPANDABLE: &[accesskit::Role] = &[accesskit::Role::ComboBox, accesskit::Role::TreeItem];
 
 /// The expanded state of a node: an explicit value, else `OPEN` or `EXPANDED` as shown this pass.
 fn expanded_of(role: accesskit::Role, flags: Flags, explicit: Option<bool>) -> Option<bool> {
-    explicit.or_else(|| {
-        if flags.intersects(Flags::OPEN | Flags::EXPANDED) {
-            Some(true)
-        } else {
-            EXPANDABLE.contains(&role).then_some(false)
-        }
-    })
+    explicit.or_else(|| if flags.intersects(Flags::OPEN | Flags::EXPANDED) { Some(true) } else { EXPANDABLE.contains(&role).then_some(false) })
 }
 
 /// The state flags of a node.
@@ -164,7 +175,9 @@ fn custom_actions(node: &mut accesskit::Node, actions: &[(i32, Label)]) {
         return;
     }
     node.add_action(Action::CustomAction);
-    node.set_custom_actions(actions.iter().map(|(id, label)| accesskit::CustomAction { id: *id, description: label.as_str().to_owned() }).collect::<Vec<_>>());
+    node.set_custom_actions(
+        actions.iter().map(|(id, label)| accesskit::CustomAction { id: *id, description: label.as_str().to_owned() }).collect::<Vec<_>>(),
+    );
 }
 
 fn report_violations(ctx: &Context, component: &'static str, facts: &RoleFacts<'_>) {
@@ -180,16 +193,19 @@ fn report_violations(ctx: &Context, component: &'static str, facts: &RoleFacts<'
 pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
     let access = own.access;
     let name = named(&access.name, own.label, &[own.tooltip, own.elided]);
-    let description = access.description.as_deref().or(own.description).or(own.hint).or_else(|| {
-        own.tooltip.filter(|tip| own.display || name.text.as_deref() != Some(*tip))
-    });
+    let description = access
+        .description
+        .as_deref()
+        .or(own.description)
+        .or(own.hint)
+        .or_else(|| own.tooltip.filter(|tip| own.display || name.text.as_deref() != Some(*tip)));
     let shortcut = access.shortcut.as_deref().or(own.shortcut);
     let expanded = expanded_of(own.role, own.flags, access.expanded);
     let mut relations = access.relations.clone();
     relations.labelled_by.extend(name.labelled_by.iter().copied());
     let numeric = access.numeric.as_ref();
     let declared_value = numeric.is_some() || matches!(own.role, accesskit::Role::TextInput | accesskit::Role::MultilineTextInput);
-    adapter::with_node(ctx, own.id, |node| {
+    ctx.accesskit_node_builder(own.id, |node| {
         node.set_role(own.role);
         node.set_bounds(bounds(own.rect));
         if name.hidden {
@@ -215,7 +231,13 @@ pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
             node.add_action(if expanded { Action::Collapse } else { Action::Expand });
         }
         if let Some(popup) = access.has_popup {
-            node.set_has_popup(popup);
+            node.set_has_popup(match popup {
+                PopupKind::Menu => accesskit::HasPopup::Menu,
+                PopupKind::Listbox => accesskit::HasPopup::Listbox,
+                PopupKind::Tree => accesskit::HasPopup::Tree,
+                PopupKind::Grid => accesskit::HasPopup::Grid,
+                PopupKind::Dialog => accesskit::HasPopup::Dialog,
+            });
         }
         write_position(node, access.position, access.level);
         if access.required {
@@ -244,8 +266,8 @@ pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
         }
         if let Some(politeness) = access.live {
             node.set_live(match politeness {
-                super::Politeness::Polite => accesskit::Live::Polite,
-                super::Politeness::Assertive => accesskit::Live::Assertive,
+                Politeness::Polite => accesskit::Live::Polite,
+                Politeness::Assertive => accesskit::Live::Assertive,
             });
         }
         if access.busy {
@@ -289,16 +311,16 @@ pub(crate) fn fill_sub(ctx: &Context, decl: &SubDecl<'_>) {
     let node = decl.node;
     let id = sub_node_id(decl.owner, node.part);
     let Role::Node(role) = node.role else { return };
-    let face_name = decl.face.map(|face| face.name.as_str());
+    let face_name = decl.face.as_ref().map(|face| face.name);
     let name = named(&node.name, face_name.unwrap_or(decl.label), &[]);
     if name.hidden {
         return;
     }
-    let flags = node.flags | decl.face.map_or(Flags::empty(), |face| face.flags);
-    let numeric = node.numeric.as_ref().or_else(|| decl.face.and_then(|face| face.numeric.as_ref()));
+    let flags = node.flags | decl.face.as_ref().map_or(Flags::empty(), |face| face.flags);
+    let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
     let expanded = expanded_of(role, flags, None);
-    adapter::register_parent(ctx, id, decl.parent);
-    adapter::with_node(ctx, id, |out| {
+    super::register_parent(ctx, id, decl.parent);
+    ctx.accesskit_node_builder(id, |out| {
         out.set_role(role);
         out.set_bounds(bounds(decl.rect));
         if let Some(text) = &name.text {
@@ -345,6 +367,6 @@ pub(crate) fn fill_sub(ctx: &Context, decl: &SubDecl<'_>) {
     );
     keys::register_node(ctx, id, decl.owner, Some(node.part), decl.focusable);
     if decl.active {
-        adapter::set_focus(ctx, id);
+        ctx.set_accesskit_focus(id);
     }
 }

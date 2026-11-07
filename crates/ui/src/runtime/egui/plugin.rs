@@ -1,7 +1,7 @@
 //! The plugin impl, its registration and hook order, and the plugin lock.
 
-use crate::runtime::frame;
 use crate::runtime::egui::access;
+use crate::runtime::frame;
 use egui::{Context, FullOutput, Plugin, RawInput, Ui};
 
 /// The runtime's plugin. egui holds a plugin's mutex while it calls a hook, so the struct holds no state:

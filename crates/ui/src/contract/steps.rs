@@ -5,8 +5,9 @@ use super::cx::{CxCore, Decls, MeasureCx, PartExtras};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
-use crate::runtime::access::{self, Access, Own, Role, SubDecl, SubNode, scope};
+use crate::runtime::access::{Access, Role, SubNode, scope};
 use crate::runtime::commands::ResolvedCommand;
+use crate::runtime::egui::access::{self as adapter, FaceFacts, Own, SubDecl};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
@@ -684,9 +685,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         keeps_name: resolved.keeps_name,
         access: &access,
     };
-    access::fill_own(ctx, &own);
+    adapter::fill_own(ctx, &own);
     if core.member_of.is_some() && flags.contains(Flags::FOCUSED) {
-        crate::runtime::egui::access::set_focus(ctx, id);
+        adapter::set_focus(ctx, id);
     }
     let mut seen = Vec::new();
     for node in &access.nodes {
@@ -713,11 +714,11 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         focusable: core.resolved.enabled && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
         active: core.active == Some(node.part),
-        face,
+        face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref() }),
         label: core.resolved.label,
-        parent: node.under.map_or(core.id, |under| access::sub_node_id(core.id, under)),
+        parent: node.under.map_or(core.id, |under| adapter::sub_node_id(core.id, under)),
     };
-    access::fill_sub(&core.ctx, &decl);
+    adapter::fill_sub(&core.ctx, &decl);
 }
 
 /// A node of a component whose size failed the guard: the role and the label, nothing else.
@@ -725,7 +726,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
     let Role::Node(role) = C::ROLE else { return };
     let core = &cx.core;
     let access = Access::default();
-    access::fill_own(
+    adapter::fill_own(
         &core.ctx,
         &Own {
             id: core.id,

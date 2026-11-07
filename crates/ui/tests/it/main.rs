@@ -1,5 +1,6 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
+mod access;
 mod callsites;
 mod contract;
 mod egui_surface;

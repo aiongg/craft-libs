@@ -2,21 +2,19 @@
 //!
 //! This module is the only one that calls egui's AccessKit APIs, through `runtime::egui::access`.
 
-mod emit;
 mod live;
-mod rules;
 pub(crate) mod scope;
 
+use crate::runtime::egui::access::NodeRole;
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
 use craft_theme::{Flags, Tone};
 use egui::Id;
 use std::ops::RangeInclusive;
 
-pub(crate) use emit::{Own, SubDecl, fill_own, fill_sub, sub_node_id};
 pub use live::announce;
-pub use scope::FieldLabel;
 pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
+pub use scope::FieldLabel;
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -27,100 +25,7 @@ pub enum Role {
     /// The node merges into its container's node.
     Merged,
     /// A node of this AccessKit role.
-    Node(accesskit::Role),
-}
-
-macro_rules! roles {
-    ($($(#[$doc:meta])* $name:ident = $role:ident;)*) => {
-        impl Role {
-            $($(#[$doc])* pub const $name: Role = Role::Node(accesskit::Role::$role);)*
-        }
-    };
-}
-
-roles! {
-    /// A button.
-    BUTTON = Button;
-    /// A check box.
-    CHECK_BOX = CheckBox;
-    /// A radio button.
-    RADIO_BUTTON = RadioButton;
-    /// A switch.
-    SWITCH = Switch;
-    /// A link.
-    LINK = Link;
-    /// A grouping of controls.
-    GROUP = Group;
-    /// A radio group.
-    RADIO_GROUP = RadioGroup;
-    /// A list.
-    LIST = List;
-    /// A list item.
-    LIST_ITEM = ListItem;
-    /// A list box.
-    LIST_BOX = ListBox;
-    /// An option of a list box.
-    LIST_BOX_OPTION = ListBoxOption;
-    /// A slider.
-    SLIDER = Slider;
-    /// A spin button.
-    SPIN_BUTTON = SpinButton;
-    /// A progress bar.
-    PROGRESS_INDICATOR = ProgressIndicator;
-    /// A scroll bar.
-    SCROLL_BAR = ScrollBar;
-    /// A splitter between panes.
-    SPLITTER = Splitter;
-    /// A tab.
-    TAB = Tab;
-    /// A row of tabs.
-    TAB_LIST = TabList;
-    /// The panel a tab shows.
-    TAB_PANEL = TabPanel;
-    /// A menu.
-    MENU = Menu;
-    /// A menu bar.
-    MENU_BAR = MenuBar;
-    /// A menu item.
-    MENU_ITEM = MenuItem;
-    /// A menu item with a check mark.
-    MENU_ITEM_CHECK_BOX = MenuItemCheckBox;
-    /// A menu item that is one of a group.
-    MENU_ITEM_RADIO = MenuItemRadio;
-    /// A single-line text input.
-    TEXT_INPUT = TextInput;
-    /// A multi-line text input.
-    MULTILINE_TEXT_INPUT = MultilineTextInput;
-    /// Static text.
-    LABEL = Label;
-    /// A heading.
-    HEADING = Heading;
-    /// A dialog.
-    DIALOG = Dialog;
-    /// A combo box.
-    COMBO_BOX = ComboBox;
-    /// A tree.
-    TREE = Tree;
-    /// A tree item.
-    TREE_ITEM = TreeItem;
-    /// A table.
-    TABLE = Table;
-    /// A table row.
-    ROW = Row;
-    /// A table cell.
-    CELL = Cell;
-    /// A column header.
-    COLUMN_HEADER = ColumnHeader;
-    /// An image.
-    IMAGE = Image;
-    /// A tooltip.
-    TOOLTIP = Tooltip;
-    /// A status message.
-    STATUS = Status;
-    /// An alert.
-    ALERT = Alert;
-    /// A toolbar.
-    TOOLBAR = Toolbar;
+    Node(NodeRole),
 }
 
 impl Role {
@@ -232,6 +137,22 @@ pub enum Politeness {
     Assertive,
 }
 
+/// The kind of popup a component opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PopupKind {
+    /// A menu.
+    Menu,
+    /// A list box.
+    Listbox,
+    /// A tree.
+    Tree,
+    /// A grid.
+    Grid,
+    /// A dialog.
+    Dialog,
+}
+
 /// Nodes a node relates to, by id.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Relations {
@@ -253,7 +174,7 @@ pub struct Access {
     pub(crate) value: Option<String>,
     pub(crate) numeric: Option<Numeric>,
     pub(crate) expanded: Option<bool>,
-    pub(crate) has_popup: Option<accesskit::HasPopup>,
+    pub(crate) has_popup: Option<PopupKind>,
     pub(crate) level: Option<usize>,
     pub(crate) position: Option<SetPosition>,
     pub(crate) required: bool,
@@ -311,7 +232,7 @@ impl Access {
     }
 
     /// What kind of popup the component opens.
-    pub fn has_popup(&mut self, kind: accesskit::HasPopup) -> &mut Self {
+    pub fn has_popup(&mut self, kind: PopupKind) -> &mut Self {
         self.has_popup = Some(kind);
         self
     }

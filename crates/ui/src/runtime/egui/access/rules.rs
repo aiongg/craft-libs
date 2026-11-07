@@ -1,7 +1,7 @@
 //! `RoleRule`: the fields each AccessKit role requires (12.3). A violation is logged in debug builds and is a
 //! finding the conformance run fails on.
 
-use super::{Numeric, SetPosition};
+use crate::runtime::access::{Numeric, SetPosition};
 use accesskit::Role;
 
 /// What a node carries, as far as the rules read it.

@@ -95,7 +95,12 @@ impl Parse for Row {
                     input.parse::<Token![;]>()?;
                     return Ok(row);
                 }
-                _ => return Err(syn::Error::new(keyword.span(), "a row is `\"id\" = \"English\"`, or starts with `template`, `unit`, `count`, `array`, `context` or `plain`")),
+                _ => {
+                    return Err(syn::Error::new(
+                        keyword.span(),
+                        "a row is `\"id\" = \"English\"`, or starts with `template`, `unit`, `count`, `array`, `context` or `plain`",
+                    ));
+                }
             }
         }
         input.parse::<Token![=]>()?;
@@ -137,11 +142,7 @@ fn placeholders(text: &str) -> Result<Vec<&str>, &'static str> {
 }
 
 fn check_id(id: &LitStr) -> syn::Result<()> {
-    if valid_id(&id.value()) {
-        Ok(())
-    } else {
-        Err(syn::Error::new(id.span(), "a word id is `module.camelCase`"))
-    }
+    if valid_id(&id.value()) { Ok(()) } else { Err(syn::Error::new(id.span(), "a word id is `module.camelCase`")) }
 }
 
 fn check_text(text: &LitStr, needs_n: bool) -> syn::Result<()> {
@@ -209,7 +210,10 @@ fn expand(row: &Row) -> syn::Result<Expanded> {
             })
         }
         Kind::Count(other) => {
-            let (id, one) = (row.id.clone().unwrap_or_else(|| LitStr::new("", Span::call_site())), row.english.clone().unwrap_or_else(|| LitStr::new("", Span::call_site())));
+            let (id, one) = (
+                row.id.clone().unwrap_or_else(|| LitStr::new("", Span::call_site())),
+                row.english.clone().unwrap_or_else(|| LitStr::new("", Span::call_site())),
+            );
             check_text(&one, true)?;
             check_text(other, true)?;
             let counted = quote!(#env::Counted::new(#id, #one, #other));
@@ -235,7 +239,11 @@ fn expand(row: &Row) -> syn::Result<Expanded> {
                 .enumerate()
                 .map(|(at, (id, text))| {
                     let word = quote!(#env::Word::keyed(#id, #text));
-                    (quote!(#env::Label::Static(#text)), quote!(#env::Label::from_cow(words.get(#word))), quote!(.row(#word, self.#field[#at].as_str())))
+                    (
+                        quote!(#env::Label::Static(#text)),
+                        quote!(#env::Label::from_cow(words.get(#word))),
+                        quote!(.row(#word, self.#field[#at].as_str())),
+                    )
                 })
                 .multiunzip3();
             Ok(Expanded {

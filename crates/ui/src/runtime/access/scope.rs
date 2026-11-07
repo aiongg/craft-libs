@@ -82,83 +82,16 @@ pub(crate) struct Merged {
 /// Closes the scope of `container`, if it opened one, and patches the nodes registered in it. `merged` is the
 /// container's own facts, read by a merge scope.
 pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
-    let scope = Service::<Stack>::of(ctx).with(|stack| (stack.0.last().is_some_and(|scope| scope.container == container)).then(|| stack.0.pop()).flatten());
+    let scope =
+        Service::<Stack>::of(ctx).with(|stack| (stack.0.last().is_some_and(|scope| scope.container == container)).then(|| stack.0.pop()).flatten());
     let Some(scope) = scope else { return };
     match scope.kind {
-        Kind::Label(label) => patch_label(ctx, scope.container, &label, &scope.nodes),
+        Kind::Label(label) => adapter::patch_label(ctx, scope.container, &label, &scope.nodes),
         Kind::Merge => {
             debug_assert_eq!(scope.nodes.len(), 1, "a merged container shows exactly one component");
             if let (Some(merged), Some((child, _))) = (merged, scope.nodes.first()) {
-                patch_merge(ctx, *child, &merged);
+                adapter::patch_merge(ctx, *child, &merged);
             }
         }
     }
-}
-
-fn patch_label(ctx: &Context, container: Id, label: &FieldLabel, nodes: &[(Id, bool)]) {
-    if nodes.is_empty() {
-        return;
-    }
-    adapter::with_node(ctx, label.id, |node| {
-        if node.role() == accesskit::Role::Unknown {
-            node.set_role(accesskit::Role::Label);
-        }
-        if node.label().is_none() {
-            node.set_label(label.text.clone());
-        }
-    });
-    let target = label.id.accesskit_id();
-    match nodes {
-        [(control, keeps_name)] => {
-            adapter::with_node(ctx, *control, |node| {
-                if *keeps_name {
-                    let mut described = node.described_by().to_vec();
-                    described.push(target);
-                    node.set_described_by(described);
-                } else {
-                    node.clear_label();
-                    node.set_labelled_by(vec![target]);
-                }
-            });
-        }
-        _ => {
-            adapter::with_node(ctx, container, |node| node.set_labelled_by(vec![target]));
-        }
-    }
-}
-
-fn patch_merge(ctx: &Context, child: Id, merged: &Merged) {
-    adapter::with_node(ctx, child, |node| {
-        if !merged.name.is_empty() {
-            let own = node.label().map(str::to_owned);
-            node.set_label(match own {
-                Some(own) if !own.is_empty() => format!("{own}, {}", merged.name),
-                _ => merged.name.clone(),
-            });
-        }
-        if let Some(text) = &merged.description {
-            let own = node.description().map(str::to_owned);
-            node.set_description(match own {
-                Some(own) if !own.is_empty() => format!("{own}. {text}"),
-                _ => text.clone(),
-            });
-        }
-        if !merged.enabled {
-            node.set_disabled();
-        }
-        if merged.flags.contains(Flags::SELECTED) {
-            node.set_selected(true);
-        }
-        if merged.flags.contains(Flags::MIXED) {
-            node.set_toggled(accesskit::Toggled::Mixed);
-        } else if merged.flags.contains(Flags::CHECKED) {
-            node.set_toggled(accesskit::Toggled::True);
-        }
-        if merged.flags.contains(Flags::INVALID) {
-            node.set_invalid(accesskit::Invalid::True);
-        }
-        if merged.flags.contains(Flags::BUSY) {
-            node.set_busy();
-        }
-    });
 }
