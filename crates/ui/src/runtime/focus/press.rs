@@ -12,16 +12,23 @@ use egui::{Context, Id};
 /// What won a primary press at the begin hook.
 pub(crate) struct PressAt {
     winner: Option<Winner<Id>>,
+    /// The arena root the winner belongs to.
+    root: Option<Id>,
 }
 
 pub(crate) fn press_at(ctx: &Context) -> Option<PressAt> {
-    egui_focus::primary_press_origin(ctx).map(|pos| PressAt { winner: pointer::press_winner(ctx, pos) })
+    egui_focus::primary_press_origin(ctx).map(|pos| {
+        let (winner, root) = pointer::press_winner(ctx, pos, pointer::pass_pointer(ctx).press_targets).unzip();
+        PressAt { winner, root }
+    })
 }
 
 #[derive(Clone, Debug)]
 struct Plan {
     kind: PressFocus,
     owner: Option<Id>,
+    /// The arena root of the owner: the widget egui focus falls back to when the owner has no stop.
+    root: Option<Id>,
     part: Option<PartRef>,
     pane: Option<Id>,
     was_text: bool,
@@ -53,7 +60,7 @@ impl State {
         let was_text = text_stop.is_some() && kind.commits_draft();
         self.press.commit_now = text_stop.filter(|_| was_text);
         let pane = self.stop_of_focus().filter(|_| was_text).and_then(|rec| self.pane_of(&rec));
-        self.press.plan = Some(Plan { kind, owner, part, pane, was_text });
+        self.press.plan = Some(Plan { kind, owner, root: at.root, part, pane, was_text });
     }
 
     /// The press's focus move at the end hook; `focused` is egui's focus now.
@@ -78,7 +85,7 @@ impl State {
         let key: StopKey = (owner, plan.part);
         match self.find_stop(key).or_else(|| self.find_stop((owner, None))) {
             Some(stop) => self.focus_stop(stop),
-            None => vec![Act::Focus(owner, egui::EventFilter::default())],
+            None => vec![Act::Focus(plan.root.unwrap_or(owner), egui::EventFilter::default())],
         }
     }
 }

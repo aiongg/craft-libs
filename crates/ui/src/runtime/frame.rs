@@ -159,6 +159,11 @@ pub(crate) fn seed_hooked_passes(ctx: &Context) {
     store::with::<FrameState, _>(ctx, |state| state.root_passes_hooked = root_passes);
 }
 
+/// Whether a pass is between its begin and end hooks.
+pub(crate) fn in_pass(ctx: &Context) -> bool {
+    store::with::<FrameState, _>(ctx, |state| state.passes_open > 0)
+}
+
 /// Everything accumulated since the last call, across passes and discarded passes.
 pub fn take_output(ctx: &Context) -> FrameOutput {
     store::with::<FrameState, _>(ctx, |state| std::mem::take(&mut state.output))

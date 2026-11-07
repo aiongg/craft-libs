@@ -70,6 +70,31 @@ impl HitShape {
         }
     }
 
+    /// Whether `point` hits the shape grown to be at least `across` wide and high: the hit area of a part is never
+    /// smaller than the pointer's target size.
+    pub fn hit_across(&self, point: Pos2, across: f32) -> bool {
+        let reach = LINE_REACH.max(across / 2.0);
+        match self {
+            HitShape::Rect(rect) => {
+                let grow = Vec2::new((across - rect.width()).max(0.0), (across - rect.height()).max(0.0)) / 2.0;
+                rect.expand2(grow).contains(point)
+            }
+            HitShape::Circle { center, radius } => center.distance(point) <= radius.max(across / 2.0),
+            HitShape::Segment { a, b } => segment_distance(point, *a, *b) <= reach,
+            HitShape::Polyline { points, closed } => {
+                let closing = closed.then(|| points.first().zip(points.last())).flatten();
+                points.windows(2).any(|pair| segment_distance(point, pair[0], pair[1]) <= reach)
+                    || closing.is_some_and(|(first, last)| segment_distance(point, *last, *first) <= reach)
+            }
+            HitShape::Polygon(points) => {
+                let bounds = self.bounds();
+                let small = bounds.width() < across || bounds.height() < across;
+                inside_polygon(point, points)
+                    || (small && points.iter().zip(points.iter().cycle().skip(1)).any(|(a, b)| segment_distance(point, *a, *b) <= across / 2.0))
+            }
+        }
+    }
+
     /// Whether `point` hits the shape.
     pub fn hit(&self, point: Pos2) -> bool {
         match self {
@@ -177,12 +202,20 @@ pub struct Shape<O> {
     pub position: u32,
     /// The shape is in the body layer's space (a member of a transformed body), not the root's.
     pub local: bool,
+    /// The least size across the hit area has, in points.
+    pub min_across: f32,
 }
 
 impl<O> Shape<O> {
     /// A shape of `owner` at stack `position`.
     pub const fn new(shape: HitShape, sense: Sense, owner: O, part: Option<PartRef>, priority: HitPriority, position: u32) -> Self {
-        Shape { shape, sense, owner, part, priority, position, local: false }
+        Shape { shape, sense, owner, part, priority, position, local: false, min_across: 0.0 }
+    }
+
+    /// The hit area is at least `across` points wide and high.
+    pub const fn min_across(mut self, across: f32) -> Self {
+        self.min_across = across;
+        self
     }
 
     /// The shape lies in the body layer's space.
@@ -232,7 +265,7 @@ pub fn resolve_mapped<O: Copy>(shapes: &[Shape<O>], point: Pos2, what: ResolveFo
         .iter()
         .enumerate()
         .filter(|(_, shape)| what == ResolveFor::Hover || shape.sense.takes_press())
-        .filter(|(_, shape)| shape.shape.hit(at(shape)))
+        .filter(|(_, shape)| shape.shape.hit_across(at(shape), shape.min_across))
         .max_by(|(ia, a), (ib, b)| {
             (a.position, a.priority.level, a.priority.sub)
                 .cmp(&(b.position, b.priority.level, b.priority.sub))
@@ -302,6 +335,21 @@ mod tests {
         let to_local = |p: Pos2| pos2(p.x / 2.0, p.y / 2.0);
         assert!(resolve_mapped(std::slice::from_ref(&local), pos2(15.0, 15.0), ResolveFor::Press, to_local).is_some());
         assert!(resolve_mapped(&[local], pos2(25.0, 25.0), ResolveFor::Press, to_local).is_none());
+    }
+
+    #[test]
+    fn a_hit_area_is_at_least_the_target_across() {
+        let small = rect(0.0, 0.0, 10.0, 10.0);
+        assert!(!small.hit_across(pos2(-5.0, 5.0), 0.0));
+        assert!(small.hit_across(pos2(-5.0, 5.0), 20.0));
+        assert!(!small.hit_across(pos2(-11.0, 5.0), 20.0));
+        let large = rect(0.0, 0.0, 100.0, 100.0);
+        assert!(!large.hit_across(pos2(-5.0, 50.0), 20.0), "a shape already large enough does not grow");
+        assert!(HitShape::circle(pos2(0.0, 0.0), 2.0).hit_across(pos2(9.0, 0.0), 20.0));
+        let mut shapes = [shape(small.clone(), Sense::CLICK, 1, 0, HitLevel::Body, 0)];
+        assert!(resolve(&shapes, pos2(-5.0, 5.0), ResolveFor::Press).is_none());
+        shapes[0].min_across = 20.0;
+        assert!(resolve(&shapes, pos2(-5.0, 5.0), ResolveFor::Press).is_some());
     }
 
     #[test]

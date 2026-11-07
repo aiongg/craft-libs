@@ -86,10 +86,22 @@ struct Memory {
     requested: Option<(u64, PressCancel)>,
 }
 
+/// What one root registered on one layer: its shapes and its egui widgets.
+#[derive(Clone, Default)]
+struct RootRecord {
+    shapes: Vec<Shape<Id>>,
+    /// The root's egui widgets: the click and drag targets that stand for it.
+    widgets: Vec<Id>,
+    /// The root's widgets sense a click.
+    click: bool,
+}
+
+type LayerRecord = HashMap<Layer, HashMap<Id, RootRecord>>;
+
 #[derive(Default)]
 struct Shapes {
-    this: HashMap<Layer, Vec<Shape<Id>>>,
-    last: HashMap<Layer, Vec<Shape<Id>>>,
+    this: LayerRecord,
+    last: LayerRecord,
 }
 
 /// The begin hook (H5): converts the pass's pointer input.
@@ -116,14 +128,14 @@ pub(crate) fn begin(ctx: &Context, hit: HitSizes) {
         PointerEvent::Pressed { pos, time, clicks, .. } => Some(PressStart::new(*pos, PointerButton::Primary, *time, *clicks)),
         _ => None,
     });
-    let release = events.iter().any(|event| matches!(event, PointerEvent::Released { .. })).then_some(PointerButton::Primary);
+    let press = press.or_else(|| read.other_press.map(|(button, at)| PressStart::new(at, button, read.time, 1)));
     let (scroll, wheel_zoom) = (wheel.map_or(Vec2::ZERO, |(scroll, ..)| scroll), read.zoom);
     let frame = PointerFrame {
         pos: read.pos,
         delta: read.delta,
-        buttons: if read.primary_down { Buttons::PRIMARY } else { Buttons::empty() },
+        buttons: read.buttons,
         press,
-        release,
+        release: read.release,
         mods: read.mods,
         time: read.time,
         kind: read.kind,
@@ -191,19 +203,41 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
     requested.or_else(|| pass_pointer(ctx).focus_lost.then_some(PressCancel::FocusLost))
 }
 
-/// Writes `shapes` into the running pass's shape record under `layer`.
+/// Writes `shapes` of the arena rooted at `root` into the running pass's shape record under `layer`. Stack
+/// positions are per arena, so each root's shapes stay apart.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
-pub(crate) fn record_shapes(ctx: &Context, layer: Layer, shapes: impl IntoIterator<Item = Shape<Id>>) {
+pub(crate) fn record_shapes(ctx: &Context, layer: Layer, root: Id, shapes: impl IntoIterator<Item = Shape<Id>>) {
     let viewport = pass::current_viewport(ctx);
-    PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().extend(shapes));
+    PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().entry(root).or_default().shapes.extend(shapes));
 }
 
-/// The winner of a press at `at` among last pass's shapes on the topmost layer under it: what the focus
-/// service classifies the press by (8.3, H7). Shapes of transformed bodies lie on their own layers.
-pub(crate) fn press_winner(ctx: &Context, at: Pos2) -> Option<Winner<Id>> {
+/// Records the egui widgets that stand for the root at `root` (`click` when they sense a click).
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
+pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[Id], click: bool) {
+    let viewport = pass::current_viewport(ctx);
+    PerViewport::<Shapes>::with(ctx, viewport, |record| {
+        let entry = record.this.entry(layer).or_default().entry(root).or_default();
+        entry.widgets.extend_from_slice(widgets);
+        entry.click = click;
+    });
+}
+
+/// The winner of a press at `at` among last pass's shapes of the root egui hands the press to, on the topmost
+/// layer under it, with that root: what the focus service classifies the press by (8.3, H7). A press whose egui
+/// target is no root's widget has no winner. Shapes of transformed bodies lie on their own layers.
+pub(crate) fn press_winner(ctx: &Context, at: Pos2, targets: PressTargets) -> Option<(Winner<Id>, Id)> {
     let layer = areas::layer_at(ctx, at)?;
     let viewport = pass::current_viewport(ctx);
-    let shapes = PerViewport::<Shapes>::with(ctx, viewport, |record| record.last.get(&layer).cloned())?;
+    let (root, shapes) = PerViewport::<Shapes>::with(ctx, viewport, |record| {
+        let roots = || record.last.values().flat_map(|roots| roots.iter());
+        let root_of = |widget: Option<Id>, drag_only: bool| {
+            let widget = widget?;
+            roots().find(|(_, root)| root.widgets.contains(&widget) && (!drag_only || !root.click)).map(|(id, _)| *id)
+        };
+        let root = root_of(targets.click, false).or_else(|| root_of(targets.drag, true))?;
+        let shapes = record.last.get(&layer)?.get(&root)?.shapes.clone();
+        Some((root, shapes))
+    })?;
     let map = areas::layer_map(ctx, layer);
-    resolve(&shapes, map.map_or(at, |map| map.to_layer(at)), ResolveFor::Press)
+    resolve(&shapes, map.map_or(at, |map| map.to_layer(at)), ResolveFor::Press).map(|winner| (winner, root))
 }

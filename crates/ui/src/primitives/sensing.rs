@@ -200,31 +200,33 @@ fn rotate(state: &mut ArenaState, pass_nr: u64) {
 const OVER: u32 = u32::MAX;
 
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
-fn own_shapes(own: &[PartDecl], root: Id) -> Vec<Shape<Id>> {
+fn own_shapes(own: &[PartDecl], root: Id, target: f32) -> Vec<Shape<Id>> {
     own.iter()
-        .map(|part| Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, if part.over { OVER } else { 0 }))
+        .map(|part| {
+            Shape::new(part.shape.clone(), part.sense, root, Some(part.part_ref()), part.priority, if part.over { OVER } else { 0 })
+                .min_across(target)
+        })
         .collect()
 }
 
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
-fn member_shapes(member: &MemberDecl, position: u32) -> Vec<Shape<Id>> {
+fn member_shapes(member: &MemberDecl, position: u32, target: f32) -> Vec<Shape<Id>> {
     let local = member.local;
     let root =
         (!member.sense.is_empty()).then(|| Shape::new(member.rect.into(), member.sense, member.id, None, HitPriority::BODY, position).local(local));
-    let parts = member
-        .parts
-        .iter()
-        .map(|part| Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(local));
+    let parts = member.parts.iter().map(|part| {
+        Shape::new(part.shape.clone(), part.sense, member.id, Some(part.part_ref()), part.priority, position).local(local).min_across(target)
+    });
     root.into_iter().chain(parts).collect()
 }
 
 /// The shapes of last pass in resolution order: own parts, then members in show order.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
-fn candidates(state: &ArenaState) -> Vec<Shape<Id>> {
+fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
     let root = state.root.map_or(Id::NULL, |root| root.id);
-    let mut shapes = own_shapes(&state.previous_own, root);
+    let mut shapes = own_shapes(&state.previous_own, root, target);
     for (at, member) in state.previous.iter().enumerate() {
-        shapes.extend(member_shapes(member, 1 + at as u32));
+        shapes.extend(member_shapes(member, 1 + at as u32, target));
     }
     shapes
 }
@@ -234,10 +236,11 @@ fn candidates(state: &ArenaState) -> Vec<Shape<Id>> {
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: MemberDecl) -> bool {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
+    let target = pointer::frame(ctx).target;
     let (local, shapes) = with_arena(ctx, arena, pass_nr, |state| {
         rotate(state, pass_nr);
         decl.local = state.layer == Some(layer);
-        let shapes = member_shapes(&decl, 1 + state.members.len() as u32);
+        let shapes = member_shapes(&decl, 1 + state.members.len() as u32, target);
         state.union_sense |= decl.sense;
         for part in &decl.parts {
             state.union_sense |= part.sense;
@@ -246,7 +249,7 @@ pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: Member
         state.members.push(decl);
         (local, shapes)
     });
-    pointer::record_shapes(ctx, layer, shapes);
+    pointer::record_shapes(ctx, layer, arena.0, shapes);
     local
 }
 
@@ -307,16 +310,17 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
             widgets.push(id);
         }
     }
-    let mut shapes = own_shapes(spec.own, spec.id);
+    let mut shapes = own_shapes(spec.own, spec.id, pointer::frame(ctx).target);
     if !spec.own_sense.is_empty() {
         shapes.push(Shape::new(spec.rect.into(), spec.own_sense, spec.id, None, HitPriority::new(HitLevel::Background, 0), 0));
     }
     with_arena(ctx, arena, pass_nr, |state| {
         state.own = spec.own.to_vec();
         state.root = Some(RootInfo { id: spec.id, rect: spec.rect, own_sense: spec.own_sense });
-        state.widgets = widgets;
+        state.widgets = widgets.clone();
     });
-    pointer::record_shapes(ctx, layer, shapes);
+    pointer::record_shapes(ctx, layer, spec.id, shapes);
+    pointer::record_widgets(ctx, layer, spec.id, &widgets, sense.contains(Sense::CLICK));
     let mut response = response;
     let outcome = outcome(ctx, arena, layer, spec.enabled, sense);
     response::keep_press_flags(&mut response, outcome.target.is_some_and(|target| target.owner == spec.id));
@@ -386,8 +390,8 @@ fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>
 /// The resolve rule over last pass's shapes at `point`. A press inside the root rect that hits no shape goes to
 /// the root's own background when the root senses a press.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
-fn resolve_in(state: &ArenaState, xf: Option<LayerMap>, point: Pos2, kind: ResolveFor) -> Option<Hit> {
-    let shapes = candidates(state);
+fn resolve_in(state: &ArenaState, xf: Option<LayerMap>, point: Pos2, kind: ResolveFor, target: f32) -> Option<Hit> {
+    let shapes = candidates(state, target);
     let won = resolve_mapped(&shapes, point, kind, |p| xf.map_or(p, |map| map.to_layer(p)));
     won.map(|winner| Hit { owner: winner.owner, part: winner.part, sense: winner.sense, local: winner.local })
 }
@@ -417,14 +421,21 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
         let input = PassInput::new(&pass_pointer.events, frame.slop, pos, pass_pointer.primary_down).delta(frame.delta).cancel(cancel);
         let mut machine = std::mem::take(&mut state.machine);
         let step = machine.step(input, |at| {
-            // The press-target rule: a root starts a press only when egui's targets for it are this root's or none.
+            // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the
+            // root starts a press when that target is its own or there is none.
             let mine = |id: Option<Id>| id.is_none_or(|id| state.widgets.contains(&id));
             let targets = pass_pointer.press_targets;
-            let allowed = (!union_sense.contains(Sense::CLICK) || mine(targets.click)) && (!union_sense.contains(Sense::DRAG) || mine(targets.drag));
+            let allowed = if union_sense.contains(Sense::CLICK) {
+                mine(targets.click)
+            } else if union_sense.contains(Sense::DRAG) {
+                mine(targets.drag)
+            } else {
+                true
+            };
             if !enabled || !allowed {
                 return None;
             }
-            let hit = resolve_in(state, xf, at, ResolveFor::Press).or_else(|| {
+            let hit = resolve_in(state, xf, at, ResolveFor::Press, frame.target).or_else(|| {
                 (root.rect.contains(at) && root.own_sense.takes_press()).then_some(Hit {
                     owner: root.id,
                     part: None,
@@ -438,7 +449,7 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
         let open = machine.target();
         let dragging = step.dragging;
         state.machine = machine;
-        let under = pass_pointer.hover.filter(|_| hover_layer_ok).and_then(|at| resolve_in(state, xf, at, ResolveFor::Hover));
+        let under = pass_pointer.hover.filter(|_| hover_layer_ok).and_then(|at| resolve_in(state, xf, at, ResolveFor::Hover, frame.target));
         // While a press is open only its target hovers, and only while the pointer is over it or dragging.
         let hover = match open {
             Some(target) if dragging => Some(target),

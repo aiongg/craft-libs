@@ -2,18 +2,21 @@
 
 use emath::Vec2;
 
-/// The tolerance in points under which a measured size equals the one placement used.
-pub const MEASURE_TOLERANCE: f32 = 0.5;
+/// The tolerance in points under which a measured size equals the one placement used: half a physical pixel.
+pub fn measure_tolerance(pixels_per_point: f32) -> f32 {
+    0.5 / pixels_per_point
+}
 
 /// Whether a measured size asks for a discard pass. `recorded` is the size placement used this frame
 /// (`None` on a block's first appearance), `real` the size the block measured, `changed_last_frame` whether
-/// the block's size also changed in the previous frame. A first appearance, or a change after a settled
+/// the block's size also changed in the previous frame, `tolerance` the size under which two sizes are equal
+/// ([`measure_tolerance`]). A first appearance, or a change after a settled
 /// frame, asks for a discard pass. A change that follows a change is placed from last frame's value and
 /// asks for none, so a size that changes every frame runs one pass.
-pub fn measured_change_asks_for_discard(recorded: Option<Vec2>, real: Vec2, changed_last_frame: bool) -> bool {
+pub fn measured_change_asks_for_discard(recorded: Option<Vec2>, real: Vec2, changed_last_frame: bool, tolerance: f32) -> bool {
     match recorded {
         None => true,
-        Some(placed) => (placed - real).abs().max_elem() > MEASURE_TOLERANCE && !changed_last_frame,
+        Some(placed) => (placed - real).abs().max_elem() > tolerance && !changed_last_frame,
     }
 }
 
@@ -68,10 +71,19 @@ mod tests {
     #[test]
     fn only_a_first_appearance_or_a_change_after_a_settled_frame_asks() {
         let placed = Vec2::new(100.0, 20.0);
-        assert!(measured_change_asks_for_discard(None, placed, false));
-        assert!(measured_change_asks_for_discard(None, placed, true));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false));
-        assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false));
-        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true));
+        let tolerance = measure_tolerance(1.0);
+        assert!(measured_change_asks_for_discard(None, placed, false, tolerance));
+        assert!(measured_change_asks_for_discard(None, placed, true, tolerance));
+        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.4, 20.0), false, tolerance));
+        assert!(measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), false, tolerance));
+        assert!(!measured_change_asks_for_discard(Some(placed), Vec2::new(100.0, 21.0), true, tolerance));
+    }
+
+    #[test]
+    fn the_tolerance_is_half_a_physical_pixel() {
+        let placed = Vec2::new(100.0, 20.0);
+        let real = Vec2::new(100.3, 20.0);
+        assert!(!measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(1.0)));
+        assert!(measured_change_asks_for_discard(Some(placed), real, false, measure_tolerance(2.0)));
     }
 }

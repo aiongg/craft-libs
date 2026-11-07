@@ -408,20 +408,18 @@ struct Open<T> {
 #[derive(Clone, Copy, Debug)]
 pub struct PressMachine<T> {
     open: Option<Open<T>>,
-    /// The last press ended in a cancel: its later events belong to nobody.
-    dead: bool,
 }
 
 impl<T> Default for PressMachine<T> {
     fn default() -> Self {
-        PressMachine { open: None, dead: false }
+        PressMachine { open: None }
     }
 }
 
 impl<T: Copy> PressMachine<T> {
     /// A machine with no press.
     pub const fn new() -> Self {
-        PressMachine { open: None, dead: false }
+        PressMachine { open: None }
     }
 
     /// The target of the open press.
@@ -442,11 +440,10 @@ impl<T: Copy> PressMachine<T> {
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
         if let (Some(reason), Some(open)) = (input.cancel, self.open)
-            && open.dragging
+            && (open.dragging || matches!(reason, PressCancel::Disabled | PressCancel::Removed))
         {
             cancelled = Some((open.target, open.start, reason));
             self.open = None;
-            self.dead = true;
         }
         for event in input.events {
             match *event {
@@ -467,7 +464,6 @@ impl<T: Copy> PressMachine<T> {
                 }
                 PointerEvent::Pressed { pos: at, time, clicks } => {
                     pos = at;
-                    self.dead = false;
                     self.open = pick(at).map(|(target, sense)| Open {
                         target,
                         sense,
@@ -476,7 +472,6 @@ impl<T: Copy> PressMachine<T> {
                         abandoned: false,
                     });
                     drag_started = false;
-                    released = None;
                 }
                 PointerEvent::Released { pos: at } => {
                     pos = at;
@@ -580,6 +575,33 @@ mod tests {
         let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(PressCancel::Escape));
         let step = machine.step(held, |_| Some((1, Sense::CLICK | Sense::DRAG)));
         assert!(matches!(step.phase, Some(PressPhase::Down { .. })));
+    }
+
+    #[test]
+    fn disabled_or_removed_cancels_an_open_press_before_it_can_activate() {
+        for reason in [PressCancel::Disabled, PressCancel::Removed] {
+            let mut machine = PressMachine::new();
+            pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
+            let held = PassInput::new(&[], SLOP, pos2(0.0, 0.0), true).cancel(Some(reason));
+            let step = machine.step(held, |_| Some((1, Sense::CLICK)));
+            assert!(matches!(step.phase, Some(PressPhase::Cancel { reason: r, .. }) if r == reason));
+            let step = pass(&mut machine, &[PointerEvent::Released { pos: pos2(0.0, 0.0) }], Sense::CLICK);
+            assert_eq!(step, PressStep::default());
+        }
+    }
+
+    #[test]
+    fn a_release_and_a_new_press_in_one_pass_activate_the_first_click() {
+        let mut machine = PressMachine::new();
+        pass(&mut machine, &[press(0.0, 1.0)], Sense::CLICK);
+        let events = [PointerEvent::Released { pos: pos2(0.0, 0.0) }, press(0.0, 1.1)];
+        let step = pass(&mut machine, &events, Sense::CLICK);
+        assert_eq!(step.activated, Some(1));
+        assert!(step.phase.is_some_and(|phase| phase.is_click()));
+        let step = pass(&mut machine, &[], Sense::CLICK);
+        assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "the second press stays open");
+        let step = pass(&mut machine, &[PointerEvent::Released { pos: pos2(0.0, 0.0) }], Sense::CLICK);
+        assert_eq!(step.activated, Some(1));
     }
 
     #[test]

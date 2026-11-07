@@ -363,10 +363,12 @@ pub fn egui_click_target(ctx: &Context) -> Option<Id> {
     fixture::click_target(ctx)
 }
 
-/// How the focus service classifies a press at `at`, from last pass's shape record; `None` when no shape
-/// takes the press.
+/// How the focus service classifies a press at `at`, from last pass's shape record and egui's hit test at the
+/// latest pointer position, so the pointer must have moved to `at` in a frame before; `None` when no shape of the
+/// root egui hands the press to takes it.
 pub fn press_focus(ctx: &Context, at: Pos2) -> Option<PressFocus> {
-    pointer::press_winner(ctx, at).map(|winner| classify_press(Some(winner.sense)))
+    let (click, drag) = crate::runtime::egui::input::hit_targets(ctx);
+    pointer::press_winner(ctx, at, pointer::PressTargets { click, drag }).map(|(winner, _)| classify_press(Some(winner.sense)))
 }
 
 /// Shows an egui area of `size` over everything else, as a popup does.

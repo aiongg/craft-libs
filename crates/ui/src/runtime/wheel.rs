@@ -1,7 +1,8 @@
 //! The wheel service (8.6): takers register their view rects, the begin hook splits the pass's wheel input
 //! among them from last pass's registrations, and each taker reads its share once.
 
-use crate::runtime::egui::{focus, input, pass};
+use crate::runtime::egui::{input, pass};
+use crate::runtime::focus;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::pointer;
 use craft_behavior::wheel::split;
@@ -42,14 +43,22 @@ pub(crate) fn begin(ctx: &Context) {
     let pass_pointer = pointer::pass_pointer(ctx);
     let frame = pass_pointer.frame.clone();
     let wheel_in = input::wheel_read(ctx, pointer::WHEEL_LINE_POINTS, pointer::WHEEL_PAGE_POINTS);
-    let focused = focus::focused(ctx);
+    let focused = focus::focused_stop(ctx).map(|(owner, _)| owner);
     let hover = pass_pointer.hover.or(frame.as_ref().and_then(|frame| frame.pos));
-    let pressed_on = pass_pointer.events.iter().any(|event| matches!(event, PointerEvent::Pressed { .. })).then_some(pass_pointer.press_targets);
+    let pressed_on = pass_pointer
+        .events
+        .iter()
+        .rev()
+        .find_map(|event| match event {
+            PointerEvent::Pressed { pos, .. } => Some(*pos),
+            _ => None,
+        })
+        .map(|at| pointer::press_winner(ctx, at, pass_pointer.press_targets).map(|(winner, _)| winner.owner));
     PerViewport::<State>::with(ctx, viewport, |state| {
         state.last = std::mem::take(&mut state.this);
         state.shares.clear();
-        if let Some(targets) = pressed_on {
-            state.armed = targets.click.or(targets.drag).filter(|id| state.last.iter().any(|taker| taker.gated && taker.owner == *id));
+        if let Some(winner) = pressed_on {
+            state.armed = winner.filter(|id| state.last.iter().any(|taker| taker.gated && taker.owner == *id));
         }
         if let Some(armed) = state.armed {
             let inside = state

@@ -20,7 +20,9 @@ pub fn egui_focused(ctx: &Context) -> Option<Id> {
 /// component's sensing core does; the next pass's presses resolve over it.
 pub fn press_shape(ui: &Ui, rect: Rect, sense: Sense, owner: Id) {
     let shape = Shape::new(rect.into(), sense, owner, None, HitPriority::new(HitLevel::Background, 0), 0);
-    pointer::record_shapes(ui.ctx(), fixture::layer_of(ui), [shape]);
+    let layer = fixture::layer_of(ui);
+    pointer::record_shapes(ui.ctx(), layer, owner, [shape]);
+    pointer::record_widgets(ui.ctx(), layer, owner, &[owner], sense.contains(Sense::CLICK));
 }
 
 /// A primary button press or release at `pos`.

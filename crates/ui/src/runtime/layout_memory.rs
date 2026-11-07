@@ -2,7 +2,7 @@
 
 use crate::runtime::egui::{pass, sizing};
 use crate::runtime::frame::{self, PerViewport};
-use craft_behavior::layout_memory::{SizeTween, measured_change_asks_for_discard};
+use craft_behavior::layout_memory::{SizeTween, measure_tolerance, measured_change_asks_for_discard};
 use egui::{Context, Id, Vec2};
 use std::collections::HashMap;
 
@@ -86,6 +86,7 @@ pub(crate) fn peek(ctx: &Context, id: Id) -> Option<Vec2> {
 /// rule: this pass placed with the old value, and the size did not also change in the previous frame.
 pub(crate) fn record(ctx: &Context, id: Id, real: Vec2) {
     let moment = Moment::of(ctx);
+    let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
     with(ctx, &moment, |memory| {
         let entry = memory.entries.entry(id).or_default();
         entry.touched = moment.frame;
@@ -93,12 +94,12 @@ pub(crate) fn record(ctx: &Context, id: Id, real: Vec2) {
         let changed_last_frame = entry.changed.is_some_and(|frame| frame + 1 == moment.frame);
         let previous = entry.value.map(|value| value.at(moment.now));
         if let Some(recorded) = placed
-            && measured_change_asks_for_discard(recorded, real, changed_last_frame)
+            && measured_change_asks_for_discard(recorded, real, changed_last_frame, tolerance)
         {
             memory.ask = true;
         }
         let entry = memory.entries.entry(id).or_default();
-        let differs = previous.is_none_or(|old| (old - real).abs().max_elem() > craft_behavior::layout_memory::MEASURE_TOLERANCE);
+        let differs = previous.is_none_or(|old| (old - real).abs().max_elem() > tolerance);
         if differs {
             entry.changed = Some(moment.frame);
         }

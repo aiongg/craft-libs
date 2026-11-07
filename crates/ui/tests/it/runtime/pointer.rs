@@ -413,7 +413,10 @@ fn the_shape_record_classifies_presses_by_the_winning_shape() {
     let (mut show_frame, _log) = scene(vec![canvas]);
     let mut frames = Frames::new();
     settle(&mut frames, &mut show_frame);
-    let at = |x: f32, y: f32| press_focus(&frames.ctx, Pos2::new(x, y));
+    let mut at = |x: f32, y: f32| {
+        frames.frame(vec![pointer::moved(Pos2::new(x, y))], &mut show_frame);
+        press_focus(&frames.ctx, Pos2::new(x, y))
+    };
     assert_eq!(at(300.0, 300.0), Some(PressFocus::Take), "the tool's background takes focus");
     assert_eq!(at(150.0, 150.0), Some(PressFocus::Keep), "a keep-focus member keeps it");
     assert_eq!(at(230.0, 150.0), Some(PressFocus::Release), "another control acts without moving it");
