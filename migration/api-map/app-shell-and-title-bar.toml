@@ -83,14 +83,14 @@ note = "`craft_ui::contract::PaneEdge` (`Center`, `Start`, `End`, `Top`, `Bottom
 # old = ""
 # new = ""
 
-# Window edge zones, the drag strip and the caption record (contract-window-parts).
+# Window edge zones, the drag strip and the caption record (winhost cleanup).
 
 [[type]]
 name = "CaptionRegions"
 old = "craft_ui::title_bar::CaptionRegions"
-new = ""
+new = "craft_ui::shell::CaptionRegions"
 status = "replaced"
-note = "A trait with `button`, `drag` and `native_hit_test` methods becomes the record `craft_ui::shell::CaptionRegions`: a bar builds it with `CaptionRegions::new(drag).caption(caption, rect)` and calls `publish(ui, viewport)` every pass; `WindowHost::caption_regions(viewport)` reads it."
+note = "A trait with `button`, `drag` and `native_hit_test` methods becomes the record `CaptionRegions { buttons, edges, moves }` that `WindowHost::caption_regions(viewport)` derives from the window's exclusive parts: a bar tags its parts with `PartBuilder::exclusive(WindowHit::Caption(button))` or `WindowHit::Move`, and publishes nothing."
 
 [[type]]
 name = "Caption"
@@ -103,7 +103,7 @@ name = "resize_zones_only"
 old = "craft_ui::title_bar::resize_zones_only"
 new = ""
 status = "replaced"
-note = "`WindowEdges::new(viewport).holes(&holes).show(ui)`; `native_hit_test` is the field of the published `CaptionRegions`, and the zones leave out a maximized or full-screen window themselves."
+note = "The edge zones are the body step's resize grips of a container in an OS window; there is no separate call."
 
 [[type]]
 name = "release_after_os_resize"

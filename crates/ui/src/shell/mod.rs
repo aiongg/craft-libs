@@ -1,18 +1,14 @@
-//! `AppShell` and its presets, `TitleBar`, captions, window zones, `ToastHost` and `app::run`.
+//! `AppShell` and its presets, `TitleBar`, captions, `ToastHost` and `app::run`.
 
 #[cfg(feature = "app")]
 pub mod app;
 pub mod title_bar;
 mod words;
 
-// The window parts: edge zones, the drag strip and the caption record.
+// The caption record: the exclusive window parts a title bar registers.
 mod captions;
-mod drag;
-mod edges;
 
-pub use captions::{Caption, CaptionHit, CaptionRegions};
-pub use drag::{WindowDrag, WindowDragOutput, WindowDragStyle};
-pub use edges::{WindowEdges, WindowEdgesOutput, WindowEdgesStyle};
+pub use captions::{Caption, CaptionRegions, WindowHit};
 
 // Shell interface: slots, regions and the shell's context.
 mod cx;

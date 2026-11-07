@@ -15,7 +15,6 @@ use crate::runtime::memory::{SaveKey, sub};
 use crate::runtime::motion::{self, Presence};
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
 use crate::runtime::windows::{self, ViewportOpen, WindowHost, WindowSpec};
-use craft_host::target::WindowKind;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host a mount chose, and whether it shows the container fading out.
@@ -234,10 +233,21 @@ impl Host for ViewportHost {
         let mut window_rules = self.overlay.clone();
         window_rules.dismiss.outside = Outside::Keep;
         let title = env.view().resolve(&self.title);
-        // Without a spec, a modal fallback is a dialog window and anything else a tool window.
-        let by_rank = || WindowSpec::dialog().kind(if self.overlay.rank.is_modal() { WindowKind::Dialog } else { WindowKind::Tool });
+        // Without a spec, a modal fallback is a dialog window and anything else a tool window. The size limits,
+        // the position and the resizability are the fallback overlay's, whichever form the container takes.
+        let by_rank = || if self.overlay.rank.is_modal() { WindowSpec::dialog() } else { WindowSpec::tool() };
         let spec = self.spec.clone().unwrap_or_else(by_rank);
-        let open = ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), spec: &spec };
+        let placed = self.overlay.placed;
+        let open = ViewportOpen {
+            id,
+            title: title.as_str(),
+            size: layout_memory::read(&ctx, id).or(placed.map(|rect| rect.size())),
+            save: self.save.as_deref(),
+            spec: &spec,
+            limits: (self.overlay.min_size, self.overlay.max_size),
+            position: placed.map(|rect| rect.min),
+            resizable: self.overlay.resize.grips,
+        };
         let dismissed = &mut self.dismissed;
         windows::show_viewport(&ctx, &open, |ui| {
             // The container's scope on the child viewport's own root: its scale, active state and window facts.
