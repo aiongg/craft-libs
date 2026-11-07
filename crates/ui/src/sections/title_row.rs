@@ -12,7 +12,7 @@ use crate::controls::disclosure::Disclosure;
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
-use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
+use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, PointerButton, PressPhase, Roving, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
 use std::borrow::Cow;
@@ -57,6 +57,9 @@ pub struct TitleOutput {
     /// The rect of the `HeaderAction::Menu` action part, in the row's layer space, for a container that hangs its
     /// menu under the button. `None` when the row has no menu action.
     pub menu_rect: Option<Rect>,
+    /// A primary double click landed on the row outside its lead and action parts this pass. A row that is a
+    /// reorder `handle` leaves its title band to the container's drag and never reports one.
+    pub double_clicked: bool,
 }
 
 impl Outcome for TitleOutput {
@@ -129,6 +132,7 @@ pub struct TitleRow<'a> {
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
+    double_clicked: bool,
     menu_rect: Option<Rect>,
     placed: Option<Placed>,
 }
@@ -157,6 +161,7 @@ impl<'a> TitleRow<'a> {
             lead: Lead::None,
             actions: Vec::new(),
             taken: None,
+            double_clicked: false,
             menu_rect: None,
             placed: None,
         }
@@ -296,8 +301,10 @@ impl Component for TitleRow<'_> {
         let tooltip = cx.resolved.label.to_owned();
         let part = if matches!(self.lead, Lead::Disclosure(_)) {
             cx.part(TITLE, band).sense(Sense::CLICK).keyboard_via(LEAD)
-        } else {
+        } else if self.handle {
             cx.part(TITLE, band).sense(Sense::HOVER)
+        } else {
+            cx.part(TITLE, band).sense(Sense::CLICK)
         };
         let part = if self.handle { part.cursor(CursorIcon::Grab).drag_cursor(CursorIcon::Grabbing) } else { part };
         if elided {
@@ -319,6 +326,10 @@ impl Component for TitleRow<'_> {
             let now = cx.value().copied().unwrap_or(false);
             cx.set(!now);
         }
+        self.double_clicked = matches!(
+            cx.part(TITLE).press.phase,
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary && start.clicks >= 2
+        );
         for (at, action) in self.actions.iter().enumerate() {
             if cx.part_activated(ACTION.at(at as u64)).is_some() {
                 self.taken = Some(*action);
@@ -372,7 +383,7 @@ impl Component for TitleRow<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TitleOutput {
-        TitleOutput { edit: cx.edit_response(), action: self.taken, menu_rect: self.menu_rect }
+        TitleOutput { edit: cx.edit_response(), action: self.taken, menu_rect: self.menu_rect, double_clicked: self.double_clicked }
     }
 }
 

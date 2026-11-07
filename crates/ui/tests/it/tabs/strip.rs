@@ -1,7 +1,8 @@
 //! `TabStrip`: which tabs fit, and that a click on a tab reports it selected.
 
 use craft_behavior::{DisplayOrder, ItemSource, SelectionChange};
-use craft_ui::contract::{CollectionEvent, ShowCollection as _};
+use craft_ui::contract::{CollectionEvent, ListDrag, ShowCollection as _};
+use craft_ui::runtime::drag;
 use craft_ui::tabs::{Tab, TabStrip};
 use craft_ui::testing::{Fixture, trial};
 use egui::Vec2;
@@ -81,4 +82,33 @@ fn the_tabs_that_do_not_fit_have_no_node_and_the_overflow_menu_lists_them() {
     for title in hidden {
         assert!(fixture.by_label(title).is_some(), "the overflow menu lists {title}");
     }
+}
+
+/// What the strip's drag carries: the grabbed tab.
+struct Grabbed(usize);
+
+/// A tab drag carries the mapped payload, and a tab the map gives `None` for does not drag.
+#[trial]
+fn a_tab_drag_carries_the_mapped_payload_and_a_tab_mapped_to_none_does_not_drag() {
+    let carried = Rc::new(RefCell::new(Vec::new()));
+    let seen = carried.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        TabStrip::new("Documents").shown(0).drag_payload(|drag: &ListDrag<usize>| (drag.grabbed != 2).then_some(Grabbed(drag.grabbed))).show_items(
+            ui,
+            &Titles,
+            &mut |key, _| Tab::new(TITLES[*key]),
+        );
+        if let Some(payload) = drag::active::<Grabbed>(ui.ctx()) {
+            seen.borrow_mut().push(payload.0);
+        }
+    });
+    fixture.room(WIDE);
+    fixture.settle();
+    let tab = fixture.by_label("Photo.psd").expect("the tab is named");
+    fixture.drag(&tab, Vec2::new(30.0, 40.0));
+    assert!(carried.borrow().iter().all(|&held| held == 1) && !carried.borrow().is_empty(), "the drag carries tab 1: {:?}", carried.borrow());
+    carried.borrow_mut().clear();
+    let other = fixture.by_label("Poster final.psd").expect("the tab is named");
+    fixture.drag(&other, Vec2::new(30.0, 40.0));
+    assert!(carried.borrow().is_empty(), "a tab mapped to None carries nothing");
 }

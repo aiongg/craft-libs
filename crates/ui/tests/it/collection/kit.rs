@@ -215,7 +215,14 @@ impl<'a> List<'a> {
 
     /// A row drag also carries the dragged row's key as a `RowKey`.
     pub fn row_key_payload(mut self) -> Self {
-        self.items = self.items.drag_payload(|drag: &craft_ui::contract::ListDrag<usize>| RowKey(drag.grabbed));
+        self.items = self.items.drag_payload(|drag: &craft_ui::contract::ListDrag<usize>| Some(RowKey(drag.grabbed)));
+        self
+    }
+
+    /// A row drag carries the dragged row's key as a `RowKey`, except the row `skip`, which carries none.
+    pub fn row_key_payload_except(mut self, skip: usize) -> Self {
+        self.items =
+            self.items.drag_payload(move |drag: &craft_ui::contract::ListDrag<usize>| (drag.grabbed != skip).then_some(RowKey(drag.grabbed)));
         self
     }
 
