@@ -10,8 +10,6 @@ use craft_behavior::{Flow, Metrics, Sense};
 use craft_theme::{Stateful, States, variant::Tone};
 use egui::{CornerRadius, Rect, Vec2};
 
-/// The track's width as a multiple of its height.
-const TRACK_ASPECT: f32 = 1.8;
 /// Where the thumb rests while the value is mixed: the middle of its travel.
 const MIXED_AT: f32 = 0.5;
 
@@ -59,9 +57,8 @@ impl Component for Switch<'_> {
 
     fn style(cx: &StyleCx<'_>, _: SwitchStyleKey) -> SwitchStyle {
         let control = cx.control();
-        let (colors, accent) = (&cx.tokens.color, &cx.tokens.color.accent);
-        let solid = |rest, hover, pressed| States::new(cx.color(rest), cx.color(hover), cx.color(pressed), cx.color(colors.state.disabled_fill));
-        let on = solid(accent.strong, accent.strong_hover, accent.strong_pressed);
+        let colors = &cx.tokens.color;
+        let on = cx.accent_fill().off;
         let (well, knob, on_knob) = (cx.color(colors.surface.sunken), cx.color(colors.surface.knob), cx.color(colors.text.on_strong));
         let track = Stateful::new(well).on(on).when(Flags::INVALID, well);
         let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on).when(Flags::INVALID, cx.tone(Tone::Bad));
@@ -73,7 +70,7 @@ impl Component for Switch<'_> {
             edge,
             thumb,
             radius: CornerRadius::same((control.icon / 2.0).round() as u8),
-            width: control.icon * TRACK_ASPECT,
+            width: cx.tokens.size.toggle,
             height: control.icon,
             inset: cx.tokens.space.gap.tight,
         }
@@ -116,3 +113,6 @@ impl Component for Switch<'_> {
         cx.edit_response()
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;

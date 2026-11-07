@@ -13,7 +13,7 @@ use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, Ink, StyleCx};
 use craft_behavior::nav::{NavShape, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Flow, IconId, Metrics, PartKey, Roving, Sense};
 use craft_keymap::{Chord, Key};
-use craft_theme::{Stateful, States};
+use craft_theme::{Stateful, States, variant::Tone};
 use egui::{Rect, Vec2};
 
 const STAR: PartKey = PartKey::new("star");
@@ -68,6 +68,17 @@ impl<'a> Rating<'a> {
     fn star(at: u8) -> craft_behavior::PartRef {
         STAR.at(u64::from(at))
     }
+
+    /// The rect of each star: a cell as wide as the star's square and as tall as `rect`. `parts` declares these
+    /// and `paint` draws in them, so a click lands where the star is painted.
+    fn cells(rect: Rect, cell: f32, rtl: bool, max: u8) -> impl Iterator<Item = Rect> {
+        let mut flow = Flow::new(rect, rtl);
+        (0..max).map(move |_| {
+            let (taken, rest) = flow.take_start(cell);
+            flow = rest;
+            taken
+        })
+    }
 }
 
 impl Component for Rating<'_> {
@@ -80,7 +91,10 @@ impl Component for Rating<'_> {
     fn style(cx: &StyleCx<'_>, _: RatingStyleKey) -> RatingStyle {
         let control = cx.control();
         let text = &cx.tokens.color.text;
-        let look = |rest| IconLook::new(control.icon, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))));
+        let bad = cx.tone(Tone::Bad);
+        let look = |rest| {
+            IconLook::new(control.icon, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad))
+        };
         RatingStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: cx.focus_look(),
@@ -100,10 +114,7 @@ impl Component for Rating<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let current = self.current(cx.value());
-        let mut flow = Flow::new(rect, cx.flow.is_rtl());
-        for at in 0..self.max {
-            let (cell, rest) = flow.take_start(rect.height());
-            flow = rest;
+        for (at, cell) in (0..self.max).zip(Self::cells(rect, cx.style.cell, cx.flow.is_rtl(), self.max)) {
             let part = cx.part(Self::star(at), cell).sense(Sense::CLICK | Sense::FOCUS).focusable();
             if at + 1 == current {
                 part.flags(Flags::CHECKED).selected();
@@ -139,7 +150,7 @@ impl Component for Rating<'_> {
                 cx.set(digit);
             }
         }
-        for chord in DIGITS {
+        for chord in DIGITS.into_iter().take(usize::from(self.max) + 1) {
             cx.claim(chord);
         }
     }
@@ -162,10 +173,7 @@ impl Component for Rating<'_> {
         let hovered = (0..self.max).find(|at| cx.part(Self::star(*at)).hovered).map(|at| at + 1);
         let shown = hovered.unwrap_or(current);
         let draw = ui.draw();
-        let mut flow = Flow::new(cx.rect, cx.flow.is_rtl());
-        for at in 0..self.max {
-            let (cell, rest) = flow.take_start(cx.style.cell);
-            flow = rest;
+        for (at, cell) in (0..self.max).zip(Self::cells(cx.rect, cx.style.cell, cx.flow.is_rtl(), self.max)) {
             let (look, name) = if at < shown { (&cx.style.lit, "star_filled") } else { (&cx.style.unlit, "star") };
             let icon = Rect::from_center_size(cell.center(), Vec2::splat(look.side));
             draw.icon(icon, &IconSpec::svg(IconId::new(name)).color(cx.resolve(&look.color)));
@@ -176,3 +184,6 @@ impl Component for Rating<'_> {
         cx.edit_response()
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;

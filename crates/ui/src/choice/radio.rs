@@ -4,11 +4,13 @@
 
 use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, GroupHandle, GroupKind, GroupState, MeasureCx, PaintUi,
-    Pointer as _, Props as _, Remember as _, Role,
+    Pointer as _, Props as _, Remember as _, Role, Styled as _, Validity,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
+use crate::runtime::env::EnvValue;
 use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
+use craft_theme::{Stateful, States, variant::Tone};
 use egui::Vec2;
 use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
@@ -18,6 +20,16 @@ pub struct RadioKind<T>(PhantomData<fn() -> T>);
 
 impl<T: Value + 'static> GroupKind for RadioKind<T> {
     type Member = T;
+}
+
+/// Whether the group's value is refused, read by its members so each radio shows the invalid look.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct GroupInvalid(bool);
+
+impl EnvValue for GroupInvalid {
+    fn root() -> Self {
+        GroupInvalid(false)
+    }
 }
 
 /// The group's registrations, kept in its shown memory so the members registered last pass are readable this pass.
@@ -104,6 +116,7 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
         // body leaves the registrations of the last one.
         handle.begin_registration();
         values.set(handle);
+        values.set(GroupInvalid(matches!(cx.validity(), Validity::Refuse(_))));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<T> {
@@ -122,8 +135,10 @@ pub struct RadioStyle {
     #[style(focus)]
     focus: FocusLook,
     icon: f32,
-    ring: StyleColor,
-    dot: StyleColor,
+    /// The circle's outline.
+    ring: Stateful<StyleColor>,
+    /// The mark inside a selected radio.
+    dot: Stateful<StyleColor>,
 }
 
 /// A member of a `RadioGroup`: selected when the group's pick is its value.
@@ -134,12 +149,13 @@ pub struct Radio<T: Value + 'static> {
     common: Common,
     value: T,
     checked: bool,
+    invalid: bool,
 }
 
 impl<T: Value + 'static> Radio<T> {
     /// A radio button standing for `value`.
     pub fn new(value: T) -> Self {
-        Radio { common: Common::new(), value, checked: false }
+        Radio { common: Common::new(), value, checked: false, invalid: false }
     }
 }
 
@@ -151,12 +167,14 @@ impl<T: Value + 'static> Component for Radio<T> {
 
     fn style(cx: &StyleCx<'_>, _: RadioStyleKey<T>) -> RadioStyle {
         let control = cx.control();
+        let (rest, accent, bad) = (cx.ink(Ink::OnPanel), cx.tone(Tone::Accent), cx.tone(Tone::Bad));
+        let disabled = cx.color(cx.tokens.color.text.disabled);
         RadioStyle {
             metrics: control.metrics(),
             focus: cx.focus_look(),
             icon: control.icon,
-            ring: cx.ink(Ink::OnPanel),
-            dot: cx.tone(craft_theme::variant::Tone::Accent),
+            ring: Stateful::new(rest).off(States::new(rest, accent, accent, disabled)).when(Flags::INVALID, bad),
+            dot: Stateful::new(accent).off(States::new(accent, accent, accent, disabled)).when(Flags::INVALID, bad),
         }
     }
 
@@ -164,24 +182,28 @@ impl<T: Value + 'static> Component for Radio<T> {
         Vec2::splat(cx.icon())
     }
 
-    /// Reads "selected" from the group's pick and registers with the group.
+    /// Reads "selected" and "invalid" from the group and registers with it.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let group = cx.env.get::<GroupHandle<RadioKind<T>>>();
         group.register(self.value.clone(), cx.id, cx.resolved.enabled);
         cx.join_roving();
         self.checked = group.is(&self.value);
+        self.invalid = cx.env.get::<GroupInvalid>().0;
     }
 
     fn flags(&self) -> Flags {
-        if self.checked { Flags::CHECKED } else { Flags::empty() }
+        let mut flags = Flags::empty();
+        flags.set(Flags::CHECKED, self.checked);
+        flags.set(Flags::INVALID, self.invalid);
+        flags
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let center = cx.rect.center();
         let draw = ui.draw();
-        draw.stroke(&PaintShape::Circle(center, cx.style.icon / 2.0), StrokeWidth::Thin, cx.style.ring);
+        draw.stroke(&PaintShape::Circle(center, cx.style.icon / 2.0), StrokeWidth::Thin, cx.resolve(&cx.style.ring));
         if self.checked {
-            draw.fill(&PaintShape::Circle(center, cx.style.icon / 4.0), cx.style.dot);
+            draw.fill(&PaintShape::Circle(center, cx.style.icon / 4.0), cx.resolve(&cx.style.dot));
         }
     }
 
@@ -189,3 +211,6 @@ impl<T: Value + 'static> Component for Radio<T> {
         cx.response.clone()
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;

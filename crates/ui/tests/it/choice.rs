@@ -1,15 +1,19 @@
 //! The choice family: `RadioGroup` and `Radio` are one Tab stop where arrows move focus and a click or Space selects;
 //! `Rating` and `Segmented` change their value from clicks and keys.
 
-use crate::contract::kit::{Probe, Seen};
-use craft_behavior::Sense;
-use craft_ui::choice::{Radio, RadioGroup, Rating, Segment, Segmented};
-use craft_ui::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use crate::contract::kit::{PlainStyle, Probe, Seen};
+use craft_behavior::{IconId, PartKey, Sense};
+use craft_ui::choice::{Checkbox, Radio, RadioGroup, Rating, Segmented};
+use craft_ui::contract::{
+    Bind, Common, Component, Cx, Entry, MeasureCx, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _, Validity,
+};
+use craft_ui::runtime::env::{Message, Word, WordRows, WordsOverride, with_env};
+use craft_ui::runtime::overlay::{OpenFilter, any_open};
 use craft_ui::testing::focus::{egui_focused, is_focused, key_release};
 use craft_ui::testing::input::key_press;
-use craft_ui::testing::pointer::click;
-use craft_ui::testing::{Fixture, Frames, trial};
-use egui::{Id, Key, Modifiers, Rect, Ui};
+use craft_ui::testing::pointer::{click, moved};
+use craft_ui::testing::{Fixture, Frames, Target, trial};
+use egui::{Color32, Id, Key, Modifiers, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -189,9 +193,9 @@ fn segmented_arrows_move_focus_past_disabled_segments_and_space_picks() {
     let value = Rc::new(Cell::new(3u8));
     let shown = value.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let segments = [Segment::new(1u8, "Draft"), Segment::new(2, "Review").enabled(false), Segment::new(3, "Final")];
+        let segments = [Entry::new(1u8, "Draft"), Entry::new(2, "Review").enabled(false), Entry::new(3, "Final")];
         let mut pick = shown.get();
-        Segmented::new(Bind::bound(&mut pick), &segments).label("Stage").show(ui);
+        Segmented::new("Stage", Bind::bound(&mut pick), &segments).show(ui);
         shown.set(pick);
     });
     fixture.settle();
@@ -230,4 +234,215 @@ fn radio_rows_labelled_through_the_body_select_on_click() {
     assert!(rects[0].max.y <= rects[1].min.y, "the rows stack in the body's flow: {rects:?}");
     click(&mut frames, rects[1].center(), &mut |ui| show(ui, &mut value));
     assert_eq!(value, 2, "a click on the second row's radio selects it");
+}
+
+/// The colour of the first outlined circle a frame painted: a radio's ring.
+fn ring_colour(show: impl FnMut(&mut Ui)) -> Color32 {
+    let mut show = show;
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    let shapes = frames.frame_shapes(&mut show);
+    shapes
+        .iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Circle(circle) if circle.stroke.width > 0.0 => Some(circle.stroke.color),
+            _ => None,
+        })
+        .expect("a radio paints its ring")
+}
+
+fn refuse_one(value: &u8) -> Validity<u8> {
+    if *value == 1 { Validity::Refuse(Message::new("No")) } else { Validity::Ok }
+}
+
+/// A disabled radio's ring takes the disabled colour, and the ring of a radio in a group whose value is refused takes
+/// the same bad tone a refused check box's edge does.
+#[trial]
+fn a_radio_ring_follows_disabled_and_invalid() {
+    let ring = |enabled: bool, invalid: bool| {
+        let mut value = if invalid { 1u8 } else { 2u8 };
+        ring_colour(move |ui| {
+            let bind = if invalid { Bind::bound(&mut value).check(refuse_one) } else { Bind::bound(&mut value) };
+            RadioGroup::new("Size", bind).show(ui, |ui, _| {
+                Radio::new(3u8).label("Large").enabled(enabled).show(ui);
+            });
+        })
+    };
+    let rest = ring(true, false);
+    assert_ne!(ring(false, false), rest, "a disabled radio's ring differs from an enabled one's");
+    let invalid = ring(true, true);
+    assert_ne!(invalid, rest, "an invalid group's ring differs from a valid one's");
+    let mut refused = true;
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        Checkbox::new(Bind::bound(&mut refused).check(|on: &bool| if *on { Validity::Refuse(Message::new("No")) } else { Validity::Ok }))
+            .label("Lock")
+            .show(ui);
+    };
+    frames.idle(3, &mut show);
+    let bad = frames
+        .frame_shapes(&mut show)
+        .iter()
+        .find_map(|shape| match shape {
+            egui::Shape::Rect(rect) if rect.stroke.width > 0.0 => Some(rect.stroke.color),
+            _ => None,
+        })
+        .expect("a check box paints its edge");
+    assert_eq!(invalid, bad, "the ring takes the bad tone");
+}
+
+const DRAFT: Word = Word::keyed("trial.draft", "Draft");
+const DRAFT_DE: &str = "Entwurf zur Ueberpruefung";
+
+/// The node of the first segment, shown in English or under a language whose word for it is longer.
+fn draft_segment(translated: bool) -> Option<Target> {
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(1u8, DRAFT), Entry::new(2, "Final")];
+        let mut pick = 1u8;
+        let show = |ui: &mut Ui| {
+            Segmented::new("Stage", Bind::bound(&mut pick), &entries).show(ui);
+        };
+        if translated {
+            let rows = WordRows::new().row(DRAFT, DRAFT_DE);
+            with_env(ui, |overrides| overrides.words = Some(WordsOverride::Overlay(rows)), show);
+        } else {
+            show(ui);
+        }
+    });
+    fixture.settle();
+    fixture.by_label(if translated { DRAFT_DE } else { "Draft" })
+}
+
+/// A segment is measured from its translated text and its node is named in that language.
+#[trial]
+fn a_segment_is_measured_and_named_from_its_translated_label() {
+    let english = draft_segment(false).expect("the English segment is a node");
+    let german = draft_segment(true).expect("the segment's node is named in the scope's language");
+    assert!(german.rect.width() > english.rect.width(), "the longer word makes a wider segment: {english:?} {german:?}");
+}
+
+/// A disabled icon-only segment still shows its label as a tooltip.
+#[trial]
+fn a_disabled_icon_segment_keeps_its_tooltip() {
+    use craft_ui::contract::tooltip::DELAY;
+    let mut fixture = Fixture::new(|ui| {
+        let views = [Entry::new(1u8, "List").icon(IconId::new("list")), Entry::new(2, "Detail").icon(IconId::new("grid")).enabled(false)];
+        let mut pick = 1u8;
+        Segmented::new("View", Bind::bound(&mut pick), &views).show(ui);
+    });
+    fixture.settle();
+    let detail = fixture.by_label("Detail").expect("a disabled segment is a node");
+    fixture.frame(vec![moved(detail.center())]);
+    fixture.advance(DELAY);
+    fixture.idle(3);
+    assert!(any_open(fixture.ctx(), OpenFilter::Any), "the disabled segment's tooltip shows");
+}
+
+const TALL: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(210.0, 130.0) };
+
+/// In a rating placed taller than its control, the stars are painted in their parts: a click on the third star's
+/// painted area sets 3.
+#[trial]
+fn a_click_on_a_painted_star_in_a_tall_rating_sets_it() {
+    let mut frames = Frames::new();
+    let mut stars = 0u8;
+    let mut show = |ui: &mut Ui| {
+        Rating::new(Bind::bound(&mut stars), 5).label("Rating").show_at(ui, TALL);
+    };
+    frames.idle(3, &mut show);
+    let mut centres = star_centres(&frames.frame_shapes(&mut show), TALL);
+    assert_eq!(centres.len(), 5, "five stars are painted: {centres:?}");
+    centres.sort_by(|a, b| a.x.total_cmp(&b.x));
+    click(&mut frames, centres[2], &mut show);
+    assert_eq!(stars, 3, "the click on the third star's painted area picks it");
+}
+
+/// The middle of each painted shape inside `within`, one per distinct column.
+fn star_centres(shapes: &[egui::Shape], within: Rect) -> Vec<Pos2> {
+    let mut centres: Vec<Pos2> = shapes
+        .iter()
+        .map(egui::Shape::visual_bounding_rect)
+        .filter(|rect| rect.is_positive() && within.contains_rect(*rect))
+        .map(|rect| rect.center())
+        .collect();
+    centres.sort_by(|a, b| a.x.total_cmp(&b.x));
+    centres.dedup_by(|a, b| (a.x - b.x).abs() < 1.0);
+    centres
+}
+
+/// A rating takes the digits up to its own maximum: with three stars, 3 is claimed and 4 reaches egui.
+#[trial]
+fn a_rating_claims_only_the_digits_up_to_its_maximum() {
+    let stars = Rc::new(Cell::new(1u8));
+    let reached = Rc::new(Cell::new([false; 2]));
+    let (shown, seen) = (stars.clone(), reached.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut value = shown.get();
+        Rating::new(Bind::bound(&mut value), 3).label("Rating").show(ui);
+        shown.set(value);
+        ui.input(|input| {
+            let mut now = seen.get();
+            for event in &input.events {
+                match event {
+                    egui::Event::Key { key: Key::Num3, pressed: true, .. } => now[0] = true,
+                    egui::Event::Key { key: Key::Num4, pressed: true, .. } => now[1] = true,
+                    _ => {}
+                }
+            }
+            seen.set(now);
+        });
+    });
+    fixture.settle();
+    press(&mut fixture, Key::Tab);
+    press(&mut fixture, Key::Num3);
+    press(&mut fixture, Key::Num4);
+    assert_eq!(stars.get(), 3, "3 sets three stars");
+    assert_eq!(reached.get(), [false, true], "3 is claimed and 4 is not");
+}
+
+const THUMB: PartKey = PartKey::new("thumb");
+
+/// A composite that shows a rating as the face of one part, as a browse thumbnail shows its rating.
+#[derive(Component)]
+struct Thumbnail {
+    #[common]
+    common: Common,
+}
+
+impl Component for Thumbnail {
+    const ROLE: Role = Role::None;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &craft_ui::style::StyleCx<'_>, _: ThumbnailStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        Vec2::new(200.0, 30.0)
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.part(THUMB, rect).sense(Sense::HOVER);
+    }
+
+    fn paint(&mut self, ui: &mut PaintUi<'_>, _: &Cx<'_, Self>) {
+        ui.face(THUMB, Rating::new(Bind::given(2u8), 5));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+/// A rating shown as the face of a part paints its stars inside the part.
+#[trial]
+fn a_rating_shown_as_a_face_paints_its_stars_in_the_part() {
+    let mut frames = Frames::new();
+    let mut host = Rect::NOTHING;
+    let mut shapes = Vec::new();
+    for _ in 0..3 {
+        shapes = frames.frame_shapes(|ui| host = Thumbnail { common: Common::new() }.show(ui).rect);
+    }
+    assert_eq!(star_centres(&shapes, host).len(), 5, "five stars are painted inside the part: {shapes:?}");
 }

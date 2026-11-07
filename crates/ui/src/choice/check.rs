@@ -5,7 +5,7 @@ use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditRespo
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{Stateful, States, variant::Tone};
+use craft_theme::{Stateful, variant::Tone};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 
 /// The check mark's corner and tip, as shares of the box's side from its top-left.
@@ -54,14 +54,10 @@ impl Component for Checkbox<'_> {
 
     fn style(cx: &StyleCx<'_>, _: CheckboxStyleKey) -> CheckboxStyle {
         let control = cx.control();
-        let (colors, accent) = (&cx.tokens.color, &cx.tokens.color.accent);
-        let (well, solid) =
-            (cx.color(colors.surface.sunken), States::new(accent.strong, accent.strong_hover, accent.strong_pressed, colors.state.disabled_fill));
-        let on = |states: States<craft_theme::Rgba>| {
-            States::new(cx.color(states.rest), cx.color(states.hover), cx.color(states.pressed), cx.color(states.disabled))
-        };
-        let fill = Stateful::new(well).on(on(solid)).when(Flags::INVALID, well);
-        let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on(solid)).when(Flags::INVALID, cx.tone(Tone::Bad));
+        let colors = &cx.tokens.color;
+        let (well, solid) = (cx.color(colors.surface.sunken), cx.accent_fill().off);
+        let fill = Stateful::new(well).on(solid).when(Flags::INVALID, well);
+        let edge = Stateful::new(cx.color(colors.line.control_edge)).on(solid).when(Flags::INVALID, cx.tone(Tone::Bad));
         CheckboxStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: cx.focus_look(),
@@ -112,3 +108,6 @@ impl Component for Checkbox<'_> {
         cx.edit_response()
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;
