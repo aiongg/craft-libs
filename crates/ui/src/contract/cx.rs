@@ -226,8 +226,10 @@ impl SeenPress {
     pub(crate) fn began(&mut self, phase: &PressPhase) -> bool {
         match phase {
             PressPhase::Down { start, .. } | PressPhase::DragStart { start, .. } | PressPhase::Drag { start, .. } => {
-                let fresh = self.0 != Some(*start);
-                self.0 = Some(*start);
+                // `went_down_now` differs between the pass of the press and the passes that follow; the press is the same.
+                let same = PressStart { went_down_now: false, ..*start };
+                let fresh = self.0 != Some(same);
+                self.0 = Some(same);
                 fresh
             }
             PressPhase::Idle | PressPhase::Hover => {
