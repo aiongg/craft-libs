@@ -1,12 +1,12 @@
-//! `TileZoom`: the steps of the ladder and of a continuous range.
+//! `TileZoom`: the steps of the ladder and of a continuous range of factors on the medium thumbnail.
 
 use craft_ui::testing::trial;
 use craft_ui::tile_grid::{TileZoom, ZoomStep};
 
-const SIZE_MIN: f64 = 48.0;
-const SIZE_MAX: f64 = 400.0;
-const SIZE_STEP: f64 = 16.0;
-const SIZE_DEFAULT: f64 = 120.0;
+const ZOOM_MIN: f64 = 0.5;
+const ZOOM_MAX: f64 = 4.0;
+const ZOOM_STEP: f64 = 0.25;
+const ZOOM_DEFAULT: f64 = 1.0;
 
 #[trial]
 fn the_ladder_steps_to_the_next_rung_and_stops_at_its_ends() {
@@ -20,10 +20,10 @@ fn the_ladder_steps_to_the_next_rung_and_stops_at_its_ends() {
 
 #[trial]
 fn a_range_zoom_steps_by_its_step_inside_its_ends_and_resets_to_its_default() {
-    let range = TileZoom::bounded(SIZE_MIN, SIZE_MAX, SIZE_STEP, SIZE_DEFAULT);
-    assert_eq!(range.step(50.0, ZoomStep::Out), SIZE_MIN);
-    assert_eq!(range.step(395.0, ZoomStep::In), SIZE_MAX);
-    assert_eq!(range.step(100.0, ZoomStep::In), 116.0);
-    assert_eq!(range.step(300.0, ZoomStep::Reset), SIZE_DEFAULT);
-    assert_eq!(range.range(), SIZE_MIN..=SIZE_MAX);
+    let range = TileZoom::bounded(ZOOM_MIN, ZOOM_MAX, ZOOM_STEP, ZOOM_DEFAULT);
+    assert_eq!(range.step(0.55, ZoomStep::Out), ZOOM_MIN);
+    assert_eq!(range.step(3.9, ZoomStep::In), ZOOM_MAX);
+    assert_eq!(range.step(1.0, ZoomStep::In), 1.25);
+    assert_eq!(range.step(3.0, ZoomStep::Reset), ZOOM_DEFAULT);
+    assert_eq!(range.range(), ZOOM_MIN..=ZOOM_MAX);
 }

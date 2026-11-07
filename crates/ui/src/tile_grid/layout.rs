@@ -1,6 +1,7 @@
 //! Where tiles and group headers go: `arrange` lays out justified rows and card grids under group headers, and
 //! `GridLayout` is the item layout the grid hands the item step. Equal tiles without groups are
-//! `craft_behavior::TileLayout`; everything else is an arrangement.
+//! `craft_behavior::TileLayout`; everything else is an arrangement. Every tile is its picture plus what the tile adds
+//! around it (`Around`), in every tiling.
 
 use craft_behavior::{ItemLayout, ItemSource, NavShape, ScrollPos, SizeHint, TileLayout as EqualTiles};
 use egui::{Pos2, Rect, Vec2, pos2, vec2};
@@ -44,7 +45,44 @@ impl TileGroup {
     }
 }
 
-/// How the tiles of an arrangement are sized.
+/// What a tile adds around its picture: the padding, the caption column at the reading start and the caption band
+/// under the picture. A tile is its picture plus this, whatever the tiling.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
+pub struct Around {
+    /// Before the picture, at the reading start: the padding and the caption column.
+    pub start: f32,
+    /// After the picture, at the reading end.
+    pub end: f32,
+    /// Above the picture.
+    pub top: f32,
+    /// Under the picture: the caption band and the padding.
+    pub bottom: f32,
+}
+
+impl Around {
+    /// `start` before the picture, `end` after it, `top` above it and `bottom` under it.
+    pub fn new(start: f32, end: f32, top: f32, bottom: f32) -> Self {
+        Around { start, end, top, bottom }
+    }
+
+    /// The width added to the picture's.
+    pub fn width(&self) -> f32 {
+        self.start + self.end
+    }
+
+    /// The height added to the picture's.
+    pub fn height(&self) -> f32 {
+        self.top + self.bottom
+    }
+
+    /// The width and height added.
+    pub fn size(&self) -> Vec2 {
+        vec2(self.width(), self.height())
+    }
+}
+
+/// How the pictures of an arrangement are sized.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum Tiling {
@@ -52,30 +90,28 @@ pub enum Tiling {
     /// width.
     #[non_exhaustive]
     Justified {
-        /// Row height.
+        /// The picture height of an unscaled row.
         row_height: f32,
     },
-    /// Equal cards `side` wide, the picture `side / aspect` high, with a band of `caption` below the picture.
+    /// Equal cards: pictures `side` wide and `side / aspect` high.
     #[non_exhaustive]
     Cards {
-        /// Card width.
+        /// Picture width.
         side: f32,
         /// Picture width divided by height.
         aspect: f32,
-        /// The height of the caption band under the picture; 0 without captions.
-        caption: f32,
     },
 }
 
 impl Tiling {
-    /// Justified rows `row_height` high.
+    /// Justified rows with pictures `row_height` high.
     pub fn justified(row_height: f32) -> Self {
         Tiling::Justified { row_height }
     }
 
-    /// Cards `side` wide.
-    pub fn cards(side: f32, aspect: f32, caption: f32) -> Self {
-        Tiling::Cards { side, aspect, caption }
+    /// Cards with pictures `side` wide.
+    pub fn cards(side: f32, aspect: f32) -> Self {
+        Tiling::Cards { side, aspect }
     }
 }
 
@@ -87,7 +123,7 @@ pub struct TileRow {
     pub tiles: Range<usize>,
     /// The row's top, from the arrangement's top.
     pub top: f32,
-    /// Its height, the caption included.
+    /// Its height: the pictures and what the tiles add around them.
     pub height: f32,
     /// The group it belongs to, when groups are given.
     pub group: Option<usize>,
@@ -99,8 +135,7 @@ pub struct TileRow {
 pub struct TileArrangement {
     /// Rows, top to bottom.
     pub rows: Vec<TileRow>,
-    /// Each tile's picture rect from the arrangement's top left, without the caption; `Rect::NOTHING` for a tile
-    /// of a closed group.
+    /// Each tile's picture rect from the arrangement's top left; `Rect::NOTHING` for a tile of a closed group.
     pub tiles: Vec<Rect>,
     /// Each group header's rect, in group order.
     pub headers: Vec<Rect>,
@@ -179,16 +214,15 @@ pub fn aspects_of<K>(source: &dyn ItemSource<K>) -> Vec<f32> {
         .collect()
 }
 
-/// Lays out `aspects` (width over height, one per tile in display order) in `width`.
+/// Lays out `aspects` (width over height, one per tile in display order) in `width`. A tile is its picture plus
+/// `around`; the pictures are sized by `tiling`.
 ///
-/// - `Justified`: tiles fill a row at `row_height` until the next would pass the width; the row is then scaled so
-///   its tiles and gaps fill the width exactly; a group's last row keeps `row_height`. Each tile has a column of
-///   `start` at its left, outside the picture, so a row's pictures and columns fill the width together.
-/// - `Cards`: as many columns as fit; each group starts a new row below its header. A card with a `start` column
-///   is that much wider and has no caption band.
+/// - `Justified`: tiles fill a row with pictures `row_height` high until the next would pass the width; the row's
+///   pictures are then scaled so its tiles and gaps fill the width exactly; a group's last row keeps `row_height`.
+/// - `Cards`: as many columns as fit; each group starts a new row below its header.
 /// - `groups` are in display order and cover only the tiles they name; tiles outside every group sit in rows
 ///   without a header. A closed group has its header only.
-pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, tiling: Tiling, spacing: ArrangeSpacing, start: f32) -> TileArrangement {
+pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, tiling: Tiling, spacing: ArrangeSpacing, around: Around) -> TileArrangement {
     let sanitized: Vec<f32> = aspects.iter().map(|a| if a.is_finite() && *a > 0.0 { *a } else { 1.0 }).collect();
     let n = sanitized.len();
     let ArrangeSpacing { gap, inset, group_header } = spacing;
@@ -237,39 +271,40 @@ pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, tiling: Tiling
         };
         match tiling {
             Tiling::Justified { row_height } => {
-                let step = gap + start;
-                let room = content - start;
                 let mut i = range.start;
                 while i < range.end {
+                    // The width the pictures of tiles `i..i + count` have when the tiles and gaps fill the content.
+                    let room = |count: usize| content - around.width() * count as f32 - gap * (count - 1) as f32;
                     let mut j = i + 1;
                     let mut sum = sanitized[i];
-                    while j < range.end && (sum + sanitized[j]) * row_height + step * (j - i) as f32 <= room {
+                    while j < range.end && (sum + sanitized[j]) * row_height <= room(j - i + 1) {
                         sum += sanitized[j];
                         j += 1;
                     }
-                    let height = if j < range.end { (room - step * (j - i - 1) as f32) / sum } else { row_height };
-                    let top = place(&mut out, &mut y, i..j, height);
-                    let mut x = inset + start;
+                    // A picture is never scaled away: a tile wider than the content keeps a line to draw.
+                    let picture = if j < range.end { (room(j - i) / sum).max(MIN_PICTURE) } else { row_height };
+                    let top = place(&mut out, &mut y, i..j, picture + around.height());
+                    let mut x = inset + around.start;
                     for (tile, aspect) in out.tiles[i..j].iter_mut().zip(&sanitized[i..j]) {
-                        let w = aspect * height;
-                        *tile = Rect::from_min_size(pos2(x, top), vec2(w, height));
-                        x += w + step;
+                        let w = aspect * picture;
+                        *tile = Rect::from_min_size(pos2(x, top + around.top), vec2(w, picture));
+                        x += w + around.end + gap + around.start;
                     }
                     i = j;
                 }
             }
-            Tiling::Cards { side, aspect, caption } => {
+            Tiling::Cards { side, aspect } => {
                 let aspect = if aspect.is_finite() && aspect > 0.0 { aspect } else { 1.0 };
-                let card = side + start;
+                let card = side + around.width();
                 let columns = columns_in(content, card, gap);
                 let picture = vec2(side, side / aspect);
-                let height = picture.y + if start > 0.0 { 0.0 } else { caption };
+                let height = picture.y + around.height();
                 let mut i = range.start;
                 while i < range.end {
                     let j = (i + columns).min(range.end);
                     let top = place(&mut out, &mut y, i..j, height);
                     for (c, k) in (i..j).enumerate() {
-                        out.tiles[k] = Rect::from_min_size(pos2(inset + start + c as f32 * (card + gap), top), picture);
+                        out.tiles[k] = Rect::from_min_size(pos2(inset + around.start + c as f32 * (card + gap), top + around.top), picture);
                     }
                     i = j;
                 }
@@ -280,6 +315,9 @@ pub fn arrange(aspects: &[f32], groups: &[TileGroup], width: f32, tiling: Tiling
     out
 }
 
+/// The least height a scaled picture of a justified row has, in points.
+const MIN_PICTURE: f32 = 1.0;
+
 /// Cards of `card` with `gap` between them that fit in `width`, at least one: the count `EqualTiles::columns` gives.
 fn columns_in(width: f32, card: f32, gap: f32) -> usize {
     (((width + gap) / (card + gap)).floor() as usize).max(1)
@@ -289,27 +327,54 @@ fn columns_in(width: f32, card: f32, gap: f32) -> usize {
 #[derive(Clone, Debug)]
 pub struct GridLayout {
     kind: Kind,
+    recipe: Option<Recipe>,
+}
+
+/// What an arrangement was made from. A pass whose recipe equals the last one's reuses the layout.
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct Recipe {
+    /// The rows stamp: the set of tiles, as the app names it.
+    pub(super) stamp: u64,
+    pub(super) width: f32,
+    pub(super) tiles: usize,
+    pub(super) side: f32,
+    pub(super) aspect: f32,
+    pub(super) justified: bool,
+    pub(super) around: Around,
+    /// Each group's first tile, count and open state.
+    pub(super) groups: Vec<(usize, usize, bool)>,
 }
 
 #[derive(Clone, Debug)]
 enum Kind {
     /// Equal cards in no group, `inset` from every edge.
     Equal { tiles: EqualTiles, inset: f32 },
-    /// An arrangement; each card also holds the `start` column left of its picture.
-    Arranged { arrangement: Arc<TileArrangement>, rows: Arc<[usize]>, width: f32, start: f32 },
+    /// An arrangement; each card is its picture and `around`.
+    Arranged { arrangement: Arc<TileArrangement>, rows: Arc<[usize]>, width: f32, around: Around },
 }
 
 impl GridLayout {
     /// Equal cards of `card` in no group: `craft_behavior::TileLayout` inside `inset` on every side.
     pub fn equal<K>(source: &dyn ItemSource<K>, width: f32, inset: f32, card: Vec2, gap: f32) -> Self {
         let tiles = EqualTiles::new(source, (width - 2.0 * inset).max(1.0), card, gap);
-        GridLayout { kind: Kind::Equal { tiles, inset } }
+        GridLayout { kind: Kind::Equal { tiles, inset }, recipe: None }
     }
 
-    /// The layout `arrangement` makes in `width`; cards hold their `start` column.
-    pub fn arranged(arrangement: TileArrangement, width: f32, start: f32) -> Self {
+    /// The layout `arrangement` makes in `width`; each card is its picture and `around`.
+    pub fn arranged(arrangement: TileArrangement, width: f32, around: Around) -> Self {
         let rows = arrangement.row_lengths().into();
-        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), rows, width, start } }
+        GridLayout { kind: Kind::Arranged { arrangement: Arc::new(arrangement), rows, width, around }, recipe: None }
+    }
+
+    /// The layout remembers what it was made from.
+    pub(super) fn made_from(mut self, recipe: Recipe) -> Self {
+        self.recipe = Some(recipe);
+        self
+    }
+
+    /// Whether the layout was made from `recipe`.
+    pub(super) fn is_made_from(&self, recipe: &Recipe) -> bool {
+        self.recipe.as_ref() == Some(recipe)
     }
 
     /// The arrangement behind the layout, when it is not a plain equal grid.
@@ -320,14 +385,16 @@ impl GridLayout {
         }
     }
 
-    /// The card of tile `at` in the arrangement: its picture, its start column and the row's band below.
-    fn card(arrangement: &TileArrangement, start: f32, at: usize) -> Rect {
+    /// The card of tile `at` in the arrangement: its picture and what the tile adds around it.
+    fn card(arrangement: &TileArrangement, around: Around, at: usize) -> Rect {
         let picture = arrangement.tiles.get(at).copied().unwrap_or(Rect::NOTHING);
         if picture == Rect::NOTHING {
             return Rect::NOTHING;
         }
-        let bottom = arrangement.row_of(at).map_or(picture.bottom(), |row| arrangement.rows[row].top + arrangement.rows[row].height);
-        Rect::from_min_max(pos2(picture.left() - start, picture.top()), pos2(picture.right(), bottom))
+        Rect::from_min_max(
+            pos2(picture.left() - around.start, picture.top() - around.top),
+            pos2(picture.right() + around.end, picture.bottom() + around.bottom),
+        )
     }
 }
 
@@ -362,8 +429,8 @@ impl ItemLayout for GridLayout {
     fn rect(&self, at: usize, offset: ScrollPos) -> Rect {
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.rect(at, shifted(offset, *inset)),
-            Kind::Arranged { arrangement, start, .. } => {
-                let card = Self::card(arrangement, *start, at);
+            Kind::Arranged { arrangement, around, .. } => {
+                let card = Self::card(arrangement, *around, at);
                 if card == Rect::NOTHING { card } else { card.translate(vec2(-(offset.x as f32), -(offset.y as f32))) }
             }
         }
@@ -372,10 +439,10 @@ impl ItemLayout for GridLayout {
     fn hit(&self, point: Pos2, offset: ScrollPos) -> Option<usize> {
         match &self.kind {
             Kind::Equal { tiles, inset } => tiles.hit(point, shifted(offset, *inset)),
-            Kind::Arranged { arrangement, start, .. } => {
+            Kind::Arranged { arrangement, around, .. } => {
                 let at = pos2(point.x + offset.x as f32, point.y + offset.y as f32);
                 let row = arrangement.rows.get(arrangement.rows_between(at.y, at.y).start)?;
-                row.tiles.clone().find(|&tile| Self::card(arrangement, *start, tile).contains(at))
+                row.tiles.clone().find(|&tile| Self::card(arrangement, *around, tile).contains(at))
             }
         }
     }

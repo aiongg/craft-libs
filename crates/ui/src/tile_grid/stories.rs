@@ -13,7 +13,7 @@ use craft_theme::variant::Tone;
 use egui::Ui;
 
 const CAP: f64 = 4.0;
-const SIZE_RANGE: TileZoom = TileZoom::bounded(48.0, 400.0, 16.0, 120.0);
+const ZOOM_RANGE: TileZoom = TileZoom::bounded(0.5, 4.0, 0.25, 1.0);
 
 #[story(Tile<'static>, covers = [Default], drive = Drive::Activate)]
 fn tile(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -107,7 +107,7 @@ fn thumbnail_slider(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(ThumbnailSlider<'static>, covers = [], drive = Drive::Custom(larger))]
 fn thumbnail_slider_range(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    ThumbnailSlider::new("Thumbnail Size", Bind::bound(data.value("size", 120.0)), SIZE_RANGE).show(ui).into()
+    ThumbnailSlider::new("Thumbnail Size", Bind::bound(data.value("zoom", 1.0)), ZOOM_RANGE).show(ui).into()
 }
 
 #[story(ThumbnailSlider<'static>, covers = [Mixed], drive = Drive::Never)]

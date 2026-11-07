@@ -1,26 +1,30 @@
 //! `TileGrid`: a collection of `Tile`s in wrapped cards or justified rows, under optional group headers. The item step
 //! does the work: virtualisation, lead and selection rules, arrow, Home, End and page keys over the layout, type-ahead,
 //! drag with drop marks, OS file drops, the rename lifecycle and the context-menu request. The grid adds the layout,
-//! the pinned group headers with their parts, and the rating keys.
+//! the pinned group headers with their parts, and the rating keys. It owns what its cards have in common: where the
+//! caption goes, whether a detail line is reserved, and the zoom.
 
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::layout::{ArrangeSpacing, GridLayout, TileGroup, Tiling, arrange, aspects_of};
+use super::layout::{Around, ArrangeSpacing, GridLayout, Recipe, TileGroup, Tiling, arrange, aspects_of};
+use super::tile::AroundPicture;
 use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
-    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
-    Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
-    Styled as _,
+    Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component,
+    ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
+    Show as _, Sizing, SpaceAction, ToggleColumn,
 };
 use crate::controls::disclosure::Disclosure;
-use crate::list::{DropTest, RowTest, SourceTest};
-use crate::primitives::{PaintShape, TextRun};
+use crate::list::{DropTest, ListRow, RowTest, SourceTest};
+use crate::primitives::PaintShape;
 use crate::runtime::access::Name;
-use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, RuleKind, Stateful, States, StyleColor, StyleCx, SurfaceKind, TextLook, TypeRole};
-use craft_behavior::{HitLevel, HitPriority, ItemSource, Metrics, Mixed, PartKey, PointerButton, PressPhase, Selection, Sense};
+use crate::style::{ComponentStyle, RuleKind, StyleColor, StyleCx};
+use craft_behavior::{
+    ColumnKey, ColumnWidth, EditEvent, HitLevel, HitPriority, Intent, ItemSource, Metrics, Mixed, PartKey, PointerButton, PressPhase, Selection,
+    Sense,
+};
 use craft_keymap::Mods;
 use egui::{CornerRadius, Id, Pos2, Rect, Response, Ui, pos2, vec2};
 use std::cell::RefCell;
@@ -30,6 +34,8 @@ const GROUP: PartKey = PartKey::new("group");
 /// The heading level of a group header: the grid's groups are its top-level sections.
 const GROUP_LEVEL: usize = 1;
 const TOGGLE: PartKey = PartKey::new("group_toggle");
+/// The toggle column that carries the tiles' check boxes, so Space toggles the lead tile's check.
+const CHECKS: ColumnKey = ColumnKey::new("check");
 
 /// Which keys rate the selected tiles.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -38,7 +44,7 @@ pub enum RatingKeys {
     /// No key rates.
     #[default]
     None,
-    /// The digits 1 to 5 rate and 0 clears. Typed text is not matched against tile names while it is on.
+    /// The digits 1 to 5 rate and 0 clears. Other typed text still moves by type-ahead.
     Digits,
 }
 
@@ -46,7 +52,9 @@ pub enum RatingKeys {
 #[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum GridEvent<K> {
-    /// A rating key was pressed: the rating (0 clears) for the selected tiles, or the lead when none is selected.
+    /// A tile's stars were clicked (that tile), or a rating key was pressed (the selected tiles, or the lead when none
+    /// is selected): the rating, 0 clears. The one route to a rating; the tile's own `TilePartEvent::Rate` does not
+    /// reach the collection's events.
     #[non_exhaustive]
     Rate {
         /// The tiles to rate.
@@ -104,34 +112,58 @@ impl<K> Outcome for TileGridOutput<K> {
     }
 }
 
-/// The look of the group headers.
+/// The sizes of the grid and the look of the pinned group headers; the headers' own look is the heading row's.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct TileGridStyle {
     #[style(metrics)]
     metrics: Metrics,
-    /// The header's title.
-    #[style(text)]
-    group_title: TextLook,
-    /// The header's detail at its trailing end.
-    #[style(text)]
-    group_detail: TextLook,
-    /// The header's wash, which takes the hover.
-    group_fill: Stateful<StyleColor>,
     /// A header pinned over its group's tiles.
     pinned: StyleColor,
     /// The side of the disclosure column and the space beside the header's content.
     toggle: f32,
     pad: f32,
+    /// The picture side of a card at zoom 1: the medium thumbnail.
+    thumb: f32,
+    /// What a tile adds around its picture.
+    around: AroundPicture,
+    /// The gaps of the arrangement and the height of a group header.
+    spacing: ArrangeSpacing,
+}
+
+impl TileGridStyle {
+    fn build(cx: &StyleCx<'_>) -> TileGridStyle {
+        let colors = &cx.tokens.color;
+        TileGridStyle {
+            metrics: Metrics::new(),
+            pinned: cx.color(colors.surface.panel),
+            toggle: cx.tokens.size.icon.sm,
+            pad: cx.tokens.space.gap.inline,
+            thumb: cx.tokens.size.thumb.md,
+            around: Tile::around(cx),
+            spacing: ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header),
+        }
+    }
+
+    /// The side of a picture at `zoom`, a factor on the medium thumbnail.
+    fn picture_side(&self, zoom: f32) -> f32 {
+        self.thumb * zoom.max(f32::EPSILON)
+    }
+
+    /// An equal card: a picture `side` wide with the aspect `aspect`, and what the tile adds around it.
+    fn card(&self, side: f32, aspect: f32, around: Around) -> egui::Vec2 {
+        vec2(side, side / aspect) + around.size()
+    }
 }
 
 /// A grid of tiles: one Tab stop, the selection rules of the collection contract, type-ahead on the tiles' names,
 /// rename in place, drag to reorder, files dropped from the OS, and the request for the app's context menu.
 ///
-/// The tile size is `zoom` times the medium thumbnail side: the value the app's zoom control holds. Cards are `aspect`
-/// wide over high; with `justified` the tiles keep their own aspects (the source's `ItemSource::size_hint` as
-/// `SizeHint::Aspect`) and fill rows. `groups` put headers over runs of tiles; a header stays pinned at the top while
-/// its group scrolls.
+/// The picture side is `zoom` times the medium thumbnail side: the factor the app's zoom control holds. A card is the
+/// picture plus what the tile adds around it, whatever the layout. Pictures are `aspect` wide over high; with
+/// `justified` the tiles keep their own aspects (the source's `ItemSource::size_hint` as `SizeHint::Aspect`) and fill
+/// rows. `groups` put headers over runs of tiles; a header stays pinned at the top while its group scrolls. The grid
+/// decides where every tile's caption goes and whether the cards hold a detail line.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(collection, probe(TileGrid<'static, usize>))]
 pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
@@ -139,6 +171,7 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[collection]
     items: CollectionProps,
     /// The selection the caller owns.
     #[prop]
@@ -152,12 +185,15 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The width of a card over its picture's height.
     #[prop(quantity = "aspect ratio")]
     aspect: f32,
-    /// The tile size as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
+    /// The picture side as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
     #[prop(quantity = "zoom factor")]
     zoom: f32,
-    /// Where a caption goes; `CaptionPlace::None` keeps no room for one.
+    /// Where every tile's caption goes; `CaptionPlace::None` keeps no room for one.
     #[prop]
     caption: CaptionPlace,
+    /// Cards keep a line under the name for the tile's detail, whether a tile has one or not.
+    #[prop(flag)]
+    detail_line: bool,
     /// The headers over runs of tiles, in display order.
     #[prop]
     groups: &'a [TileGroup],
@@ -165,8 +201,9 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop(flag)]
     collapsible: bool,
     /// Which keys rate the selected tiles.
-    #[prop]
     rating_keys: RatingKeys,
+    /// Tiles show a check box and Space toggles the lead tile's check.
+    checks: bool,
     /// Which tiles may be renamed; a rename request on another tile does nothing.
     #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
@@ -211,9 +248,11 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             aspect: 1.0,
             zoom: 1.0,
             caption: CaptionPlace::Below,
+            detail_line: false,
             groups: &[],
             collapsible: false,
             rating_keys: RatingKeys::None,
+            checks: false,
             can_rename: None,
             can_drag: None,
             accept_from: None,
@@ -226,84 +265,78 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         .label(label)
     }
 
-    /// What the user can select.
+    /// Which keys rate the selected tiles. Digit keys reach the grid as digits only while this is on.
     #[must_use]
-    pub fn select(mut self, mode: SelectMode) -> Self {
-        self.items = self.items.select(mode);
+    pub fn rating_keys(mut self, keys: RatingKeys) -> Self {
+        self.rating_keys = keys;
+        self.items = self.items.digit_keys(keys == RatingKeys::Digits);
         self
     }
 
-    /// Tiles reorder by dragging and by Alt with the arrow keys.
+    /// Tiles show a check box (`Tile::check`) and Space toggles the lead tile's check. A toggle of a check reports
+    /// `CollectionEvent::Item` with `TilePartEvent::Check`, as a click on the check box does.
     #[must_use]
-    pub fn reorder(mut self, rule: ReorderRule) -> Self {
-        self.items = self.items.reorder(rule);
+    pub fn checks(mut self, on: bool) -> Self {
+        self.checks = on;
+        let columns = if on {
+            vec![ColumnSpec::new(CHECKS, Label::default(), ColumnWidth::Fixed(0.0)).kind(ColumnKind::Toggle(ToggleColumn::default()))]
+        } else {
+            Vec::new()
+        };
+        self.items = self.items.columns(columns).header(!on).space(if on { SpaceAction::ToggleCell } else { SpaceAction::default() });
         self
     }
 
-    /// Tiles rename in place: a double click on the caption, F2 or the rename command opens the editor.
-    #[must_use]
-    pub fn rename(mut self, on: bool) -> Self {
-        self.items = self.items.rename(on);
-        self
-    }
-
-    /// A press on the empty space between tiles empties the selection.
-    #[must_use]
-    pub fn allow_empty(mut self, on: bool) -> Self {
-        self.items = self.items.allow_empty(on);
-        self
-    }
-
-    /// Which gesture activates a tile.
-    #[must_use]
-    pub fn activate(mut self, on: ActivateOn) -> Self {
-        self.items = self.items.activate(on);
-        self
-    }
-
-    /// The tiles are the set `stamp` names; the lead starts over when the stamp changes.
-    #[must_use]
-    pub fn rows_stamp(mut self, stamp: u64) -> Self {
-        self.items = self.items.rows_stamp(stamp);
-        self
-    }
-
-    /// The text of the empty state.
-    #[must_use]
-    pub fn empty(mut self, text: impl Into<Label>) -> Self {
-        self.items = self.items.empty(text);
-        self
-    }
-
-    /// How the grid takes its size: to its content or to the room it has.
-    #[must_use]
-    pub fn sizing(mut self, sizing: Sizing) -> Self {
-        self.props = self.props.sizing(sizing);
-        self
-    }
-
-    /// Commands of `scope` reach the grid while focus is in it.
-    #[must_use]
-    pub fn command_scope(mut self, scope: CommandScope) -> Self {
-        self.props = self.props.command_scope(scope);
-        self
-    }
-
-    /// The surface the grid paints behind its tiles.
-    #[must_use]
-    pub fn surface(mut self, surface: SurfaceKind) -> Self {
-        self.props = self.props.surface(surface);
-        self
-    }
-
-    /// The selected tiles, or the lead when none is selected: what a rating key rates.
-    fn rated(&mut self) -> Vec<K> {
+    /// The selected tiles, or the lead when none is selected: what a rating key rates. The caller's binding when it
+    /// holds one, else the selection the item step keeps.
+    fn rated(&mut self, cx: &Cx<'_, Self>) -> Vec<K> {
         let held = self.selection.as_mut().map(Bind::reborrow).and_then(|bind| bind.get());
-        match held {
-            Some(Mixed::Same(selection)) if !selection.items.is_empty() => selection.items,
-            Some(Mixed::Same(selection)) => selection.lead.into_iter().collect(),
-            _ => Vec::new(),
+        let selection = match held {
+            Some(Mixed::Same(selection)) => Some(selection),
+            Some(_) => None,
+            None => cx.collection_selection().cloned(),
+        };
+        match selection {
+            Some(selection) if !selection.items.is_empty() => selection.items,
+            Some(selection) => selection.lead.into_iter().collect(),
+            None => Vec::new(),
         }
+    }
+
+    /// The layout of this pass: `previous` when it was made from the same recipe, else a new arrangement. A card is
+    /// the picture plus what the tile adds around it in every tiling.
+    fn laid_out(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
+        let style = TileGridStyle::build(cx);
+        let (side, spacing, around) = (style.picture_side(self.zoom), style.spacing, style.around.get(self.caption, self.detail_line));
+        let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
+        let recipe = self.items.rows_stamp.map(|stamp| Recipe {
+            stamp,
+            width,
+            tiles: source.len(),
+            side,
+            aspect,
+            justified: self.justified,
+            around,
+            groups: self.groups.iter().map(|group| (group.start, group.count, group.open)).collect(),
+        });
+        if let (Some(previous), Some(recipe)) = (previous, &recipe)
+            && previous.is_made_from(recipe)
+        {
+            *self.laid.borrow_mut() = Some(previous.clone());
+            return previous;
+        }
+        let layout = if self.justified || !self.groups.is_empty() {
+            let tiling = if self.justified { Tiling::justified(side) } else { Tiling::cards(side, aspect) };
+            GridLayout::arranged(arrange(&aspects_of(source), self.groups, width, tiling, spacing, around), width, around)
+        } else {
+            GridLayout::equal(source, width, spacing.inset, style.card(side, aspect, around), spacing.gap)
+        };
+        let layout = match recipe {
+            Some(recipe) => layout.made_from(recipe),
+            None => layout,
+        };
+        *self.laid.borrow_mut() = Some(layout.clone());
+        layout
     }
 
     fn group_rect(rect: Rect, view: Rect, rtl: bool) -> Rect {
@@ -321,11 +354,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
     }
 }
 
-/// The spacing of the arrangement, from the tokens.
-fn spacing(cx: &StyleCx<'_>) -> ArrangeSpacing {
-    ArrangeSpacing::new(cx.tokens.space.gap.stack, cx.tokens.space.gap.inline, cx.tokens.size.panel_header)
-}
-
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K> {
     const ROLE: Role = Role::LIST_BOX;
     const OVERLAYS: bool = false;
@@ -333,18 +361,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
     type Output = TileGridOutput<K>;
 
     fn style(cx: &StyleCx<'_>, _: TileGridStyleKey<K>) -> TileGridStyle {
-        let colors = &cx.tokens.color;
-        let clear = cx.color(craft_theme::Rgba::TRANSPARENT);
-        let hover = cx.color(colors.state.hover.faded(HOVER_SHARE));
-        TileGridStyle {
-            metrics: Metrics::new(),
-            group_title: TextLook::new(TypeRole::BodyStrong, Stateful::new(cx.color(colors.text.normal))),
-            group_detail: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(colors.text.faint))),
-            group_fill: Stateful::new(clear).off(States::new(clear, hover, hover, clear)),
-            pinned: cx.color(colors.surface.panel),
-            toggle: cx.tokens.size.icon.sm,
-            pad: cx.tokens.space.gap.inline,
-        }
+        TileGridStyle::build(cx)
     }
 
     /// One part per header in view, over the tiles, and a disclosure part in it when headers collapse.
@@ -384,11 +401,11 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         if self.rating_keys == RatingKeys::Digits {
-            while let Some(text) = cx.intents().take_text() {
-                for rating in text.chars().filter_map(|letter| letter.to_digit(10)).filter(|digit| *digit <= MAX_RATING) {
-                    let keys = self.rated();
+            for rating in 0..=MAX_RATING {
+                while cx.intents().take_exact(&Intent::Digit(rating)) {
+                    let keys = self.rated(cx);
                     if !keys.is_empty() {
-                        self.events.push(GridEvent::Rate { keys, rating: rating as u8 });
+                        self.events.push(GridEvent::Rate { keys, rating });
                     }
                 }
             }
@@ -403,7 +420,9 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             {
                 let mods = result.press.mods;
                 self.events.push(match start.button {
-                    PointerButton::Secondary => GridEvent::GroupMenu { group, at: rect.left_bottom() },
+                    PointerButton::Secondary => {
+                        GridEvent::GroupMenu { group, at: if cx.flow.is_rtl() { rect.right_bottom() } else { rect.left_bottom() } }
+                    }
                     _ => GridEvent::GroupPicked { group, mods },
                 });
             }
@@ -451,51 +470,48 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         for placed in &self.placed {
             let Some(group) = self.groups.get(placed.group) else { continue };
             let rect = placed.rect;
-            {
+            if placed.pinned {
                 let draw = ui.draw();
-                if placed.pinned {
-                    draw.fill(&PaintShape::Rect(rect, CornerRadius::ZERO), style.pinned);
-                    draw.rule(RuleKind::Divider, rect.left_bottom(), rect.right_bottom());
-                }
-                let wash = cx.resolve_part(GROUP.at(placed.group as u64), &style.group_fill);
-                draw.fill(&PaintShape::Rect(rect, CornerRadius::ZERO), wash);
+                draw.fill(&PaintShape::Rect(rect, CornerRadius::ZERO), style.pinned);
+                draw.rule(RuleKind::Divider, rect.left_bottom(), rect.right_bottom());
             }
-            let mut start = rect.shrink2(vec2(style.pad, 0.0));
+            let mut heading = ListRow::new(group.title.clone()).heading().node(false);
+            if !group.detail.is_empty() {
+                heading = heading.trailing(group.detail.clone());
+            }
+            ui.face(GROUP.at(placed.group as u64), heading);
             if self.collapsible {
-                start = if rtl { start.with_max_x(start.max.x - style.toggle) } else { start.with_min_x(start.min.x + style.toggle) };
                 let disclosure = Disclosure::new(Bind::given(group.open)).node(false).label(group.title.clone());
                 ui.face(TOGGLE.at(placed.group as u64), disclosure);
-            }
-            let draw = ui.draw();
-            let detail = (!group.detail.is_empty())
-                .then(|| TextRun::new(group.detail.as_str()).role(style.group_detail.role).color(cx.resolve(&style.group_detail.color)).elide());
-            let detail_width = detail.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
-            let title = TextRun::new(group.title.as_str()).role(style.group_title.role).color(cx.resolve(&style.group_title.color)).elide();
-            let laid = draw.layout(&title, (start.width() - detail_width - style.pad).max(0.0));
-            let centre = |height: f32| rect.center().y - height / 2.0;
-            let title_x = if rtl { start.max.x - laid.size().x } else { start.min.x };
-            draw.galley(pos2(title_x, centre(laid.size().y)), &laid);
-            if let Some(run) = detail {
-                let shown = draw.layout(&run, detail_width);
-                let detail_x = if rtl { start.min.x } else { start.max.x - shown.size().x };
-                draw.galley(pos2(detail_x, centre(shown.size().y)), &shown);
             }
         }
     }
 
+    /// The grid's events are the digits' and the stars' ratings, in that order, besides the collection's own.
     fn finish(self, mut cx: Cx<'_, Self>) -> TileGridOutput<K> {
-        let response = cx.collection_response();
-        TileGridOutput { response, events: self.events }
+        let mut response = cx.collection_response();
+        let mut events = self.events;
+        let mut kept = Vec::with_capacity(response.events.len());
+        for event in std::mem::take(&mut response.events) {
+            match event {
+                CollectionEvent::Item(key, TilePartEvent::Rate(rating)) => events.push(GridEvent::Rate { keys: vec![key], rating }),
+                CollectionEvent::Toggle(edit) if self.checks && matches!(edit, EditEvent::Set { .. } | EditEvent::Commit { .. }) => {
+                    if let Some(toggle) = edit.value() {
+                        kept.push(CollectionEvent::Item(toggle.key.clone(), TilePartEvent::Check { mods: Mods::NONE }));
+                    }
+                }
+                other => kept.push(other),
+            }
+        }
+        response.events = kept;
+        TileGridOutput { response, events }
     }
 }
 
-/// The share of the hover colour a header's wash takes.
-const HOVER_SHARE: f32 = 0.5;
-
 /// The highest rating a digit key sets.
-const MAX_RATING: u32 = 5;
+const MAX_RATING: u8 = 5;
 
-const HEADER_REASON: &str = "group headers open and close by pointer and by the AccessKit Expand and Collapse actions";
+const HEADER_REASON: &str = "group headers pick, open their menu, open and close by pointer; AccessKit Expand and Collapse also open and close them";
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K> {
     type Key = K;
@@ -517,20 +533,17 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     }
 
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
-        let spacing = spacing(cx);
-        let side = cx.tokens.size.thumb.md * self.zoom.max(f32::EPSILON);
-        let around = Tile::around_picture(cx, self.caption, false);
-        let (start, band) = if self.caption == CaptionPlace::Start { (around.x, 0.0) } else { (0.0, around.y) };
-        let layout = if self.justified || !self.groups.is_empty() {
-            let tiling = if self.justified { Tiling::justified(side) } else { Tiling::cards(side, self.aspect, band) };
-            GridLayout::arranged(arrange(&aspects_of(source), self.groups, width, tiling, spacing, start), width, start)
-        } else {
-            let aspect = if self.aspect.is_finite() && self.aspect > 0.0 { self.aspect } else { 1.0 };
-            let card = vec2(side + around.x, side / aspect + around.y);
-            GridLayout::equal(source, width, spacing.inset, card, spacing.gap)
-        };
-        *self.laid.borrow_mut() = Some(layout.clone());
-        layout
+        self.laid_out(None, source, width, cx)
+    }
+
+    /// The last layout again while the width, the rows stamp and everything the arrangement reads are the same.
+    fn item_layout_from(&self, previous: Option<GridLayout>, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
+        self.laid_out(previous, source, width, cx)
+    }
+
+    /// Every tile gets the grid's caption place and detail line, and its row's rename state.
+    fn dress<'r>(&self, tile: Tile<'r>, row: &RowState) -> Tile<'r> {
+        tile.caption(self.caption).detail_line(self.detail_line).renaming(row.renaming)
     }
 
     fn can_rename(&self, key: &K) -> bool {
