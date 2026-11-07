@@ -179,8 +179,6 @@ pub(super) struct BodyHooks<'b> {
     pub(super) body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
     /// The body's size from last frame's layout memory; `None` before its first run.
     remembered: Option<Vec2>,
-    /// How many blocks had been placed without a size entry once this container's own placement was counted.
-    unknown_at_read: u64,
     header_last: Vec2,
     footer_last: Vec2,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
@@ -321,7 +319,6 @@ impl<'b> BodyHooks<'b> {
         BodyHooks {
             body,
             remembered: None,
-            unknown_at_read: 0,
             header_last: Vec2::ZERO,
             footer_last: Vec2::ZERO,
             overflow: 0.0,
@@ -368,6 +365,22 @@ impl<'b> BodyHooks<'b> {
     /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
     /// child takes all of it, so a region that took the whole room records no width then; one that took less
     /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
+    /// A block placed without a size entry took a placeholder extent in its parent's flow. Its regions have run, so
+    /// the parent's flow moves past the size the block really took: whatever contains the block measures its content
+    /// true in this pass and records it, and nested blocks settle in the one discard pass the first record asks for.
+    fn claim_first_extent(&self, props: &ContainerProps, ui: &mut Ui, rect: Rect, pad: f32, rtl: bool) {
+        if self.remembered.is_some() || !matches!(props.mount, Mount::Inline) || self.sizing(props) != Sizing::Content {
+            return;
+        }
+        let (body, header, footer) =
+            (self.body_size.unwrap_or(Vec2::ZERO), self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO));
+        let took = Vec2::new(body.x.max(header.x).max(footer.x), body.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
+        let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
+        if !rect.contains_rect(real) {
+            alloc::advance_past(ui, real.union(rect));
+        }
+    }
+
     fn region_size(&self, ui: &Ui) -> Vec2 {
         let size = ui.min_rect().size();
         if self.remembered.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
@@ -549,10 +562,6 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.remembered = layout_memory::read(&ctx, id);
-        if self.remembered.is_none() && matches!(props.mount, Mount::Inline) && props.sizing == Sizing::Content {
-            layout_memory::note_unknown(&ctx);
-        }
-        self.unknown_at_read = layout_memory::unknown_count(&ctx);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
@@ -883,7 +892,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 size: resolved.size,
                 control_min: scope::last_control_min(&ctx, id),
             };
-            body_rect = label::run(ui, env, &input);
+            body_rect = label::run(ui, env, &input).control;
         }
         let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO);
         // B3 body, if open, under the body env; the gate is read after the header changed it.
@@ -1055,6 +1064,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let rule = rule_look(&env.tokens, RuleKind::Divider);
         let ppp = ctx.pixels_per_point();
+        self.claim_first_extent(&props, ui, rect, pad, rtl);
         let draw_rule = |y: f32| ui.painter().extend(Rule::shapes(&rule, Pos2::new(inner.min.x, y), Pos2::new(inner.max.x, y), ppp));
         if props.header.is_some_and(|header| header.rule) {
             draw_rule(regions.header.max.y);
@@ -1117,33 +1127,28 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn record(&mut self, stage: &mut MemoryStage, ctx: &Context, id: Id) {
-        // A block inside took a placeholder place for want of its own entry: the sizes the regions took say nothing
-        // yet, and recording them would pin a zero width. The block's own record asks for the pass that measures
-        // this container again.
-        if layout_memory::unknown_count(ctx) == self.unknown_at_read {
-            // A layer is shown as soon as it opens, so a region that took another size than the pass placed by asks for
-            // the discard pass at once, even when its size changed in the last frame too.
-            if self.layer {
-                let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
-                let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
-                    took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
-                };
-                if moved(self.body_size, self.remembered)
-                    || moved(self.header_size, Some(self.header_last))
-                    || moved(self.footer_size, Some(self.footer_last))
-                {
-                    layout_memory::ask_discard(ctx);
-                }
+        // A layer is shown as soon as it opens, so a region that took another size than the pass placed by asks for
+        // the discard pass at once, even when its size changed in the last frame too.
+        if self.layer {
+            let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
+            let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
+                took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
+            };
+            if moved(self.body_size, self.remembered)
+                || moved(self.header_size, Some(self.header_last))
+                || moved(self.footer_size, Some(self.footer_last))
+            {
+                layout_memory::ask_discard(ctx);
             }
-            if let Some(size) = self.body_size {
-                super::steps::record_size(ctx, id, size);
-            }
-            if let Some(size) = self.header_size {
-                super::steps::record_size(ctx, sub(id, "header"), size);
-            }
-            if let Some(size) = self.footer_size {
-                super::steps::record_size(ctx, sub(id, "footer"), size);
-            }
+        }
+        if let Some(size) = self.body_size {
+            super::steps::record_size(ctx, id, size);
+        }
+        if let Some(size) = self.header_size {
+            super::steps::record_size(ctx, sub(id, "header"), size);
+        }
+        if let Some(size) = self.footer_size {
+            super::steps::record_size(ctx, sub(id, "footer"), size);
         }
         if self.extent.is_some() || self.view.is_some() {
             let view = stage.shown::<BodyView>(sub(id, "view"));

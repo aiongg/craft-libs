@@ -15,7 +15,7 @@ use crate::contract::{
 };
 use crate::controls::select::row_look;
 use crate::primitives::{PaintShape, TextRun};
-use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
+use crate::style::{ComponentStyle, Flags, Ink, Stateful, States, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
@@ -264,11 +264,13 @@ impl Component for TrackRow<'_> {
 
     fn style(cx: &StyleCx<'_>, _: TrackRowStyleKey) -> TrackRowStyle {
         let clip = Stateful::new(cx.color(cx.tokens.color.surface.raised)).when(Flags::SELECTED, cx.color(cx.tokens.color.state.selected_hover));
+        let on_selected = cx.color(cx.tokens.color.text.on_selected);
+        let on = || States::new(on_selected, on_selected, on_selected, on_selected);
         TrackRowStyle {
             surface: row_look(cx),
             metrics: Metrics::new(),
-            ink: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel))),
-            dim: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.faint))),
+            ink: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel)).on(on())),
+            dim: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.faint)).on(on())),
             clip,
             pad: cx.control().pad_x,
         }

@@ -330,7 +330,7 @@ impl Component for CodeEditor<'_> {
 
     fn style(cx: &StyleCx<'_>, _: CodeEditorStyleKey) -> CodeStyle {
         CodeStyle {
-            surface: cx.field(),
+            surface: cx.text_well(),
             metrics: Metrics::new().padding(Insets::uniform(cx.control().pad_x)),
             ink: cx.ink(Ink::OnPanel),
             selection: cx.color(cx.tokens.color.state.text_selection),

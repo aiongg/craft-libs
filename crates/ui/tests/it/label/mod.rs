@@ -2,10 +2,10 @@
 
 pub mod kit;
 
-use self::kit::{Dial, Field, LabelledDial, RESET, Seen, Wide};
+use self::kit::{Dial, Field, LabelledDial, RESET, SIZE, Seen, Wide};
 use craft_host::target::ShellInfo;
 use craft_i18n::Direction;
-use craft_ui::contract::{FieldLabel, FieldLabelRole, Props as _, Show as _, ShowContainer as _, SideLabel};
+use craft_ui::contract::{FieldLabel, FieldLabelRole, FieldLayout, Props as _, Show as _, ShowContainer as _, SideLabel};
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::testing::access::NodeKey;
@@ -310,4 +310,40 @@ fn a_label_with_an_icon_and_detail_names_by_text_and_describes_by_detail() {
     let plain = plain_seen.borrow().label.clone().map(|label| label.rect);
     let plain = plain.expect("the plain label ran");
     assert!(label.rect.width() > plain.width(), "the icon and detail widen the label: {:?} against {plain:?}", label.rect);
+}
+
+#[trial]
+fn an_after_label_follows_its_control_and_mirrors_under_rtl() {
+    let side = SideLabel::new().layout(FieldLayout::After);
+    for rtl in [false, true] {
+        let (_, rows) = settled(if rtl { Direction::Rtl } else { Direction::Ltr }, &side);
+        for (container, row) in [(true, ROW_A), (false, ROW_B)] {
+            let (label, control, _, _) = offsets(&rows, container, row, rtl);
+            assert!(control < label, "the control is first in reading order (rtl {rtl}, container {container})");
+            assert!(
+                label >= control + rows.control(container).width(),
+                "the label starts after the control's end, on the end side under RTL (rtl {rtl}, container {container})"
+            );
+            assert!(control < BESIDE, "the control stays at the start edge: the row is not split into a label column");
+        }
+    }
+}
+
+#[trial]
+fn a_body_labelled_row_takes_the_height_of_its_placement() {
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    let mut value = START;
+    let used = std::cell::Cell::new(0.0);
+    frames.idle(3, |ui| {
+        Field::new("Group", SideLabel::new().kind(craft_ui::contract::LabelKind::Hidden)).id_salt("body").show_at(ui, ROW_A, |ui, cx| {
+            let before = ui.available_rect_before_wrap().min.y;
+            cx.labelled(ui, "dial", "Opacity".into(), SideLabel::new(), Dial::new(&mut value, &seen));
+            used.set(ui.available_rect_before_wrap().min.y - before);
+        });
+    });
+    assert!(
+        (used.get() - SIZE.y).abs() < f32::from(1u8) / 100.0,
+        "a label beside its child adds no height: the row is the child's own, not a multiple of it"
+    );
 }

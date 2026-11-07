@@ -212,7 +212,14 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                         for (state, t) in READABLE {
                             let paint = ink.resolve(state, flags, t).egui();
                             let under = match fill {
-                                Some(fill) => vec![("surface fill".to_owned(), fill.resolve(state, flags, t).egui())],
+                                Some(fill) => {
+                                    let fill = fill.resolve(state, flags, t).egui();
+                                    if fill.a() == 255 {
+                                        vec![("surface fill".to_owned(), fill)]
+                                    } else {
+                                        grounds.iter().map(|(name, ground)| (format!("surface fill over {name}"), ground.blend(fill))).collect()
+                                    }
+                                }
                                 None => grounds.clone(),
                             };
                             for (name, ground) in under {

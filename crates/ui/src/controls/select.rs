@@ -349,10 +349,14 @@ impl Component for OptionRow<'_> {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: OptionRowStyleKey) -> OptionRowStyle {
+        let on_selected = cx.color(cx.tokens.color.text.on_selected);
         OptionRowStyle {
             surface: row_look(cx),
             metrics: cx.control().metrics(),
-            text: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel))),
+            text: TextLook::new(
+                TypeRole::Label,
+                Stateful::new(cx.ink(Ink::OnPanel)).on(States::new(on_selected, on_selected, on_selected, on_selected)),
+            ),
         }
     }
 

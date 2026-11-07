@@ -132,7 +132,12 @@ impl AccessTree {
 
     /// The nodes that name the node of `id`.
     pub fn labelled_by(&self, id: Id) -> Vec<NodeKey> {
-        self.node(id).map_or_else(Vec::new, |node| node.labelled_by().iter().map(|key| NodeKey(key.0)).collect())
+        self.labelled_by_key(NodeKey::of(id))
+    }
+
+    /// [`AccessTree::labelled_by`] for a node by key.
+    pub fn labelled_by_key(&self, key: NodeKey) -> Vec<NodeKey> {
+        self.lookup(NodeId(key.0)).map_or_else(Vec::new, |node| node.labelled_by().iter().map(|key| NodeKey(key.0)).collect())
     }
 
     /// The nodes that describe the node of `id`.
