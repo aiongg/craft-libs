@@ -54,8 +54,8 @@ impl Outcome for DocumentWindowOutput {
 ///
 /// - **Placement.** The window opens where [`first_placed`](DocumentWindow::first_placed) puts it (see
 ///   [`cascaded`](DocumentWindow::cascaded)) until a placement saved under [`remember`](DocumentWindow::remember)
-///   takes over. The minimum and maximum size and the resizability are the fallback layer's, which the OS window
-///   reads.
+///   takes over. The minimum and maximum size (through [`overlay`](DocumentWindow::overlay)) and the resizability are the
+///   fallback layer's, which the OS window reads.
 /// - **Close.** The OS close button, and the close action of the fallback layer, report `close_requested`. The
 ///   window closes at once unless the app binds [`opened`](DocumentWindow::opened) to a value it sets again, for
 ///   example while it asks about unsaved changes.
@@ -91,10 +91,10 @@ impl DocumentWindow<'_> {
         DocumentWindow { common: Common::new(), props, open: None, raise: false, closed: None }.label(title)
     }
 
-    /// Changes the layer the window falls back to, which also carries the OS window's limits, position and
-    /// resizability.
+    /// Changes the layer the window falls back to, for the settings without a setter of their own: the smallest and
+    /// largest size (`Overlay::size_limits`), which the OS window takes as its limits.
     #[must_use]
-    fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
+    pub fn overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
         self.props = match std::mem::take(&mut self.props.mount) {
             Mount::Viewport { fallback, spec } => self.props.mount(Mount::Viewport { fallback: change(fallback), spec }),
             other => self.props.mount(other),
@@ -106,12 +106,6 @@ impl DocumentWindow<'_> {
     #[must_use]
     pub fn first_placed(self, rect: Rect) -> Self {
         self.overlay(|overlay| overlay.placed(rect))
-    }
-
-    /// The smallest and largest size the window may have.
-    #[must_use]
-    pub fn size_limits(self, min: Vec2, max: Vec2) -> Self {
-        self.overlay(|overlay| overlay.size_limits(min, max))
     }
 
     /// Whether the user can resize the window.

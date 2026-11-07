@@ -84,7 +84,9 @@ fn raise_brings_the_window_forward_in_the_pass_it_is_set() {
         frame(false);
     }
     let raised = |out: &crate::windows_kit::Out| {
-        out.commands.iter().any(|(viewport, command)| *viewport != ViewportId::ROOT && *command == ViewportCommand::Focus)
+        let child =
+            out.titles.iter().map(|(viewport, _)| *viewport).find(|viewport| *viewport != ViewportId::ROOT).expect("the document window is open");
+        out.commands.contains(&(child, ViewportCommand::Focus))
     };
     assert!(!raised(&frame(false)));
     assert!(raised(&frame(true)));
