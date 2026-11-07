@@ -218,8 +218,8 @@ impl<'a> Guides<'a> {
     /// The units a guide running `along` is placed in: the x ruler's for a vertical guide.
     fn ruler(&self, along: Axis) -> RulerText {
         let units = match along {
-            Axis::Y => self.x_units,
             Axis::X => self.y_units,
+            _ => self.x_units,
         };
         units.unwrap_or(RulerText::new(RulerUnits::pixels(), UnitKind::Pixels))
     }

@@ -47,8 +47,8 @@ impl SmartLine {
     pub fn from_snap(line: SnapLine) -> Self {
         let (from, to) = line.span.unwrap_or((-WHOLE_VIEW, WHOLE_VIEW));
         match line.along {
-            Axis::Y => Self::new(Point::new(line.position, from), Point::new(line.position, to)),
             Axis::X => Self::new(Point::new(from, line.position), Point::new(to, line.position)),
+            _ => Self::new(Point::new(line.position, from), Point::new(line.position, to)),
         }
     }
 }

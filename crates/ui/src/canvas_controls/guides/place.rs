@@ -13,7 +13,7 @@ const EDGE_SLACK: f32 = 0.5;
 pub(super) fn across_range(rect: DocRect, along: Axis) -> (f64, f64) {
     match along {
         Axis::X => (rect.y0, rect.y1),
-        Axis::Y => (rect.x0, rect.x1),
+        _ => (rect.x0, rect.x1),
     }
 }
 
@@ -21,7 +21,7 @@ pub(super) fn across_range(rect: DocRect, along: Axis) -> (f64, f64) {
 fn point(along: Axis, position: f64, length: f64) -> Point {
     match along {
         Axis::X => Point::new(length, position),
-        Axis::Y => Point::new(position, length),
+        _ => Point::new(position, length),
     }
 }
 
@@ -29,7 +29,7 @@ fn point(along: Axis, position: f64, length: f64) -> Point {
 pub(super) fn zoom_across(view: &CanvasView, along: Axis) -> f64 {
     match along {
         Axis::X => view.zoom,
-        Axis::Y => view.zoom_x(),
+        _ => view.zoom_x(),
     }
 }
 
@@ -75,8 +75,8 @@ fn clip(rect: Rect, a: Pos2, b: Pos2) -> Option<[Pos2; 2]> {
 /// bottom.
 pub(super) fn keyboard_order(guides: &[Guide]) -> Vec<usize> {
     let rank = |guide: &Guide| match guide.along {
-        Axis::Y => 0,
         Axis::X => 1,
+        _ => 0,
     };
     let mut order: Vec<usize> = (0..guides.len()).filter(|&at| !guides[at].locked).collect();
     order.sort_by(|&a, &b| rank(&guides[a]).cmp(&rank(&guides[b])).then(guides[a].position.total_cmp(&guides[b].position)));
@@ -94,7 +94,7 @@ pub(super) fn nudge_sign(view: &CanvasView, along: Axis, direction: egui::Vec2) 
     let document = view.unmap_vec(direction);
     let (across, length) = match along {
         Axis::X => (document.y, document.x),
-        Axis::Y => (document.x, document.y),
+        _ => (document.x, document.y),
     };
     if across.abs() > length.abs() { across.signum() } else { 0.0 }
 }
