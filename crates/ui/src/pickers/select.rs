@@ -233,8 +233,8 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         let taken = &mut body.memory::<Query>().focused;
                         if field.response.has_focus() {
                             *taken = true;
-                        } else if !*taken {
-                            focus::request(ui.ctx(), FocusTarget::Part(field.response.id, craft_behavior::PartRef { key: craft_behavior::PartKey::new("text"), index: None }));
+                        } else if !*taken && !Popup::opening(popup, cx) {
+                            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
                         }
                     }
                     if let Some(rows) = header_menu.as_mut() {
