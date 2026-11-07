@@ -2,11 +2,60 @@
 //! Each registration is one `macro_rules!` of craft-ui, expanded in the user's crate and backed by `linkme`;
 //! the macro's body depends on craft-ui's own `testing` feature, so a derive carries no `cfg`.
 
-use super::{Component, ShapeKind, ShowShape, ValueOf};
+use super::{
+    BodyCx, Collection, Component, Container, ItemFn, Meta, Outcome, ShapeKind, Show as _, ShowCollection as _, ShowContainer as _, ShowShape,
+    ValueOf, shape,
+};
 use crate::runtime::access::Role;
 use crate::runtime::focus::KeyUse;
-use craft_behavior::Input;
-use std::any::TypeId;
+use craft_behavior::{Input, ItemSource};
+use egui::{Rect, Response, Ui};
+use std::any::{Any, TypeId};
+
+/// Shows a leaf at a rect: the component, boxed. `None` when the box holds another type.
+pub type LeafEntry = fn(&mut Ui, Rect, Box<dyn Any>) -> Option<Response>;
+
+/// Shows a container at a rect with a body: the component, boxed.
+pub type ContainerEntry = fn(&mut Ui, Rect, Box<dyn Any>, &mut dyn FnMut(&mut Ui, &mut BodyCx<'_>)) -> Option<Response>;
+
+/// Shows a collection's items: the component, boxed; the source, a `Box<dyn ItemSource<Key>>`; and the item
+/// closure, a `Box<ItemFn<'static, C>>`.
+pub type CollectionEntry = fn(&mut Ui, Box<dyn Any>, &dyn Any, &mut dyn Any) -> Option<Response>;
+
+/// How the suite shows an instance of a registered type, per shape.
+#[doc(hidden)]
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub enum Entry {
+    /// `show_at`.
+    Leaf(LeafEntry),
+    /// `show_at` with a body.
+    Container(ContainerEntry),
+    /// `show_items`.
+    Collection(CollectionEntry),
+}
+
+fn show_leaf<T: Component + Meta<Shape = shape::Leaf> + 'static>(ui: &mut Ui, rect: Rect, component: Box<dyn Any>) -> Option<Response> {
+    let component = component.downcast::<T>().ok()?;
+    Some(component.show_at(ui, rect).response().clone())
+}
+
+fn show_container<T: Container + 'static>(
+    ui: &mut Ui,
+    rect: Rect,
+    component: Box<dyn Any>,
+    body: &mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
+) -> Option<Response> {
+    let component = component.downcast::<T>().ok()?;
+    Some(component.show_at(ui, rect, |ui, cx| body(ui, cx)).response().clone())
+}
+
+fn show_collection<T: Collection + 'static>(ui: &mut Ui, component: Box<dyn Any>, source: &dyn Any, item: &mut dyn Any) -> Option<Response> {
+    let component = component.downcast::<T>().ok()?;
+    let source = source.downcast_ref::<Box<dyn ItemSource<T::Key>>>()?;
+    let item = item.downcast_mut::<Box<ItemFn<'static, T>>>()?;
+    Some(component.show_items(ui, &**source, &mut **item).response().clone())
+}
 
 /// A named shared-case exemption, as `#[component(exempt(case = .., reason = ..))]` declares it.
 #[doc(hidden)]
@@ -34,6 +83,9 @@ impl Exemption {
 pub struct Probe {
     /// The package that declares the type, as `CARGO_PKG_NAME` spells it.
     pub crate_name: &'static str,
+    /// The crate target that declares the type, as `CARGO_CRATE_NAME` spells it: the package's library crate, or
+    /// an integration binary.
+    pub crate_target: &'static str,
     /// The module path of the declaration.
     pub module: &'static str,
     /// The shape.
@@ -44,6 +96,8 @@ pub struct Probe {
     pub input: Input,
     /// The keys the focused component keeps.
     pub keys: KeyUse,
+    /// How to show an instance.
+    pub entry: Entry,
     /// A leaf the `Canvas` body shows.
     pub canvas_control: bool,
     /// The type declares `#[component(overlay)]`.
@@ -55,15 +109,56 @@ pub struct Probe {
 }
 
 impl Probe {
-    /// The probe of `T`, declared in `module` of package `crate_name`.
-    pub const fn of<T: Component + 'static>(crate_name: &'static str, module: &'static str, overlay: bool, exempt: &'static [Exemption]) -> Self {
+    /// The probe of the leaf `T`, declared in `module` of the crate target `crate_target` of package `crate_name`.
+    pub const fn leaf<T: Component + Meta<Shape = shape::Leaf> + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        overlay: bool,
+        exempt: &'static [Exemption],
+    ) -> Self {
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Leaf(show_leaf::<T>))
+    }
+
+    /// The probe of the container `T`.
+    pub const fn container<T: Container + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        overlay: bool,
+        exempt: &'static [Exemption],
+    ) -> Self {
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Container(show_container::<T>))
+    }
+
+    /// The probe of the collection `T`.
+    pub const fn collection<T: Collection + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        overlay: bool,
+        exempt: &'static [Exemption],
+    ) -> Self {
+        Self::of::<T>(crate_name, crate_target, module, overlay, exempt, Entry::Collection(show_collection::<T>))
+    }
+
+    const fn of<T: Component + 'static>(
+        crate_name: &'static str,
+        crate_target: &'static str,
+        module: &'static str,
+        overlay: bool,
+        exempt: &'static [Exemption],
+        entry: Entry,
+    ) -> Self {
         Probe {
             crate_name,
+            crate_target,
             module,
             shape: <T::Shape as ShowShape>::KIND,
             role: T::ROLE,
             input: T::INPUT,
             keys: T::KEYS,
+            entry,
             canvas_control: T::CANVAS_CONTROL,
             overlay,
             exempt,
@@ -109,6 +204,13 @@ impl Registration {
         }
     }
 
+    /// The crate target the registered item belongs to.
+    pub fn crate_target(&self) -> &'static str {
+        match self {
+            Registration::Component(probe) => probe.crate_target,
+        }
+    }
+
     /// The probe, for a component registration.
     pub fn probe(&self) -> Option<&Probe> {
         match self {
@@ -123,18 +225,20 @@ impl Registration {
 #[linkme::distributed_slice]
 pub static REGISTRATIONS: [Registration];
 
-/// Registers the component type `$ty` with its declarations: `$overlay`, and the `($case, $reason)` exemptions.
+/// Registers the component type `$ty` of shape `$shape` (`leaf`, `container` or `collection`) with its declarations:
+/// `$overlay`, and the `($case, $reason)` exemptions.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "testing")]
 macro_rules! __register_contract {
-    ($ty:ty, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {
         const _: () = {
             const EXEMPT: &[$crate::contract::Exemption] = &[$($crate::contract::Exemption::new($case, $reason)),*];
             #[$crate::__private::linkme::distributed_slice($crate::contract::REGISTRATIONS)]
             #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::component($crate::contract::Probe::of::<$ty>(
+            static REGISTRATION: $crate::contract::Registration = $crate::contract::Registration::component($crate::contract::Probe::$shape::<$ty>(
                 env!("CARGO_PKG_NAME"),
+                env!("CARGO_CRATE_NAME"),
                 module_path!(),
                 $overlay,
                 EXEMPT,
@@ -148,53 +252,5 @@ macro_rules! __register_contract {
 #[macro_export]
 #[cfg(not(feature = "testing"))]
 macro_rules! __register_contract {
-    ($ty:ty, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {};
-}
-
-/// A canvas-control type, as `#[component(canvas_control)]` registers it, so the canvas-control cases run over it.
-#[doc(hidden)]
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub struct CanvasControl {
-    name: fn() -> &'static str,
-}
-
-impl CanvasControl {
-    /// A registration for the type whose name `name` returns.
-    pub const fn new(name: fn() -> &'static str) -> Self {
-        CanvasControl { name }
-    }
-
-    /// The component's type name.
-    pub fn type_name(&self) -> &'static str {
-        (self.name)()
-    }
-}
-
-/// Every registered canvas-control type in the running binary.
-#[doc(hidden)]
-#[cfg(feature = "testing")]
-#[linkme::distributed_slice]
-pub static CANVAS_CONTROLS: [CanvasControl];
-
-/// Registers the canvas-control type `$ty`.
-#[doc(hidden)]
-#[macro_export]
-#[cfg(feature = "testing")]
-macro_rules! __register_canvas_control {
-    ($ty:ty) => {
-        const _: () = {
-            #[$crate::__private::linkme::distributed_slice($crate::contract::CANVAS_CONTROLS)]
-            #[linkme(crate = $crate::__private::linkme)]
-            static REGISTRATION: $crate::contract::CanvasControl = $crate::contract::CanvasControl::new(::std::any::type_name::<$ty>);
-        };
-    };
-}
-
-/// Registers the canvas-control type `$ty`; without the `testing` feature there is nothing to register.
-#[doc(hidden)]
-#[macro_export]
-#[cfg(not(feature = "testing"))]
-macro_rules! __register_canvas_control {
-    ($ty:ty) => {};
+    ($ty:ty, $shape:ident, $overlay:expr, [$(($case:expr, $reason:expr)),*]) => {};
 }

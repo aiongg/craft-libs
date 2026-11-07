@@ -19,7 +19,6 @@ enum Shape {
 #[derive(Default)]
 struct Declared {
     overlay: bool,
-    canvas_control: bool,
     exempt: Vec<(LitStr, LitStr)>,
 }
 
@@ -27,6 +26,7 @@ struct Declared {
 struct Options {
     shape: Option<Shape>,
     widget: bool,
+    canvas_control: bool,
     content_painter: bool,
     declared: Declared,
     probe: Vec<Type>,
@@ -38,8 +38,6 @@ impl Declared {
         let path = &meta.path;
         if path.is_ident("overlay") {
             self.overlay = true;
-        } else if path.is_ident("canvas_control") {
-            self.canvas_control = true;
         } else if path.is_ident("exempt") {
             let (mut case, mut reason) = (None, None);
             meta.parse_nested_meta(|inner| {
@@ -85,6 +83,8 @@ fn parse_options(attrs: &[Attribute]) -> syn::Result<Options> {
                 options.shape = Some(shape);
             } else if meta.path.is_ident("widget") {
                 options.widget = true;
+            } else if meta.path.is_ident("canvas_control") {
+                options.canvas_control = true;
             } else if meta.path.is_ident("content_painter") {
                 options.content_painter = true;
             } else if meta.path.is_ident("probe") {
@@ -149,19 +149,34 @@ fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>) -> syn::
     Ok(probe)
 }
 
-fn registrations(types: &[Type], declared: &Declared) -> TokenStream {
+fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStream {
     let overlay = declared.overlay;
-    let exempt = declared.exempt.iter().map(|(case, reason)| quote!((#case, #reason)));
-    let exempt: Vec<_> = exempt.collect();
-    let canvas = declared.canvas_control;
-    let each = types.iter().map(|ty| {
-        let canvas = canvas.then(|| quote!(::craft_ui::__register_canvas_control!(#ty);));
-        quote! {
-            ::craft_ui::__register_contract!(#ty, #overlay, [#(#exempt),*]);
-            #canvas
-        }
-    });
-    quote!(#(#each)*)
+    let exempt: Vec<_> = declared.exempt.iter().map(|(case, reason)| quote!((#case, #reason))).collect();
+    let shape = match shape {
+        Shape::Leaf => quote!(leaf),
+        Shape::Container => quote!(container),
+        Shape::Collection => quote!(collection),
+    };
+    let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*]);));
+    // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
+    // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
+    let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
+    quote! {
+        #allow
+        const _: () = {
+            #(#each)*
+        };
+    }
+}
+
+/// The source field's doc comment, or a generated one.
+fn field_docs(name: &Ident, attrs: &[Attribute]) -> Vec<TokenStream> {
+    let docs: Vec<_> = attrs.iter().filter(|attr| attr.path().is_ident("doc")).map(|attr| quote!(#attr)).collect();
+    if docs.is_empty() {
+        let text = format!("The `{name}` input of the style key.");
+        return vec![quote!(#[doc = #text])];
+    }
+    docs
 }
 
 /// The generated key type: generic over the component's type and const parameters.
@@ -170,11 +185,11 @@ struct KeyType {
     declaration: TokenStream,
     arguments: TokenStream,
     marker: Option<TokenStream>,
-    fields: Vec<(Ident, Type)>,
+    fields: Vec<(Ident, Type, Vec<Attribute>)>,
 }
 
 impl KeyType {
-    fn new(ident: &Ident, generics: &Generics, fields: Vec<(Ident, Type)>) -> Self {
+    fn new(ident: &Ident, generics: &Generics, fields: Vec<(Ident, Type, Vec<Attribute>)>) -> Self {
         let mut declared = Vec::new();
         let mut arguments = Vec::new();
         let mut types = Vec::new();
@@ -201,8 +216,9 @@ impl KeyType {
 
     fn tokens(&self, vis: &syn::Visibility) -> TokenStream {
         let (name, declaration, arguments) = (&self.ident, &self.declaration, &self.arguments);
-        let names: Vec<_> = self.fields.iter().map(|(field, _)| field).collect();
-        let types: Vec<_> = self.fields.iter().map(|(_, ty)| ty).collect();
+        let names: Vec<_> = self.fields.iter().map(|(field, _, _)| field).collect();
+        let types: Vec<_> = self.fields.iter().map(|(_, ty, _)| ty).collect();
+        let docs: Vec<Vec<TokenStream>> = self.fields.iter().map(|(name, _, docs)| field_docs(name, docs)).collect();
         let definition = if self.fields.is_empty() && self.marker.is_none() {
             quote! {
                 #[doc = "The style key of the component."]
@@ -213,7 +229,7 @@ impl KeyType {
             quote! {
                 #[doc = "The style key of the component."]
                 #[non_exhaustive]
-                #vis struct #name #declaration { #(pub #names: #types,)* #marker }
+                #vis struct #name #declaration { #(#(#docs)* pub #names: #types,)* #marker }
             }
         };
         let debug = {
@@ -252,13 +268,82 @@ impl KeyType {
     /// The expression that builds the key of `self`.
     fn value(&self) -> TokenStream {
         let name = &self.ident;
-        let names: Vec<_> = self.fields.iter().map(|(field, _)| field).collect();
+        let names: Vec<_> = self.fields.iter().map(|(field, _, _)| field).collect();
         if self.fields.is_empty() && self.marker.is_none() {
             return quote!(#name);
         }
         let marker = self.marker.as_ref().map(|_| quote!(__marker: ::core::marker::PhantomData,));
         quote!(#name { #(#names: self.#names,)* #marker })
     }
+}
+
+/// Whether `bounds` hold `'static`, and whether they hold `?Sized`.
+fn bound_facts<'a>(bounds: impl Iterator<Item = &'a syn::TypeParamBound>) -> (bool, bool) {
+    let (mut is_static, mut maybe_sized) = (false, false);
+    for bound in bounds {
+        match bound {
+            syn::TypeParamBound::Lifetime(lifetime) if lifetime.ident == "static" => is_static = true,
+            syn::TypeParamBound::Trait(bound) if matches!(bound.modifier, syn::TraitBoundModifier::Maybe(_)) => maybe_sized = true,
+            _ => {}
+        }
+    }
+    (is_static, maybe_sized)
+}
+
+/// 4.5: the style key names every type parameter, so each is `'static` and `Sized`.
+fn check_params(generics: &Generics) -> syn::Result<()> {
+    for param in generics.type_params() {
+        let ident = &param.ident;
+        let inline = bound_facts(param.bounds.iter());
+        let mut clauses = generics.where_clause.iter().flat_map(|clause| clause.predicates.iter()).filter_map(|predicate| match predicate {
+            syn::WherePredicate::Type(bounded) if matches!(&bounded.bounded_ty, Type::Path(path) if path.path.is_ident(ident)) => {
+                Some(&bounded.bounds)
+            }
+            _ => None,
+        });
+        let (is_static, maybe_sized) = clauses
+            .try_fold(inline, |(is_static, maybe), bounds| {
+                let (more_static, more_maybe) = bound_facts(bounds.iter());
+                Some((is_static || more_static, maybe || more_maybe))
+            })
+            .unwrap_or(inline);
+        if maybe_sized {
+            return Err(syn::Error::new_spanned(param, format!("4.5: the style key names `{ident}`, so it must be `Sized`")));
+        }
+        if !is_static {
+            return Err(syn::Error::new_spanned(param, format!("4.5: the style key names `{ident}`, so it needs `{ident}: 'static`")));
+        }
+    }
+    Ok(())
+}
+
+/// An associated type of a type parameter in a `#[style_key]` field: the key does not carry the bounds that name it.
+struct AssociatedPath<'a> {
+    params: Vec<&'a Ident>,
+    found: Option<syn::Error>,
+}
+
+impl Visit<'_> for AssociatedPath<'_> {
+    fn visit_type_path(&mut self, path: &syn::TypePath) {
+        let associated =
+            path.qself.is_some() || (path.path.segments.len() > 1 && self.params.iter().any(|param| path.path.segments[0].ident == **param));
+        if associated && self.found.is_none() {
+            self.found =
+                Some(syn::Error::new_spanned(path, "a `#[style_key]` field names a concrete type, not an associated type of a type parameter"));
+        }
+        syn::visit::visit_type_path(self, path);
+    }
+}
+
+fn check_key_fields(generics: &Generics, fields: &[&Field]) -> syn::Result<()> {
+    for field in fields {
+        let mut check = AssociatedPath { params: generics.type_params().map(|param| &param.ident).collect(), found: None };
+        check.visit_type(&field.ty);
+        if let Some(error) = check.found {
+            return Err(error);
+        }
+    }
+    Ok(())
 }
 
 struct Marked<'a> {
@@ -304,13 +389,19 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
     let options = parse_options(&input.attrs)?;
     let shape = options.shape.unwrap_or(Shape::Leaf);
-    if options.declared.canvas_control && shape != Shape::Leaf {
+    if options.canvas_control && shape != Shape::Leaf {
         return Err(syn::Error::new_spanned(&input.ident, "`canvas_control` is for a leaf"));
     }
+    if options.widget && shape != Shape::Leaf {
+        return Err(syn::Error::new_spanned(&input.ident, "`widget` is for a leaf with `Output = Response`"));
+    }
+    check_params(&input.generics)?;
     let fields = named_fields(&input, "Component")?;
     let marked = marked(&input.ident, &fields, shape)?;
     let ident = &input.ident;
-    let key_fields = marked.style_key.iter().filter_map(|field| field.ident.clone().map(|name| (name, field.ty.clone()))).collect();
+    let key_fields =
+        marked.style_key.iter().filter_map(|field| field.ident.clone().map(|name| (name, field.ty.clone(), field.attrs.clone()))).collect();
+    check_key_fields(&input.generics, &marked.style_key)?;
     let key = KeyType::new(ident, &input.generics, key_fields);
     let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
     let key_tokens = key.tokens(&input.vis);
@@ -320,7 +411,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Shape::Container => quote!(::craft_ui::contract::shape::Body),
         Shape::Collection => quote!(::craft_ui::contract::shape::Items),
     };
-    let canvas = options.declared.canvas_control.then(|| {
+    let canvas = options.canvas_control.then(|| {
         quote!(
             const CANVAS_CONTROL: bool = true;
         )
@@ -341,11 +432,14 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let content_painter =
         options.content_painter.then(|| quote!(impl #impl_generics ::craft_ui::contract::ContentPainter for #ident #type_generics #where_clause {}));
     let widget = options.widget.then(|| {
-        if shape != Shape::Leaf {
-            return syn::Error::new_spanned(ident, "`widget` is for a leaf with `Output = Response`").to_compile_error();
-        }
+        let mut generics = input.generics.clone();
+        generics
+            .make_where_clause()
+            .predicates
+            .push(syn::parse_quote!(#ident #type_generics: ::craft_ui::contract::Component<Output = ::craft_ui::__private::egui::Response>));
+        let (widget_generics, _, widget_where) = generics.split_for_impl();
         quote! {
-            impl #impl_generics ::craft_ui::__private::egui::Widget for #ident #type_generics #where_clause {
+            impl #widget_generics ::craft_ui::__private::egui::Widget for #ident #type_generics #widget_where {
                 fn ui(self, ui: &mut ::craft_ui::__private::egui::Ui) -> ::craft_ui::__private::egui::Response {
                     ::craft_ui::contract::Show::show(self, ui)
                 }
@@ -353,7 +447,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         }
     });
     let types = instantiations(ident, &input.generics, options.probe)?;
-    let registration = registrations(&types, &options.declared);
+    let registration = registrations(&types, &options.declared, shape);
     Ok(quote! {
         #key_tokens
         impl #impl_generics ::craft_ui::contract::Meta for #ident #type_generics #where_clause {
@@ -384,6 +478,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
 struct Registered {
     types: Vec<Type>,
     declared: Declared,
+    shape: Shape,
 }
 
 impl Parse for Registered {
@@ -400,15 +495,21 @@ impl Parse for Registered {
             return Err(input.error("`register_contract!` takes the component types to register"));
         }
         let mut declared = Declared::default();
+        let mut shape = Shape::Leaf;
         if input.parse::<Option<Token![;]>>()?.is_some() {
-            syn::meta::parser(
-                |meta| {
-                    if declared.read(&meta)? { Ok(()) } else { Err(meta.error("expected `overlay`, `canvas_control` or `exempt(..)`")) }
-                },
-            )
+            syn::meta::parser(|meta| {
+                if meta.path.is_ident("container") {
+                    shape = Shape::Container;
+                } else if meta.path.is_ident("collection") {
+                    shape = Shape::Collection;
+                } else if !declared.read(&meta)? {
+                    return Err(meta.error("expected `container`, `collection`, `overlay` or `exempt(..)`"));
+                }
+                Ok(())
+            })
             .parse2(input.parse::<TokenStream>()?)?;
         }
-        Ok(Registered { types, declared })
+        Ok(Registered { types, declared, shape })
     }
 }
 
@@ -421,5 +522,5 @@ pub(crate) fn register(input: TokenStream) -> syn::Result<TokenStream> {
             return Err(error);
         }
     }
-    Ok(registrations(&registered.types, &registered.declared))
+    Ok(registrations(&registered.types, &registered.declared, registered.shape))
 }

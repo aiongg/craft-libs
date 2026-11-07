@@ -19,12 +19,9 @@ pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 #[doc(hidden)]
 #[cfg(feature = "testing")]
-pub use registry::CANVAS_CONTROLS;
-#[doc(hidden)]
-#[cfg(feature = "testing")]
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
-pub use registry::{CanvasControl, Exemption, Probe, Registration};
+pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
 pub use shell::{CollectionProps, ContainerProps, OverlayUi};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, ValueOf};
 

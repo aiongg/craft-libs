@@ -18,7 +18,7 @@ fn component(input: TokenStream) -> String {
 #[test]
 fn a_generic_component_without_probe_is_an_error() {
     let message = component(quote! {
-        struct Field<C> { #[common] common: Common, codec: C }
+        struct Field<C: 'static> { #[common] common: Common, codec: C }
     });
     assert!(message.contains("probe"), "{message}");
 }
@@ -40,12 +40,12 @@ fn probe_errors_name_the_rule() {
     assert!(on_plain.contains("type parameters"), "{on_plain}");
     let elsewhere = component(quote! {
         #[component(probe(Other<u8>))]
-        struct Field<C> { #[common] common: Common, codec: C }
+        struct Field<C: 'static> { #[common] common: Common, codec: C }
     });
     assert!(elsewhere.contains("instantiations of `Field`"), "{elsewhere}");
     let borrowed = component(quote! {
         #[component(probe(Field<'a, u8>))]
-        struct Field<'a, C> { #[common] common: Common, codec: &'a C }
+        struct Field<'a, C: 'static> { #[common] common: Common, codec: &'a C }
     });
     assert!(borrowed.contains("'static"), "{borrowed}");
 }
@@ -127,4 +127,90 @@ fn a_style_needs_a_metrics_field() {
 fn register_contract_needs_a_type_and_known_options() {
     assert!(error(crate::component::register(quote!())).contains("component types"));
     assert!(error(crate::component::register(quote!(Chip; sticky))).contains("overlay"));
+}
+
+#[test]
+fn option_errors_name_the_rule() {
+    let widget = component(quote! {
+        #[component(container, widget)]
+        struct Body { #[common] common: Common, #[container] props: ContainerProps }
+    });
+    assert!(widget.contains("leaf"), "{widget}");
+    let partial = component(quote! {
+        #[component(exempt(case = "sizes"))]
+        struct Leaf { #[common] common: Common }
+    });
+    assert!(partial.contains("both"), "{partial}");
+    let both = component(quote! {
+        #[component(container, collection)]
+        struct Leaf { #[common] common: Common, #[container] props: ContainerProps }
+    });
+    assert!(both.contains("not both"), "{both}");
+    let unknown = component(quote! {
+        #[component(sticky)]
+        struct Leaf { #[common] common: Common }
+    });
+    assert!(unknown.contains("unknown `component` option"), "{unknown}");
+}
+
+#[test]
+fn a_field_carries_one_style_part() {
+    let message = error(crate::style::derive(quote! {
+        struct Look { #[style(surface)] #[style(focus)] both: SurfaceLook, #[style(metrics)] metrics: Metrics }
+    }));
+    assert!(message.contains("one"), "{message}");
+}
+
+#[test]
+fn type_parameters_of_a_component_are_static_and_sized() {
+    let bare = component(quote!(
+        struct Field<C> {
+            #[common]
+            common: Common,
+            c: C,
+        }
+    ));
+    assert!(bare.contains("C: 'static"), "{bare}");
+    let unsized_ = component(quote!(
+        struct Field<C: 'static + ?Sized> {
+            #[common]
+            common: Common,
+            c: Box<C>,
+        }
+    ));
+    assert!(unsized_.contains("Sized"), "{unsized_}");
+    let clause = crate::component::derive(quote! {
+        #[component(probe(Field<u8>))]
+        struct Field<C> where C: 'static { #[common] common: Common, c: C }
+    });
+    assert!(clause.is_ok(), "a where-clause bound counts");
+    let associated = component(quote! {
+        #[component(probe(Field<u8>))]
+        struct Field<C: 'static + Codec> { #[common] common: Common, #[style_key] kind: C::Kind }
+    });
+    assert!(associated.contains("associated type"), "{associated}");
+}
+
+#[test]
+fn style_key_fields_carry_docs() {
+    let tokens = crate::component::derive(quote! {
+        pub struct Gauge {
+            #[common] common: Common,
+            /// How full.
+            #[style_key] fill: u8,
+            #[style_key] tone: u8,
+        }
+    });
+    let text = tokens.map(|tokens| tokens.to_string()).unwrap_or_default();
+    assert!(text.contains("How full.") && text.contains("The `tone` input of the style key."), "{text}");
+}
+
+#[test]
+fn a_widget_impl_keeps_the_types_bounds_and_requires_a_response_output() {
+    let tokens = crate::component::derive(quote! {
+        #[component(widget)]
+        struct Gauge<'a> { #[common] common: Common, text: &'a str }
+    });
+    let text = tokens.map(|tokens| tokens.to_string()).unwrap_or_default();
+    assert!(text.contains("Output = :: craft_ui :: __private :: egui :: Response"), "{text}");
 }

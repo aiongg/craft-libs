@@ -25,14 +25,15 @@ fn expanded(result: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
 /// Attributes: `#[component]`, `#[component(container)]`, `#[component(collection)]`, `widget`, `overlay`,
 /// `content_painter`, `canvas_control`, `exempt(case = .., reason = ..)`, `probe(Type<..>, ..)` on the type;
 /// `#[common]`, `#[container]` and `#[style_key]` on fields.
-#[proc_macro_derive(Component, attributes(component, common, container, style_key, prop))]
+#[proc_macro_derive(Component, attributes(component, common, container, style_key))]
 pub fn derive_component(input: TokenStream) -> TokenStream {
     expanded(component::derive(input.into()))
 }
 
 /// Registers an `impl Component` written without the derive: `register_contract!(Type)`, with instantiations
 /// for a generic type (`register_contract!(Field<'static, Plain>, Field<'static, Number>)`) and options after
-/// a semicolon (`register_contract!(Menu; overlay)`).
+/// a semicolon (`register_contract!(Menu; container, overlay)`; the shape is a leaf unless `container` or
+/// `collection` is given).
 #[proc_macro]
 pub fn register_contract(input: TokenStream) -> TokenStream {
     expanded(component::register(input.into()))
@@ -84,9 +85,11 @@ pub fn trial(attr: TokenStream, item: TokenStream) -> TokenStream {
     let ident = &sig.ident;
     let name = ident.to_string();
     let registration = format_ident!("__CRAFT_TRIAL_{}", name.to_uppercase());
+    let allow = util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
     quote! {
         #func
 
+        #allow
         #[::craft_ui::testing::__private::linkme::distributed_slice(::craft_ui::testing::TRIALS)]
         #[linkme(crate = ::craft_ui::testing::__private::linkme)]
         #[doc(hidden)]

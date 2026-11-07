@@ -26,7 +26,9 @@ fn part_of(field: &Field) -> syn::Result<Option<Part>> {
             } else {
                 return Err(meta.error("a field is `#[style(surface)]`, `#[style(focus)]` or `#[style(metrics)]`"));
             };
-            part = Some(found);
+            if part.replace(found).is_some() {
+                return Err(meta.error("a field carries one `#[style(..)]` part"));
+            }
             Ok(())
         })?;
     }

@@ -50,14 +50,20 @@ impl Trial {
 #[linkme::distributed_slice]
 pub static TRIALS: [Trial];
 
-/// Every registration of the package `crate_name` linked into the running binary, in link order.
+/// Every registration declared in the library crate of the package `crate_name` and linked into the running
+/// binary, in link order. Types declared in the package's integration binaries are fixtures, not the package's.
 pub fn registered_in(crate_name: &str) -> Vec<&'static Registration> {
-    crate::contract::REGISTRATIONS.iter().filter(|registration| registration.crate_name() == crate_name).collect()
+    let library = crate_name.replace('-', "_");
+    crate::contract::REGISTRATIONS
+        .iter()
+        .filter(|registration| registration.crate_name() == crate_name && registration.crate_target() == library)
+        .collect()
 }
 
-/// Writes `pub fn registered()` for the invoking package: its registrations in the running binary. A crate invokes
-/// it once, in its `testing` module, and its integration binary calls the function by name, so the linker keeps the
-/// crate's registrations.
+/// Writes `pub fn registered()` for the invoking package: its library crate's registrations in the running binary.
+/// A crate invokes it once, in its `testing` module, and its integration binary calls the function by name. The
+/// call references the library, so the linker includes it; the registrations are `#[used]` statics that survive
+/// as long as the library's object files are linked.
 #[macro_export]
 macro_rules! testing_registered {
     () => {

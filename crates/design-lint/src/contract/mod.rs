@@ -25,6 +25,7 @@ mod sites;
 mod style;
 mod test_rules;
 mod types;
+mod unsafe_allow;
 
 use std::path::Path;
 
@@ -36,7 +37,7 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 35] = [
+pub(crate) const IDS: [&str; 36] = [
     egui_import::ID,
     allocate::ID,
     egui_widget::ID,
@@ -72,12 +73,13 @@ pub(crate) const IDS: [&str; 35] = [
     shape::SHADOW,
     shape::WIDGET,
     shape::OVERLAY_FLAG,
+    unsafe_allow::ID,
 ];
 
 type Check = fn(&Cx<'_>, &mut Vec<Finding>);
 
 /// REGISTRY: add a rule by adding its `check` here and its ids to [`IDS`].
-const REGISTRY: [Check; 18] = [
+const REGISTRY: [Check; 19] = [
     egui_import::check,
     allocate::check,
     egui_widget::check,
@@ -96,6 +98,7 @@ const REGISTRY: [Check; 18] = [
     style::check,
     entry::check,
     shape::check,
+    unsafe_allow::check,
 ];
 
 /// One file as the rules see it.

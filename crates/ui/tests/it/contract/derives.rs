@@ -111,8 +111,9 @@ impl Component for Manual {
 
 register_contract!(Manual; overlay, exempt(case = "sizes", reason = "hand-written"));
 
+/// Every probe linked into this binary, the integration binary's own fixtures included.
 fn probes() -> Vec<Probe> {
-    registered().iter().filter_map(|registration| registration.probe().copied()).collect()
+    craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.probe().copied()).collect()
 }
 
 fn named(name: &str) -> Vec<Probe> {
@@ -152,10 +153,51 @@ fn register_contract_registers_a_hand_written_component() {
 }
 
 #[trial]
-fn a_type_declared_in_the_library_is_registered_beside_the_binarys_own() {
-    // `Block` is declared in craft-ui's library, `Tagged` in this binary; both carry the package name `craft-ui`.
-    assert!(named("::Block").len() == 1, "{:?}", probes().iter().map(|p| p.type_name()).collect::<Vec<_>>());
+fn the_package_list_holds_the_library_types_and_not_the_integration_binarys_fixtures() {
+    let listed: Vec<_> = registered().iter().filter_map(|registration| registration.probe()).map(|probe| probe.type_name()).collect();
+    assert!(listed.iter().any(|name| name.ends_with("::Block")), "{listed:?}");
+    assert!(!listed.iter().any(|name| name.contains("Tagged")), "a fixture of the `it` binary is not craft-ui's: {listed:?}");
+    assert_eq!(named("::Tagged<")[0].crate_name, "craft-ui");
+    assert_eq!(named("::Tagged<")[0].crate_target, "it");
     assert!(craft_ui::testing::registered_in("no-such-crate").is_empty());
+}
+
+static ROWS: std::sync::Mutex<Vec<(usize, egui::Rect)>> = std::sync::Mutex::new(Vec::new());
+
+#[trial]
+fn each_shape_has_an_entry_that_shows_an_instance() {
+    use super::kit::{Panel, RowProbe, Rows, Table};
+    use craft_behavior::ItemSource;
+    use craft_ui::contract::{Entry, ItemFn};
+    let mut frames = Frames::new();
+    let room = egui::Rect::from_min_size(egui::Pos2::new(10.0, 10.0), Vec2::new(100.0, 60.0));
+    let mut shown = Vec::new();
+    frames.frame(vec![], |ui| {
+        for probe in probes() {
+            match (probe.type_name(), probe.entry) {
+                (name, Entry::Leaf(entry)) if name.ends_with("::Manual") => {
+                    shown.push((name, entry(ui, room, Box::new(Manual { common: Common::new() })).is_some()));
+                    shown.push(("wrong box", entry(ui, room, Box::new(0u8)).is_none()));
+                }
+                (name, Entry::Container(entry)) if name.contains("::Panel<") => {
+                    let mut body_ran = false;
+                    let response = entry(ui, room, Box::new(Panel::new()), &mut |_, _| body_ran = true);
+                    shown.push((name, response.is_some() && body_ran));
+                }
+                (name, Entry::Collection(entry)) if name.ends_with("::Table") => {
+                    let source: Box<dyn ItemSource<usize>> = Box::new(Rows(3));
+                    let mut item: Box<ItemFn<'static, Table>> = Box::new(|key, _| RowProbe::new(*key, &ROWS));
+                    shown.push((name, entry(ui, Box::new(Table::new(20.0)), &source, &mut item).is_some()));
+                }
+                _ => {}
+            }
+        }
+    });
+    assert!(shown.iter().all(|(_, ok)| *ok), "{shown:?}");
+    // A frame runs its closure once per pass.
+    shown.sort_unstable();
+    shown.dedup();
+    assert_eq!(shown.len(), 4, "{shown:?}");
 }
 
 #[trial]

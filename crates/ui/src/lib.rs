@@ -1,5 +1,4 @@
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
-#![cfg_attr(feature = "testing", allow(unsafe_code))]
 
 //! The craft UI library: runtime, style, fonts, primitives, the component contract, layout,
 //! components, patterns and the shell (layers 2 to 7).

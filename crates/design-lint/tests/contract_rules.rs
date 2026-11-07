@@ -31,7 +31,7 @@ fn rules_at(src: &str, path: &str, scope: &StaticScope) -> Vec<&'static str> {
 }
 
 /// Reject fixtures: file and the rules it must trigger (all of them, nothing else).
-const REJECT: [(&str, &[&str]); 17] = [
+const REJECT: [(&str, &[&str]); 18] = [
     ("behavior-pipeline-only.rs", &["behavior/pipeline-only"]),
     ("props-reserved-setter.rs", &["props/reserved-setter"]),
     ("props-hand-setter.rs", &["props/hand-setter"]),
@@ -49,6 +49,7 @@ const REJECT: [(&str, &[&str]); 17] = [
     ("contract-shadow.rs", &["contract/shadow"]),
     ("contract-widget.rs", &["contract/widget"]),
     ("contract-overlay-flag.rs", &["contract/overlay-flag"]),
+    ("contract-unsafe-allow.rs", &["contract/unsafe-allow"]),
 ];
 
 #[test]
