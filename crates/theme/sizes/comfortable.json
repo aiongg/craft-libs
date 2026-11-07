@@ -28,6 +28,11 @@
         "sm": 24.0
       },
       "dial": 52.0,
+      "float": {
+        "cascade": 38.0,
+        "height": 300.0,
+        "width": 240.0
+      },
       "groove": 2.0,
       "handle": {
         "md": 8.0,

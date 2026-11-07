@@ -88,6 +88,9 @@ size.checker
 size.control.md
 size.control.sm
 size.dial
+size.float.cascade
+size.float.height
+size.float.width
 size.groove
 size.handle.md
 size.handle.sm

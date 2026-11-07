@@ -6,9 +6,9 @@
 use std::fmt::Write as _;
 
 use crate::{
-    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FontSlot, Gaps, HandleSizes, HitSizes,
-    IconSizes, LengthSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens, SliderTokens,
-    SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
+    BarSizes, BySize, ColorToken, ComponentTokens, ControlSizes, Easing, Edge, Elevation, ElevationTokens, FloatSizes, FontSlot, Gaps, HandleSizes,
+    HitSizes, IconSizes, LengthSizes, Motion, MotionTokens, Pads, PlotSizes, RadiusSet, RailSizes, Rgba, RowStyle, ShapeTokens, SizeTokens,
+    SliderTokens, SpaceTokens, StrokeTokens, ThumbSizes, Tokens, TypeStyle, TypeTokens,
 };
 
 /// The text of every token, one `key = value` line each, in a fixed order.
@@ -95,8 +95,24 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot, length, groove, toggle, pointer_tip } =
-        size;
+    let SizeTokens {
+        control,
+        icon,
+        rail,
+        bar,
+        panel_header,
+        thumb: thumbs,
+        handle,
+        hit,
+        checker,
+        dial,
+        plot,
+        length,
+        groove,
+        toggle,
+        pointer_tip,
+        float,
+    } = size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -136,6 +152,10 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.toggle", len(*toggle));
     out.line("size.pointer_tip.x", len(pointer_tip.x));
     out.line("size.pointer_tip.y", len(pointer_tip.y));
+    let FloatSizes { width, height, cascade } = float;
+    out.line("size.float.width", len(*width));
+    out.line("size.float.height", len(*height));
+    out.line("size.float.cascade", len(*cascade));
 }
 
 fn slot(s: FontSlot) -> &'static str {

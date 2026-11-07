@@ -101,10 +101,10 @@ pub use theme::{
 };
 pub use token_group::{GroupValues, TokenGroup};
 pub use tokens::{
-    AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FontSlot, Gaps,
-    HandleSizes, HitSizes, IconSizes, LengthSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, PlotSizes, RadiusSet, RailSizes, RowStyle,
-    ShapeTokens, SizeTokens, SpaceTokens, StateColors, Status, StatusColors, StatusKind, StrokeTokens, SurfaceColors, TextColors, ThumbSizes,
-    TokenRef, Tokens, TypeRole, TypeStyle, TypeTokens,
+    AccentColors, BarSizes, CaptionColors, ColorToken, ColorTokens, ControlSizes, DataColors, Edge, EdgeColors, ElevationTokens, FloatSizes,
+    FontSlot, Gaps, HandleSizes, HitSizes, IconSizes, LengthSizes, LineColors, Motion, MotionTokens, OverlayColors, Pads, PlotSizes, RadiusSet,
+    RailSizes, RowStyle, ShapeTokens, SizeTokens, SpaceTokens, StateColors, Status, StatusColors, StatusKind, StrokeTokens, SurfaceColors,
+    TextColors, ThumbSizes, TokenRef, Tokens, TypeRole, TypeStyle, TypeTokens,
 };
 pub use values::ColorSource;
 pub use variant::{CustomVariant, Emphasis, RadiusStep, Variant, VariantLook};

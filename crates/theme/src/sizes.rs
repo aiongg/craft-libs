@@ -127,6 +127,9 @@ pub(crate) fn leaves(b: &mut Preset) -> Vec<Leaf<'_>> {
         "base.size.toggle" Num 12.0..=96.0 => s.toggle;
         "base.size.pointer_tip.x" Num 0.0..=64.0 => s.pointer_tip.x;
         "base.size.pointer_tip.y" Num 0.0..=64.0 => s.pointer_tip.y;
+        "base.size.float.width" Num 64.0..=1024.0 => s.float.width;
+        "base.size.float.height" Num 48.0..=1024.0 => s.float.height;
+        "base.size.float.cascade" Num 8.0..=96.0 => s.float.cascade;
     }
     let sp = &mut b.space;
     leaves! { out;

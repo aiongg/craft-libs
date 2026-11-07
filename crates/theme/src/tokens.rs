@@ -804,6 +804,19 @@ pub struct SizeTokens {
     pub toggle: f32,
     /// Where a tip that follows the pointer (a gesture readout) sits from the pointer.
     pub pointer_tip: PointerTipOffset,
+    /// The windows a dock floats its panels in.
+    pub float: FloatSizes,
+}
+
+/// The sizes of a floating dock window, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct FloatSizes {
+    /// The width a floating dock window opens at.
+    pub width: f32,
+    /// The height a floating dock window opens at.
+    pub height: f32,
+    /// The offset between cascaded floating windows, along both axes.
+    pub cascade: f32,
 }
 
 /// The offset of a pointer-following tip from the pointer, toward the reading end and down, in logical pixels.
