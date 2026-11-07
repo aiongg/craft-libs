@@ -46,7 +46,6 @@ pub mod value;
 pub mod value_drag;
 pub mod wheel;
 
-pub mod anchor;
 pub mod geometry;
 
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
@@ -98,4 +97,3 @@ pub use value::{Applied, CancelReason, EditEvent, EditPolicy, Gesture, GestureId
 pub use value_drag::{DragWarp, ValueDrag};
 pub use wheel::{Wheel, WheelNotch, WheelPhase, WheelTaker, WheelUnit};
 
-pub use anchor::Anchor9;
