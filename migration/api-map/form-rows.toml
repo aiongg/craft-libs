@@ -18,8 +18,8 @@ note = "A container shown with `ShowContainer::show(ui, |ui, cx| control)`; the 
 name = "FieldGroup"
 old = "craft_ui::composites::field::FieldGroup"
 new = "craft_ui::form::FieldGroup"
-status = "pending"
-note = "Not built: the contract has no hook that opens a `ColumnGroup` around a container's body. See the form-rows-a report."
+status = "moved"
+note = "A container named by its label and shown with `ShowContainer::show(ui, |ui, cx| ..)`; the old `id_salt` argument is gone (the id comes from the call site). Every `Field` in the body shares one label column."
 
 [[type]]
 name = "PropertyRow"

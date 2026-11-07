@@ -1,15 +1,14 @@
 //! `Field` (16.3): a container that shows one control with a side label, and a help line under it.
 
 use crate::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, FieldLayout, FooterRegion, MeasureCx, PaintUi, Props as _, Role, Show as _, SideLabel,
-    Sizing, Styled as _,
+    BodyCx, Common, Component, Container, ContainerProps, Cx, FieldLayout, FooterRegion, Props as _, Role, Show as _, SideLabel, Sizing,
 };
-use crate::primitives::{TextRun, Wrap};
+use crate::display::{Shade, Text};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
+use crate::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{Stateful, States, variant::Tone};
-use egui::{Response, Ui, Vec2};
+use craft_theme::variant::Tone;
+use egui::{Response, Ui};
 
 /// The text under a field's control.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -46,7 +45,7 @@ pub struct Field<'a> {
 impl<'a> Field<'a> {
     /// A field labelled `label`, beside its control, filling the width offered.
     pub fn new(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).label(SideLabel::new());
+        let props = ContainerProps::new().sizing(Sizing::Fill).footer(FooterRegion::new()).label(SideLabel::new());
         Field { common: Common::new(), props, help: None }.label(label)
     }
 
@@ -65,10 +64,9 @@ impl<'a> Field<'a> {
         self
     }
 
-    /// Shows `help` under the control.
+    /// Shows `help` under the control while the control has no validity message.
     #[must_use]
     pub fn help(mut self, help: Help<'a>) -> Self {
-        self.props.footer = Some(FooterRegion::new());
         self.help = Some(help);
         self
     }
@@ -93,74 +91,26 @@ impl Component for Field<'_> {
 }
 
 impl Container for Field<'_> {
-    fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+    fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        if let Some(message) = cx.field_message() {
+            Text::new(message.text.clone()).role(TypeRole::Caption).tone(message_tone(message.tone)).show(ui);
+            return;
+        }
         match self.help {
-            Some(Help::Text(text)) => HelpLine::new(text, Tone::Neutral).show(ui),
-            Some(Help::Status(tone, text)) => HelpLine::new(text, tone).show(ui),
+            Some(Help::Text(text)) => Text::new(text).role(TypeRole::Caption).shade(Shade::Muted).show(ui),
+            Some(Help::Status(tone, text)) => Text::new(text).role(TypeRole::Caption).tone(tone).show(ui),
             None => return,
         };
     }
 }
 
-/// A line of caption text that wraps at the room's width, muted for the neutral tone and in the tone's colour
-/// otherwise.
-#[derive(crate::contract::Component)]
-pub(super) struct HelpLine {
-    #[common]
-    common: Common,
-    #[style_key]
-    tone: Tone,
-}
-
-/// The style of a help line.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub(super) struct HelpLineStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    /// The line's text.
-    #[style(text)]
-    text: TextLook,
-}
-
-impl HelpLine {
-    /// `text`, which is also its accessible name, in `tone`.
-    pub(super) fn new(text: impl Into<Label>, tone: Tone) -> Self {
-        HelpLine { common: Common::new(), tone }.label(text)
-    }
-}
-
-impl Component for HelpLine {
-    const ROLE: Role = Role::LABEL;
-    const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
-    const OVERLAYS: bool = false;
-    type Style = HelpLineStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, key: HelpLineStyleKey) -> HelpLineStyle {
-        let colors = &cx.tokens.color.text;
-        let color = match key.tone {
-            Tone::Neutral => cx.color(colors.muted),
-            tone => cx.tone(tone),
-        };
-        let off = States::new(color, color, color, cx.color(colors.disabled));
-        HelpLineStyle { metrics: Metrics::new(), text: TextLook::new(TypeRole::Caption, Stateful::new(color).off(off)) }
-    }
-
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role).wrap(Wrap::Wrap)).size()
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let run = TextRun::new(cx.resolved.label).role(cx.style.text.role).wrap(Wrap::Wrap).color(cx.resolve(&cx.style.text.color));
-        ui.draw().text(cx.content_rect, &run);
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+/// The variant tone of a message's tone override; a message without one reads as a failure.
+fn message_tone(tone: Option<craft_theme::Tone>) -> Tone {
+    match tone {
+        Some(craft_theme::Tone::Neutral) => Tone::Neutral,
+        Some(craft_theme::Tone::Info) => Tone::Info,
+        Some(craft_theme::Tone::Good) => Tone::Good,
+        Some(craft_theme::Tone::Warn) => Tone::Warn,
+        _ => Tone::Bad,
     }
 }

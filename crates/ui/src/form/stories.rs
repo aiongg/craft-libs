@@ -1,9 +1,9 @@
 //! Stories of `Field`.
 
-use super::Field;
+use super::{Field, FieldGroup};
 use super::Help;
-use super::field::HelpLine;
-use crate::contract::{Bind, FieldLayout, LabelKind, Show as _, ShowContainer as _, SideLabel};
+use crate::contract::{Bind, FieldLayout, LabelKind, Show as _, ShowContainer as _, SideLabel, Validity};
+use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::text::NumberField;
 use craft_behavior::IconId;
@@ -46,7 +46,26 @@ fn field_icon_label(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(HelpLine, covers = [Default], drive = Drive::Never)]
-fn help_line(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    HelpLine::new("Shown in the Layers panel", Tone::Good).show(ui).into()
+#[story(Field<'static>, covers = [], drive = Drive::Never)]
+fn field_with_refused_value(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let refuse_negative = |size: &Option<f64>| match size {
+        Some(size) if *size < 0.0 => Validity::Refuse(Message::new("Size cannot be negative")),
+        _ => Validity::Ok,
+    };
+    Field::new("Size")
+        .help(Help::Text("In points"))
+        .show(ui, |ui, _| NumberField::new("Size", Bind::bound(data.value("refused", Some(-SIZE))).check(refuse_negative)).show(ui))
+        .into()
+}
+
+#[story(FieldGroup, covers = [Default], drive = Drive::Never)]
+fn field_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let rows = [("Width", "width"), ("Corner radius", "radius"), ("Maximum number of layers", "layers")];
+    FieldGroup::new("Shape")
+        .show(ui, |ui, _| {
+            for (label, name) in rows {
+                Field::new(label).show(ui, |ui, _| NumberField::new(label, Bind::bound(data.value(name, Some(SIZE)))).show(ui));
+            }
+        })
+        .into()
 }
