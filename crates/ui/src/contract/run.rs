@@ -242,6 +242,7 @@ fn blank_core<'a>(
         activation: None,
         injected: None,
         keep_open: false,
+        part_clicked: false,
         collection_selection: None,
         activated_member: None,
         press: PressState::IDLE,
