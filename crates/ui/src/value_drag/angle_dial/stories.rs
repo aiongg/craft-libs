@@ -30,8 +30,3 @@ fn angle_dial_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_over = |angle: &f64| if *angle > CAP { Validity::Refuse(Message::new("Above the limit")) } else { Validity::Ok };
     AngleDial::new(Bind::bound(data.value("over", ANGLE)).check(refuse_over)).label("Angle").show(ui).into()
 }
-
-#[story(AngleDial<'static>, covers = [], drive = Drive::Never)]
-fn angle_dial_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    AngleDial::new(Bind::bound(data.value("angle", ANGLE))).label("Angle").enabled(false).show(ui).into()
-}

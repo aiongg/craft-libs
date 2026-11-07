@@ -38,7 +38,8 @@ const LANDING: f32 = 2.0 * EDGE;
 
 impl ValueDrag {
     /// The value follows the pointer on `track`: `range.start()` at `track.start`, `range.end()` at `track.end`.
-    /// A track whose `start` lies after its `end` runs backwards, as a vertical slider's does.
+    /// A track whose `start` lies after its `end` runs backwards, as a vertical slider's does, and a range whose start
+    /// exceeds its end maps the track the other way; the value stays within the range either way.
     pub fn absolute(track: Range<f32>, range: RangeInclusive<f64>) -> Self {
         ValueDrag {
             mapping: Mapping::Absolute { track },
@@ -194,7 +195,7 @@ impl ValueDrag {
     }
 
     fn fit(&self, value: f64) -> f64 {
-        let (low, high) = (*self.range.start(), *self.range.end());
+        let (low, high) = (self.range.start().min(*self.range.end()), self.range.start().max(*self.range.end()));
         if self.wrap_range && high > low { low + (value - low).rem_euclid(high - low) } else { value.clamp(low, high) }
     }
 }
@@ -256,6 +257,15 @@ mod tests {
     fn a_vertical_track_that_runs_backwards_gives_the_minimum_at_the_bottom() {
         let slider = ValueDrag::absolute(300.0..100.0, 0.0..=10.0).axis(Axis::Y);
         assert_eq!(slider.value(0.0, &drag(pos2(0.0, 300.0), pos2(0.0, 200.0), Mods::NONE), false), Some(5.0));
+    }
+
+    #[test]
+    fn a_range_that_runs_backwards_clamps_to_its_ends_and_maps_the_track_the_other_way() {
+        let slider = ValueDrag::absolute(0.0..100.0, 100.0..=0.0);
+        let value = |x: f32| slider.value(50.0, &drag(pos2(50.0, 0.0), pos2(x, 0.0), Mods::NONE), false);
+        assert_eq!(value(25.0), Some(75.0));
+        assert_eq!(value(500.0), Some(0.0));
+        assert_eq!(value(-500.0), Some(100.0));
     }
 
     #[test]

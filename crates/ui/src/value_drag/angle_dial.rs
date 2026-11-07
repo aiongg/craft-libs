@@ -1,5 +1,5 @@
 //! `AngleDial`: a round dial whose needle points in a direction. A press or drag points the needle at the pointer; the
-//! arrow and Page keys and AccessKit step the angle, round the range when it wraps. Its degree field is a
+//! arrow and Page keys, the wheel and AccessKit step the angle, round the range when it wraps. Its degree field is a
 //! `NumberField` the caller shows beside it, bound to the same value.
 
 use crate::contract::{
@@ -7,9 +7,11 @@ use crate::contract::{
     Role, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
+use crate::runtime::env::UnitKind;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps, step_value};
+use craft_behavior::{HitShape, Metrics, MoveMods, NavMove, PartKey, PressPhase, Sense, Wheel, decimals_for_step, wheel_step};
 use craft_theme::{Stateful, States};
 use egui::{CornerRadius, Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
@@ -24,13 +26,9 @@ const FACE: PartKey = PartKey::new("face");
 const TURN: f64 = 360.0;
 /// The grid Shift snaps the pointer to, and the step the Page keys take.
 const OCTANT: f64 = 45.0;
-/// An arrow key with Shift takes this many steps.
-const LARGE_STEPS: f64 = 10.0;
 /// The range and the step of a dial that is given none a usable one.
 const DEFAULT_RANGE: (f64, f64) = (-180.0, 180.0);
 const DEFAULT_STEP: f64 = 1.0;
-/// The radius round the centre within which the pointer changes nothing, in control heights.
-const DEAD_ZONE_IN_HEIGHTS: f32 = 0.1;
 /// The least a range's span may differ from a turn for the dial to count it as one.
 const TURN_TOLERANCE: f64 = 1e-9;
 
@@ -88,6 +86,9 @@ pub struct AngleDialStyle {
 }
 
 /// An angle in degrees: a dial whose needle points where the pointer is.
+///
+/// Shift while pointing snaps the direction to 45 degrees, as Photoshop's angle dial does, so Alt is the fine factor
+/// of the keys and the wheel (a tenth of a step); Shift on a key or a wheel notch takes the large step.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct AngleDial<'a> {
     #[common]
@@ -136,24 +137,25 @@ impl<'a> AngleDial<'a> {
         self.wrap.unwrap_or_else(|| (max - min - TURN).abs() <= TURN_TOLERANCE)
     }
 
-    /// `value` on the nearest stop of the step grid, in the range: a multiple of the step from the start, or the end.
-    fn snap(&self, value: f64) -> f64 {
+    /// `value` on the nearest stop of the grid of `step`, in the range: a multiple of the step from the start, or the
+    /// end.
+    fn snap(&self, value: f64, step: f64) -> f64 {
         let (min, max) = self.bounds();
         let value = value.clamp(min, max);
-        let stop = (min + ((value - min) / self.step_size()).round() * self.step_size()).min(max);
+        let stop = (min + ((value - min) / step).round() * step).min(max);
         if (max - value).abs() < (stop - value).abs() { max } else { stop }
     }
 
     /// The value `delta` degrees from `value` (`None`: mixed, which steps from the range's start), brought back into
     /// the range from the end it passed when the dial wraps, and on the step grid. A value inside the range, max
     /// included, stays; one past max continues from min by the overshoot and one below min from max, so both ends
-    /// are reachable.
-    fn stepped(&self, value: Option<f64>, delta: f64) -> f64 {
+    /// are reachable. The grid is the step, or the fine step when `fine`.
+    fn stepped(&self, value: Option<f64>, delta: f64, fine: bool) -> f64 {
         let (min, max) = self.bounds();
         let target = value.unwrap_or(min) + delta;
         let span = max - min;
         let wrapped = if self.wraps() && span > 0.0 && !(min..=max).contains(&target) { min + (target - min).rem_euclid(span) } else { target };
-        self.snap(wrapped)
+        self.snap(wrapped, if fine { self.step_size() / LARGE_STEPS } else { self.step_size() })
     }
 
     fn pointing(&self, rect: Rect, dead_zone: f32) -> Pointing {
@@ -161,25 +163,41 @@ impl<'a> AngleDial<'a> {
         Pointing { min, max, wraps: self.wraps(), orientation: self.orientation, dead_zone, center: rect.center() }
     }
 
-    fn places(&self) -> usize {
-        (0..3).find(|places| (self.step_size() * 10f64.powi(*places)).fract().abs() < 1e-9).map_or(3, |places| places as usize)
+    /// The steps of one key or wheel notch from `value` (`None`: mixed, which steps from the range's start). The bounds
+    /// are open so a step past an end reaches `stepped`, which wraps or stops.
+    fn steps(&self, value: Option<f64>) -> ValueSteps {
+        let step = self.step_size();
+        ValueSteps::new(value.unwrap_or(self.bounds().0), f64::NEG_INFINITY, f64::INFINITY, step, step * LARGE_STEPS)
     }
-}
 
-/// The change of an arrow or Page key: one step, ten with Shift, or 45 degrees for a Page key. Right and Up raise the
-/// angle in either reading direction, because the dial is not mirrored. Home and End are none: the ends of a turn
-/// point the same way.
-fn key_delta(mv: NavMove, mods: MoveMods, step: f64, rtl: bool) -> Option<f64> {
-    let arrow = if mods.extend { step * LARGE_STEPS } else { step };
-    let along = if rtl { -arrow } else { arrow };
-    match mv {
-        NavMove::Forward => Some(along),
-        NavMove::Back => Some(-along),
-        NavMove::Up => Some(arrow),
-        NavMove::Down => Some(-arrow),
-        NavMove::PageUp => Some(OCTANT),
-        NavMove::PageDown => Some(-OCTANT),
-        _ => None,
+    /// The angle after an arrow or Page key, or `None` for a key that does not step it. Right and Up raise the angle
+    /// in either reading direction, because the dial is not mirrored. Home and End are none: the ends of a turn point
+    /// the same way. A Page key is 45 degrees.
+    fn key(&self, value: Option<f64>, mv: NavMove, mods: MoveMods, rtl: bool) -> Option<f64> {
+        let raise = match mv {
+            NavMove::PageUp => return Some(self.stepped(value, OCTANT, false)),
+            NavMove::PageDown => return Some(self.stepped(value, -OCTANT, false)),
+            NavMove::Forward => !rtl,
+            NavMove::Back => rtl,
+            NavMove::Up => true,
+            NavMove::Down => false,
+            _ => return None,
+        };
+        let steps = self.steps(value);
+        let mv = if raise { NavMove::Up } else { NavMove::Down };
+        match step_value(&steps, ValueAxes::Vertical, mv, mods) {
+            StepResult::Set(next) => Some(self.stepped(value, next - steps.value, mods.fine && !mods.extend)),
+            _ => None,
+        }
+    }
+
+    /// The angle after a wheel notch on either axis.
+    fn wheeled(&self, value: Option<f64>, wheel: &Wheel) -> Option<f64> {
+        let steps = self.steps(value);
+        match wheel_step(&steps, ValueAxes::Both, wheel, false) {
+            StepResult::Set(next) => Some(self.stepped(value, next - steps.value, wheel.mods.alt && !wheel.mods.shift)),
+            _ => None,
+        }
     }
 }
 
@@ -240,11 +258,11 @@ impl Component for AngleDial<'_> {
             surface: SurfaceLook::new(face).radius(CornerRadius::same((side / 2.0).round() as u8)).border(edge, cx.tokens.stroke.thin),
             metrics: Metrics::new().min_size(Vec2::splat(side)),
             focus: cx.focus_look(),
-            needle: states(colors.accent.solid, colors.accent.hover, colors.accent.pressed, colors.text.disabled),
+            needle: cx.accent_fill(),
             hub_fill: states(colors.text.muted, colors.text.muted, colors.text.muted, colors.text.disabled),
             needle_inset: control.gap,
             hub: cx.tokens.size.handle.sm / 2.0,
-            dead_zone: control.height * DEAD_ZONE_IN_HEIGHTS,
+            dead_zone: cx.tokens.size.hit.dead_zone,
         }
     }
 
@@ -272,7 +290,7 @@ impl Component for AngleDial<'_> {
         let pointing = self.pointing(cx.rect, cx.style.dead_zone);
         let press = cx.part(FACE).press;
         let shown = cx.value().copied();
-        let at = |pos: Pos2| pointing.at(pos, shown, press.mods.shift).map(|value| self.snap(value));
+        let at = |pos: Pos2| pointing.at(pos, shown, press.mods.shift).map(|value| self.snap(value, self.step_size()));
         match press.phase {
             PressPhase::DragStart { pos, .. } => {
                 cx.begin();
@@ -302,18 +320,21 @@ impl Component for AngleDial<'_> {
         }
         let (running, rtl) = (cx.gesture().is_some(), cx.flow.is_rtl());
         let mut now = cx.value().copied();
+        // While a drag runs, keys, the wheel and screen-reader requests change nothing; they are still taken.
         while let Some((mv, mods)) = cx.intents().take_move() {
-            if running {
-                continue;
-            }
-            if let Some(delta) = key_delta(mv, mods, self.step_size(), rtl) {
-                let next = self.stepped(now, delta);
+            if let Some(next) = self.key(now, mv, mods, rtl).filter(|_| !running) {
                 cx.set(next);
                 now = Some(next);
             }
         }
-        if let Some(next) = cx.intents().take_set_value().filter(|next| next.is_finite()) {
-            cx.set(self.snap(next));
+        if let Some(wheel) = cx.take_wheel()
+            && !running
+            && let Some(next) = self.wheeled(now, &wheel)
+        {
+            cx.set(next);
+        }
+        if let Some(next) = cx.intents().take_set_value().filter(|next| next.is_finite() && !running) {
+            cx.set(self.snap(next, self.step_size()));
         }
     }
 
@@ -322,7 +343,8 @@ impl Component for AngleDial<'_> {
         let numeric = match cx.value() {
             Some(value) => {
                 let mut numeric = Numeric::new(*value, min..=max);
-                numeric.text = Some(format!("{}°", cx.format().number(*value, self.places())));
+                let decimals = decimals_for_step(self.step_size());
+                numeric.text = Some(cx.env.units().text(UnitKind::Degrees, *value, decimals..=decimals));
                 numeric
             }
             None => Numeric::empty(min..=max),
