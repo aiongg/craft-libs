@@ -6,8 +6,8 @@
 use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, LeadOnOpen,
-    ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
+    LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
@@ -64,6 +64,9 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Files dragged in from the OS may drop on the list; a drop reports `CollectionEvent::FilesDropped`.
     #[prop]
     takes_files: bool,
+    /// The list is a listbox of options: the popup of a value picker.
+    #[prop(flag)]
+    listbox: bool,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
@@ -81,8 +84,23 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             accept_from: None,
             accepts: None,
             takes_files: false,
+            listbox: false,
         }
         .label(label)
+    }
+
+    /// The options list of a value picker's popup (completions, number presets, `PopupList`): one selection, a click
+    /// activates, the lead starts on the first row and follows the pointer, and a press leaves the key focus on the
+    /// opener, whose list keys the host forwards while the popup is open. Its rows are `ListRow::option()`. Menus are
+    /// `Menu`s, not option lists.
+    pub fn options(label: impl Into<Label>) -> Self {
+        Self::new(label)
+            .select(SelectMode::Single)
+            .activate(ActivateOn::Click)
+            .lead_on_open(LeadOnOpen::First)
+            .lead_follows_hover(true)
+            .focus_on_press(false)
+            .listbox()
     }
 
     /// What the user can select.
@@ -179,11 +197,18 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
 
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for List<'_, K> {
     const ROLE: Role = Role::LIST;
+    const ALT_ROLES: &'static [Role] = &[Role::LIST_BOX];
     type Style = ListStyle;
     type Output = CollectionResponse<K, RowEvent>;
 
     fn style(_: &StyleCx<'_>, _: ListStyleKey<K>) -> ListStyle {
         ListStyle::default()
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if self.listbox {
+            access.role(Role::LIST_BOX);
+        }
     }
 
     fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {

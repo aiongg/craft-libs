@@ -1,26 +1,21 @@
-//! The completion list of a text part (18.2): candidates from the options' `Completer` for the draft and caret, the
-//! keys the list takes while it is open, and acceptance by replacing the candidate's range.
+//! The completion list of a text part (18.2): candidates from the options' `Completer` for the draft and caret, and
+//! acceptance by replacing the candidate's range. The list's popup is a dropdown: the host hands the part's list keys
+//! to it, its lead is the highlight, and closing it hides the list until the draft changes.
 
 use super::byte_of;
 use crate::primitives::{Completer, Completion};
-use crate::runtime::keys;
-use craft_keymap::{Chord, Key};
-use egui::{Context, Id};
 use std::ops::Range;
-
-/// The keys the open list takes: Up and Down move its highlight, Enter and Tab accept, Escape hides it.
-const KEYS: [Key; 5] = [Key::Up, Key::Down, Key::Enter, Key::Tab, Key::Escape];
 
 /// What the adapter keeps of the list between passes.
 #[derive(Clone, Default)]
 pub(crate) struct Completions {
     /// The candidates shown; empty while the list is closed.
     pub items: Vec<Completion>,
-    /// The highlighted candidate.
-    pub index: usize,
-    /// The list is open: it holds the keys of [`KEYS`].
+    /// The list has candidates to show: the part holds Escape for the popup while this is set.
     pub open: bool,
-    /// A candidate the pointer picked in the list, accepted by the next pass.
+    /// The popup was asked to open in the last pass.
+    requested: bool,
+    /// A candidate the list activated (Enter, Tab or a click), accepted by the next pass.
     pub picked: Option<usize>,
     /// The bytes of `for_text` the candidates replace.
     range: Option<Range<usize>>,
@@ -33,34 +28,15 @@ pub(crate) struct Completions {
 impl Completions {
     fn close(&mut self) {
         self.items.clear();
-        self.index = 0;
         self.open = false;
         self.range = None;
         self.for_text.clear();
     }
 
-    /// Reads the keys the list claimed last pass and the row the pointer picked, against the draft `text`. Returns
-    /// the bytes of `text` the accepted candidate replaces and the text that replaces them.
-    pub(crate) fn take(&mut self, ctx: &Context, id: Id, text: &str) -> Option<(Range<usize>, String)> {
-        let claimed = |key| keys::take_claimed(ctx, id, Chord::plain(key));
-        let (down, up, escape) = (claimed(Key::Down), claimed(Key::Up), claimed(Key::Escape));
-        let accept = claimed(Key::Enter) | claimed(Key::Tab);
-        let picked = self.picked.take();
-        if !self.open {
-            return None;
-        }
-        if escape {
-            self.dismissed = Some(text.to_owned());
-            self.close();
-            return None;
-        }
-        if down {
-            self.index = (self.index + 1).min(self.items.len().saturating_sub(1));
-        }
-        if up {
-            self.index = self.index.saturating_sub(1);
-        }
-        let at = if accept { Some(self.index) } else { picked }?;
+    /// Reads the candidate the list activated, against the draft `text`. Returns the bytes of `text` the accepted
+    /// candidate replaces and the text that replaces them.
+    pub(crate) fn take(&mut self, text: &str) -> Option<(Range<usize>, String)> {
+        let at = self.picked.take().filter(|_| self.open)?;
         if self.for_text != text {
             return None;
         }
@@ -72,9 +48,21 @@ impl Completions {
         Some((range, insert))
     }
 
+    /// Reconciles the list with its popup before the pass opens or closes it: `shown` is whether the popup is open.
+    /// A popup closed while it was asked to show (Escape, a press outside) hides the list until the draft changes.
+    /// Returns whether the popup should open.
+    pub(crate) fn sync(&mut self, shown: bool) -> bool {
+        if self.requested && !shown && self.open {
+            self.dismissed = Some(std::mem::take(&mut self.for_text));
+            self.close();
+        }
+        self.requested = self.open;
+        self.open
+    }
+
     /// Asks `completer` for the candidates of the draft and caret in `at` (the text and the caret in characters; `None`
-    /// while the part is not being typed in) and claims the list's keys while there are some.
-    pub(crate) fn refresh(&mut self, ctx: &Context, id: Id, completer: Option<&dyn Completer>, at: Option<(&str, usize)>) {
+    /// while the part is not being typed in).
+    pub(crate) fn refresh(&mut self, completer: Option<&dyn Completer>, at: Option<(&str, usize)>) {
         let Some((text, caret)) = at else {
             self.close();
             return;
@@ -88,16 +76,9 @@ impl Completions {
             self.close();
             return;
         };
-        if self.items.iter().map(|item| &item.insert).ne(items.iter().map(|item| &item.insert)) {
-            self.index = 0;
-        }
-        self.index = self.index.min(items.len() - 1);
         self.items = items;
         self.range = Some(range);
         self.for_text = text.to_owned();
         self.open = true;
-        for key in KEYS {
-            keys::claim(ctx, id, Chord::plain(key));
-        }
     }
 }

@@ -192,10 +192,12 @@ fn facts<C: Component>(
     state.rows = Some(rows);
 }
 
-/// Opens the completion list's popup while the adapter holds candidates and closes it otherwise.
-fn drive_completions<C: Component>(cx: &mut Cx<'_, C>, open: bool) {
+/// Opens the completion list's popup while the adapter holds candidates and closes it otherwise. A popup the host
+/// closed (Escape, a press outside) hides the list until the draft changes.
+fn drive_completions<C: Component>(cx: &mut Cx<'_, C>, state: &mut TextState) {
     let list = cx.popup("completions");
-    if open {
+    let shown = list.is_open(cx);
+    if state.completions.sync(shown) {
         list.open(cx);
     } else {
         list.close(cx);
@@ -292,7 +294,7 @@ pub(crate) fn run<C: Component>(
         }
     }
     if decl.options.complete.is_some() {
-        drive_completions(cx, state.completions.open);
+        drive_completions(cx, &mut state);
     }
     let resolved = resolve(&mut state, cx.value(), commit_now);
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
