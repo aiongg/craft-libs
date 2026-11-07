@@ -533,18 +533,18 @@ impl Component for Guides<'_> {
         }
     }
 
-    /// One node per guide, named by its axis and valued by its position in the ruler's units.
+    /// One node per unlocked guide, named by its axis and valued by its position in the ruler's units.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let (Some(space), Some(guides)) = (canvas_space(&cx.env), cx.value()) else { return };
         let words = cx.words::<GuideWords>();
         let units = cx.env.units();
-        for guide in guides {
+        for guide in guides.iter().filter(|guide| !guide.locked) {
             let ruler = self.ruler(guide.along);
             let (lo, hi) = self.nudge_range(&space, guide.along);
             let range = lo.min(hi).min(guide.position)..=hi.max(lo).max(guide.position);
             let text = ruler.format_value(&units, guide.position, coordinate_across(guide.along, self.zero));
             let mut numeric = Numeric::new(guide.position, range).text(text);
-            if self.interactive && !guide.locked {
+            if self.interactive {
                 numeric = numeric.step(self.step);
             }
             let node = access.node(guide.key.part(GUIDE), Role::SLIDER);

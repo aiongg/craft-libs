@@ -19,7 +19,7 @@ use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleColor, StyleCx};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{Axis, CanvasView, CursorIcon, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{Axis, CanvasView, CursorIcon, Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
 use egui::{CornerRadius, Pos2, Rect, Response};
 
 const DIVIDER: PartKey = PartKey::new("divider");
@@ -72,8 +72,15 @@ impl SplitLayout {
         }
     }
 
-    /// The panes' rects in `full` with the dividers at `at`, the main view (pane 0) first and the others in reading
-    /// order.
+    /// The panes' rects in `full` placed for the layout direction: [`rects`](Self::rects) reflected across the middle
+    /// of `full` under `rtl`, so the dividers' fractions count from the start edge.
+    pub fn placed(self, at: SplitAt, full: Rect, rtl: bool) -> Vec<Rect> {
+        let flow = Flow::new(full, rtl);
+        self.rects(at, full).into_iter().map(|rect| flow.to_physical(rect)).collect()
+    }
+
+    /// The panes' rects in `full` with the dividers at `at` counted from the left, the main view (pane 0) first and
+    /// the others in reading order.
     pub fn rects(self, at: SplitAt, full: Rect) -> Vec<Rect> {
         let (x, y) = (full.left() + full.width() * at.x, full.top() + full.height() * at.y);
         let quad = |x0, y0, x1, y1| Rect::from_min_max(Pos2::new(x0, y0), Pos2::new(x1, y1));
@@ -217,7 +224,7 @@ pub struct SplitStyle {
 pub struct SplitOutput {
     /// The divider edits and the area's response.
     pub edit: EditResponse<SplitAt>,
-    /// The pane clicked, or activated by key or assistive technology, this pass that was not the active one: the app
+    /// The pane pressed, or activated by key or assistive technology, this pass that was not the active one: the app
     /// makes it active.
     pub activated: Option<usize>,
 }
@@ -236,7 +243,7 @@ impl Outcome for SplitOutput {
 }
 
 /// One canvas area divided into 1, 2 or 4 panes. The active pane is the app's: it routes tools and keys there. An
-/// inactive pane is a Tab stop over its view: a click, Enter or Space on it reports it in [`SplitOutput::activated`]
+/// inactive pane is a Tab stop over its view: a press, Enter or Space on it reports it in [`SplitOutput::activated`]
 /// and its view gets no press.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
@@ -277,10 +284,12 @@ impl<'a> SplitViews<'a> {
 /// Dragging a divider moves its boundary: one gesture from the drag's start to its release.
 fn resize_by_pointer(cx: &mut Cx<'_, SplitViews<'_>>, at: SplitAt, dividers: &[Divider]) {
     let rect = cx.rect;
+    let flow = Flow::new(rect, cx.flow.is_rtl());
     for (index, divider) in dividers.iter().enumerate() {
         match cx.part(DIVIDER.at(index as u64)).press.phase {
             PressPhase::DragStart { .. } => cx.begin(),
             PressPhase::Drag { pos, .. } => {
+                let pos = flow.to_physical(Rect::from_min_max(pos, pos)).min;
                 let coord = if divider.axis == Axis::X { pos.x } else { pos.y };
                 cx.propose(moved(at, divider, coord, rect));
             }
@@ -350,7 +359,8 @@ impl Component for SplitViews<'_> {
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let at = cx.value().copied().unwrap_or_default();
         let active = self.active_pane();
-        for (pane, pane_rect) in self.layout.rects(at, rect).into_iter().enumerate() {
+        let flow = Flow::new(rect, cx.flow.is_rtl());
+        for (pane, pane_rect) in self.layout.placed(at, rect, flow.is_rtl()).into_iter().enumerate() {
             if pane == active {
                 cx.part(PANE.at(pane as u64), pane_rect).priority(HitPriority::new(HitLevel::Background, 0));
             } else {
@@ -366,7 +376,7 @@ impl Component for SplitViews<'_> {
         }
         for (index, divider) in dividers(self.layout, at, rect, cx.style.reach, cx.style.least).iter().enumerate() {
             let cursor = if divider.axis == Axis::X { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            cx.part(DIVIDER.at(index as u64), divider.bar)
+            cx.part(DIVIDER.at(index as u64), flow.to_physical(divider.bar))
                 .sense(Sense::DRAG | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
                 .cursor(cursor)
@@ -382,7 +392,12 @@ impl Component for SplitViews<'_> {
             resize_by_keys(cx, at, &dividers);
         }
         let active = self.active_pane();
-        self.activated = (0..self.layout.panes()).filter(|&pane| pane != active).find(|&pane| cx.part_activated(PANE.at(pane as u64)).is_some());
+        // A press chooses the pane, as in Photoshop; Enter, Space and assistive technology activate it too.
+        let chosen = |pane: &usize| {
+            let part = PANE.at(*pane as u64);
+            cx.part_if_declared(part).is_some_and(|result| result.press.went_down) || cx.part_activated(part).is_some()
+        };
+        self.activated = (0..self.layout.panes()).filter(|&pane| pane != active).find(chosen);
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -393,7 +408,7 @@ impl Component for SplitViews<'_> {
             }
         }
         if self.layout.panes() > 1
-            && let Some(rect) = self.layout.rects(at, cx.rect).get(self.active_pane())
+            && let Some(rect) = self.layout.placed(at, cx.rect, cx.flow.is_rtl()).get(self.active_pane())
         {
             ui.draw().stroke(&PaintShape::Rect(*rect, CornerRadius::ZERO), StrokeWidth::Thin, cx.style.active_edge);
         }

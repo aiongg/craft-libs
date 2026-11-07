@@ -152,8 +152,12 @@ pub struct RulersStyle {
     marker: StyleColor,
 }
 
+/// The type role of the tick labels.
+const LABEL_ROLE: TypeRole = TypeRole::Caption;
+
+/// A strip is as thick as its tick labels need, and no thinner than a small icon.
 fn thickness(tokens: &UiTokens) -> f32 {
-    tokens.size.icon.sm
+    tokens.size.icon.sm.max(tokens.typography.get(LABEL_ROLE).line_height)
 }
 
 /// The top strip, the left strip and the corner inside `rect`.
@@ -345,7 +349,7 @@ impl Component for Rulers<'_> {
             pad: cx.tokens.space.gap.tight,
             fill: cx.color(c.surface.chrome),
             margin: cx.color(c.surface.sunken),
-            label: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(c.text.muted))),
+            label: TextLook::new(LABEL_ROLE, Stateful::new(cx.color(c.text.muted))),
             marker: cx.color(c.text.normal),
         }
     }

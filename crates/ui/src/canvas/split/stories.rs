@@ -18,7 +18,7 @@ const NAMES: [&str; 4] = ["Main view", "View", "View", "View"];
 /// Shows a view of the document in each pane of `layout`, the first pane active.
 fn split(ui: &mut Ui, layout: SplitLayout, at: Bind<'_, SplitAt>, shown: SplitAt) -> StoryOutput {
     let views = SplitViews::new("Views", layout, at).show(ui, |ui, body| {
-        for (pane, rect) in layout.rects(shown, body.rect).into_iter().enumerate() {
+        for (pane, rect) in layout.placed(shown, body.rect, body.env.direction().is_rtl()).into_iter().enumerate() {
             let view = CanvasView::new(rect, Point::new(f64::from(rect.width()) / 2.0, f64::from(rect.height()) / 2.0), 1.0);
             Canvas::new(NAMES[pane], ToolPath::Freehand).view(view).show_at(ui, rect, |_, _| ());
         }
