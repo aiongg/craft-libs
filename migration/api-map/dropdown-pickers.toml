@@ -65,22 +65,24 @@ note = "The option-list row helpers (`paint_row`, `Shortcut`, `Leading`) are the
 
 [[type]]
 name = "ComboBox"
-old = ""
-# found in: craft_ui::combo::ComboBox, craft_ui::controls::combo_box::ComboBox
+old = "craft_ui::controls::combo_box::ComboBox"
 new = "craft_ui::pickers::ComboBox"
-status = "pending"
+status = "moved"
+note = "`ComboBox::new(label, Bind::bound(&mut text), &options)` with `options: &[Entry<String>]` in place of `new(id_salt, label, &text).options(..)`; output `EditResponse<String>`. The text is the value; filtering, the list and its keys are the component's own. The deprecated `craft_ui::combo::ComboBox` (the egui fork, `show_ui`, `show_index` and the other `show_*` entry points) has no counterpart: a list of fixed choices is `Select`, a text field with options is this `ComboBox`."
 
 [[type]]
 name = "TreePicker"
 old = "craft_ui::controls::tree_picker::TreePicker"
 new = "craft_ui::pickers::TreePicker"
-status = "pending"
+status = "moved"
+note = "`TreePicker::new(label, Bind::bound(&mut album), &entries)`; the value is `Option<K>` in a `Bind`, output `EditResponse<Option<K>>`. The closed field is a `SelectFace`. The popup has no search field: the list's type-ahead jumps to a visible row, and `tree_search` and `tree_path` go."
 
 [[type]]
 name = "Autocomplete"
 old = "craft_ui::controls::autocomplete::Autocomplete"
-new = "craft_ui::pickers::Autocomplete"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`TextField::complete(completer)`: the text adapter owns the popup, the list keys, Tab and Escape. A `Suggestion` is a `Completion` (label, text to insert); `take_keys` and `AutocompleteKeys` go. A completion list anchored to something that is not a text field has no counterpart."
 
 [[type]]
 name = "DatePicker"
@@ -93,6 +95,76 @@ name = "IconPicker"
 old = "craft_ui::controls::icon_picker::IconPicker"
 new = "craft_ui::pickers::IconPicker"
 status = "pending"
+
+[[type]]
+name = "ComboState"
+old = "craft_ui::controls::combo_box::ComboState"
+new = ""
+status = "removed"
+note = "Internal state of the legacy combo box (open flag, typing run, restore text). The text adapter keeps the typing run and the dropdown keeps the open state."
+
+[[type]]
+name = "Matches"
+old = "craft_ui::controls::combo_box::Matches"
+new = ""
+status = "removed"
+note = "Internal to the legacy combo box. `ComboBox` applies the same rule itself: options starting with the typed text first, then those containing it, ignoring case and surrounding spaces."
+
+[[type]]
+name = "Menu"
+old = "craft_ui::combo::Menu"
+new = ""
+status = "removed"
+note = "The deprecated egui-fork popup menu (`show_ui`, `show_rows_with_header` and the other `show_*` entry points). A value menu is `Menu::entries`; a value picker is `Select` or `ComboBox`."
+
+[[type]]
+name = "TreeEntry"
+old = "craft_ui::controls::tree_picker::TreeEntry"
+new = "craft_ui::pickers::TreeEntry"
+status = "moved"
+note = "Built with `TreeEntry::new(key, name)` or `TreeEntry::folder(key, name)`, then `within(parent_key)`, `blocked_by(reason)` and `with_icon(icon)`, in place of the public fields `key`, `name`, `parent`, `folder`, `blocked` and `icon`."
+
+[[type]]
+name = "TreePickerStyle"
+old = "craft_ui::controls::tree_picker::TreePickerStyle"
+new = "craft_ui::pickers::TreePickerStyle"
+status = "moved"
+note = "Read-only style struct built from the theme; the select style, row style, list height and popup width fields go. The popup is as wide as the field at least and takes at most half the viewport width and 40 percent of its height."
+
+[[type]]
+name = "TreePickerLabels"
+old = "craft_ui::controls::tree_picker::TreePickerLabels"
+new = ""
+status = "replaced"
+note = "Words of the library word sets (`treePicker.placeholder`, `treePicker.separator`); a placeholder of the app is `TreePicker::placeholder`."
+
+[[type]]
+name = "AutocompleteResponse"
+old = "craft_ui::controls::autocomplete::AutocompleteResponse"
+new = ""
+status = "replaced"
+note = "The text field's `EditResponse` reports the accepted text as the value; there is no accepted index or dismissed flag."
+
+[[type]]
+name = "AutocompleteKeys"
+old = "craft_ui::controls::autocomplete::AutocompleteKeys"
+new = ""
+status = "removed"
+note = "The host forwards the list keys from the text part to the completion list; no caller takes them."
+
+[[type]]
+name = "AutocompleteStyle"
+old = "craft_ui::controls::autocomplete::AutocompleteStyle"
+new = ""
+status = "removed"
+note = "The completion list is a `List::options` on the dropdown preset and takes its look from the theme."
+
+[[type]]
+name = "Suggestion"
+old = "craft_ui::controls::autocomplete::Suggestion"
+new = ""
+status = "replaced"
+note = "`craft_ui::primitives::Completion` carries the label and the text to insert; the mark and description lines have no counterpart."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 
@@ -220,3 +292,53 @@ new = "Bind::policy(EditPolicy)"
 type = "Select"
 old = "enabled(bool)"
 new = "enabled(bool)"
+
+[[setter]]
+type = "ComboBox"
+old = "new(id_salt, label, &str)"
+new = "new(label, Bind<String>, &[Entry<String>])"
+
+[[setter]]
+type = "ComboBox"
+old = "option(text), options(texts)"
+new = "new(.., &[Entry::new(text.to_owned(), text)])"
+note = "The options are the third argument of `new`: an `Entry<String>` whose value is the text put in the field."
+
+[[setter]]
+type = "ComboBox"
+old = "placeholder(String)"
+new = "placeholder(impl Into<Label>)"
+
+[[setter]]
+type = "ComboBox"
+old = "size(ControlSize), enabled(bool)"
+new = "size(ControlSize), enabled(bool)"
+note = "Props setters."
+
+[[setter]]
+type = "ComboBox"
+old = "policy(EditPolicy)"
+new = ""
+note = "Removed: a typing run is the binding's gesture; the text part commits on Enter or when focus leaves."
+
+[[setter]]
+type = "ComboBox"
+old = "keep_focus(bool)"
+new = ""
+note = "Removed: the text adapter's Enter submits and keeps the focus; a pick keeps it too."
+
+[[setter]]
+type = "TreePicker"
+old = "new(id_salt, label, &mut Option<K>, &[TreeEntry<K>])"
+new = "new(label, Bind<Option<K>>, &[TreeEntry<K>])"
+
+[[setter]]
+type = "TreePicker"
+old = "placeholder(String), size(ControlSize), enabled(bool)"
+new = "placeholder(impl Into<Label>), size(ControlSize), enabled(bool)"
+
+[[setter]]
+type = "TreePicker"
+old = "labels(TreePickerLabels), style(tokens, size)"
+new = ""
+note = "Removed: words come from the library word sets and the style from the theme."
