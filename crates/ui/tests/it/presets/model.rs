@@ -83,7 +83,7 @@ fn reordering_a_group_changes_its_parent_and_keeps_its_presets() {
     let inner = PresetKey::group(["A", "Inner"]);
     let to = before(&lib, std::slice::from_ref(&inner), &PresetKey::group(["B"]));
     let changes = lib.reorder(std::slice::from_ref(&inner), to).unwrap();
-    assert!(matches!(&changes[0], PresetChange::GroupMoved { from, to } if from.names() == ["A", "Inner"] && to.names() == ["Inner"]));
+    assert!(matches!(&changes[0], PresetChange::GroupMoved { from, to, .. } if from.names() == ["A", "Inner"] && to.names() == ["Inner"]));
     assert_eq!(lib.group_of(blue), Some(GroupPath::new(["Inner"])));
     assert_eq!(group_labels(&lib), ["A", "Inner", "B"]);
 
