@@ -44,10 +44,18 @@ mod sizing;
 
 pub use sizing::{
     CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, ImageSize, ImageSizeOutput, ImageSizeResult, Resample, SizingOutput, SizingWords,
+};
 
 mod new_document;
 
 pub use new_document::{
     BACKGROUND_COLOR_KEY, BackgroundContents, BitDepth, ColorMode, ColorProfiles, DocumentOptions, DocumentPreset, HostedNewDocument, NameError,
     NewDocumentDialog, NewDocumentOutput, NewDocumentWords, Orientation, PresetCategory, PresetWords, preset_name_error, push_recent, size_line,
+};
+
+mod about;
+
+pub use about::{
+    AboutDialog, AboutInfo, AboutLink, AboutOutput, AboutTab, AboutWords, CommitShare, Contributor, ContributorSort, Credits, ModelCredit, NameMode,
+    commit_day, commit_share, sorted_contributors,
 };

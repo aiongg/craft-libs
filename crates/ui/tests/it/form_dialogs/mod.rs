@@ -15,3 +15,5 @@ mod option;
 mod sizing;
 
 mod new_document;
+
+mod about;
