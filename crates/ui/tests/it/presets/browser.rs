@@ -25,7 +25,7 @@ fn rows() -> Vec<PresetRow<u32>> {
 }
 
 fn drag(key: u32) -> ListDrag<u32> {
-    ListDrag::new(Id::new("presets"), vec![key], key)
+    ListDrag::new(Id::NULL, vec![key], key)
 }
 
 /// A preset lands next to another preset, never next to a group header; groups stay put unless asked to move.

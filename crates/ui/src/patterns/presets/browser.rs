@@ -65,7 +65,15 @@ impl<'a, K> ThumbPainter<'a, K> {
     }
 }
 
-type FooterSetup<'a, K> = Box<dyn for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a>;
+/// Adds the host's buttons to the footer the browser makes.
+pub struct FooterSetup<'a, K>(Box<dyn for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a>);
+
+impl<'a, K> FooterSetup<'a, K> {
+    /// The setup that runs `setup`.
+    pub fn new(setup: impl for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a) -> Self {
+        FooterSetup(Box::new(setup))
+    }
+}
 
 /// A library of named presets shown as thumbnails.
 ///
@@ -121,8 +129,13 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Paints a preset's thumbnail; without it the row's own `preview` paints.
     #[prop(func = "Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>)")]
     thumb: Option<ThumbPainter<'a, K>>,
+    /// Presets (and groups) drag and move by these rules.
+    #[prop]
     reorder: Option<PresetReorder<'a, K>>,
     extra_items: Vec<Entry<String>>,
+    /// A footer under the presets. The closure receives it with the browser's zoom bound to its slider and the count
+    /// of presets, and adds the host's buttons and options.
+    #[prop(func = "for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K>")]
     footer: Option<FooterSetup<'a, K>>,
 }
 
@@ -150,26 +163,11 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
         }
     }
 
-    /// Presets (and groups) drag and move by `reorder`'s rules.
-    #[must_use]
-    pub fn reorder(mut self, reorder: PresetReorder<'a, K>) -> Self {
-        self.reorder = Some(reorder);
-        self
-    }
-
     /// Rows added to the context menu after the standard ones; running one reports `PresetEvent::Menu` with the
     /// entry's value.
     #[must_use]
     pub fn extra_items(mut self, items: impl IntoIterator<Item = Entry<String>>) -> Self {
         self.extra_items = items.into_iter().collect();
-        self
-    }
-
-    /// A footer under the presets. `setup` receives it with the browser's zoom bound to its slider and the count of
-    /// presets, and adds the host's buttons and options.
-    #[must_use]
-    pub fn footer(mut self, setup: impl for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a) -> Self {
-        self.footer = Some(Box::new(setup));
         self
     }
 }
@@ -617,7 +615,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
 
         if let Some(setup) = footer {
             let count = rows.iter().filter(|row| !row.is_group()).count();
-            let bar = setup(PresetFooter::new(Bind::bound(&mut local.zoom)).range(thumb_range).count(count));
+            let bar = (setup.0)(PresetFooter::new(Bind::bound(&mut local.zoom)).range(thumb_range).count(count));
             events.extend(bar.show(ui).events.into_iter().map(PresetEvent::Footer));
         }
 

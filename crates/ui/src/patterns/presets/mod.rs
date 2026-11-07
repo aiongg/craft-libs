@@ -13,7 +13,7 @@ mod model;
 mod panel_menu;
 mod state;
 
-pub use browser::{PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
+pub use browser::{FooterSetup, PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
 pub use event::{PresetEvent, PresetOutput};
 pub use files::{PresetExport, PresetFileEvent, PresetFileFailure, PresetFileRequest, PresetFiles};
 pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOutput};
