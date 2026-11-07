@@ -43,7 +43,15 @@ fn debug_values_flatten_to_dotted_keys() {
     let keys: Vec<(&str, &str)> = flat.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
     assert_eq!(
         keys,
-        [("height", "24.0"), ("inner.gap", "4.0"), ("inner.pair.0", "1"), ("inner.pair.1", "2"), ("items.0", "7"), ("items.1", "8"), ("none", "None")]
+        [
+            ("height", "24.0"),
+            ("inner.gap", "4.0"),
+            ("inner.pair.0", "1"),
+            ("inner.pair.1", "2"),
+            ("items.0", "7"),
+            ("items.1", "8"),
+            ("none", "None")
+        ]
     );
 }
 

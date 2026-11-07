@@ -12,6 +12,7 @@ pub mod frames;
 pub mod input;
 pub mod layout;
 pub mod memory;
+pub mod parity;
 pub mod pointer;
 pub mod sensing;
 pub mod style;

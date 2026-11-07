@@ -70,10 +70,17 @@ pub fn child_viewport_hooks() -> HookFacts {
         });
         output.textures_delta.clear();
     }
-    let log = log.lock().map(|log| log.iter().map(|e| match e {
-        Entry::Input { raw, current } => (Some((*raw, *current)), None),
-        Entry::Begin { current } => (None, Some(*current)),
-    }).collect::<Vec<_>>()).unwrap_or_default();
+    let log = log
+        .lock()
+        .map(|log| {
+            log.iter()
+                .map(|e| match e {
+                    Entry::Input { raw, current } => (Some((*raw, *current)), None),
+                    Entry::Begin { current } => (None, Some(*current)),
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
     let inputs: Vec<(ViewportId, ViewportId)> = log.iter().filter_map(|(input, _)| *input).filter(|(raw, _)| *raw == child).collect();
     HookFacts {
         child_input_hooks: inputs.len(),
@@ -192,7 +199,11 @@ pub fn discard_passes() -> Vec<PassFacts> {
     let mut seen = Vec::new();
     let event = fixture::key_press(egui::Key::A, egui::Modifiers::NONE);
     let mut output = ctx.run_ui(raw(1.0, vec![event]), |ui| {
-        seen.push(PassFacts { events: ui.input(|input| input.events.len()), frame: ui.ctx().cumulative_frame_nr(), pass: ui.ctx().cumulative_pass_nr() });
+        seen.push(PassFacts {
+            events: ui.input(|input| input.events.len()),
+            frame: ui.ctx().cumulative_frame_nr(),
+            pass: ui.ctx().cumulative_pass_nr(),
+        });
         if seen.len() == 1 {
             ui.ctx().request_discard("surface test");
         }
