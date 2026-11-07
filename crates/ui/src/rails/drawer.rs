@@ -4,7 +4,7 @@
 use super::tool::{DropAt, RailTool, SlotId, ToolDrag, ToolDropped, ToolSlot};
 use super::words::RailWords;
 use crate::buttons::{Button, IconButton};
-use crate::contract::overlay::{Anchor, Dismiss, Outside, Place};
+use crate::contract::overlay::{Anchor, Dismiss, Overlay, Place};
 use crate::contract::{
     Bind, CollectionEvent, Gap, NoValue, Outcome, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, clicked,
 };
@@ -112,14 +112,17 @@ impl<T: Value> Outcome for ToolbarDrawerOutput<T> {
     }
 }
 
-/// The All Tools drawer: a popover beside the rail with one list per group. A tool that is on the toolbar is dimmed.
+/// The All Tools drawer: a popover beside the rail with one list over all groups, a heading row for each group. A
+/// tool that is on the toolbar is dimmed. The drawer is as tall as its rows, up to the share of the window a dialog
+/// takes, and the list scrolls inside that height.
 ///
 /// - **Rows.** A selected row reports its tool as `select`. Enter or a double click on a tool that is not on the
 ///   toolbar adds it as a slot of its own at the end; on a tool that is on the toolbar it takes it off.
 /// - **Drags.** A tool dragged from the rail and dropped on the drawer is taken off the toolbar. A drop on the rail
 ///   comes back from the rail as a [`ToolDropped`]; hand it to [`ToolbarDrawer::new`] and the drawer turns it into an
 ///   edit.
-/// - **Closing.** Escape or the close button closes it: `closed` is set and the host stops showing it.
+/// - **Closing.** Escape, the close button or a press outside the drawer and the rail closes it: `closed` is set and
+///   the host stops showing it. A press on the rail is the start of a drag or a pick there, so it leaves the drawer open.
 #[must_use = "show the drawer with `show`"]
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 #[pattern(probe(ToolbarDrawer<'static, u8>))]
@@ -141,28 +144,59 @@ impl<'a, T: Value + 'static> ToolbarDrawer<'a, T> {
     }
 }
 
-/// The resolved commands of one group, as the source of its list.
-struct Rows<'a>(&'a [ResolvedCommand]);
+/// A row of the drawer's list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum DrawerKey {
+    /// The heading row of group `0`.
+    Group(usize),
+    /// The tool at `tool` of group `group`.
+    Tool { group: usize, tool: usize },
+}
 
-impl DisplayOrder<usize> for Rows<'_> {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
+/// The source of the drawer's list: a heading row for each group that has tools, then its tools. Navigation skips the
+/// headings.
+struct Rows<'a> {
+    keys: Vec<DrawerKey>,
+    resolved: &'a [Vec<ResolvedCommand>],
+}
 
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.0.len()).then_some(*key)
-    }
-
-    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
-        self.0.get(at).map(|command| Cow::Borrowed(&*command.label))
+impl<'a> Rows<'a> {
+    fn new(resolved: &'a [Vec<ResolvedCommand>]) -> Self {
+        let mut keys = Vec::new();
+        for (group, tools) in resolved.iter().enumerate().filter(|(_, tools)| !tools.is_empty()) {
+            keys.push(DrawerKey::Group(group));
+            keys.extend((0..tools.len()).map(|tool| DrawerKey::Tool { group, tool }));
+        }
+        Rows { keys, resolved }
     }
 }
 
-impl ItemSource<usize> for Rows<'_> {}
+impl DisplayOrder<DrawerKey> for Rows<'_> {
+    fn len(&self) -> usize {
+        self.keys.len()
+    }
+
+    fn key(&self, at: usize) -> DrawerKey {
+        self.keys[at]
+    }
+
+    fn index_of(&self, key: &DrawerKey) -> Option<usize> {
+        self.keys.iter().position(|held| held == key)
+    }
+
+    fn is_section(&self, at: usize) -> bool {
+        matches!(self.keys[at], DrawerKey::Group(_))
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        match self.keys[at] {
+            DrawerKey::Group(_) => None,
+            DrawerKey::Tool { group, tool } => Some(Cow::Borrowed(&*self.resolved[group][tool].label)),
+        }
+    }
+}
+
+impl ItemSource<DrawerKey> for Rows<'_> {}
 
 /// Whether the toolbar holds the tool `id`.
 fn on_toolbar<T: PartialEq>(toolbar: &[ToolSlot<T>], id: &T) -> bool {
@@ -183,54 +217,66 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
         let mut select: Option<T> = None;
         let mut open = true;
         let mut leave = false;
+        let mut restore = false;
         let layout = env.view().keyboard_layout();
         let chord_of = |command: &ResolvedCommand| command.chord.as_ref().map(|chord| chord.display_for(os, layout));
 
         let popover = Popover::new(words.drawer_title.clone(), Bind::bound(&mut open))
-            .overlay(|overlay| overlay.place(Place::anchored(Anchor::Rect(rail), opens, Align::Start)))
-            .dismiss(Dismiss::new().outside(Outside::Keep).focus_left(false));
+            .overlay(|overlay| {
+                let mut overlay = overlay.place(Place::anchored(Anchor::Rect(rail), opens, Align::Start));
+                overlay.fit = Overlay::dialog().fit;
+                overlay
+            })
+            .dismiss(Dismiss::new().focus_left(false))
+            .collection_body();
         let shown = popover.show(ui, |ui, _| {
             let accepts = |drag: &ToolDrag| matches!(drag, ToolDrag::Rail { .. });
             let slot = DropAction::<ToolDrag>::new(accepts).show(ui, |ui, _| {
-                Stack::new().gap(Gap::Row).show(ui, |ui, _| {
-                    Row::new().show(ui, |ui, _| {
-                        Text::new(words.drawer_title.clone()).role(TypeRole::Title).show(ui);
-                        let close = IconButton::new(IconId::new("close")).label(words.drawer_close.clone()).show(ui);
-                        leave |= clicked(&close);
-                    });
-                    Text::new(words.drawer_hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
-                    for (g, group) in groups.iter().enumerate() {
-                        if group.tools.is_empty() {
-                            continue;
-                        }
-                        Text::new(group.label.clone()).role(TypeRole::BodyStrong).show(ui);
-                        let rows = Rows(&resolved[g]);
-                        let list = List::<usize>::new(group.label.clone())
-                            .id(ui.scope_id().with(("drawer-group", g)))
+                let rows = Rows::new(&resolved);
+                Stack::new()
+                    .gap(Gap::Row)
+                    .header(|ui, _| {
+                        Row::new().show(ui, |ui, _| {
+                            Text::new(words.drawer_title.clone()).role(TypeRole::Title).show(ui);
+                            let close = IconButton::new(IconId::new("close")).label(words.drawer_close.clone()).show(ui);
+                            leave |= clicked(&close);
+                        });
+                        Text::new(words.drawer_hint.clone()).role(TypeRole::Caption).shade(Shade::Faint).show(ui);
+                    })
+                    .footer(|ui, _| restore |= clicked(&Button::new(words.drawer_restore.clone()).show(ui)))
+                    .show(ui, |ui, _| {
+                        let list = List::<DrawerKey>::new(words.drawer_tools.clone())
+                            .id(ui.scope_id().with("drawer-tools"))
                             .select(SelectMode::Single)
                             .sizing(Sizing::Content);
-                        let out = list.show_items(ui, &rows, &mut |key, _| {
-                            let tool = &group.tools[*key];
-                            let command = &resolved[g][*key];
-                            let mut row = ListRow::new(command.label.to_string());
-                            if let Some(icon) = &command.icon {
-                                row = row.icon(IconSpec::svg(IconId::from(icon.clone())));
-                            }
-                            if on_toolbar(toolbar, &tool.id) {
-                                row.ink(RowInk::Dimmed).trailing(words.in_toolbar.clone())
-                            } else if let Some(chord) = chord_of(command) {
-                                row.trailing(chord)
-                            } else {
-                                row
+                        let out = list.show_items(ui, &rows, &mut |key, _| match *key {
+                            DrawerKey::Group(group) => ListRow::new(groups[group].label.clone()).heading(),
+                            DrawerKey::Tool { group, tool } => {
+                                let command = &resolved[group][tool];
+                                let mut row = ListRow::new(command.label.to_string());
+                                if let Some(icon) = &command.icon {
+                                    row = row.icon(IconSpec::svg(IconId::from(icon.clone())));
+                                }
+                                if on_toolbar(toolbar, &groups[group].tools[tool].id) {
+                                    row.ink(RowInk::Dimmed).trailing(words.in_toolbar.clone())
+                                } else if let Some(chord) = chord_of(command) {
+                                    row.trailing(chord)
+                                } else {
+                                    row
+                                }
                             }
                         });
+                        let tool_of = |key: &DrawerKey| match *key {
+                            DrawerKey::Tool { group, tool } => groups[group].tools.get(tool),
+                            DrawerKey::Group(_) => None,
+                        };
                         for event in out.events {
                             match event {
                                 CollectionEvent::Selection(SelectionChange::Set(keys)) => {
-                                    select = keys.last().and_then(|key| group.tools.get(*key)).map(|tool| tool.id.clone());
+                                    select = keys.last().and_then(tool_of).map(|tool| tool.id.clone());
                                 }
                                 CollectionEvent::Activate(key) => {
-                                    let Some(tool) = group.tools.get(key) else { continue };
+                                    let Some(tool) = tool_of(&key) else { continue };
                                     edits.push(if on_toolbar(toolbar, &tool.id) {
                                         ToolbarEdit::Remove { tool: tool.id.clone() }
                                     } else {
@@ -240,11 +286,7 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
                                 _ => {}
                             }
                         }
-                    }
-                    if clicked(&Button::new(words.drawer_restore.clone()).show(ui)) {
-                        edits.push(ToolbarEdit::Reset);
-                    }
-                });
+                    });
             });
             if let Some(ToolDrag::Rail { slot: from, index }) = slot.output.dropped
                 && let Some(tool) = toolbar.iter().find(|candidate| candidate.id == from).and_then(|candidate| candidate.tools.get(index))
@@ -252,6 +294,9 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
                 edits.push(ToolbarEdit::Remove { tool: tool.id.clone() });
             }
         });
+        if restore {
+            edits.push(ToolbarEdit::Reset);
+        }
         let closed = leave || !open || shown.output.closed.is_some();
         ToolbarDrawerOutput { response: shown.output.response, edits, select, closed }
     }

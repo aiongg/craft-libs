@@ -1,17 +1,17 @@
 //! `PanelRail`: the rail of icons that open panels.
 
+use super::flyout::FlyoutButton;
 use super::tool::RailTool;
 use super::words::RailWords;
-use crate::buttons::IconButton;
 use crate::contract::{
     Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, NoValue, Outcome, Pad, Props as _, Role, Scroll,
-    Show as _, ShowContainer as _, Sizing, WordSetCx as _, clicked,
+    Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::access::Name;
 use crate::runtime::commands;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{IconId, Metrics, NavShape, Roving, Sense, Value};
+use craft_behavior::{Metrics, NavShape, Roving, Sense, Value};
 use craft_theme::ControlSize;
 use egui::{Response, Ui};
 
@@ -93,14 +93,11 @@ impl<'a, P: Value + 'static> PanelRail<'a, P> {
         let panels = self.panels;
         let mut request = None;
         let shown = self.show(ui, |ui, _| {
-            request = None;
             let ctx = ui.ctx().clone();
             for (at, panel) in panels.iter().enumerate() {
-                let resolved = commands::resolve(&ctx, panel.command.clone());
-                let open = resolved.checked.unwrap_or(false);
-                let icon = resolved.icon.clone().map_or_else(|| IconId::new("more"), IconId::from);
-                let button = IconButton::command(icon, panel.command.clone()).id_salt(("panel", at)).show(ui);
-                if clicked(&button) {
+                let open = commands::resolve(&ctx, panel.command.clone()).checked.unwrap_or(false);
+                let button = FlyoutButton::new(std::slice::from_ref(panel), &panel.id).selected(open).id_salt(("panel", at)).show(ui);
+                if button.select.is_some() {
                     request = Some(if open { PanelRailRequest::Close(panel.id.clone()) } else { PanelRailRequest::Open(panel.id.clone()) });
                 }
             }

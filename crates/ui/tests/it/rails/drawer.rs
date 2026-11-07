@@ -1,8 +1,11 @@
 //! The drawer's own logic: how an edit changes the toolbar and what a drop on the rail asks for.
 
-use craft_ui::rails::{DrawerGroup, DropAt, RailTool, ToolDrag, ToolSlot, ToolbarEdit, apply_toolbar_edit, drop_edit};
+use craft_ui::rails::{DrawerGroup, DropAt, RailTool, ToolDrag, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit, drop_edit};
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::trial;
+use craft_ui::testing::{Fixture, trial};
+use egui::{Key, Modifiers, Rect, pos2, vec2};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const UNDO: u8 = 1;
 const REDO: u8 = 2;
@@ -82,4 +85,45 @@ fn a_drop_on_the_rail_asks_for_the_edit_its_drag_implies() {
 
     assert!(drop_edit(ToolDrag::rail(0, 1), DropAt::into_slot(0, 0), &groups, &toolbar).is_none(), "a tool dropped on its own slot stays");
     assert!(drop_edit(ToolDrag::drawer(3, 0), DropAt::new_slot(0), &groups, &toolbar).is_none(), "a drag whose row is gone asks for nothing");
+}
+
+/// An open drawer beside a rail at the left edge, over two groups of two tools each and an empty toolbar. `closed` is
+/// set when the drawer reports it closed (the host then stops showing it); `edits` collects the edits it reports.
+fn drawer() -> (Fixture, Rc<Cell<bool>>, Rc<RefCell<Vec<ToolbarEdit<u8>>>>) {
+    let closed = Rc::new(Cell::new(false));
+    let edits = Rc::new(RefCell::new(Vec::new()));
+    let (seen_closed, seen_edits) = (closed.clone(), edits.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        if seen_closed.get() {
+            return;
+        }
+        let groups = [DrawerGroup::new("History", vec![tool(UNDO), tool(REDO)]), DrawerGroup::new("Clipboard", vec![tool(CUT), tool(COPY)])];
+        let rail = Rect::from_min_size(pos2(0.0, 0.0), vec2(40.0, 400.0));
+        let out = ToolbarDrawer::new(rail, &groups, &[], None).show(ui);
+        seen_edits.borrow_mut().extend(out.edits);
+        seen_closed.set(out.closed);
+    });
+    fixture.room(vec2(800.0, 600.0));
+    fixture.settle();
+    (fixture, closed, edits)
+}
+
+#[trial]
+fn a_press_outside_the_drawer_closes_it() {
+    let (mut fixture, closed, _) = drawer();
+    assert!(fixture.by_label("Undo").is_some(), "the drawer lists its tools");
+    fixture.click_at(pos2(780.0, 580.0));
+    assert!(closed.get(), "a press away from the drawer and the rail closes it");
+}
+
+#[trial]
+fn down_from_the_last_tool_of_a_group_lands_on_the_first_tool_of_the_next() {
+    let (mut fixture, _, edits) = drawer();
+    let redo = fixture.by_label("Redo").expect("the last tool of the first group is listed");
+    fixture.click(&redo);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.key(Key::Enter, Modifiers::NONE);
+    let added: Vec<u8> =
+        edits.borrow().iter().filter_map(|edit| if let ToolbarEdit::Add { tool, .. } = edit { Some(tool.id) } else { None }).collect();
+    assert_eq!(added, [CUT], "the second group's heading row is skipped");
 }

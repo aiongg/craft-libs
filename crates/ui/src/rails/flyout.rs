@@ -23,12 +23,15 @@ const FACE: PartKey = PartKey::new("face");
 /// The corner mark: a press on it opens the flyout at once, and releasing over a row picks it.
 const MARK: PartKey = PartKey::new("mark");
 
-/// The style of a flyout button: it paints through its face, so it holds no look of its own.
+/// The style of a flyout button: it paints through its face, so it holds no look of its own besides the size of the
+/// corner mark's press area, which is the size and the inset of the mark the face paints.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct FlyoutButtonStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The side of the corner mark, which is also its inset from the face's corner.
+    mark: f32,
 }
 
 /// A rail button that is dragged and takes drops while the toolbar is edited.
@@ -144,12 +147,16 @@ impl<'a, T: Value + 'static> FlyoutButton<'a, T> {
         self.tools.iter().position(|tool| tool.id == *self.shown).unwrap_or(0)
     }
 
-    /// The face the button shows: the shown tool's icon, named by its label.
+    /// The face the button shows: the shown tool's icon, in the look of its command (label, enabled state, marked dot).
+    /// The button itself runs the command, so the face only wears it.
     fn face(&self, laid: &Laid) -> IconButton<'static> {
         let resolved = laid.resolved.get(laid.shown).and_then(Option::as_ref);
         let icon = resolved.and_then(|resolved| resolved.icon.clone()).map_or_else(|| IconId::new("more"), IconId::from);
-        let label = resolved.map_or_else(|| Label::Empty, |resolved| Label::Shared(resolved.label.clone()));
-        let mut face = IconButton::new(icon).label(label).selected(self.common.selected.unwrap_or(false));
+        let face = match self.tools.get(laid.shown) {
+            Some(tool) => IconButton::command(icon, tool.command.clone()),
+            None => IconButton::new(icon),
+        };
+        let mut face = face.selected(self.common.selected.unwrap_or(false));
         if self.has_flyout() {
             face = face.popup(PopupKind::Menu);
         }
@@ -167,8 +174,8 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
     type Style = FlyoutButtonStyle;
     type Output = FlyoutOutput<T>;
 
-    fn style(_: &StyleCx<'_>, _: FlyoutButtonStyleKey<T>) -> FlyoutButtonStyle {
-        FlyoutButtonStyle::default()
+    fn style(cx: &StyleCx<'_>, _: FlyoutButtonStyleKey<T>) -> FlyoutButtonStyle {
+        FlyoutButtonStyle { mark: cx.tokens.space.gap.tight, ..FlyoutButtonStyle::default() }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
@@ -191,9 +198,13 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
             });
         }
         if self.has_flyout() {
-            let side = cx.icon();
-            let x = if cx.flow.is_rtl() { rect.left() } else { rect.right() - side };
-            let mark = Rect::from_min_size(egui::pos2(x, rect.bottom() - side), Vec2::splat(side));
+            let side = cx.style.mark;
+            let inner = rect.shrink(side);
+            let mark = if cx.flow.is_rtl() {
+                Rect::from_min_size(egui::pos2(inner.left(), inner.bottom() - side), Vec2::splat(side))
+            } else {
+                Rect::from_min_size(inner.max - Vec2::splat(side), Vec2::splat(side))
+            };
             cx.part(MARK, mark)
                 .sense(Sense::CLICK)
                 .priority(HitPriority::new(HitLevel::Handle, 0))
