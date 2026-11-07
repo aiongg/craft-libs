@@ -753,13 +753,13 @@ note = "Removed: buttons size from their content."
 [[setter]]
 type = "Dialog"
 old = "Footer::ok_stays_open(bool)"
-new = "close_guard(FnMut(usize) -> bool)"
-note = "The host refuses a button's close by returning `false` for its index; the dialog stays open and `DialogOutput::picked` still reports the pick. It replaces holding OK open and closing by hand."
+new = "close_guard(FnMut(usize, &mut BodyCx) -> bool)"
+note = "The host refuses a button's close by returning `false` for its index (`Cancel` is never offered); the guard gets the dialog's body context to read and write its kept state. The dialog stays open and `DialogOutput::picked` still reports the pick. It replaces holding OK open and closing by hand."
 
 [[setter]]
 type = "FullWindowDialog"
 old = "Footer::ok_stays_open(bool)"
-new = "close_guard(FnMut(usize) -> bool)"
+new = "close_guard(FnMut(usize, &mut BodyCx) -> bool)"
 note = "As `Dialog::close_guard`."
 
 [[setter]]
