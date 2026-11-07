@@ -6,7 +6,7 @@ mod stories;
 use crate::contract::overlay::OverlayFit;
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, NoValue, Outcome, Overlay, Pad,
-    Props as _, Role, SaveKey, Show as _, Sizing,
+    Props as _, Role, SaveKey, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::runtime::overlay::CloseReason;
