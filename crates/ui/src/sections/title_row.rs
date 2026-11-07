@@ -3,13 +3,13 @@
 
 use super::words::SectionWords;
 use crate::buttons::IconButton;
+use crate::choice::Checkbox;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Role, WordSetCx as _,
 };
-use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
-use crate::primitives::{Span, TextRun};
+use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, TypeRole};
 use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
@@ -75,8 +75,9 @@ pub struct TitleRowStyle {
     role: TypeRole,
 }
 
-/// A title with an optional subtitle, a lead (a disclosure bound to the container's open state, or a check box
-/// bound to its gate) and action parts.
+/// An optional icon, a title with an optional subtitle, a lead (a disclosure bound to the container's open state, or
+/// a check box bound to its gate) and action parts. A row too narrow for the title and subtitle together drops the
+/// subtitle before it elides the title.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct TitleRow<'a> {
     #[common]
@@ -91,17 +92,44 @@ pub struct TitleRow<'a> {
     /// Text after the title.
     #[prop(into)]
     subtitle: Option<Label>,
+    icon: Option<IconSpec<'a>>,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
+    placed: Option<Placed>,
+}
+
+/// Where the icon, title and subtitle sit in the row, decided with the final width in `parts`.
+#[derive(Clone, Copy)]
+struct Placed {
+    icon: Option<Rect>,
+    title: Rect,
+    subtitle: Option<Rect>,
 }
 
 impl<'a> TitleRow<'a> {
     /// A title row for `title`.
     pub fn new(title: impl Into<Label>) -> Self {
         let common = Common::new();
-        TitleRow { common, strength: HeaderStrength::Normal, level: 2, subtitle: None, lead: Lead::None, actions: Vec::new(), taken: None }
-            .label(title)
+        TitleRow {
+            common,
+            strength: HeaderStrength::Normal,
+            level: 2,
+            subtitle: None,
+            icon: None,
+            lead: Lead::None,
+            actions: Vec::new(),
+            taken: None,
+            placed: None,
+        }
+        .label(title)
+    }
+
+    /// An icon before the title, painted in the row's ink unless the spec names another.
+    #[must_use]
+    pub fn icon(mut self, icon: IconSpec<'a>) -> Self {
+        self.icon = Some(icon);
+        self
     }
 
     /// A check box lead bound to the container's gate.
@@ -128,6 +156,32 @@ impl<'a> TitleRow<'a> {
     fn has_lead(&self) -> bool {
         !matches!(self.lead, Lead::None)
     }
+
+    /// Divides the room left between the lead and the actions: the icon, then the title, then the subtitle when
+    /// both texts fit whole.
+    fn place(&self, mut band: Flow, cx: &PartsCx<'_, Self>) -> Placed {
+        let side = band.rect().height();
+        let mut icon = None;
+        if self.icon.is_some() {
+            let (slot, rest) = band.take_start(side);
+            icon = Some(slot);
+            band = rest;
+        }
+        let role = cx.style.role;
+        let subtitle = self.subtitle.as_ref().and_then(|subtitle| {
+            let title = cx.layout_at(&TextRun::new(cx.resolved.label).role(role), f32::INFINITY).galley.size().x;
+            let width = cx.layout_at(&subtitle_run(subtitle.as_str(), role), f32::INFINITY).galley.size().x;
+            (title + cx.gap() + width <= band.rect().width()).then_some(title)
+        });
+        match subtitle {
+            Some(title) => {
+                let (title, rest) = band.take_start(title);
+                let (_, rest) = rest.take_start(cx.gap());
+                Placed { icon, title, subtitle: Some(rest.rect()) }
+            }
+            None => Placed { icon, title: band.rect(), subtitle: None },
+        }
+    }
 }
 
 impl Component for TitleRow<'_> {
@@ -145,13 +199,16 @@ impl Component for TitleRow<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.layout(&title_run(self, cx.style.role, cx.resolved.label)).galley.size();
-        let parts = usize::from(self.has_lead()) + self.actions.len();
+        let role = cx.style.role;
+        let title = cx.layout(&TextRun::new(cx.resolved.label).role(role)).galley.size();
+        let subtitle = self.subtitle.as_ref().map(|subtitle| cx.layout(&subtitle_run(subtitle.as_str(), role)).galley.size().x);
+        let parts = usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + self.actions.len();
         // The parts are square on the row's height, which the height token can raise above the text's.
-        let side = text.y.max(cx.style.metrics.min_size.y);
-        let natural = text.x + side * parts as f32 + cx.gap() * parts as f32;
+        let side = title.y.max(cx.style.metrics.min_size.y);
+        let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
+        let natural = text + side * parts as f32 + cx.gap() * parts as f32;
         // The row fills the width it is offered, so its actions sit at the end edge.
-        Vec2::new(natural.max(cx.room.unwrap_or(0.0)), text.y)
+        Vec2::new(natural.max(cx.room.unwrap_or(0.0)), title.y)
     }
 
     fn sense(&self) -> Sense {
@@ -178,6 +235,7 @@ impl Component for TitleRow<'_> {
             cx.part(ACTION.at(at as u64), action).sense(Sense::CLICK | Sense::FOCUS).focusable();
         }
         cx.roving(Roving::new(NavShape::Flat));
+        self.placed = Some(self.place(flow, cx));
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {
@@ -202,32 +260,30 @@ impl Component for TitleRow<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let side = cx.rect.height();
-        let rtl = cx.env.direction().is_rtl();
         let words = cx.words::<SectionWords>();
-        let mut flow = Flow::new(cx.rect, rtl);
         let value = cx.value().copied().unwrap_or(false);
         match &self.lead {
             Lead::None => {}
-            Lead::Disclosure(_) => {
-                ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(cx.resolved.label.to_owned()));
-                flow = flow.take_start(side).1;
-            }
-            Lead::Check(_) => {
-                ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone()));
-                flow = flow.take_start(side).1;
-            }
+            Lead::Disclosure(_) => ui.face(LEAD, Disclosure::new(Bind::given(value)).node(false).label(cx.resolved.label.to_owned())),
+            Lead::Check(_) => ui.face(LEAD, Checkbox::new(Bind::given(value)).label(words.gate.clone())),
         }
-        for (at, action) in self.actions.iter().enumerate().rev() {
+        for (at, action) in self.actions.iter().enumerate() {
             let (icon, label) = match action {
                 HeaderAction::Close => ("close", words.close.clone()),
                 HeaderAction::Menu => ("more", words.menu.clone()),
                 HeaderAction::Float => ("float", words.float.clone()),
             };
             ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).label(label));
-            flow = flow.take_end(side).1;
         }
-        ui.draw().text(flow.rect(), &title_run(self, cx.style.role, cx.resolved.label));
+        let Some(placed) = self.placed else { return };
+        let role = cx.style.role;
+        if let (Some(rect), Some(icon)) = (placed.icon, &self.icon) {
+            ui.draw().icon(rect, icon);
+        }
+        ui.draw().text(placed.title, &TextRun::new(cx.resolved.label).role(role).elide());
+        if let (Some(rect), Some(subtitle)) = (placed.subtitle, &self.subtitle) {
+            ui.draw().text(rect, &subtitle_run(subtitle.as_str(), role));
+        }
     }
 
     fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
@@ -239,10 +295,6 @@ impl Component for TitleRow<'_> {
     }
 }
 
-fn title_run<'t>(row: &'t TitleRow<'_>, role: TypeRole, title: &'t str) -> TextRun<'t> {
-    let mut spans = vec![Span::new(title)];
-    if let Some(subtitle) = &row.subtitle {
-        spans.push(Span::new(format!(" {}", subtitle.as_str())).muted());
-    }
-    TextRun::spans(spans).role(role)
+fn subtitle_run(subtitle: &str, role: TypeRole) -> TextRun<'_> {
+    TextRun::spans(vec![Span::new(subtitle).muted()]).role(role)
 }
