@@ -36,3 +36,290 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+# craft_behavior::geometry (contract-geometry)
+[[type]]
+name = "Anchor9"
+old = "craft_ui::canvas::quad::Anchor9"
+new = "craft_behavior::Anchor9"
+status = "moved"
+
+[[type]]
+name = "BoxState"
+old = "craft_ui::canvas::quad::BoxState"
+new = "craft_behavior::geometry::quad::BoxState"
+status = "moved"
+
+[[type]]
+name = "BoxPart"
+old = "craft_ui::canvas::quad::BoxPart"
+new = "craft_behavior::geometry::quad::BoxPart"
+status = "moved"
+
+[[type]]
+name = "BoxAllow"
+old = "craft_ui::canvas::quad::BoxAllow"
+new = "craft_behavior::geometry::quad::BoxAllow"
+status = "moved"
+
+[[type]]
+name = "BoxRules"
+old = "craft_ui::canvas::quad::BoxRules"
+new = "craft_behavior::geometry::quad::BoxRules"
+status = "moved"
+
+[[type]]
+name = "BoxDrag"
+old = "craft_ui::canvas::quad::BoxDrag"
+new = "craft_behavior::geometry::quad::BoxDrag"
+status = "moved"
+
+[[type]]
+name = "TransformMode"
+old = "craft_ui::canvas::quad::TransformMode"
+new = "craft_behavior::geometry::quad::TransformMode"
+status = "moved"
+
+[[type]]
+name = "ScaleRule"
+old = "craft_ui::canvas::quad::ScaleRule"
+new = "craft_behavior::geometry::quad::ScaleRule"
+status = "moved"
+
+[[type]]
+name = "Parts"
+old = "craft_ui::canvas::quad::Parts"
+new = "craft_behavior::geometry::quad::Parts"
+status = "moved"
+
+[[type]]
+name = "Homography"
+old = "craft_ui::canvas::quad::Homography"
+new = "craft_behavior::geometry::quad::Homography"
+status = "moved"
+
+[[type]]
+name = "Directions"
+old = "craft_ui::behavior::move_gesture::Directions"
+new = "craft_behavior::geometry::lock::Directions"
+status = "moved"
+
+[[type]]
+name = "SnapTargets"
+old = "craft_ui::canvas::SnapTargets"
+new = "craft_behavior::geometry::snap::SnapTargets"
+status = "moved"
+
+[[type]]
+name = "SnapTarget"
+old = "craft_ui::canvas::SnapTarget"
+new = "craft_behavior::geometry::snap::SnapTarget"
+status = "moved"
+
+[[type]]
+name = "SnapKind"
+old = "craft_ui::canvas::SnapKind"
+new = "craft_behavior::geometry::snap::SnapKind"
+status = "moved"
+
+[[type]]
+name = "SnapLine"
+old = "craft_ui::canvas::SnapLine"
+new = "craft_behavior::geometry::snap::SnapLine"
+status = "moved"
+
+[[type]]
+name = "SnapOptions"
+old = "craft_ui::canvas::SnapOptions"
+new = "craft_behavior::geometry::snap::SnapOptions"
+status = "moved"
+
+[[type]]
+name = "SnapGesture"
+old = "craft_ui::canvas::SnapGesture"
+new = "craft_behavior::geometry::snap::SnapGesture"
+status = "moved"
+
+[[type]]
+name = "OutlineDraft"
+old = "craft_ui::canvas::draft::OutlineDraft"
+new = "craft_behavior::geometry::draft::OutlineDraft"
+status = "moved"
+
+[[type]]
+name = "DraftKind"
+old = "craft_ui::canvas::draft::DraftKind"
+new = "craft_behavior::geometry::draft::DraftKind"
+status = "moved"
+
+[[type]]
+name = "DraftEvent"
+old = "craft_ui::canvas::draft::DraftEvent"
+new = "craft_behavior::geometry::draft::DraftEvent"
+status = "moved"
+
+[[type]]
+name = "DraftPoint"
+old = "craft_ui::canvas::draft::DraftPoint"
+new = "craft_behavior::geometry::draft::DraftPoint"
+status = "moved"
+
+[[type]]
+name = "DraftReach"
+old = "craft_ui::canvas::draft::DraftReach"
+new = "craft_behavior::geometry::draft::DraftReach"
+status = "moved"
+
+[[type]]
+name = "SelectionOperation"
+old = "craft_ui::canvas::SelectionOperation"
+new = "craft_behavior::geometry::selection_op::SelectionOperation"
+status = "moved"
+
+[[type]]
+name = "MarqueeRect"
+old = "craft_ui::canvas::marquee::MarqueeRect"
+new = "craft_behavior::geometry::marquee::MarqueeRect"
+status = "moved"
+
+[[type]]
+name = "Constraint"
+old = "craft_ui::canvas::marquee::Constraint"
+new = "craft_behavior::geometry::marquee::Constraint"
+status = "moved"
+
+[[type]]
+name = "MarqueeGesture"
+old = "craft_ui::canvas::marquee::MarqueeGesture"
+new = "craft_behavior::geometry::marquee::MarqueeGesture"
+status = "moved"
+
+[[type]]
+name = "drag"
+old = "craft_ui::canvas::quad::drag"
+new = "craft_behavior::geometry::quad::drag"
+status = "moved"
+
+[[type]]
+name = "lock_direction"
+old = "craft_ui::behavior::move_gesture::lock_direction"
+new = "craft_behavior::geometry::lock::lock_direction"
+status = "moved"
+
+[[type]]
+name = "point_in_polygon"
+old = "craft_ui::canvas::geom::point_in_polygon"
+new = "craft_behavior::geometry::geom::point_in_polygon"
+status = "moved"
+
+[[type]]
+name = "clip_segment"
+old = "craft_ui::canvas::geom::clip_segment"
+new = "craft_behavior::geometry::geom::clip_segment"
+status = "moved"
+
+[[type]]
+name = "angle_deg"
+old = "craft_ui::canvas::geom::angle_deg"
+new = "craft_behavior::geometry::geom::angle_deg"
+status = "moved"
+
+[[type]]
+name = "project_clipped"
+old = "craft_ui::canvas::geom::project_clipped"
+new = "craft_behavior::geometry::geom::project_clipped"
+status = "moved"
+
+[[type]]
+name = "fixed_size_pixels"
+old = "craft_ui::canvas::fixed_size_pixels"
+new = "craft_behavior::geometry::marquee::fixed_size_pixels"
+status = "moved"
+
+[[type]]
+name = "marquee_pixels"
+old = "craft_ui::canvas::marquee_pixels"
+new = "craft_behavior::geometry::marquee::marquee_pixels"
+status = "moved"
+
+[[type]]
+name = "square_pixels"
+old = "craft_ui::canvas::square_pixels"
+new = "craft_behavior::geometry::marquee::square_pixels"
+status = "moved"
+
+[[type]]
+name = "snap_union"
+old = "craft_ui::canvas::snap_union"
+new = "craft_behavior::geometry::snap::union"
+status = "moved"
+
+[[setter]]
+type = "Anchor9"
+old = "Anchor9::Center"
+new = "Anchor9::Centre"
+
+[[setter]]
+type = "SelectionOperation"
+old = "from_modifiers(modifiers)"
+new = "from_mods(mods)"
+
+[[setter]]
+type = "SelectionOperation"
+old = "resolve(bar, modifiers, has_selection)"
+new = "resolve(bar, mods, has_selection)"
+
+[[setter]]
+type = "SelectionOperation"
+old = "badge() -> SelectionBadge"
+new = "badge() -> Option<CursorBadge>"
+
+[[setter]]
+type = "SelectionOperation"
+old = "label(&words)"
+new = "a words entry of the canvas controls (the legacy SelectionOperationLabels)"
+
+[[setter]]
+type = "DraftReach"
+old = "of(&tokens)"
+new = "new(close, same_point), the caller passes the hit tokens' target and slop"
+
+[[setter]]
+type = "DraftPoint"
+old = "new(at, modifiers, zoom) and the field modifiers"
+new = "new(at, mods, zoom) and the field mods"
+
+[[setter]]
+type = "OutlineDraft"
+old = "modifiers_changed(modifiers)"
+new = "mods_changed(mods)"
+
+[[setter]]
+type = "MarqueeGesture"
+old = "press(screen, at, modifiers)"
+new = "press(screen, at, mods)"
+
+[[setter]]
+type = "MarqueeGesture"
+old = "press_modifiers()"
+new = "press_mods()"
+
+[[setter]]
+type = "MarqueeGesture"
+old = "follow(screen, modifiers)"
+new = "follow(screen, mods)"
+
+[[setter]]
+type = "Constraint"
+old = "serde Serialize and Deserialize"
+new = "none yet in craft-behavior"
+
+[[setter]]
+type = "SnapLine"
+old = "impl From<SnapLine> for SmartLine"
+new = "SmartLine::from_snap(line) in the canvas controls"
+
+[[setter]]
+type = "BoxRules"
+old = "drag_modifiers(part, modifiers) and drag_kind(part, modifiers)"
+new = "drag_modifiers(part, mods) and drag_kind(part, mods)"
