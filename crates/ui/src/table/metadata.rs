@@ -4,15 +4,18 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _,
-    ToggleColumn,
+    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, LeadOnOpen, NoValue, Outcome, Pattern, Props, SelectMode, Show as _,
+    ShowCollection as _, ToggleColumn,
 };
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
 use crate::runtime::env::{Env, Label};
+use crate::runtime::focus::{self, FocusTarget};
 use crate::text::TextField;
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource};
-use egui::{Response, Ui};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, EditEvent, GestureId, ItemSource, Mixed};
+use craft_i18n::matcher::Matcher;
+use egui::{Key, Modifiers, Response, Ui};
 use std::borrow::Cow;
+use std::sync::Arc;
 
 const SHOW: ColumnKey = ColumnKey::new("show");
 const NAME: ColumnKey = ColumnKey::new("name");
@@ -48,11 +51,9 @@ impl MetadataRow {
         self.key.as_deref().unwrap_or(&self.name)
     }
 
-    /// Whether the name or the value holds `query`, ignoring case and surrounding space. An empty query matches
-    /// every row.
-    pub fn matches(&self, query: &str) -> bool {
-        let query = query.trim().to_lowercase();
-        query.is_empty() || self.name.to_lowercase().contains(&query) || self.value.to_lowercase().contains(&query)
+    /// Whether the name or the value matches `matcher`.
+    pub fn matches(&self, matcher: &Matcher) -> bool {
+        matcher.score(&self.name).is_some() || matcher.score(&self.value).is_some()
     }
 }
 
@@ -100,7 +101,7 @@ pub struct MetadataTableOutput {
     pub table: CollectionResponse<FieldKey, RowEvent>,
     /// The search text changed.
     pub filter_changed: bool,
-    /// The checks the user changed this pass, in order; the keys are already applied to the chosen list.
+    /// The checks the user changed this pass, in order; a bound chosen list already holds them.
     pub checked: Vec<Checked>,
 }
 
@@ -124,11 +125,12 @@ impl Outcome for MetadataTableOutput {
     }
 }
 
-/// A key and value table in groups: a search field over the rows keeps the fields whose name or value holds the
-/// typed text, and a check column marks the keys the app shows as columns.
+/// A key and value table in groups: a search field over the rows keeps the fields whose name or value matches the
+/// typed text, and a check column marks the keys the app shows as columns. ArrowDown in the search field moves
+/// focus to the first row.
 ///
 /// ```ignore
-/// let out = MetadataTable::new("All metadata", &groups).filter(&mut dialog.search).show(ui);
+/// let out = MetadataTable::new("All metadata", &groups).filter(Bind::bound(&mut dialog.search)).show(ui);
 /// ```
 #[derive(Pattern, Props)]
 pub struct MetadataTable<'a> {
@@ -136,11 +138,11 @@ pub struct MetadataTable<'a> {
     groups: &'a [MetadataGroup],
     /// The search text; the search field shows above the rows while it is set.
     #[prop]
-    filter: Option<&'a mut String>,
+    filter: Option<Bind<'a, String>>,
     /// The keys of the chosen fields; a check column shows before each field while it is set. Checking appends the
     /// key and unchecking removes it. A locked field shows checked whatever the list holds.
     #[prop]
-    choose: Option<&'a mut Vec<String>>,
+    choose: Option<Bind<'a, Vec<String>>>,
 }
 
 /// One entry of the table: a title row or a field.
@@ -188,6 +190,10 @@ impl ItemSource<FieldKey> for Fields<'_> {
             _ => false,
         }
     }
+
+    fn toggle_enabled(&self, at: usize, _: &ColumnKey) -> bool {
+        matches!(&self.entries[at], Entry::Field(row) if !row.locked)
+    }
 }
 
 impl<'a> MetadataTable<'a> {
@@ -198,20 +204,28 @@ impl<'a> MetadataTable<'a> {
 
     /// Shows the table and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> MetadataTableOutput {
-        let MetadataTable { label, groups, filter, choose } = self;
-        let words = Env::of(ui).words::<MetadataWords>();
+        let MetadataTable { label, groups, filter, mut choose } = self;
+        let env = Env::of(ui);
+        let words = env.words::<MetadataWords>();
         let mut query = String::new();
         let mut filter_changed = false;
+        let mut into_rows = false;
         if let Some(text) = filter {
-            let edit = TextField::search(words.filter.clone(), Bind::bound(&mut *text)).placeholder(words.filter.clone()).show(ui);
+            let edit = TextField::search(words.filter.clone(), text).placeholder(words.filter.clone()).show(ui);
             filter_changed = edit.event.is_some();
-            query.clone_from(text);
+            if let Some(Mixed::Same(shown)) = &edit.shown {
+                query.clone_from(&**shown);
+            }
+            into_rows = edit.response.has_focus() && ui.input_mut(|input| input.consume_key(Modifiers::NONE, Key::ArrowDown));
         }
+        let query = query.trim();
+        let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), query));
 
         let mut keys = Vec::new();
         let mut entries = Vec::new();
         for (at, group) in groups.iter().enumerate() {
-            let kept: Vec<usize> = (0..group.rows.len()).filter(|&row| group.rows[row].matches(&query)).collect();
+            let kept: Vec<usize> =
+                (0..group.rows.len()).filter(|&row| matcher.as_ref().is_none_or(|matcher| group.rows[row].matches(matcher))).collect();
             if kept.is_empty() {
                 continue;
             }
@@ -234,43 +248,63 @@ impl<'a> MetadataTable<'a> {
             columns
                 .insert(0, ColumnSpec::new(SHOW, words.show.clone(), ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
         }
-        let source = Fields { keys, entries, chosen: choose.as_deref().map(Vec::as_slice) };
+        let held: Option<Vec<String>> = choose.as_mut().map(|bind| match bind.reborrow().get() {
+            Some(Mixed::Same(keys)) => keys,
+            _ => Vec::new(),
+        });
+        let source = Fields { keys, entries, chosen: held.as_deref() };
         let checks = choose.is_some();
-        let table =
-            Table::<FieldKey>::new(label, columns).select(SelectMode::Single).striped(true).empty(empty).show_items(ui, &source, &mut |_, icx| {
-                match &source.entries[icx.at] {
-                    Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).strong(true),
-                    Entry::Field(row) => {
-                        let line = ListRow::new(row.name.clone()).cells(icx.cells()).striped(icx.row.striped).cell_lines(VALUE, row.value.clone());
-                        if checks {
-                            line.toggle(ToggleCell::check(SHOW, ToggleState::of(source.toggled(icx.at, &SHOW)), words.show_field.clone()))
-                        } else {
-                            line
-                        }
+        let table = Table::<FieldKey>::new(label.clone(), columns)
+            .select(SelectMode::Single)
+            .striped(true)
+            .header(false)
+            .lead_on_open(LeadOnOpen::First)
+            .rows_stamp(egui::Id::new(query).value())
+            .empty(empty)
+            .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
+                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),
+                Entry::Field(row) => {
+                    let line = ListRow::new(row.name.clone())
+                        .cells(icx.cells())
+                        .striped(icx.row.striped)
+                        .cell_muted(NAME)
+                        .cell_lines(VALUE, row.value.clone());
+                    if checks {
+                        line.toggle(ToggleCell::check(SHOW, ToggleState::of(source.toggled(icx.at, &SHOW)), words.show_field.clone()))
+                    } else {
+                        line
                     }
                 }
             });
         drop(source);
+        if into_rows {
+            focus::request(ui.ctx(), FocusTarget::Id(table.response.id));
+        }
 
         let mut checked = Vec::new();
-        if let Some(chosen) = choose {
+        if let (Some(mut choose), Some(before)) = (choose, held) {
+            let mut chosen = before.clone();
             for event in &table.events {
                 let CollectionEvent::Toggle(edit) = event else { continue };
                 let Some(toggle) = edit.value() else { continue };
                 let FieldKey::Field(group, row) = toggle.key else { continue };
                 let row = &groups[group].rows[row];
                 let key = row.picker_key();
-                let held = chosen.iter().position(|candidate| candidate == key);
-                if row.locked || held.is_some() == toggle.on {
+                let at = chosen.iter().position(|candidate| candidate == key);
+                if row.locked || at.is_some() == toggle.on {
                     continue;
                 }
-                match held {
+                match at {
                     Some(at) => {
                         chosen.remove(at);
                     }
                     None => chosen.push(key.to_owned()),
                 }
                 checked.push(Checked { key: key.to_owned(), on: toggle.on });
+            }
+            if chosen != before {
+                let name: Arc<str> = Arc::from(label.as_str());
+                choose.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), chosen, name, None));
             }
         }
         MetadataTableOutput { table, filter_changed, checked }
