@@ -540,7 +540,6 @@ impl<'b> BodyHooks<'b> {
             // never taller than the room less header and footer, so the footer stays inside the room.
             let body_h = (self.remembered.map_or(0.0, |size| size.y) * self.presence.t).min(body_room);
             let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
-            eprintln!("DBG room {room:?} inner {inner:?} hdr {header_h} ftr {footer_h} rem {:?} t {} line {line_h}", self.remembered, self.presence.t);
             (top + body_room, top + line_h)
         } else {
             (inner.max.y - footer_h, inner.max.y - footer_h)
@@ -866,7 +865,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         match self.sizing(comp.props(Internal::new())) {
             Sizing::Fill => {
                 let room = ui.available_size_before_wrap();
-                Vec2::new(if room.x.is_finite() { size.x.max(room.x) } else { size.x }, if room.y.is_finite() { size.y.max(room.y) } else { size.y })
+                // The available rect, not at least it: a fill child that took the whole room in an earlier pass (a
+                // content-sized layer offers its whole room before the footer is known) must not keep its remembered
+                // size once the room is less.
+                Vec2::new(if room.x.is_finite() { room.x } else { size.x }, if room.y.is_finite() { room.y } else { size.y })
             }
             Sizing::FillWidth => {
                 let room = ui.available_width();

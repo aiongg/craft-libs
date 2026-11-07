@@ -30,28 +30,23 @@ impl ItemSource<usize> for Rows {}
 #[trial]
 fn a_dialog_with_a_filling_body_keeps_its_footer_below_the_body_and_inside_the_screen() {
     let body = Rc::new(Cell::new(Rect::NOTHING));
-    let diag = Rc::new(Cell::new((Rect::NOTHING, Rect::NOTHING)));
-    let (seen, dseen) = (body.clone(), diag.clone());
+    let seen = body.clone();
     let mut fixture = Fixture::new(move |ui| {
         let mut open = true;
-        let shown = Dialog::new("Pick")
+        Dialog::new("Pick")
             .collection_body()
             .opened(Bind::bound(&mut open))
             .buttons([FooterButton::new("Apply", DialogRole::Accept), FooterButton::new("Cancel", DialogRole::Cancel)])
             .show(ui, |ui, _| {
-                let mut list = Rect::NOTHING;
                 let row = Row::new().fill().show(ui, |ui, _| {
-                    list = List::new("Rows").show_items(ui, &Rows, &mut |key, _| ListRow::new(format!("Row {key}"))).response.rect;
+                    List::new("Rows").show_items(ui, &Rows, &mut |key, _| ListRow::new(format!("Row {key}")));
                 });
                 seen.set(row.output.rect);
-                dseen.set((list, ui.min_rect()));
             });
-        let _ = shown;
     });
     fixture.settle();
     let screen = fixture.ctx().content_rect();
     let body = body.get();
-    assert!(false, "diag {:?} screen {screen:?} body {body:?}", diag.get());
     for label in ["Apply", "Cancel"] {
         let button = fixture.by_label(label).expect("the footer button is shown");
         assert!(screen.contains_rect(button.rect), "{label} is inside the screen: {:?} in {screen:?}", button.rect);
