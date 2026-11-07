@@ -86,6 +86,8 @@ const ACTION: PartKey = PartKey::new("action");
 const DISMISS: PartKey = PartKey::new("dismiss");
 /// The title's band; the centred layout names it as a heading.
 const TITLE: PartKey = PartKey::new("title");
+/// The heading level of the centred title: the empty state's top-level heading.
+const TITLE_LEVEL: usize = 1;
 const DISMISS_ICON: &str = "close";
 
 /// Whether the first show of a notice has been announced.
@@ -444,7 +446,9 @@ impl Component for Notice<'_> {
         if let Some(title) = self.title.as_ref().map(|title| cx.env.resolve(title).as_str().to_owned()) {
             access.name(Name::Joined(vec![title.clone(), cx.resolved.label.to_owned()]));
             if self.layout == NoticeLayout::Centred {
-                access.node(TITLE, Role::HEADING).name = Name::Text(title);
+                let node = access.node(TITLE, Role::HEADING);
+                node.level(TITLE_LEVEL);
+                node.name = Name::Text(title);
             }
         }
     }
