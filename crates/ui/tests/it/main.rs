@@ -5,6 +5,7 @@ mod contract;
 mod egui_surface;
 mod focus;
 mod layout;
+mod motion;
 mod paint;
 mod runtime;
 mod style;

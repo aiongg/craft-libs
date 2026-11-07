@@ -4,7 +4,10 @@ use crate::runtime::egui::{areas, fixture};
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use crate::runtime::{InstallSpec, install};
+use craft_host::Host;
 use egui::{Context, Event, Ui};
+use std::sync::Arc;
+use std::time::Duration;
 
 const DT: f64 = 1.0 / 60.0;
 
@@ -16,6 +19,8 @@ pub struct Frames {
     time: f64,
     root: RootEnv,
     cursor: egui::CursorIcon,
+    repaint_delay: Duration,
+    host: Option<Arc<Host>>,
 }
 
 impl Default for Frames {
@@ -34,13 +39,26 @@ impl Frames {
 
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
-        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default }
+        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default, repaint_delay: Duration::MAX, host: None }
     }
 
     /// Installs the runtime on the context.
     pub fn install(&mut self) {
         let installed = install(&self.ctx, InstallSpec::new());
         debug_assert!(installed.is_ok(), "the context takes the runtime once");
+    }
+
+    /// The host every following frame is given.
+    pub fn host(&mut self, host: Arc<Host>) {
+        self.host = Some(host);
+    }
+
+    fn input(&self) -> FrameInput {
+        let input = FrameInput::new(self.root.clone());
+        match &self.host {
+            Some(host) => input.host(host.clone()),
+            None => input,
+        }
     }
 
     /// The root values every following frame is given.
@@ -50,7 +68,7 @@ impl Frames {
 
     /// One frame with `events`; `ui` runs once per pass. Returns the number of passes.
     pub fn frame(&mut self, events: Vec<Event>, mut ui: impl FnMut(&mut Ui)) -> usize {
-        set_input(&self.ctx, FrameInput::new(self.root.clone()));
+        set_input(&self.ctx, self.input());
         let mut passes = 0;
         self.run(events, |root| {
             passes += 1;
@@ -67,7 +85,7 @@ impl Frames {
 
     /// One frame with no events; returns the shapes it painted, nested shapes flattened.
     pub fn frame_shapes(&mut self, mut ui: impl FnMut(&mut Ui)) -> Vec<egui::Shape> {
-        set_input(&self.ctx, FrameInput::new(self.root.clone()));
+        set_input(&self.ctx, self.input());
         self.time += DT;
         fixture::run_frame_shapes(&self.ctx, self.time, &mut ui)
     }
@@ -88,7 +106,19 @@ impl Frames {
         self.time += DT;
         let result = fixture::run_frame(&self.ctx, self.time, events, ui);
         self.cursor = result.cursor;
+        self.repaint_delay = result.repaint_delay;
         result.closed
+    }
+
+    /// The wait the last frame asked for before the next pass: `Duration::ZERO` for an immediate repaint,
+    /// `None` when it asked for none.
+    pub fn repaint_delay(&self) -> Option<Duration> {
+        (self.repaint_delay != Duration::MAX).then_some(self.repaint_delay)
+    }
+
+    /// Whether anything asked for a pass since the last frame ended.
+    pub fn repaint_requested(&self) -> bool {
+        fixture::repaint_requested(&self.ctx)
     }
 
     /// The system cursor the last frame's output asked for.

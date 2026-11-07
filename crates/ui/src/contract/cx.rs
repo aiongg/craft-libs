@@ -8,6 +8,7 @@ use crate::runtime::commands::ResolvedCommand;
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
+use crate::runtime::motion::{Driver, Drives};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
@@ -725,4 +726,28 @@ pub(crate) fn child_env(env: &Env, enabled: bool, size: craft_theme::ControlSize
         scoped.enabled &= enabled;
         scoped.size = size;
     })
+}
+
+impl Drives for CxCore<'_> {
+    fn driver(&self) -> Driver<'_> {
+        Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
+    }
+}
+
+impl<C: Component> Drives for Cx<'_, C> {
+    fn driver(&self) -> Driver<'_> {
+        self.core.driver()
+    }
+}
+
+impl Drives for BodyCx<'_> {
+    fn driver(&self) -> Driver<'_> {
+        Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
+    }
+}
+
+impl<K> Drives for ItemCx<'_, '_, K> {
+    fn driver(&self) -> Driver<'_> {
+        Driver { stage: self.memory, base: self.id, policy: self.env.motion() }
+    }
 }

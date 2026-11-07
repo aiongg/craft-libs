@@ -5,14 +5,16 @@ mod label;
 pub use label::{Label, Word};
 
 use crate::runtime::egui::memory::Service;
-use crate::runtime::egui::{child, input as raw_input, pass, scale, stack, style};
+use crate::runtime::egui::{child, input as raw_input, pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
 use crate::style::{EnvKey, Ink, UiTokens};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 use craft_host::target::Os;
 pub use craft_i18n::Direction;
-use craft_theme::{AppSizes, Appearance, Contrast, ControlSize, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
+use craft_theme::{
+    AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
+};
 pub use craft_ui_macros::EnvValue;
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::{Any, TypeId};
@@ -40,17 +42,19 @@ impl Default for Scale {
 }
 
 /// The motion mode in effect, carried in `Env.motion`.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct MotionPolicy {
     /// The level animations run at.
     pub mode: MotionMode,
+    /// The durations and curves of the theme's motions; reduced motion keeps them.
+    pub tokens: MotionTokens,
 }
 
 impl MotionPolicy {
-    /// The policy that runs animations at `mode`.
-    pub const fn new(mode: MotionMode) -> Self {
-        Self { mode }
+    /// The policy that runs animations at `mode` with `tokens`.
+    pub const fn new(mode: MotionMode, tokens: MotionTokens) -> Self {
+        Self { mode, tokens }
     }
 }
 
@@ -298,6 +302,7 @@ impl Env {
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
     pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
         let tokens = root_tokens(ctx, root);
+        let motion = MotionPolicy::new(motion_mode(ctx, root), tokens.tokens().motion);
         let os = raw_input::os(ctx);
         let scale = Scale(pixels_per_point);
         // F3-LATER: runtime::windows (`WindowInfo.active` per viewport)
@@ -313,7 +318,7 @@ impl Env {
                 enabled: true,
                 read_only: false,
                 direction: root.direction,
-                motion: MotionPolicy::new(root.motion),
+                motion,
                 ids_stable: true,
                 scale,
                 arena: None,
@@ -336,6 +341,11 @@ impl Env {
         });
         let env = found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::fallback(ctx), None, scale::pixels_per_point(ctx)));
         if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
+    }
+
+    /// The `Host` of the running viewport's root env.
+    pub(crate) fn host_of(ctx: &Context) -> Option<Arc<Host>> {
+        PerViewport::<ViewportEnvs>::with(ctx, pass::current_viewport(ctx), |envs| envs.root.as_ref().and_then(|env| env.host.clone()))
     }
 
     /// A clone of the innermost app value, else `T::root()`. Large values hold an `Arc`.
@@ -420,6 +430,11 @@ impl Drop for Restore<'_> {
     }
 }
 
+/// The mode the root runs animations at: the app's, and off while egui's animation time is zero.
+fn motion_mode(ctx: &Context, root: &RootEnv) -> MotionMode {
+    if repaint::animation_time(ctx) > 0.0 { root.motion } else { root.motion.lowered_by(MotionMode::Off) }
+}
+
 /// The tokens the root resolves to, cached by the inputs that determine them.
 fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
     /// The newest few inputs; an app swaps its sizes rarely.
@@ -434,14 +449,13 @@ fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
         contrast: root.contrast,
         density: root.density,
         text_size: root.text_size,
-        reduced: root.motion != MotionMode::Full,
     };
     let service = Service::<Cache>::of(ctx);
     if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
     let appearance =
-        Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: inputs.reduced };
+        Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: false };
     let themes = builtins();
     let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
     let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
@@ -461,7 +475,6 @@ struct TokenInputs {
     contrast: Contrast,
     density: Size,
     text_size: TextSize,
-    reduced: bool,
 }
 
 impl TokenInputs {
@@ -471,7 +484,6 @@ impl TokenInputs {
             && self.contrast == other.contrast
             && self.density == other.density
             && self.text_size == other.text_size
-            && self.reduced == other.reduced
     }
 }
 

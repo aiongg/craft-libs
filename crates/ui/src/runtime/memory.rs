@@ -3,6 +3,7 @@
 use crate::runtime::egui::memory::{self as store, Map, Removed, Service, take_raw};
 use crate::runtime::egui::pass;
 use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
+use crate::runtime::pending::{self, Job, Pending};
 use craft_behavior::eviction::owner_due;
 use egui::{Context, Id, ViewportId};
 use serde::Serialize;
@@ -76,6 +77,9 @@ pub trait Remember {
     fn saved<T: Savable>(&mut self, key: &SaveKey) -> &mut T;
     /// A read-only copy of the shown slot, for paint.
     fn recall<T: Slot>(&self) -> T;
+    /// The result of the job `start` returns, one per `key`: it is submitted once, cancelled when the owner is
+    /// evicted, and a landed result asks for a pass.
+    fn pending<K: Hash, T: Slot, E: Slot>(&mut self, key: K, start: impl FnOnce() -> Job<T, E>) -> &Pending<T, E>;
     /// True on the first pass a shown stage exists for this id.
     fn appeared(&self) -> bool;
 }
@@ -203,7 +207,6 @@ fn forget_tier(ctx: &Context, id: Id, tier: u8) {
 }
 
 /// Registers a slot the motion service wrote straight into context data, so it goes with its owner's shown entries.
-#[expect(dead_code, reason = "used by motion (F3)")]
 pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: Id) {
     fn remove<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
         take_raw::<T>(data, id)
@@ -305,7 +308,15 @@ impl MemoryStage {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }
 
-    #[expect(dead_code, reason = "used by the pipeline (F3)")]
+    /// A sizing pass's stage, which keeps nothing.
+    pub(crate) fn is_peek(&self) -> bool {
+        self.peek_only
+    }
+
+    pub(crate) fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     pub(crate) fn owner(&self) -> Id {
         self.owner
     }
@@ -484,6 +495,14 @@ impl<X: StageAccess> Remember for X {
 
     fn recall<T: Slot>(&self) -> T {
         self.stage().recall(self.base())
+    }
+
+    fn pending<K: Hash, T: Slot, E: Slot>(&mut self, key: K, start: impl FnOnce() -> Job<T, E>) -> &Pending<T, E> {
+        face_guard(self.stage());
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        key.hash(&mut hasher);
+        let id = self.base().with(("pending", hasher.finish()));
+        pending::poll(self.stage_mut(), id, start)
     }
 
     fn appeared(&self) -> bool {

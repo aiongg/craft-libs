@@ -51,7 +51,7 @@ pub use keys::{DropOperation, KeyRole};
 pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
 pub use marquee::{MarqueeMode, MarqueeSelect};
-pub use motion::MotionMode;
+pub use motion::{MotionKind, MotionMode, Playback};
 pub use nav::{Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead};
 pub use part::{PartKey, PartRef};
 pub use press::{

@@ -15,6 +15,8 @@ pub mod install;
 pub mod keys;
 pub mod layout_memory;
 pub mod memory;
+pub mod motion;
+pub mod pending;
 pub mod pointer;
 pub mod toast;
 pub mod wheel;
