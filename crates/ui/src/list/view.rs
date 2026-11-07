@@ -6,14 +6,14 @@
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Props as _, ReorderRule,
-    Role, SelectMode, Show as _,
+    Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use crate::text::TextField;
 use craft_behavior::{ItemSource, Metrics, Selection, SpanLayout};
-use egui::Ui;
+use egui::{Rect, Ui};
 use std::hash::Hash;
 
 /// The style of the list: it has no look of its own beyond its container's surface.
@@ -54,7 +54,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     pub fn new(label: impl Into<Label>) -> Self {
         List {
             common: Common::new(),
-            props: ContainerProps::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill),
             items: CollectionProps::new().select(SelectMode::Multi),
             selection: None,
             reveal: None,
@@ -144,7 +144,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
         if self.tree { layout.tree() } else { layout }
     }
 
-    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>) -> Option<EditResponse<String>> {
-        Some(TextField::new(self.common.label.clone(), draft).show(ui))
+    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect) -> Option<EditResponse<String>> {
+        Some(TextField::new(self.common.label.clone(), draft).show_at(ui, label))
     }
 }

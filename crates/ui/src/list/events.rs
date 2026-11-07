@@ -4,7 +4,7 @@
 use super::view_words::EventWords;
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Props as _, Role, SelectMode,
+    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Sizing, Props as _, Role, SelectMode,
     Show as _, WordSetCx as _,
 };
 use crate::primitives::{IconSpec, Span, TextRun};
@@ -207,7 +207,7 @@ impl<'a> EventList<'a> {
     pub fn new(label: impl Into<Label>) -> Self {
         EventList {
             common: Common::new(),
-            props: ContainerProps::new().surface(SurfaceKind::Sunken),
+            props: ContainerProps::new().surface(SurfaceKind::Sunken).sizing(Sizing::Fill),
             items: CollectionProps::new().select(SelectMode::Single),
             selection: None,
         }

@@ -4,7 +4,7 @@
 
 use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::{CancelReason, CanvasTransform, EditEvent, Selection, keyed};
-use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, Role, SelectMode, ShowCollection as _};
+use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
 use craft_ui::controls::select::{Select, SelectOption};
 use craft_ui::graph::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef};
 use craft_ui::runtime::focus::{FocusTarget, request};
@@ -117,7 +117,7 @@ fn a_wire_dragged_between_ports_of_a_zoomed_graph_connects_them() {
     let kinds: [&dyn NodeKind; 2] = [&OnePort, &OnePort];
     let positions =
         [Rect::from_min_max(Pos2::new(20.0, 20.0), Pos2::new(120.0, 60.0)), Rect::from_min_max(Pos2::new(20.0, 100.0), Pos2::new(120.0, 140.0))];
-    let ids = [NodeId(0), NodeId(1)];
+    let ids = [NodeId::new(0), NodeId::new(1)];
     let source = keyed(&ids, |id| *id);
     let wired = RefCell::new(Vec::new());
     let mut frames = Frames::new();
@@ -138,7 +138,7 @@ fn a_wire_dragged_between_ports_of_a_zoomed_graph_connects_them() {
     frames.idle(3, &mut show);
     let port = |node: usize| ORIGIN + (positions[node].min.to_vec2() + Vec2::new(0.0, positions[node].height() / 2.0)) * SCALE;
     pointer::drag(&mut frames, port(0), port(1) - port(0), &mut show);
-    assert_eq!(*wired.borrow(), [(PortRef::new(NodeId(0), 0), PortRef::new(NodeId(1), 0))]);
+    assert_eq!(*wired.borrow(), [(PortRef::new(NodeId::new(0), 0), PortRef::new(NodeId::new(1), 0))]);
 }
 
 /// Dragging one row of a selected range moves the whole range, and the event names every moved row.

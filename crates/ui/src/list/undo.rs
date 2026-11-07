@@ -4,7 +4,7 @@
 use super::view_words::UndoWords;
 use crate::contract::{
     Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, ItemOutput, MeasureCx,
-    NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode,
+    NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Sizing,
 };
 use crate::controls::select::row_look;
 use crate::primitives::TextRun;
@@ -139,8 +139,13 @@ pub struct UndoList<'a> {
 impl<'a> UndoList<'a> {
     /// An undo list named `label`.
     pub fn new(label: impl Into<Label>) -> Self {
-        UndoList { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Single), selection: None }
-            .label(label)
+        UndoList {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::Single),
+            selection: None,
+        }
+        .label(label)
     }
 }
 

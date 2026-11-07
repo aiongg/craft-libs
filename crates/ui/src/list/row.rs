@@ -126,6 +126,10 @@ impl ItemOutput<RowEvent> for RowOutput {
     fn into_event(self) -> Option<RowEvent> {
         self.event
     }
+
+    fn label_rect(&self) -> Option<Rect> {
+        Some(self.label)
+    }
 }
 
 /// Paints into a thumbnail's rect through the content painter, which is clipped to it.
