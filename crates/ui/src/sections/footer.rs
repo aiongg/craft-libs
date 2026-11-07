@@ -396,6 +396,7 @@ pub struct FooterButton {
     letter: Option<char>,
     enabled: bool,
     disabled_reason: Option<Label>,
+    stays_open: bool,
 }
 
 impl FooterButton {
@@ -406,7 +407,7 @@ impl FooterButton {
 
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
-        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None }
+        FooterButton { label: label.into(), role, letter: None, enabled: true, disabled_reason: None, stays_open: false }
     }
 
     /// The letter that activates the button while its dialog holds focus and no text part owns the keys. The
@@ -429,6 +430,19 @@ impl FooterButton {
     pub fn disabled_reason(mut self, reason: impl Into<Label>) -> Self {
         self.disabled_reason = Some(reason.into());
         self
+    }
+
+    /// Whether a click leaves the dialog open (an Apply): the pick is reported and nothing closes. `Cancel` always
+    /// closes.
+    #[must_use]
+    pub const fn stays_open(mut self, on: bool) -> Self {
+        self.stays_open = on;
+        self
+    }
+
+    /// Whether a click on the button closes its dialog.
+    pub(crate) fn closes(&self) -> bool {
+        self.role == DialogRole::Cancel || !self.stays_open
     }
 
     /// Whether the button can be activated.

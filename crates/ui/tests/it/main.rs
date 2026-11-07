@@ -13,6 +13,7 @@ mod commands;
 mod components_index;
 mod contract;
 mod controls;
+mod dialog;
 mod dialogs;
 mod display;
 mod docking;
