@@ -506,5 +506,5 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     }
     let label = field_label(env, input, label_id_for_scope, placed.label).with_press(shown.press).activated(shown.activated);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
-    Placed { label: placed.label, control: placed.control }
+    placed
 }
