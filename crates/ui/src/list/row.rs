@@ -11,7 +11,7 @@ use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
+    Access, Bind, Common, Component, Cx, Focus as _, GridPlace, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
@@ -166,6 +166,13 @@ pub(super) struct Trailing {
     pub optional: bool,
 }
 
+/// A text shown in one column of a row: the body role in the row's ink, on one elided line or wrapped.
+pub(super) struct TextCell {
+    pub column: ColumnKey,
+    pub text: Label,
+    pub wrap: bool,
+}
+
 /// One row of a list.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct ListRow<'a> {
@@ -228,6 +235,7 @@ pub struct ListRow<'a> {
     pub(super) spacer: bool,
     pub(super) cells: Vec<(ColumnKey, Rect)>,
     pub(super) toggles: Vec<ToggleCell>,
+    pub(super) texts: Vec<TextCell>,
     /// An icon before the label. A thumbnail takes its place.
     #[prop]
     pub(super) icon: Option<IconSpec<'a>>,
@@ -278,6 +286,7 @@ impl<'a> ListRow<'a> {
             spacer: false,
             cells: Vec::new(),
             toggles: Vec::new(),
+            texts: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
             thumb_aspect: ThumbAspect::SQUARE,
@@ -302,8 +311,8 @@ impl<'a> ListRow<'a> {
         row
     }
 
-    /// The rects of the row's columns, which the item context lists (`ItemCx::cells`): toggle cells draw in theirs
-    /// and the rest of the row lays out in what they leave.
+    /// The rects of the row's columns, which the item context lists (`ItemCx::cells`): toggle cells and text cells
+    /// draw in theirs and the rest of the row lays out in what they leave.
     #[must_use]
     pub fn cells(mut self, cells: &[(ColumnKey, Rect)]) -> Self {
         self.cells = cells.to_vec();
@@ -314,6 +323,22 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn toggle(mut self, cell: ToggleCell) -> Self {
         self.toggles.push(cell);
+        self
+    }
+
+    /// `text` in the column `column` of `cells(..)`, in the body role and the row's ink on one line, elided. One call
+    /// per text column; a column that `cells(..)` does not list (hidden, or a plain list) shows nothing. A press on
+    /// it acts on the row.
+    #[must_use]
+    pub fn cell(mut self, column: ColumnKey, text: impl Into<Label>) -> Self {
+        self.texts.push(TextCell { column, text: text.into(), wrap: false });
+        self
+    }
+
+    /// Like `cell`, with the text wrapped to the column's width; the row is as high as its tallest wrapped cell.
+    #[must_use]
+    pub fn cell_lines(mut self, column: ColumnKey, text: impl Into<Label>) -> Self {
+        self.texts.push(TextCell { column, text: text.into(), wrap: true });
         self
     }
 
@@ -372,6 +397,7 @@ impl<'a> ListRow<'a> {
 }
 
 const TOGGLE: PartKey = PartKey::new("toggle");
+const TEXT_CELL: PartKey = PartKey::new("text-cell");
 const DISCLOSURE: PartKey = PartKey::new("disclosure");
 const LINK: PartKey = PartKey::new("link");
 const THUMB: PartKey = PartKey::new("thumb");
@@ -470,9 +496,21 @@ impl ListRow<'_> {
     }
 }
 
+/// The cells of a row that lead and trail its label band.
+struct Bands {
+    lead: f32,
+    trail: f32,
+    /// Index into `toggles`, the cell's rect, whether it leads.
+    toggles: Vec<(usize, Rect, bool)>,
+    /// Index into `texts`, the column's position in the row's cells, the cell's rect, whether it leads.
+    texts: Vec<(usize, usize, Rect, bool)>,
+}
+
 /// Where the parts of a row lie in its rect.
 struct Placed {
     toggles: Vec<(usize, Rect)>,
+    /// The text cells by index into `texts`, with the column's position in the row's cells.
+    texts: Vec<(usize, usize, Rect)>,
     dividers: Vec<f32>,
     disclosure: Option<Rect>,
     marker: Option<Rect>,
@@ -528,14 +566,13 @@ impl ListRow<'_> {
         (self.steps() + usize::from(self.clipped)) as f32 * sizes.icon
     }
 
-    /// The offsets from the reading start of the row of the cells that lead and that trail the label band.
-    fn bands(&self, cells_of: &[(ColumnKey, Rect)], rect: Rect, rtl: bool) -> (f32, f32, Vec<(usize, Rect, bool)>) {
+    /// The offsets from the reading start of the row of the cells that lead and that trail the label band, and
+    /// the toggle cells and text cells with whether each leads.
+    fn bands(&self, cells_of: &[(ColumnKey, Rect)], rect: Rect, rtl: bool) -> Bands {
         let (start, width) = if rtl { (rect.right(), rect.width()) } else { (rect.left(), rect.width()) };
         let offset = |x: f32| if rtl { start - x } else { x - start };
         let (mut lead, mut trail) = (0.0_f32, 0.0_f32);
-        let mut cells = Vec::new();
-        for (at, toggle) in self.toggles.iter().enumerate() {
-            let Some((_, cell)) = cells_of.iter().find(|(column, _)| *column == toggle.column) else { continue };
+        let mut take = |cell: Rect| {
             let (a, b) = (offset(cell.left()), offset(cell.right()));
             let (near, far) = (a.min(b), a.max(b));
             let leading = near + far <= width;
@@ -544,9 +581,20 @@ impl ListRow<'_> {
             } else {
                 trail = trail.max(width - near);
             }
-            cells.push((at, *cell, leading));
+            leading
+        };
+        let mut toggles = Vec::new();
+        for (at, toggle) in self.toggles.iter().enumerate() {
+            let Some((_, cell)) = cells_of.iter().find(|(column, _)| *column == toggle.column) else { continue };
+            toggles.push((at, *cell, take(*cell)));
         }
-        (lead, trail, cells)
+        let mut texts = Vec::new();
+        for (at, text) in self.texts.iter().enumerate() {
+            let Some(position) = cells_of.iter().position(|(column, _)| *column == text.column) else { continue };
+            let cell = cells_of[position].1;
+            texts.push((at, position, cell, take(cell)));
+        }
+        Bands { lead, trail, toggles, texts }
     }
 
     fn place(&self, sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
@@ -554,7 +602,7 @@ impl ListRow<'_> {
     }
 
     fn place_in(&self, cells_of: &[(ColumnKey, Rect)], sizes: &Sizes, items: &[(f32, bool)], rect: Rect, rtl: bool) -> Placed {
-        let (lead, trail, cells) = self.bands(cells_of, rect, rtl);
+        let Bands { lead, trail, toggles: cells, texts } = self.bands(cells_of, rect, rtl);
         let flow = Flow::new(rect, rtl);
         let band_width = (rect.width() - lead - trail).max(0.0);
         let band = flow.span(lead, band_width);
@@ -616,10 +664,12 @@ impl ListRow<'_> {
             None => {}
         }
         let toggles = cells.iter().map(|(at, cell, _)| (*at, *cell)).collect();
+        let texts = texts.iter().map(|(at, position, cell, _)| (*at, *position, *cell)).collect();
         let dividers = cells.iter().filter(|(_, _, leading)| *leading).map(|(_, cell, _)| if rtl { cell.left() } else { cell.right() }).collect();
         let min_width = lead + trail + base + column + leading_width + sizes.min_label + required + sizes.trailing_pad;
         Placed {
             toggles,
+            texts,
             dividers,
             disclosure: disclosure_rect,
             marker: marker_rect,
@@ -698,12 +748,8 @@ impl Component for ListRow<'_> {
         let height = sizes.height(self.thumb, self.detail.is_some());
         let rtl = cx.env.direction().is_rtl();
         let room = cx.room.unwrap_or(0.0);
-        let toggles: f32 = self
-            .toggles
-            .iter()
-            .filter_map(|toggle| self.cells.iter().find(|(column, _)| *column == toggle.column))
-            .map(|(_, cell)| cell.width())
-            .sum();
+        let columns = self.toggles.iter().map(|toggle| &toggle.column).chain(self.texts.iter().map(|text| &text.column));
+        let toggles: f32 = columns.filter_map(|key| self.cells.iter().find(|(column, _)| column == key)).map(|(_, cell)| cell.width()).sum();
         let widths = self.item_widths(&|run| cx.layout_at(run, f32::INFINITY).size().x);
         let probe = self.place_in(&[], sizes, &widths, Rect::from_min_size(Pos2::ZERO, Vec2::new(room, height)), rtl);
         let probe_min = probe.min_width + toggles;
@@ -715,6 +761,15 @@ impl Component for ListRow<'_> {
         let detail = if self.detail.is_some() { sizes.detail_line } else { 0.0 };
         let text = sizes.label_line + detail + wrapped;
         let height = if self.lines.is_some() { height.max(text + sizes.gap) } else { height };
+        let height = self
+            .texts
+            .iter()
+            .filter(|cell| cell.wrap)
+            .filter_map(|cell| self.cells.iter().find(|(column, _)| *column == cell.column).map(|(_, rect)| (cell, rect)))
+            .fold(height, |height, (cell, rect)| {
+                let run = TextRun::new(cell.text.as_str()).role(TypeRole::Body).wrap(Wrap::Wrap);
+                height.max(cx.layout_at(&run, (rect.width() - 2.0 * sizes.pad).max(0.0)).size().y + sizes.gap)
+            });
         if cx.proposal == Proposal::Min {
             return Vec2::new(probe_min, height);
         }
@@ -837,6 +892,13 @@ impl Component for ListRow<'_> {
             let role = if toggle.check_box { Role::CHECK_BOX } else { Role::BUTTON };
             access.node(TOGGLE.at(at as u64), role).name = Name::Text(toggle.name.as_str().replace("{row}", label));
         }
+        for text in &self.texts {
+            let Some(position) = self.cells.iter().position(|(column, _)| *column == text.column) else { continue };
+            // The item step adds the row index; the part index is the column's position.
+            let node = access.node(TEXT_CELL.at(position as u64), Role::CELL);
+            node.name = Name::Text(text.text.as_str().to_owned());
+            node.grid = GridPlace { column_index: Some(position), ..GridPlace::default() };
+        }
         for (at, thumb) in self.extras.iter().enumerate() {
             if let Some((_, name)) = &thumb.link {
                 access.node(LINK.at(at as u64), Role::BUTTON).name = Name::Text(name.as_str().replace("{row}", label));
@@ -887,6 +949,7 @@ impl Component for ListRow<'_> {
         }
         self.paint_thumbs(ui, cx, &placed, ink);
         self.paint_text(&ui.draw(), cx, placed.label);
+        self.paint_cells(&ui.draw(), cx, &placed);
         for (item, slot) in self.trailing.iter().zip(placed.items) {
             if let Some(slot) = slot {
                 ui.draw().text(slot, &trailing_run(item));
@@ -989,6 +1052,31 @@ impl ListRow<'_> {
         if let Some(layout) = wrapped {
             let x = if cx.env.direction().is_rtl() { label.right() - layout.size().x } else { label.left() };
             draw.galley(Pos2::new(x, top + sizes.gap), &layout);
+        }
+    }
+}
+
+impl ListRow<'_> {
+    /// The text cells, inset by the row's padding and centered on the row's height.
+    fn paint_cells(&self, draw: &Draw<'_>, cx: &Cx<'_, Self>, placed: &Placed) {
+        let sizes = &cx.style.sizes;
+        let rtl = cx.env.direction().is_rtl();
+        let color = cx.resolve(&cx.style.text.color);
+        for (at, _, cell) in &placed.texts {
+            let text = &self.texts[*at];
+            let cell = Rect::from_x_y_ranges(cell.x_range(), cx.rect.y_range());
+            let room = Flow::new(cell, rtl).span(sizes.pad, (cell.width() - 2.0 * sizes.pad).max(0.0));
+            if text.wrap {
+                let run = TextRun::new(text.text.as_str()).role(TypeRole::Body).color(color).wrap(Wrap::Wrap);
+                let layout = draw.layout(&run, room.width());
+                let top = room.top() + ((room.height() - layout.size().y) / 2.0).max(0.0);
+                let x = if rtl { room.right() - layout.size().x } else { room.left() };
+                draw.galley(Pos2::new(x, top), &layout);
+            } else {
+                let run = TextRun::new(text.text.as_str()).role(TypeRole::Body).color(color).elide();
+                let line = Rect::from_center_size(room.center(), Vec2::new(room.width(), sizes.label_line));
+                draw.text(line, &run);
+            }
         }
     }
 }

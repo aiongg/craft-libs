@@ -1,14 +1,15 @@
 //! The pure logic of the list family.
 
-use craft_behavior::{DisplayOrder as _, SelectionChange, SelectionModel as _};
+use craft_behavior::{ColumnKey, DisplayOrder as _, SelectionChange, SelectionModel as _};
 use craft_i18n::Format;
 use craft_ui::contract::CollectionEvent;
 use craft_ui::list::{
-    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, List, LogEvent, OpenSet, Severity, UndoMark, UndoWords, footer_text,
-    summary_text, undo_count,
+    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, List, ListRow, LogEvent, OpenSet, Severity, UndoMark, UndoWords,
+    footer_text, summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
-use craft_ui::testing::trial;
+use craft_ui::testing::{Fixture, trial};
+use egui::{Pos2, Rect, Vec2};
 
 fn log() -> Vec<LogEvent> {
     vec![
@@ -109,4 +110,34 @@ fn a_list_predicate_closure_needs_no_parameter_types() {
         .can_drag(|key| *key > 0)
         .accept_from(|from| from == egui::Id::NULL)
         .accepts(|_, over, insert| *over < insert);
+}
+
+const NAME: ColumnKey = ColumnKey::new("name");
+const NOTE: ColumnKey = ColumnKey::new("note");
+
+/// The height a row with one text cell takes when the cell is on one line or wrapped, and the fixture that shows it.
+fn text_cell_row(text: &'static str, wrapped: bool) -> Fixture {
+    let mut fixture = Fixture::new(move |ui| {
+        let width = ui.available_width();
+        let cells = [
+            (NAME, Rect::from_min_size(Pos2::ZERO, Vec2::new(width - 80.0, 20.0))),
+            (NOTE, Rect::from_min_size(Pos2::new(width - 80.0, 0.0), Vec2::new(80.0, 20.0))),
+        ];
+        let row = ListRow::new("Name").cells(&cells);
+        let _ = if wrapped { row.cell_lines(NOTE, text) } else { row.cell(NOTE, text) }.show(ui);
+    });
+    fixture.settle();
+    fixture
+}
+
+#[trial]
+fn a_text_cell_is_a_cell_node_in_its_column_and_a_wrapped_one_makes_the_row_taller() {
+    use craft_ui::contract::{Role, Show as _};
+    let note = "A note long enough that it wraps onto several lines in a narrow column";
+    let one_line = text_cell_row(note, false);
+    let cell = one_line.by_label(note).expect("the text cell has a node named by its text");
+    assert_eq!(one_line.by_role(Role::CELL).len(), 1);
+    assert_eq!(one_line.tree().grid_of(cell.node).column_index, Some(1));
+    let wrapped = text_cell_row(note, true);
+    assert!(wrapped.shown().height() > one_line.shown().height(), "the row measures the wrapped cell");
 }
