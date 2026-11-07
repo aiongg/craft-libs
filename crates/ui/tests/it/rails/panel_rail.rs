@@ -1,6 +1,5 @@
 //! The panel rail's request: which panel a click asks to open or close.
 
-use craft_ui::contract::Role;
 use craft_ui::rails::{PanelRail, PanelRailRequest, RailTool};
 use craft_ui::runtime::commands::{CommandState, EditCommands};
 use craft_ui::testing::{Fixture, trial};
@@ -21,9 +20,9 @@ fn a_click_on_a_closed_panels_icon_asks_to_open_that_panel() {
         }
     });
     fixture.settle();
-    let icons = fixture.by_role(Role::BUTTON);
-    assert_eq!(icons.len(), 2, "one icon per panel");
-    fixture.click(&icons[1]);
+    assert!(fixture.by_label("Undo").is_some(), "the first panel has an icon");
+    let icon = fixture.by_label("Redo").expect("the second panel has an icon");
+    fixture.click(&icon);
     fixture.idle(3);
     assert_eq!(*requests.borrow(), [PanelRailRequest::Open(REDO)]);
 }
@@ -40,7 +39,7 @@ fn a_click_on_an_open_panels_icon_asks_to_close_that_panel() {
     });
     fixture.command_state(EditCommands::Redo, CommandState::new().checked(true));
     fixture.settle();
-    let icons = fixture.by_role(Role::BUTTON);
-    fixture.click(&icons[1]);
+    let icon = fixture.by_label("Redo").expect("the second panel has an icon");
+    fixture.click(&icon);
     assert_eq!(*requests.borrow(), [PanelRailRequest::Close(REDO)]);
 }
