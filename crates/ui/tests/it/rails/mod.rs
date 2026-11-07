@@ -1,6 +1,9 @@
 //! The rail's own logic: which tool a slot shows, what the rail remembers, where a drop goes, and the flyout's hold
 //! and click.
 
+mod drawer;
+mod panel_rail;
+
 use craft_ui::contract::{Role, Show as _};
 use craft_ui::rails::{DropAt, FlyoutButton, LastUsed, RailTool, ToolSlot, column_toggle_icon, drop_in_slot, remembered, shown_tool, visible_slots};
 use craft_ui::runtime::commands::EditCommands;
