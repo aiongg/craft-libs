@@ -23,11 +23,11 @@ fn linked_fields(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
         .into()
 }
 
-#[story(LinkedFields<'static, 4>, covers = [], drive = Drive::Never)]
+#[story(LinkedFields<'static, 2>, covers = [], drive = Drive::Never)]
 fn linked_fields_equal_columns(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let linked = *data.value("linked", true);
-    LinkedFields::new("Margins", Bind::bound(data.value("margins", [Some(12.0); 4])), Bind::given(linked))
-        .captions(["Top", "Bottom", "Inside", "Outside"])
+    LinkedFields::new("Margins", Bind::bound(data.value("margins", [Some(12.0); 2])), Bind::given(linked))
+        .captions(["Inside", "Outside"])
         .mode(LinkMode::Equal)
         .layout(LinkedLayout::Columns)
         .show(ui)
