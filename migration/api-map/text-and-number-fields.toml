@@ -23,8 +23,8 @@ status = "pending"
 name = "AltTextField"
 old = "craft_ui::controls::alt_text::AltTextField"
 new = "craft_ui::text::AltTextField"
-status = "pending"
-
+status = "moved"
+note = "A `Component` with a text part (the description box) and a faced check part, shown with `Show::show`; `AltTextField::new(label, Bind::bound(&mut alt))` replaces `new(id_salt, &mut alt)`. The label is the prompt that names the box, so `AltTextLabels::prompt` is the label and `AltTextLabels::alt_text`, `decorative` and `mixed` are the built-in `AltTextWords`. The output is `EditResponse<AltText>`; the whole `AltText` is the value, so the text and the flag arrive in one event. A mixed selection is `Bind::bound_mixed`, not `.mixed(bool)`; `enabled(bool)` is the `Props::enabled` setter; `labels(..)` is a words overlay of the scope; `style(tokens)` and `AltTextStyle` are gone."
 [[type]]
 name = "NumberField"
 old = ""
@@ -36,8 +36,8 @@ status = "pending"
 name = "ChipField"
 old = "craft_ui::controls::chips::ChipField"
 new = "craft_ui::text::ChipField"
-status = "pending"
-
+status = "replaced"
+note = "A `Component` over `Bind<Vec<String>>`: the value is the list of chip texts, with a draft text part after the chips. `ChipField::new(label, Bind::bound(&mut keywords))` replaces `new(id_salt, label, &chips)`; the host no longer maps `removed` to its own list, because adds and removes arrive as edit events of the value. The remove part is an `IconButton` face and the chip body a `Badge` face. Not ported: `max_lines` and the +N more menu, `clear_all`, per-chip `partial`, `full_name` and `removable`, `clicked`, `context_menu`, `cleared`, `ChipFieldLabels` (the remove word is `ChipWords::remove`), `size(..)` (the scope's control size) and `enabled(..)` (`Props::enabled`)."
 [[type]]
 name = "LinkedFields"
 old = "craft_ui::controls::linked::LinkedFields"
@@ -50,8 +50,63 @@ old = "craft_ui::controls::mixed::ApplyRow"
 new = "craft_ui::text::ApplyRow"
 status = "pending"
 
+[[type]]
+name = "AltText"
+old = "craft_ui::controls::alt_text::AltText"
+new = "craft_ui::text::AltText"
+status = "moved"
+note = "`#[non_exhaustive]`: build it with `AltText::new(text)` and `.decorative(bool)`. `starts_decorative(flags)` is `AltText::starts_decorative(flags)`."
+
+[[type]]
+name = "starts_decorative"
+old = "craft_ui::controls::alt_text::starts_decorative"
+new = ""
+status = "replaced"
+note = "Use the associated function `AltText::starts_decorative`."
+
+[[type]]
+name = "Chip"
+old = "craft_ui::controls::chips::Chip"
+new = ""
+status = "removed"
+note = "A chip is its text, an entry of the field's `Vec<String>`. Keywords that only some of a selection have, a shortened label with a full name and a chip with no remove part have no counterpart."
+
+[[type]]
+name = "ChipFieldResponse"
+old = "craft_ui::controls::chips::ChipFieldResponse"
+new = ""
+status = "replaced"
+note = "`ChipField` returns `EditResponse<Vec<String>>`: `removed` and a typed add are the new list in the response's event. `clicked`, `context_menu` and `cleared` are not reported."
+
+[[type]]
+name = "chip_lines"
+old = "craft_ui::controls::chips::chip_lines"
+new = ""
+status = "removed"
+note = "The field flows its own chips; a host that laid chips out itself places chip rows with `Flow`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "AltTextField"
+old = "new(id_salt, &mut AltText)"
+new = "new(label, Bind<AltText>)"
+
+[[setter]]
+type = "AltTextField"
+old = "mixed(bool)"
+new = "Bind::bound_mixed"
+
+[[setter]]
+type = "ChipField"
+old = "new(id_salt, label, &[Chip])"
+new = "new(label, Bind<Vec<String>>)"
+
+[[setter]]
+type = "ChipField"
+old = "max_lines(usize)"
+new = ""
