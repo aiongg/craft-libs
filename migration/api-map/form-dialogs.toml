@@ -77,7 +77,7 @@ name = "NumberUnit"
 old = "craft_ui::dialog::params::NumberUnit"
 new = "craft_ui::patterns::form_dialogs::NumberUnit"
 status = "moved"
-note = "`label` is a `Label`; build with `NumberUnit::new`."
+note = "`label` is a `Label`; build with `NumberUnit::new(id, kind, label, factor)`: `kind` is the `UnitKind` the number is read and shown in (`PixelsPerInch`, `PixelsPerCentimetre`), unique within a row."
 
 [[type]]
 name = "PathKind"
