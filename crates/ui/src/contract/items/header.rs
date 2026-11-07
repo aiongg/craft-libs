@@ -473,16 +473,19 @@ struct HeaderText {
     inset: f32,
     /// Whether the column is the sorted one, and if so whether it sorts descending.
     sort: Option<bool>,
+    /// Whether the label is its own AccessKit node. The header row's label is not: its `ColumnHeader` sub-node carries
+    /// the name.
+    node: bool,
 }
 
 impl HeaderText {
     #[cfg(feature = "testing")]
     fn sample() -> Self {
-        HeaderText::new(Label::from("Name"), 0.0, Some(false))
+        HeaderText { node: true, ..HeaderText::new(Label::from("Name"), 0.0, Some(false)) }
     }
 
     fn new(text: Label, inset: f32, sort: Option<bool>) -> Self {
-        HeaderText { common: Common::new(), inset, sort }.label(text)
+        HeaderText { common: Common::new(), inset, sort, node: false }.label(text)
     }
 
     /// The label on one line, cut with an ellipsis when its column is narrower than the text.
@@ -492,7 +495,8 @@ impl HeaderText {
 }
 
 impl Component for HeaderText {
-    const ROLE: Role = Role::None;
+    const ROLE: Role = Role::LABEL;
+    const ALT_ROLES: &'static [Role] = &[Role::None];
     const PARTS: bool = false;
     const STOPS: bool = false;
     type Style = HeaderTextStyle;
@@ -504,6 +508,12 @@ impl Component for HeaderText {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn access(&self, access: &mut crate::contract::Access, _: &Cx<'_, Self>) {
+        if !self.node {
+            access.role(Role::None);
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
