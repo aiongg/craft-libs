@@ -1043,15 +1043,7 @@ struct Index {
 
 impl Index {
     fn new(keymap: &Keymap) -> Index {
-        let mut ix = Index {
-            tool: Vec::new(),
-            has_default: Vec::new(),
-            has_menu: Vec::new(),
-            keys: HashMap::new(),
-            names: Names::default(),
-            toggles: Names::default(),
-            segments: HashSet::new(),
-        };
+        let mut ix = Index { tool: Vec::new(), has_default: Vec::new(), has_menu: Vec::new(), keys: HashMap::new(), names: Names::default(), toggles: Names::default(), segments: HashSet::new() };
         for (i, b) in keymap.catalog().iter().enumerate() {
             ix.tool.push(matches!(b.kind, Kind::Tool { .. }));
             ix.has_default.push(!b.defaults.is_empty());

@@ -13,9 +13,7 @@ use craft_ui::theme::{ToEgui as _, Tokens, TokensOf as _, margin_x, role_format,
 use egui::accesskit::Role;
 use egui::text::{CCursor, CCursorRange, LayoutJob};
 use egui::text_edit::TextEditState;
-use egui::{
-    Align, Align2, AsIdSalt, CursorIcon, EventFilter, IdSalt, Key, Layout, Modifiers, Response, Sense, Shape, Ui, UiBuilder, WidgetInfo, pos2, vec2,
-};
+use egui::{Align, Align2, AsIdSalt, CursorIcon, EventFilter, IdSalt, Key, Layout, Modifiers, Response, Sense, Shape, Ui, UiBuilder, WidgetInfo, pos2, vec2};
 
 use super::style::TimelineStyle;
 use crate::time::Tick;

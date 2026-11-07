@@ -116,17 +116,11 @@ fn the_count_is_the_commands_that_differ_from_the_defaults() {
 #[test]
 // A foreign name that fits an alias command and the menu command prefers the one with a default shortcut.
 fn a_name_shared_with_an_alias_command_matches_the_one_with_a_default() {
-    let undo = |cmd: &str| {
-        format!(
-            "<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Undo\"><shortcut>{cmd}</shortcut></command></photoshop-keyboard-shortcuts>"
-        )
-    };
+    let undo = |cmd: &str| format!("<photoshop-keyboard-shortcuts version=\"4\"><command name=\"Undo\"><shortcut>{cmd}</shortcut></command></photoshop-keyboard-shortcuts>");
     let km = Keymap::new(
         vec![
             Bindable::new("history.undo", "Undo", Scope::app()),
-            Bindable::new("edit.undo", "Undo", Scope::app())
-                .with_path(vec!["Edit".into(), "Undo".into()])
-                .with_default(Binding::parse("Cmd+Z").unwrap()),
+            Bindable::new("edit.undo", "Undo", Scope::app()).with_path(vec!["Edit".into(), "Undo".into()]).with_default(Binding::parse("Cmd+Z").unwrap()),
         ],
         Scopes::new(),
         Platform::Mac,

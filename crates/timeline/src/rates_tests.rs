@@ -42,8 +42,7 @@ fn timecode_base_and_drop_frame_support() {
 #[test]
 fn labels_trim_trailing_zeros() {
     let numbers = craft_ui::localized::LocaleNumbers::from_tag("en");
-    let labels: Vec<String> =
-        [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&numbers)).into();
+    let labels: Vec<String> = [FrameRate::FPS_24, FrameRate::FPS_23_976, FrameRate::FPS_29_97, FrameRate::FPS_59_94].map(|rate| rate.label(&numbers)).into();
     assert_eq!(labels, ["24", "23.976", "29.97", "59.94"]);
     assert_eq!(PixelAspect::SQUARE.ratio_label(&numbers), "1.0");
     assert_eq!(PixelAspect { num: 10, den: 11 }.ratio_label(&numbers), "0.9091");
