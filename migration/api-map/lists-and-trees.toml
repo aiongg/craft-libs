@@ -423,7 +423,7 @@ note = "Type `RowResponse` is replaced; the type entry above has the details."
 
 [[call]]
 old = "craft_ui::list::row::TrailingItem"
-new = "craft_ui::list::TrailingPaint"
+new = "craft_ui::list::ListRow::trailing"
 note = "Type `TrailingItem` is replaced; the type entry above has the details."
 
 [[call]]
