@@ -155,6 +155,35 @@ pub fn registered_parent_owns_member_node() -> bool {
     update.nodes.iter().find(|(id, _)| *id == parent.accesskit_id()).is_some_and(|(_, node)| node.children().contains(&member.accesskit_id()))
 }
 
+/// Whether a widget that took focus with `request_focus_with_filter` still holds it after a bare Escape: `keep`
+/// says whether the filter lists Escape.
+pub fn focus_survives_escape(keep: bool) -> bool {
+    let ctx = fixture::bare_context();
+    let id = super::memory::unique("craft_ui.surface.escape");
+    let rect = widget_at(10.0, 10.0);
+    let mut run = |time: f64, events: Vec<Event>, focus: bool| {
+        let mut output = ctx.run_ui(raw(time, events), |ui| {
+            ui.interact(rect, id, Sense::focusable_noninteractive());
+            if focus {
+                let filter = egui::EventFilter { escape: keep, ..egui::EventFilter::default() };
+                ui.memory_mut(|memory| memory.request_focus_with_filter(id, filter));
+            }
+        });
+        output.textures_delta.clear();
+    };
+    run(1.0, Vec::new(), true);
+    run(2.0, Vec::new(), false);
+    run(3.0, vec![fixture::key_press(egui::Key::Escape, egui::Modifiers::NONE)], false);
+    run(4.0, Vec::new(), false);
+    ctx.memory(|memory| memory.has_focus(id))
+}
+
+/// Writes the direction into the context's styles before any pass, as an egui backend that derives it from the
+/// system locale would.
+pub fn preset_style_direction(ctx: &Context, right_to_left: bool) {
+    ctx.all_styles_mut(|style| style.right_to_left = right_to_left);
+}
+
 /// What a pass saw of one frame that discarded its first pass.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
