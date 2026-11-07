@@ -106,6 +106,13 @@ impl Frames {
         self.run(events, ui)
     }
 
+    /// One pass with no events in `viewport`, a child window of the root, between two frames of the root.
+    pub fn frame_in_viewport(&mut self, viewport: egui::ViewportId, ui: impl FnMut(&mut Ui)) {
+        set_input(&self.ctx, self.input());
+        self.time += DT;
+        fixture::run_viewport_pass(&self.ctx, self.time, viewport, ui);
+    }
+
     /// One frame with no events; returns the shapes it painted, nested shapes flattened.
     pub fn frame_shapes(&mut self, mut ui: impl FnMut(&mut Ui)) -> Vec<egui::Shape> {
         set_input(&self.ctx, self.input());

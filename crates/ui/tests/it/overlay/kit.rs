@@ -78,6 +78,15 @@ pub enum Go {
     Go,
 }
 
+/// An app-scope command bound to Enter that fires in dialogs.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "overlay_trial")]
+#[non_exhaustive]
+pub enum Pick {
+    #[command(label = "Pick", default = "Enter", modal = "always")]
+    Pick,
+}
+
 /// What an opener reports.
 #[derive(Default)]
 #[non_exhaustive]

@@ -46,9 +46,10 @@ pub(crate) fn layer_map(ctx: &Context, layer: LayerId) -> Option<LayerMap> {
     ctx.layer_transform_to_global(layer).map(LayerMap)
 }
 
-/// How high `layer` stands: layers of a higher rank lie over those of a lower one.
-pub(crate) fn layer_rank(layer: LayerId) -> u8 {
-    layer.order as u8
+/// How high `layer` stands in egui's layer order, which the overlay host sets each pass: a larger value lies over a
+/// smaller one. A layer egui does not list stands lowest.
+pub(crate) fn layer_position(ctx: &Context, layer: LayerId) -> usize {
+    ctx.memory(|memory| memory.layer_ids().position(|listed| listed == layer).map_or(0, |at| at + 1))
 }
 
 /// The topmost layer under a screen position.

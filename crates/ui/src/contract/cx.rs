@@ -265,7 +265,10 @@ impl Pointer for CxCore<'_> {
 
     fn drop_target<P: Send + Sync + 'static, T: DropTarget<P>>(&mut self, target: &T) -> Option<T::Drop> {
         let (payload, at) = self.dragging::<P>()?;
-        if !self.rect.contains(at) {
+        // Only where the pointer is over this component's visible shapes on its own layer: not under a layer above, not
+        // in a clipped-out part.
+        let screen = areas::layer_map(&self.ctx, self.response.layer_id).map_or(at, |map| map.to_screen(at));
+        if !self.visible.contains(at) || areas::layer_at(&self.ctx, screen) != Some(self.response.layer_id) {
             return None;
         }
         let op = drag::current_operation(&self.ctx);

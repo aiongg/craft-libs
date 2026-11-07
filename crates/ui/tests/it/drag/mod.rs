@@ -9,7 +9,7 @@ use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 const GRIP: PartKey = PartKey::new("grip");
 const CHIP: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(60.0, 40.0) };
@@ -211,4 +211,43 @@ fn a_release_over_no_target_reports_nothing_and_the_cursor_says_so() {
     let seen = seen.borrow();
     assert!(seen.dropped.is_empty() && seen.ended.is_empty(), "{:?} {:?}", seen.dropped, seen.ended);
     let _ = over;
+}
+
+/// Another window's pass in the middle of a drag leaves the session running.
+#[trial]
+fn another_viewports_pass_does_not_end_a_drag() {
+    let seen = RefCell::new(Seen::default());
+    let mut show = scene(&seen);
+    let mut frames = Frames::new();
+    drag_over_slot(&mut frames, &mut show);
+    assert!(drag::active::<Payload>(&frames.ctx).is_some(), "the drag runs");
+    frames.frame_in_viewport(egui::ViewportId::from_hash_of("child"), |_| {});
+    assert!(drag::active::<Payload>(&frames.ctx).is_some(), "a pass of another viewport keeps the session");
+}
+
+/// A layer over a target hides it: a release there drops nothing and the not-allowed cursor shows.
+#[trial]
+fn a_target_under_another_layer_takes_no_drop() {
+    let seen = RefCell::new(Seen::default());
+    let covered = Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        scene(&seen)(ui);
+        if covered.get() {
+            craft_ui::testing::frames::show_area(ui.ctx(), "cover", |cover| {
+                cover.allocate_exact_size(Vec2::new(400.0, 100.0), egui::Sense::hover());
+            });
+        }
+    };
+    let mut frames = Frames::new();
+    let over = drag_over_slot(&mut frames, &mut show);
+    frames.idle(1, &mut show);
+    assert_eq!(frames.cursor_icon(), egui::CursorIcon::Grabbing, "the uncovered slot accepts");
+    covered.set(true);
+    frames.idle(2, &mut show);
+    frames.frame(vec![moved(over + Vec2::new(1.0, 0.0))], &mut show);
+    frames.idle(1, &mut show);
+    assert_eq!(frames.cursor_icon(), egui::CursorIcon::NotAllowed, "the layer over the slot hides it");
+    frames.frame(vec![release(over)], &mut show);
+    frames.idle(2, &mut show);
+    assert!(seen.borrow().dropped.is_empty(), "no drop lands under the layer: {:?}", seen.borrow().dropped);
 }

@@ -8,9 +8,9 @@ use crate::runtime::env::Label;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::{cursor, frame, pointer};
 use craft_behavior::keys::drop_operation;
-use craft_behavior::{CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, PointerButton, PressCancel};
+use craft_behavior::{Buttons, CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, PointerButton, PressCancel};
 use craft_keymap::Mods;
-use egui::{Context, Id, Pos2, Rect};
+use egui::{Context, Id, Pos2, Rect, ViewportId};
 use std::any::{Any, TypeId};
 use std::sync::Arc;
 
@@ -75,6 +75,10 @@ pub trait DropTarget<P> {
 
 struct Session {
     source: Id,
+    /// The viewport whose pass started the session and the button whose press it follows: only that viewport's end
+    /// hook reads the button, so another window repainting mid-drag does not end the session.
+    viewport: ViewportId,
+    button: PointerButton,
     payload: Arc<dyn Any + Send + Sync>,
     preview: DragPreview,
     /// The mark of the target that would take a drop now, in screen space.
@@ -120,7 +124,12 @@ fn board<R>(ctx: &Context, f: impl FnOnce(&mut Board) -> R) -> R {
 pub(crate) fn start(ctx: &Context, source: Id, payload: Arc<dyn Any + Send + Sync>, preview: DragPreview) {
     board(ctx, |board| {
         if board.session.is_none() {
-            board.session = Some(Session { source, payload, preview, mark: None });
+            let buttons = pointer::frame(ctx).buttons;
+            let button = [PointerButton::Primary, PointerButton::Secondary, PointerButton::Middle, PointerButton::Extra1, PointerButton::Extra2]
+                .into_iter()
+                .find(|button| buttons.contains(Buttons::of(*button)))
+                .unwrap_or(PointerButton::Primary);
+            board.session = Some(Session { source, viewport: pass::current_viewport(ctx), button, payload, preview, mark: None });
             board.ended = None;
             board.started += 1;
         }
@@ -234,8 +243,9 @@ pub(crate) fn ended<P: 'static>(ctx: &Context, source: Id) -> Option<DropOperati
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let winner = PerViewport::<Targets>::with(ctx, viewport, |targets| {
-        // The topmost layer wins, then the target registered last: a target shown later lies over an enclosing one.
-        let best = targets.this.iter().enumerate().max_by_key(|(at, registration)| (areas::layer_rank(registration.layer), *at)).map(|(_, registration)| registration);
+        // The topmost layer in the order the overlay host handed egui wins, then the target registered last: a target
+        // shown later lies over an enclosing one.
+        let best = targets.this.iter().enumerate().max_by_key(|(at, registration)| (areas::layer_position(ctx, registration.layer), *at)).map(|(_, registration)| registration);
         let best = best.map(|registration| ((registration.owner, registration.ordinal), registration.mark));
         targets.winner = best.map(|(key, _)| key);
         targets.this.clear();
@@ -243,10 +253,14 @@ pub(crate) fn end_pass(ctx: &Context) {
     });
     let op = current_operation(ctx);
     let over_this_window = pointer::frame(ctx).pos.is_some();
-    let held = pointer::pass_pointer(ctx).primary_down;
+    let primary_down = pointer::pass_pointer(ctx).primary_down;
+    let buttons = pointer::frame(ctx).buttons;
     let running = board(ctx, |board| {
-        if !held {
-            board.session = None;
+        if let Some(session) = board.session.as_ref().filter(|session| session.viewport == viewport) {
+            let held = if session.button == PointerButton::Primary { primary_down } else { buttons.contains(Buttons::of(session.button)) };
+            if !held {
+                board.session = None;
+            }
         }
         if let Some(session) = &mut board.session {
             session.mark = winner;

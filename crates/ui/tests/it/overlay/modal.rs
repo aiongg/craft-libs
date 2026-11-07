@@ -4,11 +4,13 @@ use super::kit::{Go, Leaf, Opened, Opener, Seen};
 use craft_ui::contract::{Overlay, Props as _, Show as _, Trigger};
 use craft_ui::runtime::commands::{FireSource, fire};
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
+use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::focus::is_focused;
+use craft_ui::testing::input::key_press;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Pos2, Rect, Ui, Vec2};
+use egui::{Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
 
 const OPENER: Rect = Rect { min: Pos2::new(100.0, 100.0), max: Pos2::new(180.0, 120.0) };
@@ -61,4 +63,30 @@ fn a_modal_blocks_hits_and_commands_below_and_returns_focus_on_close() {
     assert!(!any_open(&frames.ctx, OpenFilter::Modal));
     assert!(is_focused(&frames.ctx, opener_id.get()), "focus returned to the opener");
     assert!(fire(&frames.ctx, Go::Go, FireSource::Automation), "commands fire again after the modal closed");
+}
+
+/// 9.3: focus inside a modal is not blocked: the widget there keeps the key it activates with from the shortcut
+/// dispatcher, and a shortcut on another key still fires.
+#[trial]
+fn focus_inside_a_modal_owns_its_keys_instead_of_being_blocked() {
+    let mut frames = Frames::new();
+    let content = RefCell::new(Seen::default());
+    let opened = Opened::default();
+    let open = Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        opened.shown.set(false);
+        Opener::new(&opened, &content, Trigger::Manual, Overlay::modal).open(open.get()).id_salt("opener").show_at(ui, OPENER);
+    };
+    frames.idle(3, &mut show);
+    open.set(true);
+    frames.frame(vec![], &mut show);
+    open.set(false);
+    frames.idle(30, &mut show);
+    let content_id = content.borrow().id.expect("the modal content ran");
+    assert!(is_focused(&frames.ctx, content_id), "focus is inside the modal");
+    take_output(&frames.ctx);
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    let fired = take_output(&frames.ctx).fired;
+    assert!(fired.iter().all(|fired| fired.command.id != "overlay_trial.pick"), "Enter activates the focused widget and is not also a shortcut");
+    assert_eq!(content.borrow().activations, 1, "the widget took the activation");
 }

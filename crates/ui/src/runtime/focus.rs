@@ -288,6 +288,19 @@ pub(crate) fn end(ctx: &Context) {
     apply(ctx, acts);
 }
 
+/// The scopes `rec` sits in, innermost first.
+pub(crate) fn scope_chain(ctx: &Context, rec: &StopRec) -> Vec<Id> {
+    with(ctx, |state| {
+        let mut chain = Vec::new();
+        let mut at = rec.scope;
+        while let Some(id) = at {
+            chain.push(id);
+            at = state.last_scopes.get(&id).and_then(|record| record.parent);
+        }
+        chain
+    })
+}
+
 /// Whether the focused stop sits inside `scope` or a scope opened from inside it; `None` when nothing is focused.
 pub(crate) fn focus_in_scope(ctx: &Context, scope: Id) -> Option<bool> {
     let rec = focused_rec(ctx)?;
