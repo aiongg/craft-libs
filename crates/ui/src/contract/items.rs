@@ -211,11 +211,6 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         if hint < self.source.len() && self.source.key(hint) == *key { Some(hint) } else { self.source.index_of(key) }
     }
 
-    /// `point` of the screen in the coordinates the rows are laid out in.
-    fn layer(&self, point: Pos2) -> Pos2 {
-        self.xf.map_or(point, |map| map.to_layer(point))
-    }
-
     /// `point` of the rows' coordinates on the screen.
     fn on_screen(&self, point: Pos2) -> Pos2 {
         self.xf.map_or(point, |map| map.to_screen(point))
@@ -402,7 +397,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A press lands on the rows the user saw: the offset of the last pass, before this pass's wheel share (8.3).
         let seen = Placement { offset: ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ..at };
         self.press_step(comp, cx, &props, &layout, seen);
-        self.drag_step(comp, cx, &layout, rect, offset, rtl, &props);
+        self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &layout, at, lead_at, header_held);
@@ -462,7 +457,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
         let forward =
             areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
-        let mut place_rows = |ui: &mut Ui| {
+        let place_rows = |ui: &mut Ui| {
             for at in order {
                 let key = self.source.key(at);
                 let item_id = sub(id, ("key", key_hash(&key)));
@@ -588,7 +583,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let tf = areas::body_transform(rect.min, transform.scale, transform.offset);
                 crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
                 let body_layer = areas::BodyLayer { parent, layer, transform: tf, at: rect.min, clip, forward: Some(forward) };
-                areas::show_body_layer(&ctx, body_layer, |area_ui| place_rows(area_ui));
+                areas::show_body_layer(&ctx, body_layer, place_rows);
             }
             None => place_rows(ui),
         }

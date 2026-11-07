@@ -244,9 +244,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         comp: &C,
         cx: &mut Cx<'_, C>,
         layout: &C::ItemLayout,
-        rect: Rect,
-        offset: ScrollPos,
-        rtl: bool,
+        (rect, offset, rtl): (Rect, ScrollPos, bool),
         props: &CollectionProps,
     ) {
         self.drags.over = None;
