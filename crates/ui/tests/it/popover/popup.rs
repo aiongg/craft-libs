@@ -3,7 +3,7 @@
 use crate::overlay::kit::{Leaf, Opened, Opener, Seen};
 use craft_behavior::{DisplayOrder, ItemSource};
 use craft_ui::buttons::Button;
-use craft_ui::contract::{Bind, CollectionEvent, Overlay, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Trigger};
+use craft_ui::contract::{Bind, CollectionEvent, Overlay, Props as _, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Trigger};
 use craft_ui::list::{List, ListRow};
 use craft_ui::popover::PopupList;
 use craft_ui::runtime::overlay::CloseReason;
@@ -320,4 +320,68 @@ fn alt_up_on_a_popup_list_opener_closes_the_popup() {
     picker.fixture.idle(4);
     assert_eq!(picker.closed.get(), Some(CloseReason::Requested), "Alt+Up closes the dropdown");
     assert_eq!(picker.activated.get(), None, "and picks nothing");
+}
+
+/// Rows by position over static text.
+struct Names(Vec<String>);
+
+impl DisplayOrder<usize> for Names {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0.len()).then_some(*key)
+    }
+
+    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
+        self.0.get(at).map(|name| std::borrow::Cow::Borrowed(name.as_str()))
+    }
+}
+
+impl ItemSource<usize> for Names {}
+
+const WIDE_BUTTON: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(420.0, 44.0) };
+const LONG_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from";
+const LONGER_ROW: &str = "A brush tip whose name runs on and on, well past the width of the button it hangs from, and then keeps going as far again";
+
+/// The width of a `PopupList` holding a content-sized `List::options` of `rows`, opened from a wide button.
+fn popup_width(rows: &[&str]) -> (f32, f32) {
+    let rows = Names(rows.iter().map(|row| row.to_string()).collect());
+    let open = Rc::new(Cell::new(false));
+    let shown_open = open.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let opener = Button::new("Brush tip").show_at(ui, WIDE_BUTTON);
+        let mut is_open = shown_open.get();
+        PopupList::new("Brush popup", Bind::bound(&mut is_open)).opened_by(&opener).show(ui, |ui, _| {
+            List::<usize>::options("Brush rows")
+                .sizing(Sizing::Content)
+                .show_items(ui, &rows, &mut |at, _| ListRow::new(rows.0[*at].clone()).option());
+        });
+        shown_open.set(is_open);
+    });
+    fixture.room(Vec2::new(900.0, 600.0));
+    fixture.settle();
+    open.set(true);
+    fixture.idle(6);
+    let popup = fixture.by_label("Brush popup").expect("the open popup is a node");
+    (popup.rect.width(), WIDE_BUTTON.width())
+}
+
+/// A content-sized dropdown is as wide as its widest row: as wide as the opener when the rows are short, as wide as
+/// the longest row when it is longer, and no wider than the cap.
+#[trial]
+fn a_content_sized_popup_list_is_as_wide_as_its_widest_row() {
+    let (short, button) = popup_width(&["Round", "Square", "Chisel"]);
+    assert!((short - button).abs() < 1.0, "short rows leave the popup as wide as the button: {short} against {button}");
+    let (long, _) = popup_width(&["Round", LONG_ROW]);
+    assert!(long > button, "a row longer than the button widens the popup past it: {long} against {button}");
+    let (longer, _) = popup_width(&["Round", LONGER_ROW]);
+    assert!(longer >= long, "a longer row does not narrow the popup");
+    let (longest, _) = popup_width(&["Round", &LONGER_ROW.repeat(4)]);
+    assert!((longest - popup_width(&["Round", &LONGER_ROW.repeat(8)]).0).abs() < 1.0, "past the cap the width stops growing");
 }

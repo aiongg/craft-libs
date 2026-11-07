@@ -9,7 +9,7 @@ use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook};
-use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
+use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
 use craft_theme::{
     States, Variant,
     variant::{Emphasis, Tone},
@@ -132,8 +132,12 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let (arrow, _) = Flow::new(rect, cx.flow.is_rtl()).take_end(cx.icon());
-        let part =
-            cx.part(ARROW, arrow).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Handle, 0)).pointer_only("Alt+Down and Down open the menu");
+        let part = cx
+            .part(ARROW, arrow)
+            .sense(Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Handle, 0))
+            .pointer_only("Alt+Down and Down open the menu")
+            .toggles("menu");
         if let Some(label) = &self.arrow_label {
             part.tooltip(label.clone());
         }
@@ -142,15 +146,8 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         cx.join_roving();
         let menu = cx.popup("menu");
-        let open = menu.is_open(cx);
-        if cx.part(ARROW).press.phase.is_click() {
-            if open {
-                menu.close(cx);
-            } else {
-                menu.open(cx);
-            }
-        } else if !open {
-            let mut asked = cx.intents().take(Intent::Open);
+        if !menu.is_open(cx) {
+            let mut asked = false;
             while let Some((step, _)) = cx.intents().take_move() {
                 asked |= matches!(step, NavMove::Down);
             }

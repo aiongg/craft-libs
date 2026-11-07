@@ -22,8 +22,8 @@ use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole
 use crate::value_drag::Slider;
 use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
-    AccessAction, AccessRequest, Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, MoveMods, NavMove, NotAValue,
-    NumberCodec, PartKey, Selection, Sense, ValueDrag, decimals_for_step, wheel_step,
+    Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey, Selection,
+    Sense, ValueDrag, decimals_for_step, wheel_step,
 };
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
@@ -266,8 +266,6 @@ pub struct NumberField<'a> {
     scrub: bool,
     picked: Option<NumberPick>,
     unit_size: Vec2,
-    /// Whether the presets list and the popup slider are open in this pass, for the chevrons' accessible state.
-    open: [bool; 2],
 }
 
 impl<'a> NumberField<'a> {
@@ -289,7 +287,6 @@ impl<'a> NumberField<'a> {
             scrub: false,
             picked: None,
             unit_size: Vec2::ZERO,
-            open: [false; 2],
         }
         .label(label)
     }
@@ -352,42 +349,6 @@ impl<'a> NumberField<'a> {
         }
         let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x + gap);
         (rest.rect(), Some(unit))
-    }
-
-    /// Toggles a popup from its chevron and opens one on Alt+Down: the presets list, else the slider.
-    fn drive_popups(&mut self, cx: &mut Cx<'_, Self>) {
-        let presets = self.presets.map(|_| cx.popup("presets"));
-        let slider = self.popup_slider.as_ref().map(|_| cx.popup("slider"));
-        let mut asked = cx.intents().take(Intent::Open);
-        for (popup, part) in [(presets, PRESETS), (slider, SLIDER)] {
-            let Some(popup) = popup else { continue };
-            let named = |request: &AccessRequest| {
-                request.target.is_some_and(|target| target.key == part) && matches!(request.action, AccessAction::Expand | AccessAction::Collapse)
-            };
-            while let Some(request) = cx.intents().take_access_where(named) {
-                if request.action == AccessAction::Expand {
-                    popup.open(cx);
-                } else {
-                    popup.close(cx);
-                }
-                asked = false;
-            }
-            if cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click()) {
-                if popup.is_open(cx) {
-                    popup.close(cx);
-                } else {
-                    popup.open(cx);
-                }
-                asked = false;
-            }
-        }
-        if asked
-            && let Some(popup) = presets.or(slider)
-            && !popup.is_open(cx)
-        {
-            popup.open(cx);
-        }
-        self.open = [presets.is_some_and(|popup| popup.is_open(cx)), slider.is_some_and(|popup| popup.is_open(cx))];
     }
 
     fn show_presets(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, rows: &[Entry<NumberPick>]) {
@@ -525,7 +486,12 @@ impl Component for NumberField<'_> {
             if self.presets.is_some() { "Alt+Down opens the presets list; the slider opens by pointer" } else { "Alt+Down opens the slider" };
         for ((key, _), at) in chevrons.iter().zip(&placed.trailing) {
             let reason = if *key == PRESETS { "Alt+Down opens the list" } else { slider_reason };
-            cx.part(*key, *at).sense(Sense::CLICK | Sense::KEEP_FOCUS).priority(HitPriority::new(HitLevel::Handle, 0)).pointer_only(reason);
+            let popup = if *key == PRESETS { "presets" } else { "slider" };
+            cx.part(*key, *at)
+                .sense(Sense::CLICK | Sense::KEEP_FOCUS)
+                .priority(HitPriority::new(HitLevel::Handle, 0))
+                .pointer_only(reason)
+                .toggles(popup);
         }
     }
 
@@ -549,7 +515,6 @@ impl Component for NumberField<'_> {
     /// range while the field is blank.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let rule = self.rule();
-        let has_popups = self.presets.is_some() || self.popup_slider.is_some();
         while let Some((mv, mods)) = cx.intents().take_move() {
             let (notches, scale) = match mv {
                 NavMove::Up => (1, key_scale(mods)),
@@ -560,9 +525,6 @@ impl Component for NumberField<'_> {
             };
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
             cx.set(Some(rule.stepped(from, notches, scale)));
-        }
-        if has_popups {
-            self.drive_popups(cx);
         }
         if let Some(wheel) = cx.take_wheel() {
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
@@ -586,8 +548,7 @@ impl Component for NumberField<'_> {
         }
     }
 
-    /// The numeric value, and a button node per chevron named by its word (the painted face) that is expanded while
-    /// its popup is open.
+    /// The numeric value, and a button node per chevron named by its word (the painted face).
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rule = self.rule();
         let numeric = match cx.value() {
@@ -595,9 +556,9 @@ impl Component for NumberField<'_> {
             _ => Numeric::empty(rule.bounds()),
         };
         access.numeric(numeric.step(rule.step));
-        for (key, shown, open) in [(PRESETS, self.presets.is_some(), self.open[0]), (SLIDER, self.popup_slider.is_some(), self.open[1])] {
+        for (key, shown) in [(PRESETS, self.presets.is_some()), (SLIDER, self.popup_slider.is_some())] {
             if shown {
-                access.node(key, Role::BUTTON).expanded = Some(open);
+                access.node(key, Role::BUTTON);
             }
         }
     }

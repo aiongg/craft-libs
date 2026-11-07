@@ -98,6 +98,8 @@ pub struct CxCore<'a> {
     pub(crate) value_parts: Vec<(PartKey, Option<u64>)>,
     /// The value parts that declared `own_reset`.
     pub(crate) own_reset_parts: Vec<(PartKey, Option<u64>)>,
+    /// The parts that declared `toggles`, with whether their popup is open as of step 9.
+    pub(crate) toggles: Vec<Toggle>,
     /// The part a reset targeted that declared `own_reset`; step 9 leaves its value to `update`.
     pub(crate) reset_part: Option<PartRef>,
     /// The sense the root's egui widget carries, for the forwarding widget of a transformed body.
@@ -1386,6 +1388,15 @@ impl<C: Component> MeasureCx<'_, C> {
     }
 }
 
+/// A part that opens and closes a popup of its component, from `PartBuilder::toggles`.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Toggle {
+    pub part: PartRef,
+    pub popup: &'static str,
+    /// The popup's open state after step 9's toggles, which the part's sub-node reports as `expanded`.
+    pub open: bool,
+}
+
 /// A part as `PartsCx::part` declares it; the builder sets its flags.
 pub struct PartBuilder<'a> {
     decl: &'a mut PartDecl,
@@ -1408,6 +1419,7 @@ pub(crate) struct PartExtras {
     pub value: bool,
     pub own_reset: bool,
     pub selected: bool,
+    pub toggles: Option<&'static str>,
 }
 
 impl PartBuilder<'_> {
@@ -1498,6 +1510,15 @@ impl PartBuilder<'_> {
     /// A part with no focus stop names its keyboard path: the intent or command that does the same.
     pub fn pointer_only(self, reason: &'static str) -> Self {
         self.declared.pointer_only = Some(reason);
+        self
+    }
+
+    /// The part opens and closes the component's popup `popup` (the name given to `cx.popup`): a click on it toggles
+    /// the popup, AccessKit Expand and Collapse on its sub-node open and close it, Alt+Down from the part (or from
+    /// the component when no toggling part is focused) opens the first toggled popup that is closed and Alt+Up closes
+    /// the open ones, and the sub-node reports `expanded`. The component declares the sub-node with `Access::node`.
+    pub fn toggles(self, popup: &'static str) -> Self {
+        self.declared.toggles = Some(popup);
         self
     }
 
