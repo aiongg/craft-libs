@@ -72,9 +72,9 @@ impl Component for SelectableText<'_> {
         cx.layout(&if self.options.multiline() { run.wrap(crate::primitives::Wrap::Line) } else { run }).size()
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         if let Some(value) = cx.value() {
-            cx.text(text_part::<String>(), rect, &PlainText, value, &self.options);
+            cx.text(text_part::<String>(), cx.content_rect, &PlainText, value, &self.options);
         }
     }
 

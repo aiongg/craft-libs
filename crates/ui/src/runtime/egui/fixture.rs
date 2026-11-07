@@ -300,6 +300,8 @@ pub enum AccessActionKind {
     SetValue(f64),
     /// AccessKit `Expand`, an action with no intent of its own.
     Expand,
+    /// AccessKit `Collapse`.
+    Collapse,
     /// AccessKit `ScrollDown`.
     ScrollDown,
 }
@@ -318,6 +320,7 @@ impl AccessActionKind {
             AccessActionKind::Decrement => accesskit::Action::Decrement,
             AccessActionKind::SetValue(_) => accesskit::Action::SetValue,
             AccessActionKind::Expand => accesskit::Action::Expand,
+            AccessActionKind::Collapse => accesskit::Action::Collapse,
             AccessActionKind::ScrollDown => accesskit::Action::ScrollDown,
         }
     }

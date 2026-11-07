@@ -238,6 +238,7 @@ fn blank_core<'a>(
         editor_inputs: Vec::new(),
         text_invalid: false,
         grid: crate::runtime::access::GridPlace::default(),
+        escape_to_list: false,
         text_access: std::cell::RefCell::new(None),
         submitted: false,
         escaped: false,
@@ -345,6 +346,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
     if !inert && C::INPUT == Input::Text {
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
+        parts.text.parts_follow_value = comp.parts_follow_value();
     }
     if !inert {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));
@@ -396,10 +398,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         keys: text_keys.unwrap_or(C::KEYS),
         role: {
             let role = p.hooks.key_role(comp);
-            // A bound component that keeps the arrows reads them as value steps; a text value sets `value` in its hook.
+            // A bound component that keeps the arrows reads them as value steps; a text value sets `steps_value` in its text options.
             let text = holder_widget.is_some();
             let arrows = text_keys.unwrap_or(C::KEYS).keep == crate::runtime::focus::KeepKeys::BlockArrows;
-            let value = role.value || (comp.bind().is_some() && !role.nudge && !text && arrows);
+            let value = role.value || text_keys.unwrap_or(C::KEYS).value || (comp.bind().is_some() && !role.nudge && !text && arrows);
             role.resettable(resettable).value(value).text(text)
         },
         rtl,

@@ -121,6 +121,8 @@ pub struct CxCore<'a> {
     pub(crate) text_invalid: bool,
     /// The row and column counts of the collection, which the item step records for its node.
     pub(crate) grid: crate::runtime::access::GridPlace,
+    /// The text part's completion list is open: Escape belongs to its popup, not to the component's gesture.
+    pub(crate) escape_to_list: bool,
     /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
     pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
     /// Enter was pressed in the text part.

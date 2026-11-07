@@ -651,7 +651,7 @@ pub(crate) fn gesture_gate<C: Component>(cx: &mut Cx<'_, C>) {
 pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     use super::cx::Edit as _;
     if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) {
-        let reason = if cx.core.intents.take(Intent::Cancel) {
+        let reason = if !cx.core.escape_to_list && cx.core.intents.take(Intent::Cancel) {
             Some(CancelReason::Escape)
         } else {
             cx.core.press_cancelled().map(|reason| match reason {

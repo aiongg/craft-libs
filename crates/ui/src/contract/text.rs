@@ -24,6 +24,9 @@ fn state_id(id: egui::Id) -> egui::Id {
 pub(crate) struct TextStep {
     /// A press elsewhere or another focus loss asks the run to commit now.
     pub commit_now: bool,
+    /// The component's parts or size depend on its value (`Component::parts_follow_value`): a commit that changes the
+    /// value runs the pass again.
+    pub parts_follow_value: bool,
     pub decl: Option<TextDecl>,
     pub editor: Option<super::editor::EditorDecl>,
 }
@@ -289,6 +292,7 @@ pub(crate) fn run<C: Component>(
     underline: f32,
 ) {
     let Some(decl) = step.decl.take() else { return };
+    let parts_follow_value = step.parts_follow_value;
     let Ok(resolve) = decl.resolve.downcast::<Resolve<ValueOf<C>>>() else {
         debug_assert!(false, "the text part's codec value is the component's value");
         return;
@@ -350,6 +354,7 @@ pub(crate) fn run<C: Component>(
     let resolved = resolve(&mut state, cx.value(), commit_now);
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
+    cx.core.escape_to_list = state.completions.open;
     if state.draft.is_some() || (decl.options.clear_on_escape && !out.layout.full.is_empty()) {
         keys::hold_escape(&ctx, id);
     }
@@ -364,7 +369,7 @@ pub(crate) fn run<C: Component>(
     let committed = apply_events(cx, resolved.events);
     cx.core.memory.shown::<TextState>(state_id).seen = shown_copy(cx);
     // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.
-    if committed {
+    if committed && parts_follow_value {
         crate::runtime::egui::sizing::request_discard(&ctx, "craft_ui: a text commit changed the value");
     }
     cx.core.submitted |= resolved.submitted;

@@ -67,13 +67,14 @@ pub(crate) fn text_id(id: Id, key: PartKey) -> Id {
 
 /// The keys the text part keeps, from its options.
 pub(crate) fn keys_of(base: KeyUse, options: &TextOptions) -> KeyUse {
-    if options.tab_inserts {
+    let keys = if options.tab_inserts {
         base.with_keep(KeepKeys::Tab)
     } else if options.multiline() {
         base.with_keep(KeepKeys::BlockArrows)
     } else {
         base
-    }
+    };
+    keys.with_value(base.value || options.steps_value)
 }
 
 pub(crate) struct AdapterIn<'a> {

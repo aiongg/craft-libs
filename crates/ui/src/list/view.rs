@@ -7,8 +7,7 @@ use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, Common, Component, ContainerProps, Cx,
-    EditResponse,
-    LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
@@ -164,6 +163,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
         self.items = self.items.lead_on_open(at);
+        self
+    }
+
+    /// The rows are the set `stamp` names; the lead starts over when the stamp changes.
+    #[must_use]
+    pub fn rows_stamp(mut self, stamp: u64) -> Self {
+        self.items = self.items.rows_stamp(stamp);
         self
     }
 

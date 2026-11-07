@@ -183,7 +183,46 @@ fn escape_hides_the_completion_list_and_keeps_the_draft() {
     for _ in 0..4 {
         completing(&mut rig, vec![]);
     }
-    assert_eq!(option_names(&mut rig), ["alps"], "a changed draft shows the list again");
+    assert_eq!(option_names(&mut rig), ["alpha", "alps"], "a changed draft shows the list again");
+}
+
+/// Three numbered candidates for whatever is typed.
+struct Numbered;
+
+impl Completer for Numbered {
+    fn complete(&self, text: &str, caret: usize, out: &mut Vec<Completion>) -> Option<Range<usize>> {
+        let before = text.get(..caret).filter(|before| !before.is_empty())?;
+        out.extend((1..=3).map(|n| Completion::new(format!("{before}{n}"), format!("{before}{n}"))));
+        Some(0..caret)
+    }
+}
+
+/// New candidates while the list is open put the highlight back on the first row.
+#[trial]
+fn new_candidates_return_the_completion_highlight_to_the_first_row() {
+    let mut rig = Rig::new("");
+    rig.focus();
+    let mut frame = |rig: &mut Rig, events: Vec<Event>| {
+        let (text, seen) = (&mut rig.text, &mut rig.seen);
+        rig.frames.frame(events, |ui| {
+            let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Numbered).id_salt("name").show(ui);
+            seen.id = out.response.id;
+        });
+    };
+    frame(&mut rig, vec![Event::Text("a".into())]);
+    for _ in 0..4 {
+        frame(&mut rig, vec![]);
+    }
+    frame(&mut rig, vec![key_press(Key::ArrowDown, Modifiers::NONE)]);
+    frame(&mut rig, vec![Event::Text("b".into())]);
+    for _ in 0..4 {
+        frame(&mut rig, vec![]);
+    }
+    frame(&mut rig, vec![key_press(Key::Enter, Modifiers::NONE)]);
+    for _ in 0..4 {
+        frame(&mut rig, vec![]);
+    }
+    assert_eq!(rig.text, "ab1", "Enter accepts the first of the new candidates");
 }
 
 /// A number field parses through its codec, rejects text that is no number and keeps the value.

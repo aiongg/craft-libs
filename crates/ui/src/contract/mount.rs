@@ -233,7 +233,7 @@ impl Host for ViewportHost {
                 crate::runtime::focus::push_scope(&ctx, id, focus, None);
             }
             if real {
-                crate::runtime::overlay::begin_layer(&ctx, id);
+                crate::runtime::overlay::begin_layer(&ctx, id, false);
             }
             pass(ui, Some(ShowAt::Rect(window)), Some(&scoped_env));
             if real {
