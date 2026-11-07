@@ -406,7 +406,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         let query = local.filter.trim().to_owned();
         let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), &query));
         let shown = shown_rows(rows, &local, default_open, matcher.as_ref());
-        let open_of = local.open_test(rows, default_open);
+        let open_flags: Vec<bool> = {
+            let test = local.open_test(rows, default_open);
+            (0..rows.len()).map(test).collect()
+        };
         let counted = |at: usize| rows[at].count.map(|n| words.group_count.text(n as u64, &env.format().integer(n as u64)));
         let selection = selected.clone().map_or_else(|| Selection::new(Vec::new(), None, None), Selection::single);
         let stamp = query_stamp(&query);
@@ -435,7 +438,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             let response = Notice::new(Tone::Neutral, message).layout(NoticeLayout::Centred).show(ui).response;
             (response, Vec::new(), Pass { seen: Vec::new(), grid: Vec::new() })
         } else if view == PresetView::Grid {
-            let plan = grid_plan(rows, &shown, &open_of, counted);
+            let plan = grid_plan(rows, &shown, |at| open_flags[at], counted);
             let tiles = Shown { rows, at: plan.tiles.clone(), open: vec![false; plan.tiles.len()], tree: false };
             let captions = if has_captions(rows) { CaptionPlace::Below } else { CaptionPlace::None };
             let mut grid = TileGrid::<K>::new(label.clone())
@@ -477,7 +480,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             });
             (out.response.response.clone(), plan.tiles.clone(), Pass { seen: seen(out.response.events), grid: out.events })
         } else {
-            let open: Vec<bool> = shown.iter().map(|&at| open_of(at)).collect();
+            let open: Vec<bool> = shown.iter().map(|&at| open_flags[at]).collect();
             let source = Shown { rows, at: shown.clone(), open, tree: true };
             let thumb_size = list_thumb(zoom);
             let mut list = List::<K>::new(label.clone())
