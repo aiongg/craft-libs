@@ -2,3 +2,6 @@
 //! entries.
 
 mod model;
+
+// The browser's reorder rules.
+mod browser;

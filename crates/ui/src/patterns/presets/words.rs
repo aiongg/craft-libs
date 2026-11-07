@@ -9,6 +9,8 @@ craft_ui::words! {
         list_view: "presets.listView" = "List View";
         thumb_size: "presets.thumbSize" = "Thumbnail size";
         footer: "presets.footer" = "Preset actions";
+        view: "presets.view" = "View";
+        menu: "presets.menu" = "Preset menu";
         search: "presets.search" = "Search";
         clear: "presets.clear" = "Clear";
         name: "presets.name" = "Name";

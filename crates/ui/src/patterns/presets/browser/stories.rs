@@ -1,0 +1,35 @@
+//! Stories of `PresetBrowser`.
+
+use super::{PresetBrowser, PresetReorder};
+use crate::contract::Bind;
+use crate::list::ThumbAspect;
+use crate::patterns::presets::{PresetRow, PresetState};
+use crate::testing::{Drive, StoryData, StoryOutput, story};
+use egui::Ui;
+
+/// Two groups and a loose preset: the second group holds a folder.
+fn sample_rows() -> Vec<PresetRow<u32>> {
+    let thumb = |row: PresetRow<u32>| row.preview(ThumbAspect::SQUARE, |_, _| {});
+    vec![
+        thumb(PresetRow::item(1, "Loose", 0)),
+        PresetRow::group(10, "Warm", 0).count(2),
+        thumb(PresetRow::item(11, "Amber", 1)).caption("#FFBF00"),
+        thumb(PresetRow::item(12, "Coral", 1)).caption("#FF7F50"),
+        PresetRow::group(20, "Cool", 0).count(2),
+        thumb(PresetRow::item(21, "Teal", 1)).caption("#008080"),
+        PresetRow::group(30, "Pale", 1).count(1),
+        thumb(PresetRow::item(31, "Mist", 2)).caption("#E6EEF2"),
+    ]
+}
+
+#[story(PresetBrowser<'static, u32>, covers = [], drive = Drive::Never)]
+fn preset_browser(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let rows = sample_rows();
+    PresetBrowser::new("Swatches", Bind::bound(data.value("state", PresetState::<u32>::new())), &rows)
+        .selected(11)
+        .toolbar(true)
+        .reorder(PresetReorder::items_and_groups().nest(1))
+        .footer(|footer| footer)
+        .show(ui)
+        .into()
+}

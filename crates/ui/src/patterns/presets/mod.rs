@@ -2,6 +2,9 @@
 
 mod words;
 
+// The browser.
+mod browser;
+
 // Preset data, footer, files and panel menu.
 mod event;
 mod files;
@@ -10,6 +13,7 @@ mod model;
 mod panel_menu;
 mod state;
 
+pub use browser::{FooterSetup, PresetBrowser, PresetItemCommands, PresetReorder, ThumbPainter};
 pub use event::{PresetEvent, PresetOutput};
 pub use files::{PresetExport, PresetFileEvent, PresetFileFailure, PresetFileRequest, PresetFiles};
 pub use footer::{PresetFooter, PresetFooterEvent, PresetFooterOutput};
