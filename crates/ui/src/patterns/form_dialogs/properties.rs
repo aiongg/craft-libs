@@ -23,6 +23,7 @@ mod stories;
 #[non_exhaustive]
 pub enum PropertyRow {
     /// A label and its text: read-only.
+    #[non_exhaustive]
     Value {
         /// The row's label.
         label: Label,
