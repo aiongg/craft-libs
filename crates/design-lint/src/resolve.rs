@@ -27,7 +27,7 @@ pub const INTERNAL: &str = "layer/internal";
 const MAX_DEPTH: u8 = 16;
 
 #[derive(Debug)]
-enum Name {
+pub(crate) enum Name {
     Defined,
     Module,
     Use(Vec<String>),
@@ -36,8 +36,8 @@ enum Name {
 pub(crate) struct Module {
     pub(crate) path: Vec<String>,
     pub(crate) file: PathBuf,
-    items: Vec<Item>,
-    names: HashMap<String, Name>,
+    pub(crate) items: Vec<Item>,
+    pub(crate) names: HashMap<String, Name>,
     globs: Vec<Vec<String>>,
 }
 
@@ -49,9 +49,9 @@ pub(crate) struct CrateTree {
 /// The module that defines the item a path names, or the module itself when the path names a module.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub(crate) struct Resolved {
-    krate: String,
-    module: Vec<String>,
-    is_module: bool,
+    pub(crate) krate: String,
+    pub(crate) module: Vec<String>,
+    pub(crate) is_module: bool,
 }
 
 impl Resolved {
@@ -105,7 +105,7 @@ impl Index {
         self.trees.get(krate)?.modules.get(path)
     }
 
-    fn resolve(&self, krate: &str, from: &[String], segs: &[String], depth: u8) -> Option<Resolved> {
+    pub(crate) fn resolve(&self, krate: &str, from: &[String], segs: &[String], depth: u8) -> Option<Resolved> {
         if depth > MAX_DEPTH || segs.is_empty() {
             return None;
         }

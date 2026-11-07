@@ -6,7 +6,13 @@
 
 use std::path::{Path, PathBuf};
 
+use std::collections::BTreeMap;
+
+use crate::Error;
+use crate::resolve::Index;
 use crate::rules::selector_matches;
+
+use super::types::Types;
 
 /// Answers the questions the egui-ban rules ask about a file.
 ///
@@ -27,6 +33,12 @@ pub trait RuleScope {
 
     /// Whether `name` is on the closed list of types that need no `#[non_exhaustive]`.
     fn is_closed(&self, name: &str) -> bool;
+
+    /// What the crate's module tree says about the types `file` defines, imports or implements, when the scope knows it.
+    /// Rules that need a type's definition read it here, and fall back to the file's own items without it.
+    fn crate_types(&self, _file: &Path) -> Option<&Types> {
+        None
+    }
 }
 
 /// A [`RuleScope`] built in memory: path prefixes per permission key.
@@ -37,6 +49,7 @@ pub struct StaticScope {
     egui_linked: Vec<PathBuf>,
     harness_free: Vec<PathBuf>,
     closed: Vec<String>,
+    types: BTreeMap<PathBuf, Types>,
 }
 
 impl StaticScope {
@@ -74,6 +87,15 @@ impl StaticScope {
         self
     }
 
+    /// The crate `name` has its library root at `root`/`lib_rs`; its module tree gives the rules the facts of types defined
+    /// and implemented in different files. Findings name files relative to `root`.
+    pub fn crate_tree(mut self, root: &Path, name: &str, lib_rs: impl AsRef<Path>) -> Result<Self, Error> {
+        let index = Index::build(&[(name.to_owned(), root.join(lib_rs))])?;
+        let rel = |p: &Path| p.strip_prefix(root).unwrap_or(p).to_owned();
+        self.types.extend(super::facts::build(&index, &rel));
+        Ok(self)
+    }
+
     /// `name` needs no `#[non_exhaustive]`.
     #[must_use]
     pub fn closed(mut self, name: &str) -> Self {
@@ -104,5 +126,9 @@ impl RuleScope for StaticScope {
 
     fn is_closed(&self, name: &str) -> bool {
         self.closed.iter().any(|c| c == name)
+    }
+
+    fn crate_types(&self, file: &Path) -> Option<&Types> {
+        self.types.get(file)
     }
 }

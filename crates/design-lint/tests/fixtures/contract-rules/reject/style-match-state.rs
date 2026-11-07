@@ -5,3 +5,11 @@ fn alpha(state: State) -> f32 {
         _ => 1.0,
     }
 }
+
+fn hot(state: State) -> bool {
+    matches!(state, State::Hover | State::Pressed)
+}
+
+fn same(cx: &Cx) -> bool {
+    cx.state() == State::Hover
+}

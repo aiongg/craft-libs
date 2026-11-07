@@ -40,7 +40,7 @@ use std::path::{Path, PathBuf};
 pub use baseline::{Baseline, BaselineCheck, Increase};
 pub use clippy::{ClippyDrift, ClippyShadow, DriftKind, check_clippy, clippy_drift, clippy_shadows, merge_clippy, write_clippy};
 pub use config::{Config, Exemption};
-pub use contract::{RuleScope, StaticScope, analyze_contract};
+pub use contract::{RuleScope, StaticScope, Types, analyze_contract};
 use markers::FilePlace;
 pub use markers::{Marked, analyze_with_markers};
 pub use report::{Finding, Report, Severity};

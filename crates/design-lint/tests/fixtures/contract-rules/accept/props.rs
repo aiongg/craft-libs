@@ -53,3 +53,14 @@ impl Props for Chip {
         self
     }
 }
+
+impl Chip {
+    pub fn key_tone(mut self, tone: Tone) -> Self {
+        self.key.tone = tone;
+        self
+    }
+
+    pub fn both_fields(self, tone: Tone) -> Self {
+        Self { count: 1, tone, ..self }
+    }
+}

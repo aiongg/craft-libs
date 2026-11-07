@@ -70,6 +70,7 @@ struct CrateInfo {
 pub struct WorkspaceScope {
     maps: LayerMaps,
     crates: Vec<CrateInfo>,
+    types: BTreeMap<PathBuf, crate::contract::Types>,
 }
 
 fn is_egui_crate(name: &str) -> bool {
@@ -181,7 +182,8 @@ impl WorkspaceScope {
                 modules: module_files(&index, package, &rel),
             });
         }
-        Ok(Self { maps, crates })
+        let types = crate::contract::build_facts(&index, &rel);
+        Ok(Self { maps, crates, types })
     }
 
     fn crate_of(&self, file: &Path) -> Option<&CrateInfo> {
@@ -234,6 +236,10 @@ impl RuleScope for WorkspaceScope {
 
     fn is_closed(&self, name: &str) -> bool {
         CLOSED.contains(&name)
+    }
+
+    fn crate_types(&self, file: &Path) -> Option<&crate::contract::Types> {
+        self.types.get(file)
     }
 }
 

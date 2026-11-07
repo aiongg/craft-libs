@@ -30,13 +30,24 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
                     continue;
                 }
                 for m in imp.items.iter().filter_map(|i| if let ImplItem::Fn(m) = i { Some(m) } else { None }) {
-                    if is_public(&m.vis) && ENTRY_NAMES.contains(&m.sig.ident.to_string().as_str()) {
+                    if !is_public(&m.vis) {
+                        continue;
+                    }
+                    if ENTRY_NAMES.contains(&m.sig.ident.to_string().as_str()) {
                         cx.flag_span(
                             out,
                             ID,
                             ID,
                             m.sig.ident.span(),
                             format!("`{owner}::{}` is an entry point of a type that implements neither `Component` nor `Pattern`", m.sig.ident),
+                        );
+                    } else if takes_ui(&m.sig) && returns_response(&m.sig.output) {
+                        cx.flag_span(
+                            out,
+                            ID,
+                            ID,
+                            m.sig.ident.span(),
+                            format!("`{owner}::{}` takes `&mut Ui` and returns a response; make `{owner}` a component", m.sig.ident),
                         );
                     }
                 }

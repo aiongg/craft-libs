@@ -45,3 +45,48 @@ mod tests {
         let _ = Tokens::of(ui);
     }
 }
+
+#[derive(Component)]
+pub struct Button {
+    #[common]
+    common: Common,
+}
+
+impl Button {
+    pub fn stroke_style(self, stroke: StrokeStyle) -> Self {
+        self.apply(stroke)
+    }
+
+    pub fn smart_quotes(self, quotes: Option<QuoteStyle>) -> Self {
+        self.apply(quotes)
+    }
+
+    pub fn swatch(self, color: DataColor) -> Self {
+        self.apply(color)
+    }
+
+    pub fn preview(&self, look: &QuickMaskLook) -> Rgba {
+        look.color
+    }
+}
+
+pub struct Plain;
+
+impl Plain {
+    pub fn fill(self, color: Color32) -> Self {
+        self.apply(color)
+    }
+}
+
+fn events(response: &Response, lexer: &Lexer, theme: &Theme) {
+    if response.has_focus() {
+        self.width = ColumnWidth::Fill;
+    }
+    if response.hovered() {
+        self.hot = true;
+    }
+    let _ = lexer.tokens();
+    let _ = theme.tokens();
+    let _ = matches!(kind, Kind::Hover);
+    let _ = cx.state() == other;
+}
