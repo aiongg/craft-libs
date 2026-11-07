@@ -3,7 +3,7 @@
 use crate::util::{is_named, named_fields, wrapped};
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{Attribute, DeriveInput, Field, Ident, LitStr, Meta, Type};
+use syn::{Attribute, DeriveInput, Field, Ident, LitStr, Meta};
 
 #[derive(Default)]
 struct Prop {
@@ -68,11 +68,6 @@ fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
                 self
             }
         });
-    } else if let Some(bounds) = wrapped(ty, "Option").and_then(|inner| wrapped(inner, "Box")).and_then(|boxed| match boxed {
-        Type::TraitObject(object) => Some(&object.bounds),
-        _ => None,
-    }) {
-        (quote!(value: impl #bounds), quote!(::core::option::Option::Some(::std::boxed::Box::new(value))))
     } else if let Some(inner) = wrapped(ty, "Option") {
         if prop.into {
             (quote!(value: impl ::core::convert::Into<#inner>), quote!(::core::option::Option::Some(value.into())))

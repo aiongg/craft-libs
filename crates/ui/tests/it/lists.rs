@@ -89,9 +89,15 @@ fn a_mark_covers_the_row_and_every_newer_one() {
 #[trial]
 fn the_footer_counts_marked_actions_and_a_pick_undoes_through_its_row() {
     let words = UndoWords::english();
-    assert_eq!(footer_text(&words, &UndoMark::default()), None);
-    assert_eq!(footer_text(&words, &UndoMark::at(0)).as_deref(), Some("Undo 1 Action"));
-    assert_eq!(footer_text(&words, &UndoMark::at(3)).as_deref(), Some("Undo 4 Actions"));
+    assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::default()), None);
+    assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::at(0)).as_deref(), Some("Undo 1 Action"));
+    assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::at(3)).as_deref(), Some("Undo 4 Actions"));
     assert_eq!(undo_count(&[CollectionEvent::LeadMoved(1)]), None);
     assert_eq!(undo_count(&[CollectionEvent::Activate(2)]), Some(3));
+}
+
+#[trial]
+fn an_undo_count_shows_locale_digits() {
+    let words = UndoWords::english();
+    assert_eq!(footer_text(&words, &Format::from_tag("ar-EG"), &UndoMark::at(2)).as_deref(), Some("Undo \u{663} Actions"));
 }

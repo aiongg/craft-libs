@@ -247,6 +247,9 @@ pub struct ListRow<'a> {
     /// The row is a tree group with children, `open` or closed: it shows the disclosure part.
     #[prop]
     pub(super) group: Option<bool>,
+    /// The row is an option of a listbox, not an item of a list.
+    #[prop(flag)]
+    pub(super) option: bool,
     pub(super) event: Option<RowEvent>,
     pub(super) label_rect: Rect,
 }
@@ -284,6 +287,7 @@ impl<'a> ListRow<'a> {
             trailing: Vec::new(),
             depth: None,
             group: None,
+            option: false,
             event: None,
             label_rect: Rect::NOTHING,
         }
@@ -627,7 +631,7 @@ impl ListRow<'_> {
 impl Component for ListRow<'_> {
     const ROLE: Role = Role::LIST_ITEM;
     const OVERLAYS: bool = false;
-    const ALT_ROLES: &'static [Role] = &[Role::TREE_ITEM];
+    const ALT_ROLES: &'static [Role] = &[Role::TREE_ITEM, Role::LIST_BOX_OPTION];
     type Style = ListRowStyle;
     type Output = RowOutput;
 
@@ -810,6 +814,8 @@ impl Component for ListRow<'_> {
         };
         if self.depth.is_some() {
             access.role(Role::TREE_ITEM);
+        } else if self.option {
+            access.role(Role::LIST_BOX_OPTION);
         }
         if let Some(open) = self.group {
             access.expanded(open);

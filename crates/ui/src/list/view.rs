@@ -3,6 +3,7 @@
 //! drag with drop marks, rename lifecycle and the context-menu request. The list adds the item layout and the editor
 //! the rename lifecycle shows.
 
+use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
     Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, ListDrag, Props as _,
@@ -32,7 +33,6 @@ pub struct ListStyle {
 /// close with the arrow keys, and the list reports each change as `CollectionEvent::Open`.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(collection, probe(List<'static, usize>))]
-#[allow(clippy::type_complexity, reason = "`#[derive(Props)]` writes a setter from the boxed closure type spelled in the field")]
 pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[common]
     common: Common,
@@ -49,18 +49,18 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop]
     tree: bool,
     /// Which rows may be renamed; a rename request on another row does nothing.
-    #[prop]
-    can_rename: Option<Box<dyn Fn(&K) -> bool + 'a>>,
+    #[prop(into)]
+    can_rename: Option<RowTest<'a, K>>,
     /// Which rows may be dragged.
-    #[prop]
-    can_drag: Option<Box<dyn Fn(&K) -> bool + 'a>>,
+    #[prop(into)]
+    can_drag: Option<RowTest<'a, K>>,
     /// Which collections a drag may come from: the test gets the id of the list the drag started in.
-    #[prop]
-    accept_from: Option<Box<dyn Fn(Id) -> bool + 'a>>,
+    #[prop(into)]
+    accept_from: Option<SourceTest<'a>>,
     /// Where a drag may land: the test gets the drag, the row under the pointer and the position before which the
     /// dragged rows would go. A refused spot shows no drop mark.
-    #[prop]
-    accepts: Option<Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>>,
+    #[prop(into)]
+    accepts: Option<DropTest<'a, K>>,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
@@ -177,19 +177,19 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
     }
 
     fn can_rename(&self, key: &K) -> bool {
-        self.can_rename.as_ref().is_none_or(|test| test(key))
+        self.can_rename.as_ref().is_none_or(|test| test.passes(key))
     }
 
     fn can_drag(&self, key: &K) -> bool {
-        self.can_drag.as_ref().is_none_or(|test| test(key))
+        self.can_drag.as_ref().is_none_or(|test| test.passes(key))
     }
 
     fn accept_from(&self, from: Id) -> bool {
-        self.accept_from.as_ref().is_none_or(|test| test(from))
+        self.accept_from.as_ref().is_none_or(|test| test.passes(from))
     }
 
     fn accepts(&self, drag: &ListDrag<K>, over: &K, insert: usize) -> bool {
-        self.accepts.as_ref().is_none_or(|test| test(drag, over, insert))
+        self.accepts.as_ref().is_none_or(|test| test.passes(drag, over, insert))
     }
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
