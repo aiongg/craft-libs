@@ -12,7 +12,7 @@ use super::rows::EntryRows;
 use super::words::PickerWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, Input, MeasureCx, Overlay, OverlayUi,
+    Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, Input, MeasureCx, Overlay, OverlayUi,
     Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, ShowCollection as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
@@ -209,11 +209,6 @@ impl Component for ComboBox<'_> {
             cx.set(value.clone());
             popup.close(cx);
         }
-    }
-
-    /// The chevron's node, which reports whether the list is open.
-    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
-        access.node(CHEVRON, Role::BUTTON);
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {

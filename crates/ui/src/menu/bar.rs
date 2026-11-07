@@ -481,7 +481,7 @@ impl Component for MenuBar<'_> {
                         }
                         Open::More => {
                             for title in titles.iter_mut().skip(found.shown) {
-                                super::popup::submenu_rows(ui, title.label.clone(), |ui, _| (title.body)(ui));
+                                super::popup::Menu::submenu_row(ui, title.label.clone(), |ui, _| (title.body)(ui));
                             }
                         }
                     })

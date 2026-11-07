@@ -33,7 +33,7 @@ name = "Menu"
 old = "craft_ui::menu::popup::Menu"
 new = "craft_ui::menu::Menu"
 status = "moved"
-note = "A container on a menu layer holding `MenuItem` and `Divider` rows as its body; `Menu::new(label, Bind<bool>)`, `.opened_by(&Response)`, `Menu::context`, `Menu::submenu(label, &row_response, Bind<bool>)`, `Menu::inline(label)` for the rows of a control that owns its popup, `Menu::pick(ui, &[Entry<T>])` for a value menu. Output `MenuOutput { response, closed }`. The deprecated `craft_ui::combo::Menu` is removed: use `Menu` or `Select`."
+note = "A container on a menu layer holding `MenuItem` and `Divider` rows as its body; `Menu::new(label, Bind<bool>)`, `.opened_by(&Response, Trigger)` (called again for each further opener; `.anchor(Anchor)` sets where the opener named last hangs it), `Menu::context`, `Menu::submenu_row(ui, label, body) -> MenuItemOutput` (the one way to show a submenu row inside a menu body), `Menu::submenu(label, &row_response, Bind<bool>)`, `Menu::inline(label)` for the rows of a control that owns its popup, `Menu::pick(ui, &[Entry<T>])` for a value menu. Output `MenuOutput { response, closed }`. The deprecated `craft_ui::combo::Menu` is removed: use `Menu` or `Select`."
 
 [[type]]
 name = "MenuItem"

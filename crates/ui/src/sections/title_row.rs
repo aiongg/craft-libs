@@ -54,6 +54,9 @@ pub struct TitleOutput {
     pub edit: EditResponse<bool>,
     /// The action part taken this pass.
     pub action: Option<HeaderAction>,
+    /// The rect of the `HeaderAction::Menu` action part, in the row's layer space, for a container that hangs its
+    /// menu under the button. `None` when the row has no menu action.
+    pub menu_rect: Option<Rect>,
 }
 
 impl Outcome for TitleOutput {
@@ -126,6 +129,7 @@ pub struct TitleRow<'a> {
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
+    menu_rect: Option<Rect>,
     placed: Option<Placed>,
 }
 
@@ -153,6 +157,7 @@ impl<'a> TitleRow<'a> {
             lead: Lead::None,
             actions: Vec::new(),
             taken: None,
+            menu_rect: None,
             placed: None,
         }
         .label(title)
@@ -276,7 +281,11 @@ impl Component for TitleRow<'_> {
             rects.push(action);
             flow = rest;
         }
+        self.menu_rect = None;
         for (at, action) in rects.into_iter().rev().enumerate() {
+            if self.actions[at] == HeaderAction::Menu {
+                self.menu_rect = Some(action);
+            }
             cx.part(ACTION.at(at as u64), action).sense(Sense::CLICK | Sense::FOCUS).focusable();
         }
         cx.roving(Roving::new(NavShape::Flat));
@@ -363,7 +372,7 @@ impl Component for TitleRow<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TitleOutput {
-        TitleOutput { edit: cx.edit_response(), action: self.taken }
+        TitleOutput { edit: cx.edit_response(), action: self.taken, menu_rect: self.menu_rect }
     }
 }
 

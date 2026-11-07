@@ -16,7 +16,7 @@ use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
-use craft_behavior::{CancelRule, Intent, OwnerClass, PointerButton, PressPhase};
+use craft_behavior::{CancelRule, Intent, OwnerClass, PointerButton};
 use craft_keymap::Mods;
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
@@ -220,8 +220,9 @@ pub enum Trigger {
     Manual,
 }
 
-/// The component that opens a free-standing popup, and how.
-#[derive(Clone, Copy, Debug)]
+/// A component that opens a free-standing popup, and how. A layer with several openers keeps the first as its
+/// `Overlay.opener`, which keys the layer's open state, and the others in `others`.
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Opener {
     /// The opener's id.
@@ -234,9 +235,75 @@ pub struct Opener {
     pub trigger: Trigger,
     /// Whether the opener was enabled in the pass that recorded it; a disabled opener closes the layer.
     pub enabled: bool,
+    /// Where the layer hangs when this opener opened it. `None` hangs it at the opener's rect, or, for a
+    /// `Trigger::Context` opener a pointer release opened, at the pointer.
+    pub anchor: Option<Anchor>,
+    /// The other openers of the same layer.
+    pub others: Vec<Opener>,
     /// Whether the opener's response fired `trigger` in the pass that recorded it. A container with no `open`
-    /// binding applies it to the opener's slot.
+    /// binding applies it to the layer's open slot.
     pub(crate) fired: bool,
+    /// The fired context request was a secondary-button release, not a key.
+    pub(crate) by_pointer: bool,
+    /// The opener is pressed with the primary button, for `Trigger::Hold`.
+    pub(crate) pressed: bool,
+}
+
+impl Opener {
+    fn new(anchor: &Response, trigger: Trigger) -> Opener {
+        let (fired, by_pointer, pressed) = pointer::with_pass_pointer(&anchor.ctx, |pass| {
+            let Some(frame) = pass.frame.as_ref() else { return (false, false, false) };
+            let on_opener = pass.press_targets.click == Some(anchor.id);
+            let inside = frame.pos.is_some_and(|pos| anchor.rect.contains(pos));
+            let by_pointer = inside && frame.release == Some(PointerButton::Secondary);
+            let fired = match trigger {
+                Trigger::Click => on_opener && inside && frame.release == Some(PointerButton::Primary),
+                Trigger::Press => on_opener && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
+                Trigger::Context => by_pointer || keys::context_request(&anchor.ctx, anchor.id).is_some(),
+                Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
+            };
+            (fired, fired && by_pointer, on_opener && pass.primary_down)
+        });
+        Opener {
+            id: anchor.id,
+            rect: anchor.rect,
+            layer: anchor.layer_id,
+            trigger,
+            enabled: anchor.enabled(),
+            anchor: None,
+            others: Vec::new(),
+            fired,
+            by_pointer,
+            pressed,
+        }
+    }
+
+    /// This opener and the others, first first.
+    fn all(&self) -> impl Iterator<Item = &Opener> {
+        std::iter::once(self).chain(&self.others)
+    }
+
+    /// The opener the layer's open slot says opened it, else the first.
+    fn active(&self, ctx: &Context) -> (&Opener, bool) {
+        let by = with_popups(ctx, |popups| popups.opened_by.get(&self.id).copied());
+        match by.and_then(|(id, pointer)| self.all().find(|opener| opener.id == id).map(|opener| (opener, pointer))) {
+            Some(active) => active,
+            None => (self, false),
+        }
+    }
+}
+
+/// The anchor a layer opened by `opener` hangs from: the opener's own, else the layer's `Pointer` or `Viewport`
+/// place, else the pointer for a context request a secondary release made, else the opener's rect.
+fn opener_anchor(opener: &Opener, by_pointer: bool, place: &Place) -> Anchor {
+    if let Some(anchor) = &opener.anchor {
+        return anchor.clone();
+    }
+    match place {
+        Place::Anchored { anchor: anchor @ (Anchor::Pointer | Anchor::Viewport(_)), .. } => anchor.clone(),
+        _ if opener.trigger == Trigger::Context && by_pointer => Anchor::Pointer,
+        _ => Anchor::Response,
+    }
 }
 
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
@@ -458,22 +525,30 @@ impl Overlay {
         self
     }
 
-    /// Records the opener. An anchored layer hangs from the opener's rect, on the side and alignment its preset
-    /// gave; a floating layer keeps its place, and the opener serves focus return and the trigger.
+    /// Records an opener. An anchored layer hangs from the rect of the opener that opened it, on the side and
+    /// alignment its preset gave; a floating layer keeps its place, and the opener serves focus return and the
+    /// trigger. Called again, it adds an opener: the layer opens from any of them, and the opener that opened it
+    /// decides the anchor.
     pub fn opened_by(mut self, anchor: &Response, trigger: Trigger) -> Overlay {
-        let fired = pointer::with_pass_pointer(&anchor.ctx, |pass| {
-            let Some(frame) = pass.frame.as_ref() else { return false };
-            let on_opener = pass.press_targets.click == Some(anchor.id);
-            let inside = frame.pos.is_some_and(|pos| anchor.rect.contains(pos));
-            match trigger {
-                Trigger::Click => on_opener && inside && frame.release == Some(PointerButton::Primary),
-                Trigger::Press => on_opener && frame.press.is_some_and(|press| press.button == PointerButton::Primary),
-                Trigger::Context => inside && frame.release == Some(PointerButton::Secondary),
-                Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
-            }
-        });
-        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger, enabled: anchor.enabled(), fired });
+        let opener = Opener::new(anchor, trigger);
+        match &mut self.opener {
+            Some(first) => first.others.push(opener),
+            None => self.opener = Some(opener),
+        }
         self.anchor(Anchor::Rect(anchor.rect))
+    }
+
+    /// Sets where the layer hangs when the opener named last opened it. A rect or point is in that opener's layer
+    /// space.
+    pub fn opener_anchor(mut self, anchor: Anchor) -> Overlay {
+        debug_assert!(self.opener.is_some(), "`opener_anchor` follows `opened_by`");
+        if let Some(first) = &mut self.opener {
+            match first.others.last_mut() {
+                Some(last) => last.anchor = Some(anchor),
+                None => first.anchor = Some(anchor),
+            }
+        }
+        self
     }
 }
 
@@ -534,6 +609,9 @@ struct Popups {
     shown: Vec<(Id, Id)>,
     /// Every popup an owner showed or kept closed this pass, for the anchor's access node.
     anchors: Vec<(Id, PopupShown)>,
+    /// The opener that opened each layer with openers, by the layer's first opener: its id and whether a pointer
+    /// release opened it.
+    opened_by: HashMap<Id, (Id, bool)>,
 }
 
 fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
@@ -701,8 +779,11 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
     for (at, toggle) in toggles.iter().enumerate() {
         let popup = toggle.handle(owner);
         let part = toggle.part;
+        // The root takes Expand and Collapse for a sole toggling part that has no node of its own.
+        let sole = toggles.len() == 1;
         let named = |request: &craft_behavior::AccessRequest| {
-            request.target == Some(part) && matches!(request.action, craft_behavior::AccessAction::Expand | craft_behavior::AccessAction::Collapse)
+            (request.target == Some(part) || (sole && request.target.is_none()))
+                && matches!(request.action, craft_behavior::AccessAction::Expand | craft_behavior::AccessAction::Collapse)
         };
         while let Some(request) = cx.core.intents.take_access_where(named) {
             if request.action == craft_behavior::AccessAction::Expand {
@@ -730,15 +811,6 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
             }
             queue(&cx.core.ctx, popup.id, OpenOp::Toggle);
             handled = true;
-        }
-        if on_press
-            && let Some(PressPhase::Release { click: false, .. }) = phase
-            && popup.is_open(cx)
-        {
-            // The press that opened the popup ended away from the part: a row under the pointer is picked.
-            if let Some(at) = pointer::frame(&cx.core.ctx).pos {
-                overlay::note_dragged_release(&cx.core.ctx, popup.id, at);
-            }
         }
         // The toggling part took the click, or took its press: the root's pointer activation is not a second toggle.
         if (toggled || (on_press && phase.is_some_and(|phase| phase.is_click()))) && cx.core.activation.is_some_and(|activation| !activation.by_key) {
@@ -813,22 +885,8 @@ impl PopupHandle {
         }
     }
 
-    /// Whether `held` has lasted `delay` seconds, timed in the slot `name`; asks for a pass at the deadline.
     fn dwell(self, ctx: &Context, stage: &mut MemoryStage, name: &'static str, held: bool, delay: f64) -> bool {
-        let now = frame::clock(ctx);
-        let since = stage.shown::<Dwell>(sub(self.id, name));
-        if !held {
-            since.0 = None;
-            return false;
-        }
-        let start = *since.0.get_or_insert(now);
-        let due = start + delay;
-        if now >= due {
-            since.0 = None;
-            return true;
-        }
-        crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), due - now);
-        false
+        dwell(ctx, stage, self.id, name, held, delay)
     }
 
     /// Queues an open that step 15 writes. For `Trigger::Manual` this and the binding are the only ways it opens.
@@ -861,6 +919,24 @@ fn pointer_in_popup(ctx: &Context, popup: Id) -> bool {
 
 #[derive(Clone, Copy, Default)]
 struct Dwell(Option<f64>);
+
+/// Whether `held` has lasted `delay` seconds, timed in the slot `name` of `id`; asks for a pass at the deadline.
+fn dwell(ctx: &Context, stage: &mut MemoryStage, id: Id, name: &'static str, held: bool, delay: f64) -> bool {
+    let now = frame::clock(ctx);
+    let since = stage.shown::<Dwell>(sub(id, name));
+    if !held {
+        since.0 = None;
+        return false;
+    }
+    let start = *since.0.get_or_insert(now);
+    let due = start + delay;
+    if now >= due {
+        since.0 = None;
+        return true;
+    }
+    crate::runtime::egui::repaint::request_after(ctx, crate::runtime::egui::pass::current_viewport(ctx), due - now);
+    false
+}
 
 /// What the `overlay` hook gets: one call per anchored popup of this component, built at step 10 with the open state
 /// of every popup `cx.popup` registered this pass.
@@ -911,7 +987,7 @@ impl<'a> OverlayUi<'a> {
         };
         let ctx = self.ctx.clone();
         with_popups(&ctx, |popups| popups.anchors.push((self.owner, PopupShown { id: popup.id, kind: overlay.popup, open })));
-        let owner = overlay.opener.map_or(self.owner, |opener| opener.id);
+        let owner = overlay.opener.as_ref().map_or(self.owner, |opener| opener.id);
         let presence = motion::layer_presence(&ctx, popup.id, owner, self.env.motion, open, overlay.motion);
         if !presence.visible {
             forget_layer(&ctx, popup.id, owner);
@@ -1035,12 +1111,32 @@ fn area_id(id: Id) -> Id {
 /// The anchor of `overlay` in screen space: the opener's rect through the opener's own layer, else `own` (the
 /// owner's rect) or the given rect or point, in the space `own_to_screen` maps.
 pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to_screen: egui::emath::TSTransform) -> Rect {
-    match (&overlay.place, overlay.opener) {
-        (_, Some(opener)) => areas::layer_to_screen(ctx, opener.layer) * opener.rect,
-        (Place::Anchored { anchor: Anchor::Rect(rect), .. }, None) => own_to_screen * *rect,
-        (Place::Anchored { anchor: Anchor::Point(at), .. }, None) => own_to_screen * Rect::from_min_max(*at, *at),
+    if let Some(first) = &overlay.opener {
+        let (opener, by_pointer) = first.active(ctx);
+        let to_screen = areas::layer_to_screen(ctx, opener.layer);
+        return match opener_anchor(opener, by_pointer, &overlay.place) {
+            Anchor::Rect(rect) => to_screen * rect,
+            Anchor::Point(at) => to_screen * Rect::from_min_max(at, at),
+            _ => to_screen * opener.rect,
+        };
+    }
+    match &overlay.place {
+        Place::Anchored { anchor: Anchor::Rect(rect), .. } => own_to_screen * *rect,
+        Place::Anchored { anchor: Anchor::Point(at), .. } => own_to_screen * Rect::from_min_max(*at, *at),
         _ => own_to_screen * own,
     }
+}
+
+/// The overlay with the place's anchor that of the opener that opened it, for the anchors the host reads from the
+/// place (`Pointer`, `Viewport`).
+fn opened_overlay(ctx: &Context, overlay: &Overlay) -> Option<Overlay> {
+    let first = overlay.opener.as_ref()?;
+    let (opener, by_pointer) = first.active(ctx);
+    let mut resolved = overlay.clone();
+    if let Place::Anchored { anchor, .. } = &mut resolved.place {
+        *anchor = opener_anchor(opener, by_pointer, &overlay.place);
+    }
+    Some(resolved)
 }
 
 fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
@@ -1093,6 +1189,8 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, a
 
 /// The overlay host: shows `body` on an egui layer for `layer` and decides its dismissal.
 pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut Ui)) -> LayerOut {
+    let opened = opened_overlay(ctx, layer.overlay);
+    let layer = &Layer { overlay: opened.as_ref().unwrap_or(layer.overlay), ..*layer };
     let overlay = layer.overlay;
     let bounds = areas::safe_rect(ctx);
     let mut memory = recall(layer, ctx);
@@ -1216,7 +1314,7 @@ fn dismissal(
     if let Some(reason) = escape(ctx, layer, scope, inside) {
         return Some(reason);
     }
-    if dismiss.anchor_gone && layer.overlay.opener.is_some_and(|opener| !opener.enabled) {
+    if dismiss.anchor_gone && layer.overlay.opener.as_ref().is_some_and(|first| !first.active(ctx).0.enabled) {
         return Some(CloseReason::AnchorGone);
     }
     // The input hook removed the press and recorded it; presses inside the family and its anchors never get here.
@@ -1312,22 +1410,40 @@ fn paint_cursor(ctx: &Context) {
 #[derive(Clone, Copy, Default)]
 struct OpenerOpen {
     open: bool,
-    /// The root frame the opener's trigger was last applied in: a frame's passes apply it once.
+    /// The root frame an opener's trigger was last applied in: a frame's passes apply it once.
     applied: u64,
+    /// The opener that opened the layer, and whether a pointer release did.
+    by: Option<(Id, bool)>,
 }
 
-/// The open state of a container with no binding: the opener's slot, with the opener's trigger applied once for the
-/// frame. A container with no opener keeps its own slot.
-pub(crate) fn opener_open(stage: &mut MemoryStage, opener: &Opener) -> bool {
-    let frame = crate::runtime::egui::pass::root_frame_nr(stage.ctx());
-    let slot = stage.session::<OpenerOpen>(sub(opener.id, "opens"));
-    if opener.fired && slot.applied != frame {
-        slot.open = !slot.open;
-    }
-    if opener.fired {
+/// The open state of a container with no binding: the slot of its first opener, with the triggers of every opener
+/// applied once for the frame. A container with no opener keeps its own slot.
+pub(crate) fn opener_open(stage: &mut MemoryStage, first: &Opener) -> bool {
+    let ctx = stage.ctx().clone();
+    let frame = crate::runtime::egui::pass::root_frame_nr(&ctx);
+    let held = first.all().find(|opener| opener.trigger == Trigger::Hold).map(|opener| {
+        let started = dwell(&ctx, stage, opener.id, "dwell", opener.pressed, HOLD);
+        (opener, started)
+    });
+    let slot = stage.session::<OpenerOpen>(sub(first.id, "opens"));
+    if let Some(opener) = first.all().find(|opener| opener.fired) {
+        if slot.applied != frame {
+            slot.open = !slot.open;
+            slot.by = Some((opener.id, opener.by_pointer));
+        }
         slot.applied = frame;
+    } else if let Some((opener, true)) = held
+        && !slot.open
+    {
+        slot.open = true;
+        slot.by = Some((opener.id, false));
     }
-    slot.open
+    let (open, by) = (slot.open, slot.by);
+    with_popups(&ctx, |popups| match by {
+        Some(by) if open => popups.opened_by.insert(first.id, by),
+        _ => popups.opened_by.remove(&first.id),
+    });
+    open
 }
 
 /// Writes the opener's slot: the container closed itself (Escape, a press outside, a row ran).
@@ -1364,6 +1480,7 @@ impl Popup {
     fn write<C: Component>(opener: Id, cx: &mut Cx<'_, C>, to: Option<bool>) {
         let slot = cx.core.memory.session::<OpenerOpen>(sub(opener, "opens"));
         slot.open = to.unwrap_or(!slot.open);
+        slot.by = None;
         frame::request_repaint(&cx.core.ctx);
     }
 

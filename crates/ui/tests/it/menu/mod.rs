@@ -3,6 +3,8 @@
 
 mod bar;
 
+mod openers;
+
 use craft_ui::buttons::Button;
 use craft_ui::contract::{Bind, Entry, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::menu::{GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
