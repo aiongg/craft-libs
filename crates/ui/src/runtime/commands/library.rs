@@ -59,15 +59,16 @@ impl EditCommands {
     }
 }
 
-/// The `window` commands (16.3): a floating container moves and resizes from the keyboard.
+/// The `window` commands (16.3): a floating container moves and resizes from the keyboard. macOS binds no chord to
+/// them (9.2): the title-row menu offers both.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "window", scope = "window")]
 #[non_exhaustive]
 pub enum WindowCommand {
     /// Move the focused window with the arrow keys.
-    #[command(label = "Move", default = "Alt+F7")]
+    #[command(label = "Move", default = "Alt+F7", no_default_on = "mac")]
     Move,
     /// Resize the focused window with the arrow keys.
-    #[command(label = "Size", default = "Alt+F8")]
+    #[command(label = "Size", default = "Alt+F8", no_default_on = "mac")]
     Size,
 }

@@ -7,10 +7,12 @@
 use craft_behavior::IconId;
 
 /// A tool, for its icon: a raster editor's tool set, which other apps share variant for variant (a vector
-/// editor's Pen is [`ToolIcon::Pen`]). A tool the set lacks needs a variant here, because the enum is closed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// editor's Pen is [`ToolIcon::Pen`]). A tool the set lacks takes [`ToolIcon::Custom`] with its own icon.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ToolIcon {
+    /// A tool of the app's own, drawn by `icon`; it is in no id catalog.
+    Custom(IconId),
     /// The `move` icon.
     Move,
     /// The `artboard` icon.
@@ -223,8 +225,9 @@ impl ToolIcon {
     ];
 
     /// The icon that draws the tool.
-    pub fn icon(self) -> IconId {
+    pub fn icon(&self) -> IconId {
         match self {
+            ToolIcon::Custom(icon) => icon.clone(),
             ToolIcon::Move => IconId::new("move"),
             ToolIcon::Artboard => IconId::new("artboard"),
             ToolIcon::RectangularMarquee => IconId::new("marquee_rect"),
@@ -297,9 +300,10 @@ impl ToolIcon {
     }
 
     /// The tool's id as the apps' tool commands spell it (`tool.rectangularMarquee` without the
-    /// `tool.` prefix), for automation and the keymap catalog.
-    pub fn id(self) -> &'static str {
+    /// `tool.` prefix), for automation and the keymap catalog; a custom tool's is its icon's name.
+    pub fn id(&self) -> &str {
         match self {
+            ToolIcon::Custom(icon) => icon.name(),
             ToolIcon::Move => "move",
             ToolIcon::Artboard => "artboard",
             ToolIcon::RectangularMarquee => "rectangularMarquee",
@@ -371,7 +375,7 @@ impl ToolIcon {
         }
     }
 
-    /// The tool for an id, `None` for an unknown one.
+    /// The built-in tool for an id, `None` for an unknown one and for a custom tool.
     pub fn from_id(id: &str) -> Option<ToolIcon> {
         ToolIcon::ALL.into_iter().find(|tool| tool.id() == id)
     }

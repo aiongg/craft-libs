@@ -803,7 +803,7 @@ pub struct HandleSizes {
 pub struct HitSizes {
     /// How far a press may move and still be a click.
     pub slop: f32,
-    /// Grab distance around a handle or line.
+    /// The least hit size of a part, in logical pixels; a thin handle or line is padded to it.
     pub target: f32,
 }
 

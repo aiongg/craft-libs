@@ -94,6 +94,14 @@ fn accept_fixtures_pass() {
 }
 
 #[test]
+fn an_egui_trait_other_than_widget_spelled_with_a_path_is_not_a_widget() {
+    let findings = analyze_contract(&fixture("accept", "contract-widget.rs"), Path::new(FAMILY), &scope(), false);
+    assert!(findings.is_empty(), "{findings:?}");
+    let widget = fixture("reject", "contract-widget.rs");
+    assert!(!analyze_contract(&widget, Path::new(FAMILY), &scope(), false).is_empty(), "`egui::Widget` is still flagged");
+}
+
+#[test]
 fn layer_rules_read_only_their_layers() {
     let pipeline = fixture("reject", "behavior-pipeline-only.rs");
     for (path, hit) in [

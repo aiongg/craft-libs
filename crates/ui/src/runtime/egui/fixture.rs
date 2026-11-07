@@ -1,6 +1,6 @@
 //! The egui calls `craft_ui::testing` needs: frames, raw input and options that apps reach only through the runtime.
 
-use egui::{Context, DroppedFile, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
+use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
 use std::sync::Arc;
 
 /// What a frame sent out that trials read.
@@ -48,10 +48,10 @@ pub struct ImeSeen {
     pub caret: Rect,
 }
 
-/// The files the OS hovers over or drops on a frame's window, by name.
+/// The files the OS hovers over or drops on a frame's window, by name; a hovered file also has the media type the OS gave.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct OsFiles {
-    pub hovered: Vec<String>,
+    pub hovered: Vec<(String, String)>,
     pub dropped: Vec<String>,
 }
 
@@ -59,7 +59,7 @@ pub(crate) struct OsFiles {
 #[derive(Debug)]
 struct DroppedPath(std::path::PathBuf);
 
-impl DroppedFile for DroppedPath {
+impl egui::DroppedFile for DroppedPath {
     fn path(&self) -> &std::path::Path {
         &self.0
     }
@@ -72,7 +72,7 @@ impl DroppedFile for DroppedPath {
 /// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
 pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
-    let hovered_files = files.hovered.iter().map(|name| egui::HoveredFile { path: Some(name.into()), ..egui::HoveredFile::default() }).collect();
+    let hovered_files = files.hovered.iter().map(|(name, mime)| egui::HoveredFile { path: Some(name.into()), mime: mime.clone() }).collect();
     let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);

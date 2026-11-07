@@ -72,7 +72,7 @@ pub struct OsFile {
     pub path: Option<PathBuf>,
     /// The file's media type, as far as the OS knows it.
     pub mime: String,
-    /// The file's content, on platforms that give no path.
+    /// The file's content, on platforms that give no path; read only for a dropped file.
     pub bytes: Option<Arc<[u8]>>,
 }
 
@@ -260,7 +260,9 @@ fn os_files(ctx: &Context) {
         }
         Some(session) if session.os => {
             if !seen.dropped.is_empty() {
-                session.payload = Arc::new(OsFiles { files: seen.dropped });
+                let hovered = session.payload.downcast_ref::<OsFiles>();
+                let files = seen.dropped.into_iter().map(|file| with_hovered_type(file, hovered)).collect();
+                session.payload = Arc::new(OsFiles { files });
                 session.dropped = Some(frame);
             } else if seen.hovered.is_empty() && session.dropped != Some(frame) {
                 board.session = None;
@@ -272,6 +274,15 @@ fn os_files(ctx: &Context) {
     if started {
         crate::runtime::egui::repaint::request(ctx);
     }
+}
+
+/// `file` with the media type the OS gave the hovered file at the same path, which egui does not repeat on a drop.
+fn with_hovered_type(mut file: OsFile, hovered: Option<&OsFiles>) -> OsFile {
+    let held = hovered.and_then(|hovered| hovered.files.iter().find(|held| held.path.is_some() && held.path == file.path));
+    if let Some(held) = held {
+        file.mime.clone_from(&held.mime);
+    }
+    file
 }
 
 /// The viewport the running session started in.

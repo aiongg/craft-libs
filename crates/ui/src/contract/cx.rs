@@ -421,12 +421,29 @@ impl CxCore<'_> {
         debug_assert!(self.stated, "the state set is written at step 12; it is not readable in `update` or `overlay`");
     }
 
+    /// The active part, read again when focus was written since step 8.
+    pub(crate) fn active_now(&self) -> Option<PartRef> {
+        if focus::writes() == self.focus.at {
+            return self.active;
+        }
+        focus::facts(&self.ctx, self.id).part.filter(|part| self.results.contains_key(&(part.key, part.index)))
+    }
+
+    /// Reads the focus facts again when focus was written since they were read, so a request or a layer that took
+    /// focus during this pass shows in the steps after it.
+    pub(crate) fn sync_focus(&mut self) {
+        if focus::writes() != self.focus.at {
+            self.focus = focus::facts(&self.ctx, self.id);
+            self.active = self.focus.part.filter(|part| self.results.contains_key(&(part.key, part.index)));
+        }
+    }
+
     /// The state set of `part`: its press and hover, its own flags, and the focus flags only when it is the
     /// active part of the focused component.
     pub(crate) fn part_state(&self, part: PartRef) -> StateSet {
         let result = self.part(part);
         let mut flags = result.flags;
-        if self.active == Some(part) && focus::is_focused(&self.ctx, self.id) {
+        if self.active_now() == Some(part) && focus::is_focused(&self.ctx, self.id) {
             flags |= Flags::FOCUSED;
             if focus::focus_visible(&self.ctx, self.id) {
                 flags |= Flags::FOCUS_VISIBLE;
@@ -544,7 +561,7 @@ impl Focus for CxCore<'_> {
     }
 
     fn active_part(&self) -> Option<PartRef> {
-        self.active
+        self.active_now()
     }
 
     fn is_focused(&self) -> bool {

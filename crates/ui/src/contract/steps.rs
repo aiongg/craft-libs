@@ -993,6 +993,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
         _ => {}
     }
     let core = &mut cx.core;
+    core.sync_focus();
     let (hovered, pressed) = (core.response.hovered(), core.press.phase.is_press());
     let (focused, visible) = (core.focus.focused, core.focus.visible);
     if focused {

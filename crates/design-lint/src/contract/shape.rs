@@ -109,7 +109,7 @@ fn is_egui_widget(imp: &syn::ItemImpl, names: &WidgetNames) -> bool {
     let Some((_, path, _)) = &imp.trait_ else { return false };
     let Some(first) = path.segments.first().map(|s| s.ident.to_string()) else { return false };
     if path.segments.len() > 1 {
-        return super::sites::EGUI_ROOTS.contains(&first.as_str());
+        return super::sites::EGUI_ROOTS.contains(&first.as_str()) && path.segments.last().is_some_and(|last| last.ident == "Widget");
     }
     names.bound.contains(&first) || (names.glob && first == "Widget")
 }
