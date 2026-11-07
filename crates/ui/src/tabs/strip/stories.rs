@@ -26,7 +26,7 @@ const TITLES: [&str; 12] = [
 /// The width the overflow story's room is held to.
 const OVERFLOW_ROOM: f32 = 240.0;
 
-const PANELS: [&str; 4] = ["Layers", "Channels", "Paths", "History"];
+const PANELS: [&str; 3] = ["Layers", "Paths", "Info"];
 
 /// The tabs still open, keyed by their place in the title list and named by it.
 struct Documents<'t> {
