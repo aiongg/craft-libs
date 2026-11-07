@@ -126,9 +126,10 @@ pub fn restore_rect(saved: Rect, monitor: Option<&Monitor>, space: NativeSpace<'
             }
         }
         (Some((old, now)), _) => {
-            let scale = if usable(old) { vec2(now.rect.width() / old.rect.width(), now.rect.height() / old.rect.height()) } else { Vec2::splat(1.0) };
+            let (scale_x, scale_y) =
+                if usable(old) { (now.rect.width() / old.rect.width(), now.rect.height() / old.rect.height()) } else { (1.0, 1.0) };
             let offset = saved.min - old.rect.min;
-            clamp_onto(Rect::from_min_size(now.rect.min + vec2(offset.x * scale.x, offset.y * scale.y), saved.size()), now.rect)
+            clamp_onto(Rect::from_min_size(now.rect.min + vec2(offset.x * scale_x, offset.y * scale_y), saved.size()), now.rect)
         }
         (None, Some(old)) => {
             let Some(target) = main_monitor else { return saved };
