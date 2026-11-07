@@ -210,6 +210,11 @@ pub(crate) fn push_scope_from(ctx: &Context, id: Id, policy: FocusPolicy, label:
     });
 }
 
+/// The innermost scope open in the running pass: the scope whose body is being shown.
+pub(crate) fn open_scope(ctx: &Context) -> Option<Id> {
+    with(ctx, |state| state.open.last().map(|(id, _)| *id))
+}
+
 /// Closes the innermost open scope. A scope pushed for the first time (or again after a gap of a frame)
 /// moves focus to its initial stop, in this pass.
 pub(crate) fn pop_scope(ctx: &Context) {
