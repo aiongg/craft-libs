@@ -175,13 +175,13 @@ fn the_header_context_menu_lists_its_commands() {
     frames.frame(vec![pointer::moved(at)], &mut show);
     frames.frame(vec![pointer::secondary(at, true)], &mut show);
     frames.frame(vec![pointer::secondary(at, false)], &mut show);
-    frames.idle(2, &mut show);
+    // The app opens its menu in the frame of the request; with none open, the request lapses a frame later.
     assert_eq!(scene.menus(), vec![NAME]);
     let state = |command: ColumnCommands| commands::resolve(&frames.ctx, command);
     assert_eq!(ColumnCommands::ALL.map(|command| state(command).label.to_string()), ["Resize Column…", "Move Column Left", "Move Column Right"]);
     assert_eq!(ColumnCommands::ALL.map(|command| state(command).enabled), [true, false, true], "the first column cannot move left");
     assert!(commands::fire(&frames.ctx, ColumnCommands::MoveRight, FireSource::Menu));
-    frames.idle(2, &mut show);
+    frames.frame(vec![], &mut show);
     assert_eq!(scene.moves(), vec![(NAME, 1)]);
 }
 

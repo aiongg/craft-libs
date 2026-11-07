@@ -3,8 +3,8 @@
 pub(super) mod rows;
 
 use super::collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, OpenChange, Rename, ReorderMove, RowState,
-    SelectMode,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, OpenChange, Rename, ReorderMove,
+    RowState, SelectMode,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
@@ -324,7 +324,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.layout = Some(Rc::new(layout));
-        let height = self.content.y + self.header.height;
+        let empty = if self.source.is_empty() { comp.empty_height(width, scx) } else { 0.0 };
+        let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             return Vec2::new(self.content.x, height);
         }
@@ -388,6 +389,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view));
         let header_held = self.header_step(cx);
         self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
+        self.open_lead(comp);
         self.follow_lead_source(comp);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key));
         let props = comp.items().clone();
@@ -397,6 +399,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         // A press lands on the rows the user saw: the offset of the last pass, before this pass's wheel share (8.3).
         let seen = Placement { offset: ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ..at };
         self.press_step(comp, cx, &props, &layout, seen);
+        if props.lead_follows_hover {
+            self.hover_lead(comp, cx, &layout, seen);
+        }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
@@ -673,6 +678,43 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         (shown, order)
     }
 
+    /// The lead of a collection that shows rows for the first time: the first row that can be picked when the props
+    /// ask for it.
+    fn open_lead(&mut self, comp: &C) {
+        if self.lead.key.is_none()
+            && comp.items().lead_on_open == LeadOnOpen::First
+            && let Some(at) = (0..self.source.len()).find(|&at| self.source.enabled(at) && !self.source.is_section(at))
+        {
+            self.lead.key = Some(self.source.key(at));
+            self.lead.at = at;
+        }
+    }
+
+    /// The lead follows a moving pointer over the rows, and the selection follows the lead the way it does for the
+    /// arrow keys.
+    fn hover_lead(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {
+        let Placement { rect, offset, rtl } = at;
+        let frame = crate::runtime::pointer::frame(&cx.core.ctx);
+        let hovered = cx.core.response.hovered() || crate::primitives::sensing::read_outcome(&cx.core.ctx, ArenaId::new(cx.core.id)).hover.is_some();
+        let Some(pos) = frame.pos.filter(|_| hovered && frame.delta != Vec2::ZERO) else { return };
+        let pos = self.xf.map_or(pos, |map| map.to_layer(pos));
+        if !rect.contains(pos) {
+            return;
+        }
+        let local = pos - rect.min.to_vec2();
+        let local = if layout.mirrors() && rtl {
+            Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl).to_physical(Rect::from_min_size(local, Vec2::ZERO)).min
+        } else {
+            local
+        };
+        if let Some(row) = layout.hit(local, offset).filter(|&row| self.source.enabled(row) && !self.source.is_section(row))
+            && self.lead.key.as_ref() != Some(&self.source.key(row))
+        {
+            self.move_lead(row);
+            self.pick(comp, row, false, false);
+        }
+    }
+
     /// A lead whose key left the source moves to the key now in its place, else the one before it.
     fn follow_lead_source(&mut self, comp: &C) {
         let len = self.source.len();
@@ -739,6 +781,16 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             {
                 self.change(SelectionChange::Clear);
             }
+        }
+        // A press that a part of an item won leaves the selection alone and moves the lead to its row.
+        let outcome = crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id));
+        if let (Some(PressPhase::Down { start, .. }), Some(target)) = (outcome.phase, outcome.target)
+            && target.owner != cx.core.id
+            && target.part.is_some()
+            && local(start.origin).y >= 0.0
+            && let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at))
+        {
+            self.move_lead(at);
         }
         match cx.core.press.phase {
             PressPhase::Release { click, .. } => {

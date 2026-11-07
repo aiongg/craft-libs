@@ -252,6 +252,10 @@ impl Collection for EventList<'_> {
         SpanLayout::sized(source, width, cx.control().height)
     }
 
+    fn empty_height(&self, _width: f32, cx: &StyleCx<'_>) -> f32 {
+        cx.control().height
+    }
+
     fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<EventWords>();
         super::findings::EmptyNote::new().label(words.none.clone()).show_at(ui, cx.rect);

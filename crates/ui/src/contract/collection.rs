@@ -149,6 +149,18 @@ pub enum ActivateOn {
     Click,
 }
 
+/// Where the lead starts when the collection first shows rows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LeadOnOpen {
+    /// On the selection's lead, and nowhere when nothing is selected.
+    #[default]
+    Selected,
+    /// On the selection's lead, else on the first row that can be picked: menus and popup lists, where Enter
+    /// picks the active row.
+    First,
+}
+
 /// What a collection reads from the app: plain data.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
@@ -170,6 +182,11 @@ pub struct CollectionProps {
     /// A press on the empty space below the rows empties the selection. Off: only a key or a press on an item
     /// changes it, so a history list keeps its mark.
     pub allow_empty: bool,
+    /// Where the lead starts.
+    pub lead_on_open: LeadOnOpen,
+    /// The lead, and the selection with it as for the arrow keys, moves to the row under the pointer when the pointer
+    /// moves: menus, popup lists and the undo list.
+    pub lead_follows_hover: bool,
 }
 
 impl CollectionProps {
@@ -184,6 +201,8 @@ impl CollectionProps {
             activate: ActivateOn::DoubleClick,
             striped: false,
             allow_empty: false,
+            lead_on_open: LeadOnOpen::Selected,
+            lead_follows_hover: false,
         }
     }
 
@@ -233,6 +252,20 @@ impl CollectionProps {
     #[must_use]
     pub const fn allow_empty(mut self, on: bool) -> Self {
         self.allow_empty = on;
+        self
+    }
+
+    /// Where the lead starts.
+    #[must_use]
+    pub const fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
+        self.lead_on_open = at;
+        self
+    }
+
+    /// The lead follows the pointer over the rows.
+    #[must_use]
+    pub const fn lead_follows_hover(mut self, on: bool) -> Self {
+        self.lead_follows_hover = on;
         self
     }
 

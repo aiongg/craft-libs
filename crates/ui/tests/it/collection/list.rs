@@ -386,6 +386,64 @@ fn an_item_part_reports_through_the_collection() {
     assert_eq!(items, [(1, Dismissed::Row)]);
 }
 
+/// A menu list starts with its first row as the lead, and the lead follows a moving pointer but not a still one.
+#[trial]
+fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
+    let words = Words::flat(&["one", "two", "three"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).menu(), &words, &seen);
+    frames.idle(3, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(0))), "Enter activates the first row");
+    let over = |row: usize| ORIGIN + Vec2::new(50.0, ROW_H * (row as f32 + 0.5));
+    frames.frame(vec![pointer::moved(over(0))], &mut show);
+    frames.frame(vec![pointer::moved(over(2))], &mut show);
+    assert_eq!(seen.leads(), [2], "the pointer moves the lead to the row under it");
+    frames.idle(2, &mut show);
+    assert_eq!(seen.selections().len(), 1, "the selection follows the lead as it does for the arrow keys");
+    assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
+}
+
+/// A list sized by its content keeps the height of its empty state while it has no rows.
+#[trial]
+fn an_empty_content_sized_list_keeps_the_height_of_its_empty_state() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).content_sized(), &words, &seen);
+    frames.idle(4, &mut show);
+    assert_eq!(seen.rect.get().height(), ROW_H, "the list is as tall as its empty state: {:?}", seen.rect.get());
+}
+
+/// A press on a row's click part leaves the selection alone and moves focus to the row (17.3 step 8).
+#[trial]
+fn a_press_on_an_item_part_moves_focus_to_the_row_and_does_not_select_it() {
+    let words = Words::flat(&["warn one", "warn two"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let rows = Box::leak(Box::new([Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING)]));
+    let rows: &'static [Cell<Rect>; 2] = rows;
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, VIEW), |ui| {
+            let out = List::new(SelectMode::Single).id_salt("list").show_items(ui, &words, &mut |key, cx| {
+                rows[*key].set(cx.rect);
+                Row::new().dismissable()
+            });
+            seen.take(out);
+        });
+    };
+    frames.idle(3, &mut show);
+    let hit = rows[1].get().min + Vec2::splat(ROW_H / 2.0);
+    pointer::click(&mut frames, hit, &mut show);
+    assert!(seen.selections().is_empty(), "the part's press does not select the row: {:?}", seen.selections());
+    assert_eq!(seen.leads(), [1], "the row takes the lead");
+    let beside = rows[1].get().min + Vec2::new(ROW_H * 3.0, ROW_H / 2.0);
+    pointer::click(&mut frames, beside, &mut show);
+    assert_eq!(seen.selections().len(), 1, "a press beside the part selects the row");
+}
+
 /// A text field renaming a row keeps Escape while its draft is open: the first Escape cancels the edit and focus
 /// goes back to the list, not to the row before the cancel.
 #[trial]

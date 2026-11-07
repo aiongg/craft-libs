@@ -43,8 +43,15 @@ fn lead(fixture: &Fixture, container: &Target) -> Option<usize> {
     position_in_set(fixture, key).map(|(at, _)| at)
 }
 
+/// Whether the focus is on a cell: the collection navigates a grid, where Home and End move along the row and the
+/// first and last row are Ctrl+Home and Ctrl+End (17.4).
+fn focus_on_cell(fixture: &Fixture) -> bool {
+    let focused = fixture.tree().focused_key();
+    fixture.by_role(Role::CELL).iter().any(|cell| cell.node == focused)
+}
+
 /// A click on the first row puts the lead there; the keys then move it: Down and Up by one row, End to the last,
-/// Home to the first, Page Down forward.
+/// Home to the first, Page Down forward. A grid takes Ctrl+End and Ctrl+Home for the last and first row.
 pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
     if !is_items(subject) {
         return Ok(());
@@ -54,8 +61,9 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
         fixture.click(&shown[0]);
         let name = story.name;
-        let expect = |fixture: &mut Fixture, key: Key, at: usize, what: &str| -> Result<(), String> {
-            fixture.key(key, Modifiers::NONE);
+        let ends = if focus_on_cell(&fixture) { Modifiers::COMMAND } else { Modifiers::NONE };
+        let expect = |fixture: &mut Fixture, key: Key, mods: Modifiers, at: usize, what: &str| -> Result<(), String> {
+            fixture.key(key, mods);
             fixture.idle(2);
             match lead(fixture, &container) {
                 Some(found) if found == at => Ok(()),
@@ -63,10 +71,10 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
             }
         };
         let first = lead(&fixture, &container).ok_or_else(|| format!("{name}: a click on the first row left no lead"))?;
-        expect(&mut fixture, Key::ArrowDown, first + 1, "Down")?;
-        expect(&mut fixture, Key::ArrowUp, first, "Up")?;
-        expect(&mut fixture, Key::End, size - 1, "End")?;
-        expect(&mut fixture, Key::Home, 0, "Home")?;
+        expect(&mut fixture, Key::ArrowDown, Modifiers::NONE, first + 1, "Down")?;
+        expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Up")?;
+        expect(&mut fixture, Key::End, ends, size - 1, "End")?;
+        expect(&mut fixture, Key::Home, ends, 0, "Home")?;
         fixture.key(Key::PageDown, Modifiers::NONE);
         fixture.idle(2);
         if lead(&fixture, &container).is_none_or(|found| found == 0) {

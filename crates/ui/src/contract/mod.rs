@@ -30,7 +30,7 @@ pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Twe
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest,
-    ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
+    LeadOnOpen, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
 };
 pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
@@ -370,6 +370,11 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// pointer is on). A refused spot shows no drop mark.
     fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: &Self::Key, _insert: usize) -> bool {
         true
+    }
+
+    /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
+    fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32 {
+        0.0
     }
 
     /// The empty state at the rect the item step placed.

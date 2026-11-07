@@ -748,18 +748,19 @@ impl Component for ListRow<'_> {
         {
             self.event = Some(RowEvent::Open { open: !open, all: cx.part(DISCLOSURE).press.mods.alt });
         }
-        let thumbs = self.shows_thumbs(&cx.style.sizes);
-        for (at, thumb) in self.extras.iter().enumerate().filter(|_| thumbs) {
+        for (at, thumb) in self.extras.iter().enumerate() {
             let part = LINK.at(at as u64);
             if let Some((linked, _)) = &thumb.link
-                && (cx.part(part).press.phase.is_click() || by_key == Some(part))
+                && let Some(result) = cx.part_if_declared(part)
+                && (result.press.phase.is_click() || by_key == Some(part))
             {
                 self.event = Some(RowEvent::LinkToggled { thumb: at, linked: !linked });
             }
         }
-        for at in (0..=self.extras.len()).filter(|_| thumbs) {
+        for at in 0..=self.extras.len() {
+            let Some(result) = cx.part_if_declared(THUMB.at(at as u64)) else { continue };
             let target = if at == 0 { ThumbTarget::First } else { ThumbTarget::Extra(at - 1) };
-            let phase = cx.part(THUMB.at(at as u64)).press.phase;
+            let phase = result.press.phase;
             if matches!(phase, PressPhase::DragStart { .. }) && self.thumb_drags && at > 0 {
                 self.event = Some(RowEvent::ThumbDrag(target));
             } else if phase.is_click() {
