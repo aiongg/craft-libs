@@ -581,6 +581,7 @@ impl Component for Tile<'_> {
             ))
         };
         let fixed = |color: Rgba| Stateful::new(c(color));
+        let pill = cx.with_variant(pill_variant(Tone::Neutral)).variant_look();
         let plate_rest = colors.surface.panel;
         let plate_on = over(state.selected, plate_rest);
         let plate = Stateful::new(c(plate_rest)).on(States::new(c(plate_on), c(plate_on), c(plate_on), c(plate_on)));
@@ -600,12 +601,12 @@ impl Component for Tile<'_> {
                 Stateful::new(c(text.muted)).off(States::new(c(text.muted), c(text.muted), c(text.muted), c(text.disabled))),
             )
             .on(fixed(colors.surface.sunken)),
-            pill_icon: IconLook::new(sizes.glyph, fixed(colors.surface.panel)).on(fixed(text.muted)),
+            pill_icon: IconLook::new(sizes.glyph, pill.text.clone()).on(pill.fill.clone()),
             placeholder: c(colors.surface.sunken),
             dim: c(colors.surface.scrim.faded(DIM_VEIL)),
             veil,
             plate,
-            pill: c(text.muted),
+            pill: pill.fill.off.rest,
             band: c(colors.status.bad.solid),
             range: c(colors.accent.solid),
             scrub: c(colors.accent.solid),
