@@ -1,7 +1,7 @@
 //! Stories of `CaptionButton`: one per family and the maximized state.
 
 use super::CaptionButton;
-use crate::contract::{Props as _, Show as _};
+use crate::contract::Show as _;
 use crate::shell::{Caption, CaptionFamily};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;

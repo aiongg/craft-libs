@@ -248,10 +248,10 @@ pub struct CaptionButton<'a> {
     #[prop]
     maximized: bool,
     /// The edge the button is nearest to, which its hit area runs to; the face then sits inside the area.
-    #[prop(into)]
+    #[prop]
     outermost: Option<CaptionEnd>,
     /// Glyphs from the desktop's icon theme for the round families.
-    #[prop(into)]
+    #[prop]
     icons: Option<&'a CaptionIcons>,
 }
 
