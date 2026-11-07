@@ -223,7 +223,7 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if cx.part_if_declared(CLEAR).is_some_and(|part| part.press.phase.is_click())
+        if cx.part_activated(CLEAR).is_some()
             && let Some(empty) = self.empty.clone()
         {
             cx.set(empty);

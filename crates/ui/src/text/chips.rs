@@ -264,7 +264,7 @@ impl Component for ChipField<'_> {
         let delete = Intent::delete(true, Granularity::Unit);
         let mut removed = (0..chips.len()).find(|&at| {
             // Guard: a commit asks for a new pass, so no chip is undeclared; one that is stays out of this pass.
-            cx.part_if_declared(REMOVE.at(at as u64)).is_some_and(|result| result.press.phase.is_click())
+            cx.part_activated(REMOVE.at(at as u64)).is_some()
         });
         if removed.is_none() {
             if let Some(at) = on_chip {

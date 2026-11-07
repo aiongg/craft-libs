@@ -150,6 +150,11 @@ pub(crate) fn inert(ui: &Ui, id: Id) -> Response {
     }
 }
 
+/// Marks the response as clicked: an AccessKit click on a part of the component.
+pub(crate) fn mark_clicked(response: &mut Response) {
+    response.flags.insert(Flags::CLICKED);
+}
+
 /// Marks the response as changed: the component's value changed in this pass.
 pub(crate) fn mark_changed(response: &mut Response) {
     response.mark_changed();

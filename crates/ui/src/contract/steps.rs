@@ -641,6 +641,12 @@ pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
         core.activation = Some(super::Activation { by_key: true });
     }
+    // An AccessKit click on a part is a click on the component as a pointer click on the part is: the response
+    // reports it, and a toggling part or a part reader takes it as it takes the pointer's.
+    if core.intents.any_access_click() && takes_activation(core.resolved) {
+        core.activation.get_or_insert(super::Activation { by_key: false });
+        response::mark_clicked(&mut core.response);
+    }
 }
 
 /// Step 9, before the component: a gesture cancelled under its press is live again once the press is released, and a

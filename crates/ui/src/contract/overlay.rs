@@ -710,11 +710,14 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
         }
         let phase = cx.core.results.get(&(part.key, part.index)).map(|result| result.press.phase);
         let on_press = toggle.decl.on_press;
-        let toggled = match phase {
+        let by_pointer = match phase {
             Some(phase) if on_press => cx.core.memory.shown::<super::SeenPress>(sub(popup.id, "press")).began(&phase),
             Some(phase) => phase.is_click(),
             None => false,
         };
+        let clicked = |request: &craft_behavior::AccessRequest| request.target == Some(part) && request.action == craft_behavior::AccessAction::Click;
+        let by_access = cx.core.intents.take_access_where(clicked).is_some();
+        let toggled = by_pointer || by_access;
         if toggled {
             popup.registered(cx);
             if !popup.is_open(cx) {

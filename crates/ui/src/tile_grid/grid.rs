@@ -19,6 +19,7 @@ use crate::controls::disclosure::Disclosure;
 use crate::list::{DropTest, ListRow, RowTest, SourceTest};
 use crate::primitives::PaintShape;
 use crate::runtime::access::Name;
+use crate::runtime::commands::FireSource;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, RuleKind, StyleColor, StyleCx};
 use craft_behavior::{
@@ -425,11 +426,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                     }
                     _ => GridEvent::GroupPicked { group, mods },
                 });
+            } else if cx.part_activated(part) == Some(FireSource::Access) {
+                self.events.push(GridEvent::GroupPicked { group, mods: Mods::NONE });
             }
-            if self.collapsible
-                && let Some(result) = cx.part_if_declared(toggle)
-                && result.press.phase.is_click()
-            {
+            if self.collapsible && cx.part_activated(toggle).is_some() {
                 self.events.push(GridEvent::GroupOpen { group, open: !open });
             }
         }
