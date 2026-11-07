@@ -2,11 +2,19 @@
 
 use super::code_editor::{CodeDocument, CodeEditor};
 use super::sheet::{Rows, SheetGrid, SheetRow};
-use super::tracks::{Clip, Track, TrackRow, TrackStack, Tracks};
+use super::tracks::{Clip, LANE, LOCK, MUTE, NAME, Track, TrackRow, TrackStack, Tracks};
 use crate::contract::{Bind, Props as _, Show as _, ShowCollection as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
-use craft_behavior::CellSelection;
-use egui::Ui;
+use craft_behavior::{CellSelection, ColumnKey};
+use egui::{Pos2, Rect, Ui, Vec2};
+
+/// The width and height of a cell in a stand-alone row story.
+const CELL: Vec2 = Vec2::new(60.0, 24.0);
+
+/// Side-by-side cells of `keys`, as the item step lists them for a row.
+fn cells(keys: &[ColumnKey]) -> Vec<(ColumnKey, Rect)> {
+    keys.iter().enumerate().map(|(at, key)| (key.clone(), Rect::from_min_size(Pos2::new(CELL.x * at as f32, 0.0), CELL))).collect()
+}
 
 /// The seconds the story lanes show.
 const VISIBLE: f32 = 10.0;
@@ -28,14 +36,18 @@ fn sheet_rows(count: usize) -> Vec<Vec<String>> {
 }
 
 fn sheet(ui: &mut Ui, data: &mut StoryData, count: usize) -> StoryOutput {
-    let rows = data.value("rows", sheet_rows(count)).clone();
+    sheet_of(ui, data, sheet_rows(count))
+}
+
+fn sheet_of(ui: &mut Ui, data: &mut StoryData, initial: Vec<Vec<String>>) -> StoryOutput {
+    let rows = data.value("rows", initial.clone()).clone();
     let out = SheetGrid::new(Bind::bound(data.value("cells", CellSelection::<usize>::default())), &rows).label("Sheet").show_items(
         ui,
         &Rows(rows.len()),
         &mut |key, icx| SheetRow::new(&rows[*key], icx.cells().to_vec()),
     );
     if let Some(edit) = out.committed {
-        data.value("rows", sheet_rows(count))[edit.row][edit.column] = edit.text;
+        data.value("rows", initial)[edit.row][edit.column] = edit.text;
     }
     out.collection.into()
 }
@@ -50,6 +62,13 @@ fn sheet_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     sheet(ui, data, 1)
 }
 
+#[story(SheetGrid<'static>, covers = [LongText], drive = Drive::Never)]
+fn sheet_long_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut rows = sheet_rows(2);
+    rows[0][0] = "a cell text far wider than its column ".repeat(4);
+    sheet_of(ui, data, rows)
+}
+
 #[story(SheetGrid<'static>, covers = [Default, Many], drive = Drive::Never)]
 fn sheet_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     sheet(ui, data, 12)
@@ -58,7 +77,10 @@ fn sheet_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(SheetRow<'static>, covers = [Default], drive = Drive::Never)]
 fn sheet_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let values = sheet_rows(1).remove(0);
-    SheetRow::new(&values, Vec::new()).show(ui).into()
+    SheetRow::new(&values, cells(&[ColumnKey::new("a"), ColumnKey::new("b"), ColumnKey::new("c"), ColumnKey::new("d")]))
+        .label("Row 1")
+        .show(ui)
+        .into()
 }
 
 fn tracks(count: usize) -> Vec<Track> {
@@ -88,5 +110,5 @@ fn track_stack_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(TrackRow<'static>, covers = [Default], drive = Drive::Never)]
 fn track_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let tracks = tracks(1);
-    TrackRow::new(&tracks[0], Vec::new(), VISIBLE).show(ui).response.into()
+    TrackRow::new(&tracks[0], cells(&[NAME, MUTE, LOCK, LANE]), VISIBLE).show(ui).response.into()
 }

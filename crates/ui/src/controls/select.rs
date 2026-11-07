@@ -7,17 +7,17 @@
 use super::disclosure::DisclosureGlyph;
 use super::words::ControlWords;
 use crate::contract::{
-    Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _, EditResponse,
-    Focus as _, ItemOutput, MeasureCx, NoValue, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _,
-    Remember as _, Role, SelectMode, ShowCollection as _, Trigger, WordSetCx as _,
+    ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
+    EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
+    ShowCollection as _, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{DisplayOrder, Flow, ItemSource, Metrics, NavMove, PartKey, PressPhase, Selection, Sense, SpanLayout, Value};
+use craft_behavior::{DisplayOrder, Flow, ItemSource, Metrics, NavMove, Selection, SpanLayout, Value};
 use craft_theme::{Rgba, Stateful, States};
-use egui::{Rect, Response, Vec2};
+use egui::{Response, Vec2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -134,6 +134,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let popup = cx.popup("list");
         let labels: Vec<Label> = self.options.iter().map(|option| cx.env.resolve(&option.label)).collect();
         let Highlight { at, opened } = cx.recall::<Highlight>();
+        let name = cx.label();
         let held = at.or_else(|| self.position(cx.value()));
         let overlay = Overlay::dropdown().focus(FocusPolicy::POPUP.initial(Initial::First));
         let events = ui.show(popup, overlay, |ui, _| {
@@ -141,6 +142,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             let choices = Choices { labels: &labels };
             OptionList::new(Bind::given(selection))
                 .id_salt(opened)
+                .label(name.clone())
                 .show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str()))
                 .events
         });
@@ -148,7 +150,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         for event in events.into_iter().flatten() {
             match event {
                 CollectionEvent::LeadMoved(at) => cx.memory::<Highlight>().at = Some(at),
-                CollectionEvent::Activate(at) | CollectionEvent::Item(at, OptionEvent::Picked) => picked = Some(at),
+                CollectionEvent::Activate(at) => picked = Some(at),
                 _ => {}
             }
         }
@@ -203,14 +205,6 @@ impl DisplayOrder<usize> for Choices<'_> {
 
 impl ItemSource<usize> for Choices<'_> {}
 
-/// What a row of the option list reports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum OptionEvent {
-    /// The row was clicked.
-    Picked,
-}
-
 /// The style of the option list: it has no look of its own.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -236,14 +230,19 @@ pub struct OptionList<'a> {
 impl<'a> OptionList<'a> {
     /// A listbox whose selected row is `selection`.
     pub fn new(selection: Bind<'a, Selection<usize>>) -> Self {
-        OptionList { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Single), selection }
+        OptionList {
+            common: Common::new(),
+            props: ContainerProps::new(),
+            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
+            selection,
+        }
     }
 }
 
 impl Component for OptionList<'_> {
     const ROLE: Role = Role::LIST_BOX;
     type Style = OptionListStyle;
-    type Output = CollectionResponse<usize, OptionEvent>;
+    type Output = CollectionResponse<usize, ()>;
 
     fn style(_: &StyleCx<'_>, _: OptionListStyleKey) -> OptionListStyle {
         OptionListStyle::default()
@@ -259,7 +258,7 @@ impl Collection for OptionList<'_> {
     type ItemLayout = SpanLayout;
     type Selection = Selection<usize>;
     type Item<'r> = OptionRow<'r>;
-    type ItemEvent = OptionEvent;
+    type ItemEvent = ();
 
     fn items(&self) -> &CollectionProps {
         &self.items
@@ -301,51 +300,25 @@ pub(crate) fn row_look(cx: &StyleCx<'_>) -> SurfaceLook {
     SurfaceLook::new(fill)
 }
 
-const PICK: PartKey = PartKey::new("pick");
-
-/// What a row of the option list returns.
-#[non_exhaustive]
-pub struct OptionOut {
-    /// The row's response.
-    pub response: Response,
-    /// What the row reported this pass.
-    pub event: Option<OptionEvent>,
-}
-
-impl Outcome for OptionOut {
-    type Value = NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-impl ItemOutput<OptionEvent> for OptionOut {
-    fn into_event(self) -> Option<OptionEvent> {
-        self.event
-    }
-}
-
-/// A row of the option list: its label, and a click part that picks it.
+/// A row of the option list: its label. The list's item step handles the click and Enter that pick it.
 #[derive(crate::contract::Component)]
 pub struct OptionRow<'r> {
     #[common]
     common: Common,
     label: &'r str,
-    picked: bool,
 }
 
 impl<'r> OptionRow<'r> {
     /// A row showing `label`.
     pub fn new(label: &'r str) -> Self {
-        OptionRow { common: Common::new(), label, picked: false }
+        OptionRow { common: Common::new(), label }.label(label.to_owned())
     }
 }
 
 impl Component for OptionRow<'_> {
     const ROLE: Role = Role::LIST_BOX_OPTION;
     type Style = OptionRowStyle;
-    type Output = OptionOut;
+    type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: OptionRowStyleKey) -> OptionRowStyle {
         OptionRowStyle { surface: row_look(cx), metrics: cx.control().metrics(), ink: cx.ink(Ink::OnPanel) }
@@ -355,19 +328,11 @@ impl Component for OptionRow<'_> {
         cx.layout(&TextRun::new(self.label)).size()
     }
 
-    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        cx.part(PICK, rect).sense(Sense::CLICK).pointer_only("Enter in the list picks the lead row");
-    }
-
-    fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        self.picked = matches!(cx.part(PICK).press.phase, PressPhase::Release { click: true, .. });
-    }
-
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         ui.draw().text(cx.content_rect, &TextRun::new(self.label).elide().color(cx.style.ink));
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> OptionOut {
-        OptionOut { response: cx.response.clone(), event: self.picked.then_some(OptionEvent::Picked) }
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
     }
 }

@@ -1,7 +1,7 @@
 //! Stories of `Select` and its option list.
 
 use super::{Choices, OptionList, OptionRow, Select, SelectOption};
-use crate::contract::{Bind, Role, Show as _, ShowCollection as _, Validity};
+use crate::contract::{Bind, Props as _, Role, Show as _, ShowCollection as _, Validity};
 use crate::runtime::env::{Label, Message};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{Mixed, Selection};
@@ -46,7 +46,10 @@ fn select_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn list(ui: &mut Ui, count: usize) -> StoryOutput {
     let labels: Vec<Label> = (1..=count).map(|n| Label::from(format!("Option {n}"))).collect();
     let choices = Choices { labels: &labels };
-    OptionList::new(Bind::given(Selection::default())).show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str())).into()
+    OptionList::new(Bind::given(Selection::default()))
+        .label("Blend mode")
+        .show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str()))
+        .into()
 }
 
 #[story(OptionList<'static>, covers = [Empty], drive = Drive::Never)]
@@ -66,5 +69,5 @@ fn option_list_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(OptionRow<'static>, covers = [Default], drive = Drive::Never)]
 fn option_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    OptionRow::new("Option").show(ui).response.into()
+    crate::testing::show_as_only_item(ui, OptionRow::new("Option")).into()
 }

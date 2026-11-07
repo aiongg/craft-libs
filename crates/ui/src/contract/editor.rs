@@ -63,7 +63,7 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, ui: &mut Ui, step: &mut supe
                 inputs.push(EditorInput::select(anchor, focus));
             }
         }
-        while let Some(input) = cx.core.intents.take_editor_input() {
+        while let Some(input) = cx.core.intents.take_editor_input(keys.keep) {
             inputs.push(input);
         }
     }
@@ -107,6 +107,7 @@ impl<C: Component> Cx<'_, C> {
         if !text_access::exposed(ctx, info.widget) {
             return;
         }
+        egui_access::set_label(ctx, info.widget, self.core.resolved.label);
         let lines = state
             .lines
             .iter()

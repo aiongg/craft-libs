@@ -314,6 +314,7 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
         if !spec.rect.contains_rect(bounds) {
             let id = sub(spec.id, ("edge", part.key, part.index));
             response::widget(ui, id, bounds.intersect(clip), part.sense);
+            crate::runtime::egui::access::hide(ctx, id);
             widgets.push(id);
         }
     }

@@ -75,10 +75,12 @@ struct Cell {
 
 #[derive(Default)]
 pub(super) struct Header {
-    /// The header row's height, zero without columns.
+    /// The header row's height, zero while no column has a header.
     pub(super) height: f32,
     memory: HeaderMemory,
     specs: Vec<ColumnSpec>,
+    /// The control height, the unit of `ColumnWidth::Controls`.
+    unit: f32,
     cells: Vec<Cell>,
     events: Vec<ColumnEvent>,
     menus: Vec<HeaderMenuRequest>,
@@ -105,15 +107,17 @@ impl Header {
     /// Step 5: the header takes the control height.
     pub(super) fn measure(&mut self, scx: &StyleCx<'_>) {
         let control = scx.control();
-        self.height = if self.specs.is_empty() { 0.0 } else { control.height };
+        self.unit = control.height;
+        // The row shows only when some column has a header to show (17.3).
+        self.height = if self.specs.iter().all(|spec| spec.header.as_str().is_empty()) { 0.0 } else { control.height };
         self.min = control.height * MIN_COLUMN;
         self.step = control.height;
         self.inset = control.gap;
     }
 
     fn width_of(&self, spec: &ColumnSpec) -> ColumnWidth {
-        match spec.width {
-            ColumnWidth::Fixed(_) => spec.width,
+        match spec.width.in_unit(self.unit) {
+            fixed @ ColumnWidth::Fixed(_) => fixed,
             _ => self.memory.widths.iter().find(|(key, _)| *key == spec.key).map_or(spec.width, |(_, width)| ColumnWidth::Fixed(*width)),
         }
     }
@@ -125,6 +129,11 @@ impl Header {
         resolve_columns(&kinds, &content, room, 0.0)
     }
 
+    /// Whether the collection declares columns.
+    pub(super) fn has_columns(&self) -> bool {
+        !self.specs.is_empty()
+    }
+
     /// The columns with their widths for the item layout.
     pub(super) fn columns(&self, room: f32) -> Vec<(ColumnKey, f32)> {
         self.specs.iter().map(|spec| spec.key.clone()).zip(self.widths(room)).collect()
@@ -133,7 +142,7 @@ impl Header {
     /// Step 7: one focusable part per column, a resize grip at the end edge of each resizable one, and the group.
     pub(super) fn parts<C: Component>(&mut self, pcx: &mut PartsCx<'_, C>) {
         self.cells.clear();
-        if self.specs.is_empty() {
+        if self.height <= 0.0 {
             return;
         }
         let area = pcx.content_rect;
@@ -183,7 +192,7 @@ impl Header {
         if (width - shown).abs() <= f32::EPSILON {
             return;
         }
-        let owned_by_app = self.specs.iter().any(|spec| spec.key == *key && matches!(spec.width, ColumnWidth::Fixed(_)));
+        let owned_by_app = self.specs.iter().any(|spec| spec.key == *key && matches!(spec.width, ColumnWidth::Fixed(_) | ColumnWidth::Controls(_)));
         if !owned_by_app {
             match self.memory.widths.iter_mut().find(|(held, _)| held == key) {
                 Some((_, held)) => *held = width,

@@ -11,21 +11,18 @@
 
 use crate::contract::{
     Access, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Focus as _, ItemOutput,
-    Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
+    MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
 };
 use crate::controls::select::row_look;
 use crate::primitives::{PaintShape, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::grid::resolve_columns;
-use craft_behavior::{
-    ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, Intent, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout,
-};
-use egui::{CornerRadius, Pos2, Rect, Response};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
-const NAME: ColumnKey = ColumnKey::new("name");
-const MUTE: ColumnKey = ColumnKey::new("mute");
-const LOCK: ColumnKey = ColumnKey::new("lock");
-const LANE: ColumnKey = ColumnKey::new("lane");
+pub(super) const NAME: ColumnKey = ColumnKey::new("name");
+pub(super) const MUTE: ColumnKey = ColumnKey::new("mute");
+pub(super) const LOCK: ColumnKey = ColumnKey::new("lock");
+pub(super) const LANE: ColumnKey = ColumnKey::new("lane");
 const CLIP: PartKey = PartKey::new("clip");
 /// A track row is this many control heights tall.
 const TRACK_IN_HEIGHTS: f32 = 2.0;
@@ -144,9 +141,9 @@ impl TrackStack {
     /// A track stack named `label`.
     pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self {
         let columns = vec![
-            ColumnSpec::new(NAME, "Track", ColumnWidth::Fixed(0.0)),
-            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Fixed(0.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
-            ColumnSpec::new(LOCK, "Lock", ColumnWidth::Fixed(0.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+            ColumnSpec::new(NAME, "Track", ColumnWidth::Controls(NAME_IN_HEIGHTS)),
+            ColumnSpec::new(MUTE, "Mute", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
+            ColumnSpec::new(LOCK, "Lock", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
             ColumnSpec::new(LANE, "Clips", ColumnWidth::fill(1.0)),
         ];
         TrackStack { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Single).columns(columns) }
@@ -179,13 +176,9 @@ impl Collection for TrackStack {
         &self.items
     }
 
-    /// Toggle columns are one control height wide, the name column a fixed share, and the lane takes the rest.
+    /// The column widths come from the specs; a row is `TRACK_IN_HEIGHTS` control heights tall.
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, cx: &StyleCx<'_>) -> SpanLayout {
-        let height = cx.control().height;
-        let kinds = [ColumnWidth::Fixed(height * NAME_IN_HEIGHTS), ColumnWidth::Fixed(height), ColumnWidth::Fixed(height), ColumnWidth::fill(1.0)];
-        let widths = resolve_columns(&kinds, &[], width, 0.0);
-        let keys = [NAME, MUTE, LOCK, LANE];
-        SpanLayout::new(source, width, height * TRACK_IN_HEIGHTS).columns(keys.into_iter().zip(widths).collect())
+        SpanLayout::new(source, width, cx.control().height * TRACK_IN_HEIGHTS)
     }
 }
 
@@ -273,6 +266,11 @@ impl Component for TrackRow<'_> {
         }
     }
 
+    /// The row as the item step laid its cells out.
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        self.cells.iter().fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect)).size().max(Vec2::ZERO)
+    }
+
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(lane) = self.cell(&LANE) else { return };
         for clip in &self.track.clips {
@@ -287,7 +285,7 @@ impl Component for TrackRow<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let keyed = cx.intents().take(Intent::Activate);
+        let keyed = cx.activation().is_some_and(|activation| activation.by_key);
         for clip in &self.track.clips {
             let part = CLIP.at(clip.id);
             let clicked = matches!(cx.part(part).press.phase, PressPhase::Release { click: true, .. });

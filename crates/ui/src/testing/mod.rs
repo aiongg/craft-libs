@@ -35,8 +35,7 @@ pub use craft_ui_macros::{story, trial};
 pub use fixture::{Fixture, Target};
 pub use frames::Frames;
 #[doc(hidden)]
-pub use story::STORIES;
-pub use story::{CollectionKind, Drive, EditKind, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot};
+pub use story::{CollectionKind, Drive, EditKind, Required, STORIES, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot, show_as_only_item};
 pub use windows::install_spec;
 
 /// One registered trial.

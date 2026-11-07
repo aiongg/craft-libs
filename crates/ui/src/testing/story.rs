@@ -337,3 +337,14 @@ impl<O: Into<StoryOutput>, R> From<Inner<O, R>> for StoryOutput {
         shown.output.into()
     }
 }
+
+/// Shows `row` as the only item of a collection: the item step gives an item its id and its place in the set, which
+/// a stand-alone story of an item type would otherwise lack.
+pub fn show_as_only_item<C>(ui: &mut Ui, row: C) -> C::Output
+where
+    C: crate::contract::Component + crate::contract::Props + crate::contract::Show,
+{
+    let id = ui.scope_id().with("only item");
+    crate::runtime::access::put_item_position(ui.ctx(), id, crate::runtime::access::SetPosition::new(0).of(1));
+    row.id(id).show(ui)
+}

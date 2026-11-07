@@ -532,16 +532,16 @@ fn route_press(
                 push(routed, id, Intent::Move(mv, mods), horizontal);
             }
         }
-        Some(Intent::Activate) => route_activate(rec, routed, activated),
+        Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
         Some(intent) => push(routed, id, intent, false),
         None if press.key == Key::Enter && plain => {
             if stop.keys.activate.enter() {
-                route_activate(rec, routed, activated);
+                route_activate(ctx, rec, routed, activated);
             } else {
                 push(routed, id, Intent::Submit, false);
             }
         }
-        None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(rec, routed, activated),
+        None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(ctx, rec, routed, activated),
         None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {
             let Some(nudge) = nudge_of(press.key, press.mods) else { return false };
@@ -552,9 +552,10 @@ fn route_press(
     true
 }
 
-/// `Activate` of a group member goes to the group's root, which reads `activated_member`.
-fn route_activate(rec: &StopRec, routed: &mut HashMap<Option<Id>, Routed>, activated: &mut HashMap<Id, Id>) {
-    let target = if rec.stop.group.is_some() {
+/// `Activate` of a group member goes to the group's root, which reads `activated_member`. A child or part of a
+/// collection row activates itself.
+fn route_activate(ctx: &Context, rec: &StopRec, routed: &mut HashMap<Option<Id>, Routed>, activated: &mut HashMap<Id, Id>) {
+    let target = if rec.stop.group.is_some() && !focus::is_row_child(ctx, &rec.stop) {
         activated.insert(rec.stop.root, rec.stop.id);
         rec.stop.root
     } else {
@@ -592,7 +593,7 @@ fn route_access(
     match request.kind() {
         ActionKind::Focus if node.focusable => {}
         ActionKind::Click => match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
-            Some(rec) => route_activate(&rec, routed, activated),
+            Some(rec) => route_activate(ctx, &rec, routed, activated),
             None => push(routed, owner, Intent::Activate, false),
         },
         ActionKind::Increment => push(routed, owner, Intent::Move(NavMove::Forward, MoveMods::PLAIN), false),
@@ -705,9 +706,15 @@ impl Intents {
     }
 
     /// Takes the next intent an editor reads as input: typed text, a move, a delete, an edit command, Enter as a
-    /// newline, Tab, and Escape as a cancel.
-    pub(crate) fn take_editor_input(&mut self) -> Option<EditorInput> {
-        let at = self.items.iter().position(|(item, taken)| !taken && editor_input_of(item).is_some())?;
+    /// newline, Tab, and Escape as a cancel. An arrow move the editor's `keep` does not keep stays for the
+    /// component's navigation (18.4).
+    pub(crate) fn take_editor_input(&mut self, keep: focus::KeepKeys) -> Option<EditorInput> {
+        let kept = |item: &Intent| match item {
+            Intent::Move(NavMove::Up | NavMove::Down, _) => matches!(keep, focus::KeepKeys::BlockArrows | focus::KeepKeys::Tab),
+            Intent::Move(NavMove::Back | NavMove::Forward, _) => keep != focus::KeepKeys::None,
+            _ => true,
+        };
+        let at = self.items.iter().position(|(item, taken)| !taken && kept(item) && editor_input_of(item).is_some())?;
         self.items[at].1 = true;
         editor_input_of(&self.items[at].0)
     }
