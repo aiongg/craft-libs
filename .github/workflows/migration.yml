@@ -1,0 +1,121 @@
+name: Migration
+
+on:
+  push:
+    branches: [ci/a, ci/b, ci/c]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: migration-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_INCREMENTAL: "0"
+  CARGO_PROFILE_DEV_DEBUG: "0"
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: clang
+  CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUSTFLAGS: "-C link-arg=-fuse-ld=mold"
+  CRAFT_FONTS_DIR: ${{ github.workspace }}/craft-fonts
+
+jobs:
+  ui-tests:
+    name: craft-ui tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Free disk and install linker
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+          df -h / | tail -1
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: ui-tests
+      - name: Test craft-ui
+        run: cargo test -p craft-ui --features testing --locked --no-fail-fast 2>&1 | tee test.log
+      - name: Summary
+        if: always()
+        run: bash .github/ci/summary.sh test.log "craft-ui tests" >> "$GITHUB_STEP_SUMMARY"
+
+  other-tests:
+    name: other new crates
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Free disk and install linker
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: other-tests
+      - name: Test
+        run: |
+          {
+            cargo test --locked --no-fail-fast -p craft-behavior -p craft-host -p craft-window -p craft-ui-macros -p craft-design-lint
+            cargo test --locked --no-fail-fast -p craft-keymap --all-features
+          } 2>&1 | tee test.log
+          exit "${PIPESTATUS[0]}"
+      - name: Summary
+        if: always()
+        run: bash .github/ci/summary.sh test.log "other new crates" >> "$GITHUB_STEP_SUMMARY"
+
+  static:
+    name: static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7
+        with:
+          repository: aiongg/craft-fonts
+          ref: b4b8f4d15f3c7d4e4ed9e0558411439b8c9aabfd
+          path: craft-fonts
+      - name: Free disk and install linker
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+          sudo apt-get update
+          sudo apt-get install -y mold clang
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          key: static
+      - name: Structure lint
+        run: cargo run -q -p craft-design-lint --locked -- structure --config design-lint.toml
+      - name: Clippy (warnings reported, not fatal)
+        run: |
+          cargo clippy --locked --tests --features testing \
+            -p craft-ui -p craft-ui-macros -p craft-behavior -p craft-host -p craft-window \
+            -p craft-design-lint -p craft-keymap -p craft-ui-gallery -p craft-ui-bench > clippy.log 2>&1 || true
+          {
+            echo "### clippy"
+            echo "$(grep -c '^warning' clippy.log) warning lines, $(grep -c '^error' clippy.log) error lines"
+            grep -E '^(warning|error)' clippy.log | sort | uniq -c | sort -rn | head -12
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Check workspace
+        run: cargo check --workspace --all-targets --locked
