@@ -479,7 +479,7 @@ note = "Removed: the edit menu is the text part's."
 type = "NumberField"
 old = "unit_menu(entries, picked)"
 new = ""
-note = "Removed: a unit choice is a `Select` beside the field."
+note = "Removed: a unit choice is `craft_ui::pickers::UnitSelect`, a `NumberField` with a `Select` of `Entry<UnitKind>` beside it."
 
 [[setter]]
 type = "NumberField"

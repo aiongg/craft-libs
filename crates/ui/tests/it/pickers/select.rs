@@ -1,8 +1,8 @@
 //! `Select`: opens from the keyboard, picks through the listbox, closes on Escape without a change and reports its
 //! popup to assistive technology.
 
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
-use craft_ui::controls::select::{Select, SelectOption};
+use craft_ui::contract::{Bind, Entry, Props as _, Role, Show as _};
+use craft_ui::pickers::Select;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
@@ -21,9 +21,9 @@ fn rig() -> Rig {
     let (value, id) = (Rc::new(Cell::new(0u8)), Rc::new(Cell::new(Id::NULL)));
     let (shown_value, shown_id) = (value.clone(), id.clone());
     let mut fixture = Fixture::new(move |ui| {
-        let options = [SelectOption::new(0u8, "Normal"), SelectOption::new(1, "Multiply"), SelectOption::new(2, "Screen")];
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply"), Entry::new(2, "Screen")];
         let mut mode = shown_value.get();
-        let out = Select::new("Blend mode", Bind::bound(&mut mode), &options).id_salt("mode").show(ui);
+        let out = Select::new("Blend mode", Bind::bound(&mut mode), &entries).id_salt("mode").show(ui);
         shown_value.set(mode);
         shown_id.set(out.response.id);
     });
@@ -116,4 +116,30 @@ fn a_reopened_select_list_starts_its_lead_again() {
     rig.open();
     rig.press(Key::Enter);
     assert_eq!(rig.value.get(), 0, "the lead began on the picked option, not on the last row");
+}
+
+/// Arrows on the closed field step over entries that cannot be picked and over separators: Down from the first entry
+/// lands on the entry after the disabled one, and Down from the last stays.
+#[trial]
+fn arrows_on_a_closed_select_skip_disabled_entries() {
+    let value = Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Multiply").enabled(false), Entry::separator(), Entry::new(2, "Screen")];
+        let mut mode = shown.get();
+        Select::new("Blend mode", Bind::bound(&mut mode), &entries).id_salt("mode").show(ui);
+        shown.set(mode);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(value.get(), 2, "the disabled entry and the separator are passed over");
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(value.get(), 2, "the last entry that can be picked is the end");
+    fixture.key(Key::ArrowUp, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(value.get(), 0);
 }
