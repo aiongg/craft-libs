@@ -26,6 +26,8 @@ pub struct Frames {
     tree: Option<AccessTree>,
     ime: Option<fixture::ImeSeen>,
     copied: Vec<String>,
+    texts: Vec<fixture::PaintedText>,
+    bounds: Vec<egui::Rect>,
     modifiers: egui::Modifiers,
     /// The modifiers the context was last told about.
     told: egui::Modifiers,
@@ -58,6 +60,8 @@ impl Frames {
             tree: None,
             ime: None,
             copied: Vec::new(),
+            texts: Vec::new(),
+            bounds: Vec::new(),
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
         }
@@ -152,6 +156,8 @@ impl Frames {
         self.tree = result.tree;
         self.ime = result.ime;
         self.copied = result.copied;
+        self.texts = result.texts;
+        self.bounds = result.bounds;
         result.closed
     }
 
@@ -163,6 +169,16 @@ impl Frames {
     /// The texts the last frame put on the clipboard.
     pub fn copied(&self) -> &[String] {
         &self.copied
+    }
+
+    /// The text runs the last frame painted.
+    pub fn texts(&self) -> &[fixture::PaintedText] {
+        &self.texts
+    }
+
+    /// The visual bounds of the shapes the last frame painted.
+    pub fn shape_bounds(&self) -> &[egui::Rect] {
+        &self.bounds
     }
 
     /// The AccessKit tree the last frame produced.

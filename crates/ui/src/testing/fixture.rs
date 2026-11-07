@@ -5,7 +5,7 @@ use super::story::{Story, StoryData, StoryOutput};
 use crate::runtime::access::Role;
 use crate::runtime::egui::access::{AccessTree, NodeKey};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
-use crate::runtime::env::{Direction, RootEnv, Scale};
+use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
 use craft_behavior::{MotionMode, PartRef};
 use craft_host::target::Os;
 use craft_theme::{Contrast, Mode, Size, TextSize};
@@ -62,11 +62,23 @@ impl Fixture {
 
     /// A fixture that shows `story`; its data and outputs are read with [`Fixture::data`] and [`Fixture::take_outputs`].
     pub fn story(story: &Story) -> Self {
+        Self::with_scope(story, None)
+    }
+
+    /// A fixture that shows `story` inside an env scope `scope` changes: disabled, read-only, or both.
+    pub fn story_scoped(story: &Story, scope: fn(&mut Overrides)) -> Self {
+        Self::with_scope(story, Some(scope))
+    }
+
+    fn with_scope(story: &Story, scope: Option<fn(&mut Overrides)>) -> Self {
         let data = Rc::new(RefCell::new(StoryData::default()));
         let outputs = Rc::new(RefCell::new(Vec::new()));
         let (shared_data, shared_outputs, show) = (data.clone(), outputs.clone(), story.show);
         let mut fixture = Fixture::new(move |ui| {
-            let output = show(ui, &mut shared_data.borrow_mut());
+            let output = match scope {
+                Some(scope) => with_env(ui, scope, |ui| show(ui, &mut shared_data.borrow_mut())),
+                None => show(ui, &mut shared_data.borrow_mut()),
+            };
             shared_outputs.borrow_mut().push(output);
         });
         fixture.data = data;
@@ -119,6 +131,12 @@ impl Fixture {
         self.set_root(|root| root.scale = scale)
     }
 
+    /// The host every following frame is given: its language, catalogs and services.
+    pub fn host(&mut self, host: std::sync::Arc<craft_host::Host>) -> &mut Self {
+        self.frames.host(host);
+        self
+    }
+
     /// The operating system the keys and chrome follow: the shell's OS and capabilities, and egui's own OS for its
     /// text editing.
     pub fn os(&mut self, os: Os) -> &mut Self {
@@ -151,6 +169,31 @@ impl Fixture {
     /// The component id of the latest shown output.
     pub fn root_id(&self) -> Option<Id> {
         self.outputs.borrow().last().and_then(|output| output.id)
+    }
+
+    /// The first part of the shown component that senses a drag.
+    pub fn drag_part(&self) -> Option<PartRef> {
+        crate::runtime::pointer::drag_parts(self.ctx(), self.root_id()?).into_iter().next()
+    }
+
+    /// The text runs the latest frame painted.
+    pub fn texts(&self) -> &[fixture::PaintedText] {
+        self.frames.texts()
+    }
+
+    /// The visual bounds of the shapes the latest frame painted.
+    pub fn shape_bounds(&self) -> &[Rect] {
+        self.frames.shape_bounds()
+    }
+
+    /// Whether anything asked for another pass since the latest frame ended.
+    pub fn repaint_requested(&self) -> bool {
+        self.frames.repaint_requested()
+    }
+
+    /// The IME output of the latest frame.
+    pub fn ime(&self) -> Option<&fixture::ImeSeen> {
+        self.frames.ime()
     }
 
     /// The area the latest pass allocated.

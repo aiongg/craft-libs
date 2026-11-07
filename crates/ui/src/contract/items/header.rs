@@ -417,7 +417,7 @@ struct HeaderTextStyle {
 
 /// A header cell's label.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "The header text is shown by a collection's header row, never stand-alone."))]
+#[component(exempt(case = "face-only", reason = "The header text is shown by a collection's header row, never stand-alone."))]
 struct HeaderText {
     #[common]
     common: Common,

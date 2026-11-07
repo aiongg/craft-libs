@@ -34,7 +34,7 @@ impl Outcome for TabOut {
 /// One panel's tab.
 // F8-MERGE: tabs (`TabStrip` replaces the row of these tabs and carries the panel drag)
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "A stand-in for the tabs family's strip item, shown only in a dock group's header."))]
+#[component(exempt(case = "face-only", reason = "A stand-in for the tabs family's strip item, shown only in a dock group's header."))]
 pub(super) struct PanelTab {
     #[common]
     common: Common,
