@@ -289,7 +289,10 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
         if top.rect.min.y > container.rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
             return Err(format!("{}: the frame of the scroll leaves part of the viewport without rows", story.name));
         }
-        if now.windows(2).any(|pair| pair[1].rect.min.y - pair[0].rect.max.y > row) {
+        // A section header between two items fills the space it takes; any other gap is a row that is missing.
+        let headings = nodes_of(&fixture, &container, Role::HEADING);
+        let filled = |above: f32, below: f32| headings.iter().any(|heading| heading.rect.min.y >= above && heading.rect.max.y <= below);
+        if now.windows(2).any(|pair| pair[1].rect.min.y - pair[0].rect.max.y > row && !filled(pair[0].rect.max.y, pair[1].rect.min.y)) {
             return Err(format!("{}: the frame of the scroll shows rows with a gap between them", story.name));
         }
     }
