@@ -20,7 +20,6 @@ use std::sync::Arc;
 pub use crate::runtime::keys::Intents;
 pub use craft_behavior::{Letters, Roving};
 pub use policy::{ActivateKeys, EditSet, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse};
-#[doc(hidden)]
 
 /// A focus stop: a component, or one of its parts.
 pub(crate) type StopKey = (Id, Option<PartRef>);
