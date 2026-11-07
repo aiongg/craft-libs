@@ -286,10 +286,38 @@ pub struct Scoped {
     pub arena: Option<ArenaId>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
+    /// The `Grid` body whose cursor places the children in flow.
+    pub(crate) grid: Option<Id>,
+    /// A scrolling body encloses the scope: a collection under it owns no scroll of its own.
+    pub(crate) in_scroll: bool,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
     pub(crate) values: AppValues,
+}
+
+/// Token-changing values for a container's body: the body and everything under it resolve their styles from
+/// these tokens.
+#[derive(Clone)]
+pub struct ThemeScope {
+    tokens: Arc<UiTokens>,
+}
+
+impl ThemeScope {
+    /// A scope whose body resolves from `tokens`.
+    pub fn new(tokens: UiTokens) -> Self {
+        ThemeScope { tokens: Arc::new(tokens) }
+    }
+
+    pub(crate) fn tokens(&self) -> &Arc<UiTokens> {
+        &self.tokens
+    }
+}
+
+impl std::fmt::Debug for ThemeScope {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ThemeScope").field("key", &self.tokens.key()).finish()
+    }
 }
 
 /// The inherited group of an env, captured to open a popup or viewport: the layer-local fields are reset.
@@ -334,6 +362,8 @@ impl Env {
                 scale,
                 arena: None,
                 transform: None,
+                grid: None,
+                in_scroll: false,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 host,
@@ -378,6 +408,8 @@ impl Env {
         EnvCapture(self.derive(|s| {
             s.arena = None;
             s.transform = None;
+            s.grid = None;
+            s.in_scroll = false;
             s.ink = Ink::default();
         }))
     }

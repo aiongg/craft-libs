@@ -18,3 +18,8 @@ pub(crate) fn set_theme_direction(ctx: &Context, root: &mut Ui, right_to_left: b
         root.style_mut().right_to_left = right_to_left;
     }
 }
+
+/// Sets the spacing between the children `ui` lays out.
+pub(crate) fn set_item_spacing(ui: &mut Ui, gap: egui::Vec2) {
+    ui.spacing_mut().item_spacing = gap;
+}

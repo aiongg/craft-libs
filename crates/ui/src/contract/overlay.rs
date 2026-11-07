@@ -112,7 +112,17 @@ pub enum OverlayFit {
 /// How the user may resize a layer.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct Resize {}
+pub struct Resize {
+    /// Edge and corner grips resize the layer.
+    pub grips: bool,
+}
+
+impl Resize {
+    /// The layer keeps its size.
+    pub const NONE: Resize = Resize { grips: false };
+    /// Grips on every edge and corner.
+    pub const GRIPS: Resize = Resize { grips: true };
+}
 
 /// What a press outside the layer and its anchor does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -258,7 +268,7 @@ impl Overlay {
             fit,
             min_width: MinWidth::None,
             movable: false,
-            resize: Resize {},
+            resize: Resize::NONE,
             rank,
             keys,
             focus,
@@ -351,6 +361,12 @@ impl Overlay {
         );
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
+    }
+
+    /// Whether edge grips resize the layer.
+    pub fn resizable(mut self, on: bool) -> Overlay {
+        self.resize = if on { Resize::GRIPS } else { Resize::NONE };
+        self
     }
 
     /// Rank `Window` and no backdrop.
@@ -652,9 +668,10 @@ impl<'a> OverlayUi<'a> {
         let out = host(&ctx, &layer, &mut |ui| {
             let mut stage = if ui.is_sizing_pass() { MemoryStage::open_peek(&ctx, popup.id) } else { MemoryStage::open_owned(&ctx, popup.id, owner) };
             let rect = ui.available_rect_before_wrap();
-            let mut bcx = BodyCx::new(popup.id, env.view(), resolved, rect, &mut stage);
+            let mut shown_open = open;
+            let mut bcx = BodyCx::new(popup.id, env.view(), resolved, rect, &mut stage, &mut shown_open, None);
             result = Some(body(ui, &mut bcx));
-            requested = bcx.close_requested;
+            requested = bcx.close_requested();
             stage.write_back();
         });
         with_popups(&ctx, |popups| popups.shown.push((self.owner, popup.id)));

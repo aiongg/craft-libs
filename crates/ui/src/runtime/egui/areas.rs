@@ -56,13 +56,11 @@ pub(crate) fn layer_at(ctx: &Context, point: Pos2) -> Option<LayerId> {
     ctx.layer_id_at(point)
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// The layer of a transformed body: a sublayer of `parent` in the parent's order, named by `root`.
 pub(crate) fn body_layer(parent: LayerId, root: Id) -> LayerId {
     LayerId::new(parent.order, crate::runtime::memory::sub(root, "body_layer"))
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// What a transformed body's forwarding widget carries: the root's sense and interact rect, in screen space.
 pub(crate) struct Forward {
     pub id: Id,
@@ -70,7 +68,6 @@ pub(crate) struct Forward {
     pub rect: Rect,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the F5 mount host"))]
 /// Shows a transformed body: `layer` is shown through `transform`, a sublayer of `parent`, with its top left
 /// at `at` in its own space. The forwarding widget, when given, is registered on the layer first, so an
 /// allocating `Ui` on the layer cannot hide the root under egui's layer-cover rule.

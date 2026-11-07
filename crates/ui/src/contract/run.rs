@@ -15,7 +15,7 @@ use crate::runtime::access::{Role, scope};
 use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{commands, focus, inspect, keys, layout_memory, memory};
+use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, ScrollPos, Sense};
 use craft_theme::ControlSize;
@@ -54,7 +54,17 @@ pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
     /// Where steps 6 to 16 run.
-    fn host(&mut self) -> Box<dyn Host>;
+    fn host(&mut self, comp: &C) -> Box<dyn Host>;
+
+    /// The focus scope pushed at step 6 and popped after step 16.
+    fn focus(&self, _comp: &C) -> Option<crate::runtime::focus::FocusPolicy> {
+        None
+    }
+
+    /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect.
+    fn sized(&self, _comp: &C, _ui: &Ui, size: Vec2) -> Vec2 {
+        size
+    }
 
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
@@ -67,7 +77,7 @@ pub(crate) trait ShapeHooks<C: Component> {
     }
 
     /// Step 4: the shape's part of the value step (selection snapshot, scroll offset).
-    fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id) {}
+    fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id, _env: &Env) {}
 
     /// Step 7: the parts the shape declares itself (scroll parts, the item layout).
     fn parts(&mut self, _comp: &mut C, _rect: Rect, _pcx: &mut PartsCx<'_, C>) {}
@@ -84,8 +94,11 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Step 14: the body or the items.
     fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues);
 
+    /// Step 15, before the value events are applied: open, gate and scroll changes go to their owners.
+    fn settle(&mut self, _comp: &mut C, _cx: &mut Cx<'_, C>) {}
+
     /// Step 17: what the shape records for next frame.
-    fn record(&mut self, _ctx: &Context, _id: Id) {}
+    fn record(&mut self, _stage: &mut MemoryStage, _ctx: &Context, _id: Id) {}
 }
 
 struct LeafHooks;
@@ -95,88 +108,11 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         ShapeKind::Leaf
     }
 
-    fn host(&mut self) -> Box<dyn Host> {
+    fn host(&mut self, _: &C) -> Box<dyn Host> {
         Box::new(Inline)
     }
 
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
-}
-
-struct BodyHooks<'b> {
-    body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
-    /// The body's size from last frame's layout memory; `None` on the first frame.
-    remembered: Option<Vec2>,
-    /// The room the mount offers, in which a first-frame body runs.
-    room: Rect,
-    /// The size the body had in this pass, recorded at step 17.
-    body_size: Option<Vec2>,
-}
-
-impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
-    fn shape(&self) -> ShapeKind {
-        ShapeKind::Body
-    }
-
-    fn host(&mut self) -> Box<dyn Host> {
-        Box::new(Inline)
-    }
-
-    fn arena(&self, comp: &C) -> bool {
-        comp.props(Internal::new()).arena
-    }
-
-    fn extent(&mut self, _: &C, ui: &Ui, at: ShowAt, id: Id, _: &StyleCx<'_>) -> Vec2 {
-        self.remembered = layout_memory::read(ui.ctx(), id);
-        self.room = match at {
-            ShowAt::Rect(rect) => rect,
-            ShowAt::Flow => ui.available_rect_before_wrap(),
-        };
-        self.remembered.unwrap_or(Vec2::ZERO)
-    }
-
-    fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues) {
-        let rtl = env.direction.is_rtl();
-        let id = cx.core.id;
-        // With no remembered size the body runs in the full room the mount offers; step 17 records its real size,
-        // which asks for the one discard pass.
-        let rect = match self.remembered {
-            Some(_) => cx.core.content_rect,
-            None => Flow::new(self.room, rtl).inset(cx.style.metrics().padding),
-        };
-        let body_id = sub(id, "body");
-        let props = comp.props(Internal::new());
-        let (arena, command_scope) = (props.arena, props.command_scope);
-        if let Some(scope) = command_scope {
-            commands::register_instance(&cx.core.ctx, scope, id);
-        }
-        let inner = env.derive(|scoped| {
-            scoped.values.extend(values);
-            scoped.ink = cx.core.ink;
-            if arena {
-                scoped.arena = Some(ArenaId::new(id));
-            }
-            if let Some(scope) = command_scope {
-                scoped.commands = scoped.commands.pushed(scope, id);
-            }
-        });
-        let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id);
-        // The body's nodes are the container's children; a role with no node leaves them where egui puts them.
-        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
-        let mut body_ui = alloc::child(ui, builder);
-        let installed = Env::install_for(&body_ui, inner.clone());
-        {
-            let mut body_cx = BodyCx::new(body_id, inner.view(), cx.core.resolved, rect, &mut *cx.core.memory);
-            (self.body)(&mut body_ui, &mut body_cx);
-        }
-        Env::restore(&cx.core.ctx, installed);
-        self.body_size = Some(body_ui.min_rect().size());
-    }
-
-    fn record(&mut self, ctx: &Context, id: Id) {
-        if let Some(size) = self.body_size {
-            steps::record_size(ctx, id, size);
-        }
-    }
 }
 
 struct ItemsHooks<'s, 'r, C: Collection> {
@@ -190,7 +126,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         ShapeKind::Item
     }
 
-    fn host(&mut self) -> Box<dyn Host> {
+    fn host(&mut self, _: &C) -> Box<dyn Host> {
         Box::new(Inline)
     }
 
@@ -287,6 +223,8 @@ fn blank_core<'a>(
         claims: Vec::new(),
         reveal: None,
         press_cancel: None,
+        scroll_moves: Vec::new(),
+        root_sense: Sense::empty(),
     }
 }
 
@@ -335,8 +273,20 @@ struct Pass<'r, 'a, C: Component> {
     activated: bool,
 }
 
-/// Steps 6 to 16, in the `Ui` the host gives.
+/// Steps 6 to 16, in the `Ui` the host gives, inside the component's focus scope.
 fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>) {
+    let scope = if p.sizing || ui.is_sizing_pass() { None } else { p.hooks.focus(p.comp) };
+    let (ctx, id) = (p.cx.core.ctx.clone(), p.resolved.id);
+    if let Some(policy) = scope {
+        focus::push_scope(&ctx, id, policy, None);
+    }
+    steps_6_to_16(p, ui, host_at);
+    if scope.is_some() {
+        focus::pop_scope(&ctx);
+    }
+}
+
+fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
     let (env, resolved, inert) = (p.env, p.resolved, p.inert);
@@ -354,7 +304,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     // 7 parts
     p.trace.mark(Step::Parts);
     let flow = Flow::new(rect, rtl);
-    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new() };
+    let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new() };
     if !inert {
         let last = *cx.core.memory.shown::<steps::LastState>(sub(id, "last_state"));
         let input = MeasureIn { ui: &*ui, env, proposal: Proposal::Ideal, room: p.room };
@@ -364,6 +314,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
             flow,
             decls: &mut parts.decls,
             rovings: &mut parts.rovings,
+            scrolls: &mut parts.scrolls,
             last_state: (last.0, last.1),
             measure,
         };
@@ -395,14 +346,14 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     p.trace.mark(Step::Sense);
     let decls: Vec<PartDecl> = parts.decls.iter().map(|(decl, _)| decl.clone()).collect();
     let enabled = resolved.enabled && !inert;
-    let (response, results, press, activation, activated_member) = match member {
+    let (response, results, press, activation, activated_member, root_sense) = match member {
         Some(arena) => {
             let sensed = sensing::sense_member(ui, arena, MemberSpec { id, rect, sense: own, parts: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activated, None)
+            (sensed.response, sensed.parts, sensed.press, sensed.activated, None, Sense::empty())
         }
         None => {
             let sensed = sensing::sense_root(ui, RootSpec { id, rect, own_sense: own, own: &decls, enabled });
-            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member)
+            (sensed.response, sensed.parts, sensed.press, sensed.activation, sensed.activated_member, sensed.sense)
         }
     };
     // The node exists before any child `Ui` runs, so the children find their parent (12.2). A member has no egui
@@ -425,7 +376,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     cx.core.response = response;
     // The focus service holds last pass's registration: a part that is not in this pass's results is not active.
     cx.core.active = focus::active_part(&ctx, id).filter(|part| results.contains_key(&(part.key, part.index)));
+    cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
     cx.core.results = results;
+    cx.core.root_sense = root_sense;
     cx.core.press = press;
     cx.core.member_of = member.map(|arena| arena.0);
     cx.core.activation = activation.then_some(Activation { by_key: false });
@@ -481,6 +434,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
     // 15 settle
     p.trace.mark(Step::Settle);
+    p.hooks.settle(comp, cx);
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
@@ -521,7 +475,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let value = steps::value(&mut comp, &mut stage, id, step1.command.as_deref());
     let (shown, mixed) = (value.value, value.mixed);
     let cancelled: Vec<_> = value.cancelled.into_iter().collect();
-    hooks.read(&mut comp, &mut stage, id);
+    hooks.read(&mut comp, &mut stage, id, &env);
     trace.mark(Step::Value);
     // 5 measure
     let room = match at {
@@ -534,6 +488,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), extent)
     };
     trace.mark(Step::Measure);
+    let size = hooks.sized(&comp, ui, size);
     let inert = !steps::guard(size, shape);
     if inert && size != Vec2::ZERO {
         let now = crate::runtime::frame::clock(&ctx);
@@ -555,7 +510,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
-    let mut host = hooks.host();
+    let mut host = hooks.host(&comp);
     let mut run = Pass {
         comp: &mut comp,
         cx: &mut cx,
@@ -583,7 +538,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     }
     let output = comp.finish(cx);
     if real_pass {
-        hooks.record(&ctx, id);
+        hooks.record(&mut stage, &ctx, id);
     }
     debug_assert!(!real_pass || crate::contract::Outcome::response(&output).id == id, "an output's Response is the component's own");
     if !sizing {
@@ -605,7 +560,7 @@ pub(crate) fn show_container<C: Container, R>(
 ) -> Inner<C::Output, R> {
     let mut inner: Option<R> = None;
     let mut call = |ui: &mut Ui, cx: &mut BodyCx<'_>| inner = Some(body(ui, cx));
-    let output = run(comp, ui, at, tip, &mut BodyHooks { body: &mut call, remembered: None, room: Rect::NOTHING, body_size: None });
+    let output = run(comp, ui, at, tip, &mut super::body::BodyHooks::new(&mut call));
     Inner { output, inner }
 }
 

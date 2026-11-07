@@ -461,8 +461,7 @@ pub(crate) fn guard(size: Vec2, shape: ShapeKind) -> bool {
 /// Step 6, place: in flow one allocation with no widget, at a rect none.
 pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
     match at {
-        // F5-LATER: the `Grid` cursor places a child in flow under a grid body (16.3).
-        super::run::ShowAt::Flow => crate::runtime::egui::alloc::space(ui, size),
+        super::run::ShowAt::Flow => crate::layout::place_in_flow(ui, size),
         super::run::ShowAt::Rect(rect) => rect,
     }
 }
@@ -471,6 +470,7 @@ pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
 pub(crate) struct PartsStep {
     pub decls: Decls,
     pub rovings: Vec<Roving>,
+    pub scrolls: Vec<super::cx::ScrollDecl>,
 }
 
 /// The parts of last pass's complete set in which this pass's results are read; first-frame parts read idle.
@@ -886,7 +886,6 @@ pub(crate) struct Reveal {
 struct Reveals(Vec<Reveal>);
 
 /// The reveal request addressed to `owner`, once.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by the body and item scroll (F5, F6)"))]
 pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     store::Service::<Reveals>::of(ctx).with(|reveals| {
         let at = reveals.0.iter().position(|reveal| reveal.owner == owner)?;

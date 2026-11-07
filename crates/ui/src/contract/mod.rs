@@ -1,9 +1,12 @@
 //! The component traits, context types, `PaintUi`, `Looks`, the pipeline and its step functions, the label, body and item steps, the mount and overlay hosts and `contract::tooltip`.
 
+mod body;
+mod container;
 mod cx;
 pub mod ghost;
 mod looks;
 pub mod overlay;
+mod mount;
 mod paint_ui;
 mod props;
 mod registry;
@@ -30,7 +33,12 @@ pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
 pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
-pub use shell::{CollectionProps, ContainerProps};
+pub use container::{
+    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
+    ShellPane, SideLabel, Sizing, ThemeScope,
+};
+pub use shell::CollectionProps;
+pub use crate::layout::{BodyLayout, RowAlign};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
@@ -168,18 +176,6 @@ impl<O, R> Deref for Inner<O, R> {
 
     fn deref(&self) -> &O {
         &self.output
-    }
-}
-
-/// The shell pane a `Mount::Pane` names.
-#[derive(Clone, Copy, Debug)]
-#[non_exhaustive]
-pub struct ShellPane(pub &'static str);
-
-impl ShellPane {
-    /// The pane named `name`.
-    pub const fn new(name: &'static str) -> Self {
-        ShellPane(name)
     }
 }
 

@@ -37,3 +37,62 @@ impl ScrollSpan {
         self
     }
 }
+
+/// The thumb of `span` on a track `track` points long: its start along the track and its length, at least
+/// `min_thumb`. The thumb stands for the visible range inside the content range.
+pub fn thumb(span: &ScrollSpan, track: f32, min_thumb: f32) -> (f32, f32) {
+    let content = span.content.end - span.content.start;
+    let visible = span.visible.end - span.visible.start;
+    let share = if content > 0.0 { (visible / content).clamp(0.0, 1.0) } else { 1.0 };
+    let len = (f64::from(track) * share).max(f64::from(min_thumb.min(track))) as f32;
+    let travel = f64::from((track - len).max(0.0));
+    let room = (content - visible).max(f64::EPSILON);
+    let at = ((span.visible.start - span.content.start) / room).clamp(0.0, 1.0);
+    ((travel * at) as f32, len)
+}
+
+/// The visible range after the thumb moved `delta` points along the track, kept inside the content range.
+pub fn drag(span: &ScrollSpan, track: f32, min_thumb: f32, delta: f32) -> Range<f64> {
+    let (_, len) = thumb(span, track, min_thumb);
+    let travel = f64::from((track - len).max(0.0));
+    let visible = span.visible.end - span.visible.start;
+    let room = (span.content.end - span.content.start - visible).max(0.0);
+    let shift = if travel > 0.0 { f64::from(delta) * room / travel } else { 0.0 };
+    shifted(span, shift)
+}
+
+/// The visible range one visible length further toward the end (or the start), kept inside the content range.
+pub fn page(span: &ScrollSpan, toward_end: bool) -> Range<f64> {
+    let visible = span.visible.end - span.visible.start;
+    shifted(span, if toward_end { visible } else { -visible })
+}
+
+fn shifted(span: &ScrollSpan, shift: f64) -> Range<f64> {
+    let visible = span.visible.end - span.visible.start;
+    let last = (span.content.end - visible).max(span.content.start);
+    let start = (span.visible.start + shift).clamp(span.content.start, last);
+    start..start + visible
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn dragging_the_thumb_to_the_end_of_the_track_shows_the_end_of_the_content() {
+        let span = ScrollSpan::new(0.0..1000.0, 0.0..200.0);
+        let (at, len) = thumb(&span, 100.0, 10.0);
+        assert_eq!((at, len), (0.0, 20.0));
+        let moved = drag(&ScrollSpan::new(0.0..1000.0, 0.0..200.0), 100.0, 10.0, 80.0);
+        assert_eq!(moved, 800.0..1000.0);
+        let past = drag(&span, 100.0, 10.0, 500.0);
+        assert_eq!(past, 800.0..1000.0, "the range stops at the end of the content");
+    }
+
+    #[test]
+    fn a_page_press_moves_one_visible_length_and_stops_at_the_ends() {
+        let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
+        assert_eq!(page(&span, true), 300.0..500.0);
+        assert_eq!(page(&span, false), 0.0..200.0);
+    }
+}

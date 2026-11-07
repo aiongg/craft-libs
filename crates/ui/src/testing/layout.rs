@@ -2,7 +2,7 @@
 //! `arrange`, with placeholder children that take a given size.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, Role};
-use crate::layout::{BodyLayout, run_body};
+use crate::layout::{BodyLayout, place_in_flow, run_body};
 use crate::runtime::egui::fixture;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
@@ -14,7 +14,7 @@ use egui::{Id, Rect, Response, Ui, Vec2};
 /// does. Returns each child's rect.
 pub fn body(ui: &mut Ui, key: &'static str, layout: &BodyLayout, sizes: &[Vec2]) -> Vec<Rect> {
     let id = sub(ui.scope_id(), key);
-    run_body(ui, id, layout, Vec2::ZERO, |ui, cells| sizes.iter().map(|size| cells.place(ui, *size)).collect())
+    run_body(ui, id, layout, Vec2::ZERO, |ui| sizes.iter().map(|size| place_in_flow(ui, *size)).collect())
 }
 
 /// A block that placed itself from `key`'s entry of last pass and measured `real` this pass. Returns the size
@@ -103,4 +103,14 @@ impl Component for Block {
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.core.response
     }
+}
+
+/// Runs `body` in a child `Ui` whose region is `rect`.
+pub fn in_region<R>(ui: &mut Ui, rect: egui::Rect, body: impl FnOnce(&mut Ui) -> R) -> R {
+    crate::runtime::egui::child::block(ui, Some(rect), egui::Layout::top_down(egui::Align::Min), body).0
+}
+
+/// Takes `size` in the layout of `ui` and returns its rect.
+pub fn allocate(ui: &mut Ui, size: Vec2) -> egui::Rect {
+    crate::runtime::egui::alloc::space(ui, size)
 }
