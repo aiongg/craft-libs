@@ -119,6 +119,12 @@ pub(crate) trait ShapeHooks<C: Component> {
         Vec2::ZERO
     }
 
+    /// The width by which the shape's content wants to be wider than the size it measured to, because the room cut
+    /// it: the parent `Ui` counts it in the size it took, so a parent that sizes from its content widens.
+    fn overflow(&self) -> f32 {
+        0.0
+    }
+
     /// The rows this pass places, for `PartsCx::rect_of`; computed before the component's `parts` runs.
     fn geometry(&mut self, _comp: &C, _content: Rect, _rtl: bool) -> Option<std::rc::Rc<dyn std::any::Any>> {
         None
@@ -292,6 +298,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     // 6 place
     let rect = steps::place(ui, host_at.unwrap_or(p.at), if inert { Vec2::ZERO } else { p.size });
     p.trace.mark(Step::Place);
+    let overflow = p.hooks.overflow();
+    if overflow > 0.0 && matches!(host_at.unwrap_or(p.at), ShowAt::Flow) {
+        ui.expand_to_include_x(if rtl { rect.min.x - overflow } else { rect.max.x + overflow });
+    }
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
     if p.sizing || ui.is_sizing_pass() {

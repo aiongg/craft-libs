@@ -176,3 +176,32 @@ fn a_blocking_overlays_cancel_button_closes_it() {
     fixture.click(&button);
     assert_eq!(seen.get(), Some(CloseReason::Requested));
 }
+
+/// The width of each footer button by name, after the dialog settled, with a body of `body` text.
+fn button_widths(body: &str, names: [&'static str; 3]) -> [f32; 3] {
+    let mut frames = Frames::new();
+    let mut ui = |ui: &mut Ui| {
+        let (mut open, mut snap) = (true, false);
+        Dialog::new("Options")
+            .opened(Bind::bound(&mut open))
+            .buttons(names.into_iter().zip([DialogRole::Other, DialogRole::Cancel, DialogRole::Accept]).map(|(name, role)| FooterButton::new(name, role)))
+            .show(ui, |ui, _| {
+                Checkbox::new(Bind::bound(&mut snap)).label(body.to_owned()).show(ui);
+            });
+    };
+    frames.idle(30, &mut ui);
+    let tree = frames.tree();
+    names.map(|name| {
+        let key = tree.keys().into_iter().find(|key| tree.name_of(*key) == Some(name));
+        key.and_then(|key| tree.bounds_of(key)).map_or(0.0, |bounds| bounds.width())
+    })
+}
+
+#[trial]
+fn a_dialog_widens_for_a_footer_wider_than_its_body() {
+    let names = ["Discard all changes", "Keep editing", "Save as a new version"];
+    let short = button_widths("Sure?", names);
+    let long = button_widths(&"A body wider than the three buttons together. ".repeat(6), names);
+    assert!(short.iter().all(|width| *width > 0.0), "each button is shown: {short:?}");
+    assert_eq!(short, long, "a short body does not squeeze the buttons");
+}
