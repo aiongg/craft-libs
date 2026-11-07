@@ -8,15 +8,15 @@ use std::collections::HashMap;
 
 use super::ParityState;
 use crate::runtime::egui::access::parity::{child_path, line_of, paths_of};
-use crate::runtime::egui::access::{Action, Role};
-use egui_kittest::kittest::NodeT as _;
-use egui_kittest::{Harness, Node};
+use crate::runtime::egui::access::{AccessTree, Action, NodeKey, Role};
 
 /// One node of a [`Tree`].
 #[non_exhaustive]
 pub struct Line {
     pub depth: usize,
     pub path: String,
+    /// The node the line reads.
+    pub key: NodeKey,
     /// Everything after the path.
     pub text: String,
     pub focused: bool,
@@ -102,28 +102,21 @@ impl Tree {
     }
 }
 
-/// The harness's tree.
-pub fn tree<S>(harness: &Harness<'_, S>) -> Tree {
-    let mut paths = HashMap::new();
-    paths_of(&harness.root(), "r", &mut paths);
+/// The text tree of `access`.
+pub fn tree(access: &AccessTree) -> Tree {
     let mut lines = Vec::new();
-    collect(&harness.root(), "r", 0, &paths, &mut lines);
+    if let Some(root) = access.root_key() {
+        let mut paths = HashMap::new();
+        paths_of(access, root, "r", &mut paths);
+        collect(access, root, "r", 0, &paths, &mut lines);
+    }
     Tree { lines }
 }
 
-/// The node at `path` of a tree made by [`tree`].
-pub fn node_at<'a, S>(harness: &'a Harness<'_, S>, path: &str) -> Option<Node<'a>> {
-    let mut node = harness.root();
-    for index in path.strip_prefix('r')?.split('.').filter(|s| !s.is_empty()) {
-        node = node.children().nth(index.parse().ok()?)?;
-    }
-    Some(node)
-}
-
-fn collect(node: &Node<'_>, path: &str, depth: usize, paths: &HashMap<String, String>, lines: &mut Vec<Line>) {
-    lines.push(line_of(node, path, depth, paths));
-    for (i, child) in node.children().enumerate() {
-        collect(&child, &child_path(path, i), depth + 1, paths, lines);
+fn collect(access: &AccessTree, key: NodeKey, path: &str, depth: usize, paths: &HashMap<u64, String>, lines: &mut Vec<Line>) {
+    lines.extend(line_of(access, key, path, depth, paths));
+    for (i, child) in access.children_of(key).into_iter().enumerate() {
+        collect(access, child, &child_path(path, i), depth + 1, paths, lines);
     }
 }
 

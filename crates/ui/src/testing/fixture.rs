@@ -194,7 +194,8 @@ impl Fixture {
         &self.tree
     }
 
-    fn target(&self, node: NodeKey) -> Option<Target> {
+    /// The node by key, with its bounds, when the latest tree has it.
+    pub fn target(&self, node: NodeKey) -> Option<Target> {
         Some(Target { node, rect: self.tree.bounds_of(node)? })
     }
 
