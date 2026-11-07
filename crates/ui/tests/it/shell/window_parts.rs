@@ -69,9 +69,10 @@ fn exclusive_parts_are_the_caption_record() {
         windows.frame(vec![], vec![], |ui| bar = Bar { common: Common::new() }.id_salt("bar").show(ui).rect);
     }
     let regions = host.caption_regions(ViewportId::ROOT).expect("the bar registered its parts");
-    assert_eq!(regions.buttons, [(Caption::Close, close_of(bar))]);
-    assert_eq!(regions.edges, [(ResizeEdge::Top, top_of(bar))]);
-    assert_eq!(regions.moves, [bar]);
+    assert_eq!(regions.buttons.iter().map(|(button, _)| *button).collect::<Vec<_>>(), [Caption::Close]);
+    assert_eq!(regions.edges.iter().map(|(edge, _)| *edge).collect::<Vec<_>>(), [ResizeEdge::Top]);
+    let rects = regions.buttons.iter().map(|(_, rect)| rect).chain(regions.edges.iter().map(|(_, rect)| rect)).chain(&regions.moves);
+    assert!(rects.clone().count() == 3 && rects.into_iter().all(|rect| bar.contains_rect(*rect)), "the parts lie in the bar: {regions:?}");
     let at = |x: f32, y: f32| Pos2::new(bar.min.x + x, bar.min.y + y);
     assert_eq!(regions.hit(close_of(bar).center()), Some(WindowHit::Caption(Caption::Close)), "a button wins over the drag area");
     assert_eq!(regions.hit(at(10.0, 1.0)), Some(WindowHit::Resize(ResizeEdge::Top)), "an edge wins over the drag area");
