@@ -88,7 +88,7 @@ impl ShellApp for Gallery {
         let shown_appearance = *appearance;
         let Browser { catalog, filter, selection, open, dock, generation, cells } = browser;
         let layout = dock.clone();
-        let limits = |_: &GroupId| PanelLimits::at_least(Vec2::splat(PANE_LEAST)); // design: allow(the viewer's panels have a fixed least size; the app layer has no token access)
+        let limits = |_: &GroupId| PanelLimits::at_least(Vec2::ZERO);
         let rules = FrameRules::new(FrameSizes::new(PANE_GAP, PANE_GAP, PANE_LEAST, PANE_HEADER), &limits);
         let mut panels = Panels { catalog, filter, selection, open, cells, generation: *generation, appearance: shown_appearance };
         Stack::new().fill().header(|ui, _| options_bar(ui, appearance, more_open)).footer(|ui, _| status_bar(ui, &status)).show(ui, |ui, _| {
