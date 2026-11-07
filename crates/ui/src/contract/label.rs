@@ -555,9 +555,6 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let (gap, slot_side) = (tokens.space.gap.inline, tokens.size.handle.sm);
     let reset = scope::last_reset(&ctx, input.scope);
     let flow = Flow::new(input.row, rtl);
-    if input.side.kind == LabelKind::Hidden {
-        eprintln!("ZZ hidden ambient {:?} room {} min {}", crate::layout::ambient_width(&ctx, &crate::layout::LABELS, 0.0), input.room, input.control_min);
-    }
     let label_id = sub(input.scope, "label");
     if input.side.kind == LabelKind::Hidden {
         scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
@@ -625,7 +622,6 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
         }
         Flow::new(wide, rtl)
     };
-    eprintln!("ZZ label {:?} column {column} stacks {stacks} room {} below {stack_below} control_min {} row {:?}", input.text, input.room, input.control_min, input.row);
     let placed = if input.side.layout == FieldLayout::After {
         place_after(&ctx, input.scope, flow, input.control_min, gap, natural, baseline)
     } else {

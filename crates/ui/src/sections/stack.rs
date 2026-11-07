@@ -95,7 +95,7 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
     pub fn new(order: &'a [K], each: impl FnMut(&mut Ui, &K, StackSlot) -> SectionOutput + 'a) -> Self {
         SectionStack {
             common: Common::new(),
-            props: ContainerProps::new().sizing(Sizing::Fill),
+            props: ContainerProps::new().sizing(Sizing::FillWidth),
             order,
             each: Some(Box::new(each)),
             seen: Arc::new(Mutex::new(Vec::new())),

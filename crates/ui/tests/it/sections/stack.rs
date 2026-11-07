@@ -120,12 +120,9 @@ fn each_section_reports_its_place_in_the_stack() {
 }
 
 #[trial]
-fn zz_debug_stack() {
+fn a_stack_is_as_high_as_its_sections_and_stays_so() {
     let (mut fixture, _) = scene();
-    let mut out = String::new();
-    for _ in 0..6 {
-        fixture.idle(1);
-        out += &format!("{:?} passes {}; ", fixture.shown(), fixture.passes());
-    }
-    panic!("{out}");
+    let settled = fixture.shown().height();
+    fixture.idle(3);
+    assert_eq!(fixture.shown().height(), settled, "sections fill the width, not the height, so the stack does not grow");
 }

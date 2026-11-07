@@ -76,12 +76,12 @@ pub struct Section<'a> {
 impl<'a> Section<'a> {
     /// A collapsible section titled `title`. It starts open.
     pub fn new(title: impl Into<Label>) -> Self {
-        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::Fill))
+        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()).sizing(Sizing::FillWidth))
     }
 
     /// A section that is always open: the title alone, with no disclosure.
     pub fn fixed(title: impl Into<Label>) -> Self {
-        Section::build(title, false, ContainerProps::new().sizing(Sizing::Fill))
+        Section::build(title, false, ContainerProps::new().sizing(Sizing::FillWidth))
     }
 
     fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {

@@ -1073,7 +1073,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 owner: id,
                 parent: node.then_some(id),
                 row: regions.body,
-                room: if self.sizing(&props) == Sizing::Content { room.x } else { regions.body.width() },
+                room: if self.sizing(&props) == Sizing::Content {
+                    layout::ambient_room(&ctx).map_or(room.x, |offered| room.x.max(offered))
+                } else {
+                    regions.body.width()
+                },
                 text: resolved.label_value,
                 side,
                 help: props.help.as_ref(),
@@ -1159,13 +1163,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                         let mut region_ui =
                             alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
-                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
+                        layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| {
+                            shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx))
+                        });
                         let extent = region_ui.min_rect().size();
                         self.extent = Some(extent);
                         Some((extent + inset).min(at.size()))
                     }
                     None => {
-                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, |ui| body(ui, bcx)));
+                        layout::run_body(&mut body_ui, layout_id, layout, gap, |ui| shared_labels(ui, id, label_column, room.x, |ui| body(ui, bcx)));
                         None
                     }
                 };
@@ -1406,6 +1412,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 /// Runs `body` in a column group named `labels` under the container `id` when `shared` is set, so the labelled
 /// rows directly inside share the widest label. Otherwise the body runs behind a barrier: the labelled rows of a
 /// nested container read no group of the container around it.
-fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, body: impl FnOnce(&mut Ui) -> R) -> R {
-    if shared { ColumnGroup::scope(ui, sub(id, "labels"), |ui, _| body(ui)) } else { ColumnGroup::barrier(ui, body) }
+fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, room: f32, body: impl FnOnce(&mut Ui) -> R) -> R {
+    if shared {
+        ColumnGroup::scope(ui, sub(id, "labels"), |ui, group| {
+            group.offer(room);
+            body(ui)
+        })
+    } else {
+        ColumnGroup::barrier(ui, body)
+    }
 }
