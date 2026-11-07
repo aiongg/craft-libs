@@ -3,4 +3,5 @@ mod env;
 mod frame;
 mod memory;
 mod pointer;
+mod pointer_input;
 mod wheel;

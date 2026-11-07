@@ -105,6 +105,22 @@ pub(crate) fn primary_button(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: Modifiers::NONE }
 }
 
+/// The secondary button going down or up at `pos`.
+pub(crate) fn secondary_button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE }
+}
+
+/// A wheel event of `dy` points with the zoom modifier held.
+pub(crate) fn zoom_wheel_event(dy: f32) -> Event {
+    Event::MouseWheel {
+        unit: egui::MouseWheelUnit::Point,
+        delta: egui::Vec2::new(0.0, dy),
+        phase: egui::TouchPhase::Move,
+        modifiers: Modifiers::COMMAND,
+        source: egui::MouseWheelSource::Wheel,
+    }
+}
+
 /// A key release event.
 pub(crate) fn key_release(key: Key, modifiers: Modifiers) -> Event {
     Event::Key { key, physical_key: Some(key), pressed: false, repeat: false, modifiers }

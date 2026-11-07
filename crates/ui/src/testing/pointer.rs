@@ -34,6 +34,16 @@ pub fn wheel(dy: f32) -> Event {
     fixture::wheel_event(dy)
 }
 
+/// The secondary button going down or up at `pos`.
+pub fn secondary(pos: Pos2, pressed: bool) -> Event {
+    fixture::secondary_button(pos, pressed)
+}
+
+/// A vertical wheel event of `dy` points with Ctrl or Cmd held, which zooms.
+pub fn zoom_wheel(dy: f32) -> Event {
+    fixture::zoom_wheel_event(dy)
+}
+
 /// Two frames with no input, so last pass's registrations exist before the first event.
 pub fn settle(frames: &mut Frames, show: &mut impl FnMut(&mut Ui)) {
     frames.idle(2, show);

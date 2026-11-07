@@ -1,7 +1,7 @@
 //! Raw input in the input hook, key events converted to craft-keymap's key types, `InputOptions`.
 
 use craft_behavior::one_press::split_after_first_press;
-use craft_behavior::{PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
+use craft_behavior::{Buttons, PointerButton, PointerEvent, PointerKind, PointerSample, WheelPhase, WheelUnit};
 use craft_host::target::Os;
 use craft_keymap::Mods;
 use egui::{Context, Event, Id, MouseWheelUnit, Pos2, TouchPhase, Vec2, ViewportId};
@@ -190,6 +190,12 @@ pub(crate) struct PointerRead {
     pub delta: Vec2,
     /// Whether the primary button is down.
     pub primary_down: bool,
+    /// Every button held.
+    pub buttons: Buttons,
+    /// The button that went up last in the pass, any button.
+    pub release: Option<PointerButton>,
+    /// The last press of a button other than the primary one: the button and where it went down.
+    pub other_press: Option<(PointerButton, Pos2)>,
     /// Whether the primary button went down in this pass.
     pub primary_pressed: bool,
     /// The modifiers held.
@@ -208,6 +214,24 @@ pub(crate) struct PointerRead {
     pub slop: f32,
 }
 
+const ALL_BUTTONS: [egui::PointerButton; 5] = [
+    egui::PointerButton::Primary,
+    egui::PointerButton::Secondary,
+    egui::PointerButton::Middle,
+    egui::PointerButton::Extra1,
+    egui::PointerButton::Extra2,
+];
+
+fn button_of(button: egui::PointerButton) -> PointerButton {
+    match button {
+        egui::PointerButton::Primary => PointerButton::Primary,
+        egui::PointerButton::Secondary => PointerButton::Secondary,
+        egui::PointerButton::Middle => PointerButton::Middle,
+        egui::PointerButton::Extra1 => PointerButton::Extra1,
+        egui::PointerButton::Extra2 => PointerButton::Extra2,
+    }
+}
+
 /// Converts the running pass's pointer input.
 pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
     let slop = ctx.options(|options| options.input_options.max_click_dist);
@@ -217,13 +241,24 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
         let mut focus_lost = false;
         let mut kind = PointerKind::Mouse;
         let mut sample = None;
+        let mut release = None;
+        let mut other_press = None;
         for event in &input.raw.events {
             match event {
+                Event::PointerButton { pos, button, pressed, .. } if *button != egui::PointerButton::Primary => {
+                    let button = button_of(*button);
+                    if *pressed {
+                        other_press = Some((button, *pos));
+                    } else {
+                        release = Some(button);
+                    }
+                }
                 Event::PointerMoved(pos) => events.push(PointerEvent::Moved(*pos)),
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: true, .. } => {
                     events.push(PointerEvent::pressed(*pos, input.time, 1));
                 }
                 Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed: false, .. } => {
+                    release = Some(PointerButton::Primary);
                     events.push(PointerEvent::released(*pos));
                 }
                 Event::WindowFocused(false) => focus_lost = true,
@@ -243,6 +278,12 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             hover: input.pointer.hover_pos(),
             delta: input.pointer.delta(),
             primary_down: input.pointer.primary_down(),
+            buttons: ALL_BUTTONS
+                .into_iter()
+                .filter(|button| input.pointer.button_down(*button))
+                .fold(Buttons::empty(), |held, button| held | Buttons::of(button_of(button))),
+            release,
+            other_press,
             primary_pressed: input.pointer.primary_pressed(),
             mods: mods(&input.modifiers, os),
             time: input.time,
@@ -266,6 +307,7 @@ pub(crate) fn hit_targets(ctx: &Context) -> (Option<Id>, Option<Id>) {
 /// last event's unit, phase and modifiers. `None` when no wheel event arrived.
 pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, WheelUnit, WheelPhase, Mods)> {
     let os = os(ctx);
+    let zoom_modifier = ctx.options(|options| options.input_options.zoom_modifier);
     ctx.input(|input| {
         let mut read: Option<(Vec2, WheelUnit, WheelPhase, Mods)> = None;
         for event in &input.raw.events {
@@ -281,7 +323,9 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
                     TouchPhase::End => WheelPhase::End,
                     TouchPhase::Cancel => WheelPhase::Cancel,
                 };
-                let sum = read.map_or(Vec2::ZERO, |(sum, ..)| sum) + *delta * points;
+                // Wheel events under the zoom modifier zoom (`PointerFrame.zoom`) and never scroll.
+                let share = if modifiers.matches_any(zoom_modifier) { Vec2::ZERO } else { *delta * points };
+                let sum = read.map_or(Vec2::ZERO, |(sum, ..)| sum) + share;
                 read = Some((sum, unit, phase, mods(modifiers, os)));
             }
         }
