@@ -63,5 +63,5 @@ fn panel_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let host = vec![PanelRow::Command(EditCommands::Undo.into()), PanelRow::Separator];
     let group = vec![PanelRow::Item(GroupItem::Float, "Float".into()), PanelRow::Item(GroupItem::Close, "Close".into())];
     let menu = PanelMenu::new(host, group);
-    StoryOutput::from(Menu::new("Panel menu", Bind::bound(data.value("open", true))).show(ui, |ui, _| menu.show(ui)).output)
+    StoryOutput::from(Menu::new("Panel menu", Bind::bound(data.value("open", true))).show(ui, |ui, cx| menu.show(ui, cx)).output)
 }

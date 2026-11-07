@@ -3,7 +3,7 @@
 use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside};
 use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Entry, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
     Show as _, ShowContainer as _, Trigger,
 };
 use crate::display::Divider;
@@ -90,25 +90,26 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
     ran
 }
 
-/// The value menu that hangs from `opener`: a click on the opener opens it, and it shows one row per entry. The open
-/// state stays in egui's temporary memory under the opener's id, until the contract lets a menu open without a binding.
-pub(crate) fn pick_from<T: Value + 'static>(ui: &mut Ui, label: impl Into<Label>, opener: &Response, entries: &[Entry<T>]) -> MenuPick<T> {
-    let state = opener.id.with("menu_open");
-    let mut open = crate::contract::clicked(opener) || ui.data(|data| data.get_temp::<bool>(state)).unwrap_or(false);
-    let picked = Menu::new(label, Bind::bound(&mut open)).opened_by(opener).pick(ui, entries);
-    ui.data_mut(|data| data.insert_temp(state, open));
-    picked
+/// The value menu that hangs from `opener`, one row per entry. The caller holds the open state and sets it on a click
+/// of the opener.
+pub(crate) fn pick_from<T: Value + 'static>(
+    ui: &mut Ui,
+    label: impl Into<Label>,
+    opener: &Response,
+    entries: &[Entry<T>],
+    open: &mut bool,
+) -> MenuPick<T> {
+    Menu::new(label, Bind::bound(open)).opened_by(opener).pick(ui, entries)
 }
 
-/// A row that opens a submenu showing the rows of `body`. The row's request opens the submenu; the open state stays
-/// in egui's temporary memory under the row's id, because a menu body here has no component memory of its own.
-pub(crate) fn submenu_rows(ui: &mut Ui, label: impl Into<Label>, mut body: impl FnMut(&mut Ui)) {
+/// A row that opens a submenu showing the rows of `body`. The row's request opens the submenu; the caller holds the
+/// open state, which also keeps the submenu open between requests.
+pub(crate) fn submenu_rows(ui: &mut Ui, label: impl Into<Label>, open: &mut bool, body: impl FnMut(&mut Ui, &mut BodyCx<'_>)) {
     let label = label.into();
     let head = MenuItem::submenu(label.clone()).show(ui);
-    let state = head.response.id.with("submenu_open");
-    let mut open = head.opens_submenu || ui.data(|data| data.get_temp::<bool>(state)).unwrap_or(false);
-    Menu::submenu(label, &head.response, Bind::bound(&mut open)).show(ui, |ui, _| body(ui));
-    ui.data_mut(|data| data.insert_temp(state, open));
+    *open |= head.opens_submenu;
+    let mut body = body;
+    Menu::submenu(label, &head.response, Bind::bound(open)).show(ui, |ui, cx| body(ui, cx));
 }
 
 /// A menu: a popup of [`MenuItem`]s and [`Divider`]s the arrow keys move through, one roving group. Press, context

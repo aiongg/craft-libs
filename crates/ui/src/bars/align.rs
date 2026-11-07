@@ -3,7 +3,7 @@
 
 use super::words::AlignWords;
 use crate::buttons::IconButton;
-use crate::contract::{BodyCx, Entry, Props as _, Show as _, WordSetCx as _};
+use crate::contract::{BodyCx, Entry, Props as _, Remember as _, Show as _, WordSetCx as _};
 use crate::display::Divider;
 use crate::runtime::env::Label;
 use craft_behavior::IconId;
@@ -188,7 +188,9 @@ impl<'a> AlignBar<'a> {
         let mut entries: Vec<Entry<AlignAction>> = AlignAction::ALIGN.into_iter().map(entry).collect();
         entries.push(Entry::separator());
         entries.extend(AlignAction::DISTRIBUTE.into_iter().map(entry));
-        let chosen = crate::menu::pick_from(ui, words.more.clone(), &more, &entries).picked;
+        let mut open = *cx.memory_at::<bool>("more_menu") || crate::contract::clicked(&more);
+        let chosen = crate::menu::pick_from(ui, words.more.clone(), &more, &entries, &mut open).picked;
+        *cx.memory_at::<bool>("more_menu") = open;
         AlignBarOutput { picked: chosen.or(picked), more }
     }
 }
