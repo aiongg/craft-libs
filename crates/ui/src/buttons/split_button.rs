@@ -2,14 +2,14 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi,
-    Overlays as _, PaintUi, PartsCx, Props as _, Role, SelectMode, ShowCollection as _, Styled as _, WordSetCx as _,
+    Access, Common, Component, Cx, Entry, Focus as _, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role,
+    ShowContainer as _, Styled as _,
 };
-use crate::list::{List, ListRow};
+use crate::menu::{self, Menu};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, IconLook, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook};
-use craft_behavior::{DisplayOrder, Flow, HitLevel, HitPriority, IconId, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value};
+use craft_behavior::{Flow, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, Sense, Value};
 use craft_theme::{
     States, Variant,
     variant::{Emphasis, Tone},
@@ -157,44 +157,14 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         }
     }
 
-    /// The menu: one row per entry, a spacer for a separator. A pick comes back from the list as Enter or a click on a
-    /// row; a disabled entry takes neither the lead nor a pick.
+    /// The menu: one `MenuItem` row per entry, a rule for a separator. Running a row reports its value and closes the
+    /// menu; a disabled entry takes neither focus-run nor a pick.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("menu");
         let entries = self.entries;
-        let labels: Vec<Label> = entries.iter().map(|entry| cx.env.resolve(entry.label())).collect();
         let name = cx.label();
-        let events = ui.show(popup, Overlay::menu(), |ui, _| {
-            let checked: Vec<usize> = (0..entries.len()).filter(|&at| entries[at].is_checked()).collect();
-            let lead = checked.first().copied();
-            let rows = Rows { entries, labels: &labels };
-            List::<usize>::new(name.clone())
-                .select(SelectMode::Single)
-                .activate(ActivateOn::Click)
-                .lead_on_open(LeadOnOpen::First)
-                .lead_follows_hover(true)
-                .listbox()
-                .selection(Bind::given(Selection::new(checked, lead, lead)))
-                .show_items(ui, &rows, &mut |at, _| {
-                    let entry = &entries[*at];
-                    if entry.is_separator() {
-                        return ListRow::spacer();
-                    }
-                    let row = ListRow::new(labels[*at].clone()).option().enabled(entry.is_enabled());
-                    match entry.icon_spec() {
-                        Some(icon) => row.icon(icon.clone()),
-                        None => row,
-                    }
-                })
-                .events
-        });
-        let mut picked = None;
-        for event in events.into_iter().flatten() {
-            if let CollectionEvent::Activate(at) = event {
-                picked = Some(at);
-            }
-        }
-        if let Some(value) = picked.and_then(|at| entries.get(at)).and_then(Entry::value) {
+        let ran = ui.show(popup, menu::layer(false), |ui, _| Menu::inline(name.clone()).show(ui, |ui, _| menu::entry_rows(ui, entries)).inner.flatten());
+        if let Some(value) = ran.flatten().and_then(|at| entries.get(at)).and_then(Entry::value) {
             self.chosen = Some(value.clone());
             popup.close(cx);
         }
@@ -235,37 +205,3 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         SplitOutput { response: cx.response.clone(), chosen: self.chosen }
     }
 }
-
-/// A split button's entries as a collection source, keyed by position: the entries are fixed while the menu is open.
-struct Rows<'a, T> {
-    entries: &'a [Entry<T>],
-    labels: &'a [Label],
-}
-
-impl<T> DisplayOrder<usize> for Rows<'_, T> {
-    fn len(&self) -> usize {
-        self.entries.len()
-    }
-
-    fn key(&self, at: usize) -> usize {
-        at
-    }
-
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        (*key < self.entries.len()).then_some(*key)
-    }
-
-    fn is_section(&self, at: usize) -> bool {
-        self.entries[at].is_separator()
-    }
-
-    fn enabled(&self, at: usize) -> bool {
-        self.entries[at].is_enabled()
-    }
-
-    fn text(&self, at: usize) -> Option<std::borrow::Cow<'_, str>> {
-        (!self.entries[at].is_separator()).then(|| std::borrow::Cow::Borrowed(self.labels[at].as_str()))
-    }
-}
-
-impl<T> ItemSource<usize> for Rows<'_, T> {}
