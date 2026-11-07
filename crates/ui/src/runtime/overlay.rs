@@ -4,13 +4,13 @@
 //! pass are read in the next one, and an entry not recorded for a frame is gone.
 
 use crate::runtime::commands;
-use crate::runtime::egui::areas::{self, Tier};
+use crate::runtime::egui::areas::{self, Layer, Tier};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
 use craft_behavior::OwnerClass;
 use craft_behavior::overlay::Side;
-use egui::{Context, Id, LayerId, Rect, ViewportId};
+use egui::{Context, Id, Rect, ViewportId};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
@@ -139,13 +139,13 @@ pub struct OpenEntry {
     /// It is fading out: not `top`, not counted by `any_open`, taking no input.
     pub exiting: bool,
     /// The layer's egui id and the cover under it, listed in the order.
-    pub(crate) layer: LayerId,
-    pub(crate) cover: Option<LayerId>,
+    pub(crate) layer: Layer,
+    pub(crate) cover: Option<Layer>,
 }
 
 impl OpenEntry {
     /// An entry for the layer `id` of `rank`.
-    pub(crate) fn new(id: Id, rank: Rank, keys: OwnerClass, rect: Rect, layer: LayerId) -> Self {
+    pub(crate) fn new(id: Id, rank: Rank, keys: OwnerClass, rect: Rect, layer: Layer) -> Self {
         OpenEntry { id, parent: None, rank, keys, anchor: None, rect, side: Side::Below, exiting: false, layer, cover: None }
     }
 }
@@ -333,7 +333,7 @@ pub(crate) fn end_pass(ctx: &Context) {
             stamp(root.id, persist);
         }
         let families = families(&current, &persist.raised);
-        let mut order: Vec<LayerId> = Vec::new();
+        let mut order: Vec<Layer> = Vec::new();
         for members in &families {
             for member in members {
                 order.extend(member.cover);

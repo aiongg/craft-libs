@@ -201,9 +201,10 @@ pub(crate) fn layer_to_screen(ctx: &Context, layer: LayerId) -> TSTransform {
     ctx.layer_transform_to_global(layer).unwrap_or(TSTransform::IDENTITY)
 }
 
-/// Runs `body` in a vertical scroll area no taller than `max_height`; content that fits shows no scroll bar.
-pub(crate) fn scrolled<R>(ui: &mut egui::Ui, max_height: f32, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    egui::ScrollArea::vertical().max_height(max_height).auto_shrink([true, true]).show(ui, body).inner
+/// Runs `body` in `ui` no larger than `cap`.
+pub(crate) fn capped<R>(ui: &mut egui::Ui, cap: Vec2, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    ui.set_max_size(cap);
+    body(ui)
 }
 
 /// Fades everything painted in `ui` to `opacity`.
@@ -211,25 +212,27 @@ pub(crate) fn fade(ui: &mut egui::Ui, opacity: f32) {
     ui.set_opacity(opacity);
 }
 
-/// The ring of a painted cursor, white so it reads on any canvas.
-const CURSOR_RING: Color32 = Color32::WHITE;
-/// The ring's stroke width in points.
-const CURSOR_STROKE: f32 = 1.0;
-/// The half-length of a painted crosshair's arms in points.
-const CROSSHAIR_ARM: f32 = 6.0;
+/// How a painted cursor is drawn: from the theme's tokens, so the ring reads on any canvas.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct CursorInk {
+    pub color: Color32,
+    pub width: f32,
+    /// The half-length of a crosshair's arms.
+    pub arm: f32,
+}
 
 /// Paints a cursor shape at `at` on the ghost layer, above every other layer.
-pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::PaintedCursor) {
+pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::PaintedCursor, ink: CursorInk) {
     use craft_behavior::PaintedCursor;
     let painter = ctx.layer_painter(LayerId::new(Order::Tooltip, crate::runtime::egui::memory::unique("craft_ui.ghost")));
-    let stroke = egui::Stroke::new(CURSOR_STROKE, CURSOR_RING);
+    let stroke = egui::Stroke::new(ink.width, ink.color);
     match cursor {
         PaintedCursor::Circle { radius, .. } => {
             painter.circle_stroke(at, *radius, stroke);
         }
         PaintedCursor::Crosshair => {
-            painter.line_segment([at - Vec2::new(CROSSHAIR_ARM, 0.0), at + Vec2::new(CROSSHAIR_ARM, 0.0)], stroke);
-            painter.line_segment([at - Vec2::new(0.0, CROSSHAIR_ARM), at + Vec2::new(0.0, CROSSHAIR_ARM)], stroke);
+            painter.line_segment([at - Vec2::new(ink.arm, 0.0), at + Vec2::new(ink.arm, 0.0)], stroke);
+            painter.line_segment([at - Vec2::new(0.0, ink.arm), at + Vec2::new(0.0, ink.arm)], stroke);
         }
         _ => {}
     }

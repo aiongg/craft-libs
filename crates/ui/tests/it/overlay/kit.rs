@@ -18,6 +18,7 @@ pub struct PlainStyle {
 
 /// What reached a leaf.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct Seen {
     pub id: Option<Id>,
     pub presses: u32,
@@ -79,6 +80,7 @@ pub enum Go {
 
 /// What an opener reports.
 #[derive(Default)]
+#[non_exhaustive]
 pub struct Opened {
     /// The popup body ran in this pass.
     pub shown: Cell<bool>,
@@ -86,6 +88,7 @@ pub struct Opened {
 
 /// A control with one popup of the given preset. The test decides when it asks to open or close.
 #[derive(Component)]
+#[component(overlay)]
 pub struct Opener<'a> {
     #[common]
     common: Common,

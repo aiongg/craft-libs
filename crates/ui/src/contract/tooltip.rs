@@ -82,7 +82,6 @@ pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
     let keyboard = core.state.flags.contains(Flags::FOCUS_VISIBLE);
     let wants = has_content && (core.response.hovered() || keyboard);
     let suppressed = core.press.phase.is_press()
-        || core.response.is_pointer_button_down_on()
         || overlay_blocks(ctx)
         || pointer::press_captured(ctx);
     if wants {

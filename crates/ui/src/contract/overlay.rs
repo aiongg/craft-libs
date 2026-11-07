@@ -655,7 +655,6 @@ impl<'a> OverlayUi<'a> {
             let mut bcx = BodyCx::new(popup.id, env.view(), resolved, rect, &mut stage);
             result = Some(body(ui, &mut bcx));
             requested = bcx.close_requested;
-            drop(bcx);
             stage.write_back();
         });
         with_popups(&ctx, |popups| popups.shown.push((self.owner, popup.id)));
@@ -797,8 +796,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         }
         match capped {
             Some(cap) => {
-                ui.set_max_width(cap.x);
-                areas::scrolled(ui, cap.y, |ui| body(ui));
+                areas::capped(ui, cap, |ui| body(ui));
             }
             None => body(ui),
         }
@@ -810,7 +808,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     overlay::end_layer(ctx);
     let mut entry = OpenEntry::new(layer.id, overlay.rank, overlay.keys, shown.rect, shown.layer);
     entry.parent = parent;
-    entry.anchor = Some(anchor).filter(|_| matches!(overlay.place, Place::Anchored { .. }));
+    entry.anchor = matches!(overlay.place, Place::Anchored { .. }).then_some(anchor);
     entry.side = side;
     entry.exiting = layer.exiting;
     entry.cover = cover;
@@ -877,7 +875,12 @@ fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>) -> Optio
 /// calls it once per pass, popup or no popup. F5b adds the drag preview and drop mark here.
 pub fn paint_frame_layers(ctx: &Context) {
     let Some(at) = areas::pointer_pos(ctx) else { return };
-    if let Some(craft_behavior::Cursor::Painted(cursor)) = crate::runtime::cursor::current(ctx) {
-        areas::paint_cursor(ctx, at, &cursor);
-    }
+    let Some(craft_behavior::Cursor::Painted(cursor)) = crate::runtime::cursor::current(ctx) else { return };
+    let Some(env) = Env::root_of(ctx) else { return };
+    let ink = areas::CursorInk {
+        color: crate::style::ink_color(&env.tokens, crate::style::Ink::OnDark),
+        width: crate::style::rule_look(&env.tokens, crate::style::RuleKind::Edge).width,
+        arm: env.tokens.size.icon.sm,
+    };
+    areas::paint_cursor(ctx, at, &cursor, ink);
 }
