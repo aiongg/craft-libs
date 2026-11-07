@@ -679,7 +679,7 @@ impl PartBuilder<'_> {
 }
 
 /// Step 9, before `update`: what the component's parts declared with `PartBuilder::toggles`. A click on the part
-/// toggles its popup (the pass its press began, for a part that declared `on_press`), AccessKit Expand and Collapse
+/// or Enter or Space on it when focused toggles its popup (the pass its press began, for a part that declared `on_press`), AccessKit Expand and Collapse
 /// on its sub-node open and close it, Alt+Down opens the popup of the focused toggling part (else the first one that
 /// is closed), and Alt+Up closes the open ones. Opening one popup of the component closes the others. Each toggle
 /// keeps the popup's open state for the part's `expanded`. A click a toggling part took is not left as the root's
@@ -714,7 +714,7 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
             Some(phase) if on_press => cx.core.memory.shown::<super::SeenPress>(sub(popup.id, "press")).began(&phase),
             Some(phase) => phase.is_click(),
             None => false,
-        };
+        } || key_activated(cx, active, part);
         if toggled {
             popup.registered(cx);
             if !popup.is_open(cx) {
@@ -768,6 +768,11 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
         toggle.open = toggle.handle(owner).is_open(cx);
     }
     cx.core.toggles = toggles;
+}
+
+/// Whether a key (Enter or Space) activated `part`, the focused part of the component.
+fn key_activated<C: Component>(cx: &Cx<'_, C>, active: Option<PartRef>, part: PartRef) -> bool {
+    active == Some(part) && cx.core.activation.is_some_and(|activation| activation.by_key)
 }
 
 impl PopupHandle {

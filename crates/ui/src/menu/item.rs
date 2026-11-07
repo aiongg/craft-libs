@@ -1,7 +1,9 @@
 //! `MenuItem` (11.4, 12.3): one row of a menu, and the level it shares with the rows around it.
 
+use super::popup::MenuStep;
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Styled as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role,
+    Styled as _,
 };
 use crate::display::Kbd;
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextLayout, TextRun, glyph};
@@ -93,6 +95,8 @@ struct LevelState {
     /// The row a typed letter runs in this pass.
     run: Option<Id>,
     close: bool,
+    /// The Left or Right key a row of a top-level level left unhandled.
+    step: Option<MenuStep>,
     submenu: bool,
     open_submenu: Option<OpenSubmenu>,
     active: Option<Id>,
@@ -237,6 +241,15 @@ impl MenuLevel {
 
     fn request_close(&self) {
         self.with(|state| state.close = true);
+    }
+
+    fn request_step(&self, step: MenuStep) {
+        self.with(|state| state.step = Some(step));
+    }
+
+    /// The Left or Right key a row of this top-level level left unhandled.
+    pub(crate) fn take_step(&self) -> Option<MenuStep> {
+        self.with(|state| state.step.take())
     }
 
     /// Whether a row asked its submenu level to close.
@@ -601,6 +614,10 @@ impl Component for MenuItem<'_> {
         }
         if back && level.is_submenu() {
             level.request_close();
+        } else if !level.is_submenu() && (back || (forward && !self.submenu)) {
+            let rtl = cx.flow.is_rtl();
+            level.request_step(if back != rtl { MenuStep::Prev } else { MenuStep::Next });
+            frame::request_repaint(&ctx);
         }
         let now = frame::clock(&ctx);
         let moving = ctx.input(|input| input.pointer.delta() != Vec2::ZERO);

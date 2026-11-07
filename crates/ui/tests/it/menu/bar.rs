@@ -138,6 +138,16 @@ fn running_a_row_returns_focus_to_the_component_that_held_it() {
 }
 
 #[trial]
+fn enter_and_space_on_a_focused_title_open_its_menu() {
+    for key in [Key::Enter, Key::Space] {
+        let mut rig = rig(Direction::Ltr);
+        rig.key(Key::F10);
+        rig.key(key);
+        assert!(rig.open("Save"), "{key:?} on the focused File title opens its menu");
+    }
+}
+
+#[trial]
 fn a_title_reports_its_popup_its_state_and_its_access_key() {
     let mut rig = rig(Direction::Ltr);
     let file = rig.fixture.by_label("File").expect("the File title");

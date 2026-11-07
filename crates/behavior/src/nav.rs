@@ -408,12 +408,27 @@ pub struct Roving {
     pub page: Option<usize>,
     /// Whether letters pick entries.
     pub letters: Letters,
+    /// The arrows the group takes; the others reach the focused member.
+    pub arrows: Arrows,
+}
+
+/// Which arrow keys a roving group moves its lead with.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Arrows {
+    /// Every arrow.
+    #[default]
+    All,
+    /// Left and Right only: Up and Down reach the focused member, as a menu bar title opens its menu with Down.
+    Horizontal,
+    /// Up and Down only: Left and Right reach the focused member, as a menu moves to its neighbour with them.
+    Vertical,
 }
 
 impl Roving {
     /// A group of `shape` with Home and End, no wrap, no paging and no letters.
     pub const fn new(shape: NavShape) -> Roving {
-        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None }
+        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All }
     }
 
     /// Whether moves wrap.
@@ -440,6 +455,12 @@ impl Roving {
         self
     }
 
+    /// The arrows the group takes.
+    pub const fn arrows(mut self, arrows: Arrows) -> Self {
+        self.arrows = arrows;
+        self
+    }
+
     /// The state a step over this group starts from, at `lead`.
     pub const fn state(&self, lead: Option<usize>) -> NavState {
         let page = match self.page {
@@ -454,7 +475,8 @@ impl Roving {
         match mv {
             NavMove::PageUp | NavMove::PageDown => self.page.is_some(),
             NavMove::Start | NavMove::End => self.home_end,
-            _ => true,
+            NavMove::Back | NavMove::Forward => !matches!(self.arrows, Arrows::Vertical),
+            NavMove::Up | NavMove::Down => !matches!(self.arrows, Arrows::Horizontal),
         }
     }
 }

@@ -67,7 +67,7 @@ pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
 pub use marquee::{MarqueeMode, MarqueeSelect};
 pub use motion::{MotionKind, MotionMode, Playback};
-pub use nav::{Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
+pub use nav::{Arrows, Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
 pub use part::{PartKey, PartRef};
 pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
