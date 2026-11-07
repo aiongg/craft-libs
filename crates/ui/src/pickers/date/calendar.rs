@@ -1,12 +1,12 @@
 //! `Calendar`: one page of a date picker's popover: the title with the previous and next buttons, and the days,
 //! months or years of the page as cells.
 //!
-//! The page the calendar shows is its [`CalendarView`], which the host keeps and the calendar's output moves. One cell
-//! is the focus stop (the active cell, the part `ACTIVE`): arrows reach `update`, which moves the active cell over
-//! the grid, blanks included, so a week stays a row. The other cells are pointer parts that name the active cell as
-//! their keyboard path.
+//! The page the calendar shows is its [`CalendarView`], which the host keeps and the calendar's output moves. The
+//! cells are the members of one roving group over a wrapped grid whose first column is the month's first weekday, so
+//! the arrows keep a week a row. A move the grid cannot make (past the first or last row) reaches `update`, which
+//! changes the page and asks for focus on the cell the move lands on.
 
-use super::{DatePrecision, LAST_YEAR, PickedDate, dates_of};
+use super::{DatePrecision, LAST_YEAR, PickedDate};
 use crate::buttons::IconButton;
 use crate::contract::{
     Access, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
@@ -15,10 +15,12 @@ use crate::contract::{
 use crate::pickers::words::PickerWords;
 use crate::primitives::{HAlign, PaintShape, StrokeWidth, TextRun};
 use crate::runtime::access::GridPlace;
+use crate::runtime::env::EnvView;
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx, TextLook, TypeRole, UiTokens};
-use craft_behavior::{Flow, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, PartRef, Sense};
+use craft_behavior::{Flow, IconId, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, Format, LocalDate, NameLength, Weekday};
+use craft_keymap::{Chord, Key, Mods};
 use craft_theme::{Rgba, Stateful, States};
 use egui::{CornerRadius, Rect, Response, Vec2, vec2};
 use std::sync::Arc;
@@ -30,10 +32,10 @@ const DAY_COLUMNS: usize = 7;
 const PICK_COLUMNS: usize = 4;
 /// Rows a page is sized for: the most weeks a month spans.
 const ROWS: usize = 6;
+/// The chord that goes up a level on a navigation page, the keyboard path of the title.
+const UP_A_LEVEL: Chord = Chord::new(Mods::CTRL, Key::Up);
 
-/// The cell that holds the keyboard.
-const ACTIVE: PartKey = PartKey::new("active");
-/// Any other cell.
+/// A cell of the page, indexed by its day, month number or year.
 const DAY: PartKey = PartKey::new("day");
 const PREVIOUS: PartKey = PartKey::new("previous");
 const NEXT: PartKey = PartKey::new("next");
@@ -95,6 +97,8 @@ pub struct CalendarView {
     /// The Month and Year pages only move the Day page, in the display calendar (a Day-only picker), instead of
     /// choosing a Gregorian month or year.
     pub nav: bool,
+    /// Focus moves to the active cell when the page next shows: set by a key that changed the page.
+    pub land: bool,
 }
 
 impl CalendarView {
@@ -139,7 +143,7 @@ impl CalendarView {
             if precisions.contains(&DatePrecision::Day) { DatePrecision::Day } else { precisions.first().copied().unwrap_or(DatePrecision::Day) };
         let precision = value.map(|v| v.precision()).filter(|p| precisions.contains(p)).unwrap_or(fallback);
         let nav = precision == DatePrecision::Day && precisions.iter().all(|p| *p == DatePrecision::Day);
-        let mut view = CalendarView { precision, year: 0, month: 1, active: 0, nav };
+        let mut view = CalendarView { precision, year: 0, month: 1, active: 0, nav, land: false };
         let (year, month, _) = view.coords(at, dates).unwrap_or((at.year, at.month.unwrap_or(1), 1));
         let (first, last) = Self::year_range(view.local(), dates);
         view.year = year.clamp(first, last);
@@ -181,7 +185,7 @@ impl CalendarView {
             (true, DatePrecision::Month) => CalendarView { precision: DatePrecision::Year, ..self },
             _ => self,
         };
-        view.landed(value, today, dates)
+        CalendarView { land: true, ..view.landed(value, today, dates) }
     }
 
     /// The view after choosing the cell `key` of a navigation page: a Year page's year opens its Month page, a Month
@@ -193,7 +197,7 @@ impl CalendarView {
             DatePrecision::Month => CalendarView { precision: DatePrecision::Day, month: u8::try_from(key).unwrap_or(1), ..self },
             _ => self,
         };
-        view.landed(value, today, dates)
+        CalendarView { land: true, ..view.landed(value, today, dates) }
     }
 
     /// The first year of a Year page.
@@ -254,21 +258,45 @@ impl CalendarView {
         view
     }
 
-    /// The view after `mv`: arrows move the active cell over the page (never onto a blank), Home and End go to the
-    /// row's ends, Page Up and Page Down page.
+    /// The view after `mv` pressed on the cell `from`, when the grid of cells could not take it: Page Up and Page Down
+    /// page; on a Day page a step past the month's first or last row (Up, Down, or Back and Forward at the month's
+    /// ends) goes on into the previous or next month, a week or a day from `from`. The active cell lands there and
+    /// focus follows. Else the view is unchanged.
     #[must_use]
-    pub fn stepped(self, mv: NavMove, dates: &DateFormat, format: &Format) -> CalendarView {
-        match mv {
-            NavMove::PageUp => return self.paged(false, dates),
-            NavMove::PageDown => return self.paged(true, dates),
-            _ => {}
+    pub fn crossed(self, mv: NavMove, from: i32, dates: &DateFormat) -> CalendarView {
+        let here = CalendarView { active: from, ..self };
+        let (forward, by) = match mv {
+            NavMove::PageUp | NavMove::PageDown => {
+                let paged = here.paged(mv == NavMove::PageDown, dates);
+                return if paged == here { self } else { CalendarView { land: true, ..paged } };
+            }
+            _ if self.precision != DatePrecision::Day => return self,
+            NavMove::Back => (false, 1),
+            NavMove::Up => (false, 7),
+            NavMove::Forward => (true, 1),
+            NavMove::Down => (true, 7),
+            _ => return self,
+        };
+        let paged = here.paged(forward, dates);
+        if (paged.year, paged.month) == (self.year, self.month) {
+            return self;
         }
-        let page = Page::of(&self, dates, &Numbers(format), false);
-        let Some(from) = page.position(self.active) else { return self };
-        let to = page.moved(from, mv);
-        match page.cells[to].as_ref() {
-            Some(cell) => CalendarView { active: cell.key, ..self },
-            None => self,
+        let days_here = i32::from(dates.local_days_in_month(self.year, self.month));
+        let days_there = i32::from(dates.local_days_in_month(paged.year, paged.month));
+        let day = if forward { from + by - days_here } else { days_there + from - by };
+        CalendarView { active: day.clamp(1, days_there.max(1)), land: true, ..paged }
+    }
+
+    /// The title over the page.
+    fn title(&self, numbers: &Numbers<'_>, dates: &DateFormat) -> String {
+        match self.precision {
+            DatePrecision::Day => dates.local_year_month(self.year, self.month),
+            DatePrecision::Month => numbers.of(self.year),
+            _ => {
+                let first = self.first_year();
+                let last = (first + YEARS_PER_PAGE - 1).min(Self::year_range(self.local(), dates).1);
+                format!("{}\u{2013}{}", numbers.of(first), numbers.of(last))
+            }
         }
     }
 }
@@ -385,48 +413,19 @@ impl Page {
         self.cells.iter().position(Option::is_some).unwrap_or(0)
     }
 
-    fn last(&self) -> usize {
-        self.cells.iter().rposition(Option::is_some).unwrap_or(0)
-    }
-
-    /// Where `mv` takes the active cell from `from`: a step past the page's cells stays, and Home and End go to the
-    /// row's ends clamped to the cells that exist.
-    fn moved(&self, from: usize, mv: NavMove) -> usize {
-        let columns = self.columns;
-        let row = from / columns;
-        let step = |to: Option<usize>| to.filter(|to| (self.first()..=self.last()).contains(to)).unwrap_or(from);
-        match mv {
-            NavMove::Back => step(from.checked_sub(1)),
-            NavMove::Forward => step(from.checked_add(1)),
-            NavMove::Up => step(from.checked_sub(columns)),
-            NavMove::Down => step(from.checked_add(columns)),
-            NavMove::Start => (row * columns).clamp(self.first(), self.last()),
-            NavMove::End => ((row + 1) * columns - 1).clamp(self.first(), self.last()),
-            _ => from,
-        }
-    }
-
-    /// The title over the page.
-    fn title(&self, view: &CalendarView, numbers: &Numbers<'_>, dates: &DateFormat) -> String {
-        match view.precision {
-            DatePrecision::Day => dates.local_year_month(view.year, view.month),
-            DatePrecision::Month => numbers.of(view.year),
-            _ => {
-                let first = view.first_year();
-                let last = (first + YEARS_PER_PAGE - 1).min(CalendarView::year_range(view.local(), dates).1);
-                format!("{}\u{2013}{}", numbers.of(first), numbers.of(last))
-            }
-        }
-    }
-
     fn rows(&self) -> usize {
         self.cells.len().div_ceil(self.columns)
     }
 }
 
-/// The part of the cell `key` on the page of `view`.
-fn part_of(view: &CalendarView, key: i32) -> PartRef {
-    if key == view.active { ACTIVE.into() } else { DAY.at(u64::from(key.unsigned_abs())) }
+/// The part of the cell `key`.
+fn cell_part(key: i32) -> PartRef {
+    DAY.at(u64::from(key.unsigned_abs()))
+}
+
+/// The cell a part belongs to.
+fn cell_of(part: PartRef) -> Option<i32> {
+    (part.key == DAY).then_some(part.index).flatten().and_then(|index| i32::try_from(index).ok())
 }
 
 /// The style of a calendar: the sizes of a page and the looks of its text and cells.
@@ -446,9 +445,9 @@ pub struct CalendarStyle {
     /// A cell's text.
     #[style(text)]
     text: TextLook,
-    /// The text of a cell outside the bounds.
+    /// The text of a cell outside the bounds: the faint ink of the theme's pair table.
     #[style(text)]
-    disabled: TextLook,
+    unavailable: TextLook,
     /// The fill of a cell: clear, the hover fill, and the selection fill with its hover shade for the value's cell.
     fill: Stateful<StyleColor>,
     /// The ring around the cell that holds today.
@@ -534,13 +533,32 @@ impl Calendar {
         }
     }
 
-    fn holds_today(&self, cell: &Cell) -> bool {
-        self.today.is_some_and(|t| (cell.span.0.day_key()..=cell.span.1.day_key()).contains(&t.first_day().day_key()))
+    /// What today is: the prop, else the day the host supplied.
+    fn current_day(&self, env: &EnvView<'_>) -> Option<PickedDate> {
+        self.today.or_else(|| env.today().and_then(PickedDate::from_calendar_date))
+    }
+
+    fn holds_today(today: Option<PickedDate>, cell: &Cell) -> bool {
+        today.is_some_and(|t| (cell.span.0.day_key()..=cell.span.1.day_key()).contains(&t.first_day().day_key()))
     }
 
     /// Whether the title is a button that goes up a level.
     fn title_goes_up(&self) -> bool {
         self.view.nav && self.view.precision != DatePrecision::Year
+    }
+
+    /// The widest title the page shows at the current type scale: across the months of the page's year on a Day page,
+    /// so the header keeps its width while the month changes.
+    fn title_width(&self, cx: &MeasureCx<'_, Self>) -> f32 {
+        let dates = cx.env.dates();
+        let numbers = Numbers(cx.env.format());
+        let width = |title: String| cx.layout(&TextRun::new(title).role(cx.style.title.role)).size().x;
+        match self.view.precision {
+            DatePrecision::Day => (1..=dates.local_months_in_year(self.view.year).max(1))
+                .map(|month| width(dates.local_year_month(self.view.year, month)))
+                .fold(0.0, f32::max),
+            _ => width(self.view.title(&numbers, &dates)),
+        }
     }
 
     fn measure_lines(&mut self, cx: &MeasureCx<'_, Self>) {
@@ -612,7 +630,7 @@ impl Geometry {
 }
 
 impl Component for Calendar {
-    const ROLE: Role = Role::TABLE;
+    const ROLE: Role = Role::GRID;
     const OVERLAYS: bool = false;
     const KEYS: KeyUse = KeyUse::of(crate::contract::Input::Pointer).with_keep(KeepKeys::BlockArrows);
     type Style = CalendarStyle;
@@ -627,8 +645,11 @@ impl Component for Calendar {
             focus: cx.focus_look(),
             title: TextLook::new(TypeRole::BodyStrong, Stateful::new(cx.ink(Ink::OnPanel))),
             weekday: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(colors.text.muted))),
-            text: ink(cx.ink(Ink::OnPanel)),
-            disabled: ink(cx.color(colors.text.disabled)),
+            text: {
+                let ink = cx.ink(Ink::OnPanel);
+                TextLook::new(TypeRole::Body, Stateful::new(ink).off(States::new(ink, ink, ink, cx.color(colors.text.disabled))))
+            },
+            unavailable: ink(cx.color(colors.text.faint)),
             fill: {
                 let clear = cx.color(Rgba::TRANSPARENT);
                 let (hover, selected) = (cx.color(colors.state.hover), cx.color(colors.state.selected_hover));
@@ -648,11 +669,13 @@ impl Component for Calendar {
         }
     }
 
-    /// The page's size does not depend on its view: a strip, a weekday row and six rows of cells.
+    /// The page is as wide as seven cells, or as the widest title with its two buttons; its height is a strip, a
+    /// weekday row and six rows of cells.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         self.measure_lines(cx);
         let style = cx.style;
-        Vec2::new(style.width, style.strip + style.gap + style.cell + style.gap + ROWS as f32 * (style.cell + style.gap))
+        let width = style.width.max(self.title_width(cx) + 2.0 * style.strip);
+        Vec2::new(width, style.strip + style.gap + style.cell + style.gap + ROWS as f32 * (style.cell + style.gap))
     }
 
     fn sense(&self) -> Sense {
@@ -661,60 +684,54 @@ impl Component for Calendar {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         self.measure_lines(cx);
-        let dates = dates_of(cx.env.host());
+        let dates = cx.env.dates();
         let numbers = Numbers(cx.env.format());
         let page = Page::of(&self.view, &dates, &numbers, false);
         let geometry = Geometry::of(rect, cx.style, cx.flow.is_rtl(), &self.view, page.columns);
-        let cell_part = |cx: &mut PartsCx<'_, Self>, cell: &Cell, at: usize, focusable: bool| {
-            let part = cx.part(part_of(&self.view, cell.key), geometry.cell(at));
-            if !self.permitted(cell) && !focusable {
-                return;
-            }
-            let part = if focusable {
-                part.sense(Sense::CLICK | Sense::FOCUS).focusable()
-            } else {
-                part.sense(Sense::CLICK | Sense::HOVER).keyboard_via(ACTIVE)
-            };
-            if self.holds_value(cell) {
-                part.flags(Flags::SELECTED);
-            }
-        };
-        // The active cell is declared first so that a popup opening on the page puts focus on it.
-        if let Some(at) = page.position(self.view.active)
-            && let Some(cell) = page.cells[at].as_ref()
-        {
-            cell_part(cx, cell, at, true);
-        }
         for (at, cell) in page.cells.iter().enumerate() {
-            if let Some(cell) = cell.as_ref().filter(|cell| cell.key != self.view.active) {
-                cell_part(cx, cell, at, false);
+            let Some(cell) = cell else { continue };
+            let sense = if self.permitted(cell) { Sense::CLICK | Sense::FOCUS } else { Sense::FOCUS };
+            let part = cx.part(cell_part(cell.key), geometry.cell(at)).sense(sense).focusable();
+            let part = if self.holds_value(cell) { part.flags(Flags::SELECTED) } else { part };
+            if cell.key == self.view.active {
+                part.selected();
             }
         }
-        cx.part(PREVIOUS, geometry.previous).sense(Sense::CLICK | Sense::FOCUS).focusable();
-        cx.part(NEXT, geometry.next).sense(Sense::CLICK | Sense::FOCUS).focusable();
+        cx.roving(Roving::new(NavShape::wrapped_grid(page.columns)).first_column(page.first() % page.columns).hands_back());
+        cx.part(PREVIOUS, geometry.previous).sense(Sense::CLICK).pointer_only("Page Up shows the previous page");
+        cx.part(NEXT, geometry.next).sense(Sense::CLICK).pointer_only("Page Down shows the next page");
         if self.title_goes_up() {
-            cx.part(TITLE, geometry.title).sense(Sense::CLICK | Sense::FOCUS).priority(HitPriority::new(HitLevel::Body, 0)).focusable();
+            cx.part(TITLE, geometry.title).sense(Sense::CLICK).pointer_only("Ctrl+Up goes up a level");
         }
     }
 
-    /// Arrows, Home, End, Page Up and Page Down move the view; a click, Enter or Space on a cell picks it, or on a
-    /// navigation cell opens it; the buttons and the title page.
+    /// Arrows, Home and End move focus over the cells; a move past the grid, Page Up and Page Down change the page; a
+    /// click, Enter or Space on a cell picks it, or on a navigation cell opens it; the buttons and the title page.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let dates = dates_of(cx.env.host());
+        let dates = cx.env.dates();
         let format = cx.env.format();
+        let today = self.current_day(&cx.env);
         let page = Page::of(&self.view, &dates, &Numbers(format), false);
         let mut view = self.view;
+        if view.land {
+            if cx.is_focused() && page.position(view.active).is_some() {
+                cx.focus_part(cell_part(view.active));
+            }
+            view.land = false;
+        }
+        let mut from = cx.active_part().and_then(cell_of).unwrap_or(view.active);
         while let Some((mv, _)) = cx.intents().take_move() {
-            view = view.stepped(mv, &dates, format);
+            view = view.crossed(mv, from, &dates);
+            from = view.active;
         }
         for cell in page.cells.iter().flatten() {
-            let part = part_of(&self.view, cell.key);
+            let part = cell_part(cell.key);
             if !self.permitted(cell) {
                 continue;
             }
             if cx.part_activated(part).is_some() {
                 if cell.nav {
-                    view = view.entered(cell.key, &dates, self.value, self.today);
+                    view = view.entered(cell.key, &dates, self.value, today);
                 } else {
                     self.picked = Some(cell.date);
                 }
@@ -729,21 +746,24 @@ impl Component for Calendar {
         if cx.part_activated(NEXT).is_some() {
             view = view.paged(true, &dates);
         }
-        if self.title_goes_up() && cx.part_activated(TITLE).is_some() {
-            view = view.up(&dates, self.value, self.today);
+        if self.title_goes_up() {
+            if cx.part_activated(TITLE).is_some() || cx.take_claimed(UP_A_LEVEL) {
+                view = view.up(&dates, self.value, today);
+            }
+            cx.claim(UP_A_LEVEL);
         }
         self.moved = (view != self.view).then_some(view);
     }
 
     /// The grid's size, its cells with their places, and the title's button.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let dates = dates_of(cx.env.host());
+        let dates = cx.env.dates();
         let numbers = Numbers(cx.env.format());
         let page = Page::of(&self.view, &dates, &numbers, true);
         access.grid(GridPlace::grid(page.rows(), page.columns));
         for (at, cell) in page.cells.iter().enumerate() {
             let Some(cell) = cell else { continue };
-            let node = access.node(part_of(&self.view, cell.key), Role::CELL);
+            let node = access.node(cell_part(cell.key), Role::GRID_CELL);
             node.name = Name::Text(cell.name.clone());
             node.grid = GridPlace::cell(at / page.columns, at % page.columns);
         }
@@ -751,7 +771,7 @@ impl Component for Calendar {
         access.node(NEXT, Role::BUTTON);
         if self.title_goes_up() {
             let node = access.node(TITLE, Role::BUTTON);
-            node.name = Name::Text(page.title(&self.view, &numbers, &dates));
+            node.name = Name::Text(self.view.title(&numbers, &dates));
         }
     }
 
@@ -759,7 +779,8 @@ impl Component for Calendar {
         let words = cx.words::<PickerWords>();
         ui.face(PREVIOUS, IconButton::new(IconId::new(PREVIOUS_ICON)).label(words.date_previous.clone()));
         ui.face(NEXT, IconButton::new(IconId::new(NEXT_ICON)).label(words.date_next.clone()));
-        let dates: Arc<DateFormat> = dates_of(cx.env.host());
+        let dates: Arc<DateFormat> = cx.env.dates();
+        let today = self.current_day(&cx.env);
         let numbers = Numbers(cx.env.format());
         let page = Page::of(&self.view, &dates, &numbers, false);
         let style = cx.style;
@@ -769,7 +790,7 @@ impl Component for Calendar {
             let at = Rect::from_center_size(rect.center(), vec2(rect.width(), line));
             draw.text(at, &TextRun::new(text).role(look.role).color(cx.resolve(&look.color)).align(HAlign::Center));
         };
-        centred(geometry.title, &page.title(&self.view, &numbers, &dates), &style.title, self.lines[0]);
+        centred(geometry.title, &self.view.title(&numbers, &dates), &style.title, self.lines[0]);
         if let Some(row) = geometry.weekdays {
             let first = dates.first_weekday() as usize;
             for column in 0..DAY_COLUMNS {
@@ -784,12 +805,12 @@ impl Component for Calendar {
             let permitted = self.permitted(cell);
             let shape = PaintShape::Rect(rect, style.radius);
             if permitted {
-                draw.fill(&shape, cx.resolve_part(part_of(&self.view, cell.key), &style.fill));
+                draw.fill(&shape, cx.resolve_part(cell_part(cell.key), &style.fill));
             }
-            if self.holds_today(cell) {
+            if Self::holds_today(today, cell) {
                 draw.stroke(&shape, StrokeWidth::Thin, style.today);
             }
-            centred(rect, &cell.text, if permitted { &style.text } else { &style.disabled }, self.lines[2]);
+            centred(rect, &cell.text, if permitted { &style.text } else { &style.unavailable }, self.lines[2]);
         }
     }
 

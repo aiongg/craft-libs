@@ -24,10 +24,9 @@ use crate::primitives::{IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::text::{Adornment, FieldStyle, place, reserve};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, IconId, PartKey, Sense};
-use craft_host::Host;
-use craft_i18n::{CalendarDate, DateFormat, Region};
+use craft_i18n::{CalendarDate, DateFormat};
 use egui::{Rect, Vec2};
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 
 /// The text part.
 const TEXT: PartKey = PartKey::new("text");
@@ -176,15 +175,6 @@ impl PickedDate {
     }
 }
 
-/// How the scope writes dates: the host's, else the system region's, built once.
-fn dates_of(host: Option<&Arc<Host>>) -> Arc<DateFormat> {
-    if let Some(i18n) = host.and_then(|host| host.i18n_shared()) {
-        return i18n.dates();
-    }
-    static SYSTEM: OnceLock<Arc<DateFormat>> = OnceLock::new();
-    Arc::clone(SYSTEM.get_or_init(|| Arc::new(DateFormat::new(&Region::system()))))
-}
-
 /// Whether the hover preview of an open calendar has proposed a value that closing must cancel.
 #[derive(Clone, Default)]
 struct Previewing(bool);
@@ -218,8 +208,8 @@ pub struct DatePicker<'a> {
     /// The latest value allowed: a value is allowed when any of its days is in range.
     #[prop]
     max: Option<PickedDate>,
-    /// What today is: the calendar rings its cell and the Today link picks it. The host supplies it (the runtime has no
-    /// calendar clock); without one neither shows.
+    /// What today is: the calendar rings its cell and the Today link picks it. Without it, the day the host supplies
+    /// (`RootEnv::today`); without either neither shows.
     #[prop]
     today: Option<PickedDate>,
 }
@@ -234,8 +224,8 @@ impl<'a> DatePicker<'a> {
         if self.precisions.is_empty() { &DatePrecision::ALL } else { self.precisions }
     }
 
-    fn codec(&self, host: Option<&Arc<Host>>, mixed: bool) -> DateCodec {
-        DateCodec::new(dates_of(host), self.offered()).bounded(self.min, self.max).mixed(mixed)
+    fn codec(&self, dates: Arc<DateFormat>, mixed: bool) -> DateCodec {
+        DateCodec::new(dates, self.offered()).bounded(self.min, self.max).mixed(mixed)
     }
 
     fn trailing(name: Label) -> [Adornment; 1] {
@@ -260,7 +250,7 @@ impl Component for DatePicker<'_> {
     /// The widest typical date and the room of the calendar button.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         use craft_behavior::Codec as _;
-        let codec = self.codec(cx.env.host(), false);
+        let codec = self.codec(cx.env.dates(), false);
         let sample = codec.sample(&None);
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         let name = cx.words::<PickerWords>().date_pick.clone();
@@ -272,7 +262,7 @@ impl Component for DatePicker<'_> {
         let trailing = Self::trailing(name);
         let placed = place(cx.content_rect, cx.style, &[], &trailing, cx.flow.is_rtl());
         let shown = cx.value();
-        let codec = self.codec(cx.env.host(), shown.is_none());
+        let codec = self.codec(cx.env.dates(), shown.is_none());
         cx.text(text_key(), placed.text, &codec, shown.unwrap_or(&None), &TextOptions::new());
         if let Some(at) = placed.trailing.first() {
             cx.part(CALENDAR, *at)
@@ -303,12 +293,12 @@ impl Component for DatePicker<'_> {
     /// the pointer is proposed; a pick proposes and commits, and closes the popover.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("calendar");
-        let dates = dates_of(cx.env.host());
+        let dates = cx.env.dates();
         let words = cx.words::<PickerWords>();
         let current = cx.value().copied().flatten();
         let precisions = self.offered();
         let (min, max) = (self.min, self.max);
-        let today = self.today;
+        let today = self.today.or_else(|| cx.env.today().and_then(PickedDate::from_calendar_date));
         let name = cx.label();
         let chosen = ui.show(popup, Overlay::popover(), |ui, body| {
             let mut view = (*body.memory::<Option<CalendarView>>()).unwrap_or_else(|| CalendarView::open(current, today, precisions, &dates));

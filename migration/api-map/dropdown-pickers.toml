@@ -411,7 +411,7 @@ name = "Calendar"
 old = ""
 new = "craft_ui::pickers::Calendar"
 status = "replaced"
-note = "The page of the popover (days, months or years with previous and next buttons), a leaf with its own stories. The host keeps its `CalendarView` and applies `CalendarOutput::moved`."
+note = "The page of the popover (days, months or years with previous and next buttons), a leaf with its own stories. The host keeps its `CalendarView` and applies `CalendarOutput::moved`. Its cells are one roving group over a wrapped grid (role `GRID`, cells `GRID_CELL`); a move past the grid's rows, Page Up and Page Down change the page (`CalendarView::crossed`); previous, next and the title are pointer parts whose keyboard paths are Page Up, Page Down and Ctrl+Up."
 
 [[type]]
 name = "IconPickerItem"

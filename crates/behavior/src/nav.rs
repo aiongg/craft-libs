@@ -434,6 +434,9 @@ pub struct Roving {
     /// `WrappedGrid`: the column of the first member when blank cells come before it, `None` when members fill the
     /// rows from the first column.
     pub first_column: Option<usize>,
+    /// Whether a move the group cannot make (a step past its first or last row, say) reaches the owning component
+    /// instead of being dropped.
+    pub hands_back: bool,
 }
 
 /// Which arrow keys a roving group moves its lead with.
@@ -452,7 +455,7 @@ pub enum Arrows {
 impl Roving {
     /// A group of `shape` with Home and End, no wrap, no paging and no letters.
     pub const fn new(shape: NavShape) -> Roving {
-        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All, first_column: None }
+        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All, first_column: None, hands_back: false }
     }
 
     /// Whether moves wrap.
@@ -489,6 +492,12 @@ impl Roving {
     /// column, Home and End go to the ends of the row.
     pub const fn first_column(mut self, column: usize) -> Self {
         self.first_column = Some(column);
+        self
+    }
+
+    /// A move the group cannot make reaches the owning component, which may page or change what the group shows.
+    pub const fn hands_back(mut self) -> Self {
+        self.hands_back = true;
         self
     }
 

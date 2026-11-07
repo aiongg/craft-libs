@@ -245,6 +245,7 @@ impl State {
         let mut state = group.roving.state(at);
         match step(group.roving.shape, &Members { len: members.len(), first_column: group.roving.first_column }, &mut state, mv, mods) {
             NavStep::Moved(to) => Some(self.focus_stop(members[to].clone())),
+            NavStep::Stay if group.roving.hands_back => None,
             _ => Some(Vec::new()),
         }
     }
