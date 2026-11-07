@@ -2,11 +2,13 @@
 //! item move of a `FreeLayout`.
 
 use super::ItemsHooks;
+use super::marquee::MarqueeDrag;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
+use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
 use crate::runtime::env::Label;
 use craft_behavior::{
-    CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, PointerButton, PressCancel, PressPhase,
+    Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, PointerButton, PressCancel, PressPhase,
     ScrollPos, SelectionModel,
 };
 use egui::{Pos2, Rect, Vec2};
@@ -30,11 +32,13 @@ pub(super) struct Drags<K> {
     pub(super) over: Option<K>,
     /// The selected row a plain press landed on: a click on it narrows the selection to it, a drag keeps it.
     pub(super) collapse: Option<K>,
+    /// The marquee a press on empty space started.
+    pub(super) marquee: Option<MarqueeDrag<K>>,
 }
 
 impl<K> Default for Drags<K> {
     fn default() -> Self {
-        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None }
+        Drags { grabbed: None, sweep: None, moving: None, over: None, collapse: None, marquee: None }
     }
 }
 
@@ -101,7 +105,7 @@ fn cancel_reason(cancel: PressCancel) -> CancelReason {
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// `at` in the layout's logical coordinates, relative to the rows' rect.
-    fn logical(layout: &C::ItemLayout, rect: Rect, rtl: bool, at: Pos2) -> Pos2 {
+    pub(super) fn logical(layout: &C::ItemLayout, rect: Rect, rtl: bool, at: Pos2) -> Pos2 {
         let at = at - rect.min.to_vec2();
         if layout.mirrors() && rtl {
             Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), true).to_physical(Rect::from_min_size(at, Vec2::ZERO)).min
@@ -136,9 +140,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.events.push(CollectionEvent::Toggle(EditEvent::set(gesture, Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
+    /// Whether the toggle cell of row `at` in `column` takes a press or a sweep: a section row has no toggles, and the
+    /// source can lock a cell.
+    fn toggle_open(&self, at: usize, column: &ColumnKey) -> bool {
+        !self.source.is_section(at) && self.source.toggle_enabled(at, column)
+    }
+
     /// A press on a toggle cell flips it. On a sweepable column it also starts a sweep of the new value; on an
-    /// exclusive column, turning a cell on turns the column's other cells off.
+    /// exclusive column, turning a cell on turns the column's other cells off. A cell that is not open to toggling
+    /// does nothing and starts no sweep.
     pub(super) fn begin_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: ColumnKey, toggle: ToggleColumn) {
+        if !self.toggle_open(at, &column) {
+            return;
+        }
         let on = !self.source.toggled(at, &column);
         self.emit_toggle(cx, at, &column, on);
         if toggle.exclusive && on {
@@ -163,7 +177,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if let Some(held) = &mut self.drags.sweep {
                 held.crossed.push(at);
             }
-            if self.source.enabled(at) && self.source.toggled(at, &sweep.column) != sweep.on {
+            if self.source.enabled(at) && self.toggle_open(at, &sweep.column) && self.source.toggled(at, &sweep.column) != sweep.on {
                 self.emit_toggle(cx, at, &sweep.column, sweep.on);
             }
         }
@@ -210,19 +224,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let past = hit.is_none() && !across;
         let over = hit.or_else(|| past.then(|| self.source.len() - 1))?;
         let row = self.screen(layout, rect, over, offset, rtl);
-        let (low, high) = (self.on_screen(row.min), self.on_screen(row.max));
         if matches!(nav, NavShape::Spatial) {
+            let (low, high) = (self.on_screen(row.min), self.on_screen(row.max));
             return Some(Spot { over, insert: over, mark: DropMark::Into(Rect::from_min_max(low, high)) });
         }
-        let after = past || if across { (at.x > row.center().x) != rtl } else { at.y > row.center().y };
-        let mark = if across {
-            let x = if after != rtl { high.x } else { low.x };
-            DropMark::line(Pos2::new(x, low.y), Pos2::new(x, high.y))
-        } else {
-            let y = if after { high.y } else { low.y };
-            DropMark::line(Pos2::new(low.x, y), Pos2::new(high.x, y))
-        };
-        Some(Spot { over, insert: over + usize::from(after), mark })
+        // The gap around the one row the layout hit. `gap_at` works in physical coordinates, so across a row under
+        // right-to-left the physical end is the earlier place in reading order.
+        let gap = reorder::gap_at(&[row], if across { Axis::X } else { Axis::Y }, at)?;
+        let after = (gap.insert == 1) != (across && rtl);
+        Some(Spot { over, insert: over + usize::from(after), mark: gap.mark.mapped(|point| self.on_screen(point)) })
     }
 
     fn land(&mut self, cx: &mut Cx<'_, C>, payload: &ListDrag<C::Key>, landed: Landed) {
@@ -235,8 +245,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             payload.keys.iter().filter_map(|key| self.index_of(key)).collect::<std::collections::BTreeSet<_>>().into_iter().collect();
         let Some(&from) = at.first() else { return };
         let insert = landed.spot.insert;
-        // The moved items leave their places first, so every one of them above `insert` shifts it up by one.
-        let to = insert - at.iter().filter(|&&place| place < insert).count();
+        let to = reorder::move_all_to(&at, insert);
         let copy = matches!(landed.op, DropOperation::Copy);
         let together = at.iter().enumerate().all(|(n, &place)| place == from + n);
         if to == from && together && !copy {
