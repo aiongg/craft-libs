@@ -95,6 +95,10 @@ impl Canvas {
         Canvas { common: Common::new(), props, path, view: None, wheel: None }.label(label)
     }
 
+    fn space(&self, pixels_per_point: f32) -> Option<CanvasSpace> {
+        self.view.map(|view| CanvasSpace::new(view, pixels_per_point))
+    }
+
     /// Shows the body zoomed and moved by `transform`, so controls and members keep canvas-space geometry.
     #[must_use]
     pub fn transform(mut self, transform: CanvasTransform) -> Self {
@@ -115,7 +119,10 @@ pub struct CanvasOutput {
     /// The wheel of this pass over the canvas: scroll in points and zoom factor, with the modifiers held.
     pub wheel: Option<Wheel>,
     /// How far a middle-button drag on the background moved the pointer this pass, in the canvas root's screen space.
+    /// The pass that starts the drag reports the distance from the press, so the passes sum to the pointer's travel.
     pub pan: Option<Vec2>,
+    /// The canvas's view and interface scale, for a canvas given a view. [`ToolHost::run`] hands it to the tool.
+    pub space: Option<CanvasSpace>,
 }
 
 impl CanvasOutput {
@@ -158,14 +165,15 @@ impl Component for Canvas {
 
     /// The canvas's [`CanvasSpace`] for its body; a canvas without a view hides an outer canvas's.
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        space::publish(values, self.view.map(|view| CanvasSpace::new(view, cx.env.scale().0)));
+        space::publish(values, self.space(cx.env.scale().0));
     }
 
-    /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's.
+    /// The background part the active tool gets. It sits in the canvas root's space, the parent layer's. A press on it
+    /// focuses the canvas, so the keys the tool reads reach it.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         cx.part(BACKGROUND, rect)
             .priority(HitPriority::new(HitLevel::Background, 0))
-            .sense(Sense::CLICK | Sense::DRAG)
+            .sense(Sense::CLICK | Sense::DRAG | Sense::TAKE_FOCUS)
             .pointer_only(self.path.reason());
     }
 
@@ -173,11 +181,13 @@ impl Component for Canvas {
         let press = cx.part(BACKGROUND).press;
         let middle = press.phase.start().is_some_and(|start| start.button == PointerButton::Middle);
         let (press, pan) = match press.phase {
+            PressPhase::DragStart { start, pos, .. } if middle => (PressState::IDLE, Some(pos - start.origin)),
             PressPhase::Drag { delta, .. } if middle => (PressState::IDLE, Some(delta)),
             _ if middle => (PressState::IDLE, None),
             _ => (press, None),
         };
-        CanvasOutput { response: cx.response.clone(), press, wheel: self.wheel, pan }
+        let space = self.space(cx.env.scale().0);
+        CanvasOutput { response: cx.response.clone(), press, wheel: self.wheel, pan, space }
     }
 }
 

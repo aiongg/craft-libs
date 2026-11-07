@@ -53,6 +53,10 @@
         "height": 180.0,
         "width": 300.0
       },
+      "pointer_tip": {
+        "x": 24.0,
+        "y": 27.0
+      },
       "rail": {
         "button": 36.0,
         "width": 50.0

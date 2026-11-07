@@ -6,8 +6,8 @@ use crate::canvas::{Canvas, CanvasTool, ToolHost, ToolPath};
 use crate::contract::{BodyCx, ShowContainer as _};
 use crate::runtime::access::Role;
 use craft_behavior::GesturePhase;
-use egui::{Event, Key, Modifiers, Pos2, Ui, Vec2};
-use std::cell::{Ref, RefCell, RefMut};
+use egui::{Event, Id, Key, Modifiers, Pos2, Ui, Vec2};
+use std::cell::{Cell, Ref, RefCell, RefMut};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -22,6 +22,8 @@ pub struct ToolFixture<T: CanvasTool + 'static> {
     tool: Rc<RefCell<T>>,
     label: &'static str,
     gestures: Rc<RefCell<Vec<GesturePhase>>>,
+    canvas: Rc<Cell<Id>>,
+    enabled: Rc<Cell<bool>>,
 }
 
 impl<T: CanvasTool + 'static> ToolFixture<T> {
@@ -35,21 +37,20 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
     pub fn with_body(label: &'static str, tool: T, mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'static) -> Self {
         let tool = Rc::new(RefCell::new(tool));
         let gestures = Rc::new(RefCell::new(Vec::new()));
-        let (shown, seen) = (Rc::clone(&tool), Rc::clone(&gestures));
+        let canvas = Rc::new(Cell::new(Id::NULL));
+        let enabled = Rc::new(Cell::new(true));
+        let (shown, seen, id, on) = (Rc::clone(&tool), Rc::clone(&gestures), Rc::clone(&canvas), Rc::clone(&enabled));
         let mut fixture = Fixture::new(move |ui| {
             let path = shown.borrow().command_form();
-            let mut host = ToolHost::new(label);
-            let canvas = Canvas::new(label, path).show(ui, |ui, cx| {
-                host.capture_values(ui);
-                body(ui, cx);
-            });
-            let reply = host.run(ui, &canvas.output, &mut *shown.borrow_mut());
+            let canvas = Canvas::new(label, path).show(ui, &mut body);
+            id.set(canvas.output.response.id);
+            let reply = ToolHost::new().enabled(on.get()).run(ui, &canvas.output, &mut *shown.borrow_mut());
             if let Some(phase) = reply.gesture {
                 seen.borrow_mut().push(phase);
             }
         });
         fixture.settle();
-        ToolFixture { fixture, tool, label, gestures }
+        ToolFixture { fixture, tool, label, gestures, canvas, enabled }
     }
 
     /// The fixture underneath, for input the helpers here do not cover.
@@ -70,6 +71,18 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
     /// The canvas's node.
     pub fn canvas(&self) -> Target {
         self.fixture.by_role(Role::CANVAS).into_iter().next().expect("the fixture shows a canvas")
+    }
+
+    /// The canvas's id, which keys the host's state: what [`ToolHost::inject`], [`ToolHost::cancel`] and
+    /// [`ToolHost::in_gesture`] take.
+    pub fn canvas_id(&self) -> Id {
+        self.canvas.get()
+    }
+
+    /// Runs the host from the next frame on, or leaves it disabled (the app's tool is busy elsewhere).
+    pub fn enabled(&mut self, enabled: bool) -> &mut Self {
+        self.enabled.set(enabled);
+        self
     }
 
     /// The gesture phases the host reported, one per pass that began, moved or ended a gesture, since the last
@@ -122,6 +135,11 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
     /// [`ToolFixture::drag_from`] with the middle button, which a canvas keeps for panning.
     pub fn middle_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self {
         self.drag_with(from, by, pointer::middle)
+    }
+
+    /// [`ToolFixture::drag_from`] with the secondary button.
+    pub fn secondary_drag_from(&mut self, from: Pos2, by: Vec2) -> &mut Self {
+        self.drag_with(from, by, pointer::secondary)
     }
 
     fn drag_with(&mut self, from: Pos2, by: Vec2, button: fn(Pos2, bool) -> Event) -> &mut Self {

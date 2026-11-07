@@ -6,7 +6,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::StageAccess;
 use crate::style::{Corners, Ink, SurfaceKind};
 use craft_i18n::Direction;
-use egui::{Pos2, Rect, Vec2, vec2};
+use egui::{Context, Pos2, Rect, Vec2, vec2};
 use std::cell::RefCell;
 
 /// Paints rows of a label and a value beside the pointer at `at`, on the ghost layer above every popup, for this
@@ -15,10 +15,14 @@ use std::cell::RefCell;
 /// room and stays inside the window. Labels start at the reading start and values end at the reading end, the widest
 /// label and the widest value a section gap apart. No rows paint nothing.
 pub fn readout(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
+    paint_readout(cx.stage().ctx(), at, rows);
+}
+
+/// [`readout`] for a caller that has the context, such as the tool host.
+pub(super) fn paint_readout(ctx: &Context, at: Pos2, rows: &[(Label, String)]) {
     if rows.is_empty() {
         return;
     }
-    let ctx = cx.stage().ctx();
     let env = Env::of_root(ctx);
     let painter = ghost::painter(ctx);
     let record = RefCell::new(PaintRecord::default());
@@ -29,14 +33,15 @@ pub fn readout(cx: &impl StageAccess, at: Pos2, rows: &[(Label, String)]) {
         .iter()
         .map(|(label, value)| (draw.layout(&TextRun::new(label), f32::INFINITY), draw.layout(&TextRun::new(value), f32::INFINITY)))
         .collect();
-    let (space, size) = (&env.tokens.space, &env.tokens.size);
+    let space = &env.tokens.space;
     let pad = vec2(space.gap.stack, space.gap.row);
     let label_width = layouts.iter().fold(0.0f32, |widest, (label, _)| widest.max(label.size().x));
     let value_width = layouts.iter().fold(0.0f32, |widest, (_, value)| widest.max(value.size().x));
     let width = 2.0 * pad.x + label_width + space.gap.section + value_width;
     let heights: Vec<f32> = layouts.iter().map(|(label, value)| label.size().y.max(value.size().y)).collect();
     let height = 2.0 * pad.y + heights.iter().sum::<f32>() + env.tokens.stroke.thin * (heights.len() - 1) as f32;
-    let offset = vec2(size.control.md - space.gap.row, size.control.md - space.gap.tight);
+    let tip = env.tokens.size.pointer_tip;
+    let offset = vec2(tip.x, tip.y);
     let rtl = env.direction == Direction::Rtl;
     let outer = place(at, offset, vec2(width, height), rtl, ctx.content_rect());
 

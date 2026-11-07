@@ -1,29 +1,34 @@
 //! `CanvasSpace`: the canvas view a member of a canvas body reads, and the text of ruler units.
 //!
 //! A `Canvas` given a view publishes its [`CanvasSpace`] to its body through `Component::content_env`. A canvas
-//! control reads it with [`canvas_space`].
+//! control reads it with [`canvas_space`]; the canvas's tool reads it with `ToolContext::space`, handed over by
+//! `CanvasOutput::space`.
 
 use crate::runtime::env::{AppValues, EnvValue, EnvView, UnitKind, Units};
+use craft_behavior::canvas::zoom;
 use craft_behavior::{CanvasView, RulerUnits};
 use std::ops::RangeInclusive;
 
-/// How a canvas shows its document, as its body sees it: the view, and the zoom in device pixels per document unit
-/// (1 is 100 %) at the interface scale it was built with.
+/// How a canvas shows its document, as its body and its tool see it: the view, and the interface scale it is
+/// shown at.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct CanvasSpace {
     /// The view: document to the canvas root's screen space.
     pub view: CanvasView,
-    /// Device pixels per document unit.
-    pub zoom_device: f64,
-    /// The interface scale `zoom_device` was computed at.
+    /// Device pixels per point.
     pub pixels_per_point: f32,
 }
 
 impl CanvasSpace {
     /// The space of `view` at `pixels_per_point` device pixels per point.
     pub fn new(view: CanvasView, pixels_per_point: f32) -> Self {
-        Self { view, zoom_device: view.zoom * f64::from(pixels_per_point), pixels_per_point }
+        Self { view, pixels_per_point }
+    }
+
+    /// Device pixels per document unit (1 is 100 %) of the view at this scale.
+    pub fn zoom_device(&self) -> f64 {
+        zoom::device(&self.view, self.pixels_per_point)
     }
 }
 

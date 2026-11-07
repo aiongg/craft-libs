@@ -30,7 +30,7 @@ fn a_member_in_a_canvas_body_reads_the_view_and_one_outside_reads_none() {
     assert_eq!(outside, None, "a member outside every canvas reads no view");
     let space = inside.expect("a member in the canvas body reads the view");
     assert_eq!(space.view, view);
-    assert_eq!(space.zoom_device, view.zoom * f64::from(space.pixels_per_point), "the device zoom follows the interface scale");
+    assert_eq!(space.zoom_device(), view.zoom * f64::from(space.pixels_per_point), "the device zoom follows the interface scale");
 }
 
 /// A canvas with a view that records the wheel, the pan and the tool press of every pass.
@@ -83,6 +83,6 @@ fn a_middle_drag_on_the_background_pans_and_gives_the_tool_no_press() {
     fixture.frame(vec![pointer::middle(from + Vec2::new(32.0, 0.0), false)]);
     fixture.idle(1);
     let moved: f32 = watched.pans.borrow().iter().map(|pan| pan.x).sum();
-    assert!(moved > 0.0, "the drag reports its movement as a pan");
+    assert!((moved - 32.0).abs() < 1e-3, "the passes of the drag sum to the pointer's travel, slop included: {:?}", watched.pans.borrow());
     assert_eq!(*watched.presses.borrow(), 0, "a middle press is never a tool press");
 }

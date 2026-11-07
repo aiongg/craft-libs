@@ -161,6 +161,8 @@ struct Stage {
     last_nodes: HashMap<u64, Node>,
     activated: HashMap<Id, Id>,
     alt: AltTrack,
+    /// The keys down now, as the input hook read them before it withheld any press.
+    down: Vec<Key>,
     shortcuts: Shortcuts,
     /// The paste text the focused component reads through its clipboard handle.
     pasted: Option<(Id, Arc<str>)>,
@@ -413,6 +415,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         let mut visible = None;
         input.events.retain(|event| {
             let read = raw_input::key_event(event, os, &latin);
+            note_down(&mut stage.down, &read);
             visible = match &read {
                 KeyEvent::PointerPress => Some(false),
                 KeyEvent::Press { .. } | KeyEvent::Text(_) => Some(true),
@@ -432,6 +435,27 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         stage.batch = batch;
     });
     input.events.len() != before
+}
+
+/// Updates the keys held after `event`: a press adds its key, a release removes it, and the window losing focus
+/// (which also reads as the right Alt coming up) forgets them all, since their releases go to another window.
+fn note_down(down: &mut Vec<Key>, event: &KeyEvent) {
+    match event {
+        KeyEvent::Press { input, .. } => {
+            if let Some(key) = input.physical.or(input.typed).filter(|key| !down.contains(key)) {
+                down.push(key);
+            }
+        }
+        KeyEvent::Release { input } => down.retain(|key| Some(*key) != input.physical.or(input.typed)),
+        KeyEvent::RightAlt(false) => down.clear(),
+        _ => {}
+    }
+}
+
+/// The keys down in the running viewport this pass, withheld presses included (a key a component claimed is still
+/// down).
+pub(crate) fn down(ctx: &Context) -> Vec<Key> {
+    current(ctx, |stage| stage.down.clone())
 }
 
 /// Takes the Tab and F6 moves the input hook recorded, for the focus service's begin hook. The pass's root env is

@@ -408,7 +408,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
     let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
     let text = holder_widget.is_some();
     let keys = text_keys.unwrap_or(C::KEYS);
-    let role = hooks.key_role(comp);
+    let role = hooks.key_role(comp).nudge(keys.nudge);
     // A bound component that keeps the arrows reads them as value steps; a text value sets `steps_value` in its text options.
     let arrows = keys.keep == crate::runtime::focus::KeepKeys::BlockArrows;
     let value = role.value || keys.value || (comp.bind().is_some() && !role.nudge && !text && arrows);
