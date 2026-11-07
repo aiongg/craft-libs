@@ -234,7 +234,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         if field.response.has_focus() {
                             *taken = true;
                         } else if !*taken {
-                            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+                            focus::request(ui.ctx(), FocusTarget::Part(field.response.id, craft_behavior::PartRef { key: craft_behavior::PartKey::new("text"), index: None }));
                         }
                     }
                     if let Some(rows) = header_menu.as_mut() {
