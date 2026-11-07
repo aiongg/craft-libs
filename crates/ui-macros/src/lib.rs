@@ -61,7 +61,9 @@ pub fn register_contract(input: TokenStream) -> TokenStream {
 }
 
 /// Writes one setter per `#[prop]` field: `#[prop]`, `#[prop(into)]`, `#[prop(flag)]`, `#[prop(name = "..")]`.
-/// The field's doc comment is the setter's.
+/// The field's doc comment is the setter's. `#[prop(quantity = "..")]` names what a numeric prop measures; the
+/// `props/point-size` lint reads it as the declaration that the number is not a size in points, and it changes no
+/// generated code.
 #[proc_macro_derive(Props, attributes(prop))]
 pub fn derive_props(input: TokenStream) -> TokenStream {
     expanded(props::derive(input.into()))

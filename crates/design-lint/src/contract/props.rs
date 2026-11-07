@@ -60,7 +60,13 @@ fn setters(cx: &Cx<'_>, imp: &ItemImpl, out: &mut Vec<Finding>) {
         for param in m.sig.inputs.iter().filter_map(|a| if let syn::FnArg::Typed(t) = a { Some(t) } else { None }) {
             let syn::Pat::Ident(pat) = &*param.pat else { continue };
             if is_point_size(&param.ty, &pat.ident.to_string()) {
-                cx.flag_span(out, POINT_SIZE, POINT_SIZE, param.ty.span(), format!("`{owner}::{name}` takes `{}` as a size; {SIZE_ADVICE}", pat.ident));
+                cx.flag_span(
+                    out,
+                    POINT_SIZE,
+                    POINT_SIZE,
+                    param.ty.span(),
+                    format!("`{owner}::{name}` takes `{}` as a size; {SIZE_ADVICE}", pat.ident),
+                );
             }
         }
         if only_stores(m) {
@@ -150,7 +156,8 @@ fn setter_name(attr: &syn::Attribute) -> Option<String> {
     })
 }
 
-const SIZE_ADVICE: &str = "sizes come from a token step (`ControlSize`), an aspect ratio or the content; a number that is not a size declares `#[prop(quantity = \"..\")]`";
+const SIZE_ADVICE: &str =
+    "sizes come from a token step (`ControlSize`), an aspect ratio or the content; a number that is not a size declares `#[prop(quantity = \"..\")]`";
 
 /// Types that name a length in points.
 const SIZE_TYPES: [&str; 6] = ["Px", "Points", "Pt", "Size", "Width", "Height"];

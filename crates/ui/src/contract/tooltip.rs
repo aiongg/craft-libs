@@ -3,6 +3,10 @@
 //! A tooltip shows after one delay while the pointer rests on the component, or on keyboard focus after the same
 //! delay, and at once while a neighbour's tooltip was hiding a moment ago. A press, a menu that owns keys and a
 //! running drag hide it.
+//!
+//! A component with no tooltip shows its label as the tooltip when its type declares `Component::SHOWS_LABEL` false
+//! (or an instance does, through `Component::shows_label`): the label is then its only name and no text paints it.
+//! A component that paints its label shows it whole as the tooltip when the paint cut it.
 
 use super::cx::PartExtras;
 use super::overlay::{self, Anchor, Layer, Overlay, Place};

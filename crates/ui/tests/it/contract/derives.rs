@@ -309,6 +309,7 @@ fn two_token_groups_with_one_path_are_a_debug_assertion() {
 
 #[trial]
 fn a_pattern_registers_as_a_pattern_and_has_no_component_probe() {
+    let _ = (ToolRow, Handwritten);
     let patterns: Vec<_> = craft_ui::contract::REGISTRATIONS.iter().filter_map(|registration| registration.pattern_probe().copied()).collect();
     let row = patterns.iter().find(|pattern| pattern.type_name().ends_with("ToolRow")).expect("the derive registers the pattern");
     assert_eq!(row.purpose, "A row of tools: a pattern assembles components and has no contract shape of its own");

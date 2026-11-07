@@ -77,7 +77,11 @@ fn each_reject_fixture_reports_every_shape() {
     assert_eq!(count("style-state-pick.rs", "style/state-pick"), 4, "`if`, `then_some`, tuple `match`, egui `interact`");
     assert_eq!(count("contract-entry.rs", "contract/entry"), 4, "`show`, a free function, an associated function and a method; not the private one");
     assert_eq!(count("contract-widget.rs", "contract/widget"), 4, "imported, qualified, renamed and on `&mut`");
-    assert_eq!(count("contract-registration.rs", "contract/registration"), 2, "`Plain` is registered by the macro; `Manual` and the pattern `Assembly` are not");
+    assert_eq!(
+        count("contract-registration.rs", "contract/registration"),
+        2,
+        "`Plain` is registered by the macro; `Manual` and the pattern `Assembly` are not"
+    );
     assert_eq!(count("contract-overlay-flag.rs", "contract/overlay-flag"), 2, "`overlay` inside `exempt(..)` is not the flag");
 }
 

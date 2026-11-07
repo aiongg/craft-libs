@@ -35,16 +35,10 @@ fn check_registration(cx: &Cx<'_>, out: &mut Vec<Finding>) {
             f.defined && !derives && !f.registered
         });
         if unregistered {
-            cx.flag_span(
-                out,
-                REGISTRATION,
-                REGISTRATION,
-                imp.impl_token.span,
-                {
-                    let option = if contract == "Pattern" { "; pattern" } else { "" };
-                    format!("`impl {contract} for {owner}` without `#[derive({contract})]`: register it with `register_contract!({owner}{option})`")
-                },
-            );
+            cx.flag_span(out, REGISTRATION, REGISTRATION, imp.impl_token.span, {
+                let option = if contract == "Pattern" { "; pattern" } else { "" };
+                format!("`impl {contract} for {owner}` without `#[derive({contract})]`: register it with `register_contract!({owner}{option})`")
+            });
         }
     }
 }
