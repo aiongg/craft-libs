@@ -10,9 +10,9 @@
       "equivalent": "500 rows alternating NumberField and TextField, each with its side label (no Field row component yet)",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 10.312,
-        "frame_ms_p95": 12.639,
-        "allocations_median": 32203.0,
+        "frame_ms_median": 11.609,
+        "frame_ms_p95": 17.009,
+        "allocations_median": 31203.0,
         "bytes_median": 5369797.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -25,9 +25,9 @@
       "equivalent": "BenchList over 10,000 rows, one selected row",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.294,
-        "frame_ms_p95": 0.35,
-        "allocations_median": 1243.0,
+        "frame_ms_median": 0.295,
+        "frame_ms_p95": 0.374,
+        "allocations_median": 1181.0,
         "bytes_median": 135316.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -40,9 +40,9 @@
       "equivalent": "BenchList of 200 rows, each with 50 cell parts that paint their text",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 14.047,
-        "frame_ms_p95": 24.088,
-        "allocations_median": 124721.0,
+        "frame_ms_median": 13.869,
+        "frame_ms_p95": 18.203,
+        "allocations_median": 124319.0,
         "bytes_median": 21772672.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -55,9 +55,9 @@
       "equivalent": "a leaf with 50 control parts painted as knobs",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.047,
-        "frame_ms_p95": 0.054,
-        "allocations_median": 118.0,
+        "frame_ms_median": 0.048,
+        "frame_ms_p95": 0.08,
+        "allocations_median": 116.0,
         "bytes_median": 86880.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -70,9 +70,9 @@
       "equivalent": "a container on the menu layer, open from the first frame, over a BenchList of 40 labelled rows",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.418,
-        "frame_ms_p95": 0.487,
-        "allocations_median": 1714.0,
+        "frame_ms_median": 0.724,
+        "frame_ms_p95": 0.841,
+        "allocations_median": 1630.0,
         "bytes_median": 185211.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -86,8 +86,8 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.071,
-        "frame_ms_p95": 0.103,
-        "allocations_median": 84.0,
+        "frame_ms_p95": 0.107,
+        "allocations_median": 82.0,
         "bytes_median": 635332.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -100,9 +100,9 @@
       "equivalent": "BenchList over 10,000 rows, all 10,000 keys in the Selection",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.312,
-        "frame_ms_p95": 0.321,
-        "allocations_median": 1243.0,
+        "frame_ms_median": 0.326,
+        "frame_ms_p95": 0.484,
+        "allocations_median": 1181.0,
         "bytes_median": 295300.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -115,9 +115,9 @@
       "equivalent": "a content-sized, animated-collapse container whose open state the scene toggles",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.114,
-        "frame_ms_p95": 0.119,
-        "allocations_median": 347.0,
+        "frame_ms_median": 0.119,
+        "frame_ms_p95": 0.154,
+        "allocations_median": 321.0,
         "bytes_median": 35884.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -130,10 +130,10 @@
       "equivalent": "BenchList::auto_height over 10,000 rows of one to four row heights, mouse wheel every frame",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 2.077,
-        "frame_ms_p95": 2.299,
-        "allocations_median": 1934.0,
-        "bytes_median": 664736.0,
+        "frame_ms_median": 2.297,
+        "frame_ms_p95": 3.194,
+        "allocations_median": 1892.0,
+        "bytes_median": 664576.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
       }
@@ -145,9 +145,9 @@
       "equivalent": "a container with Mount::viewport (the fallback layer, as under an embedded backend)",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.179,
-        "frame_ms_p95": 0.217,
-        "allocations_median": 589.0,
+        "frame_ms_median": 0.182,
+        "frame_ms_p95": 0.249,
+        "allocations_median": 547.0,
         "bytes_median": 59371.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
@@ -160,9 +160,9 @@
       "equivalent": "two labelled TextFields in a ColumnGroup whose label text changes width every frame, and an end-aligned readout block",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.068,
-        "frame_ms_p95": 0.084,
-        "allocations_median": 174.0,
+        "frame_ms_median": 0.069,
+        "frame_ms_p95": 0.104,
+        "allocations_median": 168.0,
         "bytes_median": 33173.0,
         "discard_passes_per_frame": 0.0,
         "frames_with_discard": 0
