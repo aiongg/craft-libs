@@ -58,7 +58,7 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
         };
         match (fixture.focused(), explanation) {
             (Some(_), None) => return Err(format!("{}: a disabled story without `disabled_text` took focus", story.name)),
-            (Some(_), Some(text)) if !fixture.texts().iter().any(|run| run.text.contains(&text)) => {
+            (Some(_), Some(text)) if story.disabled_text.is_none() && !fixture.texts().iter().any(|run| run.text.contains(&text)) => {
                 return Err(format!("{}: the tooltip `{text}` does not show on focus", story.name));
             }
             _ => {}
@@ -67,6 +67,8 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
             if fixture.focused().is_none() {
                 return Err(format!("{}: a disabled story with `disabled_text` is not a Tab stop", story.name));
             }
+            fixture.advance(crate::contract::tooltip::DELAY);
+            fixture.idle(3);
             if !fixture.texts().iter().any(|run| run.text.contains(reason)) {
                 return Err(format!("{}: the reason `{reason}` does not show on focus", story.name));
             }

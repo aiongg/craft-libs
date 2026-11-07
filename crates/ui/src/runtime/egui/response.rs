@@ -24,9 +24,22 @@ pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
     mapped
 }
 
-/// A root's egui widget over `rect`, clipped by the caller.
+/// A root's egui widget over `rect`, clipped by the caller. egui gives a widget of a disabled `Ui` no focus stop and
+/// drops the focus it holds; the sense the pipeline passes decides whether the root is a stop (a disabled control with
+/// a reason is), so the stop and the focus are kept here.
 pub(crate) fn widget(ui: &Ui, id: Id, rect: Rect, sense: Sense) -> Response {
-    ui.interact(rect, id, to_egui(sense))
+    let ctx = ui.ctx();
+    let held = ctx.memory(|memory| memory.has_focus(id));
+    let response = ui.interact(rect, id, to_egui(sense));
+    if sense.contains(Sense::FOCUS) && !ui.is_enabled() {
+        ctx.memory_mut(|memory| {
+            memory.interested_in_focus(id, ui.layer_id());
+            if held {
+                memory.request_focus(id);
+            }
+        });
+    }
+    response
 }
 
 /// Whether a pointer button went down on `response`'s widget and is still down.
