@@ -4,7 +4,7 @@ A component is a Rust type on the contract in `craft_ui::contract`. It supplies 
 
 ## File layout
 
-One file per component in its family module: `<family>/<component>.rs`, for example `controls/radio.rs`. The file holds the type, its style, its words (`words!`) and a `stories` submodule:
+One file per component in its family module: `<family>/<component>.rs`, for example `choice/radio.rs`. The file holds the type, its style, its words (`words!`) and a `stories` submodule:
 
 ```rust
 #[cfg(feature = "testing")]

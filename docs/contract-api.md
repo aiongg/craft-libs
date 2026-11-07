@@ -2242,6 +2242,7 @@ Text dumps for tests: ordered `key = value` lines compared exactly with a file, 
   - `pub fn root_id(&self) -> Option<Id>`. The component id of the latest shown output, kept when the outputs are taken.
   - `pub fn drag_part(&self) -> Option<PartRef>`. The first part of the shown component that senses a drag.
   - `pub fn click_part(&self) -> Option<PartRef>`. The first part of the shown component that senses a click: what a click activates when the component has
+  - `pub fn styles_of(&self, type_name: &str) -> Vec<std::sync::Arc<super::style::StyleSeen>>`. The styles the pipeline resolved for the component type `type_name` in this fixture.
   - `pub fn texts(&self) -> &[fixture::PaintedText]`. The text runs the latest frame painted.
   - `pub fn shape_bounds(&self) -> &[Rect]`. The visual bounds of the shapes the latest frame painted.
   - `pub fn shape_overshoot(&self) -> &[f32]`. Half the stroke width of the shape behind each of `shape_bounds`.
@@ -2541,6 +2542,8 @@ Style and paint helpers: token sets, a `StyleCx`, the style cache and a `Draw` o
 - `craft_ui::testing::style::Recorded`: `pub struct Recorded { pub elided: Option<String>, pub baseline: Option<f32> }`. What `Draw` recorded in one frame.
 - `craft_ui::testing::style::StyleLooks`: `pub struct StyleLooks { pub variants: &'static [craft_theme::Variant], pub surface: Option<crate::style::SurfaceLook>, pub focus: Option<crate::style::FocusLook>, pub texts: Vec<crate::style::TextLook>, pub icons: Vec<crate::style::IconLook> }`. A resolved style as the style cases read it: the variants its type lists and the looks that state colours
   - `pub fn same_as(&self, other: &StyleLooks) -> bool`. Whether `other` is the same style, in every field.
+- `craft_ui::testing::style::StyleSeen`: `pub struct StyleSeen { pub type_name: &'static str, pub variant: craft_theme::Variant, pub size: ControlSize, pub looks: StyleLooks }`. A style the pipeline resolved for a component run: what it looked like in the env it was resolved in, and how to
+  - `pub fn resolve_in(&self, cx: &crate::style::StyleCx<'_>) -> StyleLooks`. The style of the same component, from the same style key, under another style context.
 - `craft_ui::testing::style::env_key`: `pub fn env_key(tokens: &UiTokens) -> EnvKey`. The `EnvKey` of `tokens` in a left-to-right Linux window at scale 1 with no style-affecting app values.
 - `craft_ui::testing::style::face_id`: `pub fn face_id(composite: &str, part: craft_behavior::PartRef) -> egui::Id`. The base id of the face painted for `part` of the composite `id`.
 - `craft_ui::testing::style::paint_frame`: `pub fn paint_frame(frames: &mut Frames, tokens: &UiTokens, direction: Direction, ink: Ink, mut paint: impl FnMut(&Draw<'_>),) -> (Vec<Shape>, Recorded)`. Runs one frame in which `paint` draws through a `Draw` over the root `Ui`'s painter, in `direction` and on
