@@ -38,6 +38,8 @@ pub(crate) struct NavKeys {
 struct Press {
     key: Key,
     mods: Mods,
+    /// An auto-repeat of a key that is still held.
+    repeat: bool,
 }
 
 /// A key press, release or clipboard chord that the shortcut dispatcher may match, with the press that the
@@ -78,6 +80,8 @@ struct Batch {
     claimed: Vec<Chord>,
     nav: NavKeys,
     menu: Vec<MenuKey>,
+    /// Whether the last Enter event of the pass was a press (`true`) or a release, `None` when there was none.
+    enter_down: Option<bool>,
     /// The latest key press of the pass, which a following text event was typed by.
     last_press: Option<KeyInput>,
     /// What this pass's typed text taught: the physical key, the modifiers and the text.
@@ -142,6 +146,12 @@ struct Stage {
     /// Components with an open edit run this pass: Escape cancels the run before it leaves a row's child.
     open_edits: Vec<Id>,
     last_open_edits: Vec<Id>,
+    /// Enter is held down: its last event was a press.
+    enter_down: bool,
+    /// A modal layer was open at the previous pass.
+    modal_open: bool,
+    /// The held Enter began before the open modal layer: its repeats reach nobody until a fresh press.
+    enter_stale: bool,
 }
 
 fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Stage) -> R) -> R {
@@ -172,9 +182,15 @@ impl Strip<'_> {
             KeyEvent::Press { key, input, repeat } => {
                 alt.other_key = true;
                 batch.last_press = Some(input);
+                if key == Key::Enter {
+                    batch.enter_down = Some(true);
+                }
                 self.press(batch, key, &input, repeat)
             }
             KeyEvent::Release { input } => {
+                if input.physical.or(input.typed) == Some(Key::Enter) {
+                    batch.enter_down = Some(false);
+                }
                 batch.shortcuts.push(Shortcut { input, phase: FirePhase::Release, typed: false, press: None });
                 true
             }
@@ -267,7 +283,7 @@ impl Strip<'_> {
             batch.nav.tabs.push(!mods.shift);
             false
         } else if ctrl_tab {
-            batch.presses.push(Press { key, mods });
+            batch.presses.push(Press { key, mods, repeat });
             false
         } else if key == Key::F6 && (mods.is_none() || mods == Mods::SHIFT) {
             batch.nav.panes.push(!mods.shift);
@@ -282,7 +298,7 @@ impl Strip<'_> {
             batch.menu.push(MenuKey::Letter(key.name().chars().next().unwrap_or('A')));
             false
         } else {
-            batch.presses.push(Press { key, mods });
+            batch.presses.push(Press { key, mods, repeat });
             if !repeat {
                 batch.shortcuts.push(Shortcut { input: *input, phase: FirePhase::Press, typed: false, press: Some(batch.presses.len() - 1) });
             }
@@ -375,13 +391,28 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         stage.last_nodes = std::mem::take(&mut stage.nodes);
         (std::mem::take(&mut stage.batch), stage.last_nodes.clone(), std::mem::take(&mut stage.captures))
     });
+    let modal = overlay::any_open(ctx, overlay::OpenFilter::Modal);
+    let stale_repeat = |stale: &mut bool, press: &Press| {
+        if press.key != Key::Enter || !press.mods.is_none() {
+            return false;
+        }
+        *stale &= press.repeat;
+        *stale
+    };
+    // An Enter that began before the modal layer opened (the field's Enter that raised it, and its repeats)
+    // answers nothing in the layer; only a fresh press does.
+    let mut stale = current(ctx, |stage| {
+        stage.enter_stale = modal && (stage.enter_stale || (!stage.modal_open && stage.enter_down));
+        stage.enter_stale
+    });
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
     let mut consumed = vec![false; batch.presses.len()];
     let dropdown = target.as_ref().and_then(|rec| Dropdown::of(ctx, rec));
+    let field_list = target.as_ref().filter(|_| dropdown.is_none()).and_then(|rec| list_of_field(ctx, rec));
     if let Some(rec) = &target {
         for (press, taken) in batch.presses.iter().zip(&mut consumed) {
-            *taken = route_press(ctx, os, rec, press, dropdown, &mut routed, &mut activated);
+            *taken = stale_repeat(&mut stale, press) || route_press(ctx, os, rec, press, dropdown.or(field_list), &mut routed, &mut activated);
         }
         for text in &batch.texts {
             let typed = rec.stop.role.type_ahead && !text.trim().is_empty();
@@ -440,6 +471,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
             stage.shortcuts.layout = stage.layout.clone();
         }
         stage.pasted = pasted;
+        stage.enter_stale = stale;
+        stage.modal_open = modal;
+        if let Some(down) = batch.enter_down {
+            stage.enter_down = down;
+        }
         if let (Some(_), Some(rec)) = (dropdown.filter(|dropdown| dropdown.text), &target) {
             stage.claims.extend(LIST_KEYS.iter().filter(|key| dropdown_intent(**key, true).is_some()).map(|key| (rec.stop.id, Chord::plain(*key))));
         }
@@ -538,6 +574,23 @@ struct Dropdown {
     list: Id,
     /// The opener is a text owner: its typing and caret keys stay with it, and Tab goes to the list.
     text: bool,
+}
+
+/// The dropdown a text stop inside an open dropdown layer (a search field) hands its list keys to: the layer is the
+/// innermost `KeepAnchor` scope above the stop, and the list is found as for the layer's opener. Typed text stays
+/// with the field, so the result's `text` is false.
+fn list_of_field(ctx: &Context, rec: &StopRec) -> Option<Dropdown> {
+    if !matches!(rec.stop.keys.owner, OwnerClass::Text) {
+        return None;
+    }
+    let opener = focus::scope_chain(ctx, rec).into_iter().find_map(|scope| {
+        focus::with(ctx, |state| {
+            let record = state.last_scopes.get(&scope)?;
+            (record.policy.initial == focus::Initial::KeepAnchor).then_some(record.opener).flatten()
+        })
+    })?;
+    let (layer, list) = focus::registration::dropdown_target(ctx, opener)?;
+    Some(Dropdown { layer, list, text: false })
 }
 
 /// The keys an opener hands to its dropdown's list. Left, Right and Space stay with the opener.

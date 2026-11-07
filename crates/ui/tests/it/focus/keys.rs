@@ -384,3 +384,76 @@ fn unread_menu_keys_do_not_pile_up_across_passes() {
     frames.frame(Vec::new(), &mut show);
     assert!(keys.borrow().is_empty());
 }
+
+/// A dropdown whose list has a search field: the field keeps the typed text, and Up, Down and Enter typed in it
+/// reach the list in the same layer.
+#[trial]
+fn a_search_field_in_a_dropdown_hands_its_list_keys_to_the_list() {
+    use craft_ui::contract::{Bind, Entry};
+    use craft_ui::pickers::Select;
+    use craft_ui::testing::Fixture;
+    let value = std::rc::Rc::new(Cell::new(0u8));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let entries = [Entry::new(0u8, "Normal"), Entry::new(1, "Burn"), Entry::new(2, "Blur"), Entry::new(3, "Screen")];
+        let mut mode = shown.get();
+        Select::new("Blend mode", Bind::bound(&mut mode), &entries).searchable().id_salt("mode").show(ui);
+        shown.set(mode);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::ALT);
+    fixture.idle(2);
+    let field = fixture.by_role(Role::TEXT_INPUT).pop().expect("the search field shows");
+    fixture.click(&field);
+    fixture.idle(2);
+    fixture.type_text("b");
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
+    assert_eq!(typed.as_deref(), Some("b"), "the arrows left the typed text in the field");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(10);
+    assert_eq!(value.get(), 2, "the second match is picked");
+}
+
+/// A field's Enter that raises a modal alert, held down, leaves the alert open: its repeats began before the layer
+/// opened. A fresh Enter answers it.
+#[trial]
+fn a_held_enter_that_opened_a_modal_does_not_answer_it() {
+    use craft_behavior::Input;
+    use craft_ui::contract::Bind;
+    use craft_ui::dialog::Alert;
+    use craft_ui::testing::focus::key_release;
+    let mut frames = Frames::new();
+    let open = Cell::new(false);
+    let mut show = |ui: &mut egui::Ui| {
+        stop_with(ui, "field", KeyUse::of(Input::Text));
+        if intents_of(ui.ctx(), Some(id("field")), false).take(Intent::Submit) {
+            open.set(true);
+        }
+        let mut now = open.get();
+        Alert::new("Error", "The name is taken.").opened(Bind::bound(&mut now)).show(ui);
+        open.set(now);
+    };
+    frames.idle(2, &mut show);
+    open.set(false);
+    frames.idle(2, &mut show);
+    focus(&mut frames, "field", &mut show);
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    let repeat = || Event::Key { key: Key::Enter, physical_key: Some(Key::Enter), pressed: true, repeat: true, modifiers: Modifiers::NONE };
+    for _ in 0..4 {
+        frames.idle(3, &mut show);
+        frames.frame(vec![repeat()], &mut show);
+    }
+    frames.idle(3, &mut show);
+    assert!(open.get(), "the repeating Enter leaves the alert open");
+    frames.frame(vec![key_release(Key::Enter, Modifiers::NONE)], &mut show);
+    frames.frame(vec![key_press(Key::Enter, Modifiers::NONE)], &mut show);
+    frames.idle(3, &mut show);
+    assert!(!open.get(), "a fresh Enter answers the alert");
+}
