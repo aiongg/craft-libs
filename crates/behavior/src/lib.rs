@@ -74,7 +74,7 @@ pub use press::{
     PressState, PressStep, count_clicks,
 };
 pub use quantity::Reader;
-pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
+pub use role_rule::{GridFacts, RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
 pub use selection::{CellAt, CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;

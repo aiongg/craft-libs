@@ -2,7 +2,7 @@
 //! header commands, in one roving group of focusable parts.
 
 use super::ItemsHooks;
-use crate::contract::collection::{CollectionEvent, ColumnEvent, ColumnSpec, HeaderMenuRequest};
+use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnEvent, ColumnSort, ColumnSpec, HeaderMenuRequest};
 use crate::contract::{Collection, Common, Component, Cx, Focus as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
@@ -59,7 +59,6 @@ pub(super) struct HeaderMemory {
     order: Vec<ColumnKey>,
     /// User widths of `Content` and `Fill` columns.
     widths: Vec<(ColumnKey, f32)>,
-    sorted: Option<(ColumnKey, bool)>,
     /// The column a context menu or command acts on when no header part holds focus, and the frame the menu was
     /// requested in. The menu is gone once no layer that takes keys is open a frame after its request.
     menu: Option<(ColumnKey, u64)>,
@@ -80,6 +79,8 @@ pub(super) struct Header {
     pub(super) height: f32,
     memory: HeaderMemory,
     specs: Vec<ColumnSpec>,
+    /// The app's sort, drawn on the header and advanced by a press.
+    sort: Option<ColumnSort>,
     /// The control height, the unit of `ColumnWidth::Controls`.
     unit: f32,
     cells: Vec<Cell>,
@@ -97,9 +98,10 @@ fn hash_of(key: &ColumnKey) -> u64 {
 
 impl Header {
     /// Step 4: the columns in their display order and the header's session memory.
-    pub(super) fn read(&mut self, stage: &mut MemoryStage, id: Id, columns: &[ColumnSpec]) {
+    pub(super) fn read(&mut self, stage: &mut MemoryStage, id: Id, props: &CollectionProps) {
         self.memory = stage.session::<HeaderMemory>(sub(id, "columns")).clone();
-        let mut specs = columns.to_vec();
+        self.sort = props.sort.clone();
+        let mut specs = props.columns.to_vec();
         let order = &self.memory.order;
         specs.sort_by_key(|spec| order.iter().position(|key| *key == spec.key).unwrap_or(usize::MAX));
         self.specs = specs;
@@ -178,13 +180,17 @@ impl Header {
         pcx.roving(Roving::new(NavShape::Flat));
     }
 
+    /// Whether `key` is the sorted column, and if so whether it sorts descending.
+    fn sort_of(&self, key: &ColumnKey) -> Option<bool> {
+        self.sort.as_ref().filter(|sort| sort.key == *key).map(|sort| sort.descending)
+    }
+
     fn cell_at(&self, key: &ColumnKey) -> Option<usize> {
         self.cells.iter().position(|cell| self.specs[cell.spec].key == *key)
     }
 
     fn sort(&mut self, key: &ColumnKey) {
-        let descending = matches!(&self.memory.sorted, Some((sorted, false)) if sorted == key);
-        self.memory.sorted = Some((key.clone(), descending));
+        let descending = matches!(&self.sort, Some(sort) if sort.key == *key && !sort.descending);
         self.events.push(ColumnEvent::Sort { key: key.clone(), descending });
     }
 
@@ -367,7 +373,7 @@ impl Header {
         for cell in &self.cells {
             let spec = &self.specs[cell.spec];
             let text = cx.core.env.resolve(&spec.header).as_str().to_owned();
-            let sort = self.memory.sorted.as_ref().filter(|(key, _)| *key == spec.key).map(|(_, descending)| *descending);
+            let sort = self.sort_of(&spec.key);
             let builder = UiBuilder::new().max_rect(cell.rect).layout(child::column_layout(rtl)).scope_id(sub(id, ("header_cell", cell.hash)));
             let mut cell_ui = alloc::child(ui, builder);
             cell_ui.set_clip_rect(cell.rect.intersect(ui.clip_rect()));
@@ -393,6 +399,7 @@ impl Header {
                 rect: cell.rect,
                 clickable: self.specs[cell.spec].sortable,
                 active: focused == Some(at),
+                sort: self.sort_of(&self.specs[cell.spec].key),
             })
             .collect();
         report_header(ctx, id, cx.core.resolved.enabled, &cells);

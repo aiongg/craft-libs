@@ -6,8 +6,8 @@
 use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, LeadOnOpen,
-    ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, ColumnSort, Common, Component, ContainerProps, Cx, EditResponse,
+    LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
@@ -131,6 +131,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn activate(mut self, on: ActivateOn) -> Self {
         self.items = self.items.activate(on);
+        self
+    }
+
+    /// The column the rows are sorted by, drawn on its header.
+    #[must_use]
+    pub fn sort(mut self, sort: impl Into<Option<ColumnSort>>) -> Self {
+        self.items = self.items.sort(sort);
         self
     }
 

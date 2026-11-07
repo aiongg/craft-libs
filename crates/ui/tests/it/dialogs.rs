@@ -1,8 +1,14 @@
 //! The dialog host and stack.
 
-use craft_ui::dialog::{DialogHost, DialogId, DialogResult, DialogStack, StackDialog, StartupStage, dialog_id};
-use craft_ui::testing::{Frames, trial};
-use egui::{Context, Ui};
+use craft_ui::choice::Checkbox;
+use craft_ui::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::dialog::{Dialog, DialogHost, DialogId, DialogResult, DialogStack, StackDialog, StartupStage, dialog_id};
+use craft_ui::runtime::overlay::CloseReason;
+use craft_ui::sections::{DialogRole, FooterButton};
+use craft_ui::testing::{Fixture, Frames, pointer, trial};
+use egui::{Context, Key, Modifiers, Pos2, Ui, Vec2};
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -210,4 +216,77 @@ fn remove_tree_takes_the_descendants_and_leaves_the_rest() {
     stack.push(d, None);
     stack.remove_tree(a);
     assert_eq!(stack.ids().collect::<Vec<_>>(), [d]);
+}
+
+/// What a shown dialog reports: how it closed and which button closed it.
+type Closed = Rc<Cell<(Option<CloseReason>, Option<usize>)>>;
+
+/// A prompt (or a plain dialog) with a destructive and a cancel button; `delete` is the destructive one.
+fn dialog_fixture(prompt: bool, delete: FooterButton) -> (Fixture, Closed) {
+    let closed: Closed = Rc::default();
+    let sink = closed.clone();
+    let fixture = Fixture::new(move |ui| {
+        let (mut open, mut snap) = (true, false);
+        let dialog = if prompt { Dialog::prompt("Discard changes?") } else { Dialog::new("Discard changes?") };
+        let shown =
+            dialog.opened(Bind::bound(&mut open)).buttons([delete.clone(), FooterButton::new("Cancel", DialogRole::Cancel)]).show(ui, |ui, _| {
+                Checkbox::new(Bind::bound(&mut snap)).label("Keep a copy").show(ui);
+            });
+        if shown.output.closed.is_some() {
+            sink.set((shown.output.closed, shown.output.picked));
+        }
+    });
+    (fixture, closed)
+}
+
+/// Drags the title band of the only dialog by 40 points and returns where the dialog was before and after.
+fn drag_title(fixture: &mut Fixture) -> (egui::Rect, egui::Rect) {
+    fixture.settle();
+    let rect_of = |fixture: &Fixture| fixture.by_role(Role::DIALOG).first().map(|dialog| dialog.rect);
+    let before = rect_of(fixture).unwrap_or(egui::Rect::NOTHING);
+    let grab = Pos2::new(before.center().x, before.min.y + 12.0);
+    fixture.frame(vec![pointer::moved(grab)]);
+    fixture.frame(vec![pointer::press(grab)]);
+    for step in 1..=4 {
+        fixture.frame(vec![pointer::moved(grab + Vec2::new(10.0, 10.0) * step as f32)]);
+    }
+    fixture.frame(vec![pointer::release(grab + Vec2::new(40.0, 40.0))]);
+    fixture.idle(2);
+    (before, rect_of(fixture).unwrap_or(egui::Rect::NOTHING))
+}
+
+#[trial]
+fn a_prompt_opens_centred_and_a_dialog_moves_but_a_prompt_does_not() {
+    let (mut prompt, _) = dialog_fixture(true, FooterButton::new("Delete", DialogRole::Destructive));
+    let (before, after) = drag_title(&mut prompt);
+    let middle = prompt.ctx().content_rect().center();
+    assert!((before.center() - middle).abs().max_elem() < 2.0, "the prompt opens in the middle of the window: {before:?}");
+    assert_eq!(before, after, "the title band of a prompt moves nothing");
+    let (mut dialog, _) = dialog_fixture(false, FooterButton::new("Delete", DialogRole::Destructive));
+    let (before, after) = drag_title(&mut dialog);
+    assert_ne!(before, after, "the same drag moves a dialog");
+}
+
+#[trial]
+fn escape_cancels_a_prompt() {
+    let (mut fixture, closed) = dialog_fixture(true, FooterButton::new("Delete", DialogRole::Destructive));
+    fixture.settle();
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(closed.get().0, Some(CloseReason::Escape));
+}
+
+#[trial]
+fn a_footer_buttons_letter_activates_it_and_a_disabled_buttons_does_not() {
+    let (mut fixture, closed) = dialog_fixture(true, FooterButton::new("Delete", DialogRole::Destructive).letter('d'));
+    fixture.settle();
+    fixture.key(Key::D, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(closed.get(), (Some(CloseReason::Activated), Some(0)), "the letter picks the button as a click does");
+
+    let (mut fixture, closed) = dialog_fixture(true, FooterButton::new("Delete", DialogRole::Destructive).letter('d').enabled(false));
+    fixture.settle();
+    fixture.key(Key::D, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(closed.get(), (None, None), "a disabled button ignores its letter");
 }

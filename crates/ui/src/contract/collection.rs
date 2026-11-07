@@ -162,6 +162,28 @@ pub enum LeadOnOpen {
     First,
 }
 
+/// The column the rows are sorted by and the direction: the app's value, which it changes on `ColumnEvent::Sort`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ColumnSort {
+    /// The sorted column.
+    pub key: ColumnKey,
+    /// The order is descending.
+    pub descending: bool,
+}
+
+impl ColumnSort {
+    /// Rows sorted by `key`, ascending.
+    pub const fn ascending(key: ColumnKey) -> Self {
+        ColumnSort { key, descending: false }
+    }
+
+    /// Rows sorted by `key`, descending.
+    pub const fn descending(key: ColumnKey) -> Self {
+        ColumnSort { key, descending: true }
+    }
+}
+
 /// What a collection reads from the app: plain data.
 #[derive(Clone, Debug, Default)]
 #[non_exhaustive]
@@ -174,6 +196,8 @@ pub struct CollectionProps {
     pub rename: bool,
     /// Empty: no columns and no header row.
     pub columns: Vec<ColumnSpec>,
+    /// The sorted column and direction; `None` while the rows are unsorted.
+    pub sort: Option<ColumnSort>,
     /// The text of the empty state.
     pub empty: Option<Label>,
     /// What activates an item with the pointer; Enter always activates the lead.
@@ -201,6 +225,7 @@ impl CollectionProps {
             reorder: None,
             rename: false,
             columns: Vec::new(),
+            sort: None,
             empty: None,
             activate: ActivateOn::DoubleClick,
             striped: false,
@@ -236,6 +261,13 @@ impl CollectionProps {
     #[must_use]
     pub fn columns(mut self, columns: Vec<ColumnSpec>) -> Self {
         self.columns = columns;
+        self
+    }
+
+    /// The column the rows are sorted by.
+    #[must_use]
+    pub fn sort(mut self, sort: impl Into<Option<ColumnSort>>) -> Self {
+        self.sort = sort.into();
         self
     }
 

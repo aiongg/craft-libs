@@ -12,7 +12,7 @@ use egui::{Context, Event, Id, Key, Modifiers, Pos2, Rect, Ui};
 use std::sync::Arc;
 
 pub use crate::runtime::focus::registration::{Group, Stop};
-pub use crate::runtime::keys::{Intents, MenuKey};
+pub use crate::runtime::keys::Intents;
 
 /// Shows a focusable egui widget of `id`, as a component root's sensing core does, and returns its rect.
 pub fn widget(ui: &mut Ui, id: Id) -> Rect {
@@ -85,11 +85,6 @@ pub fn pop_scope(ctx: &Context) {
     focus::pop_scope(ctx);
 }
 
-/// Registers that a menu bar can take the menu-bar keys of the next input hook.
-pub fn register_menu_bar(ctx: &Context) {
-    focus::register_menu_bar(ctx);
-}
-
 /// Registers the component that `FocusTarget::Doc(key)` focuses.
 pub fn register_doc(ctx: &Context, key: DocKey, id: Id) {
     focus::register_doc(ctx, key, id);
@@ -153,11 +148,6 @@ pub fn claim(ctx: &Context, owner: Id, chord: Chord) {
 /// The member whose `Activate` the group `root` reads this pass.
 pub fn activated_member(ctx: &Context, root: Id) -> Option<Id> {
     keys::activated_member(ctx, root)
-}
-
-/// The menu-bar keys of the pass.
-pub fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
-    keys::take_menu_keys(ctx)
 }
 
 /// Registers an AccessKit node so a request that targets it reaches `owner`.

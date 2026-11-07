@@ -200,6 +200,7 @@ pub(crate) fn resolved<'p>(id: Id, step: &'p EnvStep, common: &'p Common) -> Res
         variant: step.variant,
         selected: common.selected,
         keeps_name: common.keeps_name,
+        access_key: common.access_key,
         description: common.description.as_deref(),
         tooltip: common.tooltip.as_ref(),
         doc_key: common.doc_key,
@@ -1196,6 +1197,10 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let mut access = Access::default();
     comp.access(&mut access, cx);
     let role = access.role.unwrap_or(C::ROLE);
+    access.access_key = access.access_key.or(cx.core.resolved.access_key);
+    if access.grid == access::GridPlace::default() {
+        access.grid = access::items::take_grid(ctx, id);
+    }
     debug_assert!(access.role.is_none_or(|alt| C::ALT_ROLES.contains(&alt)), "`Access::role` picks one of `ALT_ROLES`");
     let flags = core.state.flags;
     let resolved = core.resolved;
@@ -1266,6 +1271,17 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access::set_focus(ctx, id);
     }
     let mut seen = Vec::new();
+    let row = core.env.facts_of(id).map(|facts| facts.position);
+    for node in &mut access.nodes {
+        // A cell of an item row knows its row and, by its repeat, its column.
+        if let (Some(row), Some(column), Role::Node(accesskit::Role::Cell | accesskit::Role::GridCell)) = (row, node.part.index, node.role) {
+            node.grid = access::GridPlace {
+                row_index: node.grid.row_index.or(Some(row.index)),
+                column_index: node.grid.column_index.or(Some(column as usize)),
+                ..node.grid
+            };
+        }
+    }
     for node in &access.nodes {
         seen.push(node.part);
         report_sub(core, input, node, paint.faces.iter().find(|face| face.part == node.part));

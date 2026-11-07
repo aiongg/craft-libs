@@ -5,6 +5,7 @@ use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::layout_components::Stack;
 use crate::runtime::focus::Initial;
+use crate::sections::{DialogRole, FooterButton};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -53,6 +54,18 @@ fn dialog_resizable_with_initial_focus(ui: &mut Ui, data: &mut StoryData) -> Sto
         .opened(Bind::bound(data.value("open", true)))
         .initial_focus(Initial::First)
         .resizable(true)
+        .show(ui, |ui, _| body(ui, &mut checks))
+        .into();
+    *data.value("checks", [true, false]) = checks;
+    shown
+}
+
+#[story(Dialog<'static>, covers = [], drive = Drive::Never)]
+fn dialog_prompt(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let mut checks = *data.value("checks", [true, false]);
+    let shown: StoryOutput = Dialog::prompt("Discard changes?")
+        .opened(Bind::bound(data.value("open", true)))
+        .buttons([FooterButton::new("Discard", DialogRole::Destructive).letter('D'), FooterButton::new("Keep editing", DialogRole::Cancel)])
         .show(ui, |ui, _| body(ui, &mut checks))
         .into();
     *data.value("checks", [true, false]) = checks;

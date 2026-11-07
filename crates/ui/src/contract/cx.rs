@@ -12,7 +12,7 @@ use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
 use crate::runtime::egui::{alloc, areas};
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
-use crate::runtime::keys::Intents;
+use crate::runtime::keys::{Intents, MenuKey};
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::motion::{Driver, Drives};
 use crate::runtime::overlay::CloseReason;
@@ -580,6 +580,10 @@ pub trait Focus {
     fn focus_visible(&self) -> bool;
     /// Asks the nearest scroll owner to bring `rect` into view.
     fn reveal(&mut self, rect: Rect);
+    /// Registers that this component is a menu bar that takes the menu-bar keys of the next input hook (9.7).
+    fn register_menu_bar(&mut self);
+    /// The menu-bar keys of the pass: F10 or a lone Alt press focus the bar, Alt and a letter open a menu.
+    fn take_menu_keys(&mut self) -> Vec<MenuKey>;
 }
 
 impl Focus for CxCore<'_> {
@@ -610,6 +614,14 @@ impl Focus for CxCore<'_> {
     fn reveal(&mut self, rect: Rect) {
         self.reveal = Some(rect);
     }
+
+    fn register_menu_bar(&mut self) {
+        focus::register_menu_bar(&self.ctx);
+    }
+
+    fn take_menu_keys(&mut self) -> Vec<MenuKey> {
+        crate::runtime::keys::take_menu_keys(&self.ctx)
+    }
 }
 
 impl<C: Component> Focus for Cx<'_, C> {
@@ -639,6 +651,14 @@ impl<C: Component> Focus for Cx<'_, C> {
 
     fn reveal(&mut self, rect: Rect) {
         self.core.reveal(rect);
+    }
+
+    fn register_menu_bar(&mut self) {
+        self.core.register_menu_bar();
+    }
+
+    fn take_menu_keys(&mut self) -> Vec<MenuKey> {
+        self.core.take_menu_keys()
     }
 }
 
@@ -1215,6 +1235,12 @@ pub struct ItemCx<'a, 'r, K> {
     pub depth: usize,
     /// The item's place in the set.
     pub set: crate::runtime::access::SetPosition,
+    /// The row's zero-based index in the collection.
+    pub row_index: usize,
+    /// The number of rows in the collection.
+    pub row_count: usize,
+    /// The number of columns the rows show, 0 without columns.
+    pub column_count: usize,
     /// What the inherited context holds that component code may read.
     pub env: EnvView<'a>,
     /// Base id of the item's stage: `sub(item_id, "item")`.
@@ -1229,6 +1255,11 @@ impl<'r, K> ItemCx<'_, 'r, K> {
     /// The visible columns of the row with their rects.
     pub fn cells(&self) -> &[(craft_behavior::ColumnKey, Rect)] {
         &self.cells
+    }
+
+    /// The zero-based position of column `key` among the columns the row shows.
+    pub fn column_index(&self, key: &craft_behavior::ColumnKey) -> Option<usize> {
+        self.cells.iter().position(|(column, _)| column == key)
     }
 
     /// The rect of column `key` in this row.

@@ -934,7 +934,6 @@ pub(crate) fn activated_member(ctx: &Context, root: Id) -> Option<Id> {
 }
 
 /// The menu-bar keys of the pass (spec 9.7).
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn take_menu_keys(ctx: &Context) -> Vec<MenuKey> {
     current(ctx, |stage| std::mem::take(&mut stage.menu))
 }

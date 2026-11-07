@@ -15,7 +15,7 @@ use crate::runtime::access::{self, Role, SetPosition};
 use crate::runtime::egui::{alloc, areas, child, response};
 use crate::runtime::env::{AppValues, ArenaId, Env, ItemFacts};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{focus, frame, wheel};
+use crate::runtime::{focus, frame, overlay, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
     Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, NavState, NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan,
@@ -275,9 +275,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => stage.session::<Held<C::Selection>>(sub(id, "selection")).0.clone(),
         };
         self.selection_at_read = self.selection.clone();
-        self.header.read(stage, id, &comp.items().columns);
+        self.header.read(stage, id, comp.items());
         self.drags = stage.session::<Drags<C::Key>>(sub(id, "drags")).clone();
         self.lead = stage.session::<Lead<C::Key>>(sub(id, "lead")).clone();
+        // A collection in a layer starts from `lead_on_open` at every opening of the layer, not only the first.
+        if overlay::drawing_parent(&ctx).is_some_and(|layer| overlay::opening(&ctx, layer)) {
+            self.lead = Lead::default();
+        }
         if self.lead.key.is_none() {
             self.lead.key = self.selection.lead().cloned();
         }
@@ -485,7 +489,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 flags.set(crate::style::Flags::EXPANDED, state.open);
                 flags.set(crate::style::Flags::DRAGGING, state.dragging);
                 flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
-                let mut position = SetPosition::new(at).of(len);
+                let mut position = SetPosition::new(at).of(len).columns(columns.len());
                 if tree {
                     position = position.level(self.source.depth(at) + 1);
                 }
@@ -504,6 +508,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     row: state,
                     depth: self.source.depth(at),
                     set: position,
+                    row_index: at,
+                    row_count: len,
+                    column_count: columns.len(),
                     env: cx.core.env,
                     id: sub(item_id, "item"),
                     cells,
@@ -587,6 +594,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => place_rows(ui),
         }
         focus::register_row_groups(&ctx, id, rtl, row_groups);
+        crate::runtime::access::items::put_grid(&ctx, id, crate::contract::GridPlace::grid(len, columns.len()));
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {
@@ -673,8 +681,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         (shown, order)
     }
 
-    /// The lead of a collection that shows rows for the first time: the first row that can be picked when the props
-    /// ask for it.
+    /// The lead of a collection that shows rows for the first time, or in a layer that opens: the first row that can
+    /// be picked when the props ask for it.
     fn open_lead(&mut self, comp: &C) {
         if self.lead.key.is_none()
             && comp.items().lead_on_open == LeadOnOpen::First

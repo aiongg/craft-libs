@@ -3,6 +3,55 @@
 use accesskit::Role;
 use std::ops::RangeInclusive;
 
+/// Which of a grid node's indexes and counts it carries.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GridFacts {
+    /// The node knows its row index.
+    pub row_index: bool,
+    /// The node knows the number of rows.
+    pub row_count: bool,
+    /// The node knows its column index.
+    pub column_index: bool,
+    /// The node knows the number of columns.
+    pub column_count: bool,
+}
+
+impl GridFacts {
+    /// A node that carries none of them.
+    pub const fn new() -> Self {
+        GridFacts { row_index: false, row_count: false, column_index: false, column_count: false }
+    }
+
+    /// The node knows its row index.
+    #[must_use]
+    pub const fn row_index(mut self, known: bool) -> Self {
+        self.row_index = known;
+        self
+    }
+
+    /// The node knows the number of rows.
+    #[must_use]
+    pub const fn row_count(mut self, known: bool) -> Self {
+        self.row_count = known;
+        self
+    }
+
+    /// The node knows its column index.
+    #[must_use]
+    pub const fn column_index(mut self, known: bool) -> Self {
+        self.column_index = known;
+        self
+    }
+
+    /// The node knows the number of columns.
+    #[must_use]
+    pub const fn column_count(mut self, known: bool) -> Self {
+        self.column_count = known;
+        self
+    }
+}
+
 /// What a node carries, as far as the rules read it.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -21,12 +70,14 @@ pub struct RoleRule<'a> {
     pub expanded: Option<bool>,
     /// The node controls another node.
     pub controls: bool,
+    /// The indexes and counts of a grid, table, row or cell node.
+    pub grid: GridFacts,
 }
 
 impl<'a> RoleRule<'a> {
     /// A node of `role` that carries nothing yet.
     pub const fn new(role: Role) -> Self {
-        RoleRule { role, named: false, range: None, positioned: false, leveled: false, expanded: None, controls: false }
+        RoleRule { role, named: false, range: None, positioned: false, leveled: false, expanded: None, controls: false, grid: GridFacts::new() }
     }
 
     /// The node has a name, a labelling node or is hidden on purpose.
@@ -68,6 +119,13 @@ impl<'a> RoleRule<'a> {
     #[must_use]
     pub const fn controls(mut self, controls: bool) -> Self {
         self.controls = controls;
+        self
+    }
+
+    /// The indexes and counts the node carries.
+    #[must_use]
+    pub const fn grid(mut self, grid: GridFacts) -> Self {
+        self.grid = grid;
         self
     }
 }
@@ -127,6 +185,30 @@ pub fn role_violations(rule: &RoleRule<'_>) -> Vec<&'static str> {
             }
         }
         Role::Heading if !rule.leveled => found.push("a level"),
+        Role::Grid | Role::Table | Role::TreeGrid => {
+            if !rule.grid.row_count {
+                found.push("a row count");
+            }
+            if !rule.grid.column_count {
+                found.push("a column count");
+            }
+        }
+        Role::Row => {
+            if !rule.grid.row_index {
+                found.push("a row index");
+            }
+            if !rule.grid.row_count {
+                found.push("a row count");
+            }
+        }
+        Role::Cell | Role::GridCell => {
+            if !rule.grid.row_index {
+                found.push("a row index");
+            }
+            if !rule.grid.column_index {
+                found.push("a column index");
+            }
+        }
         _ => {}
     }
     found

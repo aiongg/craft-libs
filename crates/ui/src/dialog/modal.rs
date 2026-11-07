@@ -50,10 +50,21 @@ pub struct Dialog<'a> {
 }
 
 impl<'a> Dialog<'a> {
-    /// A modal dialog titled `title`, with a close action; it is not resizable until `resizable` says so.
+    /// A modal dialog titled `title`, with a close action; it moves by its title band and is not resizable until
+    /// `resizable` says so.
     pub fn new(title: impl Into<Label>) -> Self {
         let overlay = Overlay::dialog().resizable(false);
-        let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(HeaderRegion::new().band(DragBand::Move).rule(true));
+        Dialog::on(title, overlay, HeaderRegion::new().band(DragBand::Move).rule(true))
+    }
+
+    /// A prompt titled `title`: a dialog on the modal preset, centred with its content capped, fixed in place and
+    /// not remembered.
+    pub fn prompt(title: impl Into<Label>) -> Self {
+        Dialog::on(title, Overlay::modal(), HeaderRegion::new().rule(true))
+    }
+
+    fn on(title: impl Into<Label>, overlay: Overlay, header: HeaderRegion) -> Self {
+        let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(header);
         Dialog { common: Common::new(), props, open: None, footer: None, buttons: Vec::new(), closable: true, closed: None, picked: None }
             .label(title)
     }
