@@ -106,7 +106,17 @@ struct Stack(Vec<Scope>);
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
     Service::<Stack>::of(ctx).with(|stack| {
-        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, control_min: None, scrub: false })
+        stack.0.push(Scope {
+            container,
+            owner,
+            kind,
+            nodes: Vec::new(),
+            open: Vec::new(),
+            baseline: None,
+            reset: None,
+            control_min: None,
+            scrub: false,
+        })
     });
 }
 

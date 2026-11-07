@@ -4,8 +4,7 @@
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{
-    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show,
-    TipFn, Validity,
+    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show, TipFn, Validity,
 };
 use super::{Inner, ItemFn};
 use super::{overlay, tooltip};

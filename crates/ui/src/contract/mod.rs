@@ -7,6 +7,7 @@ mod cx;
 pub(crate) mod editor;
 pub mod ghost;
 mod group;
+mod items;
 mod label;
 mod looks;
 mod mount;
@@ -15,7 +16,6 @@ mod paint_ui;
 mod props;
 mod registry;
 mod run;
-mod items;
 mod steps;
 pub(crate) mod text;
 pub mod toast;
@@ -28,6 +28,10 @@ pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
+pub use collection::{
+    CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest, ListDrag,
+    OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
+};
 pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
     Sizing, ThemeScope,
@@ -35,6 +39,7 @@ pub use container::{
 pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use group::{GroupHandle, GroupKind, GroupState};
+pub use items::ColumnCommands;
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
@@ -45,11 +50,6 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
-pub use collection::{
-    CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, HeaderMenuRequest, ListDrag, OpenChange,
-    Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
-};
-pub use items::ColumnCommands;
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};

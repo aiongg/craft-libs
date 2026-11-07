@@ -12,7 +12,6 @@ use crate::runtime::egui::access::{Action, Role};
 use egui_kittest::kittest::NodeT as _;
 use egui_kittest::{Harness, Node};
 
-
 /// One node of a [`Tree`].
 #[non_exhaustive]
 pub struct Line {

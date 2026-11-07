@@ -74,4 +74,3 @@ pub(crate) fn write(ctx: &Context, viewport: ViewportId, out: Output) {
 pub(crate) fn clear(ctx: &Context) {
     ctx.output_mut(|output| output.ime = None);
 }
-

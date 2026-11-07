@@ -133,7 +133,10 @@ pub(crate) fn requested_selection(ctx: &Context, owner: Id, request: &AccessRequ
 /// The run and character index a position maps to among runs given as `(line, bytes, text)`, for trials.
 #[cfg(feature = "testing")]
 pub(crate) fn end_of_runs(owner: Id, runs: &[(usize, Range<usize>, &str)], pos: TextPos) -> Option<(Id, usize)> {
-    let entries: Vec<Entry> =
-        runs.iter().enumerate().map(|(at, (line, bytes, text))| Entry { node: at as u64, line: *line, bytes: bytes.clone(), text: (*text).to_owned() }).collect();
+    let entries: Vec<Entry> = runs
+        .iter()
+        .enumerate()
+        .map(|(at, (line, bytes, text))| Entry { node: at as u64, line: *line, bytes: bytes.clone(), text: (*text).to_owned() })
+        .collect();
     end_of(&entries, owner, pos)
 }

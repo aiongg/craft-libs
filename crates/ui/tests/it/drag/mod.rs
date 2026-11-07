@@ -6,8 +6,8 @@ use craft_ui::contract::{Common, Component, Cx, DragPreview, DropMark, DropTarge
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
-use craft_ui::testing::layout::Block;
 use craft_ui::testing::input::key_press;
+use craft_ui::testing::layout::Block;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};

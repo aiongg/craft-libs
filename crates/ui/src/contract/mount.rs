@@ -6,8 +6,8 @@ use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
 use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
-use crate::runtime::egui::panels::{self, Edge};
 use crate::runtime::egui::areas;
+use crate::runtime::egui::panels::{self, Edge};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
@@ -56,11 +56,8 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
                 };
             }
             if open {
-                let viewport = ViewportHost {
-                    focus: fallback.focus,
-                    title: title.clone(),
-                    save: props.save.as_ref().map(|key| key.as_str().to_owned()),
-                };
+                let viewport =
+                    ViewportHost { focus: fallback.focus, title: title.clone(), save: props.save.as_ref().map(|key| key.as_str().to_owned()) };
                 Mounted { host: Box::new(viewport), exiting: false }
             } else {
                 closed()

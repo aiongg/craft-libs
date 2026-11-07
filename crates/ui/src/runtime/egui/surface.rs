@@ -1,8 +1,8 @@
 //! Raw egui scenarios the `egui_surface` trials read: each runs a few frames on a bare context and returns what
 //! egui did, so the trials pin the egui behaviours the runtime relies on without calling egui themselves.
 
-use super::fixture;
 pub use super::areas::{LayerOrder, layer_order};
+use super::fixture;
 use egui::{Context, Event, Id, Plugin, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
