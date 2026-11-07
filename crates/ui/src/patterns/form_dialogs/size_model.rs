@@ -24,8 +24,9 @@ const MM_PER_CM: f64 = 10.0;
 const POINTS_PER_PICA: f64 = 12.0;
 const PERCENT: f64 = 100.0;
 
-/// The size of a document in whole pixels.
+/// The size of a document in whole pixels; `PixelSize::new` builds one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PixelSize {
     /// Width in pixels.
     pub width: u32,
