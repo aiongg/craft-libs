@@ -208,6 +208,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// A menu's rule: the lead starts on the first row and follows the pointer.
+    pub fn menu(mut self) -> Self {
+        self.items = self.items.lead_on_open(craft_ui::contract::LeadOnOpen::First).lead_follows_hover(true);
+        self
+    }
+
     pub fn rename(mut self) -> Self {
         self.items = self.items.rename(true);
         self

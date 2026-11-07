@@ -63,6 +63,7 @@ fn a_split_button_opens_from_the_keyboard_and_reports_the_pick() {
     assert!(rig.menu_shown(), "Alt+Down opens the menu");
     rig.press(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.chosen.get(), Some(7), "the first row was active");
+    rig.fixture.idle(30);
     assert!(!rig.menu_shown(), "a pick closes the menu");
     assert_eq!(rig.clicks.get(), 0, "a pick is not the action");
 }

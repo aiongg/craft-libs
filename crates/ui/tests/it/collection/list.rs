@@ -386,6 +386,25 @@ fn an_item_part_reports_through_the_collection() {
     assert_eq!(items, [(1, Dismissed::Row)]);
 }
 
+/// A menu list starts with its first row as the lead, and the lead follows a moving pointer but not a still one.
+#[trial]
+fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
+    let words = Words::flat(&["one", "two", "three"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).menu(), &words, &seen);
+    frames.idle(3, &mut show);
+    focus_list(&mut frames, &seen, &mut show);
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    assert!(seen.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Activate(0))), "Enter activates the first row");
+    let over = |row: usize| ORIGIN + Vec2::new(50.0, ROW_H * (row as f32 + 0.5));
+    frames.frame(vec![pointer::moved(over(0))], &mut show);
+    frames.frame(vec![pointer::moved(over(2))], &mut show);
+    assert_eq!(seen.leads(), [2], "the pointer moves the lead to the row under it");
+    frames.idle(2, &mut show);
+    assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
+}
+
 /// A press on a row's click part leaves the selection alone and moves focus to the row (17.3 step 8).
 #[trial]
 fn a_press_on_an_item_part_moves_focus_to_the_row_and_does_not_select_it() {

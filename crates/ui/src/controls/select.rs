@@ -8,7 +8,7 @@ use super::disclosure::DisclosureGlyph;
 use super::words::ControlWords;
 use crate::contract::{
     ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
-    EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
+    EditResponse, Focus as _, LeadOnOpen, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
     ShowCollection as _, Sizing, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
@@ -141,6 +141,8 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             let selection = held.map_or_else(Selection::default, |at| Selection::new(vec![at], Some(at), Some(at)));
             let choices = Choices { labels: &labels };
             OptionList::new(Bind::given(selection))
+                .lead_on_open(LeadOnOpen::First)
+                .lead_follows_hover(true)
                 .id_salt(opened)
                 .label(name.clone())
                 .show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str()))
@@ -236,6 +238,20 @@ impl<'a> OptionList<'a> {
             items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
             selection,
         }
+    }
+
+    /// Where the lead starts.
+    #[must_use]
+    pub fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
+        self.items = self.items.lead_on_open(at);
+        self
+    }
+
+    /// The lead follows the pointer over the rows.
+    #[must_use]
+    pub fn lead_follows_hover(mut self, on: bool) -> Self {
+        self.items = self.items.lead_follows_hover(on);
+        self
     }
 
     /// How the list sizes: by its rows (the default), or to fill the room it is given.

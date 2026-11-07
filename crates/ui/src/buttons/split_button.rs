@@ -2,8 +2,8 @@
 
 use super::face::{self, FaceLook, FaceSpec};
 use crate::contract::{
-    Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
+    Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _,
+    PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
 };
 use crate::controls::select::{OptionList, OptionRow, SelectOption};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
@@ -157,7 +157,11 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let labels: Vec<Label> = self.entries.iter().map(|entry| cx.env.resolve(&entry.label)).collect();
         let events = ui.show(popup, Overlay::menu(), |ui, _| {
             let rows = Entries { labels: &labels };
-            OptionList::new(Bind::given(Selection::default())).show_items(ui, &rows, &mut |key, _| OptionRow::new(labels[*key].as_str())).events
+            OptionList::new(Bind::given(Selection::default()))
+                .lead_on_open(LeadOnOpen::First)
+                .lead_follows_hover(true)
+                .show_items(ui, &rows, &mut |key, _| OptionRow::new(labels[*key].as_str()))
+                .events
         });
         let mut picked = None;
         for event in events.into_iter().flatten() {
