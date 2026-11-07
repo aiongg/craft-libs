@@ -1,13 +1,19 @@
 //! `NoticeCenter` (20.3): posts the app's notices (saved, exported, couldn't open) to the toast queue of
-//! `runtime::toast`, which the shell's `ToastHost` shows.
+//! `runtime::toast`, which the shell's `ToastHost` shows, and reports how each one ended.
 
-use crate::contract::Politeness;
-use crate::runtime::toast::{self, Toast, ToastId};
+use crate::contract::{NoValue, Outcome, Politeness};
+use crate::runtime::egui::memory as store;
+use crate::runtime::env::{Label, WordSet};
+use crate::runtime::toast::{self, Toast, ToastAction, ToastEnd, ToastId};
+use crate::runtime::words::CommonWords;
 use craft_theme::variant::Tone;
-use egui::Context;
+use egui::{Context, Response, Ui};
 
-/// Seconds before a notice hides when the app sets nothing else.
-const DEFAULT_TIMEOUT: f32 = 6.0;
+/// The id of the "Don't Show Again" word, which the toast card resolves in the viewport's language.
+const DONT_SHOW_AGAIN: &str = "common.dontShowAgain";
+
+/// Posted notices the center still waits to hear the end of; the oldest go first.
+const TRACKED: usize = 32;
 
 /// One notice, already translated and filled in.
 #[derive(Clone, Debug, PartialEq, crate::contract::Props)]
@@ -37,8 +43,52 @@ impl PostedNotice {
     }
 }
 
-/// The app's way to post notices. It holds only its timeout: the queue, the timers, the hover pause and the
-/// announcement are the toast service's.
+/// Why a posted notice left the screen, for the app to act on.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum NoticeEnd {
+    /// The user closed the notice.
+    Closed(ToastId),
+    /// The timeout passed.
+    Expired(ToastId),
+    /// "Don't Show Again": the app stores `key` as silenced.
+    Silenced {
+        /// The notice.
+        id: ToastId,
+        /// The notice's dismiss key.
+        key: String,
+    },
+}
+
+/// What `NoticeCenter::show` reports.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct NoticeCenterOutput {
+    /// The pattern's response; it paints nothing.
+    pub response: Response,
+    /// The notices that ended since the last pass.
+    pub ends: Vec<NoticeEnd>,
+}
+
+impl Outcome for NoticeCenterOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+/// The notices the center posted that have not ended, with their dismiss keys.
+#[derive(Clone, Default)]
+struct Posted(Vec<(ToastId, Option<String>)>);
+
+fn posted_slot() -> egui::Id {
+    store::unique("craft_ui.notice_center")
+}
+
+/// The app's way to post notices. It holds only its timeout: the queue, the timers, the cap of three cards, the
+/// hover pause and the announcement are the toast service's. A notice with a dismiss key shows a "Don't Show Again"
+/// action; `show` reports how posted notices ended.
 #[derive(Clone, Debug, PartialEq, crate::contract::Pattern, crate::contract::Props)]
 pub struct NoticeCenter {
     /// Seconds before a notice hides, from the app's notification duration.
@@ -53,9 +103,9 @@ impl Default for NoticeCenter {
 }
 
 impl NoticeCenter {
-    /// A center whose notices hide after six seconds.
+    /// A center whose notices hide after the toast service's default time.
     pub fn new() -> Self {
-        NoticeCenter { timeout: Some(DEFAULT_TIMEOUT) }
+        NoticeCenter { timeout: Some(toast::TIMEOUT) }
     }
 
     /// Posts `notice` to the running viewport; `None` when its dismiss key is in `silenced`.
@@ -63,14 +113,58 @@ impl NoticeCenter {
         if notice.dismiss_key.as_ref().is_some_and(|key| silenced.contains(key)) {
             return None;
         }
-        let message = std::iter::once(notice.title.as_str()).chain(notice.lines.iter().map(String::as_str)).collect::<Vec<_>>().join("\n");
         let politeness = if notice.tone == Tone::Bad { Politeness::Assertive } else { Politeness::Polite };
         let timeout = if notice.sticky { None } else { self.timeout };
-        Some(toast::post(ctx, Toast::new(message).timeout(timeout).politeness(politeness)))
+        let mut card = if notice.lines.is_empty() {
+            Toast::new(notice.title.clone())
+        } else {
+            let card = Toast::new(notice.lines.join("\n"));
+            if notice.title.is_empty() { card } else { card.title(notice.title.clone()) }
+        };
+        card = card.tone(notice.tone).timeout(timeout).politeness(politeness);
+        if notice.dismiss_key.is_some() {
+            card = card.action(ToastAction::new(dont_show_again()));
+        }
+        let id = toast::post(ctx, card);
+        let mut posted = store::take::<Posted>(ctx, posted_slot()).unwrap_or_default();
+        posted.0.push((id, notice.dismiss_key.clone()));
+        if posted.0.len() > TRACKED {
+            posted.0.remove(0);
+        }
+        store::put(ctx, posted_slot(), posted);
+        Some(id)
+    }
+
+    /// Keeps notice `id` until it is closed, whatever the timeout (an error the user must read).
+    pub fn keep(&self, ctx: &Context, id: ToastId) {
+        toast::keep(ctx, id);
     }
 
     /// Removes a notice the app no longer needs (the job it reported on was cancelled).
     pub fn remove(&self, ctx: &Context, id: ToastId) {
         toast::dismiss(ctx, id);
     }
+
+    /// Collects how the notices posted through any center ended since the last pass.
+    pub fn show(self, ui: &mut Ui) -> NoticeCenterOutput {
+        let ctx = ui.ctx().clone();
+        let mut posted = store::take::<Posted>(&ctx, posted_slot()).unwrap_or_default();
+        let mut ends = Vec::new();
+        posted.0.retain(|(id, key)| {
+            let Some(end) = toast::end(&ctx, *id) else { return true };
+            ends.push(match (end, key) {
+                (ToastEnd::Action(_), Some(key)) => NoticeEnd::Silenced { id: *id, key: key.clone() },
+                (ToastEnd::Action(_) | ToastEnd::Dismissed, _) => NoticeEnd::Closed(*id),
+                (ToastEnd::Expired, _) => NoticeEnd::Expired(*id),
+            });
+            false
+        });
+        store::put(&ctx, posted_slot(), posted);
+        NoticeCenterOutput { response: ui.response(), ends }
+    }
+}
+
+/// The "Don't Show Again" action's label: the word of `common.dontShowAgain`.
+fn dont_show_again() -> Label {
+    CommonWords::WORDS.iter().find(|word| word.id == DONT_SHOW_AGAIN).copied().map_or(Label::Empty, Label::Word)
 }
