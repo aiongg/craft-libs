@@ -494,6 +494,11 @@ fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consu
     Shortcuts { keys, typing, dialog, layout: Layout::default() }
 }
 
+/// The keyboard layout of the running viewport.
+pub(crate) fn layout_of(ctx: &Context) -> Layout {
+    current(ctx, |stage| stage.layout.clone())
+}
+
 /// Takes the shortcut events the key stage left to the app this pass, for the dispatcher at H7.
 pub(crate) fn take_shortcuts(ctx: &Context) -> Shortcuts {
     current(ctx, |stage| std::mem::take(&mut stage.shortcuts))
