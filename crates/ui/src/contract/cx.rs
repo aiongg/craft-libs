@@ -7,7 +7,7 @@ use super::{Component, EditResponse, Resolved, Show, SideLabel, Tooltip, Validit
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
-use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
+use crate::runtime::commands::{self, CommandAccess, CommandChain, CommandRef, Commands, FireSource, ResolvedCommand};
 use crate::runtime::drag::{self, DragPreview, DropTarget, WindowDropTarget};
 use crate::runtime::egui::{alloc, areas};
 use crate::runtime::env::{Env, EnvView, Label, Message};
@@ -83,6 +83,10 @@ pub struct CxCore<'a> {
     /// The arena root this component is a member of; `None` for a component with its own egui widget.
     pub(crate) member_of: Option<Id>,
     pub(crate) activation: Option<Activation>,
+    /// The activation `Cx::activate` injected this pass, which the pipeline runs as it runs a click.
+    pub(crate) injected: Option<FireSource>,
+    /// The activation leaves the layer chain open (`Cx::keep_open`).
+    pub(crate) keep_open: bool,
     /// For an arena root: the member activated this pass.
     pub(crate) activated_member: Option<Id>,
     pub(crate) press: PressState,
@@ -106,6 +110,8 @@ pub struct CxCore<'a> {
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
     pub(crate) roving_arrival: Option<Id>,
+    /// The collection's selection (a `Selection<K>`) and lead as the item step holds them, for `Cx::collection_selection`.
+    pub(crate) collection_selection: Option<Box<dyn std::any::Any>>,
     /// The events and visible range the item step left for `collection_response`.
     pub(crate) collection_events: Option<Box<dyn std::any::Any>>,
     pub(crate) visible_rows: Range<usize>,
@@ -150,6 +156,40 @@ impl<C: Component> Cx<'_, C> {
     pub fn join_roving(&mut self) {
         if let Some(group) = self.core.env.roving() {
             super::steps::join_group(&self.core.ctx, group, self.core.id);
+            let rtl = self.core.flow.is_rtl();
+            let mut declared: Vec<(Rect, PartRef)> =
+                self.core.results.iter().map(|(&(key, index), result)| (result.rect, PartRef { key, index })).collect();
+            declared.sort_by(|(a, _), (b, _)| {
+                let across = |rect: &Rect| if rtl { -rect.min.x } else { rect.min.x };
+                a.min.y.total_cmp(&b.min.y).then(across(a).total_cmp(&across(b)))
+            });
+            let parts: Vec<PartRef> = declared.into_iter().map(|(_, part)| part).collect();
+            focus::registration::join_part_group(&self.core.ctx, group, self.core.id, &parts);
+        }
+    }
+
+    /// Runs `command` as this component's own activation would, for a command that is not the component's bound
+    /// one: resolved against the instances above the component, and not fired when disabled. `source` is where the
+    /// activation came from (`part_activated` gives it). Returns whether the command was queued.
+    pub fn fire(&mut self, command: impl Into<CommandRef>, source: FireSource) -> bool {
+        let Some(resolved) = commands::resolve_scoped(&self.core.ctx, self.core.env.command_chain(), &command.into()) else { return false };
+        commands::fire_resolved(&self.core.ctx, &resolved, source)
+    }
+
+    /// Where an activation of `part` came from this pass: `Key` for a keyboard activation while `part` is the
+    /// active part, `Pointer` for a click on it, `Access` for an AccessKit click on its sub-node; `None` when
+    /// `part` was not activated. A part that is not declared is never activated.
+    pub fn part_activated(&self, part: impl Into<PartRef>) -> Option<FireSource> {
+        let part = part.into();
+        let result = self.core.part_if_declared(part)?;
+        if self.core.activation.is_some_and(|activation| activation.by_key) && self.core.active_now() == Some(part) {
+            Some(FireSource::Key)
+        } else if result.press.phase.is_click() {
+            Some(FireSource::Pointer)
+        } else if self.core.intents.access_click(part) {
+            Some(FireSource::Access)
+        } else {
+            None
         }
     }
 
@@ -1135,7 +1175,7 @@ pub struct BodyCx<'a> {
     open: &'a mut bool,
     gate: Option<&'a mut bool>,
     close: Option<CloseReason>,
-    field_message: Option<Message>,
+    field_message: Option<(Message, craft_theme::variant::Tone)>,
 }
 
 impl<'a> BodyCx<'a> {
@@ -1152,15 +1192,16 @@ impl<'a> BodyCx<'a> {
         BodyCx { id, env, resolved, rect, memory, open, gate, close: None, field_message: None }
     }
 
-    pub(crate) fn with_field_message(mut self, message: Option<Message>) -> Self {
+    pub(crate) fn with_field_message(mut self, message: Option<(Message, craft_theme::variant::Tone)>) -> Self {
         self.field_message = message;
         self
     }
 
-    /// The validity message of the first control in the container's label scope, recorded last frame: the
-    /// container shows it as its error text. `None` when the container has no label or no control reported one.
-    pub fn field_message(&self) -> Option<&Message> {
-        self.field_message.as_ref()
+    /// The validity message of the first control in the container's label scope, recorded last frame, with the
+    /// tone it shows in: the container shows it as its status text. `None` when the container has no label or no
+    /// control reported one.
+    pub fn field_message(&self) -> Option<(Message, craft_theme::variant::Tone)> {
+        self.field_message.clone()
     }
 
     /// Whether the body is open.
@@ -1381,6 +1422,13 @@ impl<C: Component> MeasureCx<'_, C> {
     /// The bound command as step 1 resolved it, with the scoped bindings of the scopes above the component.
     pub fn command(&self) -> Option<&ResolvedCommand> {
         self.resolved.command
+    }
+
+    /// `command` as this component shows it: the label, icon and chord with the scoped bindings of the scopes above
+    /// the component, and the enabled state of its instance. `None` when the command is scoped and no instance of
+    /// its scope is above the component.
+    pub fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<ResolvedCommand> {
+        commands::resolve_scoped(self.ui.ctx(), self.env.command_chain(), &command.into())
     }
 
     /// The label as given.

@@ -5,14 +5,11 @@ mod stories;
 
 use super::{FieldStyle, text_part};
 use crate::choice::Checkbox;
-use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    WordSetCx as _,
-};
+use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, PartsCx, Props as _, Role, WordSetCx as _};
 use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, StyleCx, SurfaceLook};
-use craft_behavior::{Codec, Metrics, Mixed, NotAValue, PartKey, PartRef, Proposal, Sense};
+use craft_behavior::{Codec, Metrics, Mixed, NotAValue, PartKey, Proposal, Sense};
 use egui::{Rect, Vec2, pos2, vec2};
 use std::borrow::Cow;
 
@@ -203,8 +200,7 @@ impl Component for AltTextField<'_> {
     /// text part of the edit is the shown one, so a mixed text stays as each target has it.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let value = shown_of(cx.value());
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
-        if cx.part(DECORATIVE).press.phase.is_click() || by_key == Some(PartRef::from(DECORATIVE)) {
+        if cx.part_activated(DECORATIVE).is_some() {
             cx.set(AltText { decorative: Mixed::Same(!value.all_decorative()), ..value });
         }
     }

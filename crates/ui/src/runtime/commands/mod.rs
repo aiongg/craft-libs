@@ -14,7 +14,7 @@ pub use registry::{COMMAND_SETS, SetEntry};
 
 pub(crate) use board::publish as publish_for;
 pub(crate) use board::{begin, edit_chords, end, install, note_focus, platform, register_instance, set_input, take_fired};
-pub(crate) use board::{fire_bound, resolve_bound};
+pub(crate) use board::{fire_bound, fire_resolved, resolve_bound, resolve_scoped};
 pub(crate) use board::{focus_within, take as take_for_instance};
 
 use craft_behavior::CommandFlags;
@@ -74,6 +74,8 @@ pub enum FireSource {
     Pointer,
     /// An automation script.
     Automation,
+    /// An AccessKit action on a part of a component.
+    Access,
 }
 
 /// The phase of the key press that fired a command.
