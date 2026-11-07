@@ -3,7 +3,7 @@
 
 use crate::contract::{Animate as _, Component, Cx, MeasureCx, PaintUi, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
-use crate::style::{FocusLook, Stateful, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TypeRole, VariantParts};
+use crate::style::{FocusLook, IconLook, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TextLook, TypeRole, VariantParts};
 use craft_behavior::{Flow, IconId};
 use craft_theme::{
     Variant,
@@ -19,13 +19,9 @@ const SPIN_SWEEP: f32 = PI * 4.0 / 3.0;
 /// The points of the spinner's arc.
 const SPIN_POINTS: usize = 24;
 
-/// The parts of a button's look that the face paints.
+/// The parts of a button's look that the face paints besides its text and icon looks.
 #[derive(Clone, Debug, PartialEq)]
 pub(super) struct FaceLook {
-    /// The label and icon colour per state.
-    pub text: Stateful<StyleColor>,
-    /// The side of an icon.
-    pub icon: f32,
     /// The gap between icon and label.
     pub gap: f32,
     /// The radius of the spinner's ring.
@@ -33,11 +29,17 @@ pub(super) struct FaceLook {
 }
 
 impl FaceLook {
-    /// The face look of the instance's variant: the variant's text colours, the control's icon and gap.
+    /// The face look of the instance's variant: the control's gap and spinner.
     pub(super) fn of(cx: &StyleCx<'_>) -> FaceLook {
         let control = cx.control();
-        FaceLook { text: cx.variant_look().text, icon: control.icon, gap: control.gap, ring: control.icon / 2.0 - cx.tokens.space.gap.tight }
+        FaceLook { gap: control.gap, ring: control.icon / 2.0 - cx.tokens.space.gap.tight }
     }
+}
+
+/// The label and icon looks of the instance's variant: the variant's text colours at the control's icon side.
+pub(super) fn ink(cx: &StyleCx<'_>) -> (TextLook, IconLook) {
+    let color = cx.variant_look().text;
+    (TextLook::new(TypeRole::Label, color.clone()), IconLook::new(cx.control().icon, color))
 }
 
 /// What a face shows.
@@ -99,11 +101,12 @@ pub(super) fn measure<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>) 
 }
 
 /// Paints the face centred in `area`: the leading icon at the reading start, the trailing icon at the reading end.
-pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
-    let color = cx.resolve(&look.text);
+pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextLook, &IconLook), look: &FaceLook, spec: &FaceSpec<'_>, area: Rect) {
+    let (text_look, icon_look) = ink;
+    let (text_color, icon_color, side) = (cx.resolve(&text_look.color), cx.resolve(&icon_look.color), icon_look.side);
     let draw = ui.draw();
-    let fixed = look.icon * spec.icons() as f32 + look.gap * spec.gaps() as f32;
-    let run = spec.run().color(color);
+    let fixed = side * spec.icons() as f32 + look.gap * spec.gaps() as f32;
+    let run = spec.run().color(text_color);
     let text = if spec.label.is_empty() { None } else { Some(draw.layout(&run, (area.width() - fixed).max(0.0))) };
     let text_width = text.as_ref().map_or(0.0, |text| text.size().x);
     let width = fixed + text_width;
@@ -114,15 +117,15 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, look: &FaceL
         slot
     };
     let centre_y = area.center().y;
-    let icon_at = |slot: Rect| Rect::from_center_size(pos2(slot.center().x, centre_y), Vec2::splat(look.icon));
-    let spinner = |slot: Rect| ring(&draw, cx, icon_at(slot).center(), look.ring, color);
+    let icon_at = |slot: Rect| Rect::from_center_size(pos2(slot.center().x, centre_y), Vec2::splat(side));
+    let spinner = |slot: Rect| ring(&draw, cx, icon_at(slot).center(), look.ring, icon_color);
     let mut gap = false;
     if let Some(lead) = spec.lead {
-        let slot = take(look.icon);
+        let slot = take(side);
         if spec.loading {
             spinner(slot);
         } else {
-            draw.icon(icon_at(slot), &IconSpec::svg(lead.clone()).color(color));
+            draw.icon(icon_at(slot), &IconSpec::svg(lead.clone()).color(icon_color));
         }
         gap = true;
     }
@@ -142,8 +145,8 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, look: &FaceL
         if gap {
             take(look.gap);
         }
-        let slot = take(look.icon);
-        draw.icon(icon_at(slot), &IconSpec::svg(trail.clone()).color(color));
+        let slot = take(side);
+        draw.icon(icon_at(slot), &IconSpec::svg(trail.clone()).color(icon_color));
     }
 }
 

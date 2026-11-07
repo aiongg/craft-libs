@@ -2,7 +2,7 @@
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
-use crate::style::{ComponentStyle, FocusLook, Stateful, StyleColor, StyleCx, TypeRole};
+use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
 use craft_theme::States;
 use egui::{Pos2, Response, Vec2};
@@ -16,7 +16,8 @@ pub struct LinkStyle {
     #[style(focus)]
     focus: FocusLook,
     /// The text and underline colour: `accent.text`, the accent token for text and links, which meets the text contrast.
-    color: Stateful<StyleColor>,
+    #[style(text)]
+    text: TextLook,
     /// How far the underline sits above the bottom of the text line.
     underline: f32,
 }
@@ -56,7 +57,7 @@ impl Component for Link {
         LinkStyle {
             metrics: Metrics::new(),
             focus: crate::controls::focus_look(cx),
-            color: Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled))),
+            text: TextLook::new(TypeRole::Body, Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled)))),
             underline: cx.tokens.stroke.thin / 2.0,
         }
     }
@@ -87,7 +88,7 @@ impl Component for Link {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let color = cx.resolve(&cx.style.color);
+        let color = cx.resolve(&cx.style.text.color);
         let draw = ui.draw();
         let layout = draw.text(cx.content_rect, &TextRun::new(cx.resolved.label).role(self.role).color(color));
         let line = Flow::new(cx.content_rect, cx.flow.is_rtl()).take_start(layout.size().x).0;

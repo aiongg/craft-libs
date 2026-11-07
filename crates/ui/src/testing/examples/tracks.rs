@@ -15,7 +15,7 @@ use crate::contract::{
 };
 use crate::controls::select::row_look;
 use crate::primitives::{PaintShape, TextRun};
-use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
@@ -194,8 +194,12 @@ pub struct TrackRowStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    ink: StyleColor,
-    dim: StyleColor,
+    /// The toggle letter while on.
+    #[style(text)]
+    ink: TextLook,
+    /// The toggle letter while off.
+    #[style(text)]
+    dim: TextLook,
     clip: Stateful<StyleColor>,
     pad: f32,
 }
@@ -263,8 +267,8 @@ impl Component for TrackRow<'_> {
         TrackRowStyle {
             surface: row_look(cx),
             metrics: Metrics::new(),
-            ink: cx.ink(Ink::OnPanel),
-            dim: cx.color(cx.tokens.color.text.faint),
+            ink: TextLook::new(TypeRole::Label, Stateful::new(cx.ink(Ink::OnPanel))),
+            dim: TextLook::new(TypeRole::Label, Stateful::new(cx.color(cx.tokens.color.text.faint))),
             clip,
             pad: cx.control().pad_x,
         }
@@ -307,7 +311,8 @@ impl Component for TrackRow<'_> {
         }
         for (column, label, on) in [(&MUTE, "M", self.track.muted), (&LOCK, "L", self.track.locked)] {
             if let Some(cell) = self.cell(column) {
-                let color = if on { cx.style.ink } else { cx.style.dim };
+                let look = if on { &cx.style.ink } else { &cx.style.dim };
+                let color = cx.resolve(&look.color);
                 draw.text(Flow::new(cell, rtl).inset(Insets::horizontal(cx.style.pad)), &TextRun::new(label).color(color));
             }
         }
