@@ -9,10 +9,10 @@ new_module = "craft_ui::rails"
 
 [[type]]
 name = "PanelRail"
-old = ""
-# found in: craft_ui::patterns::rail::panel_rail::PanelRail, craft_ui::shell::canvas::PanelRail
+old = "craft_ui::patterns::rail::panel_rail::PanelRail"
 new = "craft_ui::rails::PanelRail"
-status = "pending"
+status = "moved"
+note = "A container: `PanelRail::new(label, &panels)` takes `RailTool`s (a panel key and its toggle command) and `show_rail(ui, footer)` shows it and returns `PanelRailOutput`. The shell's config `craft_ui::shell::canvas::PanelRail` (the `PanelRail<'a>` in `shell/canvas.rs`) maps onto this type in L4. `craft_ui::panes::rail::Rail` is replaced by it."
 
 [[type]]
 name = "ToolRail"
@@ -32,13 +32,15 @@ note = "A leaf: `FlyoutButton::new(&tools, &shown)` over `RailTool`s, whose comm
 name = "ToolbarDrawer"
 old = "craft_ui::patterns::toolbar_drawer::ToolbarDrawer"
 new = "craft_ui::rails::ToolbarDrawer"
-status = "pending"
+status = "moved"
+note = "A pattern: `ToolbarDrawer::new(rail_rect, &groups, &toolbar, rail_out.dropped).opens(Side).show(ui)`; the output holds `edits`, `select` and `closed`."
 
 [[type]]
 name = "Rail"
 old = "craft_ui::panes::rail::Rail"
-new = "craft_ui::rails::Rail"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`craft_ui::rails::PanelRail`; the legacy `Rail` was deprecated in its favour."
 
 [[type]]
 name = "FlyoutItem"
@@ -142,6 +144,101 @@ new = "craft_ui::rails::DropAt"
 status = "replaced"
 note = "Replaces `craft_ui::patterns::toolbar_drawer::DropAt`; build it with `DropAt::new_slot` and `DropAt::into_slot`."
 
+[[type]]
+name = "PanelRailItem"
+old = "craft_ui::patterns::rail::panel_rail::PanelRailItem"
+new = ""
+status = "removed"
+note = "A panel is `RailTool::new(key, command)` with a toggle command: label, icon and chord come from the command, `checked` is the open state, `marked` and `hint` are the content marker."
+
+[[type]]
+name = "PanelRailRequest"
+old = "craft_ui::patterns::rail::panel_rail::PanelRailRequest"
+new = "craft_ui::rails::PanelRailRequest"
+status = "moved"
+
+[[type]]
+name = "PanelRailOutput"
+old = "craft_ui::patterns::rail::panel_rail::PanelRailOutput"
+new = "craft_ui::rails::PanelRailOutput"
+status = "moved"
+note = "`focused`, `responses` and `rect` are not reported: focus is the roving group's, each icon's response is its button's, and the rect is `response.rect`."
+
+[[type]]
+name = "PanelRailStyle"
+old = "craft_ui::patterns::rail::panel_rail::PanelRailStyle"
+new = "craft_ui::rails::PanelRailStyle"
+status = "moved"
+note = "Opaque: the look comes from the theme."
+
+[[type]]
+name = "DrawerGroup"
+old = "craft_ui::patterns::toolbar_drawer::DrawerGroup"
+new = "craft_ui::rails::DrawerGroup"
+status = "moved"
+note = "`DrawerGroup::new(label, tools)`; the label is a `Label`."
+
+[[type]]
+name = "ToolbarEdit"
+old = "craft_ui::patterns::toolbar_drawer::ToolbarEdit"
+new = "craft_ui::rails::ToolbarEdit"
+status = "moved"
+
+[[type]]
+name = "ToolbarDrawerOutput"
+old = "craft_ui::patterns::toolbar_drawer::ToolbarDrawerOutput"
+new = "craft_ui::rails::ToolbarDrawerOutput"
+status = "moved"
+note = "`response` is new."
+
+[[type]]
+name = "ToolbarDrawerLabels"
+old = "craft_ui::patterns::toolbar_drawer::ToolbarDrawerLabels"
+new = ""
+status = "removed"
+note = "The words are `RailWords`."
+
+[[type]]
+name = "apply_toolbar_edit"
+old = "craft_ui::patterns::toolbar_drawer::apply_toolbar_edit"
+new = "craft_ui::rails::apply_toolbar_edit"
+status = "moved"
+
+[[type]]
+name = "RailItem"
+old = "craft_ui::panes::rail::RailItem"
+new = ""
+status = "removed"
+note = "A panel is `RailTool::new(key, command)`; see `PanelRail`."
+
+[[type]]
+name = "RailRequest"
+old = "craft_ui::panes::rail::RailRequest"
+new = ""
+status = "removed"
+note = "`PanelRailRequest`."
+
+[[type]]
+name = "RailOutput"
+old = "craft_ui::panes::rail::RailOutput"
+new = ""
+status = "removed"
+note = "`PanelRailOutput`."
+
+[[type]]
+name = "RAIL_WIDTH"
+old = "craft_ui::panes::rail::RAIL_WIDTH"
+new = ""
+status = "removed"
+note = "Sizes come from content and the control size."
+
+[[type]]
+name = "RAIL_BUTTON"
+old = "craft_ui::panes::rail::RAIL_BUTTON"
+new = ""
+status = "removed"
+note = "Sizes come from content and the control size."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
@@ -240,3 +337,122 @@ note = "The tool's command gives the chord."
 type = "FlyoutButton"
 old = "show(ui)"
 new = "show(ui)"
+
+[[setter]]
+type = "PanelRail"
+old = "new(id_salt)"
+new = "new(label, panels)"
+
+[[setter]]
+type = "PanelRail"
+old = "edge(Edge)"
+new = ""
+note = "The rail sits where the shell mounts it."
+
+[[setter]]
+type = "PanelRail"
+old = "label(impl Into<String>)"
+new = "new(label, ..)"
+
+[[setter]]
+type = "PanelRail"
+old = "scroll_bar_label(impl Into<String>)"
+new = ""
+note = "The scroll region is named by the family's scroll bar words."
+
+[[setter]]
+type = "PanelRail"
+old = "item_id(ui, panel)"
+new = ""
+note = "Each icon is found by its accessible name."
+
+[[setter]]
+type = "PanelRail"
+old = "show(ui, items, open, foot)"
+new = "show_rail(ui, footer)"
+note = "The open panels are the checked state of each panel's command."
+
+[[setter]]
+type = "Rail"
+old = "new(id)"
+new = "PanelRail::new(label, panels)"
+
+[[setter]]
+type = "Rail"
+old = "edge(Edge)"
+new = ""
+
+[[setter]]
+type = "Rail"
+old = "rtl(bool)"
+new = ""
+note = "The rail follows the reading direction."
+
+[[setter]]
+type = "Rail"
+old = "width(f32)"
+new = ""
+note = "Sizes come from content."
+
+[[setter]]
+type = "Rail"
+old = "button_size(f32)"
+new = ""
+note = "Sizes come from the control size."
+
+[[setter]]
+type = "Rail"
+old = "frame(Frame)"
+new = ""
+note = "The surface is the chrome surface."
+
+[[setter]]
+type = "ToolbarDrawer"
+old = "new(id_salt)"
+new = "new(rail, groups, toolbar, dropped)"
+
+[[setter]]
+type = "ToolbarDrawer"
+old = "rail(id_salt)"
+new = ""
+note = "The rail's rect is passed to `new`."
+
+[[setter]]
+type = "ToolbarDrawer"
+old = "labels(ToolbarDrawerLabels)"
+new = ""
+note = "The words are `RailWords`."
+
+[[setter]]
+type = "ToolbarDrawer"
+old = "show(ui, rail, groups, toolbar)"
+new = "show(ui)"
+note = "`rail`, `groups` and `toolbar` are `new` arguments, and so is the drop the rail took (`ToolRailOutput::dropped`)."
+
+[[setter]]
+type = "DrawerGroup"
+old = "label: String"
+new = "label: Label"
+
+[[setter]]
+type = "PanelRailItem"
+old = "new(panel, icon, label)"
+new = "RailTool::new(panel, command)"
+
+[[setter]]
+type = "PanelRailItem"
+old = "marker(bool)"
+new = ""
+note = "The command's `marked` state."
+
+[[setter]]
+type = "PanelRailItem"
+old = "marker_label(impl Into<String>)"
+new = ""
+note = "The command's `hint`."
+
+[[setter]]
+type = "PanelRailItem"
+old = "enabled(bool)"
+new = ""
+note = "The command's enabled state."
