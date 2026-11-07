@@ -2,7 +2,7 @@
 
 use super::crop::CORNER;
 use super::{Canvas, CropOverlay, ToolPath};
-use crate::contract::{Bind, EditResponse, ShowContainer as _, Validity};
+use crate::contract::{Bind, EditResponse, Show as _, ShowContainer as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{CanvasTransform, Mixed};
@@ -67,7 +67,7 @@ fn crops_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(CropOverlay<'static>, covers = [Invalid], drive = Drive::Custom(drag_top_left))]
 fn too_narrow(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let rect = data.value("crop", Rect::from_min_size(Pos2::new(40.0, 30.0), Vec2::new(LEAST_WIDTH / 2.0, 80.0)));
+    let rect = data.value("crop", Rect::from_min_max(Pos2::new(40.0, 30.0), Pos2::new(40.0 + LEAST_WIDTH / 2.0, 110.0)));
     on_canvas(ui, |ui, at| {
         let narrow = |crop: &Rect| {
             if crop.width() < LEAST_WIDTH { Validity::Refuse(Message::new("The crop is too narrow")) } else { Validity::Ok }

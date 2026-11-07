@@ -48,6 +48,11 @@ pub(crate) fn enabled(ctx: &Context, id: Id) -> bool {
     create_node(ctx, id)
 }
 
+/// Names the node of `id`.
+pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
+    ctx.accesskit_node_builder(id, |node| node.set_label(label));
+}
+
 /// Reports `id` as the focused node of this pass.
 pub(crate) fn set_focus(ctx: &Context, id: Id) {
     ctx.set_accesskit_focus(id);

@@ -180,7 +180,7 @@ fn facts<C: Component>(
     let text = out.layout.full.clone();
     let selection = text_edit::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
     let name = cx.core.resolved.label;
-    cx.core.ctx.accesskit_node_builder(widget, |node| node.set_label(name));
+    crate::runtime::egui::access::set_label(&cx.core.ctx, widget, name);
     *cx.core.text_access.borrow_mut() = Some(text_access::TextFacts { text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
     state.rows = Some(rows);
 }

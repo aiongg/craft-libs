@@ -3,7 +3,7 @@
 use super::kind::{NodeEvent, NodeId, NodeKind, PortRef, WireDrag};
 use crate::contract::{
     Access, Common, Component, Cx, DragPreview, DropMark, DropOperation, DropTarget, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, Styled as _,
+    Pointer as _, Role, Styled as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::style::{ComponentStyle, Flags, HandleLook, Stateful, StyleColor, StyleCx, SurfaceKind, SurfaceLook, TypeRole};

@@ -17,7 +17,7 @@ fn rig() -> (Fixture, Rc<RefCell<Vec<u64>>>) {
     let mut fixture = Fixture::new(move |ui| {
         let out = TrackStack::new("Tracks")
             .id_salt("stack")
-            .show_items(ui, &Tracks(&tracks), &mut |key, icx| TrackRow::new(&tracks[*key], icx.cells().to_vec(), 10.0));
+            .show_items(ui, &Tracks::new(&tracks), &mut |key, icx| TrackRow::new(&tracks[*key], icx.cells().to_vec(), 10.0));
         for event in out.events {
             if let CollectionEvent::Item(_, TrackEvent::Selected(clip)) = event {
                 shown.borrow_mut().push(clip);

@@ -33,7 +33,7 @@ fn rig() -> Rig {
             SheetGrid::new(Bind::bound(&mut cells), &held)
                 .label("Sheet")
                 .id_salt("sheet")
-                .show_items(ui, &Rows(held.len()), &mut |key, icx| SheetRow::new(&held[*key], icx.cells().to_vec()));
+                .show_items(ui, &Rows::new(held.len()), &mut |key, icx| SheetRow::new(&held[*key], icx.cells().to_vec()));
         *shown_selection.borrow_mut() = cells;
         if let Some(edit) = out.committed {
             shown_rows.borrow_mut()[edit.row][edit.column] = edit.text.clone();

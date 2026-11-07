@@ -13,10 +13,10 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::style::{ComponentStyle, StyleCx, scroll_bar_look};
 use craft_behavior::grid::resolve_columns;
 use craft_behavior::{
-    Align, ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, IconId, Insets, Intent, Metrics, NavMove, NavShape, PartKey,
-    PointerButton, PressPhase, Roving, Sense,
+    ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, IconId, Insets, Intent, Metrics, NavMove, NavShape, PartKey, PointerButton,
+    PressPhase, Roving, Sense,
 };
-use egui::{Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
+use egui::{Align, Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
 
 const HEADER: PartKey = PartKey::new("header");
 const GRIP: PartKey = PartKey::new("header_grip");
@@ -406,11 +406,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     }
 }
 
-/// The style of a header label: no metrics of its own.
+/// The style of a header label: the sort mark's size and its gap to the text.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 struct HeaderTextStyle {
     #[style(metrics)]
     metrics: Metrics,
+    mark: f32,
+    gap: f32,
 }
 
 /// A header cell's label.
@@ -435,8 +437,8 @@ impl Component for HeaderText {
     type Style = HeaderTextStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: HeaderTextStyleKey) -> HeaderTextStyle {
-        HeaderTextStyle { metrics: Metrics::new() }
+    fn style(cx: &StyleCx<'_>, _: HeaderTextStyleKey) -> HeaderTextStyle {
+        HeaderTextStyle { metrics: Metrics::new(), mark: cx.tokens.size.icon.sm, gap: cx.tokens.space.gap.tight }
     }
 
     fn sense(&self) -> Sense {
@@ -448,8 +450,7 @@ impl Component for HeaderText {
         let inner = Flow::new(flow.inset(Insets::horizontal(self.inset)), flow.is_rtl());
         let text = match self.sort {
             Some(descending) => {
-                let tokens = &cx.core.env.tokens;
-                let (side, gap) = (tokens.size.icon.sm, tokens.space.gap.tight);
+                let (side, gap) = (cx.style.mark, cx.style.gap);
                 let (slot, rest) = inner.take_end(side + gap);
                 let id = IconId::new(if descending { "sort_descending" } else { "sort_ascending" });
                 ui.draw().icon(Flow::new(slot, flow.is_rtl()).align(Vec2::splat(side), Align::Max, Align::Center), &IconSpec::svg(id));

@@ -144,7 +144,7 @@ impl CodeDocument {
     /// The position one character or word from the caret toward the end or the start, crossing line breaks;
     /// `None` at the ends of the document.
     fn step_target(&self, forward: bool, word: bool) -> Option<TextPos> {
-        let TextPos { line, byte } = self.caret;
+        let TextPos { line, byte, .. } = self.caret;
         let text = &self.lines[line];
         if forward {
             if byte < text.len() {
@@ -163,7 +163,7 @@ impl CodeDocument {
 
     /// The position in the line above or below with the caret's column.
     fn vertical_target(&self, down: bool) -> TextPos {
-        let TextPos { line, byte } = self.caret;
+        let TextPos { line, byte, .. } = self.caret;
         let target = if down { Some(line + 1).filter(|below| *below < self.lines.len()) } else { line.checked_sub(1) };
         let Some(target) = target else { return self.caret };
         let column = self.lines[line][..byte].chars().count();

@@ -8,7 +8,7 @@ use craft_behavior::{Axis, DockTree, GroupId, Mixed};
 use egui::{Ui, Vec2};
 
 fn two_columns() -> DockTree {
-    DockTree::split(Axis::X, vec![(1.0, DockTree::group(GroupId(0))), (2.0, DockTree::group(GroupId(1)))])
+    DockTree::split(Axis::X, vec![(1.0, DockTree::group(GroupId::new(0))), (2.0, DockTree::group(GroupId::new(1)))])
 }
 
 fn panels_of(group: GroupId) -> Vec<PanelTitle> {
@@ -57,7 +57,7 @@ fn trees_that_differ(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(SplitArea<'static>, covers = [Invalid], drive = Drive::Custom(drag_handle))]
 fn a_dock_of_one_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let tree = data.value("dock", DockTree::group(GroupId(0)));
+    let tree = data.value("dock", DockTree::group(GroupId::new(0)));
     let shown = tree.clone();
     let needs_two = |tree: &DockTree| {
         if tree.groups().len() < 2 { Validity::Refuse(Message::new("A dock needs two groups")) } else { Validity::Ok }
@@ -67,8 +67,8 @@ fn a_dock_of_one_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(DockGroup<'static>, covers = [Default])]
 fn two_panels(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let panels = panels_of(GroupId(0));
-    DockGroup::new(GroupId(0), &panels, active_of(&panels)).show(ui, |_, _| ()).output.response.into()
+    let panels = panels_of(GroupId::new(0));
+    DockGroup::new(GroupId::new(0), &panels, active_of(&panels)).show(ui, |_, _| ()).output.response.into()
 }
 
 #[story(Splitter, covers = [Default])]

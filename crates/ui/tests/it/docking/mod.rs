@@ -8,16 +8,16 @@ use egui::Pos2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const NEW_GROUP: GroupId = GroupId(2);
+const NEW_GROUP: GroupId = GroupId::new(2);
 
 fn two_columns() -> DockTree {
-    DockTree::split(Axis::X, vec![(1.0, DockTree::group(GroupId(0))), (2.0, DockTree::group(GroupId(1)))])
+    DockTree::split(Axis::X, vec![(1.0, DockTree::group(GroupId::new(0))), (2.0, DockTree::group(GroupId::new(1)))])
 }
 
 fn panels_of(group: GroupId) -> Vec<PanelTitle> {
     match group.0 {
-        0 => vec![PanelTitle::new(PanelKey(0), "Layers"), PanelTitle::new(PanelKey(1), "Channels")],
-        _ => vec![PanelTitle::new(PanelKey(10), "Properties")],
+        0 => vec![PanelTitle::new(PanelKey::new(0), "Layers"), PanelTitle::new(PanelKey::new(1), "Channels")],
+        _ => vec![PanelTitle::new(PanelKey::new(10), "Properties")],
     }
 }
 
@@ -32,7 +32,7 @@ fn dock() -> (Fixture, Rc<RefCell<DockTree>>, Rc<RefCell<Option<(GroupId, DockSi
         let area = SplitArea::new("Panels", Bind::bound(&mut *tree)).show(ui, |ui, body| {
             for (group, rect) in group_rects(&shown, body.rect, body.env.direction().is_rtl()) {
                 let panels = panels_of(group);
-                let active = panels.first().map_or(PanelKey(0), |panel| panel.key);
+                let active = panels.first().map_or(PanelKey::new(0), |panel| panel.key);
                 DockGroup::new(group, &panels, active).show_at(ui, rect, |_, _| ());
             }
         });
@@ -56,12 +56,12 @@ fn a_panel_dropped_on_a_group_edge_docks_beside_it_and_in_the_middle_joins_its_t
     let middle = Pos2::new(260.0, 150.0);
     fixture.drag(&tab, middle - tab.center());
     fixture.idle(2);
-    assert_eq!(*dropped.borrow(), Some((GroupId(1), DockSide::Center)), "the middle of the right group joins its tabs");
-    assert_eq!(tree.borrow().groups(), vec![GroupId(0), GroupId(1)], "joining tabs adds no group");
+    assert_eq!(*dropped.borrow(), Some((GroupId::new(1), DockSide::Center)), "the middle of the right group joins its tabs");
+    assert_eq!(tree.borrow().groups(), vec![GroupId::new(0), GroupId::new(1)], "joining tabs adds no group");
 
     let edge = Pos2::new(395.0, 150.0);
     fixture.drag(&tab, edge - tab.center());
     fixture.idle(2);
-    assert_eq!(*dropped.borrow(), Some((GroupId(1), DockSide::End)), "the end edge of the right group docks beside it");
-    assert_eq!(tree.borrow().groups(), vec![GroupId(0), GroupId(1), NEW_GROUP], "the panel's group follows the right group");
+    assert_eq!(*dropped.borrow(), Some((GroupId::new(1), DockSide::End)), "the end edge of the right group docks beside it");
+    assert_eq!(tree.borrow().groups(), vec![GroupId::new(0), GroupId::new(1), NEW_GROUP], "the panel's group follows the right group");
 }

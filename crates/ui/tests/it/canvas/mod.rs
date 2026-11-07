@@ -1,7 +1,7 @@
 //! `Canvas` (20.6): a press away from every canvas control's parts reaches the tool.
 
 use craft_ui::canvas::{Canvas, CropOverlay, ToolPath};
-use craft_ui::contract::{Bind, Role, ShowContainer as _};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Pos2, Rect};
 use std::cell::RefCell;
@@ -13,9 +13,9 @@ fn crop() -> Rect {
 
 #[trial]
 fn a_press_on_a_crop_corner_stays_with_the_crop_and_one_elsewhere_reaches_the_tool() {
-    let crop = Rc::new(RefCell::new(crop()));
+    let shared = Rc::new(RefCell::new(crop()));
     let clicked = Rc::new(RefCell::new(None));
-    let (shared_crop, shared_click) = (Rc::clone(&crop), Rc::clone(&clicked));
+    let (shared_crop, shared_click) = (Rc::clone(&shared), Rc::clone(&clicked));
     let mut fixture = Fixture::new(move |ui| {
         let canvas = Canvas::new("Document", ToolPath::Command("the Crop To... command"))
             .show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shared_crop.borrow_mut())).show_at(ui, body.rect));
@@ -33,5 +33,5 @@ fn a_press_on_a_crop_corner_stays_with_the_crop_and_one_elsewhere_reaches_the_to
     fixture.click(&canvas);
     let at = clicked.borrow().expect("a click away from the corners reaches the tool");
     assert!(canvas.rect.contains(at), "the tool gets the point inside the canvas");
-    assert_eq!(*crop.borrow(), crop(), "clicks move no corner");
+    assert_eq!(*shared.borrow(), crop(), "clicks move no corner");
 }

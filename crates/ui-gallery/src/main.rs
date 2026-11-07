@@ -5,6 +5,9 @@
 
 use craft_i18n::Direction;
 use craft_theme::{ControlSize, Mode};
+use craft_ui::contract::{Bind, Props as _, Scroll, Show as _, ShowContainer as _};
+use craft_ui::controls::radio::{Radio, RadioGroup};
+use craft_ui::layout_components::{Row, Stack};
 use craft_ui::runtime::env::{RootEnv, with_env};
 use craft_ui::runtime::frame::FrameInput;
 use craft_ui::shell::app::{AppSpec, ShellApp, run};
@@ -56,6 +59,15 @@ fn entries() -> Vec<Entry> {
     entries
 }
 
+/// A group of radio buttons that sets `value` to the chosen option.
+fn choose<T: Clone + PartialEq + Send + Sync + 'static>(ui: &mut Ui, label: &'static str, value: &mut T, options: &'static [(T, &'static str)]) {
+    RadioGroup::new(label, Bind::bound(value)).show(ui, |ui, _| {
+        for (option, name) in options {
+            Radio::new(option.clone()).label(*name).show(ui);
+        }
+    });
+}
+
 fn label_of(direction: Direction, size: ControlSize) -> String {
     let direction = if direction.is_rtl() { "RTL" } else { "LTR" };
     format!("{direction}, {size:?}")
@@ -80,25 +92,9 @@ impl Viewer {
     fn side(&mut self, ui: &mut Ui) {
         ui.label("Filter");
         ui.text_edit_singleline(&mut self.filter);
-        ui.separator();
-        ui.label("Theme");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.mode, Mode::Light, "Light");
-            ui.selectable_value(&mut self.mode, Mode::Dark, "Dark");
-        });
-        ui.label("Direction");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.direction, None, "Both");
-            ui.selectable_value(&mut self.direction, Some(Direction::Ltr), "LTR");
-            ui.selectable_value(&mut self.direction, Some(Direction::Rtl), "RTL");
-        });
-        ui.label("Control size");
-        ui.horizontal(|ui| {
-            ui.selectable_value(&mut self.size, None, "Both");
-            ui.selectable_value(&mut self.size, Some(ControlSize::Sm), "Sm");
-            ui.selectable_value(&mut self.size, Some(ControlSize::Md), "Md");
-        });
-        ui.separator();
+        choose(ui, "Theme", &mut self.mode, &[(Mode::Light, "Light"), (Mode::Dark, "Dark")]);
+        choose(ui, "Direction", &mut self.direction, &[(None, "Both"), (Some(Direction::Ltr), "LTR"), (Some(Direction::Rtl), "RTL")]);
+        choose(ui, "Control size", &mut self.size, &[(None, "Both"), (Some(ControlSize::Sm), "Sm"), (Some(ControlSize::Md), "Md")]);
         let shown = self.entries.iter().filter(|entry| entry.matches(&self.filter)).count();
         ui.label(format!("{shown} of {} stories", self.entries.len()));
     }
@@ -111,7 +107,7 @@ impl Viewer {
         let directions: Vec<_> = DIRECTIONS.into_iter().filter(|d| self.direction.is_none_or(|only| only == *d)).collect();
         let sizes: Vec<_> = SIZES.into_iter().filter(|s| self.size.is_none_or(|only| only == *s)).collect();
         let (entries, filter, data) = (&self.entries, &self.filter, &mut self.data);
-        egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+        Stack::new().scroll(Scroll::vertical()).fill().show(ui, |ui, _| {
             for (index, entry) in entries.iter().enumerate().filter(|(_, entry)| entry.matches(filter)) {
                 ui.heading(format!("{}: {}", entry.short_type(), entry.registration.story.name));
                 if !entry.module.is_empty() {
@@ -125,7 +121,6 @@ impl Viewer {
                         }
                     }
                 });
-                ui.separator();
             }
         });
     }
@@ -155,12 +150,18 @@ struct App {
 
 impl ShellApp for App {
     fn frame_input(&mut self) -> FrameInput {
-        FrameInput::new(RootEnv { mode: self.viewer.mode, ..RootEnv::default() })
+        FrameInput::new(RootEnv::new().mode(self.viewer.mode))
     }
 
     fn ui(&mut self, ui: &mut Ui) {
-        egui::Panel::left("viewer-side").exact_size(SIDE_WIDTH).show_inside(ui, |ui| self.viewer.side(ui));
-        egui::CentralPanel::default().show_inside(ui, |ui| self.viewer.stories(ui));
+        let viewer = &mut self.viewer;
+        Row::new().show(ui, |ui, _| {
+            ui.vertical(|ui| {
+                ui.set_width(SIDE_WIDTH);
+                viewer.side(ui);
+            });
+            viewer.stories(ui);
+        });
     }
 }
 

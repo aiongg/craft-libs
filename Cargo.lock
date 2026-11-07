@@ -1724,15 +1724,21 @@ dependencies = [
  "libtest-mimic",
  "linkme",
  "log",
+ "resvg",
  "serde",
  "smallvec",
+ "toml",
 ]
 
 [[package]]
 name = "craft-ui-bench"
 version = "0.1.0"
 dependencies = [
+ "craft-behavior",
+ "craft-host",
+ "craft-ui",
  "craft-ui-legacy",
+ "craft-window",
  "egui",
  "serde",
  "serde_json",
@@ -1742,7 +1748,12 @@ dependencies = [
 name = "craft-ui-gallery"
 version = "0.1.0"
 dependencies = [
+ "craft-i18n",
+ "craft-theme",
  "craft-ui",
+ "craft-window",
+ "eframe",
+ "egui",
 ]
 
 [[package]]

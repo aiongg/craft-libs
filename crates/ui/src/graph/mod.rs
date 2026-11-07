@@ -18,7 +18,7 @@ use crate::contract::{
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Stateful, States, StyleColor, StyleCx, SurfaceKind};
-use craft_behavior::{CanvasTransform, DisplayOrder as _, FreeLayout, HitLevel, HitPriority, HitShape, ItemSource, Metrics, PartKey, Selection};
+use craft_behavior::{CanvasTransform, FreeLayout, HitLevel, HitPriority, HitShape, ItemSource, Metrics, PartKey, Selection};
 use egui::{Pos2, Rect, Vec2};
 use node::port_center;
 
@@ -55,7 +55,7 @@ pub struct NodeGraphStyle {
 }
 
 /// A graph of nodes at stored positions, joined by wires. `positions` and `kinds` are indexed by `NodeId`.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(collection, probe(NodeGraph<'static, ()>))]
 pub struct NodeGraph<'a, E: 'static = ()> {
     #[common]
@@ -66,6 +66,8 @@ pub struct NodeGraph<'a, E: 'static = ()> {
     wires: &'a [Wire],
     kinds: &'a [&'a dyn NodeKind<E>],
     positions: &'a [Rect],
+    /// The selection, owned by the app.
+    #[prop]
     selection: Option<Bind<'a, Selection<NodeId>>>,
     zoom: CanvasTransform,
 }
@@ -85,13 +87,6 @@ impl<'a, E: 'static> NodeGraph<'a, E> {
     pub fn zoom(mut self, zoom: CanvasTransform) -> Self {
         self.props = self.props.transform(zoom);
         self.zoom = zoom;
-        self
-    }
-
-    /// The selection, owned by the app.
-    #[must_use]
-    pub fn selection(mut self, selection: Bind<'a, Selection<NodeId>>) -> Self {
-        self.selection = Some(selection);
         self
     }
 

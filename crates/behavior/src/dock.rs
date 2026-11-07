@@ -9,7 +9,15 @@ use emath::{Pos2, Rect, Vec2};
 
 /// The id of a dock group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[non_exhaustive]
 pub struct GroupId(pub u32);
+
+impl GroupId {
+    /// The group numbered `id`.
+    pub const fn new(id: u32) -> Self {
+        GroupId(id)
+    }
+}
 
 /// A tree of splits over groups.
 #[derive(Clone, Debug, PartialEq)]

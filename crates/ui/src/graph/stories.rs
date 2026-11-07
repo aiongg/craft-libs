@@ -1,7 +1,7 @@
 //! Stories of the graph family.
 
 use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
-use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Show as _};
+use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Show as _, ShowCollection as _};
 use crate::controls::disclosure::Disclosure;
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::{CanvasTransform, EditEvent, keyed};
@@ -10,7 +10,8 @@ use egui::{Pos2, Rect, Ui, Vec2};
 /// How far the zoomed story magnifies the graph.
 const ZOOM: f32 = 2.0;
 
-const NODE: Vec2 = Vec2::new(140.0, 72.0);
+const NODE_WIDTH: f32 = 140.0;
+const NODE_HEIGHT: f32 = 72.0;
 const GAP: f32 = 24.0;
 const PER_ROW: u32 = 2;
 
@@ -78,7 +79,8 @@ impl NodeKind<CompEdit> for Fold {
 
 fn place(at: u32) -> Rect {
     let (column, row) = ((at % PER_ROW) as f32, (at / PER_ROW) as f32);
-    Rect::from_min_size(Pos2::new(GAP + column * (NODE.x + GAP), GAP + row * (NODE.y + GAP)), NODE)
+    let (left, top) = (GAP + column * (NODE_WIDTH + GAP), GAP + row * (NODE_HEIGHT + GAP));
+    Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + NODE_WIDTH, top + NODE_HEIGHT))
 }
 
 /// A graph of `count` nodes, alternating the two kinds, joined by `wired`: each pair is the output of the first
@@ -131,5 +133,5 @@ fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(Node<'static, ()>, covers = [Default])]
 fn mix(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Node::new(NodeId(0), &MIX).show(ui).response.into()
+    Node::<()>::new(NodeId(0), &MIX).show(ui).response.into()
 }

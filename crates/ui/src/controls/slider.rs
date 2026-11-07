@@ -55,12 +55,14 @@ pub struct SliderStyle {
 struct DragStart(f64);
 
 /// A slider over `range`.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Slider<'a> {
     #[common]
     common: Common,
     value: Bind<'a, f64>,
     range: RangeInclusive<f64>,
+    /// The change of one arrow press; the default is a hundredth of the range.
+    #[prop]
     step: Option<f64>,
 }
 
@@ -68,13 +70,6 @@ impl<'a> Slider<'a> {
     /// A slider of `value` over `range`.
     pub fn new(value: Bind<'a, f64>, range: RangeInclusive<f64>) -> Self {
         Slider { common: Common::new(), value, range, step: None }
-    }
-
-    /// The change of one arrow press; the default is a hundredth of the range.
-    #[must_use]
-    pub fn step(mut self, step: f64) -> Self {
-        self.step = Some(step);
-        self
     }
 
     fn small(&self) -> f64 {

@@ -240,7 +240,7 @@ pub struct FindingsListStyle {
 }
 
 /// The list of findings: one selected finding, Enter activates, and an empty list says so.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(collection)]
 pub struct FindingsList<'a> {
     #[common]
@@ -248,6 +248,8 @@ pub struct FindingsList<'a> {
     #[container]
     props: ContainerProps,
     items: CollectionProps,
+    /// The selection the caller owns.
+    #[prop]
     selection: Option<Bind<'a, Selection<usize>>>,
 }
 
@@ -261,13 +263,6 @@ impl<'a> FindingsList<'a> {
             selection: None,
         }
         .label(label)
-    }
-
-    /// The selection the caller owns.
-    #[must_use]
-    pub fn selection(mut self, selection: Bind<'a, Selection<usize>>) -> Self {
-        self.selection = Some(selection);
-        self
     }
 }
 

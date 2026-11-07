@@ -1,7 +1,7 @@
 //! The tab of a dock group's strip: a panel's title that selects the panel and starts a panel drag.
 
 use super::{PanelDrag, PanelKey};
-use crate::contract::{Common, Component, Cx, DragPreview, MeasureCx, PaintUi, Pointer as _, Props as _, Role};
+use crate::contract::{Common, Component, Cx, DragPreview, MeasureCx, NoValue, Outcome, PaintUi, Pointer as _, Props as _, Role};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx};
@@ -11,10 +11,24 @@ use egui::{Response, Vec2};
 
 /// The style of a panel tab.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
-struct TabStyle {
+pub(super) struct TabStyle {
     #[style(metrics)]
     metrics: Metrics,
     mark: StyleColor,
+}
+
+/// What a tab reports: its response and whether it was chosen this pass.
+pub(super) struct TabOut {
+    response: Response,
+    pub(super) chosen: bool,
+}
+
+impl Outcome for TabOut {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
 }
 
 /// One panel's tab.
@@ -39,7 +53,7 @@ impl PanelTab {
 impl Component for PanelTab {
     const ROLE: Role = Role::BUTTON;
     type Style = TabStyle;
-    type Output = Response;
+    type Output = TabOut;
 
     fn style(cx: &StyleCx<'_>, _: PanelTabStyleKey) -> TabStyle {
         TabStyle { metrics: cx.control().metrics(), mark: cx.tone(Tone::Accent) }
@@ -72,7 +86,7 @@ impl Component for PanelTab {
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> TabOut {
+        TabOut { response: cx.response.clone(), chosen: cx.activation().is_some() }
     }
 }

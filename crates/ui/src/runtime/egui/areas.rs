@@ -287,9 +287,10 @@ pub struct LayerOrder {
 #[cfg(feature = "testing")]
 pub fn layer_order() -> LayerOrder {
     let ctx = super::fixture::bare_context();
-    let ids = [Id::unique("craft_ui.surface.la"), Id::unique("craft_ui.surface.lb"), Id::unique("craft_ui.surface.lc")];
+    let ids =
+        [super::memory::unique("craft_ui.surface.la"), super::memory::unique("craft_ui.surface.lb"), super::memory::unique("craft_ui.surface.lc")];
     let layers = ids.map(|id| LayerId::new(Order::Middle, id));
-    let ghost = LayerId::new(Order::Middle, Id::unique("craft_ui.surface.ghost"));
+    let ghost = LayerId::new(Order::Middle, super::memory::unique("craft_ui.surface.ghost"));
     let frame = |time: f64, list: &[LayerId]| {
         let mut output = ctx.run_ui(super::surface::raw(time, Vec::new()), |ui| {
             let ctx = ui.ctx().clone();

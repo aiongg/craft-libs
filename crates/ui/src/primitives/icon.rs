@@ -125,5 +125,5 @@ fn svg(painter: &Painter, tokens: &UiTokens, square: Rect, index: usize, set: Ic
     let side = px as f32 / ppp;
     let min = (square.center() - vec2(side, side) / 2.0).round_to_pixels(ppp);
     let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-    painter.image(texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
+    crate::runtime::egui::textures::paint(painter, texture, Rect::from_min_size(min, vec2(side, side)), uv, color);
 }

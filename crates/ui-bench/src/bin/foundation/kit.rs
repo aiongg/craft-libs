@@ -268,7 +268,7 @@ impl BenchCanvas {
 
     fn control(&self, rect: Rect, at: usize) -> Rect {
         let center = rect.min + vec2(40.0 + (at % 10) as f32 * 80.0, 40.0 + (at / 10) as f32 * 120.0);
-        Rect::from_center_size(center.to_pos2(), Vec2::splat(CONTROL_SIDE))
+        Rect::from_center_size(center, Vec2::splat(CONTROL_SIDE))
     }
 }
 

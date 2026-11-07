@@ -82,7 +82,15 @@ impl Track {
 }
 
 /// The tracks as a collection source, keyed by track id.
+#[non_exhaustive]
 pub struct Tracks<'a>(pub &'a [Track]);
+
+impl<'a> Tracks<'a> {
+    /// The source over `tracks`.
+    pub const fn new(tracks: &'a [Track]) -> Self {
+        Tracks(tracks)
+    }
+}
 
 impl DisplayOrder<usize> for Tracks<'_> {
     fn len(&self) -> usize {

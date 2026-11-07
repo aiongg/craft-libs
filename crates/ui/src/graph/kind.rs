@@ -8,7 +8,15 @@ use egui::{Rect, Vec2};
 
 /// The key of a node.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct NodeId(pub u32);
+
+impl NodeId {
+    /// The node numbered `id`.
+    pub const fn new(id: u32) -> Self {
+        NodeId(id)
+    }
+}
 
 /// A port: the node and the port's index on its kind.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

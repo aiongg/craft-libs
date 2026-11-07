@@ -1,6 +1,5 @@
 //! The SVG icon catalog the build embeds, and its rasteriser.
 
-use super::icon::IconSet;
 use egui::{Color32, ColorImage};
 use resvg::{tiny_skia, usvg};
 

@@ -36,7 +36,15 @@ const EDGE: f32 = 0.25;
 
 /// The stable key of a panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct PanelKey(pub u64);
+
+impl PanelKey {
+    /// The panel keyed `key`.
+    pub const fn new(key: u64) -> Self {
+        PanelKey(key)
+    }
+}
 
 /// A panel as its group's strip shows it.
 #[derive(Clone, Debug, PartialEq)]
@@ -378,7 +386,7 @@ impl Container for DockGroup<'_> {
         let picked = &mut self.picked;
         Row::new().show(ui, |ui, _| {
             for panel in panels {
-                if PanelTab::new(group, panel.key, panel.title.clone(), panel.key == active).id_salt(panel.key.0).show(ui).clicked() {
+                if PanelTab::new(group, panel.key, panel.title.clone(), panel.key == active).id_salt(panel.key.0).show(ui).chosen {
                     *picked = Some(panel.key);
                 }
             }

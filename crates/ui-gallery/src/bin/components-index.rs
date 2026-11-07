@@ -6,8 +6,8 @@
 
 use craft_ui::testing::registered;
 use std::collections::BTreeMap;
-use std::fmt::Write as _;
 use std::fs;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 

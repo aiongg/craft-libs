@@ -3,16 +3,27 @@
 
 pub use super::areas::{LayerOrder, layer_order};
 use super::fixture;
-use egui::{Context, Event, Id, Plugin, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
+use egui::{Context, Event, Plugin, Pos2, RawInput, Rect, Sense, Ui, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
 /// The screen the scenarios run on.
-const SCREEN: Vec2 = Vec2::new(800.0, 600.0);
+const SCREEN_WIDTH: f32 = 800.0;
+const SCREEN_HEIGHT: f32 = 600.0;
 /// The side of a click widget in the scenarios.
-const WIDGET: Vec2 = Vec2::new(40.0, 40.0);
+const WIDGET_SIDE: f32 = 40.0;
+
+/// The rect of a click widget whose top left is at `(x, y)`.
+fn widget_at(x: f32, y: f32) -> Rect {
+    Rect::from_min_max(Pos2::new(x, y), Pos2::new(x + WIDGET_SIDE, y + WIDGET_SIDE))
+}
 
 pub(super) fn raw(time: f64, events: Vec<Event>) -> RawInput {
-    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, SCREEN)), time: Some(time), events, ..RawInput::default() }
+    RawInput {
+        screen_rect: Some(Rect::from_min_max(Pos2::ZERO, Pos2::new(SCREEN_WIDTH, SCREEN_HEIGHT))),
+        time: Some(time),
+        events,
+        ..RawInput::default()
+    }
 }
 
 /// What the plugin hooks of one context saw around a nested immediate viewport.
@@ -108,9 +119,9 @@ pub struct PressHits {
 /// Three frames over two click widgets: one to register them, then the two event orders.
 pub fn press_hits() -> PressHits {
     let ctx = fixture::bare_context();
-    let (a, b) = (Id::unique("craft_ui.surface.a"), Id::unique("craft_ui.surface.b"));
-    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), WIDGET);
-    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), WIDGET);
+    let (a, b) = (super::memory::unique("craft_ui.surface.a"), super::memory::unique("craft_ui.surface.b"));
+    let rect_a = widget_at(10.0, 10.0);
+    let rect_b = widget_at(100.0, 10.0);
     let mut show = |ui: &mut Ui| {
         ui.interact(rect_a, a, Sense::click());
         ui.interact(rect_b, b, Sense::click());
@@ -130,8 +141,8 @@ pub fn press_hits() -> PressHits {
 /// children of its parent's node.
 pub fn registered_parent_owns_member_node() -> bool {
     let ctx = fixture::bare_context();
-    let (parent, member) = (Id::unique("craft_ui.surface.parent"), Id::unique("craft_ui.surface.member"));
-    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), WIDGET);
+    let (parent, member) = (super::memory::unique("craft_ui.surface.parent"), super::memory::unique("craft_ui.surface.member"));
+    let rect = widget_at(10.0, 10.0);
     let mut output = ctx.run_ui(raw(1.0, Vec::new()), |ui| {
         let ctx = ui.ctx().clone();
         ui.interact(rect, parent, Sense::click());

@@ -73,7 +73,15 @@ impl Outcome for SheetOutput {
 }
 
 /// The rows of a sheet as a collection source: `count` rows keyed by position.
+#[non_exhaustive]
 pub struct Rows(pub usize);
+
+impl Rows {
+    /// A source of `count` rows.
+    pub const fn new(count: usize) -> Self {
+        Rows(count)
+    }
+}
 
 impl DisplayOrder<usize> for Rows {
     fn len(&self) -> usize {
