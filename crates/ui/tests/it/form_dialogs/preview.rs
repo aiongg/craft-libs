@@ -13,7 +13,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 /// A picture much wider than the well and much shorter than it: the pane pans along the horizontal axis only.
-const WIDE: [usize; 2] = [4000, 8];
+const WIDE: [usize; 2] = [2000, 8];
 
 struct Rig {
     fixture: Fixture,

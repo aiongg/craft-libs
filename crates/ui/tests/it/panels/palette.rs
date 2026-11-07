@@ -6,7 +6,7 @@ use craft_ui::contract::Bind;
 use craft_ui::menu::search::HelpEntry;
 use craft_ui::patterns::panels::CommandPalette;
 use craft_ui::runtime::commands::{CommandRef, EditCommands};
-use craft_ui::testing::{Fixture, pointer, trial};
+use craft_ui::testing::{Fixture, Target, pointer, trial};
 use egui::{Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -23,6 +23,13 @@ fn entries() -> Vec<HelpEntry> {
     ]
 }
 
+/// The node of the row of the command `label`: a row is named by its label, then its menu path.
+fn row(fixture: &Fixture, label: &str) -> Option<Target> {
+    let tree = fixture.tree();
+    let key = tree.keys().into_iter().find(|key| tree.name_of(*key).is_some_and(|name| name == label || name.starts_with(&format!("{label}, "))))?;
+    fixture.target(key)
+}
+
 fn palette(recents: Vec<CommandRef>) -> Fixture {
     let mut fixture = Fixture::new(move |ui| {
         let entries = entries();
@@ -36,10 +43,10 @@ fn palette(recents: Vec<CommandRef>) -> Fixture {
 #[trial]
 fn the_empty_query_lists_the_commands_last_run_newest_first() {
     let fixture = palette(vec![CommandRef::from(EditCommands::Redo), CommandRef::from(EditCommands::Undo)]);
-    let redo = fixture.by_label("Redo").expect("the newest command is listed");
-    let undo = fixture.by_label("Undo").expect("the older command is listed");
+    let redo = row(&fixture, "Redo").expect("the newest command is listed");
+    let undo = row(&fixture, "Undo").expect("the older command is listed");
     assert!(redo.center().y < undo.center().y, "newest first");
-    assert!(fixture.by_label("Cut").is_none(), "a command not run is not listed");
+    assert!(row(&fixture, "Cut").is_none(), "a command not run is not listed");
 }
 
 /// With no query and nothing run, the list starts with the app's entries.
@@ -47,7 +54,7 @@ fn the_empty_query_lists_the_commands_last_run_newest_first() {
 fn the_empty_query_without_recents_lists_the_entries() {
     let fixture = palette(Vec::new());
     for label in ["Undo", "Redo", "Cut", "Select All"] {
-        assert!(fixture.by_label(label).is_some(), "{label} is listed");
+        assert!(row(&fixture, label).is_some(), "{label} is listed");
     }
 }
 
@@ -57,8 +64,8 @@ fn a_query_lists_the_matches_only() {
     let mut fixture = palette(Vec::new());
     fixture.type_text("sel");
     fixture.settle();
-    assert!(fixture.by_label("Select All").is_some(), "the match is listed");
-    assert!(fixture.by_label("Undo").is_none(), "a command that does not match is not listed");
+    assert!(row(&fixture, "Select All").is_some(), "the match is listed");
+    assert!(row(&fixture, "Undo").is_none(), "a command that does not match is not listed");
 }
 
 /// A command run goes first, once, and the list keeps the newest few.
@@ -102,21 +109,21 @@ fn escape_clears_the_query_before_it_closes_the_palette() {
     let mut rig = rig();
     rig.fixture.type_text("sel");
     rig.fixture.settle();
-    assert!(rig.fixture.by_label("Undo").is_none(), "the query narrows the list");
+    assert!(row(&rig.fixture, "Undo").is_none(), "the query narrows the list");
     rig.fixture.key(Key::Escape, Modifiers::NONE);
     rig.fixture.settle();
-    assert!(rig.fixture.by_label("Undo").is_some(), "the query is empty again and the palette is still open");
+    assert!(row(&rig.fixture, "Undo").is_some(), "the query is empty again and the palette is still open");
     rig.fixture.key(Key::Escape, Modifiers::NONE);
     rig.fixture.settle();
-    assert!(rig.fixture.by_label("Undo").is_none(), "Escape on the empty query closes the palette");
+    assert!(row(&rig.fixture, "Undo").is_none(), "Escape on the empty query closes the palette");
 }
 
 /// A pointer resting over a row does not take the active row back from the arrow keys; it moves the row only when it moves.
 #[trial]
 fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
     let mut rig = rig();
-    let first = rig.fixture.by_label("Undo").expect("the row is listed").center();
-    let resting = rig.fixture.by_label("Select All").expect("the row is listed").center();
+    let first = row(&rig.fixture, "Undo").expect("the row is listed").center();
+    let resting = row(&rig.fixture, "Select All").expect("the row is listed").center();
     // The pointer moves onto the last row, which makes it the active one; then it rests there.
     rig.fixture.frame(vec![pointer::moved(first)]);
     rig.fixture.frame(vec![pointer::moved(resting)]);
@@ -126,15 +133,4 @@ fn a_resting_pointer_leaves_the_active_row_to_the_arrow_keys() {
     rig.fixture.key(Key::Enter, Modifiers::NONE);
     rig.fixture.idle(2);
     assert_eq!(rig.picked.borrow().clone(), Some(CommandRef::from(EditCommands::Cut)), "the row above the one under the pointer is active");
-}
-
-#[trial]
-fn zz_diag() {
-    let rig = rig();
-    let tree = rig.fixture.tree();
-    let mut out = String::new();
-    for key in tree.keys() {
-        out += &format!("\nZZ {:?} {:?} {:?}", tree.role_of(key), tree.name_of(key), tree.bounds_of(key));
-    }
-    panic!("diag{out}");
 }
