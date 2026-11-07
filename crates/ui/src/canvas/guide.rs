@@ -50,8 +50,8 @@ impl GuideAxis {
     /// across a guide.
     pub fn across(self) -> Vec2 {
         match self {
-            GuideAxis::Horizontal => Vec2 { x: 0.0, y: 1.0 },
-            GuideAxis::Vertical => Vec2 { x: 1.0, y: 0.0 },
+            GuideAxis::Horizontal => Vec2::from((0.0, 1.0)),
+            GuideAxis::Vertical => Vec2::from((1.0, 0.0)),
         }
     }
 
