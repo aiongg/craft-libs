@@ -371,6 +371,43 @@ fn a_component_on_a_scrim_surface_reads_the_scrims_ink() {
     assert_eq!(*ink.borrow(), Some(Ink::OnDark), "the root ink on a panel is {:?}", Ink::OnPanel);
 }
 
+/// A leaf that declares `PARTS = false` and then declares a part.
+#[derive(Component)]
+struct Liar {
+    #[common]
+    common: Common,
+}
+
+impl Component for Liar {
+    const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: LiarStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(10.0))
+    }
+
+    fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
+        cx.part(craft_behavior::PartKey::new("a"), Rect::from_min_size(Pos2::ZERO, Vec2::splat(4.0)));
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+#[trial]
+fn a_component_that_declares_no_parts_and_declares_one_is_a_debug_assertion() {
+    let mut frames = Frames::new();
+    let shown = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        frames.frame(vec![], |ui| {
+            Liar { common: Common::new() }.id_salt("liar").show(ui);
+        });
+    }));
+    assert_eq!(shown.is_err(), cfg!(debug_assertions), "the declaration `PARTS = false` is checked in debug builds");
+}
+
 /// A leaf whose width follows `Tone`.
 #[derive(Component)]
 struct Chip {
