@@ -2,7 +2,7 @@ name: Check
 
 on:
   push:
-    branches: [ci/k1, ci/k2, ci/k3, ci/k4, ci/k5, ci/k6, ci/k7, ci/k8]
+    branches: ['ci/k*']
 
 permissions:
   contents: read

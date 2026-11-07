@@ -2,7 +2,7 @@ name: Named tests
 
 on:
   push:
-    branches: [ci/t1, ci/t2, ci/t3, ci/t4, ci/t5, ci/t6, ci/t7, ci/t8]
+    branches: ['ci/t*']
 
 permissions:
   contents: read
