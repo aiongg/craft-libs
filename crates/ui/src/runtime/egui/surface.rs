@@ -161,7 +161,7 @@ pub fn focus_survives_escape(keep: bool) -> bool {
     let ctx = fixture::bare_context();
     let id = super::memory::unique("craft_ui.surface.escape");
     let rect = widget_at(10.0, 10.0);
-    let mut run = |time: f64, events: Vec<Event>, focus: bool| {
+    let run = |time: f64, events: Vec<Event>, focus: bool| {
         let mut output = ctx.run_ui(raw(time, events), |ui| {
             ui.interact(rect, id, Sense::focusable_noninteractive());
             if focus {

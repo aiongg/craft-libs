@@ -115,12 +115,15 @@ impl StoryRegistration {
 #[linkme::distributed_slice]
 pub static STORIES: [StoryRegistration];
 
+/// A value of a story, its type and how it prints itself.
+type Printed = (&'static str, TypeId, fn(&dyn Any) -> String);
+
 /// The values a story shows, by name. Each is a `Value`, so the runner compares them before and after a drive.
 #[derive(Default)]
 pub struct StoryData {
     values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
     /// The values that print themselves for the parity replay, in the order they were first used.
-    printed: Vec<(&'static str, TypeId, fn(&dyn Any) -> String)>,
+    printed: Vec<Printed>,
 }
 
 /// A story value with its type erased: it copies and compares itself.
@@ -283,7 +286,6 @@ impl CollectionKind {
             CollectionEvent::Column(_) => CollectionKind::Column,
             CollectionEvent::HeaderMenu(_) => CollectionKind::HeaderMenu,
             CollectionEvent::Item(..) => CollectionKind::Item,
-            _ => return None,
         })
     }
 }

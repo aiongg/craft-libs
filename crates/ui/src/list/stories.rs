@@ -1,7 +1,7 @@
 //! Stories of the row types of the list family: `ListRow`.
 
 use super::{ListRow, RowInk};
-use crate::contract::{Props as _, Show as _};
+use crate::contract::Show as _;
 use crate::primitives::IconSpec;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;

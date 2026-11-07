@@ -239,6 +239,7 @@ pub(crate) fn root_close_requested(ctx: &Context) -> bool {
 }
 
 /// Keeps the root window open and brings it forward, so the app can ask before it closes.
+#[cfg_attr(not(feature = "app"), expect(dead_code, reason = "used by the app shell"))]
 pub(crate) fn hold_close(ctx: &Context) {
     viewports::cancel_close(ctx);
     viewports::raise(ctx, ViewportId::ROOT);
@@ -409,7 +410,7 @@ fn saved_position(placement: &Placement) -> Option<Pos2> {
 fn record_placement(ctx: &Context, viewport: ViewportId, key: &str, facts: &viewports::Facts) {
     let Some(inner) = facts.inner else { return };
     let geometry = Geometry { inner, outer: facts.outer, scale: facts.native_scale, maximized: facts.maximized, fullscreen: facts.fullscreen };
-    let unchanged = PerViewport::<Record>::with(ctx, viewport, |record| std::mem::replace(&mut record.placed, Some(geometry)) == Some(geometry));
+    let unchanged = PerViewport::<Record>::with(ctx, viewport, |record| record.placed.replace(geometry) == Some(geometry));
     if unchanged {
         return;
     }

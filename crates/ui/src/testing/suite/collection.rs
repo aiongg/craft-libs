@@ -212,7 +212,7 @@ pub(super) fn empty_collection_shows_no_rows(subject: &Subject) -> Result<(), St
         if !shown.is_empty() {
             return Err(format!("{}: an empty collection shows {} rows", story.name, shown.len()));
         }
-        if !(fixture.shown().height() > 0.0) {
+        if fixture.shown().height().partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
             return Err(format!("{}: an empty collection allocates no height", story.name));
         }
         let visible = fixture.take_outputs().into_iter().last().and_then(|output| output.visible);
@@ -232,7 +232,7 @@ pub(super) fn long_collection_builds_only_visible_rows(subject: &Subject) -> Res
         let Some((fixture, container, shown)) = with_rows(story, 1) else { continue };
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
         let row = shown[0].rect.height();
-        if !(row > 0.0) || (size as f32) * row <= 2.0 * container.rect.height() {
+        if row.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || (size as f32) * row <= 2.0 * container.rect.height() {
             continue;
         }
         if shown.len() >= size {
