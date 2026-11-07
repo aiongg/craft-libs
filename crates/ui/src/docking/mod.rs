@@ -6,6 +6,7 @@
 
 mod config;
 mod event;
+mod floating;
 mod panels;
 mod spec;
 mod splitter;
@@ -17,6 +18,7 @@ mod words;
 
 pub use config::{DockConfig, DockSides};
 pub use event::{DockEvent, FloatSpace, HidePanels};
+pub use floating::{FloatingGroup, FloatingGroupOutput, FloatingGroupStyle};
 pub use panels::DockPanels;
 pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};

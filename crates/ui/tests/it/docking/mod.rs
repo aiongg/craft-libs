@@ -8,6 +8,7 @@ use egui::Pos2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod floating;
 mod spec;
 mod targets;
 

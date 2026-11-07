@@ -16,15 +16,17 @@ status = "pending"
 [[type]]
 name = "FloatingFrame"
 old = "craft_ui::docking::chrome::FloatingFrame"
-new = "craft_ui::docking::FloatingFrame"
-status = "pending"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::docking::FloatingGroup`: a container on a layer (or an OS window with `native`) whose rect the caller owns. The eight edge handles are the body step's grips, the title bar is a `TitleRow`, auto height follows the caller's rect."
 
 [[type]]
 name = "TitleBar"
-old = ""
-# found in: craft_ui::docking::chrome::TitleBar, craft_ui::title_bar::TitleBar
-new = "craft_ui::docking::TitleBar"
-status = "pending"
+old = "craft_ui::docking::chrome::TitleBar"
+# `craft_ui::title_bar::TitleBar` is the window's title bar (title-bar tracks).
+new = ""
+status = "removed"
+note = "The docking title bar is the `TitleRow` of `FloatingGroup` and of dock groups, with `HeaderAction::{Menu, Float, Close}`."
 
 [[type]]
 name = "PaneHost"
@@ -372,3 +374,59 @@ new = "Overlay::opacity(f32)"
 type = "FrameResponse"
 old = "resized, resize_started"
 new = "Container::placement_changed(&PlacementChange): phase Begin starts a resize, rect is the rect it asks for"
+
+# Floating frames (float-frame-a).
+
+[[type]]
+name = "FloatingGroup"
+old = ""
+new = "craft_ui::docking::FloatingGroup"
+status = "replaced"
+note = "`FloatingGroup::new(title, rect)` then `show_group(ui, body)`; the output reports `placed` (each gesture step, with the rect the caller keeps), `action`, `menu_rect`, `minimized_toggled` and `released_at`."
+
+[[type]]
+name = "ChromeStyle"
+old = "craft_ui::docking::chrome::ChromeStyle"
+new = ""
+status = "removed"
+note = "The frame's surface, stroke, shadow and title row come from the theme through the container and `TitleRow`."
+
+[[setter]]
+type = "FloatingFrame"
+old = "new(id, rect)"
+new = "FloatingGroup::new(title, rect)"
+
+[[setter]]
+type = "FloatingFrame"
+old = "resizable(bool)"
+new = "FloatingGroup::minimized(bool)"
+
+[[setter]]
+type = "FloatingFrame"
+old = "reserve_top_resize_band(bool)"
+new = ""
+
+[[setter]]
+type = "FloatingFrame"
+old = "resize_axes([bool; 2])"
+new = ""
+
+[[setter]]
+type = "FloatingFrame"
+old = "resize_label(&str)"
+new = ""
+
+[[setter]]
+type = "FloatingFrame"
+old = "auto_height(bool)"
+new = ""
+
+[[setter]]
+type = "FloatingFrame"
+old = "request(Option<Rect>)"
+new = "FloatingGroup::new(title, rect)"
+
+[[setter]]
+type = "FloatingFrame"
+old = "dock_into(Option<Id>)"
+new = "FloatingGroupOutput::released_at"
