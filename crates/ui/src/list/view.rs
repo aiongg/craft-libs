@@ -100,6 +100,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             .lead_on_open(LeadOnOpen::First)
             .lead_follows_hover(true)
             .focus_on_press(false)
+            .sizing(Sizing::Content)
             .listbox()
     }
 

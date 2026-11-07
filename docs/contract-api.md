@@ -1220,6 +1220,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn value_part(self) -> Self`. The part shows the component's value: a double click on it resets the value, as one on the root does. A
   - `pub fn own_reset(self) -> Self`. A reset aimed at the part (Reset while it is the focused part, a double click on it) does not reset the
   - `pub fn pointer_only(self, reason: &'static str) -> Self`. A part with no focus stop names its keyboard path: the intent or command that does the same.
+  - `pub fn toggles(self, popup: &'static str) -> Self`. The part opens and closes the component's popup `popup` (the name given to `cx.popup`): a click on it toggles
   - `pub fn keyboard_via(self, part: PartKey) -> Self`. A part with no focus stop of its own does the same as the focusable part `part` of this component, which
 - `craft_ui::contract::PartsCx`: `pub struct PartsCx<'a, C: Component> { pub content_rect: Rect, pub flow: Flow }`. Step 7's context: the step-5 read view plus the rect geometry and the part builders.
   - `pub fn rect_of(&self, key: &C::Key) -> Option<Rect>`. The rect of the item `key` this pass, in the coordinates the item step lays rows out in (a transformed
