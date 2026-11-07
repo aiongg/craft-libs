@@ -48,3 +48,13 @@ fn a_pinned_item_stays() {
     assert_eq!(fit.shown, vec![1]);
     assert_eq!(fit.overflow, vec![0, 2]);
 }
+
+/// A `Menu` item is in the overflow menu whatever the room, and the control for it is reserved.
+#[trial]
+fn a_menu_item_is_always_in_the_menu() {
+    let mut items = items(&[0, 0, 1]);
+    items[2].keep = FitKeep::Menu;
+    let fit = fit_items(&items, 1000.0, GAP, SECTION_GAP, CONTROL);
+    assert_eq!(fit.shown, vec![0, 1]);
+    assert_eq!(fit.overflow, vec![2]);
+}

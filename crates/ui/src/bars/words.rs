@@ -1,62 +1,30 @@
 //! Built-in words of the bars family.
 
 craft_ui::words! {
-    /// The words of bars and bar items; each id is prefixed by its type.
+    /// The words of the bars family; each id is prefixed by its type.
     pub struct BarWords {
-        tool: "bars.barTool" = "Toolbar";
-        options: "bars.barOptions" = "Options";
-        status: "bars.barStatus" = "Status";
-        items: "bars.itemsActions" = "Actions";
-        more: "bars.itemsMore" = "More";
-        enter_key: "bars.barEnter" = "Enter";
-        escape_key: "bars.barEscape" = "Esc";
-    }
-}
-
-craft_ui::words! {
-    /// The words of the status readout.
-    pub struct StatusReadoutWords {
-        zoom: "statusReadout.zoom" = "Zoom";
-        menu: "statusReadout.menu" = "Show";
-        document_sizes: "statusReadout.documentSizes" = "Document Sizes";
-        document_profile: "statusReadout.documentProfile" = "Document Profile";
-        document_dimensions: "statusReadout.documentDimensions" = "Document Dimensions";
-        measurement_scale: "statusReadout.measurementScale" = "Measurement Scale";
-        scratch_sizes: "statusReadout.scratchSizes" = "Scratch Sizes";
-        efficiency: "statusReadout.efficiency" = "Efficiency";
-        timing: "statusReadout.timing" = "Timing";
-        current_tool: "statusReadout.currentTool" = "Current Tool";
-        layer_count: "statusReadout.layerCount" = "Layer Count";
-        layers: count "statusReadout.layers" = "{n} Layer" | "{n} Layers";
-        doc_prefix: template "statusReadout.docPrefix" = "Doc: {flat}/{layered}";
-        scratch_prefix: template "statusReadout.scratchPrefix" = "Scratch: {used}/{available}";
-        efficiency_text: template "statusReadout.efficiencyText" = "Efficiency: {n}%";
-        timing_text: template "statusReadout.timingText" = "Timing: {n} s";
-        size_kilo: template "statusReadout.sizeKilo" = "{n}K";
-        size_mega: template "statusReadout.sizeMega" = "{n}M";
-        size_giga: template "statusReadout.sizeGiga" = "{n}G";
-    }
-}
-craft_ui::words! {
-    /// The words of the align bar.
-    pub struct AlignWords {
-        align: "align.align" = "Align";
-        distribute: "align.distribute" = "Distribute";
-        more: "align.more" = "Align and distribute";
-        tooltip: template "align.tooltip" = "{group}: {action}";
-        left_edges: "align.leftEdges" = "Left Edges";
-        horizontal_centers: "align.horizontalCenters" = "Horizontal Centers";
-        right_edges: "align.rightEdges" = "Right Edges";
-        top_edges: "align.topEdges" = "Top Edges";
-        vertical_centers: "align.verticalCenters" = "Vertical Centers";
-        bottom_edges: "align.bottomEdges" = "Bottom Edges";
-        horizontally: "align.horizontally" = "Horizontally";
-        vertically: "align.vertically" = "Vertically";
-    }
-}
-craft_ui::words! {
-    /// The words of the breadcrumb.
-    pub struct BreadcrumbWords {
-        hidden: "breadcrumb.hidden" = "Show the whole path";
+        bar_tool: "bars.barTool" = "Toolbar";
+        bar_options: "bars.barOptions" = "Options";
+        bar_status: "bars.barStatus" = "Status";
+        items_actions: "bars.itemsActions" = "Actions";
+        items_more: "bars.itemsMore" = "More";
+        align_bar: "bars.alignBar" = "Align and distribute";
+        breadcrumb_hidden: "bars.breadcrumbHidden" = "Show the whole path";
+        readout_zoom: "bars.statusReadoutZoom" = "Zoom";
+        readout_menu: "bars.statusReadoutMenu" = "Show";
+        readout_document_sizes: "bars.statusReadoutDocumentSizes" = "Document Sizes";
+        readout_document_profile: "bars.statusReadoutDocumentProfile" = "Document Profile";
+        readout_document_dimensions: "bars.statusReadoutDocumentDimensions" = "Document Dimensions";
+        readout_measurement_scale: "bars.statusReadoutMeasurementScale" = "Measurement Scale";
+        readout_scratch_sizes: "bars.statusReadoutScratchSizes" = "Scratch Sizes";
+        readout_efficiency: "bars.statusReadoutEfficiency" = "Efficiency";
+        readout_timing: "bars.statusReadoutTiming" = "Timing";
+        readout_current_tool: "bars.statusReadoutCurrentTool" = "Current Tool";
+        readout_layer_count: "bars.statusReadoutLayerCount" = "Layer Count";
+        readout_layers: count "bars.statusReadoutLayers" = "{n} Layer" | "{n} Layers";
+        readout_doc_sizes: template "bars.statusReadoutDocSizes" = "Doc: {flat}/{layered}";
+        readout_scratch: template "bars.statusReadoutScratch" = "Scratch: {used}/{available}";
+        readout_efficiency_text: template "bars.statusReadoutEfficiencyText" = "Efficiency: {value}";
+        readout_timing_text: template "bars.statusReadoutTimingText" = "Timing: {value}";
     }
 }

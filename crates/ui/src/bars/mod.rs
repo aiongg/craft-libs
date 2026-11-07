@@ -10,8 +10,8 @@ mod stories;
 mod words;
 
 pub use align::{AlignAction, AlignBar, AlignBarOutput, DistributeButtons};
-pub use bar::{Bar, BarKind, BarOutput, BarStyle};
+pub use bar::{Bar, BarCommands, BarKind, BarOutput, BarStyle};
 pub use breadcrumb::{BreadcrumbBar, BreadcrumbBarStyle, BreadcrumbOutput, path_crumbs};
 pub use items::{BarItem, BarItems, BarItemsStyle, Fit, FitItem, FitKeep, ItemDisplay, fit_items};
-pub use status_readout::{CompactSize, SizeUnit, StatusItem, StatusReadout, StatusReadoutOutput, StatusValues, compact_size};
-pub use words::{AlignWords, BarWords, BreadcrumbWords, StatusReadoutWords};
+pub use status_readout::{StatusItem, StatusReadout, StatusReadoutOutput, StatusValues};
+pub use words::BarWords;

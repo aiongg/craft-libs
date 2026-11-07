@@ -1,13 +1,14 @@
 //! `StatusReadout`: the document readout of a status bar: the zoom field, one chosen information item and the menu
 //! that chooses it. A pattern over the children of a `Bar` with `BarKind::Status`.
 
-use super::words::StatusReadoutWords;
+use super::words::BarWords;
 use crate::buttons::IconButton;
-use crate::contract::{Bind, BodyCx, EditResponse, Entry, Outcome, Props as _, Remember as _, Show as _, WordSetCx as _};
+use crate::contract::{Bind, EditResponse, Entry, GlyphLabel, LabelKind, Outcome, Props as _, Show as _, ShowContainer as _, SideLabel, Sizing};
 use crate::display::{Elide, Text};
-use crate::runtime::env::{Label, UnitKind};
+use crate::form::Field;
+use crate::layout_components::Row;
+use crate::runtime::env::{Env, Label, UnitKind, Units};
 use craft_behavior::IconId;
-use craft_i18n::Format;
 use egui::{Response, Ui};
 use std::ops::RangeInclusive;
 use std::time::Duration;
@@ -70,42 +71,6 @@ pub struct StatusValues {
     pub layer_count: Option<usize>,
 }
 
-/// The unit of a compact byte size.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum SizeUnit {
-    /// Thousands of bytes (steps of 1024).
-    Kilo,
-    /// Millions of bytes.
-    Mega,
-    /// Billions of bytes.
-    Giga,
-}
-
-/// A byte count in the largest of kilo, mega and giga that keeps the value at 1 or more (kilo below a mega).
-#[derive(Clone, Copy, Debug, PartialEq)]
-#[non_exhaustive]
-pub struct CompactSize {
-    /// The count in `unit`.
-    pub value: f64,
-    /// The unit.
-    pub unit: SizeUnit,
-}
-
-/// `bytes` in steps of 1024.
-pub fn compact_size(bytes: u64) -> CompactSize {
-    const STEP: f64 = 1024.0;
-    let bytes = bytes as f64;
-    let (divisor, unit) = if bytes >= STEP * STEP * STEP {
-        (STEP * STEP * STEP, SizeUnit::Giga)
-    } else if bytes >= STEP * STEP {
-        (STEP * STEP, SizeUnit::Mega)
-    } else {
-        (STEP, SizeUnit::Kilo)
-    };
-    CompactSize { value: bytes / divisor, unit }
-}
-
 impl StatusItem {
     /// Every item in the menu's order.
     pub const ALL: [StatusItem; 9] = [
@@ -121,52 +86,45 @@ impl StatusItem {
     ];
 
     /// The item's name in the menu.
-    fn name(self, words: &StatusReadoutWords) -> Label {
+    fn name(self, words: &BarWords) -> Label {
         match self {
-            StatusItem::DocumentSizes => words.document_sizes.clone(),
-            StatusItem::DocumentProfile => words.document_profile.clone(),
-            StatusItem::DocumentDimensions => words.document_dimensions.clone(),
-            StatusItem::MeasurementScale => words.measurement_scale.clone(),
-            StatusItem::ScratchSizes => words.scratch_sizes.clone(),
-            StatusItem::Efficiency => words.efficiency.clone(),
-            StatusItem::Timing => words.timing.clone(),
-            StatusItem::CurrentTool => words.current_tool.clone(),
-            StatusItem::LayerCount => words.layer_count.clone(),
+            StatusItem::DocumentSizes => words.readout_document_sizes.clone(),
+            StatusItem::DocumentProfile => words.readout_document_profile.clone(),
+            StatusItem::DocumentDimensions => words.readout_document_dimensions.clone(),
+            StatusItem::MeasurementScale => words.readout_measurement_scale.clone(),
+            StatusItem::ScratchSizes => words.readout_scratch_sizes.clone(),
+            StatusItem::Efficiency => words.readout_efficiency.clone(),
+            StatusItem::Timing => words.readout_timing.clone(),
+            StatusItem::CurrentTool => words.readout_current_tool.clone(),
+            StatusItem::LayerCount => words.readout_layer_count.clone(),
         }
     }
 
     /// The item's text for `values`, a dash when the value is missing.
-    fn text(self, values: &StatusValues, words: &StatusReadoutWords, format: &Format) -> String {
+    fn text(self, values: &StatusValues, words: &BarWords, env: &Env) -> String {
+        let units: Units = env.units();
         let given = |value: &Option<String>| value.clone().unwrap_or_else(|| MISSING.to_owned());
-        let size = |bytes: u64| {
-            let compact = compact_size(bytes);
-            let template = match compact.unit {
-                SizeUnit::Kilo => &words.size_kilo,
-                SizeUnit::Mega => &words.size_mega,
-                SizeUnit::Giga => &words.size_giga,
-            };
-            template.fill(&[("n", &format.number(compact.value, 1))])
-        };
         match self {
-            StatusItem::DocumentSizes => values
-                .document_sizes
-                .map_or_else(|| MISSING.to_owned(), |(flat, layered)| words.doc_prefix.fill(&[("flat", &size(flat)), ("layered", &size(layered))])),
+            StatusItem::DocumentSizes => values.document_sizes.map_or_else(
+                || MISSING.to_owned(),
+                |(flat, layered)| words.readout_doc_sizes.fill(&[("flat", &units.file_size(flat)), ("layered", &units.file_size(layered))]),
+            ),
             StatusItem::DocumentProfile => given(&values.document_profile),
             StatusItem::DocumentDimensions => given(&values.document_dimensions),
             StatusItem::MeasurementScale => given(&values.measurement_scale),
             StatusItem::ScratchSizes => values.scratch_sizes.map_or_else(
                 || MISSING.to_owned(),
-                |(used, available)| words.scratch_prefix.fill(&[("used", &size(used)), ("available", &size(available))]),
+                |(used, available)| words.readout_scratch.fill(&[("used", &units.file_size(used)), ("available", &units.file_size(available))]),
             ),
-            StatusItem::Efficiency => {
-                values.efficiency.map_or_else(|| MISSING.to_owned(), |n| words.efficiency_text.fill(&[("n", &format.integer(u64::from(n.min(100))))]))
-            }
-            StatusItem::Timing => {
-                values.timing.map_or_else(|| MISSING.to_owned(), |time| words.timing_text.fill(&[("n", &format.number(time.as_secs_f64(), 1))]))
-            }
+            StatusItem::Efficiency => values
+                .efficiency
+                .map_or_else(|| MISSING.to_owned(), |n| words.readout_efficiency_text.fill(&[("value", &units.percent(f64::from(n.min(100))))])),
+            StatusItem::Timing => values
+                .timing
+                .map_or_else(|| MISSING.to_owned(), |time| words.readout_timing_text.fill(&[("value", &units.duration(time.as_secs_f64()))])),
             StatusItem::CurrentTool => given(&values.current_tool),
             StatusItem::LayerCount => {
-                values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.layers.text(n as u64, &format.integer(n as u64)))
+                values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.readout_layers.text(n as u64, &env.format().integer(n as u64)))
             }
         }
     }
@@ -175,8 +133,10 @@ impl StatusItem {
 /// What the readout reports.
 #[non_exhaustive]
 pub struct StatusReadoutOutput {
-    /// The zoom field's edit, in percent.
-    pub zoom: EditResponse<Option<f64>>,
+    /// The readout row's response.
+    pub response: Response,
+    /// The zoom field's edit, in percent; `None` when the row did not run.
+    pub zoom: Option<EditResponse<Option<f64>>>,
     /// The item chosen in the menu this pass; the host stores it.
     pub item: Option<StatusItem>,
 }
@@ -185,12 +145,12 @@ impl Outcome for StatusReadoutOutput {
     type Value = Option<f64>;
 
     fn response(&self) -> &Response {
-        &self.zoom.response
+        &self.response
     }
 
     #[cfg(feature = "testing")]
     fn story_facts(&self) -> crate::testing::StoryOutput {
-        self.zoom.story_facts()
+        crate::testing::StoryOutput::of_edit(&self.response, self.zoom.as_ref().and_then(|zoom| zoom.event.as_ref()))
     }
 }
 
@@ -228,22 +188,33 @@ impl<'a> StatusReadout<'a> {
         self
     }
 
-    /// Shows the readout as children of the bar body `cx` belongs to.
-    pub fn show_in(self, ui: &mut Ui, cx: &mut BodyCx<'_>) -> StatusReadoutOutput {
-        let words = cx.words::<StatusReadoutWords>();
-        let text = self.item.text(self.values, &words, cx.format());
-        let zoom = crate::text::NumberField::new(words.zoom.clone(), self.zoom).unit_kind(UnitKind::Percent).range(self.range).show(ui);
-        let mut info = Text::new(text).elide(Elide::End);
-        if let Some((_, tip)) = self.tips.iter().find(|(item, _)| *item == self.item) {
-            info = info.tooltip(tip.clone());
-        }
-        info.show(ui);
-        let more = IconButton::new(IconId::new("chevron_right")).label(words.menu.clone()).show(ui);
-        let entries: Vec<Entry<StatusItem>> =
-            StatusItem::ALL.iter().map(|&item| Entry::new(item, item.name(&words)).checked(item == self.item)).collect();
-        let mut open = *cx.memory_at::<bool>("item_menu") || crate::contract::clicked(&more);
-        let menu = crate::menu::pick_from(ui, words.menu.clone(), &more, &entries, &mut open);
-        *cx.memory_at::<bool>("item_menu") = open;
-        StatusReadoutOutput { zoom: zoom.edit, item: menu.picked }
+    /// Shows the readout in a row: the zoom field, whose glyph label scrubs the zoom, the info text and the menu
+    /// button.
+    pub fn show(mut self, ui: &mut Ui) -> StatusReadoutOutput {
+        let env = Env::of(ui);
+        let words = env.words::<BarWords>();
+        let text = self.item.text(self.values, &words, &env);
+        let shown = Row::new().show(ui, |ui, _| {
+            let glyph = SideLabel::new().kind(LabelKind::Glyph(GlyphLabel::icon(IconId::new("zoom_in")))).scrub(true);
+            let zoom = Field::new(words.readout_zoom.clone()).side(glyph).sizing(Sizing::Content).show(ui, |ui, _| {
+                crate::text::NumberField::new(words.readout_zoom.clone(), self.zoom.reborrowed())
+                    .unit_kind(UnitKind::Percent)
+                    .range(self.range.clone())
+                    .scrub_by_label()
+                    .show(ui)
+            });
+            let mut info = Text::new(text.clone()).elide(Elide::End);
+            if let Some((_, tip)) = self.tips.iter().find(|(item, _)| *item == self.item) {
+                info = info.tooltip(tip.clone());
+            }
+            info.show(ui);
+            let more = IconButton::new(IconId::new("chevron_right")).label(words.readout_menu.clone()).show(ui);
+            let entries: Vec<Entry<StatusItem>> =
+                StatusItem::ALL.iter().map(|&item| Entry::new(item, item.name(&words)).checked(item == self.item)).collect();
+            let menu = crate::menu::pick_values_from(ui, words.readout_menu.clone(), &more, &entries);
+            (zoom.inner.map(|zoom| zoom.edit), menu.picked)
+        });
+        let (zoom, item) = shown.inner.unzip();
+        StatusReadoutOutput { response: shown.output, zoom: zoom.flatten(), item: item.flatten() }
     }
 }
