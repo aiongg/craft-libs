@@ -39,3 +39,52 @@ pub(crate) fn next_gesture_id(ctx: &Context) -> GestureId {
         gestures.0
     })
 }
+
+/// The gestures whose component was evicted while they ran.
+#[derive(Default)]
+struct Removed(Vec<GestureId>);
+
+/// Notes that the component running gesture `id` was evicted: the gesture ends with `CancelReason::Removed`, which the
+/// edit host reads with `take_removed`.
+pub(crate) fn note_removed(ctx: &Context, id: GestureId) {
+    Service::<Removed>::of(ctx).with(|removed| removed.0.push(id));
+    repaint::request(ctx);
+}
+
+/// The gestures whose component was evicted while they ran, once. The edit host ends each as a cancel with
+/// `CancelReason::Removed`.
+pub fn take_removed(ctx: &Context) -> Vec<GestureId> {
+    Service::<Removed>::of(ctx).with(|removed| std::mem::take(&mut removed.0))
+}
+
+/// The removal watch of a running gesture, a shown slot beside it under the same owner. Its drop is the dispose hook of
+/// the owner's eviction: only the slot the runtime moves through the stage is armed, so a clone dropped by a read
+/// notes nothing.
+#[derive(Default)]
+pub(crate) struct RemovalWatch {
+    armed: Option<(Context, GestureId)>,
+}
+
+impl RemovalWatch {
+    pub(crate) fn arm(&mut self, ctx: &Context, id: GestureId) {
+        self.armed = Some((ctx.clone(), id));
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.armed = None;
+    }
+}
+
+impl Clone for RemovalWatch {
+    fn clone(&self) -> Self {
+        RemovalWatch::default()
+    }
+}
+
+impl Drop for RemovalWatch {
+    fn drop(&mut self) {
+        if let Some((ctx, id)) = self.armed.take() {
+            note_removed(&ctx, id);
+        }
+    }
+}

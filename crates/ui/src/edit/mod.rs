@@ -3,7 +3,7 @@
 //! The adapter turns the events of a value component into undo steps of an app that keeps its own history, behind one
 //! sink trait. Dialogs, tool sessions and the keymap editor use `craft_behavior::EditHistory` instead.
 
-use crate::runtime::edit::cancel_all;
+use crate::runtime::edit::{cancel_all, take_removed};
 use craft_behavior::{CancelReason, DocKey, EditEvent, GestureId, Mixed, Value};
 use egui::Context;
 use std::any::Any;
@@ -115,15 +115,7 @@ impl<U: UndoMarks> GestureHost<U> {
                     }
                 }
             }
-            EditEvent::Cancel { id, reason, .. } => {
-                if let Some(under) = self.take(id) {
-                    if reason.document_moved() {
-                        doc.squash_since(under.mark, &under.name);
-                    } else {
-                        doc.revert_to(under.mark);
-                    }
-                }
-            }
+            EditEvent::Cancel { id, reason, .. } => self.cancel(doc, id, reason),
             EditEvent::Set { after, label, doc_key, .. } => {
                 self.revert(doc);
                 let mark = doc.undo_mark();
@@ -131,6 +123,24 @@ impl<U: UndoMarks> GestureHost<U> {
                 doc.squash_since(mark, &StepName { label, doc_key });
             }
             _ => {}
+        }
+    }
+
+    /// Ends the gestures whose component was evicted while they ran, as a `Cancel` with `CancelReason::Removed` does.
+    /// The app calls it once per frame, beside `handle`.
+    pub fn handle_removed(&mut self, ctx: &Context, doc: &mut U) {
+        for id in take_removed(ctx) {
+            self.cancel(doc, id, CancelReason::Removed);
+        }
+    }
+
+    fn cancel(&mut self, doc: &mut U, id: GestureId, reason: CancelReason) {
+        if let Some(under) = self.take(id) {
+            if reason.document_moved() {
+                doc.squash_since(under.mark, &under.name);
+            } else {
+                doc.revert_to(under.mark);
+            }
         }
     }
 

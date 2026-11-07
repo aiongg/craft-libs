@@ -107,6 +107,22 @@ fn a_cancelled_gesture_leaves_no_undo_step() {
     assert_eq!(session.doc.value, INITIAL);
 }
 
+/// A component evicted while its drag runs ends the gesture as removed: the host takes its edits back.
+#[trial]
+fn an_evicted_components_gesture_is_cancelled_as_removed() {
+    let mut session = Session::new(INITIAL);
+    session.drag();
+    assert!(session.host.is_active() && !session.doc.steps.is_empty(), "the drag edits the document");
+    for _ in 0..6 {
+        session.frames.advance(0.2);
+        session.frames.frame(vec![], |_: &mut Ui| {});
+    }
+    craft_ui::testing::memory::dispose_evicted(&session.frames.ctx);
+    session.host.handle_removed(&session.frames.ctx, &mut session.doc);
+    assert!(!session.host.is_active(), "the gesture ended");
+    assert_eq!((session.doc.steps.len(), session.doc.value), (0, INITIAL), "its edits are taken back");
+}
+
 /// Undo during a drag: the host takes the gesture back, cancels every running gesture, and the component's own cancel
 /// is ignored.
 #[trial]

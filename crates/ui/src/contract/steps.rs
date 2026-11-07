@@ -788,6 +788,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     };
     let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
+    let (running, watched) = (gesture.is_running().then_some(gesture.id), gesture.watched);
     if gesture.is_running() {
         gesture.emitted = emitted.or(gesture.emitted.take());
         gesture.last_given = given_now.or(gesture.last_given.take());
@@ -795,6 +796,16 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
         // A value the check replaced is the gesture's proposal, so the next pass shows it.
         if let Some(value) = last_update {
             gesture.proposal = Some(value);
+        }
+    }
+    // The owner's eviction while the gesture runs ends it as removed (7.2).
+    if running.is_some() || watched {
+        gesture.watched = running.is_some();
+        let ctx = cx.core.ctx.clone();
+        let watch = cx.core.memory.shown::<crate::runtime::edit::RemovalWatch>(slot);
+        match running {
+            Some(id) => watch.arm(&ctx, id),
+            None => watch.disarm(),
         }
     }
     if repaint_next {
