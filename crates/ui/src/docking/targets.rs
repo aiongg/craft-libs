@@ -37,11 +37,10 @@ pub struct DockSizes {
     /// Width of the band along the docked area's start and end edges, and inside an empty dock, that makes a new
     /// dock (the standard control height).
     pub new_dock_band: f32,
-    /// Offset of a floated unit from the area's top-left corner, and of each further one from the last (the window
-    /// title bar height).
+    /// Offset of a floated unit from the area's top-left corner, and of each further one from the last (the float
+    /// cascade size).
     pub cascade_inset: f32,
-    /// The size a command floats a panel at when the panel gives none: the width of a field by the least width of
-    /// a plot.
+    /// The size a command floats a panel at when the panel gives none (the float window size).
     pub float_size: Vec2,
 }
 
@@ -56,8 +55,8 @@ impl DockSizes {
             seam_band: size.control.md,
             column_edge_band: size.control.md,
             new_dock_band: size.control.md,
-            cascade_inset: size.bar.title,
-            float_size: Vec2::new(size.length.field, size.plot.width),
+            cascade_inset: size.float.cascade,
+            float_size: Vec2::new(size.float.width, size.float.height),
         }
     }
 }

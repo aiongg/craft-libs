@@ -154,3 +154,7 @@ fn a_panel_dropped_on_a_group_edge_docks_beside_it_and_in_the_middle_joins_its_t
     assert_eq!(*dropped.borrow(), Some((GroupId::new(1), DockSide::End)), "the end edge of the right group docks beside it");
     assert_eq!(tree.borrow().groups(), vec![GroupId::new(0), GroupId::new(1), NEW_GROUP], "the panel's group follows the right group");
 }
+
+mod floating;
+mod spec;
+mod targets;
