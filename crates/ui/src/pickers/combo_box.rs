@@ -17,9 +17,7 @@ use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::text::{Adornment, place, reserve};
-use craft_behavior::{
-    DisplayOrder, HitLevel, HitPriority, IconId, ItemSource, NavMove, PartKey, PlainText, Selection, Sense,
-};
+use craft_behavior::{DisplayOrder, HitLevel, HitPriority, IconId, ItemSource, NavMove, PartKey, PlainText, Selection, Sense};
 use egui::{Rect, Vec2};
 use std::borrow::Cow;
 use std::hash::{DefaultHasher, Hash as _, Hasher as _};
@@ -37,7 +35,9 @@ fn text_key() -> TextKey<String> {
 
 /// The decoration of an option row: it gets the entry and the plain row and returns the row to show (a thumbnail
 /// with a sample of the entry, a detail line).
-pub struct RowDecor<'a>(Box<dyn Fn(&Entry<String>, ListRow<'static>) -> ListRow<'static> + 'a>);
+pub struct RowDecor<'a>(Box<DecorFn<'a>>);
+
+type DecorFn<'a> = dyn Fn(&Entry<String>, ListRow<'static>) -> ListRow<'static> + 'a;
 
 impl<'a> RowDecor<'a> {
     /// The decoration that runs `decorate`.
@@ -92,7 +92,8 @@ impl<'a> ComboBox<'a> {
     /// The option whose text steps from the field's text in the direction of the move, over the options that can be
     /// picked. From text that is none of them, forward goes to the first and back to the last.
     fn neighbour(&self, text: &str, forward: bool) -> Option<usize> {
-        let pickable: Vec<usize> = (0..self.options.len()).filter(|&at| self.options[at].value().is_some() && self.options[at].is_enabled()).collect();
+        let pickable: Vec<usize> =
+            (0..self.options.len()).filter(|&at| self.options[at].value().is_some() && self.options[at].is_enabled()).collect();
         let here = pickable.iter().position(|&at| self.options[at].value().is_some_and(|value| value == text));
         let to = match (here, forward) {
             (Some(here), true) => (here + 1).min(pickable.len().checked_sub(1)?),

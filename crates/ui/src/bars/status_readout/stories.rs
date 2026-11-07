@@ -8,12 +8,13 @@ use egui::Ui;
 use std::time::Duration;
 
 fn values() -> StatusValues {
-    let mut values = StatusValues::default();
-    values.document_sizes = Some((26_100_000, 31_400_000));
-    values.efficiency = Some(100);
-    values.timing = Some(Duration::from_millis(400));
-    values.layer_count = Some(7);
-    values
+    StatusValues {
+        document_sizes: Some((26_100_000, 31_400_000)),
+        efficiency: Some(100),
+        timing: Some(Duration::from_millis(400)),
+        layer_count: Some(7),
+        ..StatusValues::default()
+    }
 }
 
 #[story(StatusReadout<'static>, covers = [], drive = Drive::Never)]

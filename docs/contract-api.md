@@ -991,6 +991,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn reborrow(&mut self) -> BindMut<'_, T>`. The binding as the pipeline reads and writes it.
 - `craft_ui::contract::BindMut`: `pub struct BindMut<'a, T>`. A reborrow of a [`Bind`] the pipeline reads at steps 4, 11, 15 and 17. `Component::bind` returns it, and returns the
 - `craft_ui::contract::BodyCx`: `pub struct BodyCx<'a> { pub id: Id, pub env: EnvView<'a>, pub resolved: &'a Resolved<'a>, pub rect: Rect }`. What a body closure and the header, footer and empty hooks read: a view over the pipeline's memory stage
+  - `pub fn field_message(&self) -> Option<&Message>`. The validity message of the first control in the container's label scope, recorded last frame: the
   - `pub fn is_open(&self) -> bool`. Whether the body is open.
   - `pub fn open(&mut self) -> &mut bool`. The open state: a title row's disclosure binds to it, and step 15 writes a change to its owner.
   - `pub fn gate(&mut self) -> Option<&mut bool>`. The gate's shown copy, for a container whose value is a bool: a title row's check box binds to it, and
@@ -1045,7 +1046,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
 - `craft_ui::contract::Common`: `pub struct Common`. What every component carries: the props the pipeline reads at step 1.
   - `pub const fn new() -> Common`. A `Common` with every prop unset, which the derive's constructors start from.
 - `craft_ui::contract::Component`: re-export of `craft_ui_macros::Component` (outside these crates).
-- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool, pub collection_body: bool }`. What a container or collection adds to `Common`.
+- `craft_ui::contract::ContainerProps`: `pub struct ContainerProps { pub mount: Mount, pub surface: Option<SurfaceKind>, pub pad: Pad, pub sizing: Sizing, pub layout: BodyLayout, pub header: Option<HeaderRegion>, pub scroll: Option<Scroll>, pub footer: Option<FooterRegion>, pub focus: FocusPolicy, pub collapse: Option<Collapse>, pub body_gap: Gap, pub child_size: Option<ControlSize>, pub arena: bool, pub transform: Option<CanvasTransform>, pub theme: Option<ThemeScope>, pub command_scope: Option<CommandScope>, pub live: Option<Politeness>, pub label: Option<SideLabel>, pub roving: Option<Roving>, pub save: Option<SaveKey>, pub outer_edit: bool, pub collection_body: bool, pub label_column: bool }`. What a container or collection adds to `Common`.
   - `pub const fn new() -> Self`. Props with every field at its default.
   - `pub fn mount(mut self, mount: Mount) -> Self`. Where the container lives.
   - `pub const fn surface(mut self, surface: SurfaceKind) -> Self`. The surface the container paints.
@@ -1069,6 +1070,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn roving(mut self, roving: Roving) -> Self`. Makes the body's members one roving stop.
   - `pub fn save(mut self, key: SaveKey) -> Self`. Saves placement, size and open state under `key`.
   - `pub const fn outer_edit(mut self, on: bool) -> Self`. One outer gesture over the body's fields.
+  - `pub const fn label_column(mut self, on: bool) -> Self`. The labelled rows of the body share the widest label as one column. A nested container with its own
 - `craft_ui::contract::ContextMenuRequest`: `pub struct ContextMenuRequest<K> { pub key: K, pub at: Pos2 }`. A request for the context menu of an item. Collections never open menus: the app does.
 - `craft_ui::contract::Cx`: `pub struct Cx<'a, C: Component> { pub style: &'a C::Style }`. What component code reads and calls. It derefs to [`CxCore`] for reading only.
   - `pub fn reset_part(&self) -> Option<PartRef>`. The part a reset aimed at, when it declared `own_reset`; `update` proposes the value with that part at its

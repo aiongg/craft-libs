@@ -370,7 +370,7 @@ impl<'a> MenuItem<'a> {
     /// The icon a bound command names, when it names one with a static name.
     fn command_icon(command: Option<&ResolvedCommand>) -> Option<IconSpec<'static>> {
         match command?.icon.as_ref()? {
-            Cow::Borrowed(name) => Some(IconSpec::svg(IconId::new(*name))),
+            Cow::Borrowed(name) => Some(IconSpec::svg(IconId::new(name))),
             Cow::Owned(_) => None,
         }
     }

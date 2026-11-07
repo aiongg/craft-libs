@@ -35,7 +35,8 @@ fn combo_box_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(ComboBox<'static>, covers = [Invalid], drive = Drive::Never)]
 fn combo_box_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let options = options();
-    let refuse_zapfino = |family: &String| if family == "Zapfino" { Validity::Refuse(Message::new("Zapfino is not installed")) } else { Validity::Ok };
+    let refuse_zapfino =
+        |family: &String| if family == "Zapfino" { Validity::Refuse(Message::new("Zapfino is not installed")) } else { Validity::Ok };
     ComboBox::new("Font", Bind::bound(data.value("invalid", "Zapfino".to_owned())).check(refuse_zapfino), &options).show(ui).into()
 }
 

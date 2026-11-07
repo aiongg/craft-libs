@@ -16,7 +16,7 @@ use crate::runtime::focus::FocusPolicy;
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
-use craft_behavior::{DisplayOrder, ItemSource, HitLevel, HitPriority, Metrics, NavMove, PartKey, Selection, Sense, Value, wheel_step};
+use craft_behavior::{DisplayOrder, HitLevel, HitPriority, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value, wheel_step};
 use craft_theme::{Rgba, Stateful, States};
 use egui::Vec2;
 use std::borrow::Cow;
@@ -60,7 +60,9 @@ pub(crate) fn row_look(cx: &StyleCx<'_>) -> SurfaceLook {
 
 /// What a select adds to an option's row: the host's content for an entry (a detail line, a trailing shortcut text, a
 /// thumbnail painter). `Select::decorate` takes the closure.
-pub struct RowDress<'a, T>(Box<dyn Fn(&T, ListRow<'a>) -> ListRow<'a> + 'a>);
+pub struct RowDress<'a, T>(Box<DressFn<'a, T>>);
+
+type DressFn<'a, T> = dyn Fn(&T, ListRow<'a>) -> ListRow<'a> + 'a;
 
 impl<'a, T> RowDress<'a, T> {
     /// The dress that runs `dress` over the row of each entry, given the entry's value.
