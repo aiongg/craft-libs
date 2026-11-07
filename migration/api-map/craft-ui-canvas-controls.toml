@@ -11,7 +11,8 @@ new_module = "craft_ui::canvas_controls"
 name = "Guides"
 old = "craft_ui::canvas::guides::Guides"
 new = "craft_ui::canvas_controls::Guides"
-status = "pending"
+status = "moved"
+note = "A canvas control: `Guides::new(label, Bind<Vec<Guide>>)` shown with `show_at(ui, body.rect)` in a `Canvas` body that has a view; the guides are parts in the canvas's arena, so there is no `claimed` or `hovered` flag."
 
 [[type]]
 name = "SelectionFrame"
@@ -351,3 +352,181 @@ new = "Axis { along: craft_behavior::Axis } and SnapGesture::axis(along)"
 type = "SnapTargets"
 old = "nearest(vertical, value, tolerance), snap_axis(vertical, value, tolerance) and the guides argument of with_document as (bool, f64)"
 new = "the same with along: craft_behavior::Axis, and (Axis, f64) for the guides"
+
+# canvas-controls-a: Guides and SmartGuides
+[[type]]
+name = "GuideLine"
+old = "craft_ui::canvas::guides::GuideLine"
+new = "craft_ui::canvas::GuideLine"
+status = "moved"
+
+[[type]]
+name = "GuidePlace"
+old = "craft_ui::canvas::guides::GuidePlace"
+new = ""
+status = "removed"
+note = "A guide drag is `Vec<Guide>` edit events of `GuidesOutput::edit`; a guide dragged out of a ruler is `craft_ui::canvas::GuideDrag`. A removed guide is a vector without it."
+
+[[type]]
+name = "GuidesResponse"
+old = "craft_ui::canvas::guides::GuidesResponse"
+new = ""
+status = "removed"
+note = "Replaced by `GuidesOutput`."
+
+[[type]]
+name = "GuidesOutput"
+old = ""
+new = "craft_ui::canvas_controls::GuidesOutput"
+status = "replaced"
+note = "Legacy `GuidesResponse`: `edit: EditResponse<Vec<Guide>>` replaces `event`; `select`, `clicked` (with `craft_keymap::Mods` and a document point), `double_clicked` and `context` carry over with `GuideKey`; `id`, `claimed` and `hovered` are gone because a press on a guide never reaches the tool."
+
+[[type]]
+name = "GuideNames"
+old = "craft_ui::canvas::guides::GuideNames"
+new = ""
+status = "removed"
+note = "The accessible names are the words of `GuideWords`."
+
+[[type]]
+name = "GuideWords"
+old = ""
+new = "craft_ui::canvas_controls::GuideWords"
+status = "replaced"
+note = "Legacy `GuideNames`: the vertical and horizontal guide names and the X and Y readout labels."
+
+[[type]]
+name = "Orientation"
+old = "craft_ui::canvas::guides::Orientation"
+new = ""
+status = "removed"
+note = "`Guide::along: craft_behavior::Axis` is the axis the guide runs along: a vertical guide is `Axis::Y`, a horizontal one `Axis::X`. `flipped`, `across` and `position` are `craft_behavior::geometry::{across_axis, motion_across, coordinate_across}`."
+
+[[type]]
+name = "GuideStyle"
+old = "craft_ui::style::guide::GuideStyle"
+new = "craft_ui::canvas_controls::GuideStyle"
+status = "replaced"
+note = "A component style built from the tokens in `Guides`' style hook; its fields are private. `Guides::style(&tokens)` is gone."
+
+[[type]]
+name = "GuideCommands"
+old = ""
+new = "craft_ui::canvas_controls::GuideCommands"
+status = "replaced"
+note = "App commands `canvas.guides.{new, clear, delete, lock, unlock}` and `GuideCommands::apply(&mut Vec<Guide>, selected)`. Legacy `Guides::request_delete` is `GuideCommands::Delete`."
+
+[[type]]
+name = "GuideSnap"
+old = ""
+new = "craft_ui::canvas_controls::GuideSnap"
+status = "replaced"
+note = "The named closure type of `Guides::snap`; the setter takes the closure."
+
+[[type]]
+name = "GuideHost"
+old = "craft_ui::canvas::guides::GuideHost"
+new = ""
+status = "removed"
+note = "A story helper of the legacy module."
+
+[[type]]
+name = "SmartGuides"
+old = "craft_ui::canvas::guides::SmartGuides"
+new = "craft_ui::canvas_controls::SmartGuides"
+status = "moved"
+note = "A canvas control with no parts, shown with `show_at(ui, body.rect)` in a `Canvas` body that has a view."
+
+[[type]]
+name = "SmartLine"
+old = "craft_ui::canvas::guides::SmartLine"
+new = "craft_ui::canvas_controls::SmartLine"
+status = "moved"
+note = "`#[non_exhaustive]`: built with `SmartLine::new(a, b)` and `.dashed()`."
+
+[[type]]
+name = "Measure"
+old = "craft_ui::canvas::guides::Measure"
+new = "craft_ui::canvas_controls::Measure"
+status = "moved"
+note = "`#[non_exhaustive]`: built with `Measure::new(a, b, label)`."
+
+[[setter]]
+type = "Guides"
+old = "new(id_salt, &guides, &x_units, &y_units, names)"
+new = "new(label, Bind<Vec<Guide>>) with x_units(RulerText) and y_units(RulerText)"
+
+[[setter]]
+type = "Guides"
+old = "modifiers(modifiers)"
+new = ""
+note = "The modifiers held come from the press of the guide's part."
+
+[[setter]]
+type = "Guides"
+old = "selected(Option<u64>)"
+new = "selected_guide(GuideKey)"
+
+[[setter]]
+type = "Guides"
+old = "snap(Fn(Orientation, f64, Modifiers) -> f64)"
+new = "snap(Fn(craft_behavior::Axis, f64, craft_keymap::Mods) -> f64)"
+
+[[setter]]
+type = "Guides"
+old = "readout(x, y)"
+new = ""
+note = "A dragged guide always shows its position; the labels are `GuideWords::{x, y}`."
+
+[[setter]]
+type = "Guides"
+old = "steps(step, big_step)"
+new = "step(f64) and big_step(f64)"
+
+[[setter]]
+type = "Guides"
+old = "policy(EditPolicy)"
+new = ""
+note = "The edit policy belongs to the `Bind`."
+
+[[setter]]
+type = "Guides"
+old = "drag_from_ruler(ctx, guides, orientation)"
+new = "pending(Option<GuideDrag>), fed by `RulerOutput::guide`"
+
+[[setter]]
+type = "Guides"
+old = "request_delete(ctx, guides)"
+new = "the command GuideCommands::Delete, run with GuideCommands::apply"
+
+[[setter]]
+type = "Guides"
+old = "active_id(ctx)"
+new = ""
+note = "Commands route through the command registry."
+
+[[setter]]
+type = "Guides"
+old = "show(ui, canvas, view)"
+new = "show_at(ui, body.rect) in the body of a Canvas that has a view"
+
+[[setter]]
+type = "Guides"
+old = "style(&tokens)"
+new = ""
+note = "The style is built by the component's style hook."
+
+[[setter]]
+type = "SmartGuides"
+old = "color(Color32)"
+new = "color(DataColor)"
+
+[[setter]]
+type = "SmartGuides"
+old = "bounds(kurbo::Rect)"
+new = "bounds(craft_behavior::kurbo::Rect)"
+
+[[setter]]
+type = "SmartGuides"
+old = "show(ui, view)"
+new = "show_at(ui, body.rect) in the body of a Canvas that has a view"
