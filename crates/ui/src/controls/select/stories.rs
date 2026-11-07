@@ -1,7 +1,7 @@
 //! Stories of `Select` and its option list.
 
 use super::{Choices, OptionList, OptionRow, Select, SelectOption};
-use crate::contract::{Bind, Props as _, Role, Show as _, ShowCollection as _, Validity};
+use crate::contract::{Bind, Props as _, Role, Show as _, ShowCollection as _, Sizing, Validity};
 use crate::runtime::env::{Label, Message};
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{Mixed, Selection};
@@ -43,28 +43,31 @@ fn select_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Select::new("Blend mode", Bind::bound(data.value("open", 1u8)), &options).show(ui).into()
 }
 
-fn list(ui: &mut Ui, count: usize) -> StoryOutput {
+/// A list is as tall as its rows, so with none it has no height; the empty list fills a panel to show its empty state.
+fn list(ui: &mut Ui, data: &mut StoryData, count: usize) -> StoryOutput {
     let labels: Vec<Label> = (1..=count).map(|n| Label::from(format!("Option {n}"))).collect();
     let choices = Choices { labels: &labels };
-    OptionList::new(Bind::given(Selection::default()))
+    let selection = data.value("selection", Selection::default());
+    OptionList::new(Bind::bound(selection))
+        .sizing(if count == 0 { Sizing::Fill } else { Sizing::Content })
         .label("Blend mode")
         .show_items(ui, &choices, &mut |key, _| OptionRow::new(labels[*key].as_str()))
         .into()
 }
 
 #[story(OptionList<'static>, covers = [Empty], drive = Drive::Never)]
-fn option_list_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    list(ui, 0)
+fn option_list_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    list(ui, data, 0)
 }
 
 #[story(OptionList<'static>, covers = [One], drive = Drive::Never)]
-fn option_list_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    list(ui, 1)
+fn option_list_one(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    list(ui, data, 1)
 }
 
 #[story(OptionList<'static>, covers = [Default, Many], drive = Drive::Never)]
-fn option_list_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    list(ui, 12)
+fn option_list_many(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    list(ui, data, 12)
 }
 
 #[story(OptionRow<'static>, covers = [Default], drive = Drive::Never)]

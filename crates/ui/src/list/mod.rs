@@ -19,7 +19,7 @@ pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsS
 pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbPaint, ThumbSize, ThumbTarget, TrailingPaint};
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};
 pub use tree::OpenSet;
-pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRow, UndoRowEvent, UndoRowOutput, UndoRowStyle, UndoRows, footer_text, undo_count};
+pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRow, UndoRowStyle, UndoRows, footer_text, undo_count};
 pub use view::{List, ListStyle};
 pub use view_words::{EventWords, FindingsWords, UndoWords};
 pub use words::ListWords;

@@ -4,8 +4,8 @@
 use super::view_words::EventWords;
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Sizing, Props as _, Role, SelectMode,
-    Show as _, WordSetCx as _,
+    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Props as _, Role, SelectMode,
+    Show as _, Sizing, WordSetCx as _,
 };
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;

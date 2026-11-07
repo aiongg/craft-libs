@@ -663,7 +663,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let mut shown = Vec::new();
         layout.visible(offset, view.size(), &mut shown);
         let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
-        let extra: Vec<usize> = keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|at| !shown.contains(at)).collect();
+        let mut extra: Vec<usize> = Vec::new();
+        for at in keep.into_iter().flatten().filter_map(|key| self.index_of(key)) {
+            if !shown.contains(&at) && !extra.contains(&at) {
+                extra.push(at);
+            }
+        }
         let order = shown.iter().copied().chain(extra).collect();
         (shown, order)
     }
