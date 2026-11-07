@@ -14,7 +14,7 @@ bitflags! {
         const DRAG = 4;
         /// A Tab stop.
         const FOCUS = 8;
-        /// The wheel goes here while the component is focused or armed.
+        /// The whole wheel: horizontal and vertical scroll and zoom go here.
         const WHEEL = 16;
         /// A press on this shape leaves key focus and any draft where they are.
         const KEEP_FOCUS = 32;
@@ -25,10 +25,17 @@ bitflags! {
         /// A middle press that ends within slop is a click the component reads from its press; it never activates.
         /// Without this bit a middle press only captures for a drag.
         const MIDDLE_CLICK = 256;
+        /// The vertical wheel share, taken without the other two; the split rule passes the horizontal share and zoom on.
+        const WHEEL_Y = 512;
+        /// The zoom share (Ctrl or Cmd with the wheel, pinch), taken without scroll; the split rule passes both scroll shares on.
+        const WHEEL_ZOOM = 1024;
     }
 }
 
 impl Sense {
+    /// The bits that make a shape a wheel taker; `WheelTaker::for_sense` reads them.
+    pub const WHEELS: Sense = Sense::WHEEL.union(Sense::WHEEL_X).union(Sense::WHEEL_Y).union(Sense::WHEEL_ZOOM);
+
     /// The bits that make a shape a press candidate.
     pub const PRESS: Sense = Sense::CLICK.union(Sense::DRAG);
 
