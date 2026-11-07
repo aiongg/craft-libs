@@ -90,7 +90,7 @@ impl Panels<'_> {
                 .tree(true)
                 .selection(Bind::bound(&mut *selection))
                 .empty("No component matches the filter")
-                .show_items(ui, &TreeRows(&shown), &mut |key, _| {
+                .show_items(ui, &TreeRows::new(&shown), &mut |key, _| {
                     let Some(row) = shown.iter().find(|row| row.key == *key) else { return ListRow::spacer() };
                     let item = ListRow::new(row.label.clone()).depth(row.depth);
                     if row.group { item.group(row.open) } else { item }

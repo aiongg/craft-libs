@@ -71,7 +71,14 @@ pub fn groups(rows: &[TreeRow]) -> Vec<TreeKey> {
 }
 
 /// `rows` as the display order of the list.
-pub struct TreeRows<'a>(pub &'a [TreeRow]);
+pub struct TreeRows<'a>(&'a [TreeRow]);
+
+impl<'a> TreeRows<'a> {
+    /// The display order of `rows`.
+    pub fn new(rows: &'a [TreeRow]) -> Self {
+        TreeRows(rows)
+    }
+}
 
 impl DisplayOrder<TreeKey> for TreeRows<'_> {
     fn len(&self) -> usize {

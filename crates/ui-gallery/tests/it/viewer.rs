@@ -3,9 +3,8 @@
 use craft_behavior::Selection;
 use craft_theme::Mode;
 use craft_ui::list::OpenSet;
-use craft_ui::testing::{TRIALS, trial};
+use craft_ui::testing::trial;
 use craft_ui_gallery::viewer::{Catalog, ComponentInfo, GallerySettings, PanelShares, TreeKey, Viewer, rows};
-use libtest_mimic::{Arguments, Trial};
 
 fn components() -> Vec<ComponentInfo> {
     vec![
@@ -85,19 +84,4 @@ fn the_filter_shows_the_groups_that_hold_a_match_open() {
 
     let none = rows(&components(), "no such component", &closed);
     assert!(none.is_empty());
-}
-
-fn main() {
-    let args = Arguments::from_args();
-    let trials: Vec<Trial> = TRIALS
-        .iter()
-        .map(|trial| {
-            let run = trial.run;
-            Trial::test(trial.full_name(), move || {
-                run();
-                Ok(())
-            })
-        })
-        .collect();
-    libtest_mimic::run(&args, trials).exit();
 }
