@@ -17,6 +17,7 @@
     "size": {
       "bar": {
         "options": 36.0,
+        "options_narrow": 28.0,
         "status": 24.0,
         "tab": 26.0,
         "title": 32.0
@@ -54,7 +55,8 @@
       },
       "rail": {
         "button": 30.0,
-        "width": 40.0
+        "width": 40.0,
+        "width_double": 80.0
       },
       "thumb": {
         "lg": 48.0,

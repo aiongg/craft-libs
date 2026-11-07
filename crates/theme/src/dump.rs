@@ -103,11 +103,12 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.icon.sm", len(*sm));
     out.line("size.icon.md", len(*md));
     out.line("size.icon.lg", len(*lg));
-    let RailSizes { width, button } = rail;
+    let RailSizes { width, button, width_double } = rail;
     out.line("size.rail.width", len(*width));
+    out.line("size.rail.width_double", len(*width_double));
     out.line("size.rail.button", len(*button));
-    let BarSizes { title, tab, status, options } = bar;
-    for (k, v) in [("title", title), ("tab", tab), ("status", status), ("options", options)] {
+    let BarSizes { title, tab, status, options, options_narrow } = bar;
+    for (k, v) in [("title", title), ("tab", tab), ("status", status), ("options", options), ("options_narrow", options_narrow)] {
         out.line(&format!("size.bar.{k}"), len(*v));
     }
     out.line("size.panel_header", len(*panel_header));

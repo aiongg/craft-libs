@@ -80,6 +80,7 @@ shape.radius.sm
 shape.radius.window
 shape.rows
 size.bar.options
+size.bar.options_narrow
 size.bar.status
 size.bar.tab
 size.bar.title
@@ -104,6 +105,7 @@ size.plot.height
 size.plot.width
 size.rail.button
 size.rail.width
+size.rail.width_double
 size.thumb.lg
 size.thumb.md
 size.thumb.sm
