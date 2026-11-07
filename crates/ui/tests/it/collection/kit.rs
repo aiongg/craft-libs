@@ -3,8 +3,8 @@
 use crate::contract::kit::PlainStyle;
 use craft_behavior::{DisplayOrder, Intent, ItemSource, Selection, SpanLayout};
 use craft_ui::contract::{
-    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _, EditResponse, Input,
-    ItemOutput, Focus as _, Outcome, Pointer as _, Role, SelectMode,
+    Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _, EditResponse, Focus as _,
+    Input, ItemOutput, Outcome, Pointer as _, Role, SelectMode,
 };
 use craft_ui::style::StyleCx;
 use egui::{Rect, Response, Ui, Vec2};
@@ -254,6 +254,7 @@ impl Collection for List<'_> {
 }
 
 const TEXT: Input = Input::Text;
+const ESCAPE: craft_keymap::Chord = craft_keymap::Chord::plain(craft_keymap::Key::Escape);
 
 /// A text editor of a name: typed text proposes, Enter commits, Escape cancels.
 #[derive(craft_ui::contract::Component)]
@@ -299,8 +300,12 @@ impl Component for NameEditor<'_> {
             }
             cx.commit();
         }
-        if cx.intents().take(Intent::Cancel) && cx.gesture().is_some() {
+        // An edit under way claims Escape from the next frame on, so the row does not take focus back first.
+        if cx.take_claimed(ESCAPE) || (cx.intents().take(Intent::Cancel) && cx.gesture().is_some()) {
             cx.cancel(craft_behavior::CancelReason::Escape);
+        }
+        if cx.gesture().is_some() {
+            cx.claim(ESCAPE);
         }
     }
 

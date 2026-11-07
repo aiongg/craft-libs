@@ -2,7 +2,9 @@
 
 pub(super) mod rows;
 
-use super::collection::{CollectionEvent, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode};
+use super::collection::{
+    CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode,
+};
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
@@ -113,6 +115,14 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     ended_rename: bool,
     header: Header,
     drags: Drags<C::Key>,
+}
+
+/// Where the rows sit in the collection's pass: the rows rect, the scroll offset and the reading direction.
+#[derive(Clone, Copy)]
+struct Placement {
+    rect: Rect,
+    offset: ScrollPos,
+    rtl: bool,
 }
 
 impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
@@ -227,6 +237,10 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             .type_ahead(true)
     }
 
+    fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
+        comp.items().command_scope
+    }
+
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
         debug_assert!(!env.in_scroll, "a collection owns its scroll: show it outside a scrolling body (16.3)");
@@ -313,181 +327,28 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         use super::Pointer as _;
-        let ctx = cx.core.ctx.clone();
         let rect = self.rows_rect(cx);
         let view = rect.height();
-        let (rtl, id) = (cx.core.flow.is_rtl(), cx.core.id);
+        let rtl = cx.core.flow.is_rtl();
         if let Some(range) = cx.scroll_moved(SCROLL) {
             self.offset = range.start;
         }
         self.offset = self.offset.clamp(0.0, self.max_offset(view));
         let header_held = self.header_step(cx);
         self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
-        let len = self.source.len();
-        // A lead whose key left the source moves to the key now in its place, else the one before it.
-        if let Some(key) = self.lead.key.clone()
-            && self.source.index_of(&key).is_none()
-        {
-            self.lead.key = None;
-            if len > 0 {
-                let to = self.lead.at.min(len - 1);
-                self.move_lead(to);
-                if self.selection.contains(&key) {
-                    self.pick(comp, to, false, false);
-                }
-            }
-        } else if let Some(at) = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)) {
-            self.lead.at = at;
-        }
+        self.follow_lead_source(comp);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
-        let mode = Self::select_mode(comp);
         let props = comp.items().clone();
         let Some(layout) = self.layout.take() else { return };
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
-        // A press on a row selects it; a double press activates it; a right press asks for its menu.
-        let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
-        let local = |at: Pos2| {
-            let at = at - rect.min.to_vec2();
-            if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
-        };
-        if let PressPhase::Down { start, .. } = cx.core.press.phase
-            && start.origin.y >= rect.min.y
-            && let Some(at) = layout.hit(local(start.origin), offset)
-            && self.source.enabled(at)
-        {
-            let primary = start.button == craft_behavior::PointerButton::Primary;
-            let toggle = self.toggle_cell(&props, &layout, at, offset, local(start.origin)).filter(|_| primary);
-            if let Some((column, sweepable)) = toggle {
-                self.begin_toggle(cx, at, column, sweepable);
-            } else {
-                let mods = crate::runtime::pointer::frame(&ctx).mods;
-                let secondary = start.button == craft_behavior::PointerButton::Secondary;
-                let key = self.source.key(at);
-                let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
-                if !secondary || !self.selection.contains(&key) {
-                    match column {
-                        Some(column) => self.cell_press(&layout, at, column, mods.shift, mods.cmd),
-                        None => self.pick(comp, at, mods.shift, mods.cmd),
-                    }
-                }
-                self.move_lead(at);
-                if secondary {
-                    let place = self.screen(&layout, rect, at, offset, rtl).left_bottom();
-                    self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: key.clone(), at: place }));
-                } else if start.clicks == 2 {
-                    self.events.push(CollectionEvent::Activate(key));
-                }
-            }
-        }
+        let at = Placement { rect, offset, rtl };
+        self.press_step(comp, cx, &props, &layout, at);
         self.drag_step(cx, &layout, rect, offset, rtl, &props);
-        let outline = Outline::new(self.source).columns(layout.column_count());
-        let cells = layout.column_count() > 0 && Self::selects_cells(comp);
-        let page = self.page_rows(&layout, view);
-        while !header_held && let Some((mv, mods)) = cx.core.intents.take_move() {
-            if len == 0 {
-                break;
-            }
-            let lead = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
-            if rows::is_forward(mv, mods)
-                && let Some(at) = lead
-                && !matches!(layout.nav(), craft_behavior::NavShape::Cell)
-                && self.enter_children(&ctx, id, at)
-            {
-                continue;
-            }
-            let mut state = NavState::new().page(page).column(self.lead.column);
-            state.lead = lead;
-            state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
-            match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
-                NavStep::Moved(to) if cells => {
-                    self.cell_move(&layout, to, state.column, mods);
-                    self.reveal_with(&layout, to, view);
-                }
-                NavStep::Column(column) if cells => {
-                    if let Some(at) = lead {
-                        self.cell_move(&layout, at, column, mods);
-                    }
-                }
-                NavStep::Column(column) => self.lead.column = column,
-                NavStep::Moved(to) => {
-                    self.move_lead(to);
-                    if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
-                        let anchor = state.anchor.unwrap_or(to);
-                        self.change(SelectionChange::Set(self.range(anchor, to)));
-                    } else if !mods.lead && !mods.extend {
-                        self.pick(comp, to, false, false);
-                    }
-                    self.reveal_with(&layout, to, view);
-                }
-                NavStep::Expand(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: true })),
-                NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: false })),
-                _ => {}
-            }
-        }
+        self.navigate(comp, cx, &layout, view, header_held);
         let lead_at = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)).or(lead_at);
-        if !header_held
-            && cx.core.intents.take(Intent::Toggle)
-            && let Some(at) = lead_at
-        {
-            self.pick(comp, at, false, mode != SelectMode::Single);
-        }
-        if cx.core.intents.take(Intent::Activate)
-            && let Some(at) = lead_at
-        {
-            self.events.push(CollectionEvent::Activate(self.source.key(at)));
-        }
-        if cx.core.intents.take(Intent::ContextMenu)
-            && let Some(at) = lead_at
-        {
-            let place = self.screen(&layout, rect, at, offset, rtl).left_bottom();
-            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(at), at: place }));
-        }
-        if let Some(forward) = take_move_item(&mut cx.core.intents)
-            && props.reorder.is_some()
-            && let Some(at) = lead_at
-        {
-            let to = if forward { (at + 1).min(len - 1) } else { at.saturating_sub(1) };
-            if to != at {
-                let key = self.source.key(at);
-                let id = crate::runtime::edit::next_gesture_id(&ctx);
-                let label = cx.core.label_arc();
-                let before = ReorderMove { key: key.clone(), to: at, copy: false };
-                self.events.push(CollectionEvent::Reorder(EditEvent::set(
-                    id,
-                    Mixed::Same(before),
-                    ReorderMove { key, to, copy: false },
-                    label,
-                    None,
-                )));
-            }
-        }
-        if props.rename
-            && cx.core.intents.take(Intent::Rename)
-            && let Some(at) = lead_at
-        {
-            let key = self.source.key(at);
-            let draft = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
-            let gesture = crate::runtime::edit::next_gesture_id(&ctx);
-            let before = Rename { key: key.clone(), name: draft.clone() };
-            self.events.push(CollectionEvent::Rename(EditEvent::begin(gesture, Mixed::Same(before), cx.core.label_arc(), None)));
-            self.renaming = Renaming { key: Some(key), draft, gesture, focused: false };
-        }
-        while let Some(text) = cx.core.intents.take_text() {
-            let now = frame::clock(&ctx);
-            let mut typing = cx.core.memory.session::<Typing>(sub(id, "typing")).0.clone();
-            let mut prefix = String::new();
-            for letter in text.chars() {
-                prefix = typing.push(letter, now).to_owned();
-            }
-            cx.core.memory.session::<Typing>(sub(id, "typing")).0 = typing;
-            let labels: Vec<_> = (0..len).map(|at| self.source.text(at)).collect();
-            let from = lead_at;
-            if let Some(to) = TypeAhead::pick(&prefix, from, len, |at| labels[at].as_deref().unwrap_or("")) {
-                self.move_lead(to);
-                self.pick(comp, to, false, false);
-                self.reveal_with(&layout, to, view);
-            }
-        }
+        self.intent_actions(comp, cx, &layout, at, lead_at, header_held);
+        self.reorder_and_rename(cx, &props, lead_at);
+        self.type_ahead(comp, cx, &layout, view, lead_at);
         self.layout = Some(layout);
     }
 
@@ -535,9 +396,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let base_env = env.derive(|scoped| {
             scoped.values.extend(values);
             scoped.arena = Some(ArenaId::new(id));
-            if let Some(scope) = command_scope {
-                scoped.commands = scoped.commands.pushed(scope, id);
-            }
         });
         self.header.paint(ui, cx, env, id, rtl);
         let len = self.source.len();
@@ -721,6 +579,194 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// A lead whose key left the source moves to the key now in its place, else the one before it.
+    fn follow_lead_source(&mut self, comp: &C) {
+        let len = self.source.len();
+        if let Some(key) = self.lead.key.clone()
+            && self.source.index_of(&key).is_none()
+        {
+            self.lead.key = None;
+            if len > 0 {
+                let to = self.lead.at.min(len - 1);
+                self.move_lead(to);
+                if self.selection.contains(&key) {
+                    self.pick(comp, to, false, false);
+                }
+            }
+        } else if let Some(at) = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)) {
+            self.lead.at = at;
+        }
+    }
+
+    /// A press on a row selects it; a double press activates it; a right press asks for its menu.
+    fn press_step(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, layout: &C::ItemLayout, at: Placement) {
+        let Placement { rect, offset, rtl } = at;
+        let ctx = cx.core.ctx.clone();
+        let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
+        let local = |at: Pos2| {
+            let at = at - rect.min.to_vec2();
+            if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
+        };
+        if let PressPhase::Down { start, .. } = cx.core.press.phase
+            && start.origin.y >= rect.min.y
+            && let Some(at) = layout.hit(local(start.origin), offset)
+            && self.source.enabled(at)
+        {
+            let primary = start.button == craft_behavior::PointerButton::Primary;
+            let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
+            if let Some((column, sweepable)) = toggle {
+                self.begin_toggle(cx, at, column, sweepable);
+            } else {
+                let mods = crate::runtime::pointer::frame(&ctx).mods;
+                let secondary = start.button == craft_behavior::PointerButton::Secondary;
+                let key = self.source.key(at);
+                let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
+                if !secondary || !self.selection.contains(&key) {
+                    match column {
+                        Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
+                        None => self.pick(comp, at, mods.shift, mods.cmd),
+                    }
+                }
+                self.move_lead(at);
+                if secondary {
+                    let place = self.screen(layout, rect, at, offset, rtl).left_bottom();
+                    self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: key.clone(), at: place }));
+                } else if start.clicks == 2 {
+                    self.events.push(CollectionEvent::Activate(key));
+                }
+            }
+        }
+    }
+
+    /// The pass's moves: lead, selection, expand and collapse.
+    fn navigate(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, view: f32, header_held: bool) {
+        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
+        let len = self.source.len();
+        let mode = Self::select_mode(comp);
+        let outline = Outline::new(self.source).columns(layout.column_count());
+        let cells = layout.column_count() > 0 && Self::selects_cells(comp);
+        let page = self.page_rows(layout, view);
+        while !header_held && let Some((mv, mods)) = cx.core.intents.take_move() {
+            if len == 0 {
+                break;
+            }
+            let lead = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
+            if rows::is_forward(mv, mods)
+                && let Some(at) = lead
+                && !matches!(layout.nav(), craft_behavior::NavShape::Cell)
+                && self.enter_children(&ctx, id, at)
+            {
+                continue;
+            }
+            let mut state = NavState::new().page(page).column(self.lead.column);
+            state.lead = lead;
+            state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
+            match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
+                NavStep::Moved(to) if cells => {
+                    self.cell_move(layout, to, state.column, mods);
+                    self.reveal_with(layout, to, view);
+                }
+                NavStep::Column(column) if cells => {
+                    if let Some(at) = lead {
+                        self.cell_move(layout, at, column, mods);
+                    }
+                }
+                NavStep::Column(column) => self.lead.column = column,
+                NavStep::Moved(to) => {
+                    self.move_lead(to);
+                    if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
+                        let anchor = state.anchor.unwrap_or(to);
+                        self.change(SelectionChange::Set(self.range(anchor, to)));
+                    } else if !mods.lead && !mods.extend {
+                        self.pick(comp, to, false, false);
+                    }
+                    self.reveal_with(layout, to, view);
+                }
+                NavStep::Expand(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: true })),
+                NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: false })),
+                _ => {}
+            }
+        }
+    }
+
+    /// Toggle, activate and context menu at the lead.
+    fn intent_actions(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, at: Placement, lead_at: Option<usize>, header_held: bool) {
+        let mode = Self::select_mode(comp);
+        if !header_held
+            && cx.core.intents.take(Intent::Toggle)
+            && let Some(row) = lead_at
+        {
+            self.pick(comp, row, false, mode != SelectMode::Single);
+        }
+        if cx.core.intents.take(Intent::Activate)
+            && let Some(row) = lead_at
+        {
+            self.events.push(CollectionEvent::Activate(self.source.key(row)));
+        }
+        if cx.core.intents.take(Intent::ContextMenu)
+            && let Some(row) = lead_at
+        {
+            let place = self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom();
+            self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place }));
+        }
+    }
+
+    /// Alt+arrow moves the lead's row; the rename command starts an edit of its name.
+    fn reorder_and_rename(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
+        let (ctx, len) = (cx.core.ctx.clone(), self.source.len());
+        if let Some(forward) = take_move_item(&mut cx.core.intents)
+            && props.reorder.is_some()
+            && let Some(at) = lead_at
+        {
+            let to = if forward { (at + 1).min(len - 1) } else { at.saturating_sub(1) };
+            if to != at {
+                let key = self.source.key(at);
+                let id = crate::runtime::edit::next_gesture_id(&ctx);
+                let label = cx.core.label_arc();
+                let before = ReorderMove { key: key.clone(), to: at, copy: false };
+                self.events.push(CollectionEvent::Reorder(EditEvent::set(
+                    id,
+                    Mixed::Same(before),
+                    ReorderMove { key, to, copy: false },
+                    label,
+                    None,
+                )));
+            }
+        }
+        if props.rename
+            && cx.core.intents.take(Intent::Rename)
+            && let Some(at) = lead_at
+        {
+            let key = self.source.key(at);
+            let draft = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
+            let gesture = crate::runtime::edit::next_gesture_id(&ctx);
+            let before = Rename { key: key.clone(), name: draft.clone() };
+            self.events.push(CollectionEvent::Rename(EditEvent::begin(gesture, Mixed::Same(before), cx.core.label_arc(), None)));
+            self.renaming = Renaming { key: Some(key), draft, gesture, focused: false };
+        }
+    }
+
+    /// Typed text moves the lead to the next row whose label starts with it.
+    fn type_ahead(&mut self, comp: &C, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, view: f32, lead_at: Option<usize>) {
+        let (ctx, id, len) = (cx.core.ctx.clone(), cx.core.id, self.source.len());
+        while let Some(text) = cx.core.intents.take_text() {
+            let now = frame::clock(&ctx);
+            let mut typing = cx.core.memory.session::<Typing>(sub(id, "typing")).0.clone();
+            let mut prefix = String::new();
+            for letter in text.chars() {
+                prefix = typing.push(letter, now).to_owned();
+            }
+            cx.core.memory.session::<Typing>(sub(id, "typing")).0 = typing;
+            let labels: Vec<_> = (0..len).map(|at| self.source.text(at)).collect();
+            let from = lead_at;
+            if let Some(to) = TypeAhead::pick(&prefix, from, len, |at| labels[at].as_deref().unwrap_or("")) {
+                self.move_lead(to);
+                self.pick(comp, to, false, false);
+                self.reveal_with(layout, to, view);
+            }
+        }
+    }
+
     fn reveal_with(&mut self, layout: &C::ItemLayout, at: usize, view: f32) {
         let rect = layout.rect(at, ScrollPos { x: 0.0, y: self.offset });
         if rect.min.y < 0.0 {

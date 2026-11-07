@@ -7,6 +7,7 @@ use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
 use crate::runtime::access::text as text_access;
 use crate::runtime::egui::text_edit;
+use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::runtime::motion::Animate as _;
 use craft_behavior::{CancelReason, Caret, Codec, EditRun, Ended, EscapeRule, Escaped, Gesture, NotAValue, PartKey, Typed, TypingRun};
@@ -243,6 +244,9 @@ pub(crate) fn run<C: Component>(
     let Some(resolved) = cx.value().map(|value| resolve(&mut state, value, step.commit_now)) else { return };
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
+    if state.draft.is_some() {
+        keys::hold_escape(&ctx, id);
+    }
     *cx.core.memory.shown::<TextState>(state_id) = state;
     let mut outcome = resolved.outcome;
     outcome.layout = Some(out.layout);
@@ -271,14 +275,13 @@ pub(crate) fn run<C: Component>(
 }
 
 impl<C: Component> Cx<'_, C> {
-    /// The result of the text part `key` this pass: the draft, the laid-out text and the caret blink. A key
-    /// `parts` never registered panics.
-    pub fn text<V: 'static>(&self, key: &TextKey<V>) -> &TextOutcome<V> {
-        self.core
-            .texts
-            .as_ref()
-            .filter(|(part, _)| *part == key.key())
-            .and_then(|(_, outcome)| outcome.downcast_ref::<TextOutcome<V>>())
-            .unwrap_or_else(|| panic!("the text part {:?} was never registered by `parts`", key.key()))
+    /// The result of the text part `key` this pass: the draft, the laid-out text and the caret blink. `None` while
+    /// the text service has not produced one (a part first registered this pass), and for a key `parts` never
+    /// registered, which is a debug assertion.
+    pub fn text<V: 'static>(&self, key: &TextKey<V>) -> Option<&TextOutcome<V>> {
+        let outcome =
+            self.core.texts.as_ref().filter(|(part, _)| *part == key.key()).and_then(|(_, outcome)| outcome.downcast_ref::<TextOutcome<V>>());
+        debug_assert!(outcome.is_some() || self.core.texts.is_none(), "the text part {:?} was never registered by `parts`", key.key());
+        outcome
     }
 }

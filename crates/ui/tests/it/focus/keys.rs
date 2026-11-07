@@ -124,7 +124,7 @@ fn a_state_dependent_claim_holds_from_the_next_frame() {
 }
 
 /// 11.3: a listed edit command reaches the component once as `Intent::Edit` and never reaches egui; an
-/// unlisted one stays in the raw input.
+/// unlisted one is read as its chord by the shortcut path alone, so egui never sees it either.
 #[trial]
 fn listed_edit_commands_arrive_as_intents_once() {
     let mut frames = Frames::new();
@@ -143,7 +143,7 @@ fn listed_edit_commands_arrive_as_intents_once() {
     assert!(!reads.borrow().1, "egui never saw the paste");
     frames.frame(vec![Event::Copy], &mut show);
     assert_eq!(reads.borrow().0, 1, "Copy is not listed");
-    assert!(reads.borrow().1, "an unlisted command stays in the raw input");
+    assert!(!reads.borrow().1, "an unlisted clipboard event stands for its chord and is not left to egui");
 }
 
 /// 11.3: the raw chord of a listed edit command is removed with the clipboard events, so a field's own undo keys

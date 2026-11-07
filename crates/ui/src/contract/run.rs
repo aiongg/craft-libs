@@ -119,6 +119,11 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Step 4: the shape's part of the value step (selection snapshot, scroll offset).
     fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id, _env: &Env) {}
 
+    /// The command scope the component is an instance of: its own `Cx` and the items below see it in the chain.
+    fn instance_scope(&self, _comp: &C) -> Option<commands::CommandScope> {
+        None
+    }
+
     /// Step 7: the parts the shape declares itself (scroll parts, the item layout).
     fn parts(&mut self, _comp: &mut C, _rect: Rect, _pcx: &mut PartsCx<'_, C>) {}
 
@@ -513,6 +518,8 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let (shown, mixed) = (value.value, value.mixed);
     let cancelled: Vec<_> = value.cancelled.into_iter().collect();
     hooks.read(&mut comp, &mut stage, id, &env);
+    let own_env = hooks.instance_scope(&comp).map(|scope| env.derive(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
+    let env = own_env.as_ref().unwrap_or(&env);
     trace.mark(Step::Value);
     // 5 measure
     let room = match at {
