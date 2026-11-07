@@ -178,3 +178,52 @@ fn a_word_tooltip_is_resolved_in_the_scopes_language() {
     let id = seen.borrow().id.expect("updated");
     assert_eq!(frames.tree().name(id), Some("Sichern"));
 }
+
+/// A combo box that reports an open state only when it has one.
+#[derive(craft_ui::contract::Component)]
+struct Dropdown {
+    #[common]
+    common: Common,
+    open: Option<bool>,
+}
+
+impl Component for Dropdown {
+    const ROLE: UiRole = UiRole::COMBO_BOX;
+    type Style = MeterLook;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: DropdownStyleKey) -> MeterLook {
+        MeterLook { metrics: craft_behavior::Metrics::new().min_size(Vec2::new(60.0, 20.0)) }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(open) = self.open {
+            access.expanded(open);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+// Expand and Collapse are declared only where the node has an open state; a combo box without one is a finding.
+#[trial]
+fn expand_is_declared_only_where_the_node_has_an_open_state() {
+    let shown = |open: Option<bool>| {
+        let mut frames = Frames::new();
+        let mut id = None;
+        frames.frame(vec![], |ui| id = Some(Dropdown { common: Common::new(), open }.label("Size").show(ui).id));
+        let id = id.expect("shown");
+        let tree = frames.tree();
+        let finding = findings(&frames.ctx).iter().any(|finding| finding.rule == "RoleRule" && finding.subject.contains("expanded"));
+        (tree.declares(id, Declared::Expand), tree.declares(id, Declared::Collapse), finding)
+    };
+    assert_eq!(shown(None), (false, false, true));
+    assert_eq!(shown(Some(false)), (true, false, false));
+    assert_eq!(shown(Some(true)), (false, true, false));
+}
