@@ -46,7 +46,7 @@ pub(crate) use cx::SeenPress;
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
-pub use items::ColumnCommands;
+pub use items::{ColumnCommands, request_rename};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};

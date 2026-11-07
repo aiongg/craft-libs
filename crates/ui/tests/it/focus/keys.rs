@@ -532,3 +532,66 @@ fn a_field_that_drives_a_list_hands_it_its_list_keys_inline_and_in_a_modal() {
         assert_eq!(*activated.borrow(), [2], "Enter picks the second match (modal: {in_modal})");
     }
 }
+
+/// A text field that drives a tree list hands it Right while it is empty: the lead row opens, and typed text stays.
+#[trial]
+fn a_field_that_drives_a_tree_opens_and_closes_rows_by_arrows() {
+    use craft_behavior::{DisplayOrder, ItemSource};
+    use craft_ui::contract::{Bind, Props as _, SelectMode, ShowCollection as _};
+    use craft_ui::list::{List, ListRow};
+    use craft_ui::testing::Fixture;
+    use craft_ui::text::TextField;
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct Folders<'a>(&'a Cell<bool>);
+    impl DisplayOrder<usize> for Folders<'_> {
+        fn len(&self) -> usize {
+            if self.0.get() { 3 } else { 1 }
+        }
+        fn key(&self, at: usize) -> usize {
+            at
+        }
+        fn depth(&self, at: usize) -> usize {
+            usize::from(at > 0)
+        }
+        fn has_children(&self, at: usize) -> bool {
+            at == 0
+        }
+        fn open(&self, at: usize) -> bool {
+            at == 0 && self.0.get()
+        }
+    }
+    impl ItemSource<usize> for Folders<'_> {}
+
+    let opened = Rc::new(Cell::new(false));
+    let shared = opened.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let list_id = ui.scope_id().with("folders");
+        let mut text = String::new();
+        TextField::search("Search", Bind::bound(&mut text)).drives(list_id).show(ui);
+        let out = List::new("Folders")
+            .id(list_id)
+            .tree(true)
+            .select(SelectMode::Single)
+            .show_items(ui, &Folders(&shared), &mut |key, _| ListRow::new(format!("row {key}")));
+        for event in &out.events {
+            if let craft_ui::contract::CollectionEvent::Open(change) = event {
+                shared.set(change.open);
+            }
+        }
+    });
+    fixture.settle();
+    let field = fixture.by_role(Role::TEXT_INPUT).pop().expect("the search field shows");
+    fixture.click(&field);
+    fixture.idle(2);
+    fixture.key(Key::ArrowDown, Modifiers::NONE);
+    fixture.idle(2);
+    fixture.key(Key::ArrowRight, Modifiers::NONE);
+    fixture.idle(2);
+    assert!(opened.get(), "Right from the empty field opens the lead row of the tree");
+    fixture.type_text("b");
+    fixture.idle(2);
+    let typed = fixture.focused().and_then(|id| fixture.tree().value(id).map(str::to_owned));
+    assert_eq!(typed.as_deref(), Some("b"), "typed text stays in the field");
+}

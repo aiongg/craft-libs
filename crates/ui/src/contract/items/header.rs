@@ -12,7 +12,7 @@ use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::style::{ComponentStyle, StyleCx, scroll_bar_look};
+use crate::style::{ComponentStyle, StyleCx, TypeRole, scroll_bar_look};
 use craft_behavior::grid::resolve_columns;
 use craft_behavior::{
     ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, IconId, Insets, Intent, Metrics, NavMove, NavShape, PartKey, PointerButton,
@@ -20,6 +20,8 @@ use craft_behavior::{
 };
 use egui::{Align, Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
 
+/// The type role of a header label.
+const HEADER_ROLE: TypeRole = TypeRole::Label;
 const HEADER: PartKey = PartKey::new("header");
 const GRIP: PartKey = PartKey::new("header_grip");
 /// The narrowest a resized column gets, in control heights.
@@ -112,12 +114,16 @@ impl Header {
         self.specs = specs;
     }
 
-    /// Step 5: the header takes the control height.
+    /// Step 5: the header takes the control height, or the line of its text when that is taller.
     pub(super) fn measure(&mut self, scx: &StyleCx<'_>) {
         let control = scx.control();
         self.unit = control.height;
         // The row shows only when the props ask for it and some column has a header to show (17.3).
-        self.height = if !self.on || self.specs.iter().all(|spec| spec.header.as_str().is_empty()) { 0.0 } else { control.height };
+        self.height = if !self.on || self.specs.iter().all(|spec| spec.header.as_str().is_empty()) {
+            0.0
+        } else {
+            control.height.max(scx.tokens.typography.get(HEADER_ROLE).line_height)
+        };
         self.min = control.height * MIN_COLUMN;
         self.step = control.height;
         self.inset = control.gap;
@@ -508,7 +514,9 @@ impl Component for HeaderText {
             }
             None => inner.rect(),
         };
-        ui.draw().text(text, &TextRun::new(cx.core.resolved.label));
+        let mut run = TextRun::new(cx.core.resolved.label);
+        run.role = HEADER_ROLE;
+        ui.draw().text(text, &run);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

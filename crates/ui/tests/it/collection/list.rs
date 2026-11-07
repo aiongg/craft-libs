@@ -290,6 +290,32 @@ fn rename_starts_commits_and_cancels() {
     assert_eq!(renames(), ["begin", "commit one!", "begin", format!("cancel {:?}", CancelReason::Escape).as_str()]);
 }
 
+/// A rename requested for a key opens that row's rename field at the next pass, with no key press on the list.
+#[trial]
+fn a_requested_rename_opens_the_rows_field() {
+    let words = Words::flat(&["one", "two", "three"]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).rename(), &words, &seen);
+    frames.idle(2, &mut show);
+    craft_ui::contract::request_rename(&frames.ctx, seen.id(), &2usize);
+    frames.idle(2, &mut show);
+    frames.frame(vec![Event::Text("!".into())], &mut show);
+    press(&mut frames, Key::Enter, Modifiers::NONE, &mut show);
+    let renames: Vec<String> = seen
+        .events
+        .borrow()
+        .iter()
+        .filter_map(|event| match event {
+            CollectionEvent::Rename(EditEvent::Begin { .. }) => Some("begin".to_owned()),
+            CollectionEvent::Rename(EditEvent::Commit { after, .. }) => Some(format!("commit {}", after.name)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(renames, ["begin", "commit three!"]);
+    assert_eq!(seen.leads().last(), Some(&2), "the lead moved to the requested row");
+}
+
 /// An empty source shows the collection's empty state at its content rect and no rows.
 #[trial]
 fn an_empty_list_shows_its_empty_state() {
