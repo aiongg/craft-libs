@@ -3,11 +3,12 @@
 use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
     Show as _, ShowContainer as _, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::Label;
+use crate::runtime::frame;
 use crate::runtime::overlay::{CloseReason, request_close};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, NavShape, Roving, Sense, Value};
@@ -204,6 +205,15 @@ impl Component for Menu<'_> {
         let level = MenuLevel::of(cx.memory::<LevelMemory>());
         if level.take_close() {
             request_close(&cx.core.ctx, cx.id, CloseReason::Requested);
+        }
+        while let Some(text) = cx.intents().take_text() {
+            let mut chars = text.chars();
+            if let (Some(typed), None) = (chars.next(), chars.next())
+                && let Some(row) = level.target(typed)
+            {
+                level.set_pending(row);
+                frame::request_repaint(&cx.core.ctx);
+            }
         }
     }
 

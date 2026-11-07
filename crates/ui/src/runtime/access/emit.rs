@@ -40,6 +40,9 @@ pub(crate) struct Own<'a> {
     pub access: &'a Access,
     /// The popups the component shows this pass.
     pub popups: &'a [PopupShown],
+    /// Parts of the component open its popups: their sub-nodes report the expanded state and serve Expand and
+    /// Collapse, so the component's own node does not.
+    pub popups_by_part: bool,
 }
 
 /// A popup an anchor shows this pass.
@@ -205,7 +208,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
         .or(own.hint)
         .or_else(|| own.tooltip.filter(|tip| own.display || name.text.as_deref() != Some(*tip)));
     let popup = own.popups.first();
-    let expanded = expanded_of(own.flags, access.expanded.or_else(|| popup.map(|popup| popup.open)));
+    let expanded = expanded_of(own.flags, access.expanded.or_else(|| popup.filter(|_| !own.popups_by_part).map(|popup| popup.open)));
     let mut relations = access.relations.clone();
     relations.labelled_by.extend(name.labelled_by.iter().copied());
     relations.controls.extend(own.popups.iter().filter(|popup| popup.open).map(|popup| popup.id));

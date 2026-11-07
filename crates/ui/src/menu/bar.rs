@@ -21,8 +21,8 @@ use super::MenuItem;
 use crate::buttons::ToggleButton;
 use crate::contract::overlay::Anchor;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, SetPosition, Show as _,
+    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
+    Pointer as _, Props as _, Role, SeenPress, SetPosition, Show as _,
 };
 use crate::display::{Divider, Text};
 use crate::runtime::commands::CommandRef;
@@ -397,14 +397,14 @@ impl Component for MenuBar<'_> {
                 asked = cx.active_part();
             }
         }
-        let seen: Vec<(Open, PartRef, bool, Option<Pos2>)> = slots
-            .iter()
-            .map(|slot| {
-                let part = Self::slot_part(*slot);
-                let result = cx.part(part);
-                (*slot, part, result.press.phase.is_press(), result.hover_pos)
-            })
-            .collect();
+        let mut seen: Vec<(Open, PartRef, bool, Option<Pos2>)> = Vec::new();
+        for slot in &slots {
+            let part = Self::slot_part(*slot);
+            let result = cx.part(part);
+            let (phase, hover) = (result.press.phase, result.hover_pos);
+            let began = cx.memory_at::<SeenPress>(part).began(&phase);
+            seen.push((*slot, part, began, hover));
+        }
         for (slot, part, pressed, _) in &seen {
             if *pressed || by_key == Some(*part) || asked == Some(*part) {
                 if open && state.open == Some(*slot) {
@@ -468,7 +468,7 @@ impl Component for MenuBar<'_> {
             None => Vec::new(),
         };
         let (titles, from) = (&mut self.titles, found.shown);
-        let overlay = Overlay::menu().anchor(Anchor::Rect(rect));
+        let overlay = super::layer(false).anchor(Anchor::Rect(rect));
         let typed = !query.0.trim().is_empty();
         ui.show(popup, overlay, |ui, cx| match open {
             Open::Title(at) => {

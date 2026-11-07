@@ -75,6 +75,10 @@ fn menu_of_values(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     in_row(ui, |ui| {
         let opener = Button::new("Zoom").show(ui);
         let entries = [Entry::new(0u8, "Fit in Window").checked(true), Entry::new(1, "Fill Screen"), Entry::separator(), Entry::new(2, "100%")];
-        Menu::new("Zoom", Bind::bound(data.value("open", true))).opened_by(&opener).pick(ui, &entries).into()
+        let picked = Menu::new("Zoom", Bind::bound(data.value("open", true))).opened_by(&opener).pick(ui, &entries);
+        let ran = picked.picked.is_some();
+        let mut output = StoryOutput::from(picked);
+        output.clicked |= ran;
+        output
     })
 }

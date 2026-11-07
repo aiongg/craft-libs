@@ -176,7 +176,7 @@ impl MenuLevel {
     }
 
     /// The enabled row `typed` runs.
-    fn target(&self, typed: char) -> Option<Id> {
+    pub(crate) fn target(&self, typed: char) -> Option<Id> {
         let typed = typed.to_ascii_uppercase();
         self.with(|state| state.shown.iter().find(|row| row.enabled && row.letter == Some(typed)).map(|row| row.id))
     }
@@ -198,7 +198,7 @@ impl MenuLevel {
         self.with(|state| state.keyboard_now = true);
     }
 
-    fn set_pending(&self, id: Id) {
+    pub(crate) fn set_pending(&self, id: Id) {
         self.with(|state| state.pending = Some(id));
     }
 
@@ -496,19 +496,6 @@ impl Component for MenuItem<'_> {
                 NavMove::Forward => forward = true,
                 NavMove::Back => back = true,
                 _ => {}
-            }
-        }
-        if let Some(text) = cx.intents().take_text() {
-            let mut chars = text.chars();
-            if let (Some(typed), None) = (chars.next(), chars.next()) {
-                match level.target(typed) {
-                    Some(id) if id == cx.id => ran = true,
-                    Some(id) => {
-                        level.set_pending(id);
-                        frame::request_repaint(&ctx);
-                    }
-                    None => {}
-                }
             }
         }
         if enabled && level.take_pending(cx.id) {

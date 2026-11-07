@@ -20,7 +20,7 @@ use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
     Axis, CancelReason, Cursor, CursorIcon, CursorPriority, DropOperation, EditEvent, Flow, Gesture, GesturePhase, HitLevel, HitPriority, HitShape,
-    Mixed, PartKey, PartRef, PressCancel, PressPhase, PressState, Proposal, Roving, ScrollSpan, Sense, Value, Wheel,
+    Mixed, PartKey, PartRef, PressCancel, PressPhase, PressStart, PressState, Proposal, Roving, ScrollSpan, Sense, Value, Wheel,
 };
 use craft_i18n::{Format, WordSet};
 use craft_keymap::Chord;
@@ -179,6 +179,29 @@ impl<C: Component> Cx<'_, C> {
         );
         focus::request(&self.core.ctx, focus::FocusTarget::Id(self.core.id));
         self.core.sync_focus();
+    }
+}
+
+/// The press a part's press edge last saw: a held press reports `Down` on every pass, so the pass it began is the
+/// one whose press differs from this.
+#[derive(Clone, Default)]
+pub(crate) struct SeenPress(Option<PressStart>);
+
+impl SeenPress {
+    /// Whether `phase` is the pass its press began.
+    pub(crate) fn began(&mut self, phase: &PressPhase) -> bool {
+        match phase {
+            PressPhase::Down { start, .. } | PressPhase::DragStart { start, .. } | PressPhase::Drag { start, .. } => {
+                let fresh = self.0 != Some(*start);
+                self.0 = Some(*start);
+                fresh
+            }
+            PressPhase::Idle | PressPhase::Hover => {
+                self.0 = None;
+                false
+            }
+            _ => false,
+        }
     }
 }
 

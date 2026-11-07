@@ -390,6 +390,8 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
                 push(&mut routed, Some(dropdown.list), Intent::Text(Arc::from(text.as_str())), false);
             } else if matches!(rec.stop.keys.owner, OwnerClass::Text) || typed {
                 routed.entry(Some(rec.stop.id)).or_default().items.push(Item { intent: Intent::Text(Arc::from(text.as_str())), horizontal: false });
+            } else if let Some(menu) = focus::menu_scope(ctx, rec).filter(|_| !text.trim().is_empty()) {
+                push(&mut routed, Some(menu), Intent::Text(Arc::from(text.as_str())), false);
             }
         }
     }
