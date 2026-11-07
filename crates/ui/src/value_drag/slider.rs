@@ -207,7 +207,7 @@ impl Component for Slider<'_> {
         let length = (area.width() - area.height()).max(1.0);
         // The drag runs over positions along the track, so every scale shares the maths.
         let travel = Travel { track: (area.left() + half)..(area.right() - half), units: 0.0..=1.0, rtl };
-        let pick = Pick { reach: half, overlap: area.height(), period: 0.0 };
+        let pick = Pick { reach: half, overlap: area.height(), period: 0.0, span: false };
         let marks = &self.marks;
         let at = |position: f64| marks.snapped(&scale, length, position).unwrap_or_else(|| scale.snap(scale.at_position(position)));
         let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or_else(|| scale.middle());

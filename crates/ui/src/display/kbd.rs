@@ -99,14 +99,14 @@ impl Kbd {
 
     /// The keys shown: the bound command's chord for `os`, else the given chord. Key names that are words
     /// come from the catalog.
-    fn keys(&self, command: Option<&ResolvedCommand>, os: Os, words: &DisplayWords) -> Keys {
+    fn keys(&self, command: Option<&ResolvedCommand>, os: Os, layout: &Layout, words: &DisplayWords) -> Keys {
         if self.single {
             return Keys { parts: vec![self.chord.as_str().to_owned()], glued: false };
         }
         match command {
             Some(command) => {
                 let Some(chord) = command.chord.as_ref() else { return Keys { parts: Vec::new(), glued: false } };
-                let mut parts = chord.parts_for(os, &Layout::default());
+                let mut parts = chord.parts_for(os, layout);
                 if !os.is_mac()
                     && let (Some(word), Some(last)) = (words.key(chord.key), parts.last_mut())
                 {
@@ -151,7 +151,7 @@ impl Component for Kbd {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let keys = self.keys(cx.command(), cx.env.shell().os, &cx.words::<DisplayWords>());
+        let keys = self.keys(cx.command(), cx.env.shell().os, cx.env.keyboard_layout(), &cx.words::<DisplayWords>());
         let size = |text: &str| cx.layout(&ChordText::new(text).run().role(cx.style.text.role)).size();
         if !self.keycap || self.single {
             return size(&keys.text());
@@ -178,7 +178,7 @@ impl Component for Kbd {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let keys = self.keys(cx.command.as_deref(), cx.env.shell().os, &cx.words::<DisplayWords>());
+        let keys = self.keys(cx.command.as_deref(), cx.env.shell().os, cx.env.keyboard_layout(), &cx.words::<DisplayWords>());
         if keys.parts.is_empty() {
             return;
         }

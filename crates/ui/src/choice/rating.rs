@@ -9,11 +9,11 @@ use crate::contract::{
 };
 use crate::primitives::IconSpec;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
-use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, Ink, StyleCx};
+use crate::style::{ComponentStyle, Flags, FocusLook, IconLook, Ink, StyleCx, SurfaceKind, SurfaceLook};
 use craft_behavior::nav::{NavShape, StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{Flow, IconId, Metrics, PartKey, Roving, Sense};
 use craft_keymap::{Chord, Key};
-use craft_theme::{Stateful, States, variant::Tone};
+use craft_theme::{Rgba, Stateful, States, variant::Tone};
 use egui::{Rect, Vec2};
 
 const STAR: PartKey = PartKey::new("star");
@@ -34,6 +34,10 @@ const DIGITS: [Chord; 6] = [
 pub struct RatingStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The failure tint behind the stars of an invalid rating: the status pair `bad.bg` and `bad.fg` read on each
+    /// other where `bad.fg` alone need not read on the surface the rating sits on.
+    #[style(surface)]
+    surface: Option<SurfaceLook>,
     #[style(focus)]
     focus: FocusLook,
     /// A star the rating covers.
@@ -95,8 +99,10 @@ impl Component for Rating<'_> {
         let look = |rest| {
             IconLook::new(control.icon, Stateful::new(rest).off(States::new(rest, rest, rest, cx.color(text.disabled))).when(Flags::INVALID, bad))
         };
+        let tint = Stateful::new(cx.color(Rgba::TRANSPARENT)).when(Flags::INVALID, cx.color(cx.tokens.color.status.bad.bg));
         RatingStyle {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
+            surface: Some(SurfaceLook::new(tint).radius(cx.surface(SurfaceKind::Well).radius)),
             focus: cx.focus_look(),
             lit: look(cx.ink(Ink::OnPanel)),
             unlit: look(cx.color(text.muted)),

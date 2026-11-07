@@ -180,6 +180,16 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     }
 
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
+
+    fn sized(&self, comp: &C, ui: &Ui, size: Vec2) -> Vec2 {
+        let room = ui.available_size_before_wrap();
+        let fill = |measured: f32, offered: f32| if offered.is_finite() { measured.max(offered) } else { measured };
+        match comp.fills() {
+            Some(craft_behavior::Axis::X) => Vec2::new(fill(size.x, room.x), size.y),
+            Some(craft_behavior::Axis::Y) => Vec2::new(size.x, fill(size.y, room.y)),
+            _ => size,
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments, reason = "one argument per field of the context the pipeline builds once per show")]

@@ -11,7 +11,7 @@ use super::track::{self, Pick, Press, Scale, SliderScale, TrackFace, Travel};
 use super::words::ValueDragWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
-    Remember as _, Role, Styled as _, WordSetCx as _,
+    Remember as _, Role, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::access::Name;
@@ -455,7 +455,7 @@ impl<'r, const N: usize> Layout<'r, N> {
             Some(period) if rules.scale.span() > 0.0 => ((right - left) as f64 * period / rules.scale.span()) as f32,
             _ => 0.0,
         };
-        Layout { rules, left, right, rtl, pick: Pick { reach, overlap: thumb.x, period }, alone }
+        Layout { rules, left, right, rtl, pick: Pick { reach, overlap: thumb.x, period, span: false }, alone }
     }
 
     fn x_of(&self, value: f64) -> f32 {
@@ -862,8 +862,18 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
         let row = cx.value().cloned().unwrap_or_else(all_mixed);
         let shown = rules.placed(&row);
         let size = Vec2::splat(style.thumb);
-        let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), 0.0, false);
+        let layout = Layout::new(rules, cx.rect, size, cx.flow.is_rtl(), style.hit, false);
         let xs = layout.xs(&shown);
+        // The thumbs a press at the pointer would move take the hover look.
+        let lit = std::iter::once(PartRef::from(ROW))
+            .chain((0..N).map(|i| THUMB.at(i as u64)))
+            .find_map(|part| cx.hover_pos(part))
+            .and_then(|at| layout.press(&shown, at.x))
+            .map_or_else(Vec::new, |press| match press {
+                Press::Grab(i) | Press::Jump(i) => vec![i],
+                Press::Either { first, last } => vec![first, last],
+                Press::Span => Vec::new(),
+            });
         let thumbs = band(cx.rect, self.track_face.is_some().then_some(style.track.thickness));
         let top = thumbs.top() + (thumbs.height() - size.y) / 2.0;
         let halves = self.halves(&rules, &shown);
@@ -874,13 +884,14 @@ impl<const N: usize> Component for ThumbRow<'_, N> {
             }
             let points = triangle(pos2(xs[i], top), size, halves[i], cx.flow.is_rtl());
             let part = THUMB.at(i as u64);
-            draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), cx.resolve_part(part, &style.ring));
+            let state = cx.core.part_state_lit(part, lit.contains(&i));
+            draw.fill(&PaintShape::Polygon(grown(&points, style.ring_width)), state.resolve(&style.ring));
             let shape = PaintShape::Polygon(points);
             match rules.thumbs[i].face {
                 Some(face) => draw.data_fill(&shape, face),
-                None => draw.fill(&shape, cx.resolve_part(part, &style.face)),
+                None => draw.fill(&shape, state.resolve(&style.face)),
             }
-            draw.stroke(&shape, StrokeWidth::Thin, cx.resolve_part(part, &style.edge));
+            draw.stroke(&shape, StrokeWidth::Thin, state.resolve(&style.edge));
         }
     }
 

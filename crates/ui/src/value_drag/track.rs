@@ -351,6 +351,8 @@ pub(crate) enum Press {
     Jump(usize),
     /// Overlapping thumbs under the press: a left drag moves the first of them, a right drag the last.
     Either { first: usize, last: usize },
+    /// Between two thumbs, where the track allows it (`Pick::span`): the thumbs move together by the pointer's travel.
+    Span,
 }
 
 impl Press {
@@ -360,7 +362,7 @@ impl Press {
             Press::Grab(i) | Press::Jump(i) => Some(i),
             Press::Either { first, .. } if x < origin => Some(first),
             Press::Either { last, .. } if x > origin => Some(last),
-            Press::Either { .. } => None,
+            Press::Either { .. } | Press::Span => None,
         }
     }
 
@@ -389,6 +391,8 @@ pub(crate) struct Pick {
     pub overlap: f32,
     /// A wrapping track's period in points; 0 when it does not wrap.
     pub period: f32,
+    /// A press between two thumbs drags them together instead of moving the nearer one.
+    pub span: bool,
 }
 
 impl Pick {
@@ -408,7 +412,9 @@ impl Pick {
         let group = |i: usize| if on { d(i) <= self.reach && self.dx(xs[i], at).abs() < self.overlap } else { self.dx(xs[i], at) == 0.0 };
         let first = (0..xs.len()).find(|&i| group(i)).unwrap_or(nearest);
         let last = (0..xs.len()).rev().find(|&i| group(i)).unwrap_or(nearest);
+        let between = xs.iter().any(|&other| other < x) && xs.iter().any(|&other| other > x);
         Some(match (on, first == last) {
+            (false, _) if self.span && between => Press::Span,
             (true, true) => Press::Grab(nearest),
             (true, false) => Press::Either { first, last },
             (false, _) if self.dx(x, at) < 0.0 => Press::Jump(first),

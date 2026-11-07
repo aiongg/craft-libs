@@ -339,11 +339,35 @@ fn a_body_labelled_row_takes_the_height_of_its_placement() {
         Field::new("Group", SideLabel::new().kind(craft_ui::contract::LabelKind::Hidden)).id_salt("body").show_at(ui, ROW_A, |ui, cx| {
             let before = ui.available_rect_before_wrap().min.y;
             cx.labelled(ui, "dial", "Opacity".into(), SideLabel::new(), Dial::new(&mut value, &seen));
-            used.set(ui.available_rect_before_wrap().min.y - before);
+            // The body's gap follows every row; the row itself ends before it.
+            used.set(ui.available_rect_before_wrap().min.y - before - ui.spacing().item_spacing.y);
         });
     });
     assert!(
         (used.get() - SIZE.y).abs() < f32::from(1u8) / 100.0,
         "a label beside its child adds no height: the row is the child's own, not a multiple of it"
     );
+}
+
+/// An after-label whose detail does not fit beside the control wraps in the room left, and the row grows to hold it.
+#[trial]
+fn an_after_labels_detail_wraps_in_the_room_the_control_leaves() {
+    let used_by = |detail: &str, width: f32| {
+        let mut frames = Frames::new();
+        let seen = RefCell::new(Seen::default());
+        let mut value = START;
+        let used = std::cell::Cell::new(0.0);
+        let area = Rect::from_min_size(ROW_A.min, Vec2::new(width, 200.0));
+        frames.idle(3, |ui| {
+            Field::new("Group", SideLabel::new().kind(craft_ui::contract::LabelKind::Hidden)).id_salt("after").show_at(ui, area, |ui, cx| {
+                let before = ui.available_rect_before_wrap().min.y;
+                let side = SideLabel::new().layout(FieldLayout::After).detail(detail.to_owned());
+                cx.labelled(ui, "dial", "Opacity".into(), side, Dial::new(&mut value, &seen));
+                used.set(ui.available_rect_before_wrap().min.y - before - ui.spacing().item_spacing.y);
+            });
+        });
+        used.get()
+    };
+    let long = "A description far longer than the room that is left beside the control, which must wrap";
+    assert!(used_by(long, 160.0) > used_by("Short", 400.0), "the wrapped detail makes the row taller than a one-line label does");
 }

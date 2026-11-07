@@ -289,6 +289,8 @@ pub struct Scoped {
     pub(crate) active: bool,
     /// The platform and the running viewport's window facts.
     pub(crate) shell: Arc<ShellInfo>,
+    /// The keyboard layout as the platform reports it and typing has shown it.
+    pub(crate) keyboard: Arc<craft_keymap::Layout>,
     /// The text and icon ink of the surface the scope sits on, set by a container for its body.
     pub ink: Ink,
     /// The built-in text of the scope.
@@ -412,6 +414,7 @@ impl Env {
         let scale = Scale(pixels_per_point);
         let shell = Arc::new(windows::shell_of(ctx, pass::current_viewport(ctx)));
         let active = shell.window.active;
+        let keyboard = Arc::new(crate::runtime::keys::layout_of(ctx));
         Env {
             scoped: Arc::new(Scoped {
                 key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()),
@@ -419,6 +422,7 @@ impl Env {
                 os,
                 active,
                 shell,
+                keyboard,
                 ink: Ink::default(),
                 size: ControlSize::Md,
                 enabled: true,
@@ -687,6 +691,11 @@ impl<'a> EnvView<'a> {
     /// chrome, state, insets and focus.
     pub fn shell(&self) -> &'a ShellInfo {
         &self.scoped.shell
+    }
+
+    /// The keyboard layout: which character each key position types, for text that names a key.
+    pub fn keyboard_layout(&self) -> &'a craft_keymap::Layout {
+        &self.scoped.keyboard
     }
 
     /// The app's `Host`, from `FrameInput.host`.

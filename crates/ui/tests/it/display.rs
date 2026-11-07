@@ -21,6 +21,8 @@ pub enum KbdCommand {
     Chorded,
     #[command(label = "Bare")]
     Bare,
+    #[command(label = "Punctuated", default = "Cmd+/")]
+    Punctuated,
 }
 
 /// A Kbd bound to a command measures the chord step 1 resolved for it, so the room it takes matches what it paints.
@@ -62,7 +64,13 @@ fn keycaps_of(fixture: &Fixture) -> Vec<(String, usize)> {
         .texts()
         .iter()
         .map(|text| {
-            let boxes: Vec<&Rect> = fixture.shape_bounds().iter().filter(|b| b.contains_rect(text.rect) && b.area() > text.rect.area()).collect();
+            // A keycap paints its fill and its border over one rect; count each rect once.
+            let mut boxes: Vec<&Rect> = Vec::new();
+            for bounds in fixture.shape_bounds().iter().filter(|b| b.contains_rect(text.rect) && b.area() > text.rect.area()) {
+                if !boxes.contains(&bounds) {
+                    boxes.push(bounds);
+                }
+            }
             (text.text.clone(), boxes.len())
         })
         .collect()
@@ -88,6 +96,20 @@ fn a_keycap_chord_paints_one_box_per_key_and_is_named_spoken() {
     });
     bare.settle();
     assert!(bare.texts().is_empty() && bare.shape_bounds().is_empty(), "a command with no chord paints nothing");
+}
+
+/// A chord on a punctuation key shows the character the keyboard layout types at that key.
+#[trial]
+fn a_chord_names_a_punctuation_key_by_the_keyboards_layout() {
+    let mut fixture = Fixture::new(|ui| {
+        Kbd::command(KbdCommand::Punctuated).id_salt("kbd").show(ui);
+    });
+    fixture.os(Os::Windows).settle();
+    let shown = |fixture: &Fixture| fixture.texts().iter().map(|text| text.text.clone()).collect::<Vec<_>>().join("");
+    assert_eq!(shown(&fixture), "Ctrl+/", "an unlearned layout shows the key's own name");
+    fixture.frame(vec![craft_ui::testing::input::key_press(egui::Key::Slash, egui::Modifiers::NONE), craft_ui::testing::input::text("é")]);
+    fixture.settle();
+    assert_eq!(shown(&fixture), "Ctrl+É", "typing taught the layout the character at that key");
 }
 
 /// An arrow key reads as its word off macOS and as its glyph on macOS.

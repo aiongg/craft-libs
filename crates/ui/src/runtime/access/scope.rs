@@ -3,7 +3,9 @@
 //! frame. The merge rule uses the same path: a `Role::Merged` container's name, description and states go into the
 //! one child's node.
 
+use super::emit;
 use crate::runtime::egui::{access as adapter, memory as store, memory::Service};
+use crate::runtime::inspect::Finding;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{self, sub};
 use craft_behavior::PressState;
@@ -117,6 +119,8 @@ pub(crate) struct ScopeNode {
     pub keeps_name: bool,
     pub name: Option<String>,
     pub description: Option<String>,
+    /// The missing-name finding of a node that may still be named by the scope: reported when it is not.
+    pub unnamed: Option<Finding>,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -170,9 +174,9 @@ pub(crate) fn enter(ctx: &Context, id: Id) {
 
 /// Registers the node `id` with the innermost scope at its step 16, when no other node component of the scope
 /// holds it. Children reach step 16 first, so they find their parent still open.
-pub(crate) fn register(ctx: &Context, node: ScopeNode) {
-    Service::<Stack>::run(ctx, |stack| {
-        let Some(scope) = stack.0.last_mut() else { return };
+pub(crate) fn register(ctx: &Context, mut node: ScopeNode) {
+    let unnamed = Service::<Stack>::run(ctx, |stack| {
+        let Some(scope) = stack.0.last_mut() else { return node.unnamed.take() };
         let direct = match scope.open.iter().rposition(|open| *open == node.id) {
             Some(at) => {
                 scope.open.truncate(at);
@@ -182,8 +186,18 @@ pub(crate) fn register(ctx: &Context, node: ScopeNode) {
         };
         if direct {
             scope.nodes.push(node);
+            None
+        } else {
+            node.unnamed.take()
         }
     });
+    report_unnamed(ctx, unnamed);
+}
+
+fn report_unnamed(ctx: &Context, unnamed: Option<Finding>) {
+    if let Some(finding) = unnamed {
+        emit::report_finding(ctx, finding);
+    }
 }
 
 /// Records the first baseline of a control inside the innermost label scope, measured from the control's top.
@@ -352,8 +366,13 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
     let Some(scope) = scope else { return };
     match scope.kind {
         Kind::Label(label) => {
-            for patch in label_patches(scope.container, &label, &scope.nodes) {
-                adapter::write_label_patch(ctx, &patch);
+            let patches = label_patches(scope.container, &label, &scope.nodes);
+            for patch in &patches {
+                adapter::write_label_patch(ctx, patch);
+            }
+            for node in &scope.nodes {
+                let named = patches.iter().any(|patch| matches!(patch, LabelPatch::LabelledBy { node: id, .. } if *id == node.id));
+                report_unnamed(ctx, node.unnamed.clone().filter(|_| !named));
             }
             // A click on a label, as on any form label, moves focus to its one control.
             if let (true, [only]) = (label.activated, &scope.nodes[..]) {
@@ -382,7 +401,11 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
         Kind::Merge => {
             debug_assert_eq!(scope.nodes.len(), 1, "a merged container shows exactly one component");
             if let (Some(merged), Some(child)) = (merged, scope.nodes.first()) {
-                adapter::write_merge_patch(ctx, &merge_patch(child, &merged));
+                let patch = merge_patch(child, &merged);
+                adapter::write_merge_patch(ctx, &patch);
+                report_unnamed(ctx, child.unnamed.clone().filter(|_| patch.name.is_none()));
+            } else {
+                scope.nodes.iter().for_each(|node| report_unnamed(ctx, node.unnamed.clone()));
             }
         }
     }

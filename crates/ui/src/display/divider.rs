@@ -66,11 +66,12 @@ impl Component for Divider {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.axis {
             Axis::Horizontal => Vec2::new(cx.room.unwrap_or(cx.style.length), cx.style.width),
-            Axis::Vertical => {
-                let row = cx.ui.available_height();
-                Vec2::new(cx.style.width, if row.is_finite() { row.max(cx.style.length) } else { cx.style.length })
-            }
+            Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),
         }
+    }
+
+    fn fills(&self) -> Option<craft_behavior::Axis> {
+        (self.axis == Axis::Vertical).then_some(craft_behavior::Axis::Y)
     }
 
     fn sense(&self) -> Sense {

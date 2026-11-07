@@ -217,3 +217,33 @@ fn an_alt_drag_on_a_split_thumb_moves_one_half_at_full_rate() {
     assert_ne!(free[0], Mixed::Same(40.0), "the free thumb moved");
     assert_eq!(split, free, "the half moved as far as a free thumb, and its partner stayed");
 }
+
+/// The fills of the thumbs' polygons in one frame: each thumb's ring, then its face.
+fn thumb_fills(shapes: &[egui::Shape]) -> Vec<egui::Color32> {
+    shapes
+        .iter()
+        .filter_map(|shape| match shape {
+            egui::Shape::Path(path) if path.stroke.width == 0.0 => Some(path.fill),
+            _ => None,
+        })
+        .collect()
+}
+
+/// With the pointer off the thumbs, the thumb a press would move takes the hover look and the other keeps its own.
+#[trial]
+fn the_thumb_a_press_would_move_takes_the_hover_look() {
+    let mut frames = Frames::new();
+    let mut value = Mixed::each([20.0, 80.0]);
+    let area = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::new(300.0, 30.0));
+    let mut show = |ui: &mut Ui| {
+        ThumbRow::new(Bind::bound(&mut value), 0.0..=100.0).step(1.0).thumbs([Thumb::new("Black"), Thumb::new("White")]).show_at(ui, area);
+    };
+    frames.idle(3, &mut show);
+    let rest = thumb_fills(&frames.frame_shapes(&mut show));
+    assert_eq!(rest.len(), 4, "a ring and a face per thumb");
+    let near_black = Pos2::new(area.left() + area.width() * 0.35, area.center().y);
+    frames.frame(vec![moved(near_black)], &mut show);
+    let lit = thumb_fills(&frames.frame_shapes(&mut show));
+    assert_ne!(lit[0], rest[0], "the ring of the thumb nearest the pointer is lit");
+    assert_eq!(lit[2], rest[2], "the other thumb's ring is not");
+}
