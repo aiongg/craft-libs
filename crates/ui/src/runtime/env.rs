@@ -336,6 +336,9 @@ pub struct Scoped {
     pub transform: Option<CanvasTransform>,
     /// The `Grid` body whose cursor places the children in flow.
     pub(crate) grid: Option<Id>,
+    /// The body that encloses the scope is a content-sized column: it takes its width from its widest child that is
+    /// not fill-width, so a fill-width child takes the width the others settle on and never sets it.
+    pub(crate) content_column: bool,
     /// The innermost scrolling body that encloses the scope: a collection under it owns no scroll of its own, and
     /// page and end moves a component leaves untaken go to it.
     pub(crate) scroll_owner: Option<Id>,
@@ -466,6 +469,7 @@ impl Env {
                 roving: None,
                 transform: None,
                 grid: None,
+                content_column: false,
                 scroll_owner: None,
                 item: None,
                 row: None,
@@ -519,6 +523,7 @@ impl Env {
             s.roving = None;
             s.transform = None;
             s.grid = None;
+            s.content_column = false;
             s.scroll_owner = None;
             s.item = None;
             s.row = None;

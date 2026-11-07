@@ -17,8 +17,7 @@ pub struct DividerStyle {
     metrics: Metrics,
     /// The line's width.
     width: f32,
-    /// The least length of a vertical line, and the length of a horizontal one where no room is offered: one
-    /// control height.
+    /// The least length of a line, vertical or horizontal: one control height.
     length: f32,
 }
 
@@ -30,7 +29,7 @@ enum Axis {
 }
 
 /// A separator line in the divider colour, snapped to the pixel grid. A horizontal line takes the width it is
-/// offered and a vertical one the height of its row, at least a control's height. Decoration: it is not in the
+/// offered (at least one control height; in a content-sized column it never widens the column) and a vertical one the height of its row, at least a control's height. Decoration: it is not in the
 /// AccessKit tree.
 #[derive(crate::contract::Component)]
 pub struct Divider {
@@ -67,13 +66,16 @@ impl Component for Divider {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.axis {
-            Axis::Horizontal => Vec2::new(cx.room.unwrap_or(cx.style.length), cx.style.width),
+            Axis::Horizontal => Vec2::new(cx.style.length, cx.style.width),
             Axis::Vertical => Vec2::new(cx.style.width, cx.style.length),
         }
     }
 
     fn fills(&self) -> Option<craft_behavior::Axis> {
-        (self.axis == Axis::Vertical).then_some(craft_behavior::Axis::Y)
+        Some(match self.axis {
+            Axis::Horizontal => craft_behavior::Axis::X,
+            Axis::Vertical => craft_behavior::Axis::Y,
+        })
     }
 
     fn sense(&self) -> Sense {

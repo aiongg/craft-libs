@@ -18,7 +18,7 @@ use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{Flow, Input, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, Sense};
 use craft_theme::ControlSize;
-use egui::{Context, Id, Rect, Response, Ui, Vec2};
+use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -89,6 +89,12 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// The size step 6 allocates, from the measured `size`: a body that fills reads the available rect.
     fn sized(&self, _comp: &C, _ui: &Ui, size: Vec2) -> Vec2 {
         size
+    }
+
+    /// Whether the root takes all the width the flow offers: in a content-sized column it then counts at its
+    /// measured width and never sets the column's.
+    fn fills_width(&self, comp: &C) -> bool {
+        comp.fills() == Some(craft_behavior::Axis::X)
     }
 
     /// The root's sense, from the component's own `own`.
@@ -314,6 +320,8 @@ struct Pass<'r, 'a, C: Component> {
     at: ShowAt,
     /// The width the parent offers, which step 5 and step 7's measure view both read.
     room: Option<f32>,
+    /// The size step 5 measured, before `sized` made it fill.
+    measured: Vec2,
     size: Vec2,
     inert: bool,
     /// The parent `Ui` was in a sizing pass.
@@ -447,7 +455,17 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let (env, resolved, inert) = (host_env.unwrap_or(p.env), p.resolved, p.inert);
     let metrics = p.style.metrics();
     // 6 place
-    let rect = steps::place(ui, host_at.unwrap_or(p.at), if inert { Vec2::ZERO } else { p.size });
+    let at = host_at.unwrap_or(p.at);
+    // In a content-sized column a fill-width child takes its measured width in the flow and shows across the width
+    // the column settles on, so it never sets that width.
+    let held = !inert && matches!(at, ShowAt::Flow) && p.env.content_column && p.hooks.fills_width(&*p.comp);
+    let rect = if held {
+        let flowed = steps::place(ui, at, Vec2::new(p.measured.x.min(p.size.x), p.size.y));
+        let across = Vec2::new(p.size.x.max(flowed.width()), flowed.height());
+        if rtl { Rect::from_min_size(Pos2::new(flowed.max.x - across.x, flowed.min.y), across) } else { Rect::from_min_size(flowed.min, across) }
+    } else {
+        steps::place(ui, at, if inert { Vec2::ZERO } else { p.size })
+    };
     p.trace.mark(Step::Place);
     let overflow = p.hooks.overflow();
     expand_for_overflow(ui, host_at.unwrap_or(p.at), rect, overflow, rtl);
@@ -734,6 +752,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         let min = steps::measure(&mut comp, &input, &style, &resolved, shown.as_deref(), Vec2::ZERO);
         scope::record_control_min(&ctx, min.x);
     }
+    let measured = size;
     let size = hooks.sized(&comp, ui, size);
     // A component shown at a rect fills it: the rect is its size, and a leaf that measures nothing (a content
     // painter) still shows there.
@@ -777,6 +796,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         tip,
         at,
         room,
+        measured,
         size,
         inert,
         sizing,

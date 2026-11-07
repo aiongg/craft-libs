@@ -872,6 +872,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
     }
 
+    fn fills_width(&self, comp: &C) -> bool {
+        self.sizing(comp.props(Internal::new())) != Sizing::Content
+    }
+
     fn parts(&mut self, comp: &mut C, rect: Rect, pcx: &mut PartsCx<'_, C>) {
         let props = comp.props(Internal::new()).clone();
         let ctx = pcx.ui.ctx().clone();
@@ -1046,6 +1050,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
             scoped.grid = None;
+            scoped.content_column = false;
             if props.header.is_some_and(|header| header.band == DragBand::Reorder) {
                 scoped.commands = scoped.commands.pushed(REORDER_SCOPE, id);
             }
@@ -1111,11 +1116,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     scoped.commands = scoped.commands.pushed(scope, id);
                 }
             });
+            let content_column = self.sizing(&props) == Sizing::Content && matches!(props.layout, layout::BodyLayout::Stack);
             let body_env = line_env.derive_local(|scoped| {
                 if props.arena {
                     scoped.arena = Some(ArenaId::new(id));
                 }
                 scoped.transform = props.transform;
+                scoped.content_column = content_column;
                 if scroll.is_some() {
                     scoped.scroll_owner = Some(id);
                 }

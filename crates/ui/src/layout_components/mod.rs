@@ -1,11 +1,11 @@
 //! The layout components `Stack`, `Row` and `Grid`: containers with no surface, header or footer whose body
 //! lays its children out (6.3).
 
-use crate::contract::{Common, Component, Container, ContainerProps, Cx, Gap, Pad, Role, Scroll, Sizing};
+use crate::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Pad, Role, Scroll, Sizing};
 use crate::layout::{BodyLayout, RowAlign};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{ColumnWidth, Metrics};
-use egui::Response;
+use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -23,19 +23,46 @@ impl LayoutStyle {
     }
 }
 
+/// The closure that fills a header or footer region.
+type RegionFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
+/// The layout components. A component that carries closures names its lifetime and its extra fields after the key.
+/// The `Container` impl: the regions only a component with closures fills.
+macro_rules! impl_container {
+    ($name:ident) => {
+        impl Container for $name {}
+    };
+    ($name:ident <$life:lifetime>) => {
+        impl<$life> Container for $name<$life> {
+            fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+                if let Some(content) = self.header.as_mut() {
+                    content(ui, cx);
+                }
+            }
+
+            fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+                if let Some(content) = self.footer.as_mut() {
+                    content(ui, cx);
+                }
+            }
+        }
+    };
+}
+
 macro_rules! layout_component {
-    ($(#[$doc:meta])* $name:ident, $key:ident) => {
+    ($(#[$doc:meta])* $name:ident, $key:ident $(, <$life:lifetime> { $($field:ident: $ty:ty),* })?) => {
         $(#[$doc])*
         #[derive(crate::contract::Component)]
         #[component(container)]
-        pub struct $name {
+        pub struct $name $(<$life>)? {
             #[common]
             common: Common,
             #[container]
             props: ContainerProps,
+            $($($field: $ty,)*)?
         }
 
-        impl $name {
+        impl $(<$life>)? $name $(<$life>)? {
             /// The spacing between the children.
             pub fn gap(mut self, gap: Gap) -> Self {
                 self.props = self.props.body_gap(gap);
@@ -61,7 +88,7 @@ macro_rules! layout_component {
             }
         }
 
-        impl Component for $name {
+        impl $(<$life>)? Component for $name $(<$life>)? {
             const ROLE: Role = Role::None;
             type Style = LayoutStyle;
             type Output = Response;
@@ -75,14 +102,16 @@ macro_rules! layout_component {
             }
         }
 
-        impl Container for $name {}
+        impl_container!($name $(<$life>)?);
     };
 }
 
 layout_component!(
-    /// Children one under another.
+    /// Children one under another. A header and a footer sit outside the body: the footer stays in the room under
+    /// a collection that fills it.
     Stack,
-    StackStyleKey
+    StackStyleKey,
+    <'a> { header: Option<RegionFn<'a>>, footer: Option<RegionFn<'a>> }
 );
 layout_component!(
     /// Children side by side.
@@ -95,14 +124,31 @@ layout_component!(
     GridStyleKey
 );
 
-impl Stack {
+impl<'a> Stack<'a> {
     /// A stack that takes the size of its children.
     pub fn new() -> Self {
-        Stack { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()) }
+        Stack { common: Common::new(), props: ContainerProps::new().sizing(Sizing::Content).layout(BodyLayout::stack()), header: None, footer: None }
+    }
+
+    /// The header's content: the closure fills a region above the body, outside its scroll.
+    #[must_use]
+    pub fn header(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        self.props = self.props.header(HeaderRegion::new());
+        self.header = Some(Box::new(content));
+        self
+    }
+
+    /// The footer's content: the closure fills a region under the body, outside its scroll. The body takes the room
+    /// the footer leaves.
+    #[must_use]
+    pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        self.props = self.props.footer(FooterRegion::new());
+        self.footer = Some(Box::new(content));
+        self
     }
 }
 
-impl Default for Stack {
+impl Default for Stack<'_> {
     fn default() -> Self {
         Stack::new()
     }

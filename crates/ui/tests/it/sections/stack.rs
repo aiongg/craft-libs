@@ -5,6 +5,7 @@ use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::drag;
 use craft_ui::sections::{Section, SectionStack};
 use craft_ui::testing::access::NodeKey;
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers, Vec2};
@@ -28,6 +29,11 @@ struct Seen {
 
 /// A stack of the three sections whose moves the scene applies to its order.
 fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
+    scene_closed(None)
+}
+
+/// The scene with the section of key `closed` starting closed.
+fn scene_closed(closed: Option<u8>) -> (Fixture, Rc<RefCell<Seen>>) {
     let seen = Rc::new(RefCell::new(Seen { order: vec![0, 1, 2], ..Seen::default() }));
     let shared = Rc::clone(&seen);
     let mut fixture = Fixture::new(move |ui| {
@@ -39,6 +45,7 @@ fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
             .show(ui, |ui, _| {
                 rows.each(ui, |ui, key, slot| {
                     let out = Section::new(TITLES[usize::from(*key)])
+                        .initially_open(closed != Some(*key))
                         .in_stack(slot)
                         .show(ui, |ui, _| {
                             bodies.push(*key);
@@ -88,6 +95,17 @@ fn alt_down_in_the_first_section_moves_it_to_position_one_and_alt_up_moves_nothi
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     assert_eq!(seen.borrow().moves, [(0, 1)], "Alt+Down moves the first section one place toward the end");
     assert_eq!(seen.borrow().order, [1, 0, 2]);
+}
+
+#[trial]
+fn expand_on_a_closed_section_of_a_stack_opens_it() {
+    let (mut fixture, seen) = scene_closed(Some(1));
+    assert!(!seen.borrow().bodies.contains(&1), "the section starts closed");
+    let ids = seen.borrow().ids.clone();
+    let target = fixture.node_of(ids[1]).expect("the closed section");
+    fixture.access(AccessActionKind::Expand, &target);
+    fixture.settle();
+    assert!(seen.borrow().bodies.contains(&1), "Expand opened the section");
 }
 
 #[trial]
