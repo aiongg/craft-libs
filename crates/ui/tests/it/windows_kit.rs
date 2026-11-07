@@ -21,6 +21,10 @@ thread_local! {
     static CHILD_EVENTS: RefCell<Vec<Event>> = const { RefCell::new(Vec::new()) };
     /// The window facts every child pass reports.
     static CHILD_INFO: RefCell<ViewportInfo> = RefCell::new(ViewportInfo::default());
+    /// The window facts the root reports.
+    static ROOT_INFO: RefCell<ViewportInfo> = RefCell::new(ViewportInfo::default());
+    /// The children that ran a pass so far: like an integration, every pass's input lists all the windows.
+    static CHILDREN: RefCell<Vec<ViewportId>> = const { RefCell::new(Vec::new()) };
     /// The window commands every pass's output carried since the last frame.
     static COMMANDS: RefCell<Vec<(ViewportId, ViewportCommand)>> = const { RefCell::new(Vec::new()) };
 }
@@ -34,6 +38,19 @@ fn keep_commands(output: &FullOutput) {
     });
 }
 
+/// The window facts of every window the integration knows: the root and the children that ran, each with the
+/// facts the trial gave it.
+fn all_viewports(child: ViewportInfo) -> egui::ViewportIdMap<ViewportInfo> {
+    let mut all = egui::ViewportIdMap::default();
+    all.insert(ViewportId::ROOT, ROOT_INFO.with(|info| info.borrow().clone()));
+    CHILDREN.with(|children| {
+        for id in children.borrow().iter() {
+            all.insert(*id, child.clone());
+        }
+    });
+    all
+}
+
 fn render_child(ctx: &Context, viewport: egui::ImmediateViewport<'_>) {
     let mut callback = viewport.viewport_ui_cb;
     let events = CHILD_EVENTS.with(|events| std::mem::take(&mut *events.borrow_mut()));
@@ -41,7 +58,13 @@ fn render_child(ctx: &Context, viewport: egui::ImmediateViewport<'_>) {
     info.parent = Some(viewport.ids.parent);
     let mut input =
         RawInput { viewport_id: viewport.ids.this, events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, CHILD_SIZE)), ..RawInput::default() };
-    input.viewports.insert(viewport.ids.this, info);
+    CHILDREN.with(|children| {
+        let mut children = children.borrow_mut();
+        if !children.contains(&viewport.ids.this) {
+            children.push(viewport.ids.this);
+        }
+    });
+    input.viewports = all_viewports(info);
     let mut output = ctx.run_ui(input, |ui| callback(ui));
     output.textures_delta.clear();
     keep_commands(&output);
@@ -77,6 +100,7 @@ impl Windows {
         Context::set_immediate_viewport_renderer(render_child);
         CHILD_EVENTS.with(|events| events.borrow_mut().clear());
         CHILD_INFO.with(|info| *info.borrow_mut() = ViewportInfo::default());
+        CHILDREN.with(|children| children.borrow_mut().clear());
         COMMANDS.with(|kept| kept.borrow_mut().clear());
         Windows { ctx, root_info: RefCell::new(ViewportInfo::default()) }
     }
@@ -97,7 +121,8 @@ impl Windows {
         CHILD_EVENTS.with(|events| *events.borrow_mut() = child);
         set_input(&self.ctx, FrameInput::new(RootEnv::default()));
         let mut input = RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, ROOT_SIZE)), events: root, ..RawInput::default() };
-        input.viewports.insert(ViewportId::ROOT, self.root_info.borrow().clone());
+        ROOT_INFO.with(|info| *info.borrow_mut() = self.root_info.borrow().clone());
+        input.viewports = all_viewports(CHILD_INFO.with(|info| info.borrow().clone()));
         let mut output = self.ctx.run_ui(input, ui);
         output.textures_delta.clear();
         keep_commands(&output);

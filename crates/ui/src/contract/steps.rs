@@ -1102,7 +1102,8 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access.expanded = input.expanded;
     }
     if access.position.is_none() {
-        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
+        access.position =
+            input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
     }
     let paint = core.paint.borrow();
     if role == Role::Merged {
