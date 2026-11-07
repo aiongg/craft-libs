@@ -178,7 +178,7 @@ const GROUNDS: [SurfaceKind; 6] =
 /// reachable `when` mask, for every variant the type lists and every built-in theme at both contrasts, against the
 /// theme's text minimum (`text_contrast_min`). Hover, pressed and disabled states are not measured. The ink is measured
 /// against the style's surface fill, composited over each of `GROUNDS` when it is not opaque; a style without a surface
-/// fill, or a fully transparent one, has nothing to measure.
+/// fill, or a fully transparent one, is measured against each of `GROUNDS`.
 fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String> {
     let reachable = reachable(subject);
     for source in sources(subject)? {
@@ -199,24 +199,21 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                 let Some(looks) = looks_in(subject, source, &tokens, variant) else {
                     continue;
                 };
-                let Some(fill) = looks.surface.as_ref().map(|surface| &surface.fill) else {
-                    continue;
-                };
+                let fill = looks.surface.as_ref().map(|surface| &surface.fill);
                 let grounds: Vec<(String, egui::Color32)> =
                     GROUNDS.iter().map(|&kind| (format!("{kind:?}"), crate::style::surface_style(&tokens, kind).fill)).collect();
                 let inks = looks.texts.iter().map(|text| ("text", &text.color)).chain(looks.icons.iter().map(|icon| ("icon", &icon.color)));
                 for (what, ink) in inks {
-                    for flags in flag_sets([fill, ink].into_iter(), reachable) {
+                    for flags in flag_sets(fill.into_iter().chain([ink]), reachable) {
                         for (state, t) in MEASURED {
                             let paint = ink.resolve(state, flags, t).egui();
-                            let fill = fill.resolve(state, flags, t).egui();
-                            if fill.a() == 0 {
-                                continue;
-                            }
-                            let under: Vec<(String, egui::Color32)> = if fill.a() == 255 {
-                                vec![("surface fill".to_owned(), fill)]
-                            } else {
-                                grounds.iter().map(|(name, ground)| (format!("surface fill over {name}"), ground.blend(fill))).collect()
+                            let fill = fill.map(|fill| fill.resolve(state, flags, t).egui()).filter(|fill| fill.a() != 0);
+                            let under: Vec<(String, egui::Color32)> = match fill {
+                                Some(fill) if fill.a() == 255 => vec![("surface fill".to_owned(), fill)],
+                                Some(fill) => {
+                                    grounds.iter().map(|(name, ground)| (format!("surface fill over {name}"), ground.blend(fill))).collect()
+                                }
+                                None => grounds.iter().map(|(name, ground)| (format!("{name} ground"), *ground)).collect(),
                             };
                             for (name, ground) in under {
                                 let ratio = contrast_ratio(Rgba::from(paint), Rgba::from(ground));
