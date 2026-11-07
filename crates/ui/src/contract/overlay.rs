@@ -1134,10 +1134,6 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         let real = !ui.is_sizing_pass();
         if real && matches!(overlay.rank, Rank::Popup | Rank::Modal { .. }) {
             access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal());
-            // A layer fading out is already closed: assistive technology no longer sees it or its rows.
-            if layer.exiting {
-                crate::runtime::egui::access::hide(ctx, layer.id);
-            }
         }
         if let (Some(policy), true) = (scope, real) {
             focus::push_scope_from(ctx, layer.id, policy, None, opener);
