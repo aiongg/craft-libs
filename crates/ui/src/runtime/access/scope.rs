@@ -35,18 +35,27 @@ pub struct FieldLabel {
     pub text: String,
     /// Whether it names or describes the controls.
     pub role: FieldLabelRole,
+    /// The label was clicked or activated this pass: focus goes to its control.
+    pub activated: bool,
 }
 
 impl FieldLabel {
     /// A label of `text` at `rect`, the node `id`.
     pub fn new(id: Id, rect: Rect, text: impl Into<String>) -> Self {
-        FieldLabel { id, rect, press: PressState::IDLE, text: text.into(), role: FieldLabelRole::Names }
+        FieldLabel { id, rect, press: PressState::IDLE, text: text.into(), role: FieldLabelRole::Names, activated: false }
     }
 
     /// Whether the label names or describes the controls.
     #[must_use]
     pub fn role(mut self, role: FieldLabelRole) -> Self {
         self.role = role;
+        self
+    }
+
+    /// Whether the label was clicked or activated this pass.
+    #[must_use]
+    pub fn activated(mut self, activated: bool) -> Self {
+        self.activated = activated;
         self
     }
 
@@ -327,6 +336,10 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
         Kind::Label(label) => {
             for patch in label_patches(scope.container, &label, &scope.nodes) {
                 adapter::write_label_patch(ctx, &patch);
+            }
+            // A click on a label, as on any form label, moves focus to its one control.
+            if let (true, [only]) = (label.activated, &scope.nodes[..]) {
+                crate::runtime::focus::request(ctx, crate::runtime::focus::FocusTarget::Id(only.id));
             }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));

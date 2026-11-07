@@ -14,7 +14,7 @@ use crate::contract::{
 };
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
-use crate::runtime::env::Label;
+use crate::runtime::env::{Label, UnitKind, Units};
 use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
 use crate::value_drag::Slider;
@@ -33,6 +33,8 @@ const DEFAULT_STEP: f64 = 1.0;
 const COARSE: f64 = 10.0;
 /// The share of a step Ctrl or Cmd moves by.
 const FINE: f64 = 0.1;
+/// The decimals a field writes when neither a codec nor a unit kind says.
+const DEFAULT_DECIMALS: usize = 3;
 /// How far a value may sit off a multiple of the step and still count as on it.
 const ON_GRID: f64 = 1e-9;
 
@@ -243,9 +245,14 @@ pub struct NumberField<'a> {
     #[common]
     common: Common,
     value: Bind<'a, Option<f64>>,
-    /// The codec, to read another locale's separators or units.
+    /// The codec, to read another locale's separators or units. Without one the field reads and writes with the
+    /// env's locale and the spellings of `unit_kind`.
     #[prop]
-    codec: NumberCodec,
+    codec: Option<NumberCodec>,
+    /// What the number counts: typed text may carry this kind's unit spellings ("12 mm") in the user's language or
+    /// English, and the field shows at most the kind's decimals.
+    #[prop]
+    unit_kind: Option<UnitKind>,
     /// The range typed, stepped and scrubbed values stay in.
     #[prop]
     range: Option<RangeInclusive<f64>>,
@@ -273,7 +280,8 @@ impl<'a> NumberField<'a> {
         NumberField {
             common: Common::new(),
             value,
-            codec: NumberCodec::default(),
+            codec: None,
+            unit_kind: None,
             range: None,
             step: None,
             unit: None,
@@ -298,8 +306,18 @@ impl<'a> NumberField<'a> {
         Rule::new(self.range.as_ref(), self.step)
     }
 
-    fn ruled(&self) -> Ruled {
-        Ruled { inner: self.codec.clone(), rule: self.rule() }
+    /// The field's codec: the one set, else the env's locale and the spellings of the unit kind.
+    fn number_codec(&self, units: &Units) -> NumberCodec {
+        self.codec.clone().unwrap_or_else(|| NumberCodec::new(units.reader(self.unit_kind), self.decimals()))
+    }
+
+    /// The most decimals the field writes.
+    fn decimals(&self) -> usize {
+        self.codec.as_ref().map_or_else(|| self.unit_kind.map_or(DEFAULT_DECIMALS, |kind| *kind.decimals().end()), NumberCodec::decimals)
+    }
+
+    fn ruled(&self, units: &Units) -> Ruled {
+        Ruled { inner: self.number_codec(units), rule: self.rule() }
     }
 
     /// The unit's size, the room it takes and the gap before it.
@@ -475,7 +493,8 @@ impl Component for NumberField<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let sample = cx.value().map_or(Cow::Borrowed(""), |value| self.codec.sample(value));
+        let codec = NumberCodec::default();
+        let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         self.unit_size = self.unit_extent(cx);
         let unit = if self.unit_size.x > 0.0 { self.unit_size.x + cx.gap() } else { 0.0 };
@@ -487,7 +506,7 @@ impl Component for NumberField<'_> {
         self.unit_size = self.unit_extent(cx);
         let strip = self.strip(rect, cx.flow.is_rtl(), cx.icon(), cx.gap());
         if let Some(value) = cx.value() {
-            cx.text(text_part::<Option<f64>>(), strip.text, &self.ruled(), value, &self.options);
+            cx.text(text_part::<Option<f64>>(), strip.text, &self.ruled(&cx.env.units()), value, &self.options);
         }
         for (key, at, hint) in [(PRESETS, strip.presets, "Alt+Down opens the list"), (SLIDER, strip.slider, "Alt+Down opens the slider")] {
             if let Some(at) = at {
@@ -502,8 +521,15 @@ impl Component for NumberField<'_> {
 
     fn scrub(&self) -> Option<Scrub<Option<f64>>> {
         let rule = self.rule();
-        let drag = ValueDrag::relative(rule.step, rule.bounds()).warp(true).hide_cursor(true);
-        self.scrub.then(|| Scrub::new(drag, |value| value.unwrap_or(0.0), Some))
+        let drag = ValueDrag::relative(rule.step, rule.bounds()).warp(true).hide_cursor(true).coarse(COARSE).fine(FINE);
+        // Rounded to the field's decimals, so a scrubbed value carries no float noise. The step is not a grid
+        // here: an Alt drag moves by a share of it.
+        let places = i32::try_from(self.decimals()).unwrap_or(0);
+        let round = move |number: f64| {
+            let scale = 10f64.powi(places);
+            (number * scale).round() / scale
+        };
+        self.scrub.then(|| Scrub::new(drag, |value: &Option<f64>| value.unwrap_or(0.0), move |number| Some(round(number))))
     }
 
     /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. A

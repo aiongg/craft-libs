@@ -713,7 +713,7 @@ pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
     let rtl = cx.core.env.direction().is_rtl();
     match label.press.phase {
         PressPhase::DragStart { .. } => {
-            cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, scrub.read);
+            cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, |value| (scrub.read)(value));
             *cx.core.memory.shown::<ScrubWarp>(sub(cx.core.id, "scrub_warp")) = ScrubWarp::default();
             hide_scrub_cursor(cx, &scrub.drag);
             cx.begin();

@@ -136,6 +136,16 @@ impl NumberCodec {
     pub fn new(reader: Reader, decimals: usize) -> Self {
         NumberCodec { reader, decimals }
     }
+
+    /// The most decimal places the codec writes.
+    pub fn decimals(&self) -> usize {
+        self.decimals
+    }
+
+    /// The reader the codec parses with.
+    pub fn reader(&self) -> &Reader {
+        &self.reader
+    }
 }
 
 impl Default for NumberCodec {

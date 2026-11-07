@@ -17,6 +17,7 @@ use crate::style::{ComponentStyle, ResetMarkLook, StyleCx};
 use craft_behavior::{ColumnWidth, Flow, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
+use std::sync::Arc;
 
 pub use crate::runtime::access::scope::FieldLabelRole;
 
@@ -99,14 +100,21 @@ impl SideLabel {
 /// How a drag on the side label changes a control's value: the drag maths over the control's number.
 pub struct Scrub<V> {
     pub(crate) drag: ValueDrag,
-    pub(crate) read: fn(&V) -> f64,
-    pub(crate) write: fn(f64) -> V,
+    pub(crate) read: Arc<dyn Fn(&V) -> f64 + Send + Sync>,
+    pub(crate) write: Arc<dyn Fn(f64) -> V + Send + Sync>,
+}
+
+impl<V> Clone for Scrub<V> {
+    fn clone(&self) -> Self {
+        Scrub { drag: self.drag.clone(), read: Arc::clone(&self.read), write: Arc::clone(&self.write) }
+    }
 }
 
 impl<V> Scrub<V> {
     /// A scrub by `drag`, reading the number a value holds with `read` and making a value of a number with `write`.
-    pub const fn new(drag: ValueDrag, read: fn(&V) -> f64, write: fn(f64) -> V) -> Self {
-        Scrub { drag, read, write }
+    /// Both may capture the control's decimals and step, so a scrubbed value is rounded the way the control rounds.
+    pub fn new(drag: ValueDrag, read: impl Fn(&V) -> f64 + Send + Sync + 'static, write: impl Fn(f64) -> V + Send + Sync + 'static) -> Self {
+        Scrub { drag, read: Arc::new(read), write: Arc::new(write) }
     }
 }
 
@@ -127,6 +135,7 @@ struct LabelOutput {
     press: PressState,
     double_click: bool,
     dot_click: bool,
+    activated: bool,
 }
 
 impl super::Outcome for LabelOutput {
@@ -153,6 +162,7 @@ struct LabelLeaf {
     baseline: Cell<f32>,
     double_click: bool,
     dot_click: bool,
+    activated: bool,
 }
 
 impl LabelLeaf {
@@ -171,6 +181,7 @@ impl LabelLeaf {
             baseline: Cell::new(0.0),
             double_click: false,
             dot_click: false,
+            activated: false,
         }
         .label(text)
     }
@@ -214,6 +225,7 @@ impl Component for LabelLeaf {
         use super::Pointer as _;
         self.double_click = self.resettable && matches!(cx.press().phase, PressPhase::Down { start, .. } if start.clicks >= 2);
         self.dot_click = self.slot > 0.0 && self.differs && cx.part(DOT).press.phase.is_click();
+        self.activated = cx.activation().is_some();
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -227,7 +239,13 @@ impl Component for LabelLeaf {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> LabelOutput {
-        LabelOutput { response: cx.core.response.clone(), press: cx.core.press, double_click: self.double_click, dot_click: self.dot_click }
+        LabelOutput {
+            response: cx.core.response.clone(),
+            press: cx.core.press,
+            double_click: self.double_click,
+            dot_click: self.dot_click,
+            activated: self.activated,
+        }
     }
 }
 
@@ -328,7 +346,10 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     if let Some(fact) = reset.filter(|_| shown.double_click || shown.dot_click) {
         keys::route(&ctx, fact.control, Intent::Reset);
     }
-    let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str()).role(input.side.role).with_press(shown.press);
+    let label = FieldLabel::new(label_id_for_scope, placed.label, input.text.as_str())
+        .role(input.side.role)
+        .with_press(shown.press)
+        .activated(shown.activated);
     scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(label));
     placed.control
 }
