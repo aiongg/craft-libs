@@ -601,11 +601,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     _ => {}
                 }
             }
-            let asked = pass.seen.iter().any(|event| matches!(event, Seen::Menu(_)));
             for event in pass.seen {
                 match event {
                     Seen::Select(key) => {
-                        if !asked && row_of(&key).is_some_and(|at| !rows[at].is_group()) {
+                        if row_of(&key).is_some_and(|at| !rows[at].is_group()) {
                             events.push(PresetEvent::Select { key, mods });
                         }
                     }

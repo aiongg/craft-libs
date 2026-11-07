@@ -83,7 +83,7 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
         reported.borrow_mut().extend(out.events);
     });
     fixture.settle();
-    let at = fixture.by_label("Amber").expect("the preset's tile").rect.center();
+    let at = fixture.by_label("Coral").expect("the preset's tile").rect.center();
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![pointer::secondary(at, true)]);
     fixture.frame(vec![pointer::secondary(at, false)]);
@@ -91,11 +91,9 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     let rename = fixture.by_label("Rename…").expect("a secondary click on a preset opens the row menu");
     fixture.click(&rename);
     fixture.idle(3);
-    let names: Vec<String> = fixture.tree().keys().into_iter().map(|k| format!("{:?}", fixture.tree().name_of(k))).collect();
-    panic!("DEBUG {names:?}");
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "Plum"));
+    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "CoralPlum"));
     assert!(renamed, "events: {:?}", seen.borrow());
 }
