@@ -14,6 +14,7 @@ use crate::primitives::TextRun;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{EditEvent, Flow, IconId, Metrics, Mixed, Proposal, Sense};
+use craft_i18n::Format;
 use egui::{Rect, Response, Vec2, pos2};
 use std::ops::{Deref, RangeInclusive};
 use std::sync::Arc;
@@ -23,6 +24,8 @@ craft_ui::words! {
     pub struct LinkedWords {
         keep_ratio: "linkedFields.keepRatio" = "Maintain aspect ratio";
         same_values: "linkedFields.sameValues" = "Make all settings the same";
+        /// A field with no caption: `{group}` is the group's label and `{n}` the field's place, counted from 1.
+        field_name: template "linkedFields.fieldName" = "{group} {n}";
     }
 }
 
@@ -79,25 +82,28 @@ pub struct LinkedFieldsStyle {
 /// from them, and the link state of the last passes, to see the link turn on.
 #[derive(Clone, Default)]
 struct Memo<const N: usize> {
-    base: Option<[Option<f64>; N]>,
+    base: Option<Parts<N>>,
     /// The link state the last pass ended with, as the link child showed it.
     seen: Option<bool>,
     /// What `seen` held when the last pass began, to see the link turn on.
     before: Option<bool>,
 }
 
+/// The value of linked fields: each field's number, shared or mixed on its own.
+type Parts<const N: usize> = [Mixed<Option<f64>>; N];
+
 /// The output of linked fields: the values' edit, and the link's edit when the toggle was clicked.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct LinkedOutput<const N: usize> {
     /// The edit of the values: every field's value after the link rule, one event per gesture.
-    pub edit: EditResponse<[Option<f64>; N]>,
+    pub edit: EditResponse<Parts<N>>,
     /// The link toggle's edit.
     pub link: Option<EditEvent<bool>>,
 }
 
 impl<const N: usize> Outcome for LinkedOutput<N> {
-    type Value = [Option<f64>; N];
+    type Value = Parts<N>;
 
     fn response(&self) -> &Response {
         &self.edit.response
@@ -110,7 +116,7 @@ impl<const N: usize> Outcome for LinkedOutput<N> {
 }
 
 impl<const N: usize> Deref for LinkedOutput<N> {
-    type Target = EditResponse<[Option<f64>; N]>;
+    type Target = EditResponse<Parts<N>>;
 
     fn deref(&self) -> &Self::Target {
         &self.edit
@@ -124,13 +130,16 @@ impl<const N: usize> Deref for LinkedOutput<N> {
 /// moves alone.
 ///
 /// Turning the link on in `LinkMode::Equal` sets every field to the first one's value in one step; in
-/// `LinkMode::Ratio` it changes no value. A field that is blank takes no part in a ratio.
+/// `LinkMode::Ratio` it changes no value. A field that is blank or mixed takes no part in a ratio. A field is blank
+/// only while its own part is mixed (or empty); an edit reports the fields it changes as shared and the others as
+/// mixed, so on a selection where only the height differs, typing a width commits `[Same(width), Mixed]` and the
+/// app writes the width alone to every target.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(probe(LinkedFields<'static, 2>))]
 pub struct LinkedFields<'a, const N: usize> {
     #[common]
     common: Common,
-    values: Bind<'a, [Option<f64>; N]>,
+    values: Bind<'a, Parts<N>>,
     link: Bind<'a, bool>,
     /// The link child's event of this pass and the state it showed, kept from `paint` to `finish`.
     link_event: Option<EditEvent<bool>>,
@@ -149,7 +158,7 @@ pub struct LinkedFields<'a, const N: usize> {
 
 impl<'a, const N: usize> LinkedFields<'a, N> {
     /// Fields named after `label`, showing `values`, joined by a link toggle that edits `link`.
-    pub fn new(label: impl Into<Label>, values: Bind<'a, [Option<f64>; N]>, link: Bind<'a, bool>) -> Self {
+    pub fn new(label: impl Into<Label>, values: Bind<'a, Parts<N>>, link: Bind<'a, bool>) -> Self {
         LinkedFields {
             common: Common::new(),
             values,
@@ -183,15 +192,15 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
         self.ranges.as_ref().map_or(f64::NEG_INFINITY..=f64::INFINITY, |ranges| ranges[i].clone())
     }
 
-    fn name(&self, i: usize, group: &Label) -> Label {
+    fn name(&self, i: usize, group: &Label, words: &LinkedWords, format: &Format) -> Label {
         match &self.captions {
             Some(captions) => captions[i].clone(),
-            None => Label::from(format!("{} {}", group.as_str(), i + 1)),
+            None => Label::from(words.field_name.fill(&[("group", group.as_str()), ("n", format.integer(i as u64 + 1).as_str())])),
         }
     }
 
-    fn field(&self, i: usize, group: &Label, value: Option<f64>) -> NumberField<'static> {
-        NumberField::new(self.name(i, group), Bind::given(value)).range(self.range_of(i))
+    fn field(&self, i: usize, group: &Label, words: &LinkedWords, format: &Format, value: Mixed<Option<f64>>) -> NumberField<'static> {
+        NumberField::new(self.name(i, group, words, format), Bind::given(value)).range(self.range_of(i))
     }
 }
 
@@ -210,12 +219,13 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let shown = cx.value().copied().unwrap_or([None; N]);
+        let shown = shown_of(cx.value());
         let group = cx.label();
+        let words = cx.words::<LinkedWords>();
         let gap = cx.gap();
         let mut cell = Vec2::ZERO;
         for (i, value) in shown.iter().enumerate() {
-            let mut field = self.field(i, &group, *value);
+            let mut field = self.field(i, &group, &words, cx.format(), *value);
             let size = cx.child(("field", i), &mut field, Proposal::Ideal);
             let caption = match &self.captions {
                 Some(captions) => cx.layout(&TextRun::new(captions[i].as_str())).size().x + gap,
@@ -237,7 +247,7 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         }
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, [Option<f64>; N]>> {
+    fn bind(&mut self) -> Option<BindMut<'_, Parts<N>>> {
         Some(self.values.reborrow())
     }
 
@@ -246,20 +256,20 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         let running = cx.gesture().is_some();
         let memo = cx.memory::<Memo<N>>();
         if !running {
-            memo.base = shown;
+            memo.base = Some(shown_of(shown.as_ref()));
         }
         let was = std::mem::replace(&mut memo.before, memo.seen);
         let turned_on = memo.seen == Some(true) && was == Some(false);
         if let (true, LinkMode::Equal, Some(values)) = (turned_on, self.mode, shown)
-            && let Some(first) = values[0]
-            && values.iter().any(|value| *value != Some(first))
+            && let Mixed::Same(Some(first)) = values[0]
+            && values.iter().any(|value| *value != Mixed::Same(Some(first)))
         {
-            cx.set([Some(first); N]);
+            cx.set([Mixed::Same(Some(first)); N]);
         }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let shown = cx.value().copied().unwrap_or([None; N]);
+        let shown = shown_of(cx.value());
         let base = cx.recall::<Memo<N>>().base.unwrap_or(shown);
         let group = cx.label();
         let words = cx.words::<LinkedWords>();
@@ -276,15 +286,11 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
             .into_iter()
             .enumerate()
             .map(|(i, cell)| {
-                let field = self.field(i, &group, shown[i]);
+                let field = self.field(i, &group, &words, cx.format(), shown[i]);
                 match &self.captions {
-                    Some(captions) => ui.labelled(
-                        ("field", i),
-                        place(cell),
-                        captions[i].clone(),
-                        SideLabel::new().scrub(true),
-                        field.scrub_by_label().keeps_name(true),
-                    ),
+                    Some(captions) => {
+                        ui.labelled(("field", i), place(cell), captions[i].clone(), SideLabel::new().scrub(true), field.scrub_by_label())
+                    }
                     None => ui.child(("field", i), place(cell), field),
                 }
             })
@@ -295,7 +301,7 @@ impl<const N: usize> Component for LinkedFields<'_, N> {
         self.link_shown = link.shown.as_ref().map(is_on);
         self.link_event = link.event;
         for (i, child) in children.iter().enumerate() {
-            cx.adopt(child, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));
+            cx.adopt(child, &base, |value, mine| *mine = follow(mode, linked, base, i, *value, &ranges));
         }
     }
 
@@ -352,31 +358,35 @@ fn arrange(layout: LinkedLayout, n: usize, size: Vec2, gap: f32) -> (Vec<Rect>, 
     }
 }
 
-/// The values after field `changed` became `new`, under the link: `base` are the values the gesture began with. Unlinked,
-/// or with a blank `new`, only the field moves. A blank field takes no part in a ratio.
+/// The value of the fields when the binding shows none: every part mixed.
+fn shown_of<const N: usize>(shown: Option<&Parts<N>>) -> Parts<N> {
+    shown.copied().unwrap_or([Mixed::Mixed; N])
+}
+
+/// The parts after field `changed` became `new`, under the link: `base` are the parts the gesture began with. The
+/// edit's mixed parts are the ones it leaves alone. Unlinked, or with a blank `new`, only the field changes. A blank
+/// or mixed field takes no part in a ratio, and a mixed field has no number to scale; an equal link sets every field.
 fn follow<const N: usize>(
     mode: LinkMode,
     linked: bool,
-    base: [Option<f64>; N],
+    base: Parts<N>,
     changed: usize,
     new: Option<f64>,
     ranges: &[RangeInclusive<f64>; N],
-) -> [Option<f64>; N] {
+) -> Parts<N> {
     let mut alone = base;
-    alone[changed] = new;
+    alone[changed] = Mixed::Same(new);
     let (true, Some(new)) = (linked, new) else { return alone };
-    let numbers = base.map(|value| value.unwrap_or(0.0));
+    let numbers = base.map(|part| part.same().copied().flatten().unwrap_or(0.0));
     match mode {
         LinkMode::Ratio => {
-            if base[changed].is_none() {
-                return alone;
-            }
+            let Mixed::Same(Some(_)) = base[changed] else { return alone };
             let scaled = follow_ratio(numbers, changed, new, ranges);
-            std::array::from_fn(|i| (i == changed || base[i].is_some()).then_some(scaled[i]))
+            std::array::from_fn(|i| if i == changed || matches!(base[i], Mixed::Same(Some(_))) { Mixed::Same(Some(scaled[i])) } else { base[i] })
         }
         LinkMode::Equal => {
             let equal = follow_equal(numbers, changed, new);
-            std::array::from_fn(|i| Some(equal[i].max(*ranges[i].start()).min(*ranges[i].end())))
+            std::array::from_fn(|i| Mixed::Same(Some(equal[i].max(*ranges[i].start()).min(*ranges[i].end()))))
         }
     }
 }

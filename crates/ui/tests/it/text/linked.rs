@@ -1,6 +1,6 @@
 //! `LinkedFields`: the ratio and equal rules, and a typed edit keeping the gesture's starting ratio.
 
-use craft_behavior::EditEvent;
+use craft_behavior::{EditEvent, Mixed};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::{LinkedFields, follow_equal, follow_ratio};
@@ -29,7 +29,13 @@ fn an_equal_link_copies_the_value() {
     assert_eq!(follow_equal([1.0, 2.0, 3.0, 4.0], 2, 9.0), [9.0; 4]);
 }
 
-type Values = Rc<Cell<[Option<f64>; 2]>>;
+type Parts = [Mixed<Option<f64>>; 2];
+type Values = Rc<Cell<Parts>>;
+
+/// Both fields shared.
+fn same(width: f64, height: f64) -> Parts {
+    Mixed::each([Some(width), Some(height)])
+}
 
 /// Linked width and height with the link on, the values kept in `values` between frames.
 fn rig(values: &Values) -> Fixture {
@@ -48,23 +54,23 @@ fn rig(values: &Values) -> Fixture {
 /// previous digit.
 #[trial]
 fn typing_into_a_linked_field_keeps_the_starting_ratio() {
-    let values: Values = Rc::new(Cell::new([Some(500.0), Some(400.0)]));
+    let values: Values = Rc::new(Cell::new(same(500.0, 400.0)));
     let mut fixture = rig(&values);
     fixture.type_text("100");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(values.get(), [Some(100.0), Some(80.0)]);
+    assert_eq!(values.get(), same(100.0, 80.0));
 }
 
 /// Escape ends the typing and every field returns to the values the gesture began with.
 #[trial]
 fn escape_restores_every_linked_field() {
-    let values: Values = Rc::new(Cell::new([Some(400.0), Some(300.0)]));
+    let values: Values = Rc::new(Cell::new(same(400.0, 300.0)));
     let mut fixture = rig(&values);
     fixture.type_text("40");
     fixture.key(Key::Escape, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(values.get(), [Some(400.0), Some(300.0)]);
+    assert_eq!(values.get(), same(400.0, 300.0));
 }
 
 /// Clicking the link writes the bound bool through the child: one edit event with the link's label.
@@ -75,7 +81,7 @@ fn clicking_the_link_writes_the_bool_through_the_child() {
     let (shown, seen) = (linked.clone(), events.clone());
     let mut fixture = Fixture::new(move |ui| {
         let mut on = shown.get();
-        let out = LinkedFields::new("Size", Bind::given([Some(10.0), Some(20.0)]), Bind::bound(&mut on)).captions(["W", "H"]).show(ui);
+        let out = LinkedFields::new("Size", Bind::given(same(10.0, 20.0)), Bind::bound(&mut on)).captions(["W", "H"]).show(ui);
         shown.set(on);
         if let Some(event) = out.link {
             seen.borrow_mut().push(event);
@@ -94,10 +100,42 @@ fn clicking_the_link_writes_the_bool_through_the_child() {
 /// With the link on, editing one field moves the other.
 #[trial]
 fn with_the_link_on_editing_one_field_moves_the_other() {
-    let values: Values = Rc::new(Cell::new([Some(100.0), Some(50.0)]));
+    let values: Values = Rc::new(Cell::new(same(100.0, 50.0)));
     let mut fixture = rig(&values);
     fixture.type_text("200");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
-    assert_eq!(values.get(), [Some(200.0), Some(100.0)]);
+    assert_eq!(values.get(), same(200.0, 100.0));
+}
+
+/// On a selection where only the height differs, typing a width commits the width alone: `[Same(width), Mixed]` as one
+/// edit. The width shows its value.
+#[trial]
+fn typing_a_width_on_a_selection_with_mixed_heights_commits_the_width_alone() {
+    let events = Rc::new(RefCell::new(Vec::new()));
+    let shown = Rc::new(Cell::new([Mixed::Same(Some(100.0)), Mixed::Mixed]));
+    let (seen, parts) = (events.clone(), shown.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let mut current = parts.get();
+        let out = LinkedFields::new("Size", Bind::bound(&mut current), Bind::given(false)).captions(["W", "H"]).show(ui);
+        parts.set(current);
+        seen.borrow_mut().extend(out.edit.event.clone());
+    });
+    fixture.settle();
+    let texts = fixture.texts();
+    assert!(texts.iter().any(|run| run.text == "100"), "the width shows its value");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("5");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(2);
+    assert_eq!(shown.get(), [Mixed::Same(Some(5.0)), Mixed::Mixed], "the height part stays mixed");
+    let events = events.borrow();
+    let commits: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            EditEvent::Commit { after, .. } | EditEvent::Set { after, .. } => Some(*after),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(commits, vec![[Mixed::Same(Some(5.0)), Mixed::Mixed]], "one edit: {events:?}");
 }

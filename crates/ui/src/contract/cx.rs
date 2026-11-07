@@ -681,10 +681,9 @@ pub trait Edit {
     fn gesture(&self) -> Option<GesturePhase>;
 
     /// Maps the child's edit onto a clone of this component's shown value and queues the resulting event, following the
-    /// child's, for step 15.
-    /// A composite whose own value is mixed or not yet shown has no value to map the child's onto: the child's edit is
-    /// dropped.
-    fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut Self::Value));
+    /// child's, for step 15. A composite whose own value is mixed or not yet shown maps the edit onto `start` instead;
+    /// its events then begin from a mixed value.
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &Self::Value, map: impl FnOnce(&V, &mut Self::Value));
 
     /// The `EditResponse` a value component returns from `finish`.
     fn edit_response(&self) -> EditResponse<Self::Value>;
@@ -804,11 +803,13 @@ impl<C: Component> Edit for Cx<'_, C> {
         Some(if began && !updated { GesturePhase::Begin } else { GesturePhase::Update })
     }
 
-    /// A composite whose own value is mixed or not yet shown has no value to map the child's onto: the child's edit is
-    /// dropped.
-    fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut ValueOf<C>)) {
-        let (Some(event), Some(mut mine)) = (child.event.as_ref(), self.shown.as_deref().cloned()) else { return };
-        let before = Mixed::Same(mine.clone());
+    fn adopt<V: Value>(&self, child: &EditResponse<V>, start: &ValueOf<C>, map: impl FnOnce(&V, &mut ValueOf<C>)) {
+        let Some(event) = child.event.as_ref() else { return };
+        let before = self.before();
+        let mut mine = match &before {
+            Mixed::Same(value) => value.clone(),
+            Mixed::Mixed => start.clone(),
+        };
         if let Some(value) = event.value() {
             map(value, &mut mine);
         }

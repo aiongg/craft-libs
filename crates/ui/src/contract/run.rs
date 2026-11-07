@@ -390,7 +390,14 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         parts_focus: !inert && steps::takes_focus(resolved),
         text: holder_widget.is_some(),
         keys: text_keys.unwrap_or(C::KEYS),
-        role: p.hooks.key_role(comp).resettable(resettable),
+        role: {
+            let role = p.hooks.key_role(comp);
+            // A bound component that keeps the arrows reads them as value steps; a text value sets `value` in its hook.
+            let text = holder_widget.is_some();
+            let arrows = text_keys.unwrap_or(C::KEYS).keep == crate::runtime::focus::KeepKeys::BlockArrows;
+            let value = role.value || (comp.bind().is_some() && !role.nudge && !text && arrows);
+            role.resettable(resettable).value(value).text(text)
+        },
         rtl,
         parts: &parts,
         group: steps::member_group(&ctx, env.roving, id),

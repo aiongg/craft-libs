@@ -172,7 +172,7 @@ impl Component for Wrapper<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let shown = cx.value().copied().unwrap_or(0.0);
         let child = ui.child("scrub", cx.rect, Scrub::new(Bind::given(shown)));
-        cx.adopt(&child, |value, mine| *mine = *value);
+        cx.adopt(&child, &APP_VALUE, |value, mine| *mine = *value);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<f32> {
@@ -199,6 +199,36 @@ fn a_composite_adopts_its_childs_gesture_as_its_own() {
     assert!(near(value, HELD), "the child's last value reached the composite's binding: {value}");
 }
 
+/// A composite whose value is mixed maps the child's edit onto the start value: one `Begin` and one `Commit` that
+/// begins from the mixed value, instead of dropping the edit.
+#[trial]
+fn a_mixed_composite_adopts_its_childs_edit_onto_the_start_value() {
+    let mut frames = Frames::new();
+    let mut field = Mixed::Mixed;
+    let seen = RefCell::new(Vec::new());
+    let mut show = |ui: &mut Ui| {
+        let out = Wrapper { common: Common::new(), value: Bind::bound_mixed(&mut field) }.id_salt("wrapper").show_at(ui, AT);
+        seen.borrow_mut().extend(out.event.clone());
+    };
+    dragging(&mut frames, &mut show);
+    frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], &mut show);
+    frames.idle(2, &mut show);
+    drop(show);
+    let events = seen.take();
+    let commits: Vec<_> = events
+        .iter()
+        .filter_map(|event| match event {
+            EditEvent::Commit { before, after, .. } => Some((*before, *after)),
+            EditEvent::Set { before, after, .. } => Some((*before, *after)),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(commits.len(), 1, "one commit for one gesture: {events:?}");
+    assert_eq!(commits[0].0, Mixed::Mixed, "the edit began from the mixed value");
+    assert!(near(commits[0].1, HELD), "the child's last value is the commit's: {}", commits[0].1);
+    assert!(matches!(field, Mixed::Same(value) if near(value, HELD)), "every target took the value: {field:?}");
+}
+
 fn wrapper_events(value: &mut f32, seen: &RefCell<Vec<EditEvent<f32>>>, escaped: &RefCell<bool>, ui: &mut Ui) {
     let out = Wrapper { common: Common::new(), value: Bind::bound(value) }.id_salt("wrapper").show_at(ui, AT);
     seen.borrow_mut().extend(out.event.clone());
@@ -215,7 +245,7 @@ fn an_adopted_commit_carries_the_value_the_gesture_began_with() {
     frames.frame(vec![release(start() + Vec2::new(35.0, 0.0))], |ui| wrapper_events(&mut value, &seen, &escaped, ui));
     let events = seen.take();
     let commit = events.iter().find_map(|event| match event {
-        EditEvent::Commit { before, after, .. } => Some((before.clone(), *after)),
+        EditEvent::Commit { before, after, .. } => Some((*before, *after)),
         _ => None,
     });
     let (before, after) = commit.unwrap_or_else(|| panic!("a commit: {events:?}"));
@@ -234,7 +264,7 @@ fn escape_on_an_adopted_child_restores_the_composites_value() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], |ui| wrapper_events(&mut value, &seen, &escaped, ui));
     frames.idle(2, |ui| wrapper_events(&mut value, &seen, &escaped, ui));
     let cancel = seen.borrow().iter().find_map(|event| match event {
-        EditEvent::Cancel { reason, before, .. } => Some((*reason, before.clone())),
+        EditEvent::Cancel { reason, before, .. } => Some((*reason, *before)),
         _ => None,
     });
     assert_eq!(cancel, Some((CancelReason::Escape, Some(Mixed::Same(INITIAL)))), "{:?}", seen.borrow());

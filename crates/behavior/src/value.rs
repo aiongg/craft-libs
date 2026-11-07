@@ -10,12 +10,45 @@ pub trait Value: Clone + PartialEq + Send + Sync + 'static {}
 impl<T: Clone + PartialEq + Send + Sync + 'static> Value for T {}
 
 /// A value that may differ across a multi-selection.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Mixed<T> {
     /// Every selected item holds this value.
     Same(T),
     /// The selected items differ.
     Mixed,
+}
+
+impl<T> Mixed<T> {
+    /// The shared value, `None` while the items differ.
+    pub const fn same(&self) -> Option<&T> {
+        match self {
+            Mixed::Same(value) => Some(value),
+            Mixed::Mixed => None,
+        }
+    }
+
+    /// The shared value, or `start` while the items differ.
+    pub const fn or<'a>(&'a self, start: &'a T) -> &'a T {
+        match self {
+            Mixed::Same(value) => value,
+            Mixed::Mixed => start,
+        }
+    }
+
+    /// Every part of `values` as a shared value: the per-part form of a composite value no part of which differs.
+    pub fn each<const N: usize>(values: [T; N]) -> [Mixed<T>; N] {
+        values.map(Mixed::Same)
+    }
+}
+
+impl<T, const N: usize> Mixed<[Mixed<T>; N]> {
+    /// The per-part form of a composite value: a whole `Mixed` binding means every part differs.
+    pub fn parts(self) -> [Mixed<T>; N] {
+        match self {
+            Mixed::Same(parts) => parts,
+            Mixed::Mixed => std::array::from_fn(|_| Mixed::Mixed),
+        }
+    }
 }
 
 impl<T> From<T> for Mixed<T> {
@@ -391,6 +424,17 @@ mod tests {
         assert_eq!(fold(vec![update(3), commit.clone()]), Some(commit), "Update..Commit is Commit");
         assert_eq!(fold(vec![update(3), cancel.clone()]), Some(cancel), "Update..Cancel is Cancel");
         assert_eq!(fold(vec![update(3), update(4)]), Some(update(4)), "otherwise the later event");
+    }
+
+    #[test]
+    fn mixed_parts_read_and_expand_per_part() {
+        assert_eq!(Mixed::Same(2).same(), Some(&2));
+        assert_eq!(Mixed::<i32>::Mixed.same(), None);
+        assert_eq!(*Mixed::<i32>::Mixed.or(&7), 7);
+        assert_eq!(*Mixed::Same(2).or(&7), 2);
+        assert_eq!(Mixed::each([1, 2]), [Mixed::Same(1), Mixed::Same(2)]);
+        assert_eq!(Mixed::<[Mixed<i32>; 2]>::Mixed.parts(), [Mixed::Mixed, Mixed::Mixed]);
+        assert_eq!(Mixed::Same([Mixed::Same(1), Mixed::Mixed]).parts(), [Mixed::Same(1), Mixed::Mixed]);
     }
 
     #[test]

@@ -53,15 +53,23 @@ pub struct MoveMods {
     pub lead: bool,
     /// How far the move reaches.
     pub by: Granularity,
+    /// A value control steps by its finest step (Alt).
+    pub fine: bool,
 }
 
 impl MoveMods {
     /// A move by one unit with no modifier.
-    pub const PLAIN: MoveMods = MoveMods { extend: false, lead: false, by: Granularity::Unit };
+    pub const PLAIN: MoveMods = MoveMods { extend: false, lead: false, by: Granularity::Unit, fine: false };
 
-    /// Modifiers with the given parts.
+    /// Modifiers with the given parts and no fine flag.
     pub const fn new(extend: bool, lead: bool, by: Granularity) -> MoveMods {
-        MoveMods { extend, lead, by }
+        MoveMods { extend, lead, by, fine: false }
+    }
+
+    /// The same modifiers with the fine flag set to `on`.
+    pub const fn fine(mut self, on: bool) -> MoveMods {
+        self.fine = on;
+        self
     }
 }
 

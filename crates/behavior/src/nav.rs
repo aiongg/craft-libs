@@ -2,6 +2,7 @@
 //! single-value keys. Focus movement and collection selection share it.
 
 use crate::intent::{MoveMods, NavMove};
+use crate::wheel::Wheel;
 use emath::Rect;
 
 /// The geometry a collection's keyboard navigation follows.
@@ -497,6 +498,12 @@ pub enum ValueAxes {
     Both,
 }
 
+/// How many small steps one large step is, when a control sets no large step of its own.
+pub const LARGE_STEPS: f64 = 10.0;
+
+/// The share of a value's span that one small step is, when a control sets no step.
+pub const STEP_SHARE: f64 = 0.01;
+
 /// The value and steps of a single-value control.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -511,12 +518,28 @@ pub struct ValueSteps {
     pub small: f64,
     /// One Page key, or an arrow with the extend modifier.
     pub large: f64,
+    /// An arrow with Alt.
+    pub fine: f64,
+    /// One wheel notch.
+    pub notch: f64,
 }
 
 impl ValueSteps {
-    /// Steps over `min..=max` from `value`.
+    /// Steps over `min..=max` from `value`. The fine step is `small / LARGE_STEPS` and a wheel notch is `small`.
     pub const fn new(value: f64, min: f64, max: f64, small: f64, large: f64) -> Self {
-        ValueSteps { value, min, max, small, large }
+        ValueSteps { value, min, max, small, large, fine: small / LARGE_STEPS, notch: small }
+    }
+
+    /// The same steps with an Alt arrow of `fine`.
+    pub const fn fine(mut self, fine: f64) -> Self {
+        self.fine = fine;
+        self
+    }
+
+    /// The same steps with a wheel notch of `notch`.
+    pub const fn notch(mut self, notch: f64) -> Self {
+        self.notch = notch;
+        self
     }
 }
 
@@ -531,11 +554,16 @@ pub enum StepResult {
 }
 
 /// Maps a move to the new value of a slider, dial, rating, resize handle or colour pad. `Forward`, `Up` and
-/// `PageUp` increase; `Start` and `End` go to the ends; Shift (`extend`) steps by `large`.
+/// `PageUp` increase; `Start` and `End` go to the ends. An arrow steps by `small`; with Shift (`extend`) by `large`,
+/// with Alt (`fine`) by `fine`, and with both by `small`.
 pub fn step_value(steps: &ValueSteps, axes: ValueAxes, mv: NavMove, mods: MoveMods) -> StepResult {
     let horizontal = !matches!(axes, ValueAxes::Vertical);
     let vertical = !matches!(axes, ValueAxes::Horizontal);
-    let small = if mods.extend { steps.large } else { steps.small };
+    let small = match (mods.extend, mods.fine) {
+        (true, false) => steps.large,
+        (false, true) => steps.fine,
+        _ => steps.small,
+    };
     let delta = match mv {
         NavMove::Forward if horizontal => small,
         NavMove::Back if horizontal => -small,
@@ -547,6 +575,29 @@ pub fn step_value(steps: &ValueSteps, axes: ValueAxes, mv: NavMove, mods: MoveMo
         NavMove::End => return StepResult::Set(steps.max),
         _ => return StepResult::Ignored,
     };
+    StepResult::Set((steps.value + delta).clamp(steps.min, steps.max))
+}
+
+/// Maps a wheel event to the new value of a single-value control: one `notch` per event, up for positive scroll.
+/// Vertical scroll counts first; horizontal scroll counts when there is none (a vertical-only control ignores it),
+/// flipped under right-to-left text. Shift scales the notch by `large / small` and Alt by `fine / small`; both
+/// together keep the notch, as the arrow keys do. Zero scroll is `Ignored`.
+pub fn wheel_step(steps: &ValueSteps, axes: ValueAxes, wheel: &Wheel, rtl: bool) -> StepResult {
+    let along = if wheel.scroll.y != 0.0 {
+        wheel.scroll.y
+    } else if matches!(axes, ValueAxes::Vertical) || wheel.scroll.x == 0.0 {
+        return StepResult::Ignored;
+    } else if rtl {
+        -wheel.scroll.x
+    } else {
+        wheel.scroll.x
+    };
+    let scale = match (wheel.mods.shift, wheel.mods.alt) {
+        (true, false) if steps.small != 0.0 => steps.large / steps.small,
+        (false, true) if steps.small != 0.0 => steps.fine / steps.small,
+        _ => 1.0,
+    };
+    let delta = steps.notch * scale * f64::from(along.signum());
     StepResult::Set((steps.value + delta).clamp(steps.min, steps.max))
 }
 
@@ -731,6 +782,41 @@ mod tests {
         assert_eq!(TypeAhead::pick("a", Some(0), 4, label), Some(1), "one letter moves past the lead");
         assert_eq!(TypeAhead::pick("aa", Some(3), 4, label), Some(0), "a repeated letter cycles and wraps");
         assert_eq!(TypeAhead::pick("z", None, 4, label), None);
+    }
+
+    #[test]
+    fn alt_steps_finely_and_shift_with_alt_steps_by_small() {
+        let steps = ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0).fine(0.25);
+        let fine = MoveMods::PLAIN.fine(true);
+        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, fine), StepResult::Set(5.25));
+        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Down, fine), StepResult::Set(4.75));
+        let both = MoveMods::new(true, false, Granularity::Unit).fine(true);
+        assert_eq!(step_value(&steps, ValueAxes::Both, NavMove::Forward, both), StepResult::Set(6.0));
+        let StepResult::Set(default_fine) = step_value(&ValueSteps::new(5.0, 0.0, 10.0, 1.0, 4.0), ValueAxes::Both, NavMove::Forward, fine) else {
+            panic!("a forward move sets the value")
+        };
+        assert!((default_fine - 5.1).abs() < 1e-9);
+    }
+
+    #[test]
+    fn wheel_steps_ignore_zero_flip_under_rtl_and_scale_the_notch() {
+        use crate::wheel::{WheelPhase, WheelUnit};
+        use craft_keymap::Mods;
+        use emath::vec2;
+        let steps = ValueSteps::new(5.0, 0.0, 10.0, 0.01, 0.1).fine(0.001).notch(0.01);
+        let wheel = |scroll, mods| Wheel::new(scroll, mods, WheelUnit::Point, WheelPhase::Move);
+        let set = |wheel: Wheel, rtl| match wheel_step(&steps, ValueAxes::Both, &wheel, rtl) {
+            StepResult::Set(value) => value - 5.0,
+            StepResult::Ignored => f64::NAN,
+        };
+        assert_eq!(wheel_step(&steps, ValueAxes::Both, &wheel(vec2(0.0, 0.0), Mods::NONE), false), StepResult::Ignored);
+        assert!((set(wheel(vec2(0.0, 3.0), Mods::NONE), false) - 0.01).abs() < 1e-9);
+        assert!((set(wheel(vec2(0.0, -3.0), Mods::NONE), false) + 0.01).abs() < 1e-9);
+        assert!((set(wheel(vec2(3.0, 0.0), Mods::NONE), false) - 0.01).abs() < 1e-9);
+        assert!((set(wheel(vec2(3.0, 0.0), Mods::NONE), true) + 0.01).abs() < 1e-9);
+        assert!((set(wheel(vec2(0.0, 1.0), Mods::SHIFT), false) - 0.1).abs() < 1e-9);
+        assert!((set(wheel(vec2(0.0, 1.0), Mods::ALT), false) - 0.001).abs() < 1e-9);
+        assert_eq!(wheel_step(&steps, ValueAxes::Vertical, &wheel(vec2(3.0, 0.0), Mods::NONE), false), StepResult::Ignored);
     }
 
     #[test]

@@ -11,8 +11,8 @@ use crate::contract::{
 };
 use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
-use craft_behavior::{Codec, Metrics, NotAValue, PartKey, PartRef, Proposal, Sense};
+use crate::style::{ComponentStyle, Flags, StyleCx, SurfaceLook};
+use craft_behavior::{Codec, Metrics, Mixed, NotAValue, PartKey, PartRef, Proposal, Sense};
 use egui::{Rect, Vec2, pos2, vec2};
 use std::borrow::Cow;
 
@@ -33,27 +33,46 @@ craft_ui::words! {
     }
 }
 
-/// An object's alt text: its description and whether it is decorative (read by no one).
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+/// The alt text of one object or of a selection: its description and whether it is decorative (read by no one).
+/// Each part is mixed on its own: a selection whose descriptions differ but whose objects are all decorative has a
+/// mixed text and a shared flag. An edit's `Same` parts are the ones that change on every target; its `Mixed` parts
+/// stay as each target has them.
+#[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AltText {
     /// The description; empty when none is set.
-    pub text: String,
+    pub text: Mixed<String>,
     /// `true` when the object is decorative and needs no description.
-    pub decorative: bool,
+    pub decorative: Mixed<bool>,
+}
+
+impl Default for AltText {
+    fn default() -> Self {
+        AltText::new("")
+    }
 }
 
 impl AltText {
     /// A description of `text`, not decorative.
     pub fn new(text: impl Into<String>) -> Self {
-        AltText { text: text.into(), decorative: false }
+        AltText { text: Mixed::Same(text.into()), decorative: Mixed::Same(false) }
+    }
+
+    /// The given parts, each shared or mixed.
+    pub fn parts(text: Mixed<String>, decorative: Mixed<bool>) -> Self {
+        AltText { text, decorative }
     }
 
     /// Whether the object is decorative.
     #[must_use]
     pub fn decorative(mut self, decorative: bool) -> Self {
-        self.decorative = decorative;
+        self.decorative = Mixed::Same(decorative);
         self
+    }
+
+    /// Whether every object is decorative.
+    fn all_decorative(&self) -> bool {
+        self.decorative == Mixed::Same(true)
     }
 
     /// Whether Mark as decorative starts checked for objects with these flags: only when there is at least one and
@@ -79,11 +98,11 @@ impl Codec for AltCodec {
     const DRAFTS_ARE_VALUES: bool = true;
 
     fn format(&self, value: &AltText) -> String {
-        value.text.clone()
+        value.text.same().cloned().unwrap_or_default()
     }
 
     fn parse(&self, text: &str, start: &AltText) -> Result<AltText, NotAValue> {
-        Ok(AltText { text: text.to_owned(), decorative: start.decorative })
+        Ok(AltText { text: Mixed::Same(text.to_owned()), decorative: start.decorative })
     }
 
     fn sample(&self, _: &AltText) -> Cow<'_, str> {
@@ -118,15 +137,20 @@ impl<'a> AltTextField<'a> {
 }
 
 /// The check as a face over `on`.
-fn check_face(on: bool, words: &AltTextWords) -> Checkbox<'static> {
+fn check_face(on: Mixed<bool>, words: &AltTextWords) -> Checkbox<'static> {
     Checkbox::new(Bind::given(on)).label(words.decorative.clone())
+}
+
+/// The shown value: the binding's, or every part mixed while the binding is.
+fn shown_of(shown: Option<&AltText>) -> AltText {
+    shown.cloned().unwrap_or_else(|| AltText::parts(Mixed::Mixed, Mixed::Mixed))
 }
 
 /// The height of the description box and the size of the check.
 fn sizes(cx: &MeasureCx<'_, AltTextField<'_>>) -> (f32, Vec2) {
     let words = cx.words::<AltTextWords>();
     let line = cx.layout(&TextRun::new("M")).size().y;
-    (line * LINES as f32, cx.child("decorative", &mut check_face(false, &words), Proposal::Ideal))
+    (line * LINES as f32, cx.child("decorative", &mut check_face(Mixed::Same(false), &words), Proposal::Ideal))
 }
 
 impl Component for AltTextField<'_> {
@@ -152,39 +176,42 @@ impl Component for AltTextField<'_> {
         Vec2::new(width, text + cx.gap() + check.y)
     }
 
-    /// The description box (a text part, disabled while the object is decorative, showing the mixed word as its
-    /// placeholder while the descriptions differ) and the check.
+    /// The description box (a text part, disabled while every object is decorative, showing the mixed word as its
+    /// placeholder while the descriptions differ) and the check, whose part carries the checked and mixed flags of
+    /// its own value.
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         let content = cx.content_rect;
         let (text, check) = sizes(cx);
         let words = cx.words::<AltTextWords>();
         let area = Rect::from_min_size(content.min, vec2(content.width(), text));
         let check_at = Rect::from_min_size(pos2(content.min.x, area.max.y + cx.gap()), vec2(content.width(), check.y));
-        let mixed = AltText::default();
-        let value = cx.value().unwrap_or(&mixed);
-        let placeholder = if cx.value().is_some() { words.alt_text.clone() } else { words.mixed.clone() };
-        let options = TextOptions { lines: Some(LINES), placeholder: Some(placeholder), enabled: !value.decorative, ..TextOptions::default() };
-        cx.text(text_part::<AltText>(), area, &AltCodec, value, &options);
-        cx.part(DECORATIVE, check_at).sense(Sense::CLICK | Sense::FOCUS).focusable();
+        let value = shown_of(cx.value());
+        let placeholder = if value.text.same().is_some() { words.alt_text.clone() } else { words.mixed.clone() };
+        let options = TextOptions { lines: Some(LINES), placeholder: Some(placeholder), enabled: !value.all_decorative(), ..TextOptions::default() };
+        cx.text(text_part::<AltText>(), area, &AltCodec, &value, &options);
+        let mut flags = Flags::empty();
+        flags.set(Flags::CHECKED, value.all_decorative());
+        flags.set(Flags::MIXED, value.decorative == Mixed::Mixed);
+        cx.part(DECORATIVE, check_at).sense(Sense::CLICK | Sense::FOCUS).focusable().flags(flags);
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, AltText>> {
         Some(self.value.reborrow())
     }
 
-    /// A click or key activation on the check flips the flag and keeps the text.
+    /// A click or key activation on the check flips the flag, and on a mixed check sets every target decorative. The
+    /// text part of the edit is the shown one, so a mixed text stays as each target has it.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(value) = cx.value().cloned() else { return };
+        let value = shown_of(cx.value());
         let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         if cx.part(DECORATIVE).press.phase.is_click() || by_key == Some(PartRef::from(DECORATIVE)) {
-            cx.set(AltText { decorative: !value.decorative, ..value });
+            cx.set(AltText { decorative: Mixed::Same(!value.all_decorative()), ..value });
         }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let words = cx.words::<AltTextWords>();
-        let value = cx.value();
-        ui.face(DECORATIVE, check_face(value.is_some_and(|value| value.decorative), &words));
+        ui.face(DECORATIVE, check_face(shown_of(cx.value()).decorative, &words));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<AltText> {
