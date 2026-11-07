@@ -10,20 +10,23 @@ new_module = "craft_ui::bars"
 [[type]]
 name = "Toolbar"
 old = "craft_ui::patterns::toolbar::Toolbar"
-new = "craft_ui::bars::Toolbar"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`Bar::new(label, BarKind::Tool)` with a `BarItems` child in its body: `BarItems::new(items)`, one `BarItem::new(command)` per old `ToolbarItem`, `.section(n)` for the group index. Items are commands, so labels, icons, shortcuts, enabled and toggle state come from the command and the output has no `clicked`: the app handles the command. A vertical strip is `Bar::vertical()` with `BarItems::axis(Axis::Y)`; overflow is automatic (`Toolbar::overflow` is gone)."
 
 [[type]]
 name = "OptionsBar"
 old = "craft_ui::patterns::options_bar::OptionsBar"
-new = "craft_ui::bars::OptionsBar"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`Bar::new(label, BarKind::Options)`; the body holds the cells in reading order. `OptionsBarSlots` is gone: leading, body and trailing are layout in the body. Several rows are `.rows(n)` with one `Row` per row; the commit and cancel buttons are `.commit_cancel(commit, cancel)`."
 
 [[type]]
 name = "StatusBar"
 old = "craft_ui::patterns::status_bar::StatusBar"
-new = "craft_ui::bars::StatusBar"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`Bar::new(label, BarKind::Status)`; the body holds the fields in reading order. `StatusBarSlots` is gone: leading and trailing are layout in the body."
 
 [[type]]
 name = "StatusReadout"
@@ -49,8 +52,142 @@ old = "craft_ui::controls::breadcrumb::BreadcrumbBar"
 new = "craft_ui::bars::BreadcrumbBar"
 status = "pending"
 
+[[type]]
+name = "ToolbarItem"
+old = "craft_ui::patterns::toolbar::ToolbarItem"
+new = ""
+status = "replaced"
+note = "`ToolbarItem::new(icon, label)` is `craft_ui::bars::BarItem::new(command)`: the command carries label, icon, shortcut and enabled state. `.toggle(&mut bool)` is a toggle command whose checked state the app publishes; `.shortcut(..)` is the command's binding."
+
+[[type]]
+name = "ToolbarStyle"
+old = "craft_ui::patterns::toolbar::ToolbarStyle"
+new = ""
+status = "removed"
+note = "`BarItemsStyle` and `BarStyle` are component styles; sizes come from `ControlSize` and the theme. `Toolbar::style(tokens)` is gone."
+
+[[type]]
+name = "OptionsBarStyle"
+old = "craft_ui::patterns::options_bar::OptionsBarStyle"
+new = ""
+status = "removed"
+note = "`BarStyle`; `OptionsBar::height_of` is gone: a bar is as tall as its tallest member plus the control padding."
+
+[[type]]
+name = "StatusBarStyle"
+old = "craft_ui::patterns::status_bar::StatusBarStyle"
+new = ""
+status = "removed"
+note = "`BarStyle`; `StatusBar::style(tokens)` is gone."
+
+[[type]]
+name = "ToolbarResponse"
+old = "craft_ui::patterns::toolbar::ToolbarResponse"
+new = ""
+status = "removed"
+note = "`BarItems` returns a `Response` and fires the item's command; the app takes the command. `items` (per-item responses) has no replacement."
+
+[[type]]
+name = "CommitCancel"
+old = "craft_ui::patterns::options_bar::CommitCancel"
+new = ""
+status = "replaced"
+note = "`BarOutput { committed, cancelled }` from a bar built with `Bar::commit_cancel(commit, cancel)`."
+
+[[type]]
+name = "StatusProgress"
+old = "craft_ui::patterns::status_bar::StatusProgress"
+new = ""
+status = "replaced"
+note = "A `Progress` (`Progress::new(fraction)` or `Progress::indeterminate()`) with a `Text` percent and a cancel `IconButton`, in the bar's body."
+
+[[type]]
+name = "StatusProgressOutput"
+old = "craft_ui::patterns::status_bar::StatusProgressOutput"
+new = ""
+status = "replaced"
+note = "The cancel `IconButton`'s response: `clicked(&response)`."
+
+[[type]]
+name = "UnitCellResponse"
+old = "craft_ui::patterns::options_cell::UnitCellResponse"
+new = ""
+status = "replaced"
+note = "The `NumberField`'s `EditResponse` inside a `Field`; the unit is `NumberField::unit_kind(UnitKind)`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+[[setter]]
+type = "Toolbar"
+old = "new(id_salt, orientation)"
+new = "Bar::new(label, BarKind::Tool)"
+
+[[setter]]
+type = "Toolbar"
+old = "group(items)"
+new = "BarItem::section(n) on each item"
+
+[[setter]]
+type = "Toolbar"
+old = "selected(Some((group, item)))"
+new = "a checked state published for the item's command"
+
+[[setter]]
+type = "Toolbar"
+old = "overflow(true)"
+new = "automatic: BarItems overflows into a menu"
+
+[[setter]]
+type = "Toolbar"
+old = "button_size(side)"
+new = "ControlSize on the bar's scope"
+
+[[setter]]
+type = "OptionsBar"
+old = "cell(ui, caption, width, add)"
+new = "Field::new(caption).layout(FieldLayout::Caption(width))"
+
+[[setter]]
+type = "OptionsBar"
+old = "number_cell(ui, caption, width, field)"
+new = "Field::new(caption).layout(FieldLayout::Caption(width)) around a NumberField"
+
+[[setter]]
+type = "OptionsBar"
+old = "percent_cell(ui, id_salt, caption, value, numbers)"
+new = "Field around NumberField::unit_kind(UnitKind::Percent)"
+
+[[setter]]
+type = "OptionsBar"
+old = "unit_cell(..)"
+new = "Field around NumberField::unit_kind(kind)"
+
+[[setter]]
+type = "OptionsBar"
+old = "commit_cancel(ui, commit, cancel)"
+new = "Bar::commit_cancel(commit, cancel)"
+
+[[setter]]
+type = "OptionsBar"
+old = "divider(ui)"
+new = "Divider::vertical()"
+
+[[setter]]
+type = "OptionsBar"
+old = "narrow(true)"
+new = "Bar::rows(n) with one Row per row"
+
+[[setter]]
+type = "StatusBar"
+old = "message(ui, text, error)"
+new = "Text in a body with ContainerProps.live"
+
+[[setter]]
+type = "StatusBar"
+old = "progress(ui, progress)"
+new = "Progress with a cancel IconButton"
+
+[[setter]]
+type = "StatusBar"
+old = "separator(ui)"
+new = "Divider::vertical()"
+
