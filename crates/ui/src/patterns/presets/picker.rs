@@ -13,7 +13,7 @@ use super::state::{DefaultOpen, PresetState, PresetView};
 use super::words::PresetWords;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Props as _, Role, WordSetCx as _,
+    Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use crate::list::RowTest;
 use crate::pickers::SelectFace;

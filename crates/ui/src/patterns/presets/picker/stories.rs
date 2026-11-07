@@ -28,26 +28,26 @@ fn rows() -> Vec<PresetRow<u32>> {
 #[story(PresetPicker<'static, u32>, covers = [Default], drive = Drive::Never)]
 fn preset_picker(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = rows();
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
-    PresetPicker::new("Swatch", Bind::bound(data.value("swatch", Some(AMBER))), &rows, state).field(PickerField::ThumbnailAndName).show(ui).into()
+    let (swatch, state) = data.value("swatch", (Some(AMBER), PresetState::<u32>::new()));
+    PresetPicker::new("Swatch", Bind::bound(swatch), &rows, Bind::bound(state)).field(PickerField::ThumbnailAndName).show(ui).into()
 }
 
 #[story(PresetPicker<'static, u32>, covers = [Mixed], drive = Drive::Never)]
 fn preset_picker_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = rows();
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
-    PresetPicker::new("Swatch", Bind::bound_mixed(data.value("mixed", Mixed::<Option<u32>>::Mixed)), &rows, state).show(ui).into()
+    let (swatch, state) = data.value("mixed", (Mixed::<Option<u32>>::Mixed, PresetState::<u32>::new()));
+    PresetPicker::new("Swatch", Bind::bound_mixed(swatch), &rows, Bind::bound(state)).show(ui).into()
 }
 
 #[story(PresetPicker<'static, u32>, covers = [Invalid], drive = Drive::Never)]
 fn preset_picker_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = rows();
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
+    let (swatch, state) = data.value("invalid", (Some(TEAL), PresetState::<u32>::new()));
     let refuse_teal = |swatch: &Option<u32>| match swatch {
         Some(TEAL) => Validity::Refuse(Message::new("Teal is not available here")),
         _ => Validity::Ok,
     };
-    PresetPicker::new("Swatch", Bind::bound(data.value("invalid", Some(TEAL))).check(refuse_teal), &rows, state).show(ui).into()
+    PresetPicker::new("Swatch", Bind::bound(swatch).check(refuse_teal), &rows, Bind::bound(state)).show(ui).into()
 }
 
 fn open_browser(fixture: &mut Fixture) {
@@ -59,18 +59,14 @@ fn open_browser(fixture: &mut Fixture) {
 #[story(PresetPicker<'static, u32>, covers = [Open], drive = Drive::Custom(open_browser))]
 fn preset_picker_open(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = rows();
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
-    PresetPicker::new("Swatch", Bind::bound(data.value("open", Some(CORAL))), &rows, state).show(ui).into()
+    let (swatch, state) = data.value("open", (Some(CORAL), PresetState::<u32>::new()));
+    PresetPicker::new("Swatch", Bind::bound(swatch), &rows, Bind::bound(state)).show(ui).into()
 }
 
 #[story(PresetPicker<'static, u32>, covers = [], disabled_text = "Pick a layer first")]
 fn preset_picker_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let rows = rows();
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
     let tooltip = data.tooltip("The swatch of the layer");
-    PresetPicker::new("Swatch", Bind::bound(data.value("swatch", None::<u32>)), &rows, state)
-        .field(PickerField::Name)
-        .tooltip(tooltip)
-        .show(ui)
-        .into()
+    let (swatch, state) = data.value("reason", (None::<u32>, PresetState::<u32>::new()));
+    PresetPicker::new("Swatch", Bind::bound(swatch), &rows, Bind::bound(state)).field(PickerField::Name).tooltip(tooltip).show(ui).into()
 }

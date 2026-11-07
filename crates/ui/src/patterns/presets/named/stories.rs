@@ -14,8 +14,8 @@ const MINE: u32 = 2;
 fn named_preset_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let thumb = |row: PresetRow<u32>| row.preview(ThumbAspect::SQUARE, |_, _| {});
     let rows = vec![thumb(PresetRow::item(LINEAR, "Linear", 0)), thumb(PresetRow::item(MINE, "Mine", 0))];
-    let state = Bind::bound(data.value("state", PresetState::<u32>::new()));
-    let picker = PresetPicker::new("Contour", Bind::bound(data.value("contour", Some(MINE))), &rows, state).field(PickerField::ThumbnailAndName);
+    let (contour, state) = data.value("contour", (Some(MINE), PresetState::<u32>::new()));
+    let picker = PresetPicker::new("Contour", Bind::bound(contour), &rows, Bind::bound(state)).field(PickerField::ThumbnailAndName);
     NamedPresetRow::new("Contour preset", picker)
         .suggest_name("Contour 3")
         .check_name(|name| name.eq_ignore_ascii_case("linear").then_some(PresetError::NameTaken))
