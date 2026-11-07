@@ -291,6 +291,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         parts: &parts,
         group: steps::member_group(&ctx, env.roving, id),
         body_roving: p.hooks.roving(comp),
+        row: env.row,
     });
     if !inert {
         steps::register_wheel(&ctx, id, rect, own, comp.bind().is_some());

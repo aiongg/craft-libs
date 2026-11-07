@@ -223,11 +223,37 @@ impl State {
         }
         let members: Vec<StopRec> = self.last_stops.iter().filter(|rec| rec.stop.group == Some(group.id)).cloned().collect();
         let at = members.iter().position(|rec| rec.stop.key() == from);
+        if group.row && mv == NavMove::Back && at == Some(0) {
+            return Some(self.row_owner(&group).map(|rec| self.focus_stop(rec)).unwrap_or_default());
+        }
         let mut state = group.roving.state(at);
         match step(group.roving.shape, &Members(members.len()), &mut state, mv, mods) {
             NavStep::Moved(to) => Some(self.focus_stop(members[to].clone())),
             _ => Some(Vec::new()),
         }
+    }
+
+    /// The stop of the collection a row group belongs to.
+    fn row_owner(&self, group: &super::Group) -> Option<StopRec> {
+        self.find_stop((group.owner?, None))
+    }
+
+    /// Moves focus from a child of a collection row back to the collection; `None` when `from` is no row child.
+    pub(super) fn leave_row(&mut self, from: StopKey) -> Option<(Id, Vec<Act>)> {
+        let group = *self.last_groups.get(&self.find_stop(from)?.stop.group?)?;
+        if !group.row {
+            return None;
+        }
+        let owner = self.row_owner(&group)?;
+        let id = owner.stop.id;
+        Some((id, self.focus_stop(owner)))
+    }
+
+    /// Moves focus to the arrival member of the row group `group`.
+    pub(super) fn enter_row(&mut self, group: Id) -> Option<Vec<Act>> {
+        let group = *self.last_groups.get(&group)?;
+        let member = self.arrival(&group)?;
+        Some(self.focus_stop(member))
     }
 
     /// The stop that takes focus when the focused stop was not registered this pass.
@@ -355,4 +381,24 @@ pub(crate) fn roving_move(ctx: &Context, from: StopKey, mv: NavMove, mods: MoveM
     let acts = super::with(ctx, |state| state.roving_move(from, mv, mods, horizontal))?;
     super::apply(ctx, acts);
     Some(())
+}
+
+/// Moves focus from a child of a collection row back to the row's collection. Returns the collection's id, or
+/// `None` when `from` is no row child.
+pub(crate) fn leave_row(ctx: &Context, from: StopKey) -> Option<Id> {
+    let (owner, acts) = super::with(ctx, |state| state.leave_row(from))?;
+    super::apply(ctx, acts);
+    Some(owner)
+}
+
+/// Moves focus into the first child or part of the row group `group`; `false` when it has none.
+pub(crate) fn enter_row(ctx: &Context, group: Id) -> bool {
+    let Some(acts) = super::with(ctx, |state| state.enter_row(group)) else { return false };
+    super::apply(ctx, acts);
+    true
+}
+
+/// Whether the row group `group` has children or parts that are focus stops, as of last pass.
+pub(crate) fn row_has_stops(ctx: &Context, group: Id) -> bool {
+    super::with(ctx, |state| state.last_stops.iter().any(|rec| rec.stop.group == Some(group)))
 }

@@ -9,7 +9,7 @@ mod policy;
 mod press;
 pub(crate) mod registration;
 
-pub(crate) use nav::roving_move;
+pub(crate) use nav::{enter_row, leave_row, roving_move, row_has_stops};
 pub(crate) use registration::{Group, Stop};
 
 use crate::runtime::egui::focus as egui_focus;

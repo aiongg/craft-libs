@@ -371,6 +371,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let pasted = batch.paste.as_deref().zip(focused).map(|(text, id)| (id, Arc::<str>::from(text)));
     let escapes = craft_behavior::focus::route_escapes(batch.escapes, press_captured);
     for _ in 0..escapes.to_components {
+        // A row's child that claims Escape keeps it; any other returns focus to its row.
+        let claims_escape = target.as_ref().is_some_and(|rec| rec.stop.keys.claims.iter().any(|chord| chord.key == Key::Escape));
+        if !claims_escape && target.as_ref().is_some_and(|rec| focus::leave_row(ctx, rec.stop.key()).is_some()) {
+            continue;
+        }
         push(&mut routed, focused, Intent::Cancel, false);
     }
     let claimed = batch.claimed.iter().filter_map(|chord| focused.map(|id| (id, *chord))).collect::<Vec<_>>();
@@ -475,7 +480,11 @@ fn route_press(
     let plain = press.mods.is_none();
     match keys::intent(os, press.key, press.mods, stop.role) {
         Some(Intent::Move(mv, mods)) => {
-            if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
+            // Up, Down, Page, Home and End leave a row's children: the collection takes the move.
+            let vertical = matches!(mv, NavMove::Up | NavMove::Down | NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End);
+            if let Some(owner) = vertical.then(|| focus::leave_row(ctx, rec.stop.key())).flatten() {
+                push(routed, Some(owner), Intent::Move(mv, mods), horizontal);
+            } else if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
             }
         }

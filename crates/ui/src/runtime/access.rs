@@ -2,6 +2,7 @@
 //!
 //! This module is the only one that calls egui's AccessKit APIs, through `runtime::egui::access`.
 
+pub(crate) mod items;
 mod live;
 pub(crate) mod scope;
 
