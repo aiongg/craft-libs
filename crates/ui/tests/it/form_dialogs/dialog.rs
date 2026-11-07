@@ -6,6 +6,7 @@ use craft_ui::dialog::Dialog;
 use craft_ui::patterns::form_dialogs::{
     DialogFields, FieldValue, HostRequests, Param, ParamDialog, ParamKind, ParamRows, PreviewPane, ResetFooter, ResetPick,
 };
+use craft_ui::runtime::focus::Initial;
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
@@ -168,7 +169,7 @@ fn the_shared_reset_footer_serves_any_dialog() {
 
 /// A fixture with a `ParamDialog` whose `close_guard` answers `allow` and counts its calls.
 fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
-    let params = vec![Param::number("width", "Width", 640.0, 1.0, 0)];
+    let params = vec![Param::new("smooth", "Smooth", ParamKind::bool(false))];
     let fields = Rc::new(RefCell::new(DialogFields::new()));
     let open = Rc::new(Cell::new(true));
     let asked = Rc::new(Cell::new(0));
@@ -181,7 +182,7 @@ fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
             .values(Bind::bound(&mut *fields))
             .opened(Bind::bound(&mut now))
             .shaped(move |dialog| {
-                dialog.close_guard(move |_, _| {
+                dialog.initial_focus(Initial::First).close_guard(move |_, _| {
                     counted.set(counted.get() + 1);
                     allow
                 })
