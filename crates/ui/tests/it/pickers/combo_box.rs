@@ -16,10 +16,15 @@ struct Rig {
 }
 
 fn rig() -> Rig {
+    rig_over(|| FAMILIES.iter().map(|family| Entry::new((*family).to_owned(), *family)).collect())
+}
+
+/// A focused combo box over the options `make` builds each frame.
+fn rig_over(make: impl Fn() -> Vec<Entry<String>> + 'static) -> Rig {
     let text = Rc::new(RefCell::new(String::new()));
     let shown = text.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let options: Vec<Entry<String>> = FAMILIES.iter().map(|family| Entry::new((*family).to_owned(), *family)).collect();
+        let options = make();
         let mut text = shown.borrow_mut();
         ComboBox::new("Font", Bind::bound(&mut *text), &options).show(ui);
     });
@@ -69,4 +74,13 @@ fn text_that_matches_nothing_closes_the_list_and_commits_as_typed() {
     assert!(rig.listed().is_empty(), "no option contains `arz`");
     rig.press(Key::Enter);
     assert_eq!(*rig.text.borrow(), "arz");
+}
+
+/// The filter reads the labels the rows show: "sys" lists the option labelled "Arial (system)", whose value is
+/// "Arial".
+#[trial]
+fn typed_text_matches_the_labels_the_rows_show() {
+    let mut rig = rig_over(|| vec![Entry::new("Arial".to_owned(), "Arial (system)"), Entry::new("Charter".to_owned(), "Charter")]);
+    rig.type_text("sys");
+    assert_eq!(rig.listed(), ["Arial (system)"]);
 }

@@ -4,23 +4,26 @@
 //! hook on the dropdown preset. Focus stays on the field: the host hands the list keys to the listbox while it is
 //! open, and Escape closes it without a change.
 
-use super::face::SelectFace;
+use super::dress::RowDress;
+use super::face::{SelectFace, toggle_on_key};
+use super::rows::EntryRows;
 use super::words::PickerWords;
+use crate::buttons::IconButton;
+use crate::contract::overlay::Popup;
 use crate::contract::{
-    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, MeasureCx, Numeric, Overlay,
-    OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _, ShowCollection as _, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadSource, MeasureCx,
+    Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _, ShowCollection as _,
+    ShowContainer as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
+use crate::menu::Menu;
 use crate::runtime::env::Label;
-use crate::runtime::focus::FocusPolicy;
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
-use craft_behavior::{DisplayOrder, HitLevel, HitPriority, ItemSource, Metrics, NavMove, PartKey, Selection, Sense, Value, wheel_step};
-use craft_theme::{Rgba, Stateful, States};
-use egui::Vec2;
-use std::borrow::Cow;
-use std::hash::{DefaultHasher, Hash as _, Hasher as _};
+use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, Selection, Sense, Value, wheel_step};
+use craft_theme::Stateful;
+use egui::{Ui, Vec2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -43,43 +46,23 @@ pub struct SelectStyle {
     text: TextLook,
 }
 
-/// The fill of a row of a list: clear at rest, tinted under the pointer, while pressed and while selected.
-pub(crate) fn row_look(cx: &StyleCx<'_>) -> SurfaceLook {
-    let state = &cx.tokens.color.state;
-    let clear = cx.color(Rgba::TRANSPARENT);
-    let selected = cx.color(state.selected);
-    let selected_hover = cx.color(state.selected_hover);
-    let fill = Stateful::new(clear).off(States::new(clear, cx.color(state.hover), cx.color(state.pressed), clear)).on(States::new(
-        selected,
-        selected_hover,
-        selected_hover,
-        selected,
-    ));
-    SurfaceLook::new(fill)
-}
+/// The icon of the button in the popup header that opens the header menu.
+const HEADER_MENU_ICON: &str = "more";
 
-/// What a select adds to an option's row: the host's content for an entry (a detail line, a trailing shortcut text, a
-/// thumbnail painter). `Select::decorate` takes the closure.
-pub struct RowDress<'a, T>(Box<DressFn<'a, T>>);
+/// The rows of the menu a select's popup header opens: the host's menu body.
+struct HeaderMenu<'a>(Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>);
 
-type DressFn<'a, T> = dyn Fn(&T, ListRow<'a>) -> ListRow<'a> + 'a;
-
-impl<'a, T> RowDress<'a, T> {
-    /// The dress that runs `dress` over the row of each entry, given the entry's value.
-    pub fn new(dress: impl Fn(&T, ListRow<'a>) -> ListRow<'a> + 'a) -> Self {
-        RowDress(Box::new(dress))
-    }
-
-    fn apply(&self, value: &T, row: ListRow<'a>) -> ListRow<'a> {
-        (self.0)(value, row)
+impl<'a> HeaderMenu<'a> {
+    fn new(rows: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        HeaderMenu(Box::new(rows))
     }
 }
 
 /// A field that shows the picked entry and opens a listbox of all of them. A click, Enter, Space or Alt+Down opens the
 /// listbox with the picked entry active; Up, Down, Home, End and type-ahead move through it, Enter or a click picks,
 /// Escape and Alt+Up close it. Closed, the arrow keys, Home, End and the wheel (while the field is focused or armed)
-/// step the pick through the enabled entries. The field is as wide as its widest entry, so it keeps its width whichever
-/// entry is picked.
+/// step the pick through the enabled entries. The field is as wide as its widest entry, placeholder or mixed word, so it keeps its
+/// width whichever is shown.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay, probe(Select<'static, u8>))]
 pub struct Select<'a, T: Value + 'static> {
@@ -96,12 +79,20 @@ pub struct Select<'a, T: Value + 'static> {
     /// Adds the host's content to each entry's row.
     #[prop(func = "Fn(&T, ListRow<'a>) -> ListRow<'a>")]
     decorate: Option<RowDress<'a, T>>,
+    /// The row under the pointer is proposed as the value while the list is open; closing the list without a pick
+    /// restores the value.
+    #[prop(flag)]
+    preview: bool,
+    /// A button in the popup header opens a menu of these rows (a list's own options: sort, view).
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    header_menu: Option<HeaderMenu<'a>>,
 }
 
 impl<'a, T: Value + 'static> Select<'a, T> {
     /// A select named `label` over `value`, choosing among `entries`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, T>, entries: &'a [Entry<T>]) -> Self {
-        Select { common: Common::new(), value, entries, searchable: false, placeholder: None, decorate: None }.label(label)
+        Select { common: Common::new(), value, entries, searchable: false, placeholder: None, decorate: None, preview: false, header_menu: None }
+            .label(label)
     }
 
     fn position(&self, value: Option<&T>) -> Option<usize> {
@@ -146,15 +137,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         SelectStyle { surface: cx.field(), metrics: Metrics::new(), text: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))) }
     }
 
-    /// The widest entry's face, so the field keeps its size whichever entry is picked.
+    /// The widest face of an entry, the placeholder and the mixed word, so the field keeps its size whichever is shown.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let widest = self
-            .entries
-            .iter()
-            .filter(|entry| !entry.is_separator())
-            .map(|entry| cx.face(SelectFace::new(cx.env.resolve(entry.label()))))
-            .fold(Vec2::ZERO, Vec2::max);
-        if widest == Vec2::ZERO { cx.face(SelectFace::new(Label::Empty)) } else { widest }
+        let mixed = cx.words::<PickerWords>().mixed.clone();
+        let entries = self.entries.iter().filter(|entry| !entry.is_separator()).map(Entry::label);
+        let texts = entries.chain(self.placeholder.as_ref()).chain(std::iter::once(&mixed));
+        texts.map(|text| cx.face(SelectFace::new(cx.env.resolve(text)))).fold(Vec2::ZERO, Vec2::max)
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, T>> {
@@ -166,19 +154,18 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             .sense(Sense::CLICK | Sense::HOVER | Sense::TAKE_FOCUS)
             .priority(HitPriority::new(HitLevel::Body, 0))
             .pointer_only("Enter, Space and Alt+Down open the list")
-            .toggles("list");
+            .toggles("list")
+            .on_press();
     }
 
-    /// Enter and Space toggle the listbox. While it is closed, the arrow keys, Home, End and the wheel step the pick
-    /// through the enabled entries, and AccessKit sets it.
+    /// Enter and Space toggle the listbox; a press on the face toggles it through the part. While it is closed, the
+    /// arrow keys, Home, End and the wheel step the pick through the enabled entries, and AccessKit sets it. A preview
+    /// that the list closed on without a pick is cancelled.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let list = cx.popup("list");
-        if cx.activation().is_some() {
-            if list.is_open(cx) {
-                list.close(cx);
-            } else {
-                list.open(cx);
-            }
+        toggle_on_key(cx, list);
+        if self.preview && !list.is_open(cx) && matches!(cx.gesture(), Some(GesturePhase::Begin | GesturePhase::Update)) {
+            cx.cancel(CancelReason::Dismissed);
         }
         let picks = self.picks();
         if list.is_open(cx) || picks.is_empty() {
@@ -216,7 +203,8 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     }
 
     /// The listbox: one option row per entry, a spacer for a separator, the picked entry's row selected. A pick comes
-    /// back from the list as Enter or a click on a row, and goes to the binding as one change.
+    /// back from the list as Enter or a click on a row, and goes to the binding as one change. With a preview, the row
+    /// the pointer moves the lead to is proposed first.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("list");
         let entries = self.entries;
@@ -225,51 +213,49 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let words = cx.words::<PickerWords>();
         let held = self.position(cx.value());
         let (searchable, dress) = (self.searchable, self.decorate.as_ref());
-        // A filter field needs the key focus, so its popup takes focus in; the others leave it on the field.
-        let overlay = if searchable { Overlay::dropdown().focus(FocusPolicy::POPUP) } else { Overlay::dropdown() };
-        let events = ui.show(popup, overlay, |ui, body| {
-            let query = if searchable {
-                let query = body.memory::<Query>();
-                TextField::search(search_name(&words, &name), Bind::bound(&mut query.0)).show(ui);
-                query.0.trim().to_lowercase()
-            } else {
-                String::new()
-            };
-            let shown = matching(entries, &labels, &query);
-            let rows = Rows { entries, labels: &labels, shown: &shown };
-            let selection = held.filter(|at| shown.contains(at)).map_or_else(Selection::default, |at| Selection::new(vec![at], Some(at), Some(at)));
-            let stamp = {
-                let mut hasher = DefaultHasher::new();
-                query.hash(&mut hasher);
-                hasher.finish()
-            };
+        let mut header_menu = self.header_menu.as_mut();
+        let events = ui.show(popup, Overlay::dropdown(), |ui, body| {
+            let mut query = String::new();
+            if searchable || header_menu.is_some() {
+                ui.horizontal(|ui| {
+                    if searchable {
+                        let typed = body.memory::<Query>();
+                        TextField::search(search_name(&words, &name), Bind::bound(&mut typed.0)).show(ui);
+                        query.clone_from(&typed.0);
+                    }
+                    if let Some(rows) = header_menu.as_mut() {
+                        let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).label(words.header_menu.clone()).show(ui);
+                        if more.clicked() {
+                            Popup::toggle(more.id, cx);
+                        }
+                        Menu::new(words.header_menu.clone()).opened_by(&more).show(ui, |ui, menu| (rows.0)(ui, menu));
+                    }
+                });
+            }
+            let rows = EntryRows::new(entries, &labels);
+            let selection = held.filter(|_| query.trim().is_empty()).map_or_else(Selection::default, Selection::single);
             List::options(name.clone())
                 .empty(words.no_matches.clone())
-                .rows_stamp(stamp)
                 .selection(Bind::given(selection))
-                .show_items(ui, &rows, &mut |at, _| {
-                    let entry = &entries[*at];
-                    let Some(value) = entry.value() else {
-                        return ListRow::spacer();
-                    };
-                    let row = ListRow::new(labels[*at].clone()).option().enabled(entry.is_enabled());
-                    let row = match entry.icon_spec() {
-                        Some(icon) => row.icon(icon.clone()),
-                        None => row,
-                    };
-                    match dress {
-                        Some(dress) => dress.apply(value, row),
-                        None => row,
-                    }
-                })
+                .filter(&query, |at| labels[*at].clone())
+                .show_items(ui, &rows, &mut |at, _| rows.row(*at, dress))
                 .events
         });
-        let picked = events.into_iter().flatten().find_map(|event| match event {
-            CollectionEvent::Activate(at) => Some(at),
-            _ => None,
-        });
+        let mut picked = None;
+        for event in events.into_iter().flatten() {
+            match event {
+                CollectionEvent::LeadMoved { key, by: LeadSource::Pointer, .. } if self.preview => {
+                    if let Some(value) = entries.get(key).and_then(Entry::value) {
+                        cx.propose(value.clone());
+                    }
+                }
+                CollectionEvent::Activate(at) => picked = Some(at),
+                _ => {}
+            }
+        }
         if let Some(value) = picked.and_then(|at| entries.get(at)).and_then(Entry::value) {
-            cx.set(value.clone());
+            cx.propose(value.clone());
+            cx.commit();
             popup.close(cx);
         }
     }
@@ -297,49 +283,3 @@ struct Query(String);
 fn search_name(words: &PickerWords, select: &Label) -> Label {
     if select.as_str().is_empty() { words.search.clone() } else { Label::from(format!("{} {}", select.as_str(), words.search.as_str())) }
 }
-
-/// The positions of the entries whose label holds `query` (lowercase), in order; every entry, separators included,
-/// while the query is empty.
-fn matching<T>(entries: &[Entry<T>], labels: &[Label], query: &str) -> Vec<usize> {
-    if query.is_empty() {
-        return (0..entries.len()).collect();
-    }
-    (0..entries.len()).filter(|&at| !entries[at].is_separator() && labels[at].as_str().to_lowercase().contains(query)).collect()
-}
-
-/// The entries that match the filter as a collection source, keyed by entry position: the entries are fixed while the
-/// list is open.
-struct Rows<'a, T> {
-    entries: &'a [Entry<T>],
-    labels: &'a [Label],
-    shown: &'a [usize],
-}
-
-impl<T> DisplayOrder<usize> for Rows<'_, T> {
-    fn len(&self) -> usize {
-        self.shown.len()
-    }
-
-    fn key(&self, at: usize) -> usize {
-        self.shown[at]
-    }
-
-    fn index_of(&self, key: &usize) -> Option<usize> {
-        self.shown.iter().position(|shown| shown == key)
-    }
-
-    fn is_section(&self, at: usize) -> bool {
-        self.entries[self.shown[at]].is_separator()
-    }
-
-    fn enabled(&self, at: usize) -> bool {
-        self.entries[self.shown[at]].is_enabled()
-    }
-
-    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
-        let key = self.shown[at];
-        (!self.entries[key].is_separator()).then(|| Cow::Borrowed(self.labels[key].as_str()))
-    }
-}
-
-impl<T> ItemSource<usize> for Rows<'_, T> {}
