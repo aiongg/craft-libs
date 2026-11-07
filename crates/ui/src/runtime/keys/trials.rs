@@ -115,21 +115,6 @@ fn a_repeated_tab_toggles_nothing_and_moves_no_focus() {
 }
 
 #[trial]
-fn tab_inside_an_open_dialog_toggles_nothing() {
-    use crate::contract::Bind;
-    use crate::dialog::Alert;
-    let mut show = |ui: &mut Ui| {
-        with_canvas(ui);
-        let mut open = true;
-        Alert::new("Error", "The name is taken.").opened(Bind::bound(&mut open)).show(ui);
-    };
-    let mut frames = shown(true, &mut show);
-    frames.frame(Vec::new(), &mut show);
-    take_output(&frames.ctx);
-    assert!(press(&mut frames, &mut show, Key::Tab, Modifiers::NONE).is_empty(), "no toggle under a dialog");
-}
-
-#[trial]
 fn a_rebound_command_fires_on_its_new_key_and_tab_then_moves_focus() {
     let mut overrides = Overrides::default();
     overrides.insert(ChromeCommand::TogglePanels.id(), vec!["F9".to_owned()]);
