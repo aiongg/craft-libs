@@ -2,7 +2,6 @@
 
 mod adorn;
 mod alt_text;
-mod apply;
 mod chips;
 mod completions;
 mod linked;
@@ -13,7 +12,6 @@ mod words;
 
 pub use adorn::{Adornment, Placed, place, reserve};
 pub use alt_text::{AltText, AltTextField, AltTextFieldStyle, AltTextWords};
-pub use apply::{ApplyRow, ApplyRowStyle};
 pub use chips::{ChipCodec, ChipField, ChipFieldStyle, ChipWords};
 pub use linked::{LinkMode, LinkedFields, LinkedFieldsStyle, LinkedLayout, LinkedOutput, LinkedWords, follow_equal, follow_ratio, link_toggle};
 pub use number::{NumberField, NumberOutput, NumberPick, NumberStyle};

@@ -11,9 +11,14 @@ use crate::contract::{
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx, TypeRole};
+use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
+use std::borrow::Cow;
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// How much weight a header carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -25,6 +30,8 @@ pub enum HeaderStrength {
     Strong,
     /// A section heading.
     Section,
+    /// A quiet heading: the caption role, faint, in capitals.
+    Caption,
 }
 
 /// What a title row's action parts ask the container to do.
@@ -70,6 +77,8 @@ enum Lead<'a> {
 
 const LEAD: PartKey = PartKey::new("lead");
 const ACTION: PartKey = PartKey::new("action");
+/// The title band: a click on it toggles a disclosure lead, and it carries the tooltip of an elided title.
+const TITLE: PartKey = PartKey::new("title");
 
 /// The style of a title row.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -77,12 +86,18 @@ const ACTION: PartKey = PartKey::new("action");
 pub struct TitleRowStyle {
     #[style(metrics)]
     metrics: Metrics,
-    role: TypeRole,
+    /// The title's type role and colour.
+    #[style(text)]
+    text: TextLook,
+    /// The icon before the title.
+    #[style(icon)]
+    icon: IconLook,
 }
 
 /// An optional icon, a title with an optional subtitle, a lead (a disclosure bound to the container's open state, or
 /// a check box bound to its gate) and action parts. A row too narrow for the title and subtitle together drops the
-/// subtitle before it elides the title.
+/// subtitle before it elides the title; an elided title shows whole in a tooltip. A click on the title band toggles a
+/// disclosure lead, as a click on the lead does.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct TitleRow<'a> {
     #[common]
@@ -97,9 +112,13 @@ pub struct TitleRow<'a> {
     /// Text after the title.
     #[prop(into)]
     subtitle: Option<Label>,
-    /// An icon before the title, painted in the row's ink unless the spec names another.
+    /// An icon before the title, painted in the style's icon colour unless the spec names another.
     #[prop]
     icon: Option<IconSpec<'a>>,
+    /// Whether the row takes the whole width offered, so its actions sit at the end edge; off, it is as wide as its
+    /// parts.
+    #[prop]
+    fill: bool,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
@@ -124,6 +143,7 @@ impl<'a> TitleRow<'a> {
             level: 2,
             subtitle: None,
             icon: None,
+            fill: true,
             lead: Lead::None,
             actions: Vec::new(),
             taken: None,
@@ -157,6 +177,11 @@ impl<'a> TitleRow<'a> {
         !matches!(self.lead, Lead::None)
     }
 
+    /// The title as it shows: a caption reads in capitals.
+    fn title_text<'t>(&self, label: &'t str) -> Cow<'t, str> {
+        if self.strength == HeaderStrength::Caption { Cow::Owned(label.to_uppercase()) } else { Cow::Borrowed(label) }
+    }
+
     /// Divides the room left between the lead and the actions: the icon, then the title, then the subtitle when
     /// both texts fit whole.
     fn place(&self, mut band: Flow, cx: &PartsCx<'_, Self>) -> Placed {
@@ -164,12 +189,13 @@ impl<'a> TitleRow<'a> {
         let mut icon = None;
         if self.icon.is_some() {
             let (slot, rest) = band.take_start(side);
+            let (_, rest) = rest.take_start(cx.gap());
             icon = Some(slot);
             band = rest;
         }
-        let role = cx.style.role;
+        let role = cx.style.text.role;
         let subtitle = self.subtitle.as_ref().and_then(|subtitle| {
-            let title = cx.layout_at(&TextRun::new(cx.resolved.label).role(role), f32::INFINITY).galley.size().x;
+            let title = cx.layout_at(&TextRun::new(self.title_text(cx.resolved.label)).role(role), f32::INFINITY).galley.size().x;
             let width = cx.layout_at(&subtitle_run(subtitle.as_str(), role), f32::INFINITY).galley.size().x;
             (title + cx.gap() + width <= band.rect().width()).then_some(title)
         });
@@ -190,25 +216,31 @@ impl Component for TitleRow<'_> {
     type Output = TitleOutput;
 
     fn style(cx: &StyleCx<'_>, key: TitleRowStyleKey) -> TitleRowStyle {
-        let (height, role) = match key.strength {
-            HeaderStrength::Normal => (cx.control().height, TypeRole::Label),
-            HeaderStrength::Strong => (cx.tokens.size.panel_header, TypeRole::Title),
-            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::Heading),
+        let text = &cx.tokens.color.text;
+        let (height, role, shade) = match key.strength {
+            HeaderStrength::Normal => (cx.control().height, TypeRole::Label, text.normal),
+            HeaderStrength::Strong => (cx.tokens.size.panel_header, TypeRole::Title, text.normal),
+            HeaderStrength::Section => (cx.tokens.size.panel_header, TypeRole::Heading, text.normal),
+            HeaderStrength::Caption => (cx.control().height, TypeRole::Caption, text.faint),
         };
-        TitleRowStyle { metrics: Metrics::new().min_size(Vec2::new(0.0, height)).gap(cx.control().gap), role }
+        let (shade, ink, disabled) = (cx.color(shade), cx.ink(Ink::OnPanel), cx.color(text.disabled));
+        TitleRowStyle {
+            metrics: Metrics::new().min_size(Vec2::new(0.0, height)).gap(cx.control().gap),
+            text: TextLook::new(role, Stateful::new(shade).off(States::new(shade, shade, shade, disabled))),
+            icon: IconLook::new(cx.control().icon, Stateful::new(ink).off(States::new(ink, ink, ink, disabled))),
+        }
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let role = cx.style.role;
-        let title = cx.layout(&TextRun::new(cx.resolved.label).role(role)).galley.size();
+        let role = cx.style.text.role;
+        let title = cx.layout(&TextRun::new(self.title_text(cx.resolved.label)).role(role)).galley.size();
         let subtitle = self.subtitle.as_ref().map(|subtitle| cx.layout(&subtitle_run(subtitle.as_str(), role)).galley.size().x);
         let parts = usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + self.actions.len();
         // The parts are square on the row's height, which the height token can raise above the text's.
         let side = title.y.max(cx.style.metrics.min_size.y);
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
         let natural = text + side * parts as f32 + cx.gap() * parts as f32;
-        // The row fills the width it is offered, so its actions sit at the end edge.
-        Vec2::new(natural.max(cx.room.unwrap_or(0.0)), title.y)
+        Vec2::new(if self.fill { natural.max(cx.room.unwrap_or(0.0)) } else { natural }, title.y)
     }
 
     fn sense(&self) -> Sense {
@@ -235,7 +267,16 @@ impl Component for TitleRow<'_> {
             cx.part(ACTION.at(at as u64), action).sense(Sense::CLICK | Sense::FOCUS).focusable();
         }
         cx.roving(Roving::new(NavShape::Flat));
-        self.placed = Some(self.place(flow, cx));
+        let band = flow.rect();
+        let placed = self.place(flow, cx);
+        let title = TextRun::new(self.title_text(cx.resolved.label)).role(cx.style.text.role).elide();
+        let elided = cx.layout_at(&title, placed.title.width()).elided;
+        let sense = if matches!(self.lead, Lead::Disclosure(_)) { Sense::CLICK } else { Sense::HOVER };
+        let part = cx.part(TITLE, band).sense(sense);
+        if elided {
+            part.tooltip(cx.resolved.label.to_owned());
+        }
+        self.placed = Some(placed);
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, bool>> {
@@ -248,7 +289,8 @@ impl Component for TitleRow<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         let hit = |cx: &Cx<'_, Self>, part: PartRef| cx.part(part).press.phase.is_click() || by_key == Some(part);
-        if self.has_lead() && hit(cx, LEAD.into()) {
+        let row_toggles = matches!(self.lead, Lead::Disclosure(_)) && cx.part(TITLE).press.phase.is_click();
+        if self.has_lead() && (hit(cx, LEAD.into()) || row_toggles) {
             let now = cx.value().copied().unwrap_or(false);
             cx.set(!now);
         }
@@ -276,11 +318,18 @@ impl Component for TitleRow<'_> {
             ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).label(label));
         }
         let Some(placed) = self.placed else { return };
-        let role = cx.style.role;
-        if let (Some(rect), Some(icon)) = (placed.icon, &self.icon) {
+        let role = cx.style.text.role;
+        if let (Some(rect), Some(icon)) = (placed.icon, &mut self.icon) {
+            if icon.color.is_none() {
+                icon.color = Some(cx.resolve(&cx.style.icon.color));
+            }
             ui.draw().icon(rect, icon);
         }
-        ui.draw().text(placed.title, &TextRun::new(cx.resolved.label).role(role).elide());
+        let mut title = TextRun::new(self.title_text(cx.resolved.label)).role(role).elide();
+        if self.strength == HeaderStrength::Caption {
+            title = title.color(cx.resolve(&cx.style.text.color));
+        }
+        ui.draw().text(placed.title, &title);
         if let (Some(rect), Some(subtitle)) = (placed.subtitle, &self.subtitle) {
             ui.draw().text(rect, &subtitle_run(subtitle.as_str(), role));
         }

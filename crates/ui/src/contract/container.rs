@@ -126,14 +126,19 @@ pub enum DragBand {
 pub struct HeaderRegion {
     /// What dragging the header does.
     pub band: DragBand,
-    /// Whether a rule separates the header from the body.
+    /// Whether a rule separates the header from the body. An inline header has no rule.
     pub rule: bool,
+    /// Whether the header shares a line with the body: the header at its measured width, the body in the rest.
+    pub inline: bool,
+    /// Whether the header has a trailing child region at its end edge, filled by `Container::controls`; the header
+    /// itself fills the room it leaves.
+    pub trailing: bool,
 }
 
 impl HeaderRegion {
-    /// A header with no drag band and no rule.
+    /// A header with no drag band, no rule, on its own line and with no trailing region.
     pub const fn new() -> Self {
-        HeaderRegion { band: DragBand::None, rule: false }
+        HeaderRegion { band: DragBand::None, rule: false, inline: false, trailing: false }
     }
 
     /// What dragging the header does.
@@ -145,6 +150,18 @@ impl HeaderRegion {
     /// Whether a rule separates the header from the body.
     pub const fn rule(mut self, on: bool) -> Self {
         self.rule = on;
+        self
+    }
+
+    /// Whether the header shares a line with the body.
+    pub const fn inline(mut self, on: bool) -> Self {
+        self.inline = on;
+        self
+    }
+
+    /// Whether the header has a trailing region for the container's controls.
+    pub const fn trailing(mut self, on: bool) -> Self {
+        self.trailing = on;
         self
     }
 }

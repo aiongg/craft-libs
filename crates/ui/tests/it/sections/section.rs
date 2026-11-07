@@ -1,4 +1,4 @@
-//! `Section` keeps its open state in the caller's binding or a saved slot and shows its body only while open; a
+//! `Section` keeps its open state in the caller's binding or a remembered slot and shows its body only while open; a
 //! `TitleRow` too narrow for both texts drops the subtitle.
 
 use craft_ui::choice::Checkbox;
@@ -27,7 +27,7 @@ fn a_section_shows_its_body_while_its_binding_is_open_and_the_disclosure_flips_t
     let (mut open, ran) = (true, Cell::new(false));
     let show = |ui: &mut Ui, open: &mut bool| {
         ran.set(false);
-        Section::new("Options", Bind::bound(open)).id_salt("section").show_at(ui, AREA, |_, _| ran.set(true));
+        Section::new("Options").open(Bind::bound(open)).id_salt("section").show_at(ui, AREA, |_, _| ran.set(true));
     };
     frames.idle(3, |ui| show(ui, &mut open));
     assert!(ran.get(), "an open section runs its body");
@@ -39,7 +39,7 @@ fn a_section_shows_its_body_while_its_binding_is_open_and_the_disclosure_flips_t
 }
 
 #[trial]
-fn a_saved_section_keeps_its_state_without_a_binding_and_a_fixed_section_is_always_open() {
+fn a_remembered_section_keeps_its_state_without_a_binding_and_a_fixed_section_is_always_open() {
     let mut frames = Frames::new();
     let ran = Cell::new(false);
     let show = |ui: &mut Ui, fixed: bool| {
@@ -47,12 +47,12 @@ fn a_saved_section_keeps_its_state_without_a_binding_and_a_fixed_section_is_alwa
         let section = if fixed {
             Section::fixed("Options")
         } else {
-            Section::saved("Options", craft_ui::contract::SaveKey::new("craft_ui_tests.section_open"))
+            Section::new("Options").remember(craft_ui::contract::SaveKey::new("craft_ui_tests.section_open"))
         };
         section.id_salt(("section", fixed)).show_at(ui, AREA, |_, _| ran.set(true));
     };
     frames.idle(3, |ui| show(ui, false));
-    assert!(ran.get(), "a saved section starts open");
+    assert!(ran.get(), "a remembered section starts open");
     click(&mut frames, disclosure(), &mut |ui| show(ui, false));
     frames.advance(COLLAPSE_SECONDS);
     frames.idle(2, |ui| show(ui, false));
@@ -83,7 +83,7 @@ fn escape_in_a_section_body_leaves_it_expanded() {
     let (mut open, ran, check) = (true, Cell::new(false), Cell::new(None));
     let show = |ui: &mut Ui, open: &mut bool| {
         ran.set(false);
-        Section::new("Options", Bind::bound(open)).id_salt("section").show_at(ui, AREA, |ui, _| {
+        Section::new("Options").open(Bind::bound(open)).id_salt("section").show_at(ui, AREA, |ui, _| {
             ran.set(true);
             check.set(Some(Checkbox::new(Bind::given(false)).label("Snap").show(ui).response.id));
         });

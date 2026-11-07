@@ -1,5 +1,5 @@
 //! `Section` (16.5): an inline container whose header is a `TitleRow` with a disclosure bound to the container's
-//! open state. The body shows while the section is open.
+//! open state, and an optional trailing region for the app's controls. The body shows while the section is open.
 
 use super::group_box::SECTION_LEVEL;
 use super::title_row::{HeaderAction, HeaderStrength, TitleRow};
@@ -12,6 +12,9 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Ui};
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The style of a section: no surface or padding of its own; the header and body carry the look.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -21,7 +24,7 @@ pub struct SectionStyle {
 }
 
 /// What a section reports: its response and the header action taken this pass. The open state is the caller's
-/// binding, or the saved slot.
+/// binding, or the container's own memory (saved across runs under `remember`).
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct SectionOutput {
@@ -39,8 +42,12 @@ impl Outcome for SectionOutput {
     }
 }
 
+/// The closure that fills a section's trailing header region.
+type Controls<'a> = Box<dyn FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a>;
+
 /// An inline section of a panel: a section-strength title row over a body, separated by a rule. The open state is
-/// the caller's binding, or a slot saved under a key, or fixed open.
+/// the container's own (it starts open), the caller's binding, or remembered across runs under a key; a fixed
+/// section is always open and shows the title alone.
 #[derive(crate::contract::Component)]
 #[component(container)]
 pub struct Section<'a> {
@@ -50,37 +57,79 @@ pub struct Section<'a> {
     props: ContainerProps,
     open: Option<Bind<'a, bool>>,
     collapsible: bool,
+    strength: HeaderStrength,
     actions: Vec<HeaderAction>,
+    controls: Option<Controls<'a>>,
     taken: Option<HeaderAction>,
 }
 
 impl<'a> Section<'a> {
-    /// A section titled `title` whose open state is `open`.
-    pub fn new(title: impl Into<Label>, open: Bind<'a, bool>) -> Self {
-        Section::build(title, Some(open), true, ContainerProps::new().collapse(Collapse::new()))
-    }
-
-    /// A section that keeps its open state in the slot `key`, saved across runs. It starts open.
-    pub fn saved(title: impl Into<Label>, key: SaveKey) -> Self {
-        Section::build(title, None, true, ContainerProps::new().collapse(Collapse::new()).save(key))
+    /// A collapsible section titled `title`. It starts open.
+    pub fn new(title: impl Into<Label>) -> Self {
+        Section::build(title, true, ContainerProps::new().collapse(Collapse::new()))
     }
 
     /// A section that is always open: the title alone, with no disclosure.
     pub fn fixed(title: impl Into<Label>) -> Self {
-        Section::build(title, None, false, ContainerProps::new())
+        Section::build(title, false, ContainerProps::new())
     }
 
-    fn build(title: impl Into<Label>, open: Option<Bind<'a, bool>>, collapsible: bool, props: ContainerProps) -> Self {
+    fn build(title: impl Into<Label>, collapsible: bool, props: ContainerProps) -> Self {
         let props = props.header(HeaderRegion::new().rule(true));
-        Section { common: Common::new(), props, open, collapsible, actions: Vec::new(), taken: None }.label(title)
+        Section {
+            common: Common::new(),
+            props,
+            open: None,
+            collapsible,
+            strength: HeaderStrength::Section,
+            actions: Vec::new(),
+            controls: None,
+            taken: None,
+        }
+        .label(title)
+    }
+
+    /// Binds the open state to `open`.
+    #[must_use]
+    pub fn open(mut self, open: Bind<'a, bool>) -> Self {
+        self.open = Some(open);
+        self
+    }
+
+    /// Keeps the open state across runs in the slot `key`.
+    #[must_use]
+    pub fn remember(mut self, key: SaveKey) -> Self {
+        self.props = self.props.save(key);
+        self
+    }
+
+    /// The header's weight: `Section` by default, `Caption` for a quiet heading.
+    #[must_use]
+    pub fn strength(mut self, strength: HeaderStrength) -> Self {
+        self.strength = strength;
+        self
     }
 
     /// Whether dragging the header reorders the section among its siblings.
     #[must_use]
     pub fn reorder(mut self, on: bool) -> Self {
         let band = if on { DragBand::Reorder } else { DragBand::None };
-        self.props = self.props.header(HeaderRegion::new().rule(true).band(band));
+        self.update_header(|header| header.band(band));
         self
+    }
+
+    /// Fills the trailing region of the header with the app's controls (a Segmented, a Select, an icon button, count
+    /// text). They sit at the end edge, after the title row and its fixed actions, and take their own clicks.
+    #[must_use]
+    pub fn controls(mut self, controls: impl FnOnce(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        self.update_header(|header| header.trailing(true));
+        self.controls = Some(Box::new(controls));
+        self
+    }
+
+    fn update_header(&mut self, change: impl FnOnce(HeaderRegion) -> HeaderRegion) {
+        let header = change(self.props.header.unwrap_or_default());
+        self.props = self.props.header(header);
     }
 
     /// The action parts at the end of the header, in reading order.
@@ -114,8 +163,14 @@ impl Container for Section<'_> {
         self.open.as_mut().map(Bind::reborrow)
     }
 
+    fn controls(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        if let Some(controls) = self.controls.take() {
+            controls(ui, cx);
+        }
+    }
+
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        let row = TitleRow::new(cx.label()).strength(HeaderStrength::Section).level(SECTION_LEVEL).actions(self.actions.iter().copied());
+        let row = TitleRow::new(cx.label()).strength(self.strength).level(SECTION_LEVEL).actions(self.actions.iter().copied());
         let row = if self.collapsible { row.disclosure(Bind::bound(cx.open())) } else { row };
         if let Some(action) = row.show(ui).action {
             self.taken = Some(action);

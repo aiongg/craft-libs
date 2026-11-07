@@ -1,5 +1,6 @@
 //! `TitleRow`: lead and action parts wear faces, report a value and an action, and form one roving stop.
 
+mod header;
 mod section;
 
 use crate::contract::kit::PlainStyle;
