@@ -1,4 +1,4 @@
-use super::kit::{AppCommand, Dock, DockCommand, Field, PANE, PaneCommand, Tap};
+use super::kit::{AppCommand, Dock, DockCommand, Field, Opens, PANE, PaneCommand, Tap};
 use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{
     CommandGate, CommandInput, CommandKind, CommandRef, CommandState, Commands as _, EditCommands, FirePhase, FireSource, Fired, fire, resolve,
@@ -379,6 +379,22 @@ fn a_context_request_is_recorded_for_the_component() {
     focus_on(&mut frames, tap.get().unwrap(), &mut show);
     frames.frame(vec![key_press(Key::F10, Modifiers::SHIFT)], &mut show);
     assert!(seen.get(), "Shift+F10 on a component that does not take it asks for a context menu");
+}
+
+/// 9.2 rule 3: the context request exists when the component's overlay step runs.
+#[trial]
+fn a_context_request_is_there_for_the_components_own_overlay_step() {
+    let seen = Cell::new(false);
+    let at = Cell::new(Pos2::ZERO);
+    let mut show = |ui: &mut Ui| {
+        at.set(Opens::new(&seen, ui.ctx().clone()).id_salt("o").show(ui).rect.center());
+    };
+    let mut frames = Frames::new();
+    frames.idle(3, &mut show);
+    frames.frame(vec![moved(at.get())], &mut show);
+    frames.frame(vec![craft_ui::testing::pointer::secondary(at.get(), true)], &mut show);
+    frames.frame(vec![craft_ui::testing::pointer::secondary(at.get(), false)], &mut show);
+    assert!(seen.get(), "the overlay step reads the request of its own pass");
 }
 
 /// 11.3: a momentary command fires on the press and again on the release.

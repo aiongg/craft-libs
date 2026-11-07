@@ -412,6 +412,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     overlay::begin_owner(&ctx, id);
     comp.update(cx);
     p.hooks.updated(comp, cx);
+    steps::record_context(&cx.core);
     if let (Some(roving), Some(arrival)) = (p.hooks.roving(comp), cx.core.roving_arrival) {
         focus::register_group(&ctx, focus::Group::new(steps::body_group(id), roving).rtl(rtl).selected(arrival));
     }

@@ -654,15 +654,20 @@ pub(crate) fn register_reset<C: Component>(comp: &mut C, cx: &Cx<'_, C>) {
     scope::register_reset(&cx.core.ctx, cx.core.id, differs);
 }
 
-/// Writes back what the component left untaken, and its state-dependent claims for the next frames.
-pub(crate) fn after_update(core: &mut CxCore<'_>) {
-    keys::settle(&core.ctx, Some(core.id), &core.intents);
+/// Step 9, after `update`: a secondary release on the component, or a `ContextMenu` intent it did not take, records a
+/// context request that the overlay step and the popups shown after it read in this pass (9.2 rule 3).
+pub(crate) fn record_context(core: &CxCore<'_>) {
     if core.intents.untaken(&Intent::ContextMenu)
         || (core.response.hovered() && crate::runtime::pointer::frame(&core.ctx).release == Some(craft_behavior::PointerButton::Secondary))
     {
         let part = focus::active_part(&core.ctx, core.id).and_then(|part| core.results.get(&(part.key, part.index)));
         keys::request_context(&core.ctx, core.id, part.map_or(core.rect, |part| part.rect));
     }
+}
+
+/// Writes back what the component left untaken, and its state-dependent claims for the next frames.
+pub(crate) fn after_update(core: &mut CxCore<'_>) {
+    keys::settle(&core.ctx, Some(core.id), &core.intents);
     for chord in std::mem::take(&mut core.claims) {
         keys::claim(&core.ctx, core.id, chord);
     }
