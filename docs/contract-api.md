@@ -2439,6 +2439,7 @@ The toast queue: one per viewport, filled from any code with a `Context`.
   - `pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId>`. The window under the desktop point `at`: the focused one where windows overlap, else the smallest.
   - `pub fn frame(&self) -> Frame`. Who draws the running viewport's frame, and the caption buttons it shows.
   - `pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2>`. The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
+  - `pub fn caption_regions(&self, viewport: ViewportId) -> Option<CaptionRegions>`. The caption regions the title bar of `viewport` published in the running pass or the one before; `None`
 - `craft_ui::runtime::windows::act`: `pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool`. Sends `action` to `viewport`. It is the only sender of window commands: it checks the capabilities and the
 
 ## `craft_ui::runtime::words`
