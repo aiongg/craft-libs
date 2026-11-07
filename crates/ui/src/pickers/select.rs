@@ -9,7 +9,7 @@ use super::face::{SelectFace, toggle_on_key};
 use super::rows::EntryRows;
 use super::words::PickerWords;
 use crate::buttons::IconButton;
-use crate::contract::overlay::Popup;
+use crate::contract::overlay::{Popup, Trigger};
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadSource, MeasureCx,
     Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _, ShowCollection as _,
@@ -228,7 +228,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         if more.clicked() {
                             Popup::toggle(more.id, cx);
                         }
-                        Menu::new(words.header_menu.clone()).opened_by(&more).show(ui, |ui, menu| (rows.0)(ui, menu));
+                        Menu::new(words.header_menu.clone()).opened_by(&more, Trigger::Manual).show(ui, |ui, menu| (rows.0)(ui, menu));
                     }
                 });
             }

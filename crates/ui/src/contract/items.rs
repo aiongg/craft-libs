@@ -1025,7 +1025,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         } else {
             Vec::new()
         };
-        let on = self.flip_toggle(cx, row, column.clone(), toggle);
+        let Some(on) = self.flip_toggle(cx, row, column.clone(), toggle) else { return };
         for at in others {
             if self.source.enabled(at)
                 && !self.source.is_section(at)

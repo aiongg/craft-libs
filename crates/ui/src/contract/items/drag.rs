@@ -150,8 +150,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// exclusive column, turning a cell on turns the column's other cells off. A cell that is not open to toggling
     /// does nothing and starts no sweep.
     pub(super) fn begin_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: ColumnKey, toggle: ToggleColumn) {
+        let Some(on) = self.flip_toggle(cx, at, column.clone(), toggle) else { return };
+        if toggle.sweepable {
+            self.drags.sweep = Some(Sweep { column, on, crossed: vec![at] });
+        }
+    }
+
+    /// Flips the toggle cell of row `at` in `column` and returns its new value. On an exclusive column, turning a
+    /// cell on turns the column's other cells off. `None` when the cell is not open to toggling.
+    pub(super) fn flip_toggle(&mut self, cx: &mut Cx<'_, C>, at: usize, column: ColumnKey, toggle: ToggleColumn) -> Option<bool> {
         if !self.toggle_open(at, &column) {
-            return;
+            return None;
         }
         let on = !self.source.toggled(at, &column);
         self.emit_toggle(cx, at, &column, on);
@@ -160,9 +169,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 self.emit_toggle(cx, other, &column, false);
             }
         }
-        if toggle.sweepable {
-            self.drags.sweep = Some(Sweep { column, on, crossed: vec![at] });
-        }
+        Some(on)
     }
 
     fn sweep_to(&mut self, cx: &mut Cx<'_, C>, layout: &C::ItemLayout, rect: Rect, offset: ScrollPos, rtl: bool, pos: Pos2) {

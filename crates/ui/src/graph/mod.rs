@@ -78,7 +78,7 @@ impl<'a, E: 'static> NodeGraph<'a, E> {
     pub fn new(positions: &'a [Rect], kinds: &'a [&'a dyn NodeKind<E>], wires: &'a [Wire]) -> Self {
         let zoom = CanvasTransform::new(1.0, Vec2::ZERO);
         let props = ContainerProps::new().surface(SurfaceKind::Sunken).arena(true).sizing(Sizing::Fill);
-        let items = CollectionProps::default().select(SelectMode::Multi);
+        let items = CollectionProps::new().select(SelectMode::Multi);
         NodeGraph { common: Common::new(), props, items, wires, kinds, positions, selection: None, zoom }
     }
 

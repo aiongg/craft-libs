@@ -85,7 +85,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
     /// unless the lead moves alone (Ctrl) and extends from the anchor cell with Shift.
     pub(super) fn cell_move(&mut self, layout: &C::ItemLayout, row: usize, column: usize, mods: MoveMods) {
         if self.lead.key.as_ref() != Some(&self.source.key(row)) {
-            self.move_lead(row);
+            self.move_lead(row, super::LeadSource::Keys);
         }
         self.lead.column = column;
         if !mods.extend {

@@ -7,7 +7,7 @@ use craft_ui::buttons::Button;
 use craft_ui::contract::overlay::{Dismiss, Outside, Popup};
 use craft_ui::contract::{
     Access, Common, Component, Cx, MeasureCx, Name, Overlay, OverlayUi, Overlays as _, PartsCx, Pointer as _, Props as _, Role, Show as _,
-    ShowContainer as _,
+    ShowContainer as _, Trigger,
 };
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::commands::{FireSource, Fired};
@@ -152,7 +152,7 @@ fn a_menu_with_no_binding_opens_from_its_opener_and_closes_on_escape() {
     let mut show = |ui: &mut Ui| {
         let opener = Button::new("File").show_at(ui, TITLES);
         shown.set(false);
-        Menu::new("File").opened_by(&opener).show(ui, |ui, _| {
+        Menu::new("File").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             shown.set(true);
             MenuItem::new("New").show(ui);
         });
@@ -214,7 +214,7 @@ fn click_a_row(keep: bool) -> (u32, bool) {
     let mut show = |ui: &mut Ui| {
         let opener = Button::new("Open").show_at(ui, TITLES);
         shown.set(false);
-        Menu::new("Rows").opened_by(&opener).show(ui, |ui, _| {
+        Menu::new("Rows").opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             shown.set(true);
             KeepRow { common: Common::new(), keep, ran: &ran }.id_salt("row").show(ui);
         });
