@@ -79,6 +79,36 @@
       }
     },
     {
+      "name": "table-1000x5",
+      "description": "a table of 1,000 rows and 5 columns",
+      "no_discard": false,
+      "equivalent": "a Table of 1,000 rows and 5 columns, text in every cell",
+      "no_equivalent_reason": null,
+      "measurement": {
+        "frame_ms_median": 0.442,
+        "frame_ms_p95": 0.536,
+        "allocations_median": 3249.0,
+        "bytes_median": 440999.0,
+        "discard_passes_per_frame": 0.0,
+        "frames_with_discard": 0
+      }
+    },
+    {
+      "name": "tile-grid-500",
+      "description": "a tile grid of 500 tiles",
+      "no_discard": false,
+      "equivalent": "a TileGrid of 500 Tiles",
+      "no_equivalent_reason": null,
+      "measurement": {
+        "frame_ms_median": 2.775,
+        "frame_ms_p95": 3.113,
+        "allocations_median": 16427.0,
+        "bytes_median": 2614964.0,
+        "discard_passes_per_frame": 0.0,
+        "frames_with_discard": 0
+      }
+    },
+    {
       "name": "text-field-100kb",
       "description": "a 100 KB multi-line text field, bound",
       "no_discard": false,
