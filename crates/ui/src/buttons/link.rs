@@ -72,7 +72,7 @@ impl Component for Link {
         if let Some(url) = &self.url
             && (cx.activation().is_some() || middle_click)
         {
-            cx.open_link(url, middle_click);
+            cx.open_url(url, middle_click);
         }
         if cx.hit() {
             cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);

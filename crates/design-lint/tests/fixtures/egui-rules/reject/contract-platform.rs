@@ -6,3 +6,7 @@ fn f(ctx: &Context) {
     ctx.copy_text(text);
     ctx.open_url(url);
 }
+
+fn g(ui: &Ui) {
+    ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+}

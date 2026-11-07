@@ -65,7 +65,7 @@ reason = "document-space drawing"
 | `contract/pointer` | drag and click queries, `interact_pointer_pos`, `press_origin`, `dragged_id` |
 | `contract/motion` | `animate_*`, `request_repaint_after`, `animation_time`, reduced-motion reads; `Instant::now` and `SystemTime::now` (`contract/motion:clock`) |
 | `contract/containers` | egui panels, `Window`, `CollapsingHeader`, `Resize`, `TableBuilder`, `show_rows`, `show_viewport`; `ScrollArea` in every file |
-| `contract/platform` | `cfg(target_os ..)`, wasm `cfg` and `cfg!` (`contract/platform:target`); `copy_text`, `open_url` |
+| `contract/platform` | `cfg(target_os ..)`, wasm `cfg` and `cfg!` (`contract/platform:target`); `copy_text`; `ctx.open_url` and `egui::OpenUrl` by path, so `Cx::open_url` is not flagged |
 | `test/layout`, `test/kit`, `test/harness`, `test/cfg-test`, `test/literal-size`, `test/ignored` | integration tests outside `tests/it/` in an egui-linked crate; `egui_kittest` outside the kit; `#[test]` in a `harness = false` target; `#[cfg(test)]` modules in an egui-linked crate; float literals asserted in a test that shows a component or reads tokens (not in layer 0 or 1); `#[ignore]`d tests. They read test code, so the config sets `include-tests` |
 | `api/non-exhaustive` | `pub` enums, struct-like variants and structs with `pub` fields without `#[non_exhaustive]`, unless on the scope's closed list; private modules, `#[doc(hidden)]` items and test code are not public API |
 | `behavior/pipeline-only` | in layers 5 to 7, a `use` of the behaviours the pipeline runs: `PressMachine` and the other press-lifecycle types, `Gesture`, the focus-scope builders, `TypingRun`. Allowed in `craft_ui::{contract, primitives, edit}` |
