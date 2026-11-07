@@ -1,8 +1,12 @@
 //! The chip field's draft rules and the alt text flag rule.
 
 use craft_behavior::Codec as _;
-use craft_ui::testing::trial;
-use craft_ui::text::{AltText, ChipCodec};
+use craft_ui::contract::{Bind, Show as _};
+use craft_ui::testing::{Fixture, trial};
+use craft_ui::text::{AltText, AltTextField, ChipCodec, ChipField};
+use egui::{Key, Modifiers};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 fn chips(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| (*item).to_owned()).collect()
@@ -37,4 +41,54 @@ fn decorative_starts_checked_only_when_every_object_is() {
     assert!(!AltText::starts_decorative([false]));
     assert!(AltText::starts_decorative([true]));
     assert!(AltText::starts_decorative([true, true, true]));
+}
+
+/// Typing a comma commits the draft as a chip, empties the draft, and the comma is in no chip.
+#[trial]
+fn typing_a_comma_adds_the_chip_and_empties_the_draft() {
+    let value = Rc::new(RefCell::new(Vec::<String>::new()));
+    let shown = value.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        ChipField::new("Keywords", Bind::bound(&mut *shown.borrow_mut())).show(ui);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("red,");
+    fixture.idle(3);
+    assert_eq!(*value.borrow(), chips(&["red"]), "the comma ended the chip and is not part of it");
+    assert!(fixture.by_label("Keywords").is_some());
+    assert!(fixture.texts().iter().all(|run| !run.text.contains("red,")), "the draft shows no separator");
+    fixture.type_text("blue;");
+    fixture.idle(3);
+    assert_eq!(*value.borrow(), chips(&["red", "blue"]), "a semicolon also commits");
+}
+
+/// Marking the alt text decorative keeps its text visible, disabled and out of the Tab order; unmarking makes it
+/// editable again with the same text.
+#[trial]
+fn decorative_alt_text_stays_visible_and_is_not_a_tab_stop() {
+    let value = Rc::new(RefCell::new(AltText::new("A red kite")));
+    let id = Rc::new(Cell::new(egui::Id::NULL));
+    let (shown, field) = (value.clone(), id.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        field.set(AltTextField::new("Describe", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
+    });
+    fixture.settle();
+    let text_id = craft_ui::testing::text::widget_id(id.get(), craft_behavior::PartKey::new("text"));
+    let disabled = |fixture: &Fixture| fixture.tree().is_disabled(text_id);
+    assert!(!disabled(&fixture), "the description is editable at first");
+    let check = fixture.by_label("Mark as decorative").expect("the check is shown");
+    fixture.click(&check);
+    fixture.idle(3);
+    assert!(value.borrow().decorative);
+    assert!(disabled(&fixture), "a decorative object's text is disabled");
+    assert!(fixture.texts().iter().any(|run| run.text.contains("A red kite")), "its text stays visible");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    let widget = craft_ui::testing::text::widget_id(id.get(), craft_behavior::PartKey::new("text"));
+    assert_ne!(fixture.focused(), Some(widget), "the disabled text takes no Tab stop");
+    fixture.click(&check);
+    fixture.idle(3);
+    assert!(!value.borrow().decorative);
+    assert!(!disabled(&fixture), "unchecking makes the text editable");
+    assert_eq!(value.borrow().text, "A red kite", "the text was kept");
 }

@@ -120,6 +120,11 @@ impl AccessTree {
         Some(Numeric { value: node.numeric_value(), range, step: node.numeric_value_step(), text: node.value().map(str::to_owned) })
     }
 
+    /// Whether the node of `id` is reported as disabled.
+    pub fn is_disabled(&self, id: Id) -> bool {
+        self.node(id).is_some_and(Node::is_disabled)
+    }
+
     /// Whether the node of `id` declares `action`.
     pub fn declares(&self, id: Id, action: Declared) -> bool {
         self.node(id).is_some_and(|node| node.supports_action(action.action()))

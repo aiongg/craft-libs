@@ -9,7 +9,7 @@ use crate::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     WordSetCx as _,
 };
-use crate::primitives::{Span, TextOptions, TextRun, Wrap};
+use crate::primitives::{TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
 use craft_behavior::{Codec, Metrics, NotAValue, PartKey, PartRef, Proposal, Sense};
@@ -21,8 +21,6 @@ const LINES: usize = 4;
 
 /// The check that marks the object decorative.
 const DECORATIVE: PartKey = PartKey::new("decorative");
-/// The description box while it is not an editable text part: decorative or mixed.
-const BOX: PartKey = PartKey::new("box");
 
 craft_ui::words! {
     /// The words of the alt text field.
@@ -154,23 +152,20 @@ impl Component for AltTextField<'_> {
         Vec2::new(width, text + cx.gap() + check.y)
     }
 
-    /// The description box (a text part, unless the object is decorative or the descriptions are mixed) and the check.
+    /// The description box (a text part, disabled while the object is decorative, showing the mixed word as its
+    /// placeholder while the descriptions differ) and the check.
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         let content = cx.content_rect;
         let (text, check) = sizes(cx);
         let words = cx.words::<AltTextWords>();
         let area = Rect::from_min_size(content.min, vec2(content.width(), text));
         let check_at = Rect::from_min_size(pos2(content.min.x, area.max.y + cx.gap()), vec2(content.width(), check.y));
+        let mixed = AltText::default();
+        let value = cx.value().unwrap_or(&mixed);
+        let placeholder = if cx.value().is_some() { words.alt_text.clone() } else { words.mixed.clone() };
+        let options = TextOptions { lines: Some(LINES), placeholder: Some(placeholder), enabled: !value.decorative, ..TextOptions::default() };
+        cx.text(text_part::<AltText>(), area, &AltCodec, value, &options);
         cx.part(DECORATIVE, check_at).sense(Sense::CLICK | Sense::FOCUS).focusable();
-        match cx.value() {
-            Some(value) if !value.decorative => {
-                let options = TextOptions { lines: Some(LINES), placeholder: Some(words.alt_text.clone()), ..TextOptions::default() };
-                cx.text(text_part::<AltText>(), area, &AltCodec, value, &options);
-            }
-            _ => {
-                cx.part(BOX, area).sense(Sense::HOVER);
-            }
-        }
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, AltText>> {
@@ -190,10 +185,6 @@ impl Component for AltTextField<'_> {
         let words = cx.words::<AltTextWords>();
         let value = cx.value();
         ui.face(DECORATIVE, check_face(value.is_some_and(|value| value.decorative), &words));
-        if let Some(area) = cx.part_if_declared(BOX).map(|part| part.rect) {
-            let text = value.map_or_else(|| words.mixed.as_str(), |value| value.text.as_str());
-            ui.draw().text(area, &TextRun::spans(vec![Span::new(text).muted()]).wrap(Wrap::Wrap));
-        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<AltText> {

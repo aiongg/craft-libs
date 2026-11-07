@@ -117,7 +117,7 @@ pub struct ChipField<'a> {
 impl<'a> ChipField<'a> {
     /// A chip field named `label` over `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Vec<String>>) -> Self {
-        let options = TextOptions { clear_on_escape: true, ..TextOptions::default() };
+        let options = TextOptions { clear_on_escape: true, commit_on: &[',', ';'], ..TextOptions::default() };
         ChipField { common: Common::new(), value, options, placeholder: None }.label(label)
     }
 }
@@ -262,7 +262,7 @@ impl Component for ChipField<'_> {
             cx.memory::<Armed>().0 = false;
         }
         let delete = || Intent::delete(false, Granularity::Unit);
-        let mut removed = (0..chips.len()).find(|&at| cx.part(REMOVE.at(at as u64)).press.phase.is_click());
+        let mut removed = (0..chips.len()).find(|&at| cx.part_if_declared(REMOVE.at(at as u64)).is_some_and(|part| part.press.phase.is_click()));
         if removed.is_none() {
             if let Some(at) = on_chip {
                 if cx.intents().take(delete()) {
@@ -286,7 +286,7 @@ impl Component for ChipField<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(chips) = cx.value() else { return };
         let armed = cx.recall::<Armed>().0;
-        for (at, chip) in chips.iter().enumerate() {
+        for (at, chip) in chips.iter().enumerate().filter(|(at, _)| cx.part_if_declared(CHIP.at(*at as u64)).is_some()) {
             let variant = if armed && at + 1 == chips.len() { Variant::PRIMARY } else { Variant::SECONDARY };
             ui.face(CHIP.at(at as u64), Badge::new(chip.clone()).variant(variant));
         }
@@ -295,7 +295,7 @@ impl Component for ChipField<'_> {
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let Some(chips) = cx.value() else { return };
         let words = cx.words::<ChipWords>();
-        for (at, chip) in chips.iter().enumerate() {
+        for (at, chip) in chips.iter().enumerate().filter(|(at, _)| cx.part_if_declared(REMOVE.at(*at as u64)).is_some()) {
             let name = words.remove.fill(&[("name", chip.as_str())]);
             ui.face(REMOVE.at(at as u64), IconButton::new(IconId::new("close")).label(name).focusable(false));
         }

@@ -1,7 +1,7 @@
 //! `TextField`: a click on a completion candidate picks it without moving focus, and the search form's clear part
 //! empties the text.
 
-use craft_behavior::PartKey;
+use craft_behavior::{EditEvent, Mixed, PartKey};
 use craft_ui::contract::{Bind, Show as _};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::testing::{Fixture, trial};
@@ -60,4 +60,23 @@ fn the_clear_part_empties_a_search_field() {
     fixture.idle(3);
     assert_eq!(*text.borrow(), "", "the clear part emptied the text");
     assert!(fixture.part(id.get(), CLEAR).is_none(), "an empty search field shows no clear part");
+}
+
+/// Typing into a mixed field and pressing Enter commits the typed text over the mixed value, as one edit.
+#[trial]
+fn typing_into_a_mixed_field_commits_over_the_mixed_value() {
+    let value = Rc::new(RefCell::new(Mixed::<String>::Mixed));
+    let sets = Rc::new(Cell::new(0));
+    let (shown, counted) = (value.clone(), sets.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let out = TextField::new("Name", Bind::bound_mixed(&mut *shown.borrow_mut())).show(ui);
+        counted.set(counted.get() + usize::from(matches!(out.event, Some(EditEvent::Set { .. } | EditEvent::Commit { .. }))));
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("abc");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    assert_eq!(*value.borrow(), Mixed::Same("abc".to_owned()), "the typed text replaced the mixed value");
+    assert_eq!(sets.get(), 1, "the commit reached the app as one edit");
 }

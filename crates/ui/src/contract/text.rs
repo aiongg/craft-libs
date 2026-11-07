@@ -2,7 +2,7 @@
 //! text adapter, then the typing run over what the adapter recorded, and applies the run's events through `Cx`.
 
 use super::cx::{Cx, PartsCx, gesture_key};
-use super::{Component, Edit as _, Overlays as _, ValueOf};
+use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
 use crate::runtime::access::text as text_access;
@@ -52,14 +52,17 @@ struct Resolved<V> {
     escaped: bool,
 }
 
-/// The typing run over the state the adapter recorded this pass, the value shown and whether a commit is due.
-type Resolve<V> = Box<dyn FnOnce(&mut TextState, &V, bool) -> Resolved<V>>;
+/// The typing run over the state the adapter recorded this pass, the component's value (`None` while mixed) and
+/// whether a commit is due.
+type Resolve<V> = Box<dyn FnOnce(&mut TextState, Option<&V>, bool) -> Resolved<V>>;
 
 /// Turns what the adapter recorded this pass into the typing run's events: a parsed draft applies in the pass it
-/// is typed, and a commit proposes and commits in one pass.
-fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: Rect) -> Resolve<K::Value> {
+/// is typed, and a commit proposes and commits in one pass. `fallback` is the value the part shows, the run's start
+/// while the component's value is mixed.
+fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: Rect, fallback: K::Value) -> Resolve<K::Value> {
     let (live, limit, clear_on_escape) = (options.live, options.limit, options.clear_on_escape);
     Box::new(move |state, value, commit_now| {
+        let value = value.unwrap_or(&fallback);
         let mut typing = TypingRun::new(codec).live(live);
         if let Some(limit) = limit {
             typing = typing.limit(limit);
@@ -97,14 +100,14 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
                     _ => {}
                 }
             }
-            Some(End::Submit) => match typing.commit(&mut run) {
+            Some(end @ (End::Submit | End::Separator)) => match typing.commit(&mut run) {
                 Ended::Commit(committed) => {
                     state.normalised = Some(typing.codec().normalise(&draft_text, &committed));
                     events.push(TextEvent::Commit(committed));
-                    submitted = true;
+                    submitted = end == End::Submit;
                 }
                 Ended::Rejected => {}
-                Ended::Idle => submitted = true,
+                Ended::Idle => submitted = end == End::Submit,
                 _ => {}
             },
             Some(End::Blur) => match typing.commit(&mut run) {
@@ -141,7 +144,7 @@ impl<C: Component> PartsCx<'_, C> {
             caret: codec.caret_on_focus(&shown),
             shown,
             options: options.clone(),
-            resolve: Box::new(resolver(codec.clone(), options, rect)),
+            resolve: Box::new(resolver(codec.clone(), options, rect, value.clone())),
         });
     }
 }
@@ -247,8 +250,9 @@ pub(crate) fn run<C: Component>(
     let was_focused = state.focused;
     let now = cx.now();
     let caret_visible = !focused || cx.blink(state.caret_moved);
-    let enabled = cx.core.resolved.enabled;
+    let enabled = cx.core.resolved.enabled && decl.options.enabled;
     let read_only = cx.core.resolved.read_only || !enabled;
+    let ink = if decl.options.enabled { ink } else { crate::style::rgba_color(crate::runtime::env::Env::of(ui).tokens.color.text.disabled) };
     serve_access(cx, &mut state, widget, &decl.shown, read_only);
     cx.core.surface_slot = Some(ui.painter().add(egui::Shape::Noop));
     let out = adapter::run(
@@ -274,7 +278,13 @@ pub(crate) fn run<C: Component>(
             now,
         },
     );
-    if out.focused && !was_focused {
+    // Focus that moved to another part of the component leaves the text part like a focus loss: the draft commits.
+    let left_for_part = out.focused && cx.active_part().is_some();
+    if left_for_part {
+        state.focused = false;
+    }
+    let commit_now = step.commit_now || (was_focused && left_for_part);
+    if out.focused && !left_for_part && !was_focused {
         let len = decl.shown.chars().count();
         match decl.caret {
             Caret::All => adapter::select(&ctx, widget, 0, len),
@@ -284,11 +294,7 @@ pub(crate) fn run<C: Component>(
     if decl.options.complete.is_some() {
         drive_completions(cx, state.completions.open);
     }
-    let Some(resolved) = cx.value().map(|value| resolve(&mut state, value, step.commit_now)) else {
-        // A value that went away since `parts` leaves the run as it was.
-        *cx.core.memory.shown::<TextState>(state_id) = state;
-        return;
-    };
+    let resolved = resolve(&mut state, cx.value(), commit_now);
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
     if state.draft.is_some() {
