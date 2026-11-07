@@ -6,10 +6,11 @@ use super::marquee::MarqueeDrag;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
 use crate::contract::reorder;
 use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
+use crate::runtime::env::Env;
 use crate::runtime::env::Label;
 use craft_behavior::{
-    Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, PointerButton, PressCancel, PressPhase,
-    ScrollPos, SelectionModel,
+    Axis, CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, Outline, PointerButton, PressCancel,
+    PressPhase, ScrollPos, SelectionModel,
 };
 use egui::{Pos2, Rect, Vec2};
 
@@ -47,6 +48,8 @@ impl<K> Default for Drags<K> {
 struct Spot {
     over: usize,
     insert: usize,
+    /// The group row the items land in, in a tree whose reorder rule has `into_groups`; `None` at the top level.
+    parent: Option<usize>,
     mark: DropMark,
 }
 
@@ -203,7 +206,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         self.events.push(CollectionEvent::Move(EditEvent::update(gesture, pos - origin)));
     }
 
-    fn begin_row_drag(&mut self, cx: &mut Cx<'_, C>, at: usize) {
+    fn begin_row_drag(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, at: usize) {
         let id = cx.core.id;
         let key = self.source.key(at);
         let keys: Vec<C::Key> = if self.selection.contains(&key) {
@@ -216,12 +219,17 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         } else {
             self.source.text(at).map_or(DragPreview::None, |text| DragPreview::Badge(Label::from(text.into_owned())))
         };
-        cx.start_drag(ListDrag::new(id, keys, key.clone()), preview);
+        let drag = ListDrag::new(id, keys, key.clone());
+        match props.drag_payload.as_ref().and_then(|map| map.of(&drag)) {
+            Some(also) => cx.start_drag_also(drag, also, preview),
+            None => cx.start_drag(drag, preview),
+        }
         self.drags.grabbed = Some(key);
     }
 
-    /// Where a drop at `at` (the collection's layer space) lands, `None` outside the rows.
-    fn spot(&self, layout: &C::ItemLayout, rect: Rect, offset: ScrollPos, rtl: bool, at: Pos2) -> Option<Spot> {
+    /// Where a drop at `at` (the collection's layer space) lands, `None` outside the rows. `groups` is the indent step
+    /// of a tree whose reorder rule lets items land inside groups.
+    fn spot(&self, layout: &C::ItemLayout, rect: Rect, offset: ScrollPos, rtl: bool, groups: Option<f32>, at: Pos2) -> Option<Spot> {
         if at.y < rect.min.y || self.source.is_empty() {
             return None;
         }
@@ -233,16 +241,34 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let row = self.screen(layout, rect, over, offset, rtl);
         if matches!(nav, NavShape::Spatial) {
             let (low, high) = (self.on_screen(row.min), self.on_screen(row.max));
-            return Some(Spot { over, insert: over, mark: DropMark::Into(Rect::from_min_max(low, high)) });
+            return Some(Spot { over, insert: over, parent: None, mark: DropMark::Into(Rect::from_min_max(low, high)) });
+        }
+        if let Some(step) = groups {
+            let gap = reorder::tree_gap_at(&Outline::new(self.source), over, row, rtl, step, at);
+            let parent = gap.parent;
+            return Some(Spot { over, insert: gap.insert, parent, mark: gap.mark.mapped(|point| self.on_screen(point)) });
         }
         // The gap around the one row the layout hit. `gap_at` works in physical coordinates, so across a row under
         // right-to-left the physical end is the earlier place in reading order.
         let gap = reorder::gap_at(&[row], if across { Axis::X } else { Axis::Y }, at)?;
         let after = (gap.insert == 1) != (across && rtl);
-        Some(Spot { over, insert: over + usize::from(after), mark: gap.mark.mapped(|point| self.on_screen(point)) })
+        Some(Spot { over, insert: over + usize::from(after), parent: None, mark: gap.mark.mapped(|point| self.on_screen(point)) })
     }
 
-    fn land(&mut self, cx: &mut Cx<'_, C>, payload: &ListDrag<C::Key>, landed: Landed) {
+    /// Whether a drop inside the group row `parent` would put a dragged item inside itself.
+    fn inside_dragged(&self, payload: &ListDrag<C::Key>, parent: Option<usize>) -> bool {
+        let outline = Outline::new(self.source);
+        let mut held = parent;
+        while let Some(row) = held {
+            if payload.keys.contains(&self.source.key(row)) {
+                return true;
+            }
+            held = reorder::parent_of(&outline, row);
+        }
+        false
+    }
+
+    fn land(&mut self, cx: &mut Cx<'_, C>, payload: &ListDrag<C::Key>, landed: Landed, groups: bool) {
         if payload.list != cx.core.id {
             self.events.push(CollectionEvent::Dropped { key: self.source.key(landed.spot.over), op: landed.op, keys: payload.keys.clone() });
             return;
@@ -255,17 +281,19 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let to = reorder::move_all_to(&at, insert);
         let copy = matches!(landed.op, DropOperation::Copy);
         let together = at.iter().enumerate().all(|(n, &place)| place == from + n);
-        if to == from && together && !copy {
+        let parent = landed.spot.parent.map(|row| self.source.key(row));
+        let held = if groups { reorder::parent_of(&Outline::new(self.source), from).map(|row| self.source.key(row)) } else { None };
+        if to == from && together && !copy && parent == held {
             return;
         }
         let gesture = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
         let keys: Vec<C::Key> = at.iter().map(|&place| self.source.key(place)).collect();
         let key = payload.grabbed.clone();
-        let before = ReorderMove { key: key.clone(), keys: keys.clone(), to: from, copy: false };
+        let before = ReorderMove::new(key.clone(), keys.clone(), from, false).in_group(held);
         self.events.push(CollectionEvent::Reorder(EditEvent::set(
             gesture,
             Mixed::Same(before),
-            ReorderMove { key, keys, to, copy },
+            ReorderMove::new(key, keys, to, copy).in_group(parent),
             cx.core.label_arc(),
             None,
         )));
@@ -299,7 +327,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     if free {
                         self.free_move(cx, origin, layer(pos));
                     } else if props.reorder.is_some() && self.drags.grabbed.is_none() {
-                        self.begin_row_drag(cx, at);
+                        self.begin_row_drag(cx, props, at);
                     }
                 }
             }
@@ -320,8 +348,12 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if let Some((payload, at)) = cx.dragging::<ListDrag<C::Key>>() {
             let own = payload.list == cx.core.id;
             if (own && props.reorder.is_some()) || (!own && comp.accept_from(payload.list)) {
-                let spot =
-                    self.spot(layout, rect, offset, rtl, layer(at)).filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert));
+                let groups = props.reorder.is_some_and(|rule| rule.into_groups) && matches!(layout.nav(), NavShape::Tree);
+                let step = groups.then(|| crate::style::control_metrics(&Env::of_root(&cx.core.ctx).tokens, cx.core.resolved.size).icon);
+                let spot = self
+                    .spot(layout, rect, offset, rtl, step, layer(at))
+                    .filter(|spot| comp.accepts(&payload, &self.source.key(spot.over), spot.insert))
+                    .filter(|spot| !(own && groups) || !self.inside_dragged(&payload, spot.parent));
                 if let Some(spot) = spot
                     && !own
                 {
@@ -329,7 +361,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
                 let copy_ok = !own || props.reorder.is_some_and(|rule| rule.copy_with_alt);
                 if let Some(landed) = cx.drop_target::<ListDrag<C::Key>, _>(&RowDrop { spot, copy_ok }) {
-                    self.land(cx, &payload, landed);
+                    self.land(cx, &payload, landed, groups);
                 }
             }
         } else {
@@ -341,14 +373,35 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let at = layer(at);
             // An empty collection takes files at its first position.
             let spot = if self.source.is_empty() {
-                rect.contains(at).then_some(Spot { over: 0, insert: 0, mark: DropMark::Into(self.on_screen_rect(rect)) })
+                rect.contains(at).then_some(Spot { over: 0, insert: 0, parent: None, mark: DropMark::Into(self.on_screen_rect(rect)) })
             } else {
-                self.spot(layout, rect, offset, rtl, at)
+                self.spot(layout, rect, offset, rtl, None, at)
             };
             if let Some(spot) = cx.drop_target::<OsFiles, _>(&FileDrop { spot }) {
                 self.events.push(CollectionEvent::FilesDropped { insert: spot.insert, files: files.files.clone() });
             }
         }
+    }
+
+    /// Alt+arrow on row `at`: the row moves one place, and with `into_groups` in a tree it enters or leaves a group.
+    pub(super) fn nudge_reorder(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, at: usize, forward: bool) {
+        let groups = props.reorder.is_some_and(|rule| rule.into_groups);
+        let outline = Outline::new(self.source);
+        let (to, parent) = if groups {
+            let Some(nudge) = reorder::nudge_in_tree(&outline, at, forward) else { return };
+            (nudge.to, nudge.parent.map(|row| self.source.key(row)))
+        } else {
+            (reorder::nudge_to(at, self.source.len(), forward), None)
+        };
+        let held = if groups { reorder::parent_of(&outline, at).map(|row| self.source.key(row)) } else { None };
+        if to == at && parent == held {
+            return;
+        }
+        let key = self.source.key(at);
+        let id = crate::runtime::edit::next_gesture_id(&cx.core.ctx);
+        let before = ReorderMove::new(key.clone(), vec![key.clone()], at, false).in_group(held);
+        let after = ReorderMove::new(key.clone(), vec![key], to, false).in_group(parent);
+        self.events.push(CollectionEvent::Reorder(EditEvent::set(id, Mixed::Same(before), after, cx.core.label_arc(), None)));
     }
 
     fn on_screen_rect(&self, rect: Rect) -> Rect {

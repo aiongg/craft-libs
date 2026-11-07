@@ -4,7 +4,7 @@ pub(super) mod rows;
 
 use super::collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, LeadOnOpen, LeadSource, OpenChange, Rename,
-    ReorderMove, RowState, SelectMode, SpaceAction,
+    RowState, SelectMode, SpaceAction,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
@@ -1042,21 +1042,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// Alt+arrow moves the lead's row; the rename command starts an edit of its name.
     fn reorder_and_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
-        let (ctx, len) = (cx.core.ctx.clone(), self.source.len());
+        let ctx = cx.core.ctx.clone();
         if let Some(forward) = crate::contract::reorder::take_move_item(&mut cx.core.intents)
             && props.reorder.is_some()
             && let Some(at) = lead_at
             && comp.can_drag(&self.source.key(at))
         {
-            let to = crate::contract::reorder::nudge_to(at, len, forward);
-            if to != at {
-                let key = self.source.key(at);
-                let id = crate::runtime::edit::next_gesture_id(&ctx);
-                let label = cx.core.label_arc();
-                let before = ReorderMove { key: key.clone(), keys: vec![key.clone()], to: at, copy: false };
-                let after = ReorderMove { key: key.clone(), keys: vec![key], to, copy: false };
-                self.events.push(CollectionEvent::Reorder(EditEvent::set(id, Mixed::Same(before), after, label, None)));
-            }
+            self.nudge_reorder(cx, props, at, forward);
         }
         if props.rename
             && cx.core.intents.take(Intent::Rename)

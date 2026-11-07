@@ -5,6 +5,7 @@ mod drag;
 mod keys;
 mod kit;
 mod list;
+mod reorder_groups;
 mod review;
 mod row_children;
 mod rows;

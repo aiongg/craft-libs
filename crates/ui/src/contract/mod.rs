@@ -34,7 +34,7 @@ pub use crate::runtime::pending::{Job, Pending, Progress};
 pub(crate) use body::REORDER_BAND;
 pub use collection::{
     ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
-    ContextMenuRequest, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode,
+    ContextMenuRequest, DragPayload, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode,
     SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{

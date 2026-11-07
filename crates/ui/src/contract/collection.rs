@@ -4,7 +4,9 @@ use crate::runtime::drag::OsFile;
 use crate::runtime::env::Label;
 use craft_behavior::{ColumnKey, ColumnWidth, DropOperation, EditEvent, SelectionChange};
 use egui::{Id, Pos2, Response, Vec2};
+use std::any::Any;
 use std::ops::Range;
+use std::sync::Arc;
 
 /// What a collection lets the user select.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -27,12 +29,22 @@ pub enum SelectMode {
 pub struct ReorderRule {
     /// Alt turns a drag into a copy (8.4).
     pub copy_with_alt: bool,
+    /// In a tree, a drop or an Alt+arrow move may land inside a group, and `ReorderMove::parent` names the group. A row
+    /// that `has_children` is a group; an open group without visible children takes items through the middle of its row.
+    pub into_groups: bool,
 }
 
 impl ReorderRule {
     /// A rule that only moves.
     pub const fn new() -> Self {
-        ReorderRule { copy_with_alt: false }
+        ReorderRule { copy_with_alt: false, into_groups: false }
+    }
+
+    /// Items may land inside the groups of a tree.
+    #[must_use]
+    pub const fn into_groups(mut self) -> Self {
+        self.into_groups = true;
+        self
     }
 
     /// Alt copies.
@@ -307,6 +319,37 @@ pub struct CollectionProps {
     pub digit_keys: bool,
     /// A drag from empty space draws a marquee that selects the items it sweeps.
     pub marquee: bool,
+    /// Maps a row drag to a second payload that other drop targets take (8.4).
+    pub drag_payload: Option<DragPayload>,
+}
+
+/// A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
+/// beside the `ListDrag`, so one drag and one ghost serve the collection's own reorder and the targets of `P`.
+#[derive(Clone)]
+pub struct DragPayload {
+    map: Arc<dyn Fn(&dyn Any) -> Option<Arc<dyn Any + Send + Sync>> + Send + Sync>,
+}
+
+impl DragPayload {
+    /// The payload `map` makes of a drag of the collection whose keys are `K`.
+    pub fn new<K: 'static, P: Send + Sync + 'static>(map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+        DragPayload {
+            map: Arc::new(move |drag| {
+                let payload: Arc<dyn Any + Send + Sync> = Arc::new(map(drag.downcast_ref::<ListDrag<K>>()?));
+                Some(payload)
+            }),
+        }
+    }
+
+    pub(crate) fn of<K: 'static>(&self, drag: &ListDrag<K>) -> Option<Arc<dyn Any + Send + Sync>> {
+        (self.map)(drag)
+    }
+}
+
+impl std::fmt::Debug for DragPayload {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("DragPayload")
+    }
 }
 
 impl Default for CollectionProps {
@@ -336,6 +379,7 @@ impl CollectionProps {
             header: true,
             digit_keys: false,
             marquee: false,
+            drag_payload: None,
         }
     }
 
@@ -350,6 +394,13 @@ impl CollectionProps {
     #[must_use]
     pub fn reorder(mut self, rule: ReorderRule) -> Self {
         self.reorder = Some(rule);
+        self
+    }
+
+    /// A row drag also carries `map` of it, for the drop targets of type `P`. The drag stays one session with one ghost.
+    #[must_use]
+    pub fn drag_payload<K: 'static, P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+        self.drag_payload = Some(DragPayload::new(map));
         self
     }
 
@@ -503,6 +554,22 @@ pub struct ReorderMove<K> {
     pub to: usize,
     /// The drag was a copy (Alt held, `ReorderRule::copy_with_alt`): the item stays and a copy goes to `to`.
     pub copy: bool,
+    /// The group the items land in: `None` at the top level, and always `None` unless the rule has `into_groups`.
+    pub parent: Option<K>,
+}
+
+impl<K> ReorderMove<K> {
+    /// A move of `keys` (`key` among them) to position `to` at the top level.
+    pub fn new(key: K, keys: Vec<K>, to: usize, copy: bool) -> Self {
+        ReorderMove { key, keys, to, copy, parent: None }
+    }
+
+    /// The items land in the group `parent`, `None` for the top level.
+    #[must_use]
+    pub fn in_group(mut self, parent: Option<K>) -> Self {
+        self.parent = parent;
+        self
+    }
 }
 
 /// What a row drag carries through the drag session (8.4).
