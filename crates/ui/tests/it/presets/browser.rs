@@ -28,14 +28,15 @@ fn drag(key: u32) -> ListDrag<u32> {
     ListDrag::new(Id::NULL, vec![key], key)
 }
 
-/// A preset lands next to another preset, never next to a group header; groups stay put unless asked to move.
+/// A preset lands next to another preset or on a group header, which it goes into; groups stay put unless asked to
+/// move.
 #[trial]
 fn presets_land_next_to_presets() {
     let rows = rows();
     let rules = PresetReorder::<u32>::items();
     assert!(rules.allows(&rows, &drag(A_ONE), &B_ONE, 5));
     assert!(rules.allows(&rows, &drag(A_ONE), &INNER_ONE, 3));
-    assert!(!rules.allows(&rows, &drag(A_ONE), &B, 4));
+    assert!(rules.allows(&rows, &drag(A_ONE), &B, 4));
     assert!(!rules.allows(&rows, &drag(B), &A, 0));
 }
 

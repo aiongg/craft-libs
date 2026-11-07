@@ -16,8 +16,9 @@ use crate::contract::{
     Pointer as _, Props as _, Role, WordSetCx as _,
 };
 use crate::list::RowTest;
-use crate::pickers::SelectFace;
+use crate::pickers::{SelectFace, toggle_on_key};
 use crate::runtime::env::{EnvView, Label};
+use crate::runtime::memory::StageAccess;
 use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, Metrics, PartKey, Sense, Value};
 use egui::{Response, Vec2};
@@ -118,6 +119,15 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// Which presets and groups the browser may rename.
     #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
+    /// Which presets and groups the row menu may delete; its row is disabled for the others.
+    #[prop(func = "Fn(&K) -> bool")]
+    can_delete: Option<RowTest<'a, K>>,
+    /// Which presets the row menu's Move to may move.
+    #[prop(func = "Fn(&K) -> bool")]
+    can_move: Option<RowTest<'a, K>>,
+    /// Whether a secondary click or the context-menu key opens the browser's row menu.
+    #[prop]
+    row_menu: bool,
     /// Shown, muted, while the value is no preset of the rows.
     #[prop(into)]
     placeholder: Option<Label>,
@@ -142,6 +152,9 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             default_open: DefaultOpen::All,
             toolbar: false,
             can_rename: None,
+            can_delete: None,
+            can_move: None,
+            row_menu: true,
             placeholder: None,
             display_name: None,
             picked: None,
@@ -156,8 +169,8 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
     }
 
     /// The key the binding holds, when it holds one.
-    pub(super) fn held_key(&mut self) -> Option<K> {
-        match self.value.reborrow().get() {
+    pub(super) fn held_key(&mut self, cx: &mut impl StageAccess) -> Option<K> {
+        match self.value.reborrow().read(cx) {
             Some(craft_behavior::Mixed::Same(held)) => held,
             _ => None,
         }
@@ -167,23 +180,31 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
         self.rows.iter().find(|row| !row.is_group() && row.key == *key)
     }
 
-    /// What the field shows: the current preset's thumbnail and name; else, in the muted look, the mixed word for a
-    /// mixed value or the placeholder.
-    fn face(&self, value: Option<&Option<K>>, words: &PresetWords, env: &EnvView<'_>) -> SelectFace<'static> {
-        let Some(value) = value else {
-            return SelectFace::new(env.resolve(&words.mixed)).placeholder();
-        };
-        let Some(row) = value.as_ref().and_then(|key| self.preset(key)) else {
-            let text = self.placeholder.as_ref().unwrap_or(&words.custom);
-            return SelectFace::new(env.resolve(text)).placeholder();
-        };
-        let text = self.display_name.as_ref().map_or_else(|| Label::from(row.label.clone()), |name| env.resolve(name));
+    /// What the field shows of `value` and the preset it shows, if any: the preset's name (or `display_name`), else
+    /// the mixed word for a mixed value or the placeholder.
+    fn shown<'s>(&'s self, value: Option<&Option<K>>, words: &PresetWords, env: &EnvView<'_>) -> (Label, Option<&'s PresetRow<K>>) {
+        let Some(value) = value else { return (env.resolve(&words.mixed), None) };
+        match value.as_ref().and_then(|key| self.preset(key)) {
+            Some(row) => (self.display_name.as_ref().map_or_else(|| Label::from(row.label.clone()), |name| env.resolve(name)), Some(row)),
+            None => (env.resolve(self.placeholder.as_ref().unwrap_or(&words.custom)), None),
+        }
+    }
+
+    /// The face of a field showing `text`: with a `row`, its thumbnail and name as `field` says; without, the muted
+    /// look of a mixed value or a placeholder. The measured candidates and the painted face are both built here.
+    fn face_of(&self, text: Label, row: Option<&PresetRow<K>>, paint: bool) -> SelectFace<'static> {
+        let Some(row) = row else { return SelectFace::new(text).placeholder() };
         let face = SelectFace::new(text);
         match (&row.preview, self.field) {
             (_, PickerField::Name) | (None, _) => face,
             (Some(preview), field) => {
-                let paint = preview.paint.clone();
-                face.thumb(preview.aspect, move |cx, rect| (paint)(cx, rect)).name(field == PickerField::ThumbnailAndName)
+                let draw = paint.then(|| preview.paint.clone());
+                face.thumb(preview.aspect, move |cx, rect| {
+                    if let Some(draw) = &draw {
+                        draw(cx, rect);
+                    }
+                })
+                .name(field == PickerField::ThumbnailAndName)
             }
         }
     }
@@ -202,22 +223,21 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
     }
 
-    /// The widest face that can show, so the field keeps its width whichever preset is picked.
+    /// The widest face that can show, so the field keeps its width whichever preset is picked: the face of each
+    /// preset, the mixed word and the placeholder, and an empty thumbnail face for the height.
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let words = cx.words::<PresetWords>();
-        let shows_name = self.field != PickerField::Thumbnail;
         let aspect = self.cell_shape.aspect();
-        let sized = |text: Label| {
-            let face = SelectFace::new(cx.env.resolve(&text));
-            cx.face(if self.field == PickerField::Name { face } else { face.thumb(aspect, |_, _| {}).name(shows_name) })
-        };
-        let mut texts = vec![Label::Empty];
-        if shows_name {
-            let names = self.rows.iter().filter(|row| !row.is_group()).map(|row| Label::from(row.label.clone()));
-            let fixed = [words.custom.clone(), words.mixed.clone()];
-            texts.extend(names.chain(fixed).chain(self.placeholder.clone()).chain(self.display_name.clone()));
-        }
-        texts.into_iter().map(sized).fold(Vec2::ZERO, Vec2::max)
+        let empty = SelectFace::new(Label::Empty);
+        let empty = if self.field == PickerField::Name { empty } else { empty.thumb(aspect, |_, _| {}).name(self.field != PickerField::Thumbnail) };
+        let rows = self.rows.iter().filter(|row| !row.is_group());
+        let faces = rows.map(|row| {
+            let (text, _) = self.shown(Some(&Some(row.key.clone())), &words, &cx.env);
+            self.face_of(text, Some(row), false)
+        });
+        let words_shown = [self.shown(None, &words, &cx.env), self.shown(Some(&None), &words, &cx.env)];
+        let notes = words_shown.into_iter().map(|(text, row)| self.face_of(text, row, false));
+        std::iter::once(empty).chain(faces).chain(notes).map(|face| cx.face(face)).fold(Vec2::ZERO, Vec2::max)
     }
 
     fn parts(&mut self, rect: egui::Rect, cx: &mut PartsCx<'_, Self>) {
@@ -233,17 +253,11 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         Some(self.value.reborrow())
     }
 
-    /// A press on the face and Alt+Down open the popover through the face's `toggles`; Enter and Space toggle it here.
-    /// A preview that the popover closed on without a pick is cancelled.
+    /// A press on the face and Alt+Down open the popover through the face's `toggles`; Enter and Space toggle it
+    /// (`toggle_on_key`). A preview that the popover closed on without a pick is cancelled.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("browser");
-        if cx.activation().is_some_and(|activation| activation.by_key) {
-            if popup.is_open(cx) {
-                popup.close(cx);
-            } else {
-                popup.open(cx);
-            }
-        }
+        toggle_on_key(cx, popup);
         if !popup.is_open(cx) && matches!(cx.gesture(), Some(GesturePhase::Begin | GesturePhase::Update)) {
             cx.cancel(CancelReason::Dismissed);
         }
@@ -256,19 +270,27 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let name = cx.label();
         let current = cx.value().and_then(Clone::clone);
         let (rows, shape, view, default_open, toolbar) = (self.rows, self.cell_shape, self.view, self.default_open, self.toolbar);
-        let can_rename = self.can_rename.as_ref();
+        let (can_rename, can_delete, can_move, row_menu) =
+            (self.can_rename.as_ref(), self.can_delete.as_ref(), self.can_move.as_ref(), self.row_menu);
         let state = &mut self.state;
         let out = ui.show(popup, Overlay::popover(), |ui, _| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
                 .view_lock(view)
                 .default_open(default_open)
-                .toolbar(toolbar);
+                .toolbar(toolbar)
+                .row_menu(row_menu);
             if let Some(key) = current.clone() {
                 browser = browser.selected(key);
             }
             if let Some(test) = can_rename {
                 browser = browser.can_rename(|key| test.passes(key));
+            }
+            if let Some(test) = can_delete {
+                browser = browser.can_delete(|key| test.passes(key));
+            }
+            if let Some(test) = can_move {
+                browser = browser.can_move(|key| test.passes(key));
             }
             browser.show(ui)
         });
@@ -296,19 +318,14 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
     /// The current preset's name as the field's value.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let words = cx.words::<PresetWords>();
-        let text = match cx.value() {
-            None => cx.env.resolve(&words.mixed),
-            Some(value) => match value.as_ref().and_then(|key| self.preset(key)) {
-                Some(row) => self.display_name.as_ref().map_or_else(|| Label::from(row.label.clone()), |name| cx.env.resolve(name)),
-                None => cx.env.resolve(self.placeholder.as_ref().unwrap_or(&words.custom)),
-            },
-        };
+        let (text, _) = self.shown(cx.value(), &words, &cx.env);
         access.value(text.as_str().to_owned());
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let words = cx.words::<PresetWords>();
-        ui.face(FACE, self.face(cx.value(), &words, &cx.env));
+        let (text, row) = self.shown(cx.value(), &words, &cx.env);
+        ui.face(FACE, self.face_of(text, row, true));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PresetPickerOutput<K> {

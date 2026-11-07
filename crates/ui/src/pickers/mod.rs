@@ -16,6 +16,7 @@ pub use date::{
     Calendar, CalendarOutput, CalendarStyle, CalendarView, DateCodec, DatePicker, DatePrecision, PickedDate, local_month_grid, month_grid,
 };
 pub use dress::RowDress;
+pub(crate) use face::toggle_on_key;
 pub use face::{SelectFace, SelectFaceStyle};
 pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerOutput};
 pub use select::{Select, SelectStyle};

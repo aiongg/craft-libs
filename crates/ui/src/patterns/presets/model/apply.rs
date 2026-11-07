@@ -58,7 +58,34 @@ impl<T> PresetLibrary<T> {
         if mv.copy {
             return Ok(Vec::new());
         }
-        self.reorder(&mv.keys, mv.to)
+        match &mv.parent {
+            Some(PresetKey::Group(parent)) => self.reorder_into(&mv.keys, parent, mv.to),
+            _ => self.reorder(&mv.keys, mv.to),
+        }
+    }
+
+    /// [`reorder`](Self::reorder) for a move into the group `parent`: the moved rows go before the row at `to` when
+    /// that row is a child of `parent`, else after the last child of `parent`.
+    pub fn reorder_into(&mut self, keys: &[Key], parent: &GroupPath, to: usize) -> Result<Vec<PresetChange>, PresetError> {
+        self.group(parent).ok_or(PresetError::NoGroup)?;
+        let rows = self.rows();
+        let mut gone = vec![false; rows.len()];
+        for at in keys.iter().filter_map(|key| rows.iter().position(|row| row.key == *key)) {
+            gone[at..children_end(&rows, at)].fill(true);
+        }
+        let rest: Vec<&PresetRow<Key>> = rows.iter().zip(&gone).filter(|(_, gone)| !**gone).map(|(row, _)| row).collect();
+        let child_of_parent = |key: &Key| match key {
+            PresetKey::Item(id) => self.group_of(*id).as_ref() == Some(parent),
+            PresetKey::Group(path) => path.parent().as_ref() == Some(parent),
+        };
+        match rest.get(to).filter(|row| child_of_parent(&row.key)) {
+            Some(row) => self.reorder_against(keys, &row.key.clone(), Place::Before),
+            None => {
+                let group = self.group(parent).ok_or(PresetError::NoGroup)?;
+                let (items, groups) = (group.items.len(), group.groups.len());
+                self.reorder_to(keys, parent.clone(), items, groups)
+            }
+        }
     }
 
     /// Moves `keys` so that they sit together at display position `to`, counted in the display order that remains once
@@ -86,8 +113,6 @@ impl<T> PresetLibrary<T> {
     }
 
     fn reorder_against(&mut self, items: &[Key], target: &Key, place: Place) -> Result<Vec<PresetChange>, PresetError> {
-        let nesting_limit = self.nesting + 1;
-
         // The destination group and the slots in it, as indices into its lists before any row is
         // taken out. Items sit before groups, so a preset next to a group goes to the end of the
         // items and a group next to a preset to the start of the groups.
@@ -110,6 +135,14 @@ impl<T> PresetLibrary<T> {
                 (parent, items, at)
             }
         };
+
+        self.reorder_to(items, dest, item_slot, group_slot)
+    }
+
+    /// Moves `items` into `dest`, their presets at `item_slot` of its items and their groups at `group_slot` of its
+    /// groups, both counted before any row is taken out.
+    fn reorder_to(&mut self, items: &[Key], dest: GroupPath, item_slot: usize, group_slot: usize) -> Result<Vec<PresetChange>, PresetError> {
+        let nesting_limit = self.nesting + 1;
 
         // The rows moved: a row inside another moved group goes with that group.
         let mut group_paths: Vec<GroupPath> = Vec::new();
