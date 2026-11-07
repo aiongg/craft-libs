@@ -6,7 +6,7 @@ use craft_ui::contract::{
     Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, Container, ContainerProps, Cx, ItemOutput, MeasureCx,
     NoValue, Outcome, PaintUi, PartsCx, Role, SelectMode,
 };
-use craft_ui::primitives::TextRun;
+use craft_ui::primitives::{TextRun, Wrap};
 use craft_ui::style::{ComponentStyle, Corners, Metrics, StyleCx, SurfaceKind};
 use egui::{Rect, Response, Vec2, vec2};
 
@@ -14,6 +14,9 @@ use egui::{Rect, Response, Vec2, vec2};
 pub const ROW_H: f32 = 20.0;
 /// The width of a sheet cell.
 pub const CELL_W: f32 = 80.0;
+/// The padding below a measured row's text.
+const ROW_PAD: f32 = 4.0;
+const WRAPPED: &str = "A longer description of the row that wraps onto more lines when the list is narrow, to give rows different heights.";
 
 /// A style with a minimum size and no surface.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -78,11 +81,11 @@ const CELL: PartKey = PartKey::new("cell");
 /// What a row is.
 #[derive(Clone, Copy)]
 pub enum RowKind {
-    /// A plain row at the list's row height.
-    Plain,
+    /// A row at the list's row height with its text label.
+    Plain { key: usize },
     /// A sheet row: `cells` cell parts, each painting its own text.
     Cells { row: usize, cells: usize },
-    /// A row whose height is its own: one to four row heights by key.
+    /// A row whose height is its own: a label, and for three keys in four a detail line and wrapped text of up to `key % 4` lines.
     Auto { key: usize },
 }
 
@@ -113,10 +116,19 @@ impl Component for Row {
         PlainStyle::min(vec2(10.0, 10.0))
     }
 
-    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         match self.kind {
-            RowKind::Auto { key } => vec2(10.0, ROW_H * (1 + key % 4) as f32),
-            RowKind::Plain | RowKind::Cells { .. } => vec2(10.0, ROW_H),
+            RowKind::Auto { key } => {
+                let label = cx.layout(&TextRun::new(&format!("Row {key}")));
+                let lines = key % 4;
+                if lines == 0 {
+                    return vec2(10.0, label.size().y + ROW_PAD);
+                }
+                let line = label.size().y;
+                let wrapped = cx.layout(&TextRun::new(WRAPPED).wrap(Wrap::Wrap)).size().y.min(line * lines as f32);
+                vec2(10.0, label.size().y + line + wrapped + ROW_PAD)
+            }
+            RowKind::Plain { .. } | RowKind::Cells { .. } => vec2(10.0, ROW_H),
         }
     }
 
@@ -129,10 +141,23 @@ impl Component for Row {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        if let RowKind::Cells { row, cells } = self.kind {
-            let draw = ui.draw();
-            for column in 0..cells {
-                draw.text(cell_rect(cx.rect, column), &TextRun::new(&format!("{row}:{column}")));
+        let draw = ui.draw();
+        match self.kind {
+            RowKind::Cells { row, cells } => {
+                for column in 0..cells {
+                    draw.text(cell_rect(cx.rect, column), &TextRun::new(&format!("{row}:{column}")));
+                }
+            }
+            RowKind::Plain { key } => {
+                draw.text(cx.rect, &TextRun::new(&format!("Item {key}")));
+            }
+            RowKind::Auto { key } => {
+                let label = draw.text(cx.rect, &TextRun::new(&format!("Row {key}")));
+                if key % 4 != 0 {
+                    let below = cx.rect.with_min_y(cx.rect.top() + label.size().y);
+                    let detail = draw.text(below, &TextRun::new("Today"));
+                    draw.text(below.with_min_y(below.top() + detail.size().y), &TextRun::new(WRAPPED).wrap(Wrap::Wrap));
+                }
             }
         }
     }
@@ -312,11 +337,18 @@ pub struct Panel<'a> {
     #[container]
     props: ContainerProps,
     open: Option<Bind<'a, bool>>,
+    headed: bool,
 }
 
 impl<'a> Panel<'a> {
     pub fn new(props: ContainerProps) -> Self {
-        Panel { common: Common::new(), props, open: None }
+        Panel { common: Common::new(), props, open: None, headed: true }
+    }
+
+    /// A panel with no header row, as a menu's popup has none.
+    pub fn headerless(mut self) -> Self {
+        self.headed = false;
+        self
     }
 
     pub fn bind_open(mut self, open: Bind<'a, bool>) -> Self {
@@ -345,6 +377,8 @@ impl Container for Panel<'_> {
     }
 
     fn header(&mut self, ui: &mut egui::Ui, _: &mut BodyCx<'_>) {
-        ui.allocate_space(vec2(100.0, ROW_H));
+        if self.headed {
+            ui.allocate_space(vec2(100.0, ROW_H));
+        }
     }
 }

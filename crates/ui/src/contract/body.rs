@@ -948,7 +948,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             self.view = Some(body_rect);
         } else {
-            self.body_size = Some(Vec2::ZERO);
+            // A collapsed body keeps its last full size in layout memory, so opening it again places by that size
+            // and asks for no discard pass.
+            self.body_size = if props.collapse.is_some() { None } else { Some(Vec2::ZERO) };
         }
         // The label scope covers the body only: footer controls are not the field's controls.
         if props.label.is_some() {

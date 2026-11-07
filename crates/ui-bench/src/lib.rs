@@ -11,5 +11,5 @@ mod scenario;
 
 pub use alloc::{CountingAlloc, allocations};
 pub use harness::{Library, MEASURED_FRAMES, Scene, SceneBuild, WARMUP_FRAMES, run_all, screen_rect};
-pub use report::{Measurement, Report, ScenarioResult, print_table, write_json};
+pub use report::{Measurement, Report, ScenarioResult, gate_failures, print_table, read_json, write_json};
 pub use scenario::{SCENARIOS, Scenario};

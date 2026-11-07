@@ -5,7 +5,7 @@ use egui::util::id_type_map::RawKey;
 use egui::{Context, Id};
 use std::any::Any;
 use std::hash::Hash;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 /// Context data: the map the runtime's slots live in.
 pub(crate) type Map = IdTypeMap;
@@ -71,7 +71,9 @@ impl<S> Clone for Service<S> {
 impl<S: Default + Send + 'static> Service<S> {
     /// The context's service of type `S`, created on first use.
     pub(crate) fn of(ctx: &Context) -> Service<S> {
-        locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(unique("craft_ui.service")).clone())
+        static SLOT: OnceLock<Id> = OnceLock::new();
+        let slot = *SLOT.get_or_init(|| unique("craft_ui.service"));
+        locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone())
     }
 
     /// Runs `f` on the state under the service's lock.
