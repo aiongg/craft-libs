@@ -21,6 +21,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::CancelReason`: re-export of `craft_behavior::value::CancelReason`.
 - `craft_behavior::CancelRule`: re-export of `craft_behavior::focus::CancelRule`.
 - `craft_behavior::CanvasTransform`: re-export of `craft_behavior::canvas::CanvasTransform`.
+- `craft_behavior::CanvasView`: re-export of `craft_behavior::canvas::CanvasView`.
 - `craft_behavior::Caret`: re-export of `craft_behavior::codec::Caret`.
 - `craft_behavior::CellAt`: re-export of `craft_behavior::selection::CellAt`.
 - `craft_behavior::CellRange`: re-export of `craft_behavior::selection::CellRange`.
@@ -116,6 +117,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::ResolveFor`: re-export of `craft_behavior::hit::ResolveFor`.
 - `craft_behavior::RoleRule`: re-export of `craft_behavior::role_rule::RoleRule`.
 - `craft_behavior::Roving`: re-export of `craft_behavior::nav::Roving`.
+- `craft_behavior::RulerUnits`: re-export of `craft_behavior::canvas::RulerUnits`.
 - `craft_behavior::ScopeKind`: re-export of `craft_behavior::focus::ScopeKind`.
 - `craft_behavior::ScrollPos`: re-export of `craft_behavior::scroll::ScrollPos`.
 - `craft_behavior::ScrollSpan`: re-export of `craft_behavior::scroll::ScrollSpan`.
@@ -129,6 +131,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::SizeTween`: re-export of `craft_behavior::layout_memory::SizeTween`.
 - `craft_behavior::SpanLayout`: re-export of `craft_behavior::item_layout::SpanLayout`.
 - `craft_behavior::TextPos`: re-export of `craft_behavior::intent::TextPos`.
+- `craft_behavior::Ticks`: re-export of `craft_behavior::canvas::Ticks`.
 - `craft_behavior::TileLayout`: re-export of `craft_behavior::item_layout::TileLayout`.
 - `craft_behavior::TypeAhead`: re-export of `craft_behavior::nav::TypeAhead`.
 - `craft_behavior::Typed`: re-export of `craft_behavior::typing::Typed`.
@@ -136,18 +139,22 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::Validity`: re-export of `craft_behavior::value::Validity`.
 - `craft_behavior::Value`: re-export of `craft_behavior::value::Value`.
 - `craft_behavior::ValueDrag`: re-export of `craft_behavior::value_drag::ValueDrag`.
+- `craft_behavior::ViewHistory`: re-export of `craft_behavior::canvas::ViewHistory`.
+- `craft_behavior::ViewPlace`: re-export of `craft_behavior::canvas::ViewPlace`.
 - `craft_behavior::Wheel`: re-export of `craft_behavior::wheel::Wheel`.
 - `craft_behavior::WheelNotch`: re-export of `craft_behavior::wheel::WheelNotch`.
 - `craft_behavior::WheelPhase`: re-export of `craft_behavior::wheel::WheelPhase`.
 - `craft_behavior::WheelTaker`: re-export of `craft_behavior::wheel::WheelTaker`.
 - `craft_behavior::WheelUnit`: re-export of `craft_behavior::wheel::WheelUnit`.
 - `craft_behavior::Winner`: re-export of `craft_behavior::hit::Winner`.
+- `craft_behavior::ZoomLadder`: re-export of `craft_behavior::canvas::zoom::ZoomLadder`.
 - `craft_behavior::count_clicks`: re-export of `craft_behavior::press::count_clicks`.
 - `craft_behavior::decimals_for_step`: re-export of `craft_behavior::codec::decimals_for_step`.
 - `craft_behavior::is_checkable`: re-export of `craft_behavior::role_rule::is_checkable`.
 - `craft_behavior::is_selectable`: re-export of `craft_behavior::role_rule::is_selectable`.
 - `craft_behavior::keyed`: re-export of `craft_behavior::item_source::keyed`.
 - `craft_behavior::pick_instance`: re-export of `craft_behavior::command::pick_instance`.
+- `craft_behavior::resize_cursor`: re-export of `craft_behavior::canvas::resize_cursor`.
 - `craft_behavior::resolve`: re-export of `craft_behavior::hit::resolve`.
 - `craft_behavior::resolve_columns`: re-export of `craft_behavior::grid::resolve_columns`.
 - `craft_behavior::resolve_flags`: re-export of `craft_behavior::command::resolve_flags`.
@@ -165,12 +172,40 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 
 ## `craft_behavior::canvas`
 
-The transform a canvas body is shown through.
+The transform a canvas body is shown through, and the canvas view with its zoom rules, history and ruler units.
 
 - `craft_behavior::canvas::CanvasTransform`: `pub struct CanvasTransform { pub scale: f32, pub offset: Vec2 }`. A canvas body's mapping from canvas coordinates to its layer: `screen = canvas * scale + offset`.
   - `pub const fn new(scale: f32, offset: Vec2) -> Self`. The transform with `scale` layer points per canvas unit and the canvas origin at `offset`.
   - `pub fn to_layer(&self, canvas: Pos2) -> Pos2`. The position in the layer of a canvas point.
   - `pub fn to_canvas(&self, layer: Pos2) -> Pos2`. The canvas point under a position in the layer.
+- `craft_behavior::canvas::CanvasView`: `pub struct CanvasView { pub rect: ScreenRect, pub center: Point, pub zoom: f64, pub rotation: f64, pub flip_x: bool, pub aspect: f64 }` (non-exhaustive). How a canvas shows its document: where, how large, turned and mirrored how.
+  - `pub fn new(rect: ScreenRect, center: Point, zoom: f64) -> Self`. An upright, unmirrored, square-pixel view of `rect` showing `center` at `zoom`.
+  - `pub const fn rotation(self, degrees: f64) -> Self`, `pub const fn flip_x(self, flip: bool) -> Self`, `pub const fn aspect(self, aspect: f64) -> Self`. Builders.
+  - `pub fn points_per_unit(device_zoom: f64, pixels_per_point: f32) -> f64`. `zoom` for a view that shows `device_zoom` device pixels per document unit.
+  - `pub fn affine(&self) -> Affine`. Document to screen points.
+  - `pub fn to_screen(&self, p: Point) -> Pos2`. Where the view draws document point `p`.
+  - `pub fn to_doc(&self, p: Pos2) -> Point`. The document point under screen position `p`.
+  - `pub fn map_vec(&self, v: Vec2) -> ScreenVec`, `pub fn unmap_vec(&self, v: ScreenVec) -> Vec2`. A document vector as the view draws it, and back.
+  - `pub fn zoom_x(&self) -> f64`. Screen points per document unit along the document's x axis.
+  - `pub fn quad(&self, r: Rect) -> [Pos2; 4]`. The screen corners of document rect `r`.
+  - `pub fn visible(&self) -> Rect`. The document bounds of the screen rect.
+  - `pub fn doc_len(&self, points: f32) -> f64`. A screen distance in document units along the document's y axis.
+  - `pub fn axis_aligned(&self) -> bool`. Whether the rotation is a multiple of 90 degrees.
+  - `pub fn level(&self, zero: Point) -> CanvasView`. The view without its rotation, moved so it draws `zero` where this view does.
+  - `pub fn layer_transform(&self) -> Option<CanvasTransform>`. The body transform of an unrotated, unmirrored, square view.
+- `craft_behavior::canvas::resize_cursor`: `pub fn resize_cursor(view: &CanvasView, doc_dir: Vec2) -> CursorIcon`. The resize arrow for moving along document direction `doc_dir`, as `view` shows it.
+- `craft_behavior::canvas::zoom`: Zoom rules as pure functions on a `CanvasView`. Device zoom is device pixels per document unit (1 is 100 %).
+  - `pub struct ZoomLadder`: Photoshop's zoom range and Zoom In / Zoom Out rungs. `MAX`, `STEPS`, `min(size)`, `clamp(zoom, size)`, `step(zoom, dir, size)`, `step_in_range(zoom, dir, range)`, `percent_range(zoom, size)`.
+  - `pub fn device(view: &CanvasView, pixels_per_point: f32) -> f64`. `view.zoom` as device zoom.
+  - `pub fn fit(view: &mut CanvasView, size: Size, pixels_per_point: f32)`, `pub fn fill(view: &mut CanvasView, size: Size, pixels_per_point: f32)`. Fit on Screen and Fill Screen.
+  - `pub fn about(view: &mut CanvasView, screen: Pos2, device_zoom: f64, center_on_point: bool, pixels_per_point: f32)`. Zoom keeping the document point under `screen` where it is.
+  - `pub fn anchor(view: &mut CanvasView, screen: Pos2, doc: Point, device_zoom: f64, pixels_per_point: f32)`. Zoom with `doc` shown at `screen`.
+  - `pub fn wheel_anchor(view: &CanvasView, screen: Pos2, size: Size) -> Pos2`. Where a wheel or pinch zoom anchors.
+  - `pub fn step(view: &mut CanvasView, dir: i32, size: Size, pixels_per_point: f32) -> bool`. Zoom In / Zoom Out by one rung; whether the zoom changed.
+- `craft_behavior::canvas::ViewPlace`: `pub struct ViewPlace<K> { pub key: K, pub center: Point, pub zoom: f64 }`. Where a view stood.
+- `craft_behavior::canvas::ViewHistory`: `pub struct ViewHistory<K>`. Go Back and Go Forward through the places a window jumped between. `LIMIT`, `leave(place)`, `visit(place)`, `can_go(step, exists)`, `go(step, exists)`.
+- `craft_behavior::canvas::Ticks`: `pub enum Ticks { Decimal { whole: bool }, Custom(fn(f64) -> (f64, u32)) }`. How a ruler divides its unit at a zoom.
+- `craft_behavior::canvas::RulerUnits`: `pub struct RulerUnits { pub per_doc: f64, pub ticks: Ticks }`. The ruler unit of one document axis. `new`, `pixels`, `step(zoom, step_min)`, `snap_to_tick(position, zero, zoom, step_min)`, `distance(position, zero)`, `label_decimals(step)`, `label_value(value, step)`. Text is written by `craft_ui::canvas::RulerText`.
 
 ## `craft_behavior::codec`
 
