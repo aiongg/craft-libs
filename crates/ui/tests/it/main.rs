@@ -38,6 +38,7 @@ mod popover;
 mod preferences;
 mod presets;
 mod prompts;
+mod rails;
 mod runtime;
 mod sections;
 mod style;
