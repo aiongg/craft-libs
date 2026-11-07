@@ -183,7 +183,7 @@ struct TipCall<'a> {
     id: egui::Id,
     env: &'a Env,
     /// The layer the rect is in.
-    layer: egui::LayerId,
+    layer: areas::Layer,
     /// The rect the tooltip hangs from, in the layer's space.
     rect: Rect,
     text: Option<String>,

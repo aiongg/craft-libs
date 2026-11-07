@@ -366,7 +366,7 @@ impl MemoryStage {
                     Box::new(store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default())
                 } else {
                     // The box the slot was stored in stays the entry's value.
-                    match ctx.data_mut(|data| take_raw::<Wrapped<TIER, T>>(data, id)) {
+                    match store::locked(ctx, |data| take_raw::<Wrapped<TIER, T>>(data, id)) {
                         Some(boxed) if boxed.is::<Wrapped<TIER, T>>() => boxed,
                         _ => Box::new(Wrapped::<TIER, T>::default()),
                     }
@@ -463,7 +463,7 @@ impl MemoryStage {
         let mut replaced: Vec<Removed> = Vec::new();
         let ctx = self.ctx.clone();
         let mut dropped: Vec<Box<dyn Any + Send + Sync>> = Vec::new();
-        ctx.data_mut(|data| {
+        store::locked(&ctx, |data| {
             for entry in self.entries {
                 let (tier, ty, id) = entry.key;
                 // An ended press leaves no entry behind; its value drops outside the lock.
@@ -474,9 +474,7 @@ impl MemoryStage {
                 replaced.extend((entry.write_back)(entry.value, data, id));
             }
             for base in touched {
-                if data.get_temp::<Seen>(base).is_none() {
-                    data.insert_temp(base, Seen(frame));
-                }
+                store::mark_seen(data, base, Seen(frame));
             }
         });
         drop(replaced);

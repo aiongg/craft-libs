@@ -43,6 +43,13 @@ pub(crate) fn peek_copy<T: Any + Copy + Send + Sync>(ctx: &Context, id: Id) -> O
     ctx.data(|data| data.get_temp::<T>(id))
 }
 
+/// Stores `mark` under `id` unless a value of its type is there already.
+pub(crate) fn mark_seen<T: Any + Clone + Send + Sync>(data: &mut Map, id: Id, mark: T) {
+    if data.get_temp::<T>(id).is_none() {
+        data.insert_temp(id, mark);
+    }
+}
+
 /// Puts a taken-out box back under `id`, in the allocation it left in. The value it replaced, if any, is returned
 /// to drop outside the lock.
 pub(crate) fn put_boxed<T: Any + Clone + Send + Sync>(data: &mut Map, id: Id, value: Box<T>) -> Option<Removed> {
