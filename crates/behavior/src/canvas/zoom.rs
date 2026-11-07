@@ -21,9 +21,6 @@ const RUNG_TOLERANCE_DOWN: f64 = 0.999;
 /// Points kept free on each side of the document by Fit on Screen.
 const FIT_MARGIN: f64 = 20.0;
 
-/// Document units an animation's anchor may differ from the target view before it is dropped.
-const ANCHOR_TOLERANCE: f64 = 0.01;
-
 /// Photoshop's zoom range and the Zoom In / Zoom Out ladder, measured on Photoshop 25.4: up to
 /// 12800 %, down to where the document's shorter side is 2 px on screen (no lower than 0.1 % for
 /// a ladder step). A ladder step goes from any zoom to the next rung (880 %: in to 1200 %, out to

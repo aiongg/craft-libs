@@ -8,9 +8,19 @@ use craft_theme::Rgba;
 /// The identity of one guide among those shown together: the host's name for it, and the index of its part
 /// (`GuideKey::part`).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct GuideKey(pub u64);
+pub struct GuideKey(u64);
 
 impl GuideKey {
+    /// The key of the guide the host calls `id`.
+    pub const fn new(id: u64) -> Self {
+        GuideKey(id)
+    }
+
+    /// The host's number for the guide.
+    pub const fn get(self) -> u64 {
+        self.0
+    }
+
     /// The part of the guide in a component that declares `part` for its guides.
     pub const fn part(self, part: PartKey) -> PartRef {
         part.at(self.0)
@@ -19,6 +29,7 @@ impl GuideKey {
 
 /// Which way a guide runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum GuideAxis {
     /// Across the document's x axis, at a y position.
     Horizontal,
@@ -39,8 +50,8 @@ impl GuideAxis {
     /// across a guide.
     pub fn across(self) -> Vec2 {
         match self {
-            GuideAxis::Horizontal => Vec2::new(0.0, 1.0),
-            GuideAxis::Vertical => Vec2::new(1.0, 0.0),
+            GuideAxis::Horizontal => Vec2 { x: 0.0, y: 1.0 },
+            GuideAxis::Vertical => Vec2 { x: 1.0, y: 0.0 },
         }
     }
 

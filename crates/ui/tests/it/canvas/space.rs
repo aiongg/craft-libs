@@ -3,7 +3,7 @@
 use craft_behavior::kurbo::Point;
 use craft_behavior::{CanvasView, Wheel};
 use craft_ui::canvas::{Canvas, CanvasSpace, ToolPath, canvas_space};
-use craft_ui::contract::{Role, Show as _, ShowContainer as _};
+use craft_ui::contract::{Role, ShowContainer as _};
 use craft_ui::sections::GroupBox;
 use craft_ui::testing::pointer;
 use craft_ui::testing::{Fixture, trial};

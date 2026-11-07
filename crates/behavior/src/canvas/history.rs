@@ -7,6 +7,7 @@ use kurbo::Point;
 /// Where a view stood: what it showed (`key`: a page, an artboard, a document) and the view's
 /// centre and zoom there.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct ViewPlace<K> {
     /// What the view showed.
     pub key: K,
@@ -14,6 +15,13 @@ pub struct ViewPlace<K> {
     pub center: Point,
     /// Screen points per document unit ([`CanvasView::zoom`](super::CanvasView::zoom)).
     pub zoom: f64,
+}
+
+impl<K> ViewPlace<K> {
+    /// The view of `key` centred on `center` at `zoom`.
+    pub const fn new(key: K, center: Point, zoom: f64) -> Self {
+        Self { key, center, zoom }
+    }
 }
 
 /// The places a window jumped between, oldest first, with the one it shows now. The app records
@@ -25,7 +33,7 @@ pub struct ViewPlace<K> {
 /// use craft_behavior::canvas::{ViewHistory, ViewPlace};
 /// use kurbo::Point;
 /// let mut history = ViewHistory::default();
-/// let at = |key| ViewPlace { key, center: Point::ZERO, zoom: 1.0 };
+/// let at = |key| ViewPlace::new(key, Point::ZERO, 1.0);
 /// history.visit(at(1));
 /// history.leave(at(1));
 /// history.visit(at(2));

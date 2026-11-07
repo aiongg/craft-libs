@@ -55,7 +55,7 @@ pub struct CanvasStyle {
 }
 
 /// A canvas: a pasteboard the caller's canvas controls and the active tool share.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct Canvas {
     #[common]
@@ -63,6 +63,12 @@ pub struct Canvas {
     #[container]
     props: ContainerProps,
     path: ToolPath,
+    /// The view the canvas shows its document through. The body reads it as a [`CanvasSpace`] with
+    /// [`canvas_space`]; its controls register parts in the canvas root's screen space through
+    /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
+    /// (a node graph) also sets `transform(view.layer_transform())`, which exists for an unrotated, unmirrored,
+    /// square view only.
+    #[prop]
     view: Option<CanvasView>,
     wheel: Option<Wheel>,
 }
@@ -78,17 +84,6 @@ impl Canvas {
     #[must_use]
     pub fn transform(mut self, transform: CanvasTransform) -> Self {
         self.props = self.props.transform(transform);
-        self
-    }
-
-    /// The view the canvas shows its document through. The body reads it as a [`CanvasSpace`] with
-    /// [`canvas_space`]; its controls register parts in the canvas root's screen space through
-    /// `CanvasView::to_screen`. The view sets no body transform: a body of components that keep canvas-space geometry
-    /// (a node graph) also sets `transform(view.layer_transform())`, which exists for an unrotated, unmirrored,
-    /// square view only.
-    #[must_use]
-    pub fn view(mut self, view: CanvasView) -> Self {
-        self.view = Some(view);
         self
     }
 }

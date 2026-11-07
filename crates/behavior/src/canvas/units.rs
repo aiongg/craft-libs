@@ -9,6 +9,7 @@ pub enum Ticks {
     /// PhotoCraft's decimal steps: the labelled step is the smallest of 1, 2, 2.5 and 5 × 10ⁿ units that leaves the
     /// ruler's minimum label step points between labels, in 10 subdivisions. `whole` keeps the step a whole number
     /// of units without 2.5 (pixels).
+    #[non_exhaustive]
     Decimal {
         /// Keep the step a whole number of units, without 2.5.
         whole: bool,
@@ -27,6 +28,13 @@ pub struct RulerUnits {
     pub per_doc: f64,
     /// How the ticks are spaced.
     pub ticks: Ticks,
+}
+
+impl Ticks {
+    /// PhotoCraft's decimal steps; `whole` keeps the step a whole number of units without 2.5.
+    pub const fn decimal(whole: bool) -> Self {
+        Ticks::Decimal { whole }
+    }
 }
 
 impl RulerUnits {

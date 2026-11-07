@@ -101,7 +101,7 @@ fn the_ladder_steps_rung_by_rung_and_stops_at_its_ends() {
 
 #[test]
 fn going_back_skips_places_that_no_longer_exist() {
-    let at = |key: u32| ViewPlace { key, center: Point::new(f64::from(key), 0.0), zoom: 1.0 };
+    let at = |key: u32| ViewPlace::new(key, Point::new(f64::from(key), 0.0), 1.0);
     let mut history = ViewHistory::default();
     for key in 1..=4 {
         history.visit(at(key));
