@@ -489,7 +489,7 @@ impl<P> Placement<P> {
     /// Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
     /// splits `accepts_splits`, and so does a group placed at an anchor in a floating window
     /// (`floating`), which splits the anchor's frame.
-    pub(super) fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
+    pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
         match self {
             Self::Tab { .. } | Self::Split(DockSide::Center) => anchor.accepts_tabs,
             Self::Split(_) | Self::SplitSized { .. } => anchor.accepts_splits,

@@ -181,12 +181,12 @@ pub fn float_drop<P: Clone + PartialEq>(unit: &DragUnit<P>, space: &FloatSpace<P
     };
     let size = recorded.unwrap_or(space.default_size).min(space.area.size());
     let min = (at - Vec2::new(size.x * 0.5, space.inset)).min(space.area.max - size).max(space.area.min);
-    let rect = [min.x, min.y, size.x, size.y];
+    let rect = Rect::from_min_size(min, size);
     let action = match unit {
         DragUnit::Panel(panel) => Action::float(panel.clone(), rect),
         DragUnit::Group(anchor) => Action::move_group(anchor.clone(), Target::float(rect)),
     };
-    DockDropped { action, mark: DropMark::Into(Rect::from_min_size(min, size)) }
+    DockDropped { action, mark: DropMark::Into(rect) }
 }
 
 /// The action a release of `drag` at `at` makes in the dock `dock`, by the spots of the previous pass; `None` where
