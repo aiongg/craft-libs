@@ -1,6 +1,6 @@
 //! `Menu` (11.4, 15.4): the container of menu rows, on a menu layer, inline, or as a submenu.
 
-use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
+use super::item::{LevelMemory, MenuItem, MenuItemOutput, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
@@ -113,17 +113,6 @@ pub(crate) fn pick_values_from<T: Value + 'static>(ui: &mut Ui, label: impl Into
     Menu::new(label).values().opened_by(opener, Trigger::Press).pick(ui, entries)
 }
 
-/// A row that opens a submenu showing the rows of `body`. The menu level holds which submenu row is open, so
-/// resting on a second submenu row closes the first.
-pub(crate) fn submenu_rows(ui: &mut Ui, label: impl Into<Label>, body: impl FnMut(&mut Ui, &mut BodyCx<'_>)) {
-    let label = label.into();
-    let head = MenuItem::submenu(label.clone()).show(ui);
-    let mut open = head.submenu_open;
-    let mut body = body;
-    let shown = Menu::submenu(label, &head.response).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
-    head.note_submenu(open && shown.output.closed.is_none(), shown.output.response.rect);
-}
-
 /// A menu: a popup of [`MenuItem`]s and [`Divider`]s the arrow keys move through, one roving group. Press, context
 /// and submenu menus are this container with a different opener.
 ///
@@ -192,7 +181,7 @@ impl<'a> Menu<'a> {
     pub fn context(label: impl Into<Label>, opener: &Response) -> Self {
         let mut menu = Menu::new(label);
         menu.opener = Some(opener.id);
-        menu.with_layer(|overlay| overlay.opened_by(opener, Trigger::Context).anchor(Anchor::Pointer))
+        menu.with_layer(|overlay| overlay.opened_by(opener, Trigger::Context))
     }
 
     /// The submenu of the row `row`, beside it. It closes with the menu the row sits in.
@@ -203,12 +192,33 @@ impl<'a> Menu<'a> {
         menu
     }
 
-    /// The control the menu hangs from, and the trigger on it that opens the menu. The menu closes when the opener is
-    /// no longer shown.
+    /// A control the menu hangs from, and the trigger on it that opens the menu. The menu closes when the opener is
+    /// no longer shown. Called again, it names another opener: the menu opens from any of them, hangs from the
+    /// one that opened it (a `Trigger::Context` opener a right click opened, at the pointer), and gives the focus
+    /// back to the one the focus was on when it opened.
     #[must_use]
     pub fn opened_by(mut self, opener: &Response, trigger: Trigger) -> Self {
-        self.opener = Some(opener.id);
+        self.opener.get_or_insert(opener.id);
         self.with_layer(|overlay| overlay.opened_by(opener, trigger))
+    }
+
+    /// Where the menu hangs when the opener named last opened it, instead of that opener's rect. A rect or point is
+    /// in that opener's layer space.
+    #[must_use]
+    pub fn anchor(self, anchor: Anchor) -> Self {
+        self.with_layer(|overlay| overlay.opener_anchor(anchor))
+    }
+
+    /// A row that opens a submenu showing the rows of `body`, for use inside a menu body. The menu level holds which
+    /// submenu row is open, so resting on a second submenu row closes the first.
+    pub fn submenu_row(ui: &mut Ui, label: impl Into<Label>, body: impl FnMut(&mut Ui, &mut BodyCx<'_>)) -> MenuItemOutput {
+        let label = label.into();
+        let head = MenuItem::submenu(label.clone()).show(ui);
+        let mut open = head.submenu_open;
+        let mut body = body;
+        let shown = Menu::submenu(label, &head.response).open(Bind::bound(&mut open)).show(ui, |ui, cx| body(ui, cx));
+        head.note_submenu(open && shown.output.closed.is_none(), shown.output.response.rect);
+        head
     }
 
     fn with_layer(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {

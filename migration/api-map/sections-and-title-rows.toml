@@ -54,7 +54,7 @@ name = "PanelHeaderResponse"
 old = "craft_ui::composites::panel_header::PanelHeaderResponse"
 new = ""
 status = "replaced"
-note = "`TitleOutput { edit, action }`: the action part taken is `action: Option<HeaderAction>`; a drag of the header is the container's `DragBand`, not a response flag."
+note = "`TitleOutput { edit, action, menu_rect }`: the action part taken is `action: Option<HeaderAction>` and `menu_rect: Option<Rect>` is the `HeaderAction::Menu` part's rect, to hang a menu under the button; a drag of the header is the container's `DragBand`, not a response flag."
 
 [[type]]
 name = "InspectorHeader"

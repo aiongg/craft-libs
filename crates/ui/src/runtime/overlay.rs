@@ -213,6 +213,8 @@ struct Persist {
     absorb_zone: Option<Vec<Rect>>,
     /// An outside press the input hook removed for the running pass.
     outside_press: Option<Pos2>,
+    /// The layers that first showed while the primary button was held, until that press ends.
+    held_open: std::collections::HashSet<Id>,
     /// The root frame and pass each shown layer first ran its body in; gone with the layer's last entry.
     appeared: HashMap<Id, (u64, u64)>,
 }
@@ -343,13 +345,37 @@ pub(crate) fn begin_layer(ctx: &Context, id: Id, exiting: bool) {
     let reopened = faded && !exiting;
     let viewport = pass::current_viewport(ctx);
     let first = (pass::root_frame_nr(ctx), pass::pass_nr(ctx, viewport));
-    with_persist(ctx, viewport, |persist| {
+    let (down, released) = pointer::with_pass_pointer(ctx, |read| {
+        let released = read.frame.as_ref().filter(|frame| frame.release == Some(craft_behavior::PointerButton::Primary)).map(|frame| frame.pos);
+        (read.primary_down, released)
+    });
+    let release = with_persist(ctx, viewport, |persist| {
+        let new = reopened || !persist.appeared.contains_key(&id);
         if reopened {
             persist.appeared.insert(id, first);
         } else {
             persist.appeared.entry(id).or_insert(first);
         }
+        if exiting {
+            return None;
+        }
+        // A layer that first shows while the primary button is held was opened by that press.
+        if new && down {
+            persist.held_open.insert(id);
+        }
+        match released {
+            Some(at) => persist.held_open.contains(&id).then_some(at).flatten(),
+            None => {
+                if !down {
+                    persist.held_open.remove(&id);
+                }
+                None
+            }
+        }
     });
+    if let Some(at) = release {
+        note_dragged_release(ctx, id, at);
+    }
 }
 
 /// Whether the running pass is the one the layer `id` first ran its body in: false in the discard passes that
@@ -379,8 +405,8 @@ pub(crate) fn pressed_outside(ctx: &Context, id: Id) -> bool {
     with_pass(ctx, |pass| pass.pressed_outside.contains(&id))
 }
 
-/// Records that the press which opened the popup `popup` ended at the screen position `at` away from its opener
-/// (press, drag, release): a row of the popup under `at` is activated.
+/// Records that the press which opened the popup `popup` ended at the screen position `at` (press, drag, release): a
+/// row of the popup under `at` is activated.
 pub(crate) fn note_dragged_release(ctx: &Context, popup: Id, at: Pos2) {
     with_pass(ctx, |pass| pass.dragged_release = Some((popup, at)));
 }

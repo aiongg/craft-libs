@@ -2,7 +2,7 @@
 //! menu): the host's rows, then the dock's group rows.
 
 use super::MenuItem;
-use super::popup::{entry_rows, submenu_rows};
+use super::popup::{Menu, entry_rows};
 use super::words::MenuWords;
 use crate::contract::{Entry, Show as _};
 use crate::display::Divider;
@@ -98,7 +98,9 @@ impl PanelMenu {
                         *picked = entry.value().copied();
                     }
                 }
-                PanelRow::Submenu(label, rows) => submenu_rows(ui, label.clone(), |ui, _| Self::rows(ui, rows, picked)),
+                PanelRow::Submenu(label, rows) => {
+                    Menu::submenu_row(ui, label.clone(), |ui, _| Self::rows(ui, rows, picked));
+                }
                 PanelRow::Separator => {
                     Divider::horizontal().show(ui);
                 }
