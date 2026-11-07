@@ -14,6 +14,7 @@ use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
     Cursor, CursorIcon, CursorPriority, Flow, HitLevel, HitPriority, HitShape, PartRef, PressCancel, PressState, Proposal, Roving, Sense, Wheel,
 };
+use craft_i18n::WordSet;
 use craft_keymap::Chord;
 use craft_theme::Flags;
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
@@ -403,22 +404,42 @@ impl<C: Component> Focus for Cx<'_, C> {
     }
 }
 
-/// The label a component shows (chapter 19).
-// F3-LATER: words (F4 adds `words::<L>()`)
+/// The label a component shows and the built-in text it reads (chapter 19).
 pub trait WordSetCx {
     /// The label as given, a cheap clone.
     fn label(&self) -> Label;
+
+    /// The word set `L` in the language of the scope; built once per installed `Words`.
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L>;
 }
 
 impl WordSetCx for CxCore<'_> {
     fn label(&self) -> Label {
         self.resolved.label_value.clone()
     }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
+    }
 }
 
 impl<C: Component> WordSetCx for Cx<'_, C> {
     fn label(&self) -> Label {
         self.core.label()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.core.words()
+    }
+}
+
+impl<C: Component> WordSetCx for MeasureCx<'_, C> {
+    fn label(&self) -> Label {
+        self.resolved.label_value.clone()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
     }
 }
 
@@ -463,6 +484,10 @@ impl StageAccess for BodyCx<'_> {
 impl WordSetCx for BodyCx<'_> {
     fn label(&self) -> Label {
         self.resolved.label_value.clone()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
     }
 }
 

@@ -166,7 +166,7 @@ pub(crate) fn env<C: Component>(env: &Env, common: &Common) -> EnvStep {
     let command = common.command.as_ref().map(|command| Arc::new(ResolvedCommand { title: Arc::from(command.0) }));
     let label = match (&common.label, &command) {
         (Label::Empty, Some(command)) => Label::Shared(command.title.clone()),
-        (label, _) => label.clone(),
+        (label, _) => label.resolved(&env.words),
     };
     EnvStep {
         enabled: common.enabled.unwrap_or(true) && env.enabled,

@@ -7,6 +7,7 @@ mod props;
 mod style;
 mod token_group;
 mod util;
+mod words;
 
 #[cfg(test)]
 mod tests;
@@ -64,6 +65,14 @@ pub fn derive_env_value(input: TokenStream) -> TokenStream {
 #[proc_macro_derive(TokenGroup, attributes(group))]
 pub fn derive_token_group(input: TokenStream) -> TokenStream {
     expanded(token_group::derive(input.into()))
+}
+
+/// Writes a struct of built-in strings and its `WordSet` impl, one row per field. A row is
+/// `field: "module.camelCase" = "English";`, or starts with `template`, `unit`, `count` (`"{n} item" | "{n} items"`),
+/// `array`, `context` or `plain`. The macro checks ids, placeholders and that unit and count rows contain `{n}`.
+#[proc_macro]
+pub fn words(input: TokenStream) -> TokenStream {
+    expanded(words::expand_words(input.into()))
 }
 
 /// Registers a function as a trial of craft-ui's integration binary.

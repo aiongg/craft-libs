@@ -20,6 +20,7 @@ mod number;
 mod region;
 mod scripts;
 mod size;
+mod words;
 
 /// The CLDR number, plural and date data for every CLDR locale, from `data/generate.sh`.
 mod data {
@@ -74,6 +75,7 @@ pub use number::{NumberError, parse_number};
 pub use region::{HourCycle, Measurement, Paper, Region};
 pub use scripts::{Direction, Han, Script, base_direction, direction, han, scripts};
 pub use size::{FileSize, SizeUnit};
+pub use words::{Count, Counted, Word, WordRows, WordSet, WordTemplate, Words};
 
 /// The catalogs an app embeds, one entry per locale: (locale, shared catalog, the app's catalog).
 /// A missing catalog is `""`.
