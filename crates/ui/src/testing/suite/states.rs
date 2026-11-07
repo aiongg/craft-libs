@@ -4,6 +4,7 @@
 use super::{ANY, Case, Subject};
 use crate::contract::{Probe, ShapeKind};
 use crate::testing::access::{Declared, is_interactive, violations};
+use crate::testing::bypass;
 use crate::testing::fixture::Fixture;
 use crate::testing::story::Required;
 use craft_behavior::Input;
@@ -71,6 +72,10 @@ fn stories_show_and_hold_still(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let mut fixture = Fixture::story(story);
         fixture.settle();
+        let found = bypass::findings(&fixture);
+        if !found.is_empty() {
+            return Err(format!("{}: {found:?}", story.name));
+        }
         let (size, id) = (fixture.shown().size(), fixture.root_id());
         fixture.idle(1);
         if matches!(subject.probe.shape, ShapeKind::Leaf) && !(size.x > 0.0 && size.y > 0.0) {
@@ -93,6 +98,10 @@ fn stories_pass_the_access_rules(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let mut fixture = Fixture::story(story);
         fixture.settle();
+        let found = bypass::findings(&fixture);
+        if !found.is_empty() {
+            return Err(format!("{}: {found:?}", story.name));
+        }
         let found = violations(fixture.ctx(), fixture.tree());
         if !found.is_empty() {
             return Err(format!("{}: {found:?}", story.name));
