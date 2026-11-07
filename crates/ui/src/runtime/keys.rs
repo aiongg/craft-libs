@@ -324,7 +324,8 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let keys = record.keys;
     let menu_bar = record.menu_bar && keys.is_none_or(|keys| !matches!(keys.owner, OwnerClass::Text | OwnerClass::Recorder));
     let before = input.events.len();
-    let edit_chords = if keys.is_some_and(|keys| EditCommands::ALL.iter().any(|command| keys.edits.contains(command.edit()))) {
+    let edit_chords = if keys.is_some_and(|keys| EditCommands::ALL.iter().any(|command| command.edit().is_some_and(|edit| keys.edits.contains(edit))))
+    {
         commands::edit_chords(ctx)
     } else {
         Arc::default()
@@ -415,6 +416,20 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
             *taken = stale_repeat(&mut stale, press) || route_press(ctx, os, rec, press, dropdown.or(field_list), &mut routed, &mut activated);
         }
         for text in &batch.texts {
+            let digits;
+            let text = if rec.stop.role.digits {
+                let (found, rest) = craft_behavior::keys::split_digits(text);
+                for digit in found {
+                    push(&mut routed, Some(rec.stop.id), Intent::Digit(digit), false);
+                }
+                digits = rest;
+                &digits
+            } else {
+                text
+            };
+            if text.is_empty() {
+                continue;
+            }
             let typed = rec.stop.role.type_ahead && !text.trim().is_empty();
             let to_list = dropdown.filter(|dropdown| !dropdown.text && !text.trim().is_empty());
             if let Some(dropdown) = to_list {
@@ -736,6 +751,7 @@ fn route_access(
                 }
             }
         }
+        ActionKind::Click if node.part.is_some() && !node.focusable => push(routed, owner, Intent::Access(request.request(node.part)), false),
         ActionKind::Click => match focus::stop_rec(ctx, (node.owner, node.part)).filter(|rec| rec.stop.group.is_some()) {
             Some(rec) => route_activate(ctx, &rec, routed, activated),
             None => push(routed, owner, Intent::Activate, false),
@@ -763,6 +779,28 @@ pub struct Intents {
 }
 
 impl Intents {
+    /// Queues an intent for this pass, as the key stage does for its own.
+    pub(crate) fn push(&mut self, intent: Intent) {
+        self.items.push((intent, false));
+    }
+
+    /// Takes the next typed digit.
+    pub fn take_digit(&mut self) -> Option<u8> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Digit(_)))?;
+        self.items[at].1 = true;
+        match self.items[at].0 {
+            Intent::Digit(digit) => Some(digit),
+            _ => None,
+        }
+    }
+
+    /// Whether an AccessKit click names `part`; reads without taking.
+    pub(crate) fn access_click(&self, part: PartRef) -> bool {
+        self.items.iter().any(|(item, taken)| {
+            !taken && matches!(item, Intent::Access(request) if request.target == Some(part) && request.action == accesskit::Action::Click)
+        })
+    }
+
     /// Takes a `Reset`, once per pass: `Some(true)` when the label step sent it (the whole binding resets),
     /// `Some(false)` when a key sent it (it resets the focused part when that part has its own reset).
     pub(crate) fn take_reset(&mut self) -> Option<bool> {

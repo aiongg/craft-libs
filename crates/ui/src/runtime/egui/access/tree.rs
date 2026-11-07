@@ -250,6 +250,27 @@ impl AccessTree {
         self.lookup(NodeId(key.0))?.is_expanded()
     }
 
+    /// The kind of popup the node of `key` opens.
+    pub fn has_popup_of(&self, key: NodeKey) -> Option<PopupKind> {
+        match self.lookup(NodeId(key.0))?.has_popup()? {
+            accesskit::HasPopup::Menu => Some(PopupKind::Menu),
+            accesskit::HasPopup::Listbox => Some(PopupKind::Listbox),
+            accesskit::HasPopup::Tree => Some(PopupKind::Tree),
+            accesskit::HasPopup::Grid => Some(PopupKind::Grid),
+            accesskit::HasPopup::Dialog => Some(PopupKind::Dialog),
+        }
+    }
+
+    /// The access key of the node of `key`.
+    pub fn access_key_of(&self, key: NodeKey) -> Option<char> {
+        self.lookup(NodeId(key.0))?.access_key()?.chars().next()
+    }
+
+    /// Whether the node of `key` is the current item of its set (the current page).
+    pub fn current_of(&self, key: NodeKey) -> bool {
+        self.lookup(NodeId(key.0)).and_then(Node::aria_current).is_some_and(|current| current != accesskit::AriaCurrent::False)
+    }
+
     /// The nearest ancestor of `id` that screen readers see: AccessKit's consumer drops generic containers.
     pub fn parent_of(&self, id: Id) -> Option<NodeKey> {
         self.parent_of_key(NodeKey::of(id))

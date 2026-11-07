@@ -76,7 +76,7 @@ impl PaintUi<'_> {
         let mut child = child;
         let at =
             LeafLabel { id, owner: self.id, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size };
-        let placed = label::leaf(&mut *self.ui, &env, &at, &mut child);
+        let placed = crate::layout::ColumnGroup::barrier(&mut *self.ui, |ui| label::leaf(ui, &env, &at, &mut child));
         let output = self.child_with(id, placed.control, child, None);
         placed.finish(self.ui.ctx());
         output

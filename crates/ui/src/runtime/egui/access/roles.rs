@@ -85,6 +85,8 @@ impl Role {
     pub const STATUS: Role = Role::Node(accesskit::Role::Status);
     /// An alert.
     pub const ALERT: Role = Role::Node(accesskit::Role::Alert);
+    /// An alert dialog.
+    pub const ALERT_DIALOG: Role = Role::Node(accesskit::Role::AlertDialog);
     /// A toolbar.
     pub const TOOLBAR: Role = Role::Node(accesskit::Role::Toolbar);
     /// A canvas.

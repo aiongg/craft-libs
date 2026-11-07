@@ -1,5 +1,6 @@
 //! `Env` and scopes, app values and `content_env`.
 
+mod folder;
 mod label;
 mod units;
 
@@ -340,11 +341,13 @@ pub struct Scoped {
 
 /// What a collection records for one of its items in a pass: the row flags the item folds into its state (step 12)
 /// and its place in the set (step 16). The collection owns the record; a component reads it from its env.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct ItemFacts {
     pub(crate) item: Id,
     pub(crate) flags: crate::style::Flags,
     pub(crate) position: crate::runtime::access::SetPosition,
+    /// The keys of the item's cells in display order, so a cell reports the position of its column.
+    pub(crate) columns: Vec<craft_behavior::ColumnKey>,
 }
 
 impl Scoped {

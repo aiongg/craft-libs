@@ -53,7 +53,7 @@ impl Seen {
         self.events
             .borrow()
             .iter()
-            .filter_map(|event| if let CollectionEvent::LeadMoved { key, by } = event { Some((*key, *by)) } else { None })
+            .filter_map(|event| if let CollectionEvent::LeadMoved { key, by, .. } = event { Some((*key, *by)) } else { None })
             .collect()
     }
 

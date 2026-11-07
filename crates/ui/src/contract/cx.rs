@@ -156,15 +156,7 @@ impl<C: Component> Cx<'_, C> {
     pub fn join_roving(&mut self) {
         if let Some(group) = self.core.env.roving() {
             super::steps::join_group(&self.core.ctx, group, self.core.id);
-            let rtl = self.core.flow.is_rtl();
-            let mut declared: Vec<(Rect, PartRef)> =
-                self.core.results.iter().map(|(&(key, index), result)| (result.rect, PartRef { key, index })).collect();
-            declared.sort_by(|(a, _), (b, _)| {
-                let across = |rect: &Rect| if rtl { -rect.min.x } else { rect.min.x };
-                a.min.y.total_cmp(&b.min.y).then(across(a).total_cmp(&across(b)))
-            });
-            let parts: Vec<PartRef> = declared.into_iter().map(|(_, part)| part).collect();
-            focus::registration::join_part_group(&self.core.ctx, group, self.core.id, &parts);
+            focus::registration::join_part_group(&self.core.ctx, group, self.core.id, crate::runtime::memory::sub(self.core.id, "roving"));
         }
     }
 
@@ -1475,15 +1467,15 @@ impl<C: Component> MeasureCx<'_, C> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Toggle {
     pub part: PartRef,
-    pub popup: &'static str,
+    pub decl: crate::contract::overlay::ToggleDecl,
     /// The popup's open state after step 9's toggles, which the part's sub-node reports as `expanded`.
     pub open: bool,
 }
 
 /// A part as `PartsCx::part` declares it; the builder sets its flags.
 pub struct PartBuilder<'a> {
-    decl: &'a mut PartDecl,
-    declared: &'a mut PartExtras,
+    pub(super) decl: &'a mut PartDecl,
+    pub(super) declared: &'a mut PartExtras,
 }
 
 /// The parts a component declared, each with what it declares beyond the sensing core's `PartDecl`.
@@ -1502,7 +1494,7 @@ pub(crate) struct PartExtras {
     pub value: bool,
     pub own_reset: bool,
     pub selected: bool,
-    pub toggles: Option<&'static str>,
+    pub toggles: Option<crate::contract::overlay::ToggleDecl>,
 }
 
 impl PartBuilder<'_> {
@@ -1601,8 +1593,7 @@ impl PartBuilder<'_> {
     /// the component when no toggling part is focused) opens the first toggled popup that is closed and Alt+Up closes
     /// the open ones, and the sub-node reports `expanded`. The component declares the sub-node with `Access::node`.
     pub fn toggles(self, popup: &'static str) -> Self {
-        self.declared.toggles = Some(popup);
-        self
+        self.toggles_at(popup, 0)
     }
 
     /// A part with no focus stop of its own does the same as the focusable part `part` of this component, which

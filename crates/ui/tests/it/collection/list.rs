@@ -51,7 +51,7 @@ impl Seen {
     }
 
     fn leads(&self) -> Vec<usize> {
-        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved(key) = event { Some(*key) } else { None }).collect()
+        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved { key, .. } = event { Some(*key) } else { None }).collect()
     }
 
     fn selections(&self) -> Vec<SelectionChange<usize>> {

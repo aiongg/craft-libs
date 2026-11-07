@@ -203,7 +203,11 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
                 .iter()
                 .flat_map(|command| {
                     let bindings = keymap.bindings(&CommandRef::from(*command));
-                    bindings.into_iter().filter(|binding| !binding.trigger.double).map(move |binding| (command.edit(), binding.trigger.chord))
+                    let edit = command.edit();
+                    bindings
+                        .into_iter()
+                        .filter(|binding| !binding.trigger.double)
+                        .filter_map(move |binding| edit.map(|edit| (edit, binding.trigger.chord)))
                 })
                 .collect();
             board.keymap = Some(KeymapCache { keymap: Arc::new(keymap), platform, overrides: input.overrides.clone(), edit_chords });
@@ -281,12 +285,26 @@ pub(crate) fn resolve_bound(ctx: &Context, chain: &CommandChain, command: &Comma
     resolve_in(ctx, command, instance)
 }
 
+/// Step-1 resolution for a context in `chain`; `None` when the command's scope has no instance in the chain.
+pub(crate) fn resolve_scoped(ctx: &Context, chain: &CommandChain, command: &CommandRef) -> Option<ResolvedCommand> {
+    let (scope, app) = with(ctx, |board| {
+        let scope = board.scope_of(command).to_owned();
+        let app = is_app(&scope);
+        (scope, app)
+    });
+    if !app && chain.innermost(&scope).is_none() {
+        return None;
+    }
+    Some(resolve_bound(ctx, chain, command))
+}
+
 fn queue(ctx: &Context, fired: Fired) {
     // An edit command goes to the focused component that lists it; otherwise it stays an app command.
     if fired.target.is_none()
         && fired.phase != FirePhase::Release
         && let Some(command) = EditCommands::from_ref(&fired.command)
-        && keys::queue_edit(ctx, command.edit())
+        && let Some(edit) = command.edit()
+        && keys::queue_edit(ctx, edit)
     {
         return;
     }
@@ -312,20 +330,19 @@ pub(crate) fn fall_through(ctx: &Context, command: craft_behavior::EditCommand) 
 
 /// Step 17: the command of a component that was activated and enabled.
 pub(crate) fn fire_bound(ctx: &Context, command: &ResolvedCommand) {
+    fire_resolved(ctx, command, FireSource::Pointer);
+}
+
+/// Queues `command` for its instance with `source`; false when disabled.
+pub(crate) fn fire_resolved(ctx: &Context, command: &ResolvedCommand, source: FireSource) -> bool {
     if !command.enabled {
-        return;
+        return false;
     }
     queue(
         ctx,
-        Fired {
-            command: command.command.clone(),
-            target: command.instance,
-            source: FireSource::Pointer,
-            phase: FirePhase::Press,
-            cycle: false,
-            alt_variant: false,
-        },
+        Fired { command: command.command.clone(), target: command.instance, source, phase: FirePhase::Press, cycle: false, alt_variant: false },
     );
+    true
 }
 
 pub(crate) fn fire_from(ctx: &Context, command: &CommandRef, source: FireSource) -> bool {

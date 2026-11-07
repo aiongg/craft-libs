@@ -11,7 +11,7 @@ use crate::runtime::env::Label;
 use crate::runtime::frame;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::{Metrics, NavShape, Roving, Sense, Value};
+use craft_behavior::{Metrics, NavMove, NavShape, Roving, Sense, Value};
 use egui::{Response, Ui};
 
 /// The style of a menu: the surface comes from the container.
@@ -22,6 +22,16 @@ pub struct MenuStyle {
     metrics: Metrics,
 }
 
+/// The neighbouring menu a top-level menu asks its bar for when Left or Right reaches it unhandled. The directions
+/// are the keys', not reading order: `Prev` is the Left key, which a right-to-left bar reads as the next title.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MenuStep {
+    /// The Left key.
+    Prev,
+    /// The Right key.
+    Next,
+}
+
 /// What a menu returns: its response and how it closed in this pass.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -30,6 +40,8 @@ pub struct MenuOutput {
     pub response: Response,
     /// How the menu closed in this pass; `None` while it stays open. Reported once for each close.
     pub closed: Option<CloseReason>,
+    /// The Left or Right a top-level menu left unhandled this pass.
+    pub step: Option<MenuStep>,
 }
 
 impl Outcome for MenuOutput {
@@ -139,6 +151,8 @@ pub struct Menu<'a> {
     opener: Option<egui::Id>,
     /// A row of a submenu level took Back.
     back: bool,
+    /// The Left or Right key a top-level level left unhandled.
+    step: Option<MenuStep>,
 }
 
 impl<'a> Menu<'a> {
@@ -146,7 +160,8 @@ impl<'a> Menu<'a> {
     pub fn new(label: impl Into<Label>) -> Self {
         let props =
             ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).roving(Roving::new(NavShape::Flat)).mount(Mount::Layer(layer(false)));
-        Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false }.label(label)
+        Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
+            .label(label)
     }
 
     /// The caller's binding takes the open state over from the menu's slot.
@@ -168,7 +183,8 @@ impl<'a> Menu<'a> {
     /// the menu of a control that owns its popup shows its entries through it.
     pub fn inline(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new().roving(Roving::new(NavShape::Flat));
-        Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false }.label(label)
+        Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
+            .label(label)
     }
 
     /// A context menu named `label`, hanging from where the pointer was when it opened, with `opener` getting the
@@ -238,6 +254,16 @@ impl Component for Menu<'_> {
                 _ => self.back = true,
             }
         }
+        if !self.submenu {
+            let rtl = cx.flow.is_rtl();
+            while let Some((mv, _)) = cx.intents().take_move() {
+                self.step = match mv {
+                    NavMove::Back => Some(if rtl { MenuStep::Next } else { MenuStep::Prev }),
+                    NavMove::Forward => Some(if rtl { MenuStep::Prev } else { MenuStep::Next }),
+                    _ => self.step,
+                };
+            }
+        }
         while let Some(text) = cx.intents().take_text() {
             let mut chars = text.chars();
             if let (Some(typed), None) = (chars.next(), chars.next())
@@ -259,7 +285,7 @@ impl Component for Menu<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> MenuOutput {
-        MenuOutput { response: cx.response.clone(), closed: self.closed.or(self.back.then_some(CloseReason::Requested)) }
+        MenuOutput { response: cx.response.clone(), closed: self.closed.or(self.back.then_some(CloseReason::Requested)), step: self.step }
     }
 }
 

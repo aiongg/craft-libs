@@ -296,6 +296,9 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     spec.description = node.description.clone();
     spec.numeric = numeric.cloned();
     spec.expanded = expanded;
+    spec.access_key = node.access_key;
+    spec.has_popup = node.has_popup;
+    spec.current = node.current;
     if let Some(expanded) = expanded {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }

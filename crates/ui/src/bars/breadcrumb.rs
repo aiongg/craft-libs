@@ -3,7 +3,7 @@
 //! of them.
 
 use super::items::{FitItem, FitKeep, fit_items};
-use super::words::BreadcrumbWords;
+use super::words::BarWords;
 use crate::buttons::Link;
 use crate::contract::{
     Access, Common, Component, Cx, Entry, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role, Styled as _,
@@ -278,7 +278,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
         }
         let popup = cx.popup("hidden");
         let hidden = &self.crumbs[..self.laid.hidden];
-        let name = cx.words::<BreadcrumbWords>().hidden.clone();
+        let name = cx.words::<BarWords>().breadcrumb_hidden.clone();
         let picked = ui.show(popup, crate::menu::layer(false), |ui, _| Menu::inline(name.clone()).pick(ui, hidden).picked).flatten();
         if picked.is_some() {
             self.picked = picked;
@@ -295,7 +295,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
             }
         }
         if self.laid.ellipsis.is_some() {
-            access.node(HIDDEN, Role::BUTTON).name = Name::Text(cx.words::<BreadcrumbWords>().hidden.as_str().to_owned());
+            access.node(HIDDEN, Role::BUTTON).name = Name::Text(cx.words::<BarWords>().breadcrumb_hidden.as_str().to_owned());
         }
     }
 

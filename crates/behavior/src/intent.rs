@@ -155,8 +155,10 @@ pub enum Intent {
         /// How much to delete.
         by: Granularity,
     },
-    /// Toggle the lead's selection.
-    Toggle,
+    /// Space on a collection: the item step turns it into the collection's `SpaceAction`.
+    Space,
+    /// One typed digit, for a role that takes digits (`KeyRole::digits`).
+    Digit(u8),
     /// Rename the lead.
     Rename,
     /// Open the context menu.

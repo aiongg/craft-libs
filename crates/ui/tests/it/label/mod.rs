@@ -1,6 +1,11 @@
 //! The label step: placement, mirroring, scrub, double-click reset and the reset dot.
 
+mod align;
+mod glyph;
+pub mod group;
+mod help;
 pub mod kit;
+mod message;
 
 use self::kit::{Dial, Field, LabelledDial, RESET, SIZE, Seen, Wide};
 use craft_host::target::ShellInfo;

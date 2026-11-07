@@ -10,7 +10,7 @@ use super::{Inner, ItemFn};
 use super::{overlay, tooltip};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::access::{self, Politeness, Role, scope};
+use crate::runtime::access::{self, Politeness, Role, SetPosition, scope};
 use crate::runtime::env::{AppValues, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::overlay::CloseReason;
@@ -119,6 +119,11 @@ pub(crate) trait ShapeHooks<C: Component> {
 
     /// The politeness of a live region the shape's body is.
     fn live(&self, _comp: &C) -> Option<Politeness> {
+        None
+    }
+
+    /// The position the shape's component reports among its siblings, when it knows one (a reorderable section).
+    fn position(&self, _comp: &C) -> Option<SetPosition> {
         None
     }
 
@@ -643,6 +648,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             live: p.hooks.live(comp),
             scrolls: p.hooks.scrolls(comp),
             expanded: p.hooks.expanded(comp),
+            position: p.hooks.position(comp),
             group: steps::member_group(&ctx, env.roving, id),
         },
     );
@@ -809,6 +815,8 @@ pub(crate) fn show_container<C: Container, R>(
 }
 
 pub(crate) fn show_items<'r, C: Collection>(comp: C, ui: &mut Ui, source: &dyn ItemSource<C::Key>, item: &mut ItemFn<'r, C>) -> C::Output {
+    let view = comp.filtered(source, &Env::of(ui));
+    let source = view.as_deref().unwrap_or(source);
     run(comp, ui, ShowAt::Flow, None, &mut super::items::ItemsHooks::<C>::new(source, item))
 }
 

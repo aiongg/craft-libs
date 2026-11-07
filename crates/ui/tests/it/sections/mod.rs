@@ -1,7 +1,9 @@
 //! `TitleRow`: lead and action parts wear faces, report a value and an action, and form one roving stop.
 
+mod footer;
 mod header;
 mod section;
+mod stack;
 
 use crate::contract::kit::PlainStyle;
 use craft_behavior::PartKey;

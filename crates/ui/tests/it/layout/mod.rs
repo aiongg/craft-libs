@@ -1,7 +1,10 @@
 mod arrange;
 mod body;
+mod column;
+mod end_region;
 mod fonts;
 mod label;
 mod memory;
 mod nested;
+mod reorder_band;
 mod slot;

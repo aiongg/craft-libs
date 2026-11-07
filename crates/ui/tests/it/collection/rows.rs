@@ -57,7 +57,7 @@ impl Log {
     }
 
     fn leads(&self) -> Vec<usize> {
-        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved(key) = event { Some(*key) } else { None }).collect()
+        self.events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved { key, .. } = event { Some(*key) } else { None }).collect()
     }
 
     fn take(&self, out: CollectionResponse<usize, Dismissed>) {
@@ -464,6 +464,6 @@ fn a_selected_lead_that_leaves_the_source_moves_the_selection_to_the_new_lead() 
     frames.idle(2, &mut show);
     assert_eq!(selection.borrow().items, vec![13], "the selection follows the lead to the key now in its place");
     let leads: Vec<usize> =
-        events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved(key) = event { Some(*key) } else { None }).collect();
+        events.borrow().iter().filter_map(|event| if let CollectionEvent::LeadMoved { key, .. } = event { Some(*key) } else { None }).collect();
     assert_eq!(leads.last(), Some(&13));
 }

@@ -63,6 +63,8 @@ pub(crate) struct NodeSpec {
     pub numeric: Option<Numeric>,
     pub expanded: Option<bool>,
     pub has_popup: Option<PopupKind>,
+    /// The current item of its set (the current page).
+    pub current: bool,
     /// The index in the set and the size of the set.
     pub position: Option<(usize, Option<usize>)>,
     pub level: Option<usize>,
@@ -107,6 +109,7 @@ impl NodeSpec {
             numeric: None,
             expanded: None,
             has_popup: None,
+            current: false,
             position: None,
             level: None,
             grid: crate::runtime::access::GridPlace::default(),
@@ -238,6 +241,9 @@ fn write_relations(node: &mut accesskit::Node, spec: &NodeSpec) {
 fn write_states(node: &mut accesskit::Node, spec: &NodeSpec) {
     if let Some(expanded) = spec.expanded {
         node.set_expanded(expanded);
+    }
+    if spec.current {
+        node.set_aria_current(accesskit::AriaCurrent::Page);
     }
     if let Some(politeness) = spec.live {
         node.set_live(match politeness {

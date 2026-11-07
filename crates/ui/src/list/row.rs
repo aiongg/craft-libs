@@ -342,7 +342,7 @@ impl<'a> ListRow<'a> {
     /// at the cell's end (mirrored in a right-to-left interface) and a numeric column's figures are tabular.
     #[must_use]
     pub fn columns(mut self, specs: &[ColumnSpec]) -> Self {
-        self.aligns = specs.iter().map(|spec| (spec.key.clone(), halign(spec.align), spec.numeric)).collect();
+        self.aligns = specs.iter().map(|spec| (spec.key.clone(), halign(spec.align), spec.tabular)).collect();
         self
     }
 

@@ -133,12 +133,12 @@ new = "layout(FieldLayout::Above)"
 [[setter]]
 type = "Field"
 old = "help(impl Into<String>)"
-new = "help(Help::Text(&str))"
+new = "help(Help::Text(Label))"
 
 [[setter]]
 type = "Field"
 old = "help_status(StatusKind)"
-new = "help(Help::Status(Tone, &str))"
+new = "help(Help::Status(Tone, Label))"
 note = "`Tone` is `craft_theme::variant::Tone`."
 
 [[setter]]

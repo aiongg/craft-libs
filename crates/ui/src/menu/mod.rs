@@ -13,6 +13,6 @@ pub use bar::{HelpEntry, MenuBar, MenuBarOutput, MenuBarStyle, MenuHelp, MenuTit
 pub use edit::{EditMenu, EditMenuOutput};
 pub use item::{MenuItem, MenuItemOutput, MenuItemStyle};
 pub use panel::{GroupItem, PanelMenu, PanelMenuOutput, PanelRow};
-pub use popup::{Menu, MenuOutput, MenuPick, MenuStyle};
+pub use popup::{Menu, MenuOutput, MenuPick, MenuStep, MenuStyle};
 pub(crate) use popup::{entry_rows, layer, pick_from, pick_values_from};
 pub use words::MenuWords;

@@ -186,7 +186,7 @@ impl Scene for MenuScene {
 
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
         let mut open = true;
-        let _ = Menu::new("Items", Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
+        let _ = Menu::new("Items").open(Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
             for key in 0..40 {
                 let _ = MenuItem::new(format!("Item {key}")).id_salt(key).show(ui);
             }

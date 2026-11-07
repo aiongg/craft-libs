@@ -18,7 +18,7 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::words::MenuBarWords;
+use super::words::MenuWords;
 use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::ToggleButton;
 use crate::contract::{
@@ -281,15 +281,15 @@ impl<'a> MenuBar<'a> {
     }
 
     /// The text of the overflow title: "…" beside shown titles, "Menu" when it holds them all.
-    fn more_text(words: &MenuBarWords, shown: usize) -> String {
-        if shown == 0 { words.all.as_str().to_owned() } else { words.more.as_str().to_owned() }
+    fn more_text(words: &MenuWords, shown: usize) -> String {
+        if shown == 0 { words.bar_all.as_str().to_owned() } else { words.bar_more.as_str().to_owned() }
     }
 
     /// Each title's width as its face measures, the face height, and the width of the "…" title.
     fn widths(&self, cx: &MeasureCx<'_, Self>) -> (Vec<f32>, f32, f32) {
         let texts = self.texts(&cx.env);
         let sizes: Vec<Vec2> = texts.iter().map(|(text, _)| cx.face(Self::face(text, false))).collect();
-        let more = cx.face(Self::face(&Self::more_text(&cx.env.words::<MenuBarWords>(), 1), false));
+        let more = cx.face(Self::face(&Self::more_text(&cx.env.words::<MenuWords>(), 1), false));
         let height = sizes.iter().map(|size| size.y).fold(more.y, f32::max);
         (sizes.iter().map(|size| size.x).collect(), height, more.x)
     }
@@ -489,7 +489,7 @@ impl Component for MenuBar<'_> {
         let found = declared(cx);
         let slots = Self::slots(found);
         let opened = Self::opened(cx, &slots, found);
-        let words = cx.env.words::<MenuBarWords>();
+        let words = cx.env.words::<MenuWords>();
         let folder = cx.env.folder();
         let texts = self.texts(&cx.env);
         let help = self.help;
@@ -511,7 +511,7 @@ impl Component for MenuBar<'_> {
                     .show(ui, |ui, body| match slot {
                         Open::Title(at) => {
                             if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
-                                TextField::search(words.search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
+                                TextField::search(words.bar_search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
                                 let refs: Vec<[&str; 3]> =
                                     rows.iter().map(|[label, english, path]| [label.as_str(), english.as_str(), path.as_str()]).collect();
                                 let mut seen: Vec<&CommandRef> = Vec::new();
@@ -534,7 +534,7 @@ impl Component for MenuBar<'_> {
                                     };
                                 }
                                 if listed.is_empty() && !query.0.trim().is_empty() {
-                                    Text::new(words.no_matches.as_str().to_owned()).show(ui);
+                                    Text::new(words.bar_no_matches.as_str().to_owned()).show(ui);
                                 }
                                 Divider::horizontal().show(ui);
                             }
@@ -568,7 +568,7 @@ impl Component for MenuBar<'_> {
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
-        let words = cx.env.words::<MenuBarWords>();
+        let words = cx.env.words::<MenuWords>();
         let slots = Self::slots(found);
         for (at, slot) in slots.iter().enumerate() {
             let name = match slot {
@@ -590,7 +590,7 @@ impl Component for MenuBar<'_> {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
-        let words = cx.env.words::<MenuBarWords>();
+        let words = cx.env.words::<MenuWords>();
         let underlined = cx.modifiers().alt && !cx.env.shell().os.is_mac();
         for slot in Self::slots(found) {
             let part = Self::slot_part(slot);

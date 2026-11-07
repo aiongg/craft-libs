@@ -16,6 +16,7 @@ pub mod overlay;
 mod paint_ui;
 mod props;
 mod registry;
+pub(crate) mod reorder;
 mod run;
 mod steps;
 pub(crate) mod text;
@@ -30,13 +31,15 @@ pub use crate::runtime::keys::MenuKey;
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
+pub(crate) use body::REORDER_BAND;
 pub use collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, ContextMenuRequest,
-    HeaderMenuRequest, LeadOnOpen, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ColumnAlign, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec,
+    ContextMenuRequest, HeaderMenuRequest, LeadOnOpen, LeadSource, ListDrag, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode,
+    SpaceAction, ToggleColumn, ToggleEdit,
 };
 pub use container::{
-    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
-    Sizing, ThemeScope,
+    Collapse, ContainerProps, DragBand, EndRegion, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
+    ShellPane, Sizing, ThemeScope,
 };
 pub use craft_ui_macros::{CommandSet, Component, Pattern, Props, register_contract};
 pub(crate) use cx::SeenPress;
@@ -44,9 +47,9 @@ pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, Me
 pub use entry::Entry;
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::ColumnCommands;
-pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, Scrub, SideLabel};
+pub use label::{CellWidth, FieldLabelRole, FieldLayout, GlyphLabel, LabelAlign, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
-pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
+pub use overlay::{Overlay, OverlayUi, Overlays, Popup, PopupHandle, Trigger};
 pub use paint_ui::PaintUi;
 pub(crate) use props::StopProps;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
@@ -346,6 +349,9 @@ pub trait Container: Component + HasProps + Meta<Shape = shape::Body> {
     /// Fills the footer region.
     fn footer(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
 
+    /// Fills the end region, after the body.
+    fn end(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
+
     /// The container closed, and why: a layer's dismissal rule, a close the body or footer asked for with
     /// `BodyCx::request_close_as`, `overlay::request_close`, or the OS closing its window. Called once for a close,
     /// at step 15 or, for a dismissal rule, right after the pass.
@@ -392,6 +398,16 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
         cx: &StyleCx<'_>,
     ) -> Self::ItemLayout {
         self.item_layout(source, width, cx)
+    }
+
+    /// A view of `source` for this pass, such as the rows a filter keeps; `None` shows `source` as it is.
+    fn filtered<'s>(&self, _source: &'s dyn ItemSource<Self::Key>, _env: &crate::runtime::env::Env) -> Option<Box<dyn ItemSource<Self::Key> + 's>> {
+        None
+    }
+
+    /// Adjusts the item the closure built for a row, from the row's state.
+    fn dress<'r>(&self, item: Self::Item<'r>, _row: &RowState) -> Self::Item<'r> {
+        item
     }
 
     /// The rename editor at `label`: the label rect the renaming item reports (`ItemOutput::label_rect`), else its row.

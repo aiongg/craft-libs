@@ -163,8 +163,9 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let popup = cx.popup("menu");
         let entries = self.entries;
         let name = cx.label();
-        let ran =
-            ui.show(popup, menu::layer(false), |ui, _| Menu::inline(name.clone()).show(ui, |ui, _| menu::entry_rows(ui, entries)).inner.flatten());
+        let ran = ui.show(popup, menu::layer(false), |ui, _| {
+            Menu::inline(name.clone()).values().show(ui, |ui, _| menu::entry_rows(ui, entries)).inner.flatten()
+        });
         if let Some(value) = ran.flatten().and_then(|at| entries.get(at)).and_then(Entry::value) {
             self.chosen = Some(value.clone());
             popup.close(cx);

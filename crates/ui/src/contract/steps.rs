@@ -7,7 +7,7 @@ use super::values::reuse_arc;
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
-use crate::runtime::access::{self, Access, FaceFacts, Own, Politeness, Role, SubDecl, SubNode, scope};
+use crate::runtime::access::{self, Access, FaceFacts, Own, Politeness, Role, SetPosition, SubDecl, SubNode, scope};
 use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label, Message};
@@ -1183,6 +1183,8 @@ pub(crate) struct ReportIn<'a> {
     pub group: Option<Id>,
     /// The expanded state of a collapsible container, unless `Component::access` says otherwise.
     pub expanded: Option<bool>,
+    /// The position the component reports itself, ahead of its group's and its item facts'.
+    pub position: Option<SetPosition>,
 }
 
 /// The bound command's hint and shortcut text, which describe and key its node.
@@ -1246,6 +1248,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     }
     if access.expanded.is_none() {
         access.expanded = input.expanded;
+    }
+    if access.position.is_none() {
+        access.position = input.position;
     }
     if access.position.is_none() {
         access.position =

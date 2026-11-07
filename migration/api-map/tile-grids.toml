@@ -67,7 +67,7 @@ name = "stack_text"
 old = "craft_ui::list::tiles::stack_text"
 new = ""
 status = "removed"
-note = "The stack badge is Tile::stack(n); its text is the word tileGrid.stack."
+note = "The stack badge is Tile::stack(n); its text comes from Units::times."
 
 [[type]]
 name = "show_tile_rename"

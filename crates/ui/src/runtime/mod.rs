@@ -22,5 +22,6 @@ pub mod pointer;
 pub mod toast;
 pub mod wheel;
 pub mod windows;
+pub mod words;
 
 pub use install::{InstallError, InstallSpec, install};

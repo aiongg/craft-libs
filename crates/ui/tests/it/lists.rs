@@ -94,7 +94,7 @@ fn the_footer_counts_marked_actions_and_a_pick_undoes_through_its_row() {
     assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::default()), None);
     assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::at(0)).as_deref(), Some("Undo 1 Action"));
     assert_eq!(footer_text(&words, &Format::from_tag("en-US"), &UndoMark::at(3)).as_deref(), Some("Undo 4 Actions"));
-    assert_eq!(undo_count(&[CollectionEvent::LeadMoved(1)]), None);
+    assert_eq!(undo_count(&[CollectionEvent::Selection(SelectionChange::Clear)]), None);
     assert_eq!(undo_count(&[CollectionEvent::Activate(2)]), Some(3));
 }
 

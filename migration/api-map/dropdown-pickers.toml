@@ -122,7 +122,7 @@ name = "TreeEntry"
 old = "craft_ui::controls::tree_picker::TreeEntry"
 new = "craft_ui::pickers::TreeEntry"
 status = "moved"
-note = "Built with `TreeEntry::new(key, name)` or `TreeEntry::folder(key, name)`, then `within(parent_key)`, `blocked_by(reason)` and `with_icon(icon)`, in place of the public fields `key`, `name`, `parent`, `folder`, `blocked` and `icon`."
+note = "Built with `TreeEntry::new(key, name)` or `TreeEntry::folder(key, name)` (names are `impl Into<Label>`), then `within(parent_key)`, `blocked_by(reason)` (a `Label`) and `with_icon(icon)`, in place of the public fields `key`, `name`, `parent`, `folder`, `blocked` and `icon`."
 
 [[type]]
 name = "TreePickerStyle"
@@ -136,7 +136,7 @@ name = "TreePickerLabels"
 old = "craft_ui::controls::tree_picker::TreePickerLabels"
 new = ""
 status = "replaced"
-note = "Words of the library word sets (`treePicker.placeholder`, `treePicker.separator`); a placeholder of the app is `TreePicker::placeholder`."
+note = "Words of the library word sets (`treePicker.placeholder`; the path separator is `common.pathSeparator`); a placeholder of the app is `TreePicker::placeholder`."
 
 [[type]]
 name = "AutocompleteResponse"

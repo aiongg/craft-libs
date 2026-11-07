@@ -552,6 +552,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 if sheet {
                     rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(at, &columns, focused));
                 }
+                let column_keys: Vec<craft_behavior::ColumnKey> = cells.iter().map(|(key, _)| key.clone()).collect();
                 let mut icx = ItemCx {
                     key: &key,
                     at,
@@ -570,7 +571,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     memory: &mut *cx.core.memory,
                 };
                 icx.memory.claim(icx.id);
-                let mut item = (self.item)(&key, &mut icx);
+                let item = (self.item)(&key, &mut icx);
+                let mut item = comp.dress(item, &state);
                 let tip = icx.tip.take();
                 drop(icx);
                 let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
@@ -582,7 +584,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     base_env.derive_local(|scoped| {
                         scoped.item = Some(item_id);
                         scoped.row = Some(row_group);
-                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position });
+                        scoped.item_facts = Some(ItemFacts { item: item_id, flags, position, columns: column_keys });
                     }),
                 );
                 item = Props::id(item, item_id);
@@ -1043,7 +1045,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && let Some(at) = lead_at
             && comp.can_drag(&self.source.key(at))
         {
-            let to = crate::contract::reorder::move_to(at, if forward { (at + 2).min(len) } else { at.saturating_sub(1) });
+            let to = crate::contract::reorder::nudge_to(at, len, forward);
             if to != at {
                 let key = self.source.key(at);
                 let id = crate::runtime::edit::next_gesture_id(&ctx);
