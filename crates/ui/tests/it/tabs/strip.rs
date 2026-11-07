@@ -68,3 +68,17 @@ fn a_click_on_a_tab_reports_it_selected() {
     fixture.click(&tab);
     assert_eq!(picked.borrow().as_slice(), &[1]);
 }
+
+/// A tab the strip is too narrow to fit is not in the tree; the overflow menu still lists it.
+#[trial]
+fn the_tabs_that_do_not_fit_have_no_node_and_the_overflow_menu_lists_them() {
+    let (mut fixture, _) = rig(NARROW);
+    let hidden: Vec<&str> = TITLES.iter().copied().filter(|title| fixture.by_label(title).is_none()).collect();
+    assert!(!hidden.is_empty() && hidden.len() < TITLES.len(), "some tabs fit and some do not: {hidden:?}");
+    let more = fixture.by_label("More tabs").expect("the overflow button is named");
+    fixture.click(&more);
+    fixture.settle();
+    for title in hidden {
+        assert!(fixture.by_label(title).is_some(), "the overflow menu lists {title}");
+    }
+}

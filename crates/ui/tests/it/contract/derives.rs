@@ -190,7 +190,7 @@ fn each_shape_has_an_entry_that_shows_an_instance() {
                     shown.push((name, entry(ui, room, Box::new(Manual { common: Common::new() })).is_some()));
                     shown.push(("wrong box", entry(ui, room, Box::new(0u8)).is_none()));
                 }
-                (name, ShowEntry::Container(entry)) if name.contains("::Panel<") => {
+                (name, ShowEntry::Container(entry)) if name.contains("kit::Panel<") => {
                     let mut body_ran = false;
                     let response = entry(ui, room, Box::new(Panel::new()), &mut |_, _| body_ran = true);
                     shown.push((name, response.is_some() && body_ran));

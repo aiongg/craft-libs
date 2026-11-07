@@ -9,8 +9,8 @@ use super::rules::{CloseSide, TabKind, close_side};
 use super::words::TabWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, Common, Component, Cx, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
-    WordSetCx as _,
+    Access, Common, Component, Cx, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SetPosition,
+    Styled as _, WordSetCx as _,
 };
 use crate::display::Progress;
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
@@ -145,6 +145,9 @@ pub struct Tab<'a> {
     /// The close button's name and tooltip in place of "Close {tab}" (a tab still opening names it "Cancel opening").
     #[prop(into)]
     close_label: Option<Label>,
+    /// The tab's place in its set when it is shown alone; inside a strip the item step gives it.
+    #[prop]
+    position: Option<SetPosition>,
     placed: Option<Placed>,
     event: Option<TabPartEvent>,
 }
@@ -162,6 +165,7 @@ impl<'a> Tab<'a> {
             closable: None,
             progress: None,
             close_label: None,
+            position: None,
             placed: None,
             event: None,
         }
@@ -284,7 +288,11 @@ impl Component for Tab<'_> {
     }
 
     fn sense(&self) -> Sense {
-        Sense::CLICK | Sense::FOCUS
+        if self.can_close() && self.kind.middle_click_closes() {
+            Sense::CLICK | Sense::MIDDLE_CLICK | Sense::FOCUS
+        } else {
+            Sense::CLICK | Sense::FOCUS
+        }
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -362,6 +370,9 @@ impl Component for Tab<'_> {
         let words = cx.words::<TabWords>();
         let label = cx.resolved.label;
         access.name(Name::Text(self.name(label, &words)));
+        if let Some(position) = self.position {
+            access.position(position);
+        }
         if self.shows_close() {
             let name = match &self.close_label {
                 Some(name) => name.as_str().to_owned(),
