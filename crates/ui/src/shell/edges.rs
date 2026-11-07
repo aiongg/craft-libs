@@ -2,6 +2,7 @@
 //! hands the resize to the operating system.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role};
+use crate::runtime::egui::alloc;
 use crate::runtime::windows::{ResizeEdge, WindowAction, WindowHost};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, Sense};
@@ -88,7 +89,7 @@ impl WindowEdges {
     /// registered last.
     pub fn place(self, ui: &mut Ui) -> WindowEdgesOutput {
         let window = ui.ctx().content_rect();
-        let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(window.min, Vec2::ZERO)));
+        let mut child = alloc::child(ui, UiBuilder::new().max_rect(Rect::from_min_size(window.min, Vec2::ZERO)));
         child.set_clip_rect(window);
         <Self as crate::contract::Show>::show(self, &mut child)
     }
