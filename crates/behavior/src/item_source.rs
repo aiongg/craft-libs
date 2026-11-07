@@ -91,38 +91,52 @@ pub trait ItemSource<K>: DisplayOrder<K> {
 }
 
 /// `DisplayOrder` as the key-free outline the navigation core steps over.
-pub struct Outline<'a, K>(&'a dyn DisplayOrder<K>);
+pub struct Outline<'a, K> {
+    order: &'a dyn DisplayOrder<K>,
+    columns: usize,
+}
 
 impl<'a, K> Outline<'a, K> {
     /// The outline of `order`.
     pub fn new(order: &'a dyn DisplayOrder<K>) -> Self {
-        Outline(order)
+        Outline { order, columns: 1 }
+    }
+
+    /// The cells of every position, for a sheet's cell navigation.
+    #[must_use]
+    pub fn columns(mut self, columns: usize) -> Self {
+        self.columns = columns.max(1);
+        self
     }
 }
 
 impl<K> NavOutline for Outline<'_, K> {
     fn len(&self) -> usize {
-        self.0.len()
+        self.order.len()
     }
 
     fn depth(&self, at: usize) -> usize {
-        self.0.depth(at)
+        self.order.depth(at)
     }
 
     fn has_children(&self, at: usize) -> bool {
-        self.0.has_children(at)
+        self.order.has_children(at)
     }
 
     fn open(&self, at: usize) -> bool {
-        self.0.open(at)
+        self.order.open(at)
     }
 
     fn is_section(&self, at: usize) -> bool {
-        self.0.is_section(at)
+        self.order.is_section(at)
     }
 
     fn enabled(&self, at: usize) -> bool {
-        self.0.enabled(at)
+        self.order.enabled(at)
+    }
+
+    fn columns(&self) -> usize {
+        self.columns
     }
 }
 

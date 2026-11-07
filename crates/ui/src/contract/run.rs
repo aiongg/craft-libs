@@ -319,6 +319,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         parts: &parts,
         group: steps::member_group(&ctx, env.roving, id),
         body_roving: p.hooks.roving(comp),
+        row: env.row,
     });
     // A body's wheel share is its scroll taker (body step, step 7); the gate value does not take the wheel.
     if !inert && p.hooks.shape() != ShapeKind::Body {

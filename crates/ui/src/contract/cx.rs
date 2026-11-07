@@ -1257,6 +1257,11 @@ impl<C: Component> PartsCx<'_, C> {
         let mut decl = PartDecl::new(part.key, shape, Sense::HOVER);
         decl.index = part.index;
         decl.priority = HitPriority::new(HitLevel::Body, 0);
+        if part.key == PartKey::CELL
+            && let Some(column) = part.index
+        {
+            decl.flags |= super::items::rows::cell_flags(self.measure.ui.ctx(), self.measure.id, column);
+        }
         let at = self.decls.len();
         self.decls.push((decl, PartExtras::default()));
         let (decl, declared) = &mut self.decls[at];

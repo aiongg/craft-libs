@@ -1,0 +1,135 @@
+//! The item step's row work beyond selection by row: rows with focusable children (17.5), cell selection with a
+//! lead column (17.7) and auto-height rows measured into `LayoutMemory` (17.3, I1).
+
+use super::{ItemsHooks, key_hash};
+use crate::contract::{Collection, SelectMode};
+use crate::runtime::egui::memory as store;
+use crate::runtime::memory::sub;
+use crate::runtime::{focus, layout_memory};
+use crate::style::Flags;
+use craft_behavior::{ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
+use egui::{Context, Id, Vec2};
+use std::sync::Arc;
+
+/// The roving group of the children and parts of the item `item`'s row.
+pub(super) fn row_group(item: Id) -> Id {
+    sub(item, "row_children")
+}
+
+/// The stop focus is on when it is a child or part of the row group `group`.
+pub(super) fn child_focus(ctx: &Context, group: Id) -> Option<focus::StopKey> {
+    let key = focus::focused_stop(ctx)?;
+    (focus::stop_rec(ctx, key)?.stop.group == Some(group)).then_some(key)
+}
+
+/// The `SELECTED` and `LEAD` flags of the visible cells of a row, by column position.
+#[derive(Clone, Default)]
+struct CellFlags(Arc<[(u64, Flags)]>);
+
+pub(super) fn put_cell_flags(ctx: &Context, item: Id, flags: Vec<(u64, Flags)>) {
+    store::put(ctx, sub(item, "cell_flags"), CellFlags(flags.into()));
+}
+
+/// The flags the item step wrote for column position `column` of the row `item`.
+pub(in crate::contract) fn cell_flags(ctx: &Context, item: Id, column: u64) -> Flags {
+    let Some(CellFlags(flags)) = store::peek_clone::<CellFlags>(ctx, sub(item, "cell_flags")) else { return Flags::empty() };
+    flags.iter().find(|(at, _)| *at == column).map_or(Flags::empty(), |(_, flags)| *flags)
+}
+
+/// The id a row's measured height is kept under.
+pub(super) fn measured_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
+    sub(collection, ("row_size", key_hash(key)))
+}
+
+/// The height the last pass measured for the auto row `id`.
+pub(super) fn measured_height(ctx: &Context, id: Id) -> Option<f32> {
+    layout_memory::peek(ctx, id).map(|size| size.y)
+}
+
+/// Records the size an auto row measured this pass. The row is placed by it in the same pass, so the entry is
+/// never read for a placement and a change asks for no discard.
+pub(super) fn record_measure(ctx: &Context, id: Id, size: Vec2) {
+    layout_memory::record(ctx, id, size);
+}
+
+impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// Forward on the lead row enters its first focusable child or part (17.5). A closed parent expands instead,
+    /// and a row with no children leaves the move to the navigation core. `true` when focus moved in.
+    pub(super) fn enter_children(&self, ctx: &Context, collection: Id, at: usize) -> bool {
+        if self.source.has_children(at) && !self.source.open(at) {
+            return false;
+        }
+        let item = sub(collection, ("key", key_hash(&self.source.key(at))));
+        let group = row_group(item);
+        focus::row_has_stops(ctx, group) && focus::enter_row(ctx, group)
+    }
+
+    /// A move of the lead in a sheet (17.7): the lead cell moves to `row` and `column`, and the selection follows
+    /// unless the lead moves alone (Ctrl) and extends from the anchor cell with Shift.
+    pub(super) fn cell_move(&mut self, layout: &C::ItemLayout, row: usize, column: usize, mods: MoveMods) {
+        if self.lead.key.as_ref() != Some(&self.source.key(row)) {
+            self.move_lead(row);
+        }
+        self.lead.column = column;
+        if !mods.extend {
+            self.lead.anchor_column = column;
+        }
+        if !mods.lead {
+            let anchor = if mods.extend { self.anchor_at(row) } else { row };
+            self.select_cells(layout, anchor, row);
+        }
+    }
+
+    /// Selects the cells between the anchor cell and the lead cell: the rows from `from` to `to`, and the columns
+    /// from the anchor column to the lead column. A layout with no column keys selects the rows.
+    pub(super) fn select_cells(&mut self, layout: &C::ItemLayout, from: usize, to: usize) {
+        let (first, last) = (self.lead.anchor_column.min(self.lead.column), self.lead.anchor_column.max(self.lead.column));
+        match layout.column_key(self.lead.column) {
+            Some(lead_column) => {
+                let rows = self.range(from, to);
+                self.change(SelectionChange::Cells { rows, columns: first as u32..last as u32 + 1, lead_column });
+            }
+            None => self.change(SelectionChange::Set(self.range(from, to))),
+        }
+    }
+
+    /// A press on row `at` at `column`: the lead cell goes there and the selection follows the modifiers.
+    pub(super) fn cell_press(&mut self, layout: &C::ItemLayout, at: usize, column: usize, extend: bool, toggle: bool) {
+        self.lead.column = column;
+        if !extend {
+            self.lead.anchor_column = column;
+        }
+        if toggle {
+            self.change(SelectionChange::Toggle(self.source.key(at)));
+        } else {
+            let anchor = if extend { self.anchor_at(self.lead.at) } else { at };
+            self.select_cells(layout, anchor, at);
+        }
+    }
+
+    /// The flags of the visible cells of the row `at`: `SELECTED` for a selected cell and `LEAD` for the lead
+    /// cell while the collection has focus. `columns` are the column positions of the row's cells in order.
+    pub(super) fn cell_flag_list(&self, at: usize, columns: &[u64], focused: bool) -> Vec<(u64, Flags)> {
+        let key = self.source.key(at);
+        let lead = self.lead.key.as_ref() == Some(&key);
+        columns
+            .iter()
+            .filter_map(|&column| {
+                let mut flags = Flags::empty();
+                flags.set(Flags::SELECTED, self.selection.contains_cell(&key, column as u32));
+                flags.set(Flags::LEAD, lead && focused && column as usize == self.lead.column);
+                (!flags.is_empty()).then_some((column, flags))
+            })
+            .collect()
+    }
+
+    /// Whether the collection selects cells.
+    pub(super) fn selects_cells(comp: &C) -> bool {
+        Self::select_mode(comp) == SelectMode::Cells
+    }
+}
+
+/// Whether the move is the one that enters a row's children.
+pub(super) fn is_forward(mv: NavMove, mods: MoveMods) -> bool {
+    mv == NavMove::Forward && !mods.extend && !mods.lead
+}

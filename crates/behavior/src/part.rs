@@ -10,6 +10,10 @@ impl PartKey {
         PartKey(name)
     }
 
+    /// A cell of a sheet row: `CELL.at(column)`. The item step writes the cell's `SELECTED` and `LEAD` flags into
+    /// the parts of the row item that carry it.
+    pub const CELL: PartKey = PartKey::new("cell");
+
     /// The name the key was declared with.
     pub const fn name(self) -> &'static str {
         self.0

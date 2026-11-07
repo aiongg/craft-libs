@@ -76,7 +76,6 @@ pub(crate) fn read(ctx: &Context, id: Id) -> Option<Vec2> {
 }
 
 /// The size entry under `id` without a placement using it.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "size tweens are used by the body step"))]
 pub(crate) fn peek(ctx: &Context, id: Id) -> Option<Vec2> {
     let moment = Moment::of(ctx);
     with(ctx, &moment, |memory| memory.entries.get(&id).and_then(|entry| entry.value).map(|value| value.at(moment.now)))

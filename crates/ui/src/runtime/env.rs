@@ -298,6 +298,9 @@ pub struct Scoped {
     pub(crate) in_scroll: bool,
     /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
     pub(crate) item: Option<Id>,
+    /// The roving group of the collection row the scope shows: the stops of its components and parts join it, so
+    /// Tab leaves the collection and Forward enters the row (17.5).
+    pub(crate) row: Option<Id>,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
@@ -375,6 +378,7 @@ impl Env {
                 grid: None,
                 in_scroll: false,
                 item: None,
+                row: None,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 host,
@@ -423,6 +427,7 @@ impl Env {
             s.grid = None;
             s.in_scroll = false;
             s.item = None;
+            s.row = None;
             s.ink = Ink::default();
         }))
     }

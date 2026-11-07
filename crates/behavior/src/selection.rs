@@ -14,6 +14,16 @@ pub enum SelectionChange<K> {
     Toggle(K),
     /// Empties the selection.
     Clear,
+    /// Replaces the selection by the cells of `rows` in `columns`; `lead_column` is the lead cell's column.
+    /// A model with no columns selects the rows.
+    Cells {
+        /// The selected rows, from the first to the last of the range.
+        rows: Vec<K>,
+        /// The column positions the range covers.
+        columns: Range<u32>,
+        /// The column of the lead cell.
+        lead_column: ColumnKey,
+    },
 }
 
 /// The selection a collection reads and the app owns.
@@ -26,6 +36,16 @@ pub trait SelectionModel<K>: Value + Default {
     fn anchor(&self) -> Option<&K>;
     /// Applies a change.
     fn apply(&mut self, change: SelectionChange<K>);
+
+    /// The column of the lead cell; `None` for a model of rows.
+    fn lead_column(&self) -> Option<&ColumnKey> {
+        None
+    }
+
+    /// Whether the cell of row `key` in column position `column` is selected.
+    fn contains_cell(&self, key: &K, _column: u32) -> bool {
+        self.contains(key)
+    }
 }
 
 /// A set of keys with a lead and an anchor.
@@ -88,6 +108,7 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
                 self.lead = None;
                 self.anchor = None;
             }
+            SelectionChange::Cells { rows, .. } => self.apply(SelectionChange::Set(rows)),
         }
     }
 }
@@ -131,7 +152,34 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
     }
 
     fn apply(&mut self, change: SelectionChange<K>) {
-        self.rows.apply(change);
+        match change {
+            SelectionChange::Cells { rows, columns, lead_column } => {
+                if let (Some(first), Some(last)) = (rows.first().cloned(), rows.last().cloned()) {
+                    self.ranges = vec![(first, last, columns)];
+                }
+                self.lead_column = Some(lead_column);
+                self.rows.apply(SelectionChange::Set(rows));
+            }
+            SelectionChange::Clear => {
+                self.ranges.clear();
+                self.lead_column = None;
+                self.rows.apply(SelectionChange::Clear);
+            }
+            change => {
+                self.ranges.clear();
+                self.rows.apply(change);
+            }
+        }
+    }
+
+    fn lead_column(&self) -> Option<&ColumnKey> {
+        self.lead_column.as_ref()
+    }
+
+    /// A cell is selected when its row is and a range covers its column; rows selected without a range
+    /// select every column.
+    fn contains_cell(&self, key: &K, column: u32) -> bool {
+        self.rows.contains(key) && (self.ranges.is_empty() || self.ranges.iter().any(|(_, _, columns)| columns.contains(&column)))
     }
 }
 
@@ -156,6 +204,16 @@ mod tests {
         assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![3, 2, 7], Some(&7), Some(&7)));
         selection.apply(SelectionChange::Toggle(3));
         assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![2, 7], Some(&3), Some(&3)));
+    }
+
+    #[test]
+    fn a_cell_range_selects_its_rows_and_columns_and_a_row_change_selects_every_column() {
+        let mut cells = CellSelection::<u32>::default();
+        cells.apply(SelectionChange::Cells { rows: vec![2, 3], columns: 1..3, lead_column: ColumnKey::new("c") });
+        assert_eq!((cells.contains_cell(&3, 2), cells.contains_cell(&3, 0), cells.contains_cell(&5, 1)), (true, false, false));
+        assert_eq!((cells.lead(), cells.lead_column()), (Some(&3), Some(&ColumnKey::new("c"))));
+        cells.apply(SelectionChange::Set(vec![4]));
+        assert_eq!((cells.contains_cell(&4, 0), cells.contains_cell(&4, 9)), (true, true));
     }
 
     #[test]

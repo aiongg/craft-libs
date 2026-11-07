@@ -1,5 +1,7 @@
 //! The item step (17.3): the collection's side of steps 4 to 17 and its content sub-steps I1 to I5.
 
+pub(super) mod rows;
+
 use super::collection::{CollectionEvent, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode};
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
@@ -13,7 +15,7 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
-    Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, NavState, NavStep, Outline, PressPhase, ScrollPos, ScrollSpan,
+    Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, NavState, NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan,
     SelectionChange, SelectionModel, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
@@ -40,6 +42,7 @@ pub(super) fn row_flags(ctx: &Context, id: Id) -> crate::style::Flags {
 #[derive(Clone, Default)]
 struct Scrolled {
     y: f64,
+    x: f64,
 }
 
 #[derive(Clone, Default)]
@@ -52,11 +55,14 @@ struct View {
 struct Lead<K> {
     key: Option<K>,
     at: usize,
+    /// A sheet's lead cell column and the column the cell range extends from.
+    column: usize,
+    anchor_column: usize,
 }
 
 impl<K> Default for Lead<K> {
     fn default() -> Self {
-        Lead { key: None, at: 0 }
+        Lead { key: None, at: 0, column: 0, anchor_column: 0 }
     }
 }
 
@@ -99,6 +105,8 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     visible: Range<usize>,
     offset: f64,
     offset_at_read: f64,
+    offset_x: f64,
+    offset_x_at_read: f64,
     last: View,
     lead: Lead<C::Key>,
     renaming: Renaming<C::Key>,
@@ -122,6 +130,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             visible: 0..0,
             offset: 0.0,
             offset_at_read: 0.0,
+            offset_x: 0.0,
+            offset_x_at_read: 0.0,
             last: View::default(),
             lead: Lead::default(),
             renaming: Renaming::default(),
@@ -166,7 +176,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
 
     fn move_lead(&mut self, to: usize) {
         let key = self.source.key(to);
-        self.lead = Lead { key: Some(key.clone()), at: to };
+        self.lead.key = Some(key.clone());
+        self.lead.at = to;
         self.events.push(CollectionEvent::LeadMoved(key));
     }
 
@@ -218,6 +229,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
+        debug_assert!(!env.in_scroll, "a collection owns its scroll: show it outside a scrolling body (16.3)");
         self.scrolls = !env.in_scroll;
         self.selection = match comp.selection() {
             Some(bind) => match bind.get() {
@@ -232,12 +244,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.lead = stage.session::<Lead<C::Key>>(sub(id, "lead")).clone();
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
-        self.offset = if self.scrolls { stage.session::<Scrolled>(sub(id, "scroll")).y } else { 0.0 };
+        let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
+        (self.offset, self.offset_x) = if self.scrolls { (scrolled.y, scrolled.x) } else { (0.0, 0.0) };
         self.offset_at_read = self.offset;
+        self.offset_x_at_read = self.offset_x;
         let view = self.last.view.map_or(0.0, |view| view[3] - view[1]);
         if self.scrolls {
             if let Some(share) = wheel::take(&ctx, id) {
                 self.offset -= f64::from(share.scroll.y);
+                self.offset_x -= f64::from(share.scroll.x);
             }
             if let (Some(rect), Some(bounds)) = (super::take_reveal(&ctx, id), self.last.view) {
                 if rect.min.y < bounds[1] {
@@ -250,7 +265,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
     }
 
-    fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _: Id, scx: &StyleCx<'_>) -> Vec2 {
+    fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let room = match at {
             ShowAt::Rect(rect) => rect.size(),
             ShowAt::Flow => ui.available_size_before_wrap(),
@@ -262,6 +277,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         if self.header.height > 0.0 {
             layout.set_columns(&self.header.columns(width));
         }
+        let ctx = ui.ctx();
+        layout.measured(&|at| rows::measured_height(ctx, rows::measured_id(id, &self.source.key(at))));
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.layout = Some(layout);
@@ -291,7 +308,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.offset = self.offset.clamp(0.0, self.max_offset(view.height()));
         let span = ScrollSpan::new(0.0..content, self.offset..self.offset + f64::from(view.height()));
         pcx.scroll(SCROLL, track, Axis::Y, span);
-        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true));
+        wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(true).horizontal(self.content.x > view.width()));
     }
 
     fn updated(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -305,6 +322,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         }
         self.offset = self.offset.clamp(0.0, self.max_offset(view));
         let header_held = self.header_step(cx);
+        self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
         let len = self.source.len();
         // A lead whose key left the source moves to the key now in its place, else the one before it.
         if let Some(key) = self.lead.key.clone()
@@ -325,7 +343,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let mode = Self::select_mode(comp);
         let props = comp.items().clone();
         let Some(layout) = self.layout.take() else { return };
-        let offset = ScrollPos { x: 0.0, y: self.offset };
+        let offset = ScrollPos { x: self.offset_x, y: self.offset };
         // A press on a row selects it; a double press activates it; a right press asks for its menu.
         let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
         let local = |at: Pos2| {
@@ -345,8 +363,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let mods = crate::runtime::pointer::frame(&ctx).mods;
                 let secondary = start.button == craft_behavior::PointerButton::Secondary;
                 let key = self.source.key(at);
+                let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
                 if !secondary || !self.selection.contains(&key) {
-                    self.pick(comp, at, mods.shift, mods.cmd);
+                    match column {
+                        Some(column) => self.cell_press(&layout, at, column, mods.shift, mods.cmd),
+                        None => self.pick(comp, at, mods.shift, mods.cmd),
+                    }
                 }
                 self.move_lead(at);
                 if secondary {
@@ -358,17 +380,35 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             }
         }
         self.drag_step(cx, &layout, rect, offset, rtl, &props);
-        let outline = Outline::new(self.source);
+        let outline = Outline::new(self.source).columns(layout.column_count());
+        let cells = layout.column_count() > 0 && Self::selects_cells(comp);
         let page = self.page_rows(&layout, view);
         while !header_held && let Some((mv, mods)) = cx.core.intents.take_move() {
             if len == 0 {
                 break;
             }
             let lead = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
-            let mut state = NavState::new().page(page);
+            if rows::is_forward(mv, mods)
+                && let Some(at) = lead
+                && !matches!(layout.nav(), craft_behavior::NavShape::Cell)
+                && self.enter_children(&ctx, id, at)
+            {
+                continue;
+            }
+            let mut state = NavState::new().page(page).column(self.lead.column);
             state.lead = lead;
             state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
             match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
+                NavStep::Moved(to) if cells => {
+                    self.cell_move(&layout, to, state.column, mods);
+                    self.reveal_with(&layout, to, view);
+                }
+                NavStep::Column(column) if cells => {
+                    if let Some(at) = lead {
+                        self.cell_move(&layout, at, column, mods);
+                    }
+                }
+                NavStep::Column(column) => self.lead.column = column,
                 NavStep::Moved(to) => {
                     self.move_lead(to);
                     if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
@@ -468,12 +508,19 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
     }
 
     fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues) {
-        let Some(layout) = self.layout.take() else { return };
+        let Some(mut layout) = self.layout.take() else { return };
         let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
         let rect = self.rows_rect(cx);
         let rtl = env.direction.is_rtl();
         let node = matches!(C::ROLE, Role::Node(_));
-        let offset = ScrollPos { x: 0.0, y: self.offset };
+        let offset = ScrollPos { x: self.offset_x, y: self.offset };
+        layout.set_view(rect.size(), offset);
+        let sheet = Self::selects_cells(comp);
+        let columns: Vec<u64> = match layout.grid() {
+            Some(grid) => grid.sections.iter().flat_map(|section| section.columns.clone().map(u64::from)).collect(),
+            None => (0..layout.column_count() as u64).collect(),
+        };
+        let grid = layout.grid().map(|grid| self.grid_screen(&layout, grid, rect, rtl));
         let mut shown = Vec::new();
         layout.visible(offset, rect.size(), &mut shown);
         self.visible = shown.first().copied().unwrap_or(0)..shown.last().map_or(0, |last| last + 1);
@@ -497,10 +544,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);
         let focused = focus::is_focused(&ctx, id);
         let lead = self.lead.key.clone();
+        let mut lead_child = None;
         for at in order {
             let key = self.source.key(at);
             let item_id = sub(id, ("key", key_hash(&key)));
-            let row = self.screen(&layout, rect, at, offset, rtl);
+            let row_group = rows::row_group(item_id);
+            focus::register_group(&ctx, focus::Group::new(row_group, craft_behavior::Roving::new(craft_behavior::NavShape::Flat)).row(id).rtl(rtl));
+            let mut row = self.screen(&layout, rect, at, offset, rtl);
             let state = RowState {
                 selected: self.selection.contains(&key),
                 lead: lead.as_ref() == Some(&key),
@@ -512,7 +562,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             };
             let mut flags = crate::style::Flags::empty();
             flags.set(crate::style::Flags::SELECTED, state.selected);
-            flags.set(crate::style::Flags::LEAD, state.lead && focused);
+            let child = if state.lead { rows::child_focus(&ctx, row_group) } else { None };
+            lead_child = lead_child.or(child);
+            flags.set(crate::style::Flags::LEAD, state.lead && (focused || child.is_some()));
             flags.set(crate::style::Flags::OPEN, state.open);
             flags.set(crate::style::Flags::DRAGGING, state.dragging);
             flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
@@ -524,6 +576,12 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             crate::runtime::access::put_item_position(&ctx, item_id, position);
             let mut cells = Vec::new();
             layout.cells(at, offset, &mut cells);
+            for (_, cell) in &mut cells {
+                *cell = self.to_screen(&layout, rect, *cell, rtl);
+            }
+            if sheet {
+                rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(at, &columns, focused));
+            }
             let mut icx = ItemCx {
                 key: &key,
                 at,
@@ -534,7 +592,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 env: cx.core.env,
                 id: sub(item_id, "item"),
                 cells,
-                grid: layout.grid(),
+                grid: grid.as_ref(),
                 tip: None,
                 memory: &mut *cx.core.memory,
             };
@@ -546,8 +604,22 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let builder = if node { access::with_parent(builder, id) } else { builder };
             let mut row_ui = alloc::child(ui, builder);
             row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-            let installed = Env::install_for(&row_ui, base_env.derive(|scoped| scoped.item = Some(item_id)));
+            let installed = Env::install_for(
+                &row_ui,
+                base_env.derive(|scoped| {
+                    scoped.item = Some(item_id);
+                    scoped.row = Some(row_group);
+                }),
+            );
             item = Props::id(item, item_id);
+            if layout.is_auto(at) {
+                let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
+                rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
+                if measured != row.height() {
+                    layout.set_height(at, measured);
+                    row = self.screen(&layout, rect, at, offset, rtl);
+                }
+            }
             let out = match tip {
                 Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
                 None => item.show_at(&mut row_ui, row),
@@ -583,12 +655,18 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             }
             Env::restore(&ctx, installed);
         }
+        let size = layout.content_size();
+        self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {
             self.renaming = Renaming::default();
             focus::request_now(&ctx, focus::FocusTarget::Id(id));
         }
-        if focused && let Some(at) = lead.as_ref().and_then(|key| self.source.index_of(key)) {
-            access::set_focus(&ctx, sub(id, ("key", key_hash(&self.source.key(at)))));
+        if (focused || lead_child.is_some())
+            && let Some(at) = lead.as_ref().and_then(|key| self.source.index_of(key))
+        {
+            let item_id = sub(id, ("key", key_hash(&self.source.key(at))));
+            let cell = (sheet && self.selection.lead_column().is_some()).then_some(self.lead.column);
+            access::set_focus(&ctx, crate::runtime::access::items::focus_node(item_id, lead_child, cell));
         }
         if self.source.is_empty() {
             let mut open = true;
@@ -623,8 +701,9 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn settle(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
         let id = cx.core.id;
-        if self.scrolls && self.offset != self.offset_at_read {
-            cx.core.memory.session::<Scrolled>(sub(id, "scroll")).y = self.offset;
+        if self.scrolls && (self.offset != self.offset_at_read || self.offset_x != self.offset_x_at_read) {
+            let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
+            (scrolled.y, scrolled.x) = (self.offset, self.offset_x);
         }
         *cx.core.memory.session::<Lead<C::Key>>(sub(id, "lead")) = self.lead.clone();
         *cx.core.memory.session::<HeaderMemory>(sub(id, "columns")) = self.header.persist();
@@ -654,9 +733,23 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
 
     /// The screen rect of row `at`: logical layout coordinates mirrored under right-to-left, then moved to the view.
     fn screen(&self, layout: &C::ItemLayout, view: Rect, at: usize, offset: ScrollPos, rtl: bool) -> Rect {
-        let local = layout.rect(at, offset);
+        self.to_screen(layout, view, layout.rect(at, offset), rtl)
+    }
+
+    /// A rect of the layout's logical, viewport-relative coordinates on the screen.
+    fn to_screen(&self, layout: &C::ItemLayout, view: Rect, local: Rect, rtl: bool) -> Rect {
         let local = if rtl && layout.mirrors() { Flow::new(Rect::from_min_size(Pos2::ZERO, view.size()), true).to_physical(local) } else { local };
         local.translate(view.min.to_vec2())
+    }
+
+    /// The layout's grid view on the screen: sections placed in the view and mirrored under right-to-left.
+    fn grid_screen(&self, layout: &C::ItemLayout, grid: &craft_behavior::GridView, view: Rect, rtl: bool) -> craft_behavior::GridView {
+        let mirrored = rtl && layout.mirrors();
+        let edge = |x: f32| if mirrored { view.max.x - x } else { view.min.x + x };
+        craft_behavior::GridView::new(grid.sections.iter().map(|section| {
+            let edges = section.edges.iter().map(|&x| edge(x)).collect();
+            craft_behavior::GridSection::new(self.to_screen(layout, view, section.rect, rtl), section.columns.clone(), edges)
+        }))
     }
 }
 

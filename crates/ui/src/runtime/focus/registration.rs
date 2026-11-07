@@ -95,15 +95,16 @@ pub struct Group {
     pub selected: Option<Id>,
     /// The group is a collection row's children: Tab leaves the collection and Forward enters the row.
     pub row: bool,
+    /// The collection a row group belongs to: Escape, Up and Down and Back from the first child return focus to it.
+    pub owner: Option<Id>,
     /// The group lays out right to left: a physical Left or Right arrow moves the opposite way.
     pub rtl: bool,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers stops and groups"))]
 impl Group {
     /// A group of `roving` rules.
     pub fn new(id: Id, roving: Roving) -> Group {
-        Group { id, roving, selected: None, row: false, rtl: false }
+        Group { id, roving, selected: None, row: false, owner: None, rtl: false }
     }
 
     /// Reads horizontal arrows in the group's direction.
@@ -118,9 +119,10 @@ impl Group {
         self
     }
 
-    /// Marks a row's children.
-    pub fn row(mut self) -> Self {
+    /// Marks the children of a row of `owner`'s collection.
+    pub fn row(mut self, owner: Id) -> Self {
         self.row = true;
+        self.owner = Some(owner);
         self
     }
 }

@@ -213,6 +213,12 @@ impl From<Response> for StoryOutput {
     }
 }
 
+impl<K, E> From<crate::contract::CollectionResponse<K, E>> for StoryOutput {
+    fn from(response: crate::contract::CollectionResponse<K, E>) -> Self {
+        StoryOutput { id: Some(response.response.id), edits: Vec::new() }
+    }
+}
+
 impl<T> From<EditResponse<T>> for StoryOutput {
     fn from(response: EditResponse<T>) -> Self {
         StoryOutput { id: Some(response.response.id), edits: response.event.iter().filter_map(EditKind::of).collect() }

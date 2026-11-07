@@ -494,6 +494,8 @@ pub(crate) struct StopsIn<'a> {
     pub group: Option<Id>,
     /// The container's `ContainerProps.roving`: its body's members form this group.
     pub body_roving: Option<Roving>,
+    /// The roving group of the collection row the component is shown in: stops with no group of their own join it.
+    pub row: Option<Id>,
 }
 
 /// The id of the roving group a container's body forms.
@@ -529,12 +531,12 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     }
     let own = || Stop::new(input.id, input.keys).root(input.holder).role(input.role);
     if input.focusable {
-        focus::register_stop(ctx, if let Some(group) = input.group { own().in_group(group) } else { own() });
+        focus::register_stop(ctx, if let Some(group) = input.group.or(input.row) { own().in_group(group) } else { own() });
     }
     for (decl, extras) in &input.parts.decls {
         if extras.focusable {
             let stop = own().part(PartRef { key: decl.key, index: decl.index });
-            focus::register_stop(ctx, if let Some(group) = group { stop.in_group(group) } else { stop });
+            focus::register_stop(ctx, if let Some(group) = group.or(input.row) { stop.in_group(group) } else { stop });
         }
     }
 }
