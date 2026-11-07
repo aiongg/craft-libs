@@ -9,10 +9,10 @@ use syn::{Attribute, Item, ItemImpl, Visibility};
 
 use crate::rules::is_test_attr;
 
-/// Facts about one type name in the file.
-#[derive(Debug, Default)]
-pub(crate) struct TypeFacts {
-    /// The file defines the type.
+/// Facts about one type name.
+#[derive(Clone, Debug, Default)]
+pub struct TypeFacts {
+    /// The facts come from the type's definition.
     pub defined: bool,
     /// Declared `pub` without a restriction.
     pub public: bool,
@@ -24,16 +24,31 @@ pub(crate) struct TypeFacts {
     pub pattern: bool,
     /// Carries `#[component(.., overlay, ..)]`.
     pub overlay_attr: bool,
+    /// Derives `ComponentStyle`.
+    pub component_style: bool,
+    /// The `type Style = ..` of its `impl Component`.
+    pub style_type: Option<String>,
 }
 
-#[derive(Debug, Default)]
-pub(crate) struct Types {
+/// The facts of the type names a file mentions.
+#[derive(Clone, Debug, Default)]
+pub struct Types {
     by_name: HashMap<String, TypeFacts>,
 }
 
 impl Types {
-    pub fn get(&self, name: &str) -> Option<&TypeFacts> {
+    pub(crate) fn get(&self, name: &str) -> Option<&TypeFacts> {
         self.by_name.get(name)
+    }
+
+    pub(crate) fn insert(&mut self, name: String, facts: TypeFacts) {
+        self.by_name.insert(name, facts);
+    }
+
+    /// `self` with every entry of `over` replacing the entry of that name.
+    pub(crate) fn overlaid(mut self, over: &Types) -> Self {
+        self.by_name.extend(over.by_name.iter().map(|(k, v)| (k.clone(), v.clone())));
+        self
     }
 }
 
@@ -83,22 +98,19 @@ pub(crate) fn derives(attrs: &[Attribute]) -> Vec<String> {
     names
 }
 
-/// Whether the attribute is `name(..)` with `word` among its tokens.
+/// Whether the attribute is `name(..)` with `word` as one of its own top-level identifiers (not one nested in a group).
 pub(crate) fn attr_names(attr: &Attribute, name: &str, word: &str) -> bool {
-    attr.path().is_ident(name) && matches!(&attr.meta, syn::Meta::List(l) if tokens_contain(l.tokens.clone(), word))
-}
-
-fn tokens_contain(tokens: proc_macro2::TokenStream, word: &str) -> bool {
-    tokens.into_iter().any(|t| match t {
-        proc_macro2::TokenTree::Ident(i) => i == word,
-        proc_macro2::TokenTree::Group(g) => tokens_contain(g.stream(), word),
-        _ => false,
-    })
+    attr.path().is_ident(name)
+        && matches!(&attr.meta, syn::Meta::List(l) if l.tokens.clone().into_iter().any(|t| matches!(t, proc_macro2::TokenTree::Ident(i) if i == word)))
 }
 
 /// The last identifier of an impl's self type.
 pub(crate) fn self_name(imp: &ItemImpl) -> Option<String> {
-    match &*imp.self_ty {
+    let mut ty = &*imp.self_ty;
+    while let syn::Type::Reference(r) = ty {
+        ty = &r.elem;
+    }
+    match ty {
         syn::Type::Path(p) => p.path.segments.last().map(|s| s.ident.to_string()),
         _ => None,
     }
@@ -113,35 +125,58 @@ fn is_public(vis: &Visibility) -> bool {
     matches!(vis, Visibility::Public(_))
 }
 
+/// The facts a type's definition gives.
+pub(crate) fn definition(item: &Item) -> Option<(String, TypeFacts)> {
+    let (ident, attrs, vis) = match item {
+        Item::Struct(s) => (&s.ident, &s.attrs, &s.vis),
+        Item::Enum(e) => (&e.ident, &e.attrs, &e.vis),
+        _ => return None,
+    };
+    let derived = derives(attrs);
+    let has_prop_field = matches!(item, Item::Struct(s) if s.fields.iter().any(|f| f.attrs.iter().any(|a| a.path().is_ident("prop"))));
+    let facts = TypeFacts {
+        defined: true,
+        public: is_public(vis),
+        component: derived.iter().any(|d| d == "Component") || attrs.iter().any(|a| a.path().is_ident("component")),
+        props: derived.iter().any(|d| d == "Props") || has_prop_field,
+        pattern: derived.iter().any(|d| d == "Pattern"),
+        overlay_attr: attrs.iter().any(|a| attr_names(a, "component", "overlay")),
+        component_style: derived.iter().any(|d| d == "ComponentStyle"),
+        style_type: None,
+    };
+    Some((ident.to_string(), facts))
+}
+
+/// What a trait impl adds to its self type's facts.
+pub(crate) fn add_impl(facts: &mut TypeFacts, imp: &ItemImpl) {
+    match trait_name(imp).as_deref() {
+        Some("Component") => {
+            facts.component = true;
+            facts.style_type = imp.items.iter().find_map(|i| match i {
+                syn::ImplItem::Type(t) if t.ident == "Style" => match &t.ty {
+                    syn::Type::Path(p) => p.path.segments.last().map(|s| s.ident.to_string()),
+                    _ => None,
+                },
+                _ => None,
+            });
+        }
+        Some("Pattern") => facts.pattern = true,
+        _ => {}
+    }
+}
+
+/// Facts from this file alone: the fallback when no crate-wide facts are known.
 pub(crate) fn collect(file: &syn::File) -> Types {
     let mut types = Types::default();
     let items = flat_items(&file.items);
-    for item in &items {
-        let (ident, attrs, vis) = match item {
-            Item::Struct(s) => (&s.ident, &s.attrs, &s.vis),
-            Item::Enum(e) => (&e.ident, &e.attrs, &e.vis),
-            _ => continue,
-        };
-        let derived = derives(attrs);
-        let facts = types.by_name.entry(ident.to_string()).or_default();
-        facts.defined = true;
-        facts.public = is_public(vis);
-        facts.component |= derived.iter().any(|d| d == "Component") || attrs.iter().any(|a| a.path().is_ident("component"));
-        facts.props |= derived.iter().any(|d| d == "Props")
-            || match item {
-                Item::Struct(s) => s.fields.iter().any(|f| f.attrs.iter().any(|a| a.path().is_ident("prop"))),
-                _ => false,
-            };
-        facts.pattern |= derived.iter().any(|d| d == "Pattern");
-        facts.overlay_attr |= attrs.iter().any(|a| attr_names(a, "component", "overlay"));
+    for (name, facts) in items.iter().filter_map(|i| definition(i)) {
+        types.by_name.insert(name, facts);
     }
     for item in &items {
         if let Item::Impl(imp) = item
-            && let (Some(name), Some(tr)) = (self_name(imp), trait_name(imp))
+            && let Some(name) = self_name(imp)
         {
-            let facts = types.by_name.entry(name).or_default();
-            facts.component |= tr == "Component";
-            facts.pattern |= tr == "Pattern";
+            add_impl(types.by_name.entry(name).or_default(), imp);
         }
     }
     types

@@ -3,9 +3,10 @@
 use syn::{ImplItem, Item};
 
 use crate::report::Finding;
+use crate::rules::flatten_use;
 
 use super::Cx;
-use super::sites::{Kind, is_egui};
+use super::sites::is_egui;
 use super::types::{flat_items, self_name, trait_name};
 
 /// An inherent show function on a component.
@@ -36,7 +37,7 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
                     );
                 }
             }
-            Some("Widget") if is_egui_widget(imp, &widget_names) => {
+            Some(_) if is_egui_widget(imp, &widget_names) => {
                 cx.flag_span(out, WIDGET, WIDGET, imp.impl_token.span, format!("`impl egui::Widget for {owner}`; `#[component(widget)]` writes it"));
             }
             Some("Component") => {
@@ -56,20 +57,24 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// The names under which the file imports `egui::..::Widget`, and whether it globs egui.
+/// The names the file binds to `egui::..::Widget`, and whether it globs an egui module.
 struct WidgetNames {
-    named: bool,
+    bound: Vec<String>,
     glob: bool,
 }
 
 fn egui_widget_names(cx: &Cx<'_>) -> WidgetNames {
-    let mut names = WidgetNames { named: false, glob: false };
-    for site in &cx.sites {
-        if let Kind::Path { path, in_use: true, .. } = &site.kind
-            && is_egui(path)
-        {
-            names.named |= path.last().is_some_and(|l| l == "Widget");
-            names.glob |= path.last().is_some_and(|l| l == "egui" || l == "widgets" || l == "prelude");
+    let mut names = WidgetNames { bound: Vec::new(), glob: false };
+    for item in flat_items(&cx.file.items) {
+        let Item::Use(u) = item else { continue };
+        let mut found = Vec::new();
+        flatten_use(&mut Vec::new(), &u.tree, &mut found);
+        for (alias, path) in found.into_iter().filter(|(_, p)| is_egui(p)) {
+            match alias {
+                Some(alias) if path.last().is_some_and(|l| l == "Widget") => names.bound.push(alias),
+                Some(_) => {}
+                None => names.glob = true,
+            }
         }
     }
     names
@@ -77,9 +82,9 @@ fn egui_widget_names(cx: &Cx<'_>) -> WidgetNames {
 
 fn is_egui_widget(imp: &syn::ItemImpl, names: &WidgetNames) -> bool {
     let Some((_, path, _)) = &imp.trait_ else { return false };
-    let first = path.segments.first().map(|s| s.ident.to_string()).unwrap_or_default();
+    let Some(first) = path.segments.first().map(|s| s.ident.to_string()) else { return false };
     if path.segments.len() > 1 {
         return super::sites::EGUI_ROOTS.contains(&first.as_str());
     }
-    names.named || names.glob
+    names.bound.contains(&first) || (names.glob && first == "Widget")
 }

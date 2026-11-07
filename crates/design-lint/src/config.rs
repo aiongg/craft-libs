@@ -113,6 +113,10 @@ impl Config {
         if let Some(unknown) = raw.lint.warn.iter().find(|r| !crate::RULES.iter().any(|known| selector_matches(r, known))) {
             return Err(fail(format!("`warn` names unknown rule `{unknown}`")));
         }
+        let fixed = [PARSE, crate::markers::EMPTY, crate::markers::INVALID, crate::markers::UNUSED, crate::UNUSED_EXEMPTION];
+        if let Some(r) = raw.lint.warn.iter().find(|r| fixed.iter().any(|id| selector_matches(r, id))) {
+            return Err(fail(format!("`warn` names `{r}`; parse, marker and exemption findings are always errors or follow `deny-unused`")));
+        }
         Ok(Self { paths: raw.lint.paths, include_tests: raw.lint.include_tests, deny_unused: raw.lint.deny_unused, exempt, warn: raw.lint.warn })
     }
 }

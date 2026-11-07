@@ -41,9 +41,9 @@ pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     }
 }
 
-/// Whether the impl is of a type that can have `Props` setters: a component, a `Props` type, or one the file does not define.
-fn builds_props(cx: &Cx<'_>, imp: &ItemImpl) -> bool {
-    self_name(imp).is_none_or(|name| cx.types.get(&name).is_none_or(|f| !f.defined || f.component || f.props))
+/// Whether the impl is of a type known to be a component or a `Props` type.
+pub(super) fn builds_props(cx: &Cx<'_>, imp: &ItemImpl) -> bool {
+    self_name(imp).is_some_and(|name| cx.types.get(&name).is_some_and(|f| f.component || f.props))
 }
 
 fn setters(cx: &Cx<'_>, imp: &ItemImpl, out: &mut Vec<Finding>) {
@@ -80,20 +80,28 @@ fn is_builder(m: &ImplItemFn, owner: &str) -> bool {
     by_value && returns_owner
 }
 
-/// The body is `self.field = value; self` with one parameter, and `value` is that parameter, possibly converted or wrapped.
+/// The body stores the one parameter, possibly converted or wrapped, in one field of `self`: `self.field = value; self` or
+/// `Self { field: value, ..self }`.
 fn only_stores(m: &ImplItemFn) -> bool {
     let mut params = m.sig.inputs.iter().filter_map(|a| if let syn::FnArg::Typed(t) = a { Some(t) } else { None });
     let (Some(param), None) = (params.next(), params.next()) else { return false };
     let syn::Pat::Ident(param) = &*param.pat else { return false };
-    let [Stmt::Expr(Expr::Assign(assign), Some(_)), Stmt::Expr(Expr::Path(tail), None)] = m.block.stmts.as_slice() else { return false };
-    tail.path.is_ident("self") && rooted_in_self(&assign.left) && mentions_only(&assign.right, &param.ident.to_string())
-}
-
-fn rooted_in_self(e: &Expr) -> bool {
-    match e {
-        Expr::Field(f) => matches!(&*f.base, Expr::Path(p) if p.path.is_ident("self")) || rooted_in_self(&f.base),
+    let param = param.ident.to_string();
+    match m.block.stmts.as_slice() {
+        [Stmt::Expr(Expr::Assign(assign), Some(_)), Stmt::Expr(Expr::Path(tail), None)] => {
+            tail.path.is_ident("self") && is_self_field(&assign.left) && mentions_only(&assign.right, &param)
+        }
+        [Stmt::Expr(Expr::Struct(update), None)] => {
+            let rest_is_self = matches!(update.rest.as_deref(), Some(Expr::Path(p)) if p.path.is_ident("self"));
+            rest_is_self && update.qself.is_none() && update.fields.len() == 1 && mentions_only(&update.fields[0].expr, &param)
+        }
         _ => false,
     }
+}
+
+/// Exactly `self.<field>`: the derive cannot write a nested path.
+fn is_self_field(e: &Expr) -> bool {
+    matches!(e, Expr::Field(f) if matches!(&*f.base, Expr::Path(p) if p.path.is_ident("self")))
 }
 
 fn mentions_only(e: &Expr, param: &str) -> bool {

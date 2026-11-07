@@ -9,6 +9,7 @@ mod containers;
 mod egui_import;
 mod egui_widget;
 mod entry;
+mod facts;
 mod keys;
 mod layers;
 mod memory;
@@ -27,7 +28,9 @@ mod types;
 
 use std::path::Path;
 
+pub(crate) use facts::build as build_facts;
 pub use scope::{RuleScope, StaticScope};
+pub use types::Types;
 
 use crate::report::Finding;
 use sites::Site;
@@ -152,7 +155,13 @@ pub fn analyze_contract(src: &str, path: &Path, scope: &dyn RuleScope, include_t
 }
 
 pub(crate) fn analyze_file(file: &syn::File, path: &Path, scope: &dyn RuleScope, include_tests: bool) -> Vec<Finding> {
-    let cx = Cx { path, scope, file, sites: sites::collect(file, include_tests), types: types::collect(file) };
+    let cx = Cx {
+        path,
+        scope,
+        file,
+        sites: sites::collect(file, include_tests),
+        types: types::collect(file).overlaid(&scope.crate_types(path).cloned().unwrap_or_default()),
+    };
     let mut out = Vec::new();
     for check in REGISTRY {
         check(&cx, &mut out);

@@ -25,6 +25,7 @@ fn scope() -> StaticScope {
 
 fn rules_at(src: &str, path: &str, scope: &StaticScope) -> Vec<&'static str> {
     let mut rules: Vec<_> = analyze_contract(src, Path::new(path), scope, false).iter().map(|f| f.rule).collect();
+    rules.sort_unstable();
     rules.dedup();
     rules
 }
@@ -37,7 +38,7 @@ const REJECT: [(&str, &[&str]); 17] = [
     ("props-own-field.rs", &["props/own-field"]),
     ("props-shadow.rs", &["props/shadow"]),
     ("props-literal-size.rs", &["props/literal-size"]),
-    ("style-state-pick.rs", &["style/state-pick"]),
+    ("style-state-pick.rs", &["contract/pointer", "style/state-pick"]),
     ("style-match-state.rs", &["style/match-state"]),
     ("style-states-field.rs", &["style/states-field"]),
     ("style-size-arm.rs", &["style/size-arm"]),
@@ -53,8 +54,7 @@ const REJECT: [(&str, &[&str]); 17] = [
 #[test]
 fn every_reject_fixture_fails_with_exactly_its_rules() {
     for (file, expected) in REJECT {
-        let mut rules = rules_at(&fixture("reject", file), FAMILY, &scope());
-        rules.sort_unstable();
+        let rules = rules_at(&fixture("reject", file), FAMILY, &scope());
         assert_eq!(rules, expected, "{file}");
     }
 }
@@ -64,15 +64,18 @@ fn each_reject_fixture_reports_every_shape() {
     let count = |file: &str, rule: &str| {
         analyze_contract(&fixture("reject", file), Path::new(FAMILY), &scope(), false).iter().filter(|f| f.rule == rule).count()
     };
-    assert_eq!(count("behavior-pipeline-only.rs", "behavior/pipeline-only"), 4);
+    assert_eq!(count("behavior-pipeline-only.rs", "behavior/pipeline-only"), 11, "six uses, two focus calls, two types, one call");
+    assert_eq!(count("props-hand-setter.rs", "props/hand-setter"), 3, "assignment, wrapped assignment and struct update");
     assert_eq!(count("props-own-field.rs", "props/own-field"), 3);
     assert_eq!(count("props-shadow.rs", "props/shadow"), 2, "a field named like a setter, and a `name = ..` override");
     assert_eq!(count("props-literal-size.rs", "props/literal-size"), 2);
     assert_eq!(count("style-states-field.rs", "style/states-field"), 3);
     assert_eq!(count("style-token-read.rs", "style/token-read"), 2);
-    assert_eq!(count("style-instance-setter.rs", "style/instance-setter"), 2, "by name and by a style-typed parameter");
-    assert_eq!(count("contract-entry.rs", "contract/entry"), 2, "an inherent `show` and a free function");
-    assert_eq!(count("contract-widget.rs", "contract/widget"), 2, "imported and qualified");
+    assert_eq!(count("style-instance-setter.rs", "style/instance-setter"), 4, "by name, style part, colour and converted colour");
+    assert_eq!(count("style-state-pick.rs", "style/state-pick"), 4, "`if`, `then_some`, tuple `match`, egui `interact`");
+    assert_eq!(count("contract-entry.rs", "contract/entry"), 4, "`show`, a free function, an associated function and a method; not the private one");
+    assert_eq!(count("contract-widget.rs", "contract/widget"), 4, "imported, qualified, renamed and on `&mut`");
+    assert_eq!(count("contract-overlay-flag.rs", "contract/overlay-flag"), 2, "`overlay` inside `exempt(..)` is not the flag");
 }
 
 #[test]
@@ -101,9 +104,9 @@ fn layer_rules_read_only_their_layers() {
     assert!(rules_at(&entry, "crates/app/src/panel.rs", &app).is_empty(), "layer 8 may write panels as functions");
     for file in ["style-state-pick.rs", "style-match-state.rs", "style-size-arm.rs"] {
         let src = fixture("reject", file);
-        assert_eq!(rules_at(&src, "crates/app/src/panel.rs", &app).len(), 1, "{file}: layer 8 is checked");
+        assert!(rules_at(&src, "crates/app/src/panel.rs", &app).iter().any(|r| r.starts_with("style/")), "{file}: layer 8 is checked");
         let runtime = scope().layer("crates/x/src/runtime", 2);
-        assert!(rules_at(&src, "crates/x/src/runtime/a.rs", &runtime).is_empty(), "{file}: layer 2 is not checked");
+        assert!(rules_at(&src, "crates/x/src/runtime/a.rs", &runtime).iter().all(|r| !r.starts_with("style/")), "{file}: layer 2 is not checked");
     }
 }
 
@@ -114,7 +117,8 @@ fn allowed_locations_pass_the_same_source() {
 
     let style_home = scope().layer("crates/x/src/chips", 5).allow("style", "crates/x/src/chips");
     for (file, _) in REJECT.iter().filter(|(f, _)| f.starts_with("style-")) {
-        assert!(rules_at(&fixture("reject", file), FAMILY, &style_home).is_empty(), "{file}");
+        let rules = rules_at(&fixture("reject", file), FAMILY, &style_home);
+        assert!(rules.iter().all(|r| !r.starts_with("style/")), "{file}: {rules:?}");
     }
 }
 
@@ -142,6 +146,34 @@ fn props_shadow_is_an_error_unless_the_config_warns() {
 fn config_warn_names_known_rules() {
     let ok = "[lint]\npaths = [\"src\"]\nwarn = [\"props/shadow\", \"style\"]\n";
     assert_eq!(Config::parse(Path::new("design-lint.toml"), ok).unwrap().warn, ["props/shadow", "style"]);
-    let bad = "[lint]\npaths = [\"src\"]\nwarn = [\"props/nope\"]\n";
-    assert!(Config::parse(Path::new("design-lint.toml"), bad).is_err());
+    for bad in ["props/nope", "parse", "marker", "marker/unused", "exemption/unused"] {
+        let text = format!("[lint]\npaths = [\"src\"]\nwarn = [\"{bad}\"]\n");
+        assert!(Config::parse(Path::new("design-lint.toml"), &text).is_err(), "{bad}");
+    }
+}
+
+#[test]
+fn type_facts_cross_files_of_a_crate() {
+    let root = Path::new(FIXTURES).join("tree");
+    let scope = scope().layer("src/chips", 5).crate_tree(&root, "fx", "src/lib.rs").unwrap();
+    let report = check_with_scope(&Config::new(["src/chips"]), &root, &scope).unwrap();
+    let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule)).collect();
+    assert_eq!(
+        hits,
+        [
+            ("src/chips/builder.rs".to_owned(), "contract/shadow"),
+            ("src/chips/builder.rs".to_owned(), "props/hand-setter"),
+            ("src/chips/builder.rs".to_owned(), "contract/entry"),
+            ("src/chips/component.rs".to_owned(), "contract/overlay-flag"),
+        ]
+    );
+}
+
+#[test]
+fn response_events_are_not_state_picks() {
+    let src = "fn f(r: &Response) -> Color32 { if r.clicked() { return hover_color; } rest_color }";
+    assert!(rules_at(src, FAMILY, &scope()).iter().all(|r| !r.starts_with("style/")));
+    let primitives = scope().layer("crates/x/src/prims", 3);
+    let hover = "fn f(r: &Response) -> Color32 { if r.hovered() { hover_color } else { rest_color } }";
+    assert_eq!(rules_at(hover, "crates/x/src/prims/a.rs", &primitives), ["style/state-pick"], "layers 3 and 4 are read");
 }
