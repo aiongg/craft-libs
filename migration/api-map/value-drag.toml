@@ -116,13 +116,15 @@ note = "Stories keep their values in `StoryData::value(key, initial)`; a host ex
 name = "AngleDial"
 old = "craft_ui::controls::angle_dial::AngleDial"
 new = "craft_ui::value_drag::AngleDial"
-status = "pending"
+status = "moved"
+note = "A leaf `Component` over `Bind<f64>` shown with `Show::show`; the output is `EditResponse<f64>`. The degree field is no longer drawn by the dial: show a `NumberField` bound to the same value beside it. `AngleDial::style(tokens)` and `AngleDialStyle`'s public fields are gone."
 
 [[type]]
 name = "PointPicker"
 old = "craft_ui::controls::point_picker::PointPicker"
 new = "craft_ui::value_drag::PointPicker"
-status = "pending"
+status = "moved"
+note = "A leaf `Component` over `Bind<[f64; 2]>`; the output is `EditResponse<[f64; 2]>`. The X and Y fields are no longer drawn by the picker: show two `NumberField`s over the same value. `PointPicker::style(tokens)` is gone."
 
 [[type]]
 name = "ThumbRow"
@@ -135,6 +137,22 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+[[type]]
+name = "AngleOrientation"
+old = "craft_ui::controls::angle_dial::AngleOrientation"
+new = "craft_ui::value_drag::AngleOrientation"
+status = "moved"
+note = "Same two variants; the enum is `#[non_exhaustive]`."
+
+[[type]]
+name = "Pointing"
+old = "craft_ui::controls::angle_dial::Pointing"
+new = ""
+status = "removed"
+note = "Private pointer-to-angle maths of the dial; no public type."
+
+# One entry per renamed, removed or reshaped setter or constructor.
 
 [[setter]]
 type = "Slider"
@@ -279,3 +297,88 @@ new = "size(ControlSize)"
 type = "RangeSlider"
 old = "enabled(bool)"
 new = "enabled(bool)"
+
+[[setter]]
+type = "AngleDial"
+old = "AngleDial::new(id_salt, label, value, numbers)"
+new = "AngleDial::new(Bind::bound(&mut value)).label(label)"
+note = "The id salt and the numbers writer are no longer arguments; the scope's `Format` writes numbers."
+
+[[setter]]
+type = "AngleDial"
+old = "range(RangeInclusive<f64>)"
+new = "range(RangeInclusive<f64>)"
+note = "Same; bounds that are not finite give the default turn."
+
+[[setter]]
+type = "AngleDial"
+old = "wrap(bool)"
+new = "wrap(bool)"
+note = "Same."
+
+[[setter]]
+type = "AngleDial"
+old = "step(f64)"
+new = "step(f64)"
+note = "Same."
+
+[[setter]]
+type = "AngleDial"
+old = "orientation(AngleOrientation)"
+new = "orientation(AngleOrientation)"
+note = "Same."
+
+[[setter]]
+type = "AngleDial"
+old = "policy(EditPolicy)"
+new = "Bind::policy(EditPolicy)"
+note = "The write policy is the binding's."
+
+[[setter]]
+type = "AngleDial"
+old = "size(ControlSize)"
+new = "size(ControlSize)"
+note = "A common setter; the dial's diameter follows the control height."
+
+[[setter]]
+type = "AngleDial"
+old = "enabled(bool)"
+new = "enabled(bool)"
+note = "A common setter."
+
+[[setter]]
+type = "AngleDial"
+old = "field(bool)"
+new = ""
+note = "Removed: the dial draws no field. Show a `NumberField` beside it for the degrees."
+
+[[setter]]
+type = "PointPicker"
+old = "PointPicker::new(id_salt, label, value, image)"
+new = "PointPicker::new(Bind::bound(&mut value), x_range, y_range).label(label)"
+note = "The image is painted by `backdrop(|painter, plot| ..)` with `aspect(width / height)` to fit it in the well."
+
+[[setter]]
+type = "PointPicker"
+old = "range(RangeInclusive<f64>, Unit)"
+new = "PointPicker::new(value, x_range, y_range)"
+note = "Each axis has its range; the unit belongs to the `NumberField`s."
+
+[[setter]]
+type = "PointPicker"
+old = "decimals(usize)"
+new = "step(f64)"
+note = "The point snaps to the step; without one it is continuous."
+
+[[setter]]
+type = "PointPicker"
+old = "policy(EditPolicy)"
+new = "Bind::policy(EditPolicy)"
+note = "The write policy is the binding's."
+
+[[setter]]
+type = "PointPicker"
+old = "enabled(bool)"
+new = "enabled(bool)"
+note = "A common setter."
+
