@@ -59,9 +59,9 @@ pub fn nudge_to(at: usize, len: usize, forward: bool) -> usize {
 
 /// The Alt+arrow move of the focused item this pass: `Some(true)` toward the end, `Some(false)` toward the start.
 pub fn take_move_item(intents: &mut Intents) -> Option<bool> {
-    if intents.take(Intent::move_item(true)) {
+    if intents.take_exact(&Intent::move_item(true)) {
         Some(true)
-    } else if intents.take(Intent::move_item(false)) {
+    } else if intents.take_exact(&Intent::move_item(false)) {
         Some(false)
     } else {
         None
