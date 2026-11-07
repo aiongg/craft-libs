@@ -1,7 +1,6 @@
 //! Guide data: what a `Guides` control shows and reports. Data only; the control is a canvas control.
 
-use craft_behavior::kurbo::{Point, Vec2};
-use craft_behavior::{GesturePhase, PartKey, PartRef};
+use craft_behavior::{Axis, GesturePhase, PartKey, PartRef};
 use craft_keymap::Mods;
 use craft_theme::Rgba;
 
@@ -27,49 +26,16 @@ impl GuideKey {
     }
 }
 
-/// Which way a guide runs.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub enum GuideAxis {
-    /// Across the document's x axis, at a y position.
-    Horizontal,
-    /// Along the document's y axis, at an x position.
-    Vertical,
-}
-
-impl GuideAxis {
-    /// The other axis.
-    pub const fn flipped(self) -> GuideAxis {
-        match self {
-            GuideAxis::Horizontal => GuideAxis::Vertical,
-            GuideAxis::Vertical => GuideAxis::Horizontal,
-        }
-    }
-
-    /// The document direction a guide moves in, in document units: x for a vertical guide. A screen caller maps it
-    /// through `CanvasView::map_vec`; `resize_cursor` takes it as is.
-    pub fn across(self) -> Vec2 {
-        let vertical = f64::from(u8::from(self == GuideAxis::Vertical));
-        Vec2::new(vertical, 1.0 - vertical)
-    }
-
-    /// The coordinate of `p` a guide is placed by: x for a vertical guide.
-    pub const fn position(self, p: Point) -> f64 {
-        match self {
-            GuideAxis::Horizontal => p.y,
-            GuideAxis::Vertical => p.x,
-        }
-    }
-}
-
 /// How a guide's line is drawn.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 #[non_exhaustive]
-#[expect(missing_docs, reason = "the names are the line styles")]
 pub enum GuideLine {
+    /// An unbroken line.
     #[default]
     Solid,
+    /// A line of dashes.
     Dashed,
+    /// A line of dots.
     Dots,
 }
 
@@ -79,9 +45,9 @@ pub enum GuideLine {
 pub struct Guide {
     /// The host's name for the guide, unique among the guides shown together.
     pub key: GuideKey,
-    /// Which way the guide runs.
-    pub axis: GuideAxis,
-    /// Document coordinate across the guide: x for a vertical guide.
+    /// The axis the guide runs along: `Axis::X` for a horizontal guide, at a y position.
+    pub along: Axis,
+    /// Document coordinate across the guide: x for a vertical guide (along `Axis::Y`).
     pub position: f64,
     /// Where the guide runs along its length, from and to in document units; `None` across the whole view
     /// (PhotoCraft).
@@ -97,18 +63,20 @@ pub struct Guide {
 
 impl Guide {
     /// A solid, unlocked guide across the view in the theme's colour.
-    pub const fn new(key: GuideKey, axis: GuideAxis, position: f64) -> Self {
-        Self { key, axis, position, span: None, color: None, line: GuideLine::Solid, locked: false }
+    pub const fn new(key: GuideKey, along: Axis, position: f64) -> Self {
+        Self { key, along, position, span: None, color: None, line: GuideLine::Solid, locked: false }
     }
 }
 
-/// A guide being created or dragged, as the ruler drag or the guide's own part reports it. A guide drag from a
-/// ruler starts a guide on the axis the ruler runs along.
+/// A guide being created or dragged, as the ruler drag or the guide's own part reports it. Build one with
+/// [`GuideDrag::new_guide`] for a guide dragged out of a ruler and [`GuideDrag::moving`] for an existing guide.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct GuideDrag {
-    /// Which way the guide runs.
-    pub axis: GuideAxis,
+    /// The guide being moved; `None` for a new guide dragged out of a ruler.
+    pub key: Option<GuideKey>,
+    /// The axis the guide runs along.
+    pub along: Axis,
     /// Where the gesture stands in this pass.
     pub phase: GesturePhase,
     /// The document coordinate across the guide; `None` when the pointer is off the canvas, which removes the guide
@@ -119,8 +87,13 @@ pub struct GuideDrag {
 }
 
 impl GuideDrag {
-    /// A drag of a guide on `axis` in `phase`, at `at`, with `mods` held.
-    pub const fn new(axis: GuideAxis, phase: GesturePhase, at: Option<f64>, mods: Mods) -> Self {
-        Self { axis, phase, at, mods }
+    /// A new guide running along `along`, dragged out of a ruler: in `phase`, at `at`, with `mods` held.
+    pub const fn new_guide(along: Axis, phase: GesturePhase, at: Option<f64>, mods: Mods) -> Self {
+        Self { key: None, along, phase, at, mods }
+    }
+
+    /// The existing guide `key`, running along `along`, dragged: in `phase`, at `at`, with `mods` held.
+    pub const fn moving(key: GuideKey, along: Axis, phase: GesturePhase, at: Option<f64>, mods: Mods) -> Self {
+        Self { key: Some(key), along, phase, at, mods }
     }
 }

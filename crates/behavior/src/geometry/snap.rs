@@ -11,6 +11,7 @@
 //! is the tool's own modifier (the caller reads the keys). Smart guides follow View › Show ›
 //! Smart Guides and also snap the Move tool to other layers' edges and centres.
 
+use crate::flow::Axis;
 use kurbo::{Point, Rect, Vec2};
 
 /// Screen points within which a position snaps (Photoshop).
@@ -43,16 +44,17 @@ impl SnapGesture {
         SnapGesture::Rect { at_press }
     }
 
-    /// One axis snaps: x when `vertical`.
-    pub const fn axis(vertical: bool) -> Self {
-        SnapGesture::Axis { vertical }
+    /// Only the coordinate across the lines that run `along` snaps: x for `Axis::Y`.
+    pub const fn axis(along: Axis) -> Self {
+        SnapGesture::Axis { along }
     }
 }
 
 impl SnapTarget {
-    /// A full-height line of `kind` at `position`: vertical snaps x, else y.
-    pub const fn new(vertical: bool, position: f64, kind: SnapKind) -> Self {
-        SnapTarget { vertical, position, kind, span: None }
+    /// A full-height line of `kind` running `along` an axis, at `position` across it: a line along `Axis::Y`
+    /// snaps x, a line along `Axis::X` snaps y.
+    pub const fn new(along: Axis, position: f64, kind: SnapKind) -> Self {
+        SnapTarget { along, position, kind, span: None }
     }
 
     /// The target with its extent along its line, for drawing a smart guide.
@@ -73,8 +75,9 @@ impl SnapKind {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SnapTarget {
-    /// Vertical line (snaps x) or horizontal line (snaps y).
-    pub vertical: bool,
+    /// The axis the line runs along: `Axis::Y` for a vertical line (snaps x), `Axis::X` for a horizontal one
+    /// (snaps y).
+    pub along: Axis,
     /// The position along the snapped axis, document units.
     pub position: f64,
     /// What the target is.
@@ -88,8 +91,9 @@ pub struct SnapTarget {
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct SnapLine {
-    /// Whether the line is vertical (snaps x) or horizontal (snaps y).
-    pub vertical: bool,
+    /// The axis the line runs along: `Axis::Y` for a vertical line (snaps x), `Axis::X` for a horizontal one
+    /// (snaps y).
+    pub along: Axis,
     /// The position along the snapped axis, in document units.
     pub position: f64,
     /// What the target was.
@@ -141,8 +145,8 @@ pub enum SnapGesture {
     /// Only one axis snaps (a guide being dragged).
     #[non_exhaustive]
     Axis {
-        /// Whether the snapping axis is x (a vertical guide).
-        vertical: bool,
+        /// The axis the dragged guide runs along; the coordinate across it snaps.
+        along: Axis,
     },
 }
 
@@ -159,7 +163,7 @@ const TIE: f64 = 1e-9;
 /// without a span stays full height.
 fn line(target: &SnapTarget, a: f64, b: f64) -> SnapLine {
     let span = target.span.map(|(lo, hi)| (lo.min(a).min(b), hi.max(a).max(b)));
-    SnapLine { vertical: target.vertical, position: target.position, kind: target.kind, span }
+    SnapLine { along: target.along, position: target.position, kind: target.kind, span }
 }
 
 impl SnapTargets {
@@ -178,15 +182,15 @@ impl SnapTargets {
     pub fn add_rect(&mut self, rect: Rect, edge: SnapKind, center: SnapKind) {
         let r = rect.abs();
         let (xs, ys) = ((r.y0, r.y1), (r.x0, r.x1));
-        for (vertical, position, kind, span) in [
-            (true, r.x0, edge, xs),
-            (true, r.x1, edge, xs),
-            (true, (r.x0 + r.x1) / 2.0, center, xs),
-            (false, r.y0, edge, ys),
-            (false, r.y1, edge, ys),
-            (false, (r.y0 + r.y1) / 2.0, center, ys),
+        for (along, position, kind, span) in [
+            (Axis::Y, r.x0, edge, xs),
+            (Axis::Y, r.x1, edge, xs),
+            (Axis::Y, (r.x0 + r.x1) / 2.0, center, xs),
+            (Axis::X, r.y0, edge, ys),
+            (Axis::X, r.y1, edge, ys),
+            (Axis::X, (r.y0 + r.y1) / 2.0, center, ys),
         ] {
-            self.add(SnapTarget { vertical, position, kind, span: Some(span) });
+            self.add(SnapTarget { along, position, kind, span: Some(span) });
         }
     }
 
@@ -197,7 +201,7 @@ impl SnapTargets {
         self,
         options: &SnapOptions,
         bounds: Rect,
-        guides: impl IntoIterator<Item = (bool, f64)>,
+        guides: impl IntoIterator<Item = (Axis, f64)>,
         grid: Option<(Point, Vec2)>,
     ) -> Self {
         if !options.on {
@@ -205,8 +209,8 @@ impl SnapTargets {
         }
         let mut this = self;
         if options.guides {
-            for (vertical, position) in guides {
-                this.add(SnapTarget { vertical, position, kind: SnapKind::Guide, span: None });
+            for (along, position) in guides {
+                this.add(SnapTarget { along, position, kind: SnapKind::Guide, span: None });
             }
         }
         if options.grid
@@ -220,12 +224,12 @@ impl SnapTargets {
             let r = bounds.abs();
             if step.x.is_finite() && step.x > 0.0 {
                 for position in lines(origin.x, step.x, r.x0, r.x1) {
-                    this.add(SnapTarget { vertical: true, position, kind: SnapKind::Grid, span: None });
+                    this.add(SnapTarget { along: Axis::Y, position, kind: SnapKind::Grid, span: None });
                 }
             }
             if step.y.is_finite() && step.y > 0.0 {
                 for position in lines(origin.y, step.y, r.y0, r.y1) {
-                    this.add(SnapTarget { vertical: false, position, kind: SnapKind::Grid, span: None });
+                    this.add(SnapTarget { along: Axis::X, position, kind: SnapKind::Grid, span: None });
                 }
             }
         }
@@ -245,10 +249,10 @@ impl SnapTargets {
         self.targets.is_empty()
     }
 
-    /// The nearest target on one axis within `tolerance` of `value`.
-    pub fn nearest(&self, vertical: bool, value: f64, tolerance: f64) -> Option<SnapTarget> {
+    /// The nearest target among the lines that run `along` an axis, within `tolerance` of `value` across them.
+    pub fn nearest(&self, along: Axis, value: f64, tolerance: f64) -> Option<SnapTarget> {
         let mut best: Option<(f64, SnapTarget)> = None;
-        for target in self.targets.iter().filter(|t| t.vertical == vertical) {
+        for target in self.targets.iter().filter(|t| t.along == along) {
             let distance = (target.position - value).abs();
             if distance > tolerance {
                 continue;
@@ -268,11 +272,11 @@ impl SnapTargets {
     pub fn snap_point(&self, point: Point, tolerance: f64) -> (Point, Vec<SnapLine>) {
         let mut out = point;
         let mut lines = Vec::new();
-        if let Some(t) = self.nearest(true, point.x, tolerance) {
+        if let Some(t) = self.nearest(Axis::Y, point.x, tolerance) {
             out.x = t.position;
             lines.push(line(&t, point.y, point.y));
         }
-        if let Some(t) = self.nearest(false, point.y, tolerance) {
+        if let Some(t) = self.nearest(Axis::X, point.y, tolerance) {
             out.y = t.position;
             lines.push(line(&t, out.x, out.x));
         }
@@ -285,13 +289,16 @@ impl SnapTargets {
         let mut delta = Vec2::ZERO;
         let mut lines = Vec::new();
         let rect = rect.abs();
-        for vertical in [true, false] {
-            let (lo, hi, other) = if vertical { (rect.x0, rect.x1, (rect.y0, rect.y1)) } else { (rect.y0, rect.y1, (rect.x0, rect.x1)) };
+        for along in [Axis::Y, Axis::X] {
+            let (lo, hi, other) = match along {
+                Axis::Y => (rect.x0, rect.x1, (rect.y0, rect.y1)),
+                Axis::X => (rect.y0, rect.y1, (rect.x0, rect.x1)),
+            };
             // Edges before the centre, so an edge wins a tie.
             let anchors = [lo, hi, (lo + hi) / 2.0];
             let mut best: Option<f64> = None;
             for anchor in anchors {
-                if let Some(t) = self.nearest(vertical, anchor, tolerance) {
+                if let Some(t) = self.nearest(along, anchor, tolerance) {
                     let d = t.position - anchor;
                     if best.is_none_or(|b| d.abs() < b.abs() - TIE) {
                         best = Some(d);
@@ -299,17 +306,16 @@ impl SnapTargets {
                 }
             }
             let Some(d) = best else { continue };
-            if vertical {
-                delta.x = d;
-            } else {
-                delta.y = d;
+            match along {
+                Axis::Y => delta.x = d,
+                Axis::X => delta.y = d,
             }
             for anchor in anchors {
                 let moved = anchor + d;
                 let hit = self
                     .targets
                     .iter()
-                    .filter(|t| t.vertical == vertical && (t.position - moved).abs() < 1e-6)
+                    .filter(|t| t.along == along && (t.position - moved).abs() < 1e-6)
                     .min_by_key(|t| u8::from(t.kind != SnapKind::Guide));
                 if let Some(t) = hit {
                     lines.push(line(t, other.0, other.1));
@@ -319,13 +325,39 @@ impl SnapTargets {
         (delta, lines)
     }
 
-    /// `value` on one axis snapped to the nearest target within `tolerance`, for a guide drag
-    /// or a ruler's snap closure.
-    pub fn snap_axis(&self, vertical: bool, value: f64, tolerance: f64) -> (f64, Option<SnapLine>) {
-        match self.nearest(vertical, value, tolerance) {
-            Some(t) => (t.position, Some(SnapLine { vertical, position: t.position, kind: t.kind, span: t.span })),
+    /// `value` across the lines that run `along` an axis, snapped to the nearest target within `tolerance`, for a
+    /// guide drag or a ruler's snap closure.
+    pub fn snap_axis(&self, along: Axis, value: f64, tolerance: f64) -> (f64, Option<SnapLine>) {
+        match self.nearest(along, value, tolerance) {
+            Some(t) => (t.position, Some(SnapLine { along, position: t.position, kind: t.kind, span: t.span })),
             None => (value, None),
         }
+    }
+}
+
+/// The axis across `along`: a line running along `Axis::Y` (vertical) is placed on `Axis::X`.
+pub const fn across_axis(along: Axis) -> Axis {
+    match along {
+        Axis::X => Axis::Y,
+        Axis::Y => Axis::X,
+    }
+}
+
+/// The document direction a line running `along` an axis moves in: x for a line along `Axis::Y`. A screen caller
+/// maps it through `CanvasView::map_vec`; `resize_cursor` takes it as is.
+pub fn motion_across(along: Axis) -> Vec2 {
+    let x = match along {
+        Axis::X => 0.0,
+        Axis::Y => 1.0,
+    };
+    Vec2::new(x, 1.0 - x)
+}
+
+/// The coordinate of `p` a line running `along` an axis is placed by: x for a line along `Axis::Y`.
+pub const fn coordinate_across(along: Axis, p: Point) -> f64 {
+    match along {
+        Axis::X => p.y,
+        Axis::Y => p.x,
     }
 }
 

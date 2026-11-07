@@ -251,8 +251,16 @@ status = "moved"
 [[type]]
 name = "snap_union"
 old = "craft_ui::canvas::snap_union"
+new = ""
+status = "removed"
+note = "The function is `craft_behavior::geometry::snap::union`."
+
+[[type]]
+name = "union"
+old = ""
 new = "craft_behavior::geometry::snap::union"
-status = "moved"
+status = "replaced"
+note = "Legacy `craft_ui::canvas::snap_union`: the bounding rectangle of some rectangles, `None` for none."
 
 [[setter]]
 type = "Anchor9"
@@ -323,3 +331,23 @@ new = "SmartLine::from_snap(line) in the canvas controls"
 type = "BoxRules"
 old = "drag_modifiers(part, modifiers) and drag_kind(part, modifiers)"
 new = "drag_modifiers(part, mods) and drag_kind(part, mods)"
+
+[[setter]]
+type = "SnapTarget"
+old = "vertical: bool (field and the first argument of new)"
+new = "along: craft_behavior::Axis: the axis the line runs along, so a vertical line is Axis::Y and snaps x"
+
+[[setter]]
+type = "SnapLine"
+old = "vertical: bool"
+new = "along: craft_behavior::Axis, as SnapTarget::along"
+
+[[setter]]
+type = "SnapGesture"
+old = "Axis { vertical: bool } and SnapGesture::axis(vertical)"
+new = "Axis { along: craft_behavior::Axis } and SnapGesture::axis(along)"
+
+[[setter]]
+type = "SnapTargets"
+old = "nearest(vertical, value, tolerance), snap_axis(vertical, value, tolerance) and the guides argument of with_document as (bool, f64)"
+new = "the same with along: craft_behavior::Axis, and (Axis, f64) for the guides"
