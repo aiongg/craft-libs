@@ -223,10 +223,16 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                 ui.horizontal(|ui| {
                     if searchable {
                         let typed = body.memory::<Query>();
-                        let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.0)).show(ui);
-                        query.clone_from(&typed.0);
-                        // The dropdown leaves the key focus on the select; the filter field takes it so typing reaches it.
                         if Popup::opening(popup, cx) {
+                            *typed = Query::default();
+                        }
+                        let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.text)).show(ui);
+                        query.clone_from(&typed.text);
+                        // The dropdown leaves the key focus on the select; the filter field takes it so typing reaches it.
+                        let taken = &mut body.memory::<Query>().focused;
+                        if field.response.has_focus() {
+                            *taken = true;
+                        } else if !*taken {
                             focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
                         }
                     }
@@ -282,9 +288,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     }
 }
 
-/// The filter text of a searchable select's open list.
+/// The filter text of a searchable select's open list, and whether its field has taken the key focus yet.
 #[derive(Clone, Default)]
-struct Query(String);
+struct Query {
+    text: String,
+    focused: bool,
+}
 
 /// The filter field's accessible name: the select's own name leads, so the field reads as part of it.
 fn search_name(words: &PickerWords, select: &Label) -> Label {
