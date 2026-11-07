@@ -8,20 +8,19 @@ mod stories;
 
 use super::words::PickerWords;
 use crate::contract::{ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _};
-use crate::list::ThumbAspect;
-use crate::primitives::ContentPainterCx;
+use crate::primitives::IconSpec;
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TileGroup};
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
 use craft_i18n::matcher::Matcher;
-use egui::{Rect, Response, Ui};
+use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::hash::Hash;
 use std::sync::Arc;
 
 /// One cell: what it picks, its name (tooltip, accessible name, search) and more words it is found by.
-#[derive(Clone, Debug, PartialEq, Eq, Props)]
+#[derive(Clone, Debug, PartialEq, Props)]
 #[non_exhaustive]
 pub struct IconPickerItem<K> {
     /// What the cell picks.
@@ -31,12 +30,21 @@ pub struct IconPickerItem<K> {
     /// Words the search also matches ("arrow", "direction").
     #[prop]
     pub keywords: Vec<String>,
+    /// The cell's icon; a cell without one shows the placeholder.
+    pub icon: Option<IconSpec<'static>>,
 }
 
 impl<K> IconPickerItem<K> {
     /// A cell that picks `key`, named `label`, found by no other words.
     pub fn new(key: K, label: impl Into<String>) -> Self {
-        Self { key, label: label.into(), keywords: Vec::new() }
+        Self { key, label: label.into(), keywords: Vec::new(), icon: None }
+    }
+
+    /// The icon the cell shows.
+    #[must_use]
+    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
+        self.icon = Some(icon.into());
+        self
     }
 
     /// Whether the name or a keyword matches `matcher`.
@@ -46,7 +54,7 @@ impl<K> IconPickerItem<K> {
 }
 
 /// A titled group of cells; with a search typed the groups with no match are hidden.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub struct IconPickerGroup<K> {
     /// The group's title.
@@ -87,22 +95,13 @@ impl<K> Outcome for IconPickerOutput<K> {
     }
 }
 
-/// The host's painter of a cell's icon: it paints the cell of a key into a rect.
-pub struct CellPaint<'a, K>(Box<dyn Fn(&ContentPainterCx, Rect, &K) + 'a>);
-
-impl<'a, K> CellPaint<'a, K> {
-    /// The painter that runs `paint` for each cell, given the cell's key.
-    pub fn new(paint: impl Fn(&ContentPainterCx, Rect, &K) + 'a) -> Self {
-        CellPaint(Box::new(paint))
-    }
-}
-
 /// A searchable grid of icons in named groups. The cell of the bound key is selected; a pick writes its key to the
-/// binding and is reported in `picked`. The host paints each icon with `paint`; the cell's name is its tooltip and
+/// binding and is reported in `picked`. Each cell shows the icon of its item; the cell's name is its tooltip and
 /// accessible name, and the search matches it and its keywords.
 ///
 /// ```ignore
-/// let out = IconPicker::new("Tool", Bind::bound(&mut tool), &groups).paint(|cx, rect, key| draw_tool(cx, rect, key)).show(ui);
+/// let groups = [IconPickerGroup::new("Drawing", vec![IconPickerItem::new(Tool::Brush, "Brush").icon(IconId::new("brush"))])];
+/// let out = IconPicker::new("Tool", Bind::bound(&mut tool), &groups).show(ui);
 /// ```
 #[derive(Pattern, Props)]
 #[pattern(probe(IconPicker<'static, u8>))]
@@ -110,9 +109,6 @@ pub struct IconPicker<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     label: Label,
     value: Bind<'a, Option<K>>,
     groups: &'a [IconPickerGroup<K>],
-    /// Paints the icon of a cell.
-    #[prop(func = "Fn(&ContentPainterCx, Rect, &K)")]
-    paint: Option<CellPaint<'a, K>>,
 }
 
 /// The visible cells as the grid's source, keyed by position.
@@ -147,12 +143,12 @@ impl<K> ItemSource<usize> for Cells<'_, K> {}
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
     /// A picker named `label` over `value`, choosing among the cells of `groups`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<K>>, groups: &'a [IconPickerGroup<K>]) -> Self {
-        IconPicker { label: label.into(), value, groups, paint: None }
+        IconPicker { label: label.into(), value, groups }
     }
 
     /// Shows the picker and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> IconPickerOutput<K> {
-        let IconPicker { label, mut value, groups, paint } = self;
+        let IconPicker { label, mut value, groups } = self;
         let env = Env::of(ui);
         let words = env.words::<PickerWords>();
         let grid_id = ui.scope_id().with("icons");
@@ -184,7 +180,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
         let selection =
             held.as_ref().and_then(|held| items.iter().position(|item| item.key == *held)).map_or_else(Selection::default, Selection::single);
         let source = Cells { items };
-        let painter = paint.as_ref();
         let grid = TileGrid::<usize>::new(label.clone())
             .id(grid_id)
             .select(SelectMode::Single)
@@ -197,8 +192,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
             .show_items(ui, &source, &mut |at, _| {
                 let item = source.items[*at];
                 let tile = Tile::new(item.label.clone());
-                match painter {
-                    Some(painter) => tile.thumb(ThumbAspect::SQUARE, move |cx, rect| (painter.0)(cx, rect, &item.key)),
+                match &item.icon {
+                    Some(icon) => tile.icon(icon.clone()),
                     None => tile,
                 }
             });

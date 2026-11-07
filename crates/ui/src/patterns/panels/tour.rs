@@ -6,8 +6,8 @@ use crate::contract::{Bind, Overlay, Pattern, Props, Show as _, ShowContainer as
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::notices::{Notice, NoticeAction, NoticeLayout};
-use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::popover::Popover;
+use crate::runtime::commands::{CommandSet as _, Commands as _};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{Backdrop, Rank};
@@ -144,7 +144,8 @@ impl<'a> Tour<'a> {
                         notice = notice.action(NoticeAction::new(words.tour_back.clone()));
                         order.push(TourEvent::Back);
                     }
-                    notice = notice.action(NoticeAction::new(if at < last { words.tour_next.clone() } else { words.tour_done.clone() }).default_action());
+                    notice =
+                        notice.action(NoticeAction::new(if at < last { words.tour_next.clone() } else { words.tour_done.clone() }).default_action());
                     order.push(forward);
                     if let Some(event) = notice.show(ui).action.and_then(|at| order.get(at).copied()) {
                         taken = Some(event);
