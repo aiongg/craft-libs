@@ -175,8 +175,11 @@ impl Rig {
 #[trial]
 fn a_searchable_select_finds_accented_names() {
     let mut rig = searchable(&["Apple", "Café", "Cherry"]);
+    eprintln!("DBG before focused={:?}", rig.fixture.focused().map(|i| format!("{i:?}").chars().rev().take(50).collect::<String>()));
     rig.fixture.type_text("cafe");
     rig.fixture.idle(4);
+    eprintln!("DBG after focused={:?} inputs={:?}", rig.fixture.focused().map(|i| format!("{i:?}").chars().rev().take(50).collect::<String>()), rig.fixture.by_role(Role::TEXT_INPUT).len());
+    eprintln!("DBG value={:?}", rig.fixture.focused().and_then(|i| rig.fixture.tree().value(i).map(str::to_owned)));
     assert_eq!(rig.listed(), ["Café"]);
 }
 
