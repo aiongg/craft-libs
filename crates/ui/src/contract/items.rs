@@ -127,8 +127,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         f64::from((self.content.y - view).max(0.0))
     }
 
-    fn page_rows(&self, view: f32) -> usize {
-        let row = self.layout.as_ref().filter(|_| !self.source.is_empty()).map_or(0.0, |layout| layout.rect(0, ScrollPos::default()).height());
+    fn page_rows(&self, layout: &C::ItemLayout, view: f32) -> usize {
+        let row = if self.source.is_empty() { 0.0 } else { layout.rect(0, ScrollPos::default()).height() };
         if row > 0.0 { ((view / row) as usize).saturating_sub(1).max(1) } else { 1 }
     }
 
@@ -322,7 +322,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             }
         }
         let outline = Outline(self.source);
-        let page = self.page_rows(view);
+        let page = self.page_rows(&layout, view);
         while let Some((mv, mods)) = cx.core.intents.take_move() {
             if len == 0 {
                 break;
