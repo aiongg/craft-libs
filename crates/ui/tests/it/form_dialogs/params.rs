@@ -11,6 +11,7 @@ use std::rc::Rc;
 const SPEC: &str = r#"{"radius":0.1..1000=1,"method":"spin|zoom"="zoom","monochromatic":bool,"seed":u32=0,"cellSize":px=4,"tint":color=#ff8000,"kernel":int[25],"layer":layer id,"curve":json,"note":text} -> {"x":1}"#;
 const KERNEL_CELLS: usize = 25;
 const LOG_LIMIT: f64 = 500.0;
+const RADIUS_DEFAULT: f64 = 1.0;
 
 /// The registry notation gives the kinds, bounds, defaults and labels the rows show; entries the rows do not edit are
 /// left out.
@@ -183,5 +184,5 @@ fn rows_fill_defaults_through_the_binding() {
     });
     fixture.settle();
     let fields = fields.borrow();
-    assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(1.0), Some("zoom"), Some("kept")));
+    assert_eq!((fields.number("radius"), fields.text("method"), fields.text("note")), (Some(RADIUS_DEFAULT), Some("zoom"), Some("kept")));
 }
