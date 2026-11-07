@@ -4,10 +4,11 @@ use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside, Popup};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
-    Remember as _, Role, Show as _, ShowContainer as _, Trigger,
+    Remember as _, Role, Show as _, ShowContainer as _, StopProps as _, Trigger,
 };
 use crate::display::Divider;
-use crate::runtime::env::Label;
+use crate::runtime::env::{Env, Label};
+use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::frame;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
@@ -77,13 +78,14 @@ impl<T: Value> Outcome for MenuPick<T> {
 /// closes the chain.
 pub(crate) fn layer(submenu: bool) -> Overlay {
     let base = if submenu { Overlay::submenu() } else { Overlay::menu() };
-    base.dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true))
+    base.dismiss(Dismiss::new().outside(Outside::Absorb).on_activate(true)).focus(FocusPolicy::MENU.initial(Initial::Default))
 }
 
 /// Shows one row per entry, a rule for a separator, and returns the index of the entry that ran. In a value menu
 /// ([`Menu::values`]) every row is a radio item and the checked entry carries the mark; elsewhere a checked entry
 /// carries a check mark.
 pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> {
+    let values = Env::of(ui).get::<MenuLevel>().values();
     let mut ran = None;
     for (at, entry) in entries.iter().enumerate() {
         if entry.is_separator() {
@@ -93,6 +95,10 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
         let mut row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled()).entry_checked(entry.is_checked());
         if let Some(icon) = entry.icon_spec() {
             row = row.icon(icon.clone());
+        }
+        // The lead of a value menu starts on the checked entry.
+        if values && entry.is_checked() {
+            row = row.default_stop();
         }
         if row.show(ui).ran {
             ran = Some(at);
@@ -236,7 +242,7 @@ impl Component for Menu<'_> {
     }
 
     /// A row of a submenu level that took Back closes the menu. A typed letter runs the row it names; the container
-    /// reads it, so the letter works with no row focused. A value menu's lead starts on the checked entry.
+    /// reads it, so the letter works with no row focused.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let level = MenuLevel::of(cx.memory::<LevelMemory>());
         if level.take_close() {
@@ -263,11 +269,6 @@ impl Component for Menu<'_> {
                 level.run(row);
                 frame::request_repaint(&cx.core.ctx);
             }
-        }
-        if self.values
-            && let Some(row) = level.checked_row()
-        {
-            cx.roving_arrival(row);
         }
     }
 

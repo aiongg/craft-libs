@@ -317,8 +317,9 @@ impl Component for Opening<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let popup = cx.popup("menu");
         if self.open {
-            cx.popup("menu").open(cx);
+            popup.open(cx);
         }
     }
 
