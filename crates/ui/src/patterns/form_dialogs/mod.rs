@@ -27,3 +27,13 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod guides;
+mod properties;
+
+pub use guides::{
+    GUIDE_LAYOUT_COLOR_KEY, GuideColor, GuideColorChoice, GuideGroup, GuideLayoutDialog, GuideLayoutError, GuideLayoutOptions, GuideLayoutOutput,
+    GuideLayoutPreset, GuideLayoutResult, GuideLayoutValues, GuideLength, GuideRect, GuideTarget, GuideUnits, GuideWords, HostedGuideLayoutDialog,
+    HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
+};
+pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
