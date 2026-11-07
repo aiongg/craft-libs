@@ -7,6 +7,9 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{ColumnWidth, Metrics};
 use egui::Response;
 
+#[cfg(feature = "testing")]
+mod stories;
+
 /// The style of the layout components: no padding, no minimum size.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 pub struct LayoutStyle {
