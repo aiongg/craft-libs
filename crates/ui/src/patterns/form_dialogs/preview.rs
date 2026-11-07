@@ -8,10 +8,11 @@ use crate::contract::{
 };
 use crate::display::Text;
 use crate::layout_components::Row;
+use crate::runtime::access::Access;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, StyleCx};
-use craft_behavior::{CanvasTransform, CursorIcon, CursorPriority, IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{AccessAction, AccessData, CanvasTransform, CursorIcon, CursorPriority, IconId, Metrics, NavMove, PartKey, PressPhase, Sense};
 use egui::load::SizedTexture;
 use egui::{Rect, Response, Ui, Vec2, pos2};
 
@@ -126,6 +127,11 @@ impl PreviewPane {
         CanvasTransform::new(view.scale, view.offset.clamp(-slack, slack))
     }
 
+    /// How far the picture's centre may lie from the well's centre on each axis: 0 where the picture fits.
+    fn slack(&self, well: Vec2) -> Vec2 {
+        ((self.texture.size * self.view.scale - well) / 2.0).max(Vec2::ZERO)
+    }
+
     /// The view the pane shows in a well of `well` points.
     fn shown(&self, well: Vec2) -> CanvasTransform {
         Self::settled(self.view, self.texture.size, well)
@@ -154,6 +160,11 @@ impl Component for PreviewPane {
         Sense::FOCUS
     }
 
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        let slack = self.slack(cx.rect.size());
+        access.pans(slack.y > 0.0, slack.x > 0.0);
+    }
+
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let pannable = self.texture.size.x * self.view.scale > rect.width() || self.texture.size.y * self.view.scale > rect.height();
         let part = cx.part(WELL, rect).sense(Sense::CLICK | Sense::DRAG).pointer_only("the arrow keys pan the view");
@@ -174,16 +185,32 @@ impl Component for PreviewPane {
             PressPhase::Release { pos, click: true, .. } => next.offset += well.center() - pos,
             _ => {}
         }
+        let well_size = well.size();
+        let pan = |mv: NavMove| match mv {
+            NavMove::Forward => Some(-Vec2::X * well_size * PAN_SHARE),
+            NavMove::Back => Some(Vec2::X * well_size * PAN_SHARE),
+            NavMove::Down => Some(-Vec2::Y * well_size * PAN_SHARE),
+            NavMove::Up => Some(Vec2::Y * well_size * PAN_SHARE),
+            _ => None,
+        };
         while let Some((mv, _)) = cx.intents().take_move() {
-            let by = match mv {
-                NavMove::Forward => -Vec2::X,
-                NavMove::Back => Vec2::X,
-                NavMove::Down => -Vec2::Y,
-                NavMove::Up => Vec2::Y,
-                _ => continue,
-            } * well.size()
-                * PAN_SHARE;
-            next.offset += by;
+            next.offset += pan(mv).unwrap_or(Vec2::ZERO);
+        }
+        // AccessKit's scroll actions are the arrows for assistive technology: the same pans.
+        let rtl = cx.flow.is_rtl();
+        while let Some(request) = cx.intents().take_scroll_access(false) {
+            match (request.action, request.data) {
+                (AccessAction::ScrollRight, _) => next.offset += pan(if rtl { NavMove::Back } else { NavMove::Forward }).unwrap_or(Vec2::ZERO),
+                (AccessAction::ScrollLeft, _) => next.offset += pan(if rtl { NavMove::Forward } else { NavMove::Back }).unwrap_or(Vec2::ZERO),
+                (AccessAction::ScrollDown, _) => next.offset += pan(NavMove::Down).unwrap_or(Vec2::ZERO),
+                (AccessAction::ScrollUp, _) => next.offset += pan(NavMove::Up).unwrap_or(Vec2::ZERO),
+                (AccessAction::SetScrollOffset, Some(AccessData::SetScrollOffset(point))) => {
+                    // A scroll offset counts from the picture's top-left edge in the well; the view offset from its centre.
+                    let slack = self.slack(well_size);
+                    next.offset = Vec2::new(slack.x - point.x as f32, slack.y - point.y as f32);
+                }
+                _ => {}
+            }
         }
         if let Some(wheel) = cx.take_wheel() {
             if (wheel.zoom - 1.0).abs() > ZOOM_EPSILON {

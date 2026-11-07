@@ -245,7 +245,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }
     declare_actions(&mut spec, own.focusable, own.clickable, numeric);
-    declare_scroll_actions(&mut spec, own.scrolls);
+    declare_scroll_actions(&mut spec, (own.scrolls.0 || access.pans.0, own.scrolls.1 || access.pans.1));
     custom_actions(&mut spec, &access.custom_actions);
     write_node(ctx, own.id, &spec);
     let unnamed = report_violations(

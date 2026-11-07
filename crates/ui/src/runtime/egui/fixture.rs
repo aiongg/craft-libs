@@ -310,8 +310,14 @@ pub enum AccessActionKind {
     Expand,
     /// AccessKit `Collapse`.
     Collapse,
+    /// AccessKit `ScrollUp`.
+    ScrollUp,
     /// AccessKit `ScrollDown`.
     ScrollDown,
+    /// AccessKit `ScrollLeft`.
+    ScrollLeft,
+    /// AccessKit `ScrollRight`.
+    ScrollRight,
 }
 
 impl AccessActionKind {
@@ -329,7 +335,10 @@ impl AccessActionKind {
             AccessActionKind::SetValue(_) => accesskit::Action::SetValue,
             AccessActionKind::Expand => accesskit::Action::Expand,
             AccessActionKind::Collapse => accesskit::Action::Collapse,
+            AccessActionKind::ScrollUp => accesskit::Action::ScrollUp,
             AccessActionKind::ScrollDown => accesskit::Action::ScrollDown,
+            AccessActionKind::ScrollLeft => accesskit::Action::ScrollLeft,
+            AccessActionKind::ScrollRight => accesskit::Action::ScrollRight,
         }
     }
 
