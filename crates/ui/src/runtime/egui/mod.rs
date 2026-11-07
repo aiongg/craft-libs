@@ -22,6 +22,8 @@ pub mod scale;
 pub mod sizing;
 pub mod stack;
 pub mod style;
+#[cfg(feature = "testing")]
+pub(crate) mod surface;
 pub mod text_edit;
 pub mod text_layout;
 pub mod textures;

@@ -6,14 +6,17 @@
 
 pub mod access;
 pub mod contract;
+pub mod dump;
 pub mod focus;
 pub mod frames;
 pub mod input;
 pub mod layout;
 pub mod memory;
+pub mod parity;
 pub mod pointer;
 pub mod sensing;
 pub mod style;
+pub mod surface;
 pub mod wheel;
 
 pub use crate::contract::{Exemption, Probe, Registration};

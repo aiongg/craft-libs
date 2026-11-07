@@ -14,6 +14,7 @@ mod layout;
 mod motion;
 mod overlay;
 mod paint;
+mod parity;
 mod runtime;
 mod sections;
 mod style;
