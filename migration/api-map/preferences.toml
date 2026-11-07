@@ -12,7 +12,7 @@ name = "PreferencesWindow"
 old = "craft_ui::preferences::window::PreferencesWindow"
 new = "craft_ui::patterns::preferences::PreferencesWindow"
 status = "moved"
-note = "A pattern on `Dialog` (modeless, in a viewport): `PreferencesWindow::new(Bind<PreferencesState>)` and `show(self, ui, host)`; the host keeps the `Bind`, the window opens at the title from `PreferencesWords` unless `title` is set."
+note = "A pattern on `Dialog` (modeless, in a viewport, `collection_body`; OK goes through `close_guard`, Apply is a `stays_open` footer button): `PreferencesWindow::new(Bind<PreferencesState>)` and `show(self, ui, host)`; the host keeps the `Bind`, the window opens at the title from `PreferencesWords` unless `title` is set."
 
 [[type]]
 name = "PreferencesBody"
