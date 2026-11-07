@@ -46,7 +46,7 @@ pub mod wheel;
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
-pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText};
+pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText, decimals_for_step};
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
@@ -67,7 +67,7 @@ pub use label_column::{LabelColumn, LabelPlacement};
 pub use layout_memory::SizeTween;
 pub use marquee::{MarqueeMode, MarqueeSelect};
 pub use motion::{MotionKind, MotionMode, Playback};
-pub use nav::{Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead};
+pub use nav::{Letters, NavOutline, NavShape, NavState, NavStep, Roving, TypeAhead, wheel_step};
 pub use part::{PartKey, PartRef};
 pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,

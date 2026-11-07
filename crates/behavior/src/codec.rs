@@ -3,6 +3,8 @@
 
 use crate::quantity::Reader;
 use std::borrow::Cow;
+use std::fmt;
+use std::sync::Arc;
 
 /// The text is not a value of the codec's type.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -122,11 +124,53 @@ impl Codec for PlainText {
 }
 
 /// An optional number: empty text is `None`; anything else reads through a [`Reader`].
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 pub struct NumberCodec {
     reader: Reader,
     decimals: usize,
+    custom: Option<Arc<dyn Fn(&str) -> Option<f64> + Send + Sync>>,
 }
+
+impl fmt::Debug for NumberCodec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("NumberCodec").field("reader", &self.reader).field("decimals", &self.decimals).field("custom", &self.custom.is_some()).finish()
+    }
+}
+
+impl PartialEq for NumberCodec {
+    fn eq(&self, other: &Self) -> bool {
+        let same_custom = match (&self.custom, &other.custom) {
+            (None, None) => true,
+            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+            _ => false,
+        };
+        self.reader == other.reader && self.decimals == other.decimals && same_custom
+    }
+}
+
+/// The decimal places a step needs to be written exactly: 2 for 0.25, 3 for 0.001, 0 for a whole step. A step with
+/// no finite decimal form within [`MAX_STEP_DECIMALS`] places gets that many.
+pub fn decimals_for_step(step: f64) -> usize {
+    let step = step.abs();
+    if !step.is_finite() || step == 0.0 {
+        return 0;
+    }
+    let mut scale = 1.0;
+    for places in 0..MAX_STEP_DECIMALS {
+        let scaled = step * scale;
+        if (scaled - scaled.round()).abs() <= scaled.max(1.0) * STEP_TOLERANCE {
+            return places;
+        }
+        scale *= 10.0;
+    }
+    MAX_STEP_DECIMALS
+}
+
+/// The most places `decimals_for_step` reports.
+pub const MAX_STEP_DECIMALS: usize = 12;
+
+/// How far a scaled step may sit from a whole number, relative to its size, and still count as whole.
+const STEP_TOLERANCE: f64 = 1e-9;
 
 /// The widest number a field is sized for.
 const NUMBER_SAMPLE: &str = "0000.00";
@@ -134,7 +178,14 @@ const NUMBER_SAMPLE: &str = "0000.00";
 impl NumberCodec {
     /// A codec reading with `reader` and writing at most `decimals` decimal places.
     pub fn new(reader: Reader, decimals: usize) -> Self {
-        NumberCodec { reader, decimals }
+        NumberCodec { reader, decimals, custom: None }
+    }
+
+    /// The same codec with `parse` as a second reader: it runs when the reader rejects the text, so words of the
+    /// field's context ("Auto") can stand for numbers.
+    pub fn or_parse(mut self, parse: impl Fn(&str) -> Option<f64> + Send + Sync + 'static) -> Self {
+        self.custom = Some(Arc::new(parse));
+        self
     }
 
     /// The most decimal places the codec writes.
@@ -168,7 +219,10 @@ impl Codec for NumberCodec {
         if text.trim().is_empty() {
             return Ok(None);
         }
-        self.reader.read(text, *start).map(Some)
+        match self.reader.read(text, *start) {
+            Ok(number) => Ok(Some(number)),
+            Err(rejected) => self.custom.as_ref().and_then(|parse| parse(text.trim())).map(Some).ok_or(rejected),
+        }
     }
 
     fn sample(&self, _current: &Option<f64>) -> Cow<'_, str> {
@@ -190,5 +244,22 @@ mod tests {
         assert_eq!(codec.parse("", &Some(3.0)), Ok(None));
         assert_eq!(codec.parse("x", &None), Err(NotAValue));
         assert_eq!(codec.parse("*2", &Some(4.0)), Ok(Some(8.0)));
+    }
+
+    #[test]
+    fn the_custom_reader_runs_only_when_the_reader_rejects() {
+        let codec = NumberCodec::default().or_parse(|text| (text == "Auto").then_some(0.0));
+        assert_eq!(codec.parse("Auto", &Some(3.0)), Ok(Some(0.0)));
+        assert_eq!(codec.parse("2", &None), Ok(Some(2.0)));
+        assert_eq!(codec.parse("x", &None), Err(NotAValue));
+    }
+
+    #[test]
+    fn decimals_for_step_is_exact() {
+        assert_eq!(decimals_for_step(0.25), 2);
+        assert_eq!(decimals_for_step(0.001), 3);
+        assert_eq!(decimals_for_step(0.1), 1);
+        assert_eq!(decimals_for_step(5.0), 0);
+        assert_eq!(decimals_for_step(0.0), 0);
     }
 }

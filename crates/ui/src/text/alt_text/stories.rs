@@ -33,10 +33,20 @@ fn alt_text_field_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AltTextField::new(PROMPT, Bind::bound_mixed(data.value("mixed", Mixed::<AltText>::Mixed))).show(ui).into()
 }
 
+#[story(AltTextField<'static>, covers = [], drive = Drive::Never)]
+fn alt_text_field_mixed_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let parts = AltText::parts(Mixed::Mixed, Mixed::Same(false));
+    AltTextField::new(PROMPT, Bind::bound(data.value("mixed text", parts))).show(ui).into()
+}
+
 #[story(AltTextField<'static>, covers = [Invalid], drive = Drive::Never)]
 fn alt_text_field_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_empty = |alt: &AltText| {
-        if alt.decorative || !alt.text.is_empty() { Validity::Ok } else { Validity::Refuse(Message::new("A description is required")) }
+        if alt.decorative == Mixed::Same(true) || alt.text != Mixed::Same(String::new()) {
+            Validity::Ok
+        } else {
+            Validity::Refuse(Message::new("A description is required"))
+        }
     };
     AltTextField::new(PROMPT, Bind::bound(data.value("empty", AltText::default())).check(refuse_empty)).show(ui).into()
 }

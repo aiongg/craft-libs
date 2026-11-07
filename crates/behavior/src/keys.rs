@@ -24,12 +24,26 @@ pub struct KeyRole {
     pub nudge: bool,
     /// Typed letters reach the component as `Intent::Text` (type-ahead).
     pub type_ahead: bool,
+    /// A value control: Alt with an arrow is a fine move.
+    pub value: bool,
+    /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows.
+    pub text: bool,
 }
 
 impl KeyRole {
     /// A role with no special rows.
     pub const fn new() -> KeyRole {
-        KeyRole { resettable: false, multi: false, reorderable: false, rename: false, pages: false, nudge: false, type_ahead: false }
+        KeyRole {
+            resettable: false,
+            multi: false,
+            reorderable: false,
+            rename: false,
+            pages: false,
+            nudge: false,
+            type_ahead: false,
+            value: false,
+            text: false,
+        }
     }
 
     /// Delete resets the control.
@@ -73,6 +87,18 @@ impl KeyRole {
         self.type_ahead = on;
         self
     }
+
+    /// Alt with an arrow is a fine move.
+    pub const fn value(mut self, on: bool) -> Self {
+        self.value = on;
+        self
+    }
+
+    /// The stop is a text part.
+    pub const fn text(mut self, on: bool) -> Self {
+        self.text = on;
+        self
+    }
 }
 
 /// What a drop of a dragged payload does with it.
@@ -110,6 +136,11 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
     let plain = mods.is_none();
     let only = |m: Mods| mods == m;
     let shifted = |m: Mods| mods == Mods { shift: true, ..m };
+    if !role.reorderable
+        && let Some(fine) = fine_move(key, mods, role)
+    {
+        return Some(fine);
+    }
     match key {
         Key::Delete | Key::Backspace if plain && role.resettable => return Some(Intent::Reset),
         Key::Space if plain && role.multi => return Some(Intent::Toggle),
@@ -141,6 +172,22 @@ pub fn intent(os: Os, key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
         return None;
     }
     movement(mac, key, mods)
+}
+
+/// Alt with an arrow on a value role: a fine move, the same on every OS. A text role keeps Left and Right for word
+/// moves, so a text value takes the fine step on Up and Down only. Shift extends, which a value reads as the small step.
+fn fine_move(key: Key, mods: Mods, role: KeyRole) -> Option<Intent> {
+    if !role.value || role.nudge || !mods.alt || mods.cmd || mods.ctrl {
+        return None;
+    }
+    let mv = match key {
+        Key::Up => NavMove::Up,
+        Key::Down => NavMove::Down,
+        Key::Left if !role.text => NavMove::Back,
+        Key::Right if !role.text => NavMove::Forward,
+        _ => return None,
+    };
+    Some(Intent::Move(mv, MoveMods::new(mods.shift, false, Granularity::Unit).fine(true)))
 }
 
 /// The move rows: arrows, Home, End and the page keys, and the deletes.
@@ -237,6 +284,26 @@ mod tests {
             check(os, Key::Left, NONE, nudge, None);
             check(os, Key::PageUp, NONE, any, Some(Intent::Move(NavMove::PageUp, MoveMods::PLAIN)));
         }
+    }
+
+    #[test]
+    fn alt_arrows_are_fine_moves_on_a_value_role() {
+        let fine = |mv, extend| Some(Intent::Move(mv, MoveMods::new(extend, false, Granularity::Unit).fine(true)));
+        let value = KeyRole::new().value(true);
+        let number = value.text(true);
+        let text = KeyRole::new().text(true);
+        for os in [Os::Linux, Os::Windows, Os::Mac] {
+            check(os, Key::Up, Mods::ALT, value, fine(NavMove::Up, false));
+            check(os, Key::Down, Mods::ALT, value, fine(NavMove::Down, false));
+            check(os, Key::Right, Mods::ALT, value, fine(NavMove::Forward, false));
+            check(os, Key::Left, Mods { shift: true, ..Mods::ALT }, value, fine(NavMove::Back, true));
+            check(os, Key::Up, Mods::ALT, number, fine(NavMove::Up, false));
+            check(os, Key::Up, Mods::ALT, text, None);
+        }
+        let word = MoveMods::new(false, false, Granularity::Word);
+        check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
+        check(Os::Mac, Key::Left, Mods::ALT, number, Some(Intent::Move(NavMove::Back, word)));
+        check(Os::Linux, Key::Right, Mods::ALT, number, None);
     }
 
     #[test]
