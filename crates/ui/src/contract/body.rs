@@ -19,6 +19,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
+use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
     Axis, CancelRule, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch,
     WheelTaker,
@@ -1118,6 +1119,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // yet, and recording them would pin a zero width. The block's own record asks for the pass that measures
         // this container again.
         if layout_memory::unknown_count(ctx) == self.unknown_at_read {
+            // A layer is shown as soon as it opens, so a region that took another size than the pass placed by asks for
+            // the discard pass at once, even when its size changed in the last frame too.
+            if self.layer {
+                let tolerance = measure_tolerance(crate::runtime::egui::scale::pixels_per_point(ctx));
+                let moved = |took: Option<Vec2>, placed: Option<Vec2>| {
+                    took.is_some_and(|took| placed.is_none_or(|placed| (took - placed).abs().max_elem() > tolerance))
+                };
+                if moved(self.body_size, self.remembered)
+                    || moved(self.header_size, Some(self.header_last))
+                    || moved(self.footer_size, Some(self.footer_last))
+                {
+                    layout_memory::ask_discard(ctx);
+                }
+            }
             if let Some(size) = self.body_size {
                 super::steps::record_size(ctx, id, size);
             }
