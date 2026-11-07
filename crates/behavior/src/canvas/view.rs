@@ -59,9 +59,11 @@ impl CanvasView {
     }
 
     /// `zoom` for a view that shows `device_zoom` device pixels per document unit at
-    /// `pixels_per_point`: 1 shows one document pixel per device pixel at any interface scale.
+    /// `pixels_per_point`: 1 shows one document pixel per device pixel at any interface scale. A scale that is not a
+    /// positive number counts as 1.
     pub fn points_per_unit(device_zoom: f64, pixels_per_point: f32) -> f64 {
-        device_zoom / f64::from(pixels_per_point)
+        let ppp = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
+        device_zoom / f64::from(ppp)
     }
 
     /// `aspect`, or 1 when it is not a positive number.

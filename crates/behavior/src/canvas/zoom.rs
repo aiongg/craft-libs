@@ -115,12 +115,6 @@ pub fn device(view: &CanvasView, pixels_per_point: f32) -> f64 {
     view.zoom * f64::from(pixels_per_point)
 }
 
-/// `view.zoom` for `device_zoom` at `pixels_per_point` (an invalid scale counts as 1).
-fn points_per_unit(device_zoom: f64, pixels_per_point: f32) -> f64 {
-    let ppp = if pixels_per_point.is_finite() && pixels_per_point > 0.0 { pixels_per_point } else { 1.0 };
-    CanvasView::points_per_unit(device_zoom, ppp)
-}
-
 /// The document's width (with the pixel aspect) and height as the view draws them, and the
 /// absolute sine and cosine of its rotation.
 fn shown_extent(view: &CanvasView, size: Size) -> (f64, f64, f64, f64) {
@@ -161,7 +155,7 @@ pub fn fill(view: &mut CanvasView, size: Size, pixels_per_point: f32) {
 pub fn about(view: &mut CanvasView, screen: Pos2, device_zoom: f64, center_on_point: bool, pixels_per_point: f32) {
     let before = view.to_doc(screen);
     if center_on_point {
-        view.zoom = points_per_unit(device_zoom, pixels_per_point);
+        view.zoom = CanvasView::points_per_unit(device_zoom, pixels_per_point);
         view.center = before;
     } else {
         anchor(view, screen, before, device_zoom, pixels_per_point);
@@ -170,7 +164,7 @@ pub fn about(view: &mut CanvasView, screen: Pos2, device_zoom: f64, center_on_po
 
 /// Set the zoom to `device_zoom` with the document point `doc` shown at `screen`.
 pub fn anchor(view: &mut CanvasView, screen: Pos2, doc: Point, device_zoom: f64, pixels_per_point: f32) {
-    view.zoom = points_per_unit(device_zoom, pixels_per_point);
+    view.zoom = CanvasView::points_per_unit(device_zoom, pixels_per_point);
     view.center = doc - view.unmap_vec(screen - view.rect.center());
 }
 
@@ -196,7 +190,7 @@ pub fn step(view: &mut CanvasView, dir: i32, size: Size, pixels_per_point: f32) 
     let next = ZoomLadder::step(current, dir, size);
     let changed = next.is_finite() && (next / current - 1.0).abs() > 1e-9;
     if changed {
-        view.zoom = points_per_unit(next, pixels_per_point);
+        view.zoom = CanvasView::points_per_unit(next, pixels_per_point);
     }
     changed
 }

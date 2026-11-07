@@ -12,7 +12,7 @@ name = "ToolHost"
 old = "craft_ui::canvas::tool_host::ToolHost"
 new = "craft_ui::canvas::ToolHost"
 status = "moved"
-note = "`ToolHost::new(label).run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. Call `capture_values(ui)` inside the canvas body so tools read the canvas's space with `ToolContext::value`. `inject`, `cancel` and `in_gesture` take the host's label in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
+note = "`ToolHost::new().run(ui, &canvas_output, &mut tool)` after `Canvas::show`; `ToolHost::new(CanvasId)`, `snap(..)`, `document(..)`, `pen(..)`, `navigation(..)` and `keys(..)` are gone. The host reads the canvas's space from `CanvasOutput::space` (no `capture_values`), keys its state by the canvas's id (`CanvasOutput::response.id`) and paints the tool's readout in `run`. `inject`, `cancel` and `in_gesture` take that canvas id (an `egui::Id`) in place of a `CanvasId`; `cancel` returns whether a gesture was cancelled. `enabled(false)` leaves the open press spent. `ToolHost::sample` and `snap_tolerance` are gone: a tool maps points through `CanvasSpace` and holds its own snap targets."
 
 [[type]]
 name = "CanvasTool"
@@ -26,7 +26,7 @@ name = "ToolPointer"
 old = "craft_ui::canvas::tool_host::ToolPointer"
 new = "craft_ui::canvas::ToolPointer"
 status = "moved"
-note = "Screen position only (`pos`): `doc`, `raw`, `snapped` and `screen` are gone; `modifiers` is `mods: Mods`; the pen reading is `sample: PointerSample` (radians); `button`, `clicks` and `time` stay."
+note = "Screen position only (`pos`): `doc`, `raw`, `snapped` and `screen` are gone; `modifiers` is `mods: Mods`; the pen reading is `sample: PointerSample` (radians); `button` and `clicks` stay; `time` is the time of the pass that took the sample (the press keeps its press time)."
 
 [[type]]
 name = "ToolKey"
@@ -40,7 +40,7 @@ name = "ToolContext"
 old = "craft_ui::canvas::tool_host::ToolContext"
 new = "craft_ui::canvas::ToolContext"
 status = "moved"
-note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `value::<T>()` reads the canvas's published app values (the view); `readout(rows)`, `request_repaint()` and `keep_keys()` stay. `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `caps_lock`, `parts_focused`, `set_view` and `set_cursor` are gone."
+note = "`pointer`, `mods` (was `modifiers`), `rect` and `time`; `space() -> Option<CanvasSpace>` is the canvas's view; `held(Key) -> bool` says whether a key is down; `readout(rows)`, `request_repaint()` and `keep_keys()` stay. `canvas_id`, `view`, `canvas`, `snap`, `snap_tolerance`, `tokens`, `numbers`, `direction`, `caps_lock`, `parts_focused`, `set_view` and `set_cursor` are gone."
 
 [[type]]
 name = "ToolAction"
@@ -54,7 +54,7 @@ name = "ToolHostResponse"
 old = "craft_ui::canvas::tool_host::ToolHostResponse"
 new = "craft_ui::canvas::ToolHostResponse"
 status = "moved"
-note = "`gesture` is `Option<GesturePhase>`; `scrolled_by` and `view` are gone (the host moves no view): `past_edge` reports the pointer past the canvas edge; `cursor` is `Option<Cursor>`; `readout` is new; `id` is gone."
+note = "`gesture` is `Option<GesturePhase>`; `scrolled_by` and `view` are gone (the host moves no view): `past_edge` reports the pointer past the canvas edge; `cursor` is `Option<Cursor>`; `readout` is new data for automation (the host paints it); `id` is gone."
 
 [[type]]
 name = "ToolInput"

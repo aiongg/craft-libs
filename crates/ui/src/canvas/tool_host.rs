@@ -11,24 +11,30 @@
 //!    text part inside the canvas takes its own keys before they are routed here.
 //! 5. The tool paints over the canvas and requests its cursor at tool priority.
 //!
-//! The tool reads the canvas's space through [`ToolContext::value`]: call [`ToolHost::capture_values`] with the
-//! body's `Ui` inside the canvas body, where `content_env` has published the values.
+//! The host keeps its state under the canvas's id (`CanvasOutput::response.id`), so two canvases never share a
+//! gesture, and hands the tool the canvas's view from the output ([`ToolContext::space`]). `run` also paints the
+//! tool's readout; [`ToolHostResponse::readout`] repeats it as data.
+//!
+//! Space and the app's momentary Hand: while a gesture runs the host withholds Space from the app's shortcuts for
+//! the tool, so a Space pressed mid-drag never starts a momentary Hand; the tool reads it with
+//! [`ToolContext::held`]. A press of Space away from a gesture reaches the app as usual. An app that switches tools
+//! itself from other input asks [`ToolHost::in_gesture`] first and keeps the tool it started the gesture with.
 //!
 //! ```no_run
 //! use craft_ui::canvas::{Canvas, CanvasTool, ToolHost};
 //! use craft_ui::contract::ShowContainer as _;
 //! # fn demo(ui: &mut egui::Ui, canvas: Canvas, tool: &mut dyn CanvasTool) {
-//! let mut host = ToolHost::new("Document");
-//! let shown = canvas.show(ui, |ui, _body| host.capture_values(ui));
-//! let reply = host.run(ui, &shown.output, tool);
+//! let shown = canvas.show(ui, |_, _| {});
+//! let reply = ToolHost::new().run(ui, &shown.output, tool);
 //! # let _ = reply;
 //! # }
 //! ```
 
-use super::CanvasOutput;
+use super::readout::paint_readout;
 use super::tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer, ToolRequests};
+use super::{CanvasOutput, CanvasSpace};
 use crate::primitives::{Draw, DrawEnv, PaintRecord};
-use crate::runtime::env::{AppValues, Env, Label};
+use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{global, with_session};
 use crate::runtime::pointer::{self, PointerFrame};
 use crate::runtime::{cursor, frame, keys};
@@ -141,7 +147,8 @@ pub struct ToolHostResponse {
     pub past_edge: Option<Vec2>,
     /// The cursor the tool asked for, after the host requested it.
     pub cursor: Option<Cursor>,
-    /// The values the tool wants beside the pointer; the app shows them with the canvas readout.
+    /// The values the tool wants beside the pointer. The host has painted them already; this is the data for
+    /// automation.
     pub readout: Option<ToolReadout>,
 }
 
@@ -153,7 +160,7 @@ struct Active {
     injected: bool,
 }
 
-/// What the host keeps between passes, in a session slot keyed by the host's label.
+/// What the host keeps between passes, in a session slot keyed by the canvas's id.
 #[derive(Clone, Default)]
 struct HostState {
     gesture: Option<Active>,
@@ -164,57 +171,53 @@ struct HostState {
     keep_keys: bool,
     /// The canvas of the last pass, for [`ToolHost::cancel`] outside a pass.
     rect: Option<Rect>,
-    values: AppValues,
+    space: Option<CanvasSpace>,
 }
 
-fn state_id(label: &Label) -> Id {
-    global("craft-ui tool host", label.as_str())
+fn state_id(canvas: Id) -> Id {
+    global("craft-ui tool host", canvas)
 }
 
 /// The on-canvas tool host. Built each pass, shown once with the canvas's output and the tool.
+#[derive(Default)]
 pub struct ToolHost {
-    label: Label,
-    values: Option<AppValues>,
-    enabled: bool,
+    disabled: bool,
 }
 
 impl ToolHost {
-    /// A host named `label`: the name keys the host's state, so use one label per canvas.
-    pub fn new(label: impl Into<Label>) -> Self {
-        ToolHost { label: label.into(), values: None, enabled: true }
+    /// A host that runs the tool of the canvas whose output it is given; the canvas's id keys its state.
+    pub fn new() -> Self {
+        ToolHost::default()
     }
 
-    /// Reads the app values the canvas body published (`content_env`), so tools read them with
-    /// [`ToolContext::value`]. Call it with the `Ui` of the canvas body. Without it a tool reads the values around
-    /// the canvas.
-    pub fn capture_values(&mut self, body: &Ui) {
-        self.values = Some(Env::of(body).values.clone());
-    }
-
-    /// Whether the host runs the tool. A disabled host cancels a running gesture and delivers nothing.
+    /// Whether the host runs the tool. A disabled host cancels a running gesture and delivers nothing; the press it
+    /// was disabled during stays spent, so enabling the host mid-press starts no gesture.
     #[must_use]
     pub fn enabled(mut self, enabled: bool) -> Self {
-        self.enabled = enabled;
+        self.disabled = !enabled;
         self
     }
 
-    /// Delivers the pass's pointer and key events to `tool` and paints it over the canvas.
+    /// Delivers the pass's pointer and key events to `tool`, paints it over the canvas, and paints the readout it
+    /// asked for beside the pointer.
     pub fn run(self, ui: &Ui, canvas: &CanvasOutput, tool: &mut dyn CanvasTool) -> ToolHostResponse {
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
-        let key = state_id(&self.label);
+        let key = state_id(canvas.response.id);
         let mut state = with_session(&ctx, key, |slot: &mut HostState| {
             let seen = slot.clone();
             slot.queued.clear();
             seen
         });
         let queued = std::mem::take(&mut state.queued);
-        let values = self.values.unwrap_or_else(|| env.values.clone());
+        let space = canvas.space;
+        let down = keys::down(&ctx);
         let rect = canvas.response.rect;
         let input = pointer::frame(&ctx);
         let mut run = Run {
             tool: &mut *tool,
-            values: &values,
+            space,
+            down: &down,
             rect,
             mods: input.mods,
             time: input.time,
@@ -224,20 +227,21 @@ impl ToolHost {
             cancelled: false,
         };
         run.call(None, |tool, cx| tool.each_pass(cx));
-        if self.enabled {
+        if self.disabled {
+            run.cancel(CancelReason::Dismissed);
+            run.state.spent |= canvas.press.phase.is_press();
+        } else {
             run.phase(&canvas.press, &input);
             for event in queued {
                 run.injected(event);
             }
             run.keys(&ctx, canvas.response.id, env.direction.is_rtl());
-        } else {
-            run.cancel(CancelReason::Dismissed);
         }
         let Run { mut response, requests, .. } = run;
         let phase = canvas.press.phase;
         let over = phase.is_press() || matches!(phase, PressPhase::Hover) || state.gesture.is_some();
         let current = state.gesture.map(|active| active.last).or_else(|| over.then(|| hover_pointer(&input, canvas.press)).flatten());
-        let cx = ToolContext::new(rect, &values).pointer(current).mods(input.mods).time(input.time);
+        let cx = ToolContext::new(rect, space).pointer(current).mods(input.mods).time(input.time).down(&down);
         paint_tool(ui, &env, tool, &cx);
         if over {
             let wanted = tool.cursor(&cx);
@@ -245,6 +249,7 @@ impl ToolHost {
             response.cursor = Some(wanted);
         }
         if let (Some(rows), Some(at)) = (requests.readout, current) {
+            paint_readout(&ctx, at.pos, &rows);
             response.readout = Some(ToolReadout { at: at.pos, rows });
         }
         if requests.repaint {
@@ -255,9 +260,11 @@ impl ToolHost {
             for chord in kept_chords() {
                 keys::claim(&ctx, canvas.response.id, chord);
             }
+        } else if state.gesture.is_some() {
+            keys::claim(&ctx, canvas.response.id, Chord::new(Mods::NONE, Key::Space));
         }
         state.rect = Some(rect);
-        state.values = values;
+        state.space = space;
         with_session(&ctx, key, |slot: &mut HostState| {
             let later = std::mem::take(&mut slot.queued);
             *slot = state;
@@ -266,30 +273,29 @@ impl ToolHost {
         response
     }
 
-    /// Queues an automation pointer event for the host named `label`; it is delivered on the next pass, after the
-    /// pointer's own events. A `Down` while a gesture runs is dropped.
-    pub fn inject(ctx: &Context, label: impl Into<Label>, input: ToolInput) {
-        with_session(ctx, state_id(&label.into()), |state: &mut HostState| state.queued.push(input));
+    /// Queues an automation pointer event for the host of the canvas `canvas` (`CanvasOutput::response.id`); it is
+    /// delivered on the next pass, after the pointer's own events. A `Down` while a gesture runs is dropped.
+    pub fn inject(ctx: &Context, canvas: Id, input: ToolInput) {
+        with_session(ctx, state_id(canvas), |state: &mut HostState| state.queued.push(input));
         frame::request_repaint(ctx);
     }
 
-    /// Ends the gesture in progress on the host named `label` now, without a commit (the app switched tools or
+    /// Ends the gesture in progress on the canvas `canvas` now, without a commit (the app switched tools or
     /// documents, a modal opened). `tool` is the tool that holds the gesture, so call it before the app replaces
     /// it; it runs against the canvas of the last pass. Returns whether a gesture was cancelled.
-    pub fn cancel(ctx: &Context, label: impl Into<Label>, tool: &mut dyn CanvasTool, reason: CancelReason) -> bool {
-        let taken = with_session(ctx, state_id(&label.into()), |slot: &mut HostState| {
-            slot.gesture.take().map(|active| (active, slot.rect, slot.values.clone()))
-        });
-        let Some((active, rect, values)) = taken else { return false };
-        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), &values).pointer(Some(active.last));
+    pub fn cancel(ctx: &Context, canvas: Id, tool: &mut dyn CanvasTool, reason: CancelReason) -> bool {
+        let taken = with_session(ctx, state_id(canvas), |slot: &mut HostState| slot.gesture.take().map(|active| (active, slot.rect, slot.space)));
+        let Some((active, rect, space)) = taken else { return false };
+        let down = keys::down(ctx);
+        let mut cx = ToolContext::new(rect.unwrap_or(Rect::NOTHING), space).pointer(Some(active.last)).down(&down);
         tool.cancel(reason, &mut cx);
         true
     }
 
-    /// Whether the host named `label` has a gesture in progress: the app finishes a drag with the tool it started
-    /// with, whatever tool a key or command selects meanwhile.
-    pub fn in_gesture(ctx: &Context, label: impl Into<Label>) -> bool {
-        with_session(ctx, state_id(&label.into()), |state: &mut HostState| state.gesture.is_some())
+    /// Whether the canvas `canvas` has a gesture in progress: the app finishes a drag with the tool it started
+    /// with, whatever tool a key or command selects meanwhile, and starts no momentary tool during one.
+    pub fn in_gesture(ctx: &Context, canvas: Id) -> bool {
+        with_session(ctx, state_id(canvas), |state: &mut HostState| state.gesture.is_some())
     }
 }
 
@@ -317,9 +323,9 @@ fn kept_chords() -> impl Iterator<Item = Chord> {
     Key::ALL.iter().flat_map(|key| [Mods::NONE, Mods::SHIFT].map(|mods| Chord::new(mods, *key)))
 }
 
-/// The button a phase's press runs with, and its sample.
-fn press_pointer(start: PressStart, pos: Pos2, press: &PressState) -> ToolPointer {
-    ToolPointer::new(pos, start.button, start.time).mods(press.mods).sample(press.sample.unwrap_or(PointerSample::new(1.0))).clicks(start.clicks)
+/// The sample of a press at `pos` taken at `time`: the button the press runs with, and its sample.
+fn press_pointer(start: PressStart, pos: Pos2, time: f64, press: &PressState) -> ToolPointer {
+    ToolPointer::new(pos, start.button, time).mods(press.mods).sample(press.sample.unwrap_or(PointerSample::new(1.0))).clicks(start.clicks)
 }
 
 fn cancel_reason(reason: PressCancel) -> CancelReason {
@@ -334,7 +340,8 @@ fn cancel_reason(reason: PressCancel) -> CancelReason {
 /// One pass of the host: the tool, the state and what the calls produced.
 struct Run<'a> {
     tool: &'a mut dyn CanvasTool,
-    values: &'a AppValues,
+    space: Option<CanvasSpace>,
+    down: &'a [Key],
     rect: Rect,
     mods: Mods,
     time: f64,
@@ -347,7 +354,7 @@ struct Run<'a> {
 
 impl Run<'_> {
     fn call<R>(&mut self, pointer: Option<ToolPointer>, run: impl FnOnce(&mut dyn CanvasTool, &mut ToolContext<'_>) -> R) -> R {
-        let mut cx = ToolContext::new(self.rect, self.values).pointer(pointer).mods(self.mods).time(self.time);
+        let mut cx = ToolContext::new(self.rect, self.space).pointer(pointer).mods(self.mods).time(self.time).down(self.down);
         let out = run(&mut *self.tool, &mut cx);
         let asked = cx.take_requests();
         self.requests.readout = asked.readout.or(self.requests.readout.take());
@@ -433,19 +440,19 @@ impl Run<'_> {
             }
             PressPhase::Down { start, .. } => {
                 self.state.spent = false;
-                self.begin(press_pointer(start, start.origin, press), false);
+                self.begin(press_pointer(start, start.origin, start.time, press), false);
             }
             PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } => {
                 if self.state.gesture.is_none() && !self.state.spent {
-                    self.begin(press_pointer(start, start.origin, press), false);
+                    self.begin(press_pointer(start, start.origin, start.time, press), false);
                 }
-                self.drag(press_pointer(start, pos, press));
+                self.drag(press_pointer(start, pos, self.time, press));
             }
             PressPhase::Release { start, pos, .. } => {
                 if self.state.gesture.is_none() && !self.state.spent {
-                    self.begin(press_pointer(start, start.origin, press), false);
+                    self.begin(press_pointer(start, start.origin, start.time, press), false);
                 }
-                self.end(press_pointer(start, pos, press));
+                self.end(press_pointer(start, pos, self.time, press));
                 self.state.spent = false;
             }
             PressPhase::Cancel { reason, .. } => {

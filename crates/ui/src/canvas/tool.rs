@@ -1,14 +1,14 @@
-//! `CanvasTool` (8.3): the tool a canvas hands its background presses to, with the values a call reads.
+//! `CanvasTool` (8.3): the tool a canvas hands its background presses to, with what a call reads.
 //!
 //! A tool holds its own state between passes and reads nothing from `egui`. [`ToolHost`](super::ToolHost) maps the
 //! canvas's press, hover and keys to the trait's calls; pointer positions are screen points, and the tool maps
-//! them to document units with the view the canvas published (`ToolContext::value`).
+//! them to document units with the canvas's view ([`ToolContext::space`]), so it holds no copy of the view.
 
-use super::ToolPath;
+use super::{CanvasSpace, ToolPath};
 use crate::primitives::Draw;
-use crate::runtime::env::{AppValues, EnvValue, Label};
+use crate::runtime::env::Label;
 use craft_behavior::{CancelReason, Cursor, CursorIcon, PointerButton, PointerSample};
-use craft_keymap::{Chord, Mods};
+use craft_keymap::{Chord, Key, Mods};
 use egui::{Pos2, Rect, Vec2};
 
 /// A pointer sample delivered to a tool, in screen points, with the pen's reading. A mouse reports pressure 1, no
@@ -27,7 +27,8 @@ pub struct ToolPointer {
     /// How many presses make up the click run the gesture began with: 1 for a lone press, 2 for a double press.
     /// 0 for a sample with no press (a hover).
     pub clicks: u32,
-    /// The pass time of the sample, in seconds.
+    /// The time of the sample, in seconds: the pass that took it. A press carries the time the button went down,
+    /// and a drag or release sample the time of the pass it arrived in.
     pub time: f64,
 }
 
@@ -93,8 +94,8 @@ pub enum ToolKey {
     Submit,
     /// Escape with no gesture running.
     Cancel,
-    /// A key the tool kept with [`ToolContext::keep_keys`]: every key without Ctrl or Cmd, so the app's chords
-    /// still run.
+    /// A key press the tool kept with [`ToolContext::keep_keys`]: every key without Ctrl or Cmd, so the app's chords
+    /// still run. It carries no release; [`ToolContext::held`] says whether the key is still down.
     Kept(Chord),
 }
 
@@ -117,15 +118,16 @@ pub struct ToolContext<'a> {
     pub rect: Rect,
     /// The pass time, in seconds.
     pub time: f64,
-    values: &'a AppValues,
+    space: Option<CanvasSpace>,
+    down: &'a [Key],
     requests: ToolRequests,
 }
 
 impl<'a> ToolContext<'a> {
-    /// A context over the canvas `rect` that reads app values from `values`: the host builds one per call; a test
-    /// of a tool builds its own.
-    pub fn new(rect: Rect, values: &'a AppValues) -> Self {
-        ToolContext { pointer: None, mods: Mods::NONE, rect, time: 0.0, values, requests: ToolRequests::default() }
+    /// A context over the canvas `rect`, which shows its document through `space` (`None` for a canvas without a
+    /// view), with no key held: the host builds one per call; a test of a tool builds its own.
+    pub fn new(rect: Rect, space: Option<CanvasSpace>) -> Self {
+        ToolContext { pointer: None, mods: Mods::NONE, rect, time: 0.0, space, down: &[], requests: ToolRequests::default() }
     }
 
     /// The pointer's last sample.
@@ -149,11 +151,24 @@ impl<'a> ToolContext<'a> {
         self
     }
 
-    /// The app value of type `T` the canvas body published with `content_env`, else `T::root()`. A tool reads the
-    /// canvas's space this way (`value::<CanvasSpace>()`) to map screen points to document units and back at run
-    /// time, so it holds no copy of the view.
-    pub fn value<T: EnvValue>(&self) -> T {
-        self.values.get::<T>()
+    /// The keys held now.
+    #[must_use]
+    pub fn down(mut self, down: &'a [Key]) -> Self {
+        self.down = down;
+        self
+    }
+
+    /// The canvas's view and interface scale this pass, to map screen points to document units and back at run
+    /// time; `None` for a canvas without a view.
+    pub fn space(&self) -> Option<CanvasSpace> {
+        self.space
+    }
+
+    /// Whether `key` is down now, whatever the tool kept: a marquee that sizes from its centre while Space is held
+    /// reads `held(Key::Space)` on every drag. The host withholds Space from the app's shortcuts while a gesture
+    /// runs, so a momentary Hand does not take over mid-drag.
+    pub fn held(&self, key: Key) -> bool {
+        self.down.contains(&key)
     }
 
     /// Labelled values to show beside the pointer this pass (a marquee's W and H). The last request of a pass wins.
@@ -219,8 +234,8 @@ pub trait CanvasTool {
 
     /// Whether a press of `button` with `mods` held starts a gesture with this tool. A gesture keeps its button
     /// until that button comes up. A brush takes the primary button, and the secondary while Alt is held (the
-    /// resize chord). A middle-button pan belongs to the canvas: a tool refuses the middle button. Default: the
-    /// primary button.
+    /// resize chord). The middle button never reaches `takes`: the canvas turns every middle press into a pan before
+    /// the host asks. Default: the primary button.
     fn takes(&self, button: PointerButton, _mods: Mods) -> bool {
         button == PointerButton::Primary
     }

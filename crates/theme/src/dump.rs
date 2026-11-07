@@ -95,7 +95,8 @@ fn space_lines(out: &mut Lines, space: &SpaceTokens) {
 }
 
 fn size_lines(out: &mut Lines, size: &SizeTokens) {
-    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot, length, groove, toggle } = size;
+    let SizeTokens { control, icon, rail, bar, panel_header, thumb: thumbs, handle, hit, checker, dial, plot, length, groove, toggle, pointer_tip } =
+        size;
     let ControlSizes { sm, md } = control;
     out.line("size.control.sm", len(*sm));
     out.line("size.control.md", len(*md));
@@ -133,6 +134,8 @@ fn size_lines(out: &mut Lines, size: &SizeTokens) {
     out.line("size.length.short", len(*short));
     out.line("size.groove", len(*groove));
     out.line("size.toggle", len(*toggle));
+    out.line("size.pointer_tip.x", len(pointer_tip.x));
+    out.line("size.pointer_tip.y", len(pointer_tip.y));
 }
 
 fn slot(s: FontSlot) -> &'static str {

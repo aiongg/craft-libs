@@ -800,6 +800,17 @@ pub struct SizeTokens {
     pub groove: f32,
     /// The long side of the track of a two-state toggle (a switch).
     pub toggle: f32,
+    /// Where a tip that follows the pointer (a gesture readout) sits from the pointer.
+    pub pointer_tip: PointerTipOffset,
+}
+
+/// The offset of a pointer-following tip from the pointer, toward the reading end and down, in logical pixels.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct PointerTipOffset {
+    /// Toward the reading end.
+    pub x: f32,
+    /// Down.
+    pub y: f32,
 }
 
 /// Lengths of controls that stretch along one axis, in logical pixels.
