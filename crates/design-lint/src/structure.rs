@@ -71,6 +71,8 @@ fn unknown_crates(root: &Path, meta: &Metadata, maps: &LayerMaps) -> Vec<Finding
 }
 
 fn source_sites(root: &Path, index: &Index) -> Result<Vec<Site>, Error> {
+    // Source paths come from cargo metadata, which resolves `..` and links; the root must be resolved the same way.
+    let root = &std::fs::canonicalize(root).unwrap_or_else(|_| root.to_owned());
     let mut sites = Vec::new();
     for tree in index.trees.values() {
         let mut files: Vec<&PathBuf> = tree.modules.values().map(|m| &m.file).collect();
@@ -115,7 +117,6 @@ pub fn run_structure(args: &[String]) -> Result<ExitCode, Error> {
             }
         }
     }
-    let root = std::fs::canonicalize(&root).unwrap_or(root);
     let meta = Metadata::run(&root)?;
     let findings = match config {
         Some(path) => crate::check_workspace(&root, &crate::Config::load(&path)?, &meta)?,
