@@ -90,6 +90,7 @@ pub struct IconicColumnStyle {
 }
 
 /// The requests and reports the column compares across passes.
+#[derive(Clone)]
 struct Seen<P> {
     requested: Option<P>,
     reported: Option<P>,
