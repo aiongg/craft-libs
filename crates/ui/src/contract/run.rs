@@ -364,13 +364,14 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
+    let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
     steps::register_stops(&StopsIn {
         ctx: &ctx,
         id,
         holder: member.map_or(id, |arena| arena.0),
         focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS),
         keys: C::KEYS,
-        role: KeyRole::new(),
+        role: KeyRole::new().resettable(resettable),
         rtl,
         parts: &parts,
     });

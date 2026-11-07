@@ -26,9 +26,15 @@ impl<T> From<T> for Mixed<T> {
 
 /// Names a gesture; ids grow in the order the gestures begin.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+#[non_exhaustive]
 pub struct GestureId(pub u64);
 
 impl GestureId {
+    /// The id numbered `n`.
+    pub const fn new(n: u64) -> GestureId {
+        GestureId(n)
+    }
+
     /// The id of the gesture after this one.
     pub const fn next(self) -> GestureId {
         GestureId(self.0 + 1)
@@ -65,6 +71,7 @@ impl CancelReason {
 
 /// What applying an event did to a value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Applied {
     /// The value changed.
     Changed,
@@ -101,6 +108,7 @@ pub enum Validity<T, M> {
 
 /// Where a gesture stands in one pass.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum GesturePhase {
     /// The gesture began in this pass and has no value yet.
     Begin,
@@ -117,6 +125,7 @@ pub enum GesturePhase {
 #[non_exhaustive]
 pub enum EditEvent<T> {
     /// A gesture began. It names the undo step.
+    #[non_exhaustive]
     Begin {
         /// The gesture.
         id: GestureId,
@@ -128,6 +137,7 @@ pub enum EditEvent<T> {
         doc_key: Option<DocKey>,
     },
     /// A proposed value of the running gesture.
+    #[non_exhaustive]
     Update {
         /// The gesture.
         id: GestureId,
@@ -135,6 +145,7 @@ pub enum EditEvent<T> {
         value: T,
     },
     /// The gesture ended with this value.
+    #[non_exhaustive]
     Commit {
         /// The gesture.
         id: GestureId,
@@ -144,6 +155,7 @@ pub enum EditEvent<T> {
         after: T,
     },
     /// The gesture ended without a commit.
+    #[non_exhaustive]
     Cancel {
         /// The gesture.
         id: GestureId,
@@ -154,6 +166,7 @@ pub enum EditEvent<T> {
     },
     /// A value that arrived as one step, or a gesture that began and committed in one pass. It names itself the way
     /// a `Begin` does.
+    #[non_exhaustive]
     Set {
         /// The gesture the value belongs to; the last one when it arrived outside a gesture.
         id: GestureId,
@@ -169,6 +182,31 @@ pub enum EditEvent<T> {
 }
 
 impl<T> EditEvent<T> {
+    /// A gesture began.
+    pub fn begin(id: GestureId, before: Mixed<T>, label: Arc<str>, doc_key: Option<DocKey>) -> Self {
+        EditEvent::Begin { id, before, label, doc_key }
+    }
+
+    /// A proposed value of the running gesture.
+    pub fn update(id: GestureId, value: T) -> Self {
+        EditEvent::Update { id, value }
+    }
+
+    /// The gesture committed `after`.
+    pub fn commit(id: GestureId, before: Mixed<T>, after: T) -> Self {
+        EditEvent::Commit { id, before, after }
+    }
+
+    /// The gesture ended without a commit.
+    pub fn cancel(id: GestureId, reason: CancelReason, before: Option<Mixed<T>>) -> Self {
+        EditEvent::Cancel { id, reason, before }
+    }
+
+    /// A one-step change, named the way a `Begin` names its gesture.
+    pub fn set(id: GestureId, before: Mixed<T>, after: T, label: Arc<str>, doc_key: Option<DocKey>) -> Self {
+        EditEvent::Set { id, before, after, label, doc_key }
+    }
+
     /// The gesture the event belongs to.
     pub fn id(&self) -> GestureId {
         match self {
@@ -270,6 +308,7 @@ impl<T: Value> EditEvent<T> {
 /// The running gesture of a value component, kept in shown memory under the component. Plain data; the pipeline
 /// reads and writes it.
 #[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Gesture<V> {
     /// The running or last gesture.
     pub id: GestureId,
@@ -305,5 +344,49 @@ impl<V> Gesture<V> {
     /// A gesture is running.
     pub fn is_running(&self) -> bool {
         self.before.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ID: GestureId = GestureId(1);
+
+    fn begin() -> EditEvent<i32> {
+        EditEvent::Begin { id: ID, before: Mixed::Same(0), label: "Gain".into(), doc_key: None }
+    }
+
+    fn fold(events: Vec<EditEvent<i32>>) -> Option<EditEvent<i32>> {
+        events.into_iter().fold(None, EditEvent::fold)
+    }
+
+    #[test]
+    fn a_pass_folds_to_the_event_the_response_carries() {
+        let update = |value| EditEvent::Update { id: ID, value };
+        let commit = EditEvent::Commit { id: ID, before: Mixed::Same(0), after: 5 };
+        let cancel = EditEvent::Cancel { id: ID, reason: CancelReason::Escape, before: Some(Mixed::Same(0)) };
+        let set = fold(vec![begin(), update(3), commit.clone()]);
+        assert!(matches!(&set, Some(EditEvent::Set { after: 5, label, .. }) if &**label == "Gain"), "Begin..Commit is one Set: {set:?}");
+        assert_eq!(fold(vec![begin(), update(3), cancel.clone()]), None, "Begin..Cancel is nothing");
+        assert_eq!(fold(vec![begin(), update(3)]), Some(begin()), "Begin..Update stays Begin");
+        assert_eq!(fold(vec![update(3), commit.clone()]), Some(commit), "Update..Commit is Commit");
+        assert_eq!(fold(vec![update(3), cancel.clone()]), Some(cancel), "Update..Cancel is Cancel");
+        assert_eq!(fold(vec![update(3), update(4)]), Some(update(4)), "otherwise the later event");
+    }
+
+    #[test]
+    fn a_cancel_restores_and_a_mixed_value_becomes_concrete() {
+        let cancel = EditEvent::Cancel { id: ID, reason: CancelReason::Escape, before: Some(Mixed::Same(7)) };
+        let mut value = 9;
+        assert_eq!(cancel.apply(&mut value), Applied::Restored);
+        assert_eq!(value, 7);
+        let mut field = Mixed::Mixed;
+        let set = EditEvent::Update { id: ID, value: 2 };
+        assert_eq!(set.apply_mixed(&mut field), Applied::Changed);
+        assert_eq!(field, Mixed::Same(2));
+        assert_eq!(set.apply_mixed(&mut field), Applied::Unchanged);
+        let moved = EditEvent::<i32>::Cancel { id: ID, reason: CancelReason::HostChanged, before: None };
+        assert_eq!(moved.apply(&mut value), Applied::Unchanged, "a cancel because the document moved restores nothing");
     }
 }

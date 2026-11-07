@@ -2,7 +2,7 @@
 //! between the app and the pipeline.
 
 use crate::runtime::env::Message;
-use crate::runtime::memory::{MemoryStage, SaveKey, Savable};
+use crate::runtime::memory::{MemoryStage, Savable, SaveKey};
 use craft_behavior::{Applied, EditEvent, EditPolicy, Mixed, Value};
 use egui::Response;
 
@@ -204,9 +204,7 @@ impl<T: Value> BindMut<'_, T> {
     pub(crate) fn writes(&self, event: &EditEvent<T>) -> bool {
         match self.source {
             SourceMut::Given(_) | SourceMut::Kept => false,
-            SourceMut::Mut(_) | SourceMut::MutMixed(_) => {
-                self.policy == EditPolicy::WriteThrough || !matches!(event, EditEvent::Update { .. })
-            }
+            SourceMut::Mut(_) | SourceMut::MutMixed(_) => self.policy == EditPolicy::WriteThrough || !matches!(event, EditEvent::Update { .. }),
         }
     }
 

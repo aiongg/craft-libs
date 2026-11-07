@@ -8,6 +8,7 @@ const LIMIT: usize = 100;
 
 /// Which way [`EditHistory::step`] goes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Step {
     /// Back to the value before the latest step.
     Undo,

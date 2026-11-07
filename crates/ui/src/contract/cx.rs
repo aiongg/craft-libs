@@ -504,7 +504,9 @@ impl<C: Component> Cx<'_, C> {
         let slot = self.gesture_slot();
         match event {
             EditEvent::Begin { id, before, .. } => {
-                *slot = Gesture { id: *id, before: Some(before.clone()), ..slot.ended(false) };
+                *slot = slot.ended(false);
+                slot.id = *id;
+                slot.before = Some(before.clone());
             }
             EditEvent::Update { value, .. } => slot.proposal = Some(value.clone()),
             EditEvent::Commit { .. } | EditEvent::Set { .. } => *slot = slot.ended(false),
@@ -544,11 +546,11 @@ impl<C: Component> Edit for Cx<'_, C> {
             map(value, &mut mine);
         }
         let adopted = match event {
-            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::Begin { id: *id, before, label: label.clone(), doc_key: *doc_key },
-            EditEvent::Update { id, .. } => EditEvent::Update { id: *id, value: mine },
-            EditEvent::Commit { id, .. } => EditEvent::Commit { id: *id, before, after: mine },
-            EditEvent::Cancel { id, reason, .. } => EditEvent::Cancel { id: *id, reason: *reason, before: Some(before) },
-            EditEvent::Set { id, label, doc_key, .. } => EditEvent::Set { id: *id, before, after: mine, label: label.clone(), doc_key: *doc_key },
+            EditEvent::Begin { id, label, doc_key, .. } => EditEvent::begin(*id, before, label.clone(), *doc_key),
+            EditEvent::Update { id, .. } => EditEvent::update(*id, mine),
+            EditEvent::Commit { id, .. } => EditEvent::commit(*id, before, mine),
+            EditEvent::Cancel { id, reason, .. } => EditEvent::cancel(*id, *reason, Some(before)),
+            EditEvent::Set { id, label, doc_key, .. } => EditEvent::set(*id, before, mine, label.clone(), *doc_key),
             _ => return,
         };
         self.core.paint.borrow_mut().adopted.push(Adopted::new(adopted));
@@ -578,9 +580,9 @@ impl<C: Component> Edit for Cx<'_, C> {
         slot.proposal = Some(v.clone());
         let id = slot.id;
         if started {
-            self.events.push(EditEvent::Begin { id, before, label, doc_key });
+            self.events.push(EditEvent::begin(id, before, label, doc_key));
         }
-        self.events.push(EditEvent::Update { id, value: v.clone() });
+        self.events.push(EditEvent::update(id, v.clone()));
         self.shown = Some(Arc::new(v));
         self.mixed = false;
     }
@@ -592,7 +594,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
         let id = self.gesture_slot().id;
-        self.events.push(EditEvent::Set { id, before, after: v.clone(), label, doc_key });
+        self.events.push(EditEvent::set(id, before, v.clone(), label, doc_key));
         self.shown = Some(Arc::new(v));
         self.mixed = false;
     }
@@ -608,7 +610,7 @@ impl<C: Component> Edit for Cx<'_, C> {
             slot.id = slot.id.next();
             slot.before = Some(before.clone());
             let id = slot.id;
-            self.events.push(EditEvent::Begin { id, before, label, doc_key });
+            self.events.push(EditEvent::begin(id, before, label, doc_key));
         }
     }
 
@@ -621,9 +623,9 @@ impl<C: Component> Edit for Cx<'_, C> {
         let running = std::mem::replace(slot, ended);
         let (id, Some(before)) = (running.id, running.before) else { return };
         match (running.proposal, before) {
-            (Some(after), before) => self.events.push(EditEvent::Commit { id, before, after }),
-            (None, Mixed::Same(held)) => self.events.push(EditEvent::Commit { id, before: Mixed::Same(held.clone()), after: held }),
-            (None, Mixed::Mixed) => self.events.push(EditEvent::Cancel { id, reason: CancelReason::Dismissed, before: Some(Mixed::Mixed) }),
+            (Some(after), before) => self.events.push(EditEvent::commit(id, before, after)),
+            (None, Mixed::Same(held)) => self.events.push(EditEvent::commit(id, Mixed::Same(held.clone()), held)),
+            (None, Mixed::Mixed) => self.events.push(EditEvent::cancel(id, CancelReason::Dismissed, Some(Mixed::Mixed))),
         }
     }
 
@@ -636,7 +638,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         let ended = slot.ended(dead);
         let running = std::mem::replace(slot, ended);
         let restored = running.before.clone().filter(|_| !reason.document_moved());
-        self.events.push(EditEvent::Cancel { id: running.id, reason, before: restored.clone() });
+        self.events.push(EditEvent::cancel(running.id, reason, restored.clone()));
         if let Some(before) = restored {
             self.shown = match before {
                 Mixed::Same(value) => Some(Arc::new(value)),

@@ -1,8 +1,8 @@
 //! The step functions of the pipeline (1.6): named functions over plain data, in pipeline order. `run` calls
 //! them for every shape.
 
-use super::cx::{CxCore, Decls, MeasureCx};
 use super::cx::gesture_key;
+use super::cx::{CxCore, Decls, MeasureCx};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::commands::ResolvedCommand;
@@ -13,7 +13,9 @@ use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
-use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, MotionMode, PartRef, PressCancel, Proposal, Roving, Sense, Value};
+use craft_behavior::{
+    CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, MotionMode, PartRef, PressCancel, Proposal, Roving, Sense, Value,
+};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
@@ -309,7 +311,9 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
                 // emitted, so an app that applies only `Commit` keeps its drag. Any other source: it differs from the
                 // last value step 11 wrote.
                 let changed = match &host {
-                    Some((true, value)) => gesture.last_given.as_ref().is_some_and(|last| last != value) && gesture.emitted.as_ref().is_some_and(|e| e != value),
+                    Some((true, value)) => {
+                        gesture.last_given.as_ref().is_some_and(|last| last != value) && gesture.emitted.as_ref().is_some_and(|e| e != value)
+                    }
                     Some((false, value)) => gesture.emitted.as_ref().is_some_and(|emitted| emitted != value),
                     None => false,
                 };
@@ -322,7 +326,7 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
         if let Some(reason) = reason {
             // The document moved under the gesture, so there is nothing to restore.
             let before = gesture.before.clone().filter(|_| !reason.document_moved());
-            cancelled = Some(EditEvent::Cancel { id: gesture.id, reason, before });
+            cancelled = Some(EditEvent::cancel(gesture.id, reason, before));
             *gesture = gesture.ended(true);
         }
     }
@@ -548,7 +552,7 @@ pub(crate) fn gesture_gate<C: Component>(cx: &mut Cx<'_, C>) {
         && let Some(value) = gesture.held.take()
     {
         let id = gesture.id;
-        cx.events.push(EditEvent::Update { id, value });
+        cx.events.push(EditEvent::update(id, value));
     }
 }
 
@@ -652,7 +656,7 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
             Checked::Keep => {}
             Checked::Cancel => {
                 if let EditEvent::Commit { id, before, .. } = cx.events[at].clone() {
-                    cx.events[at] = EditEvent::Cancel { id, reason: CancelReason::Refused, before: Some(before) };
+                    cx.events[at] = EditEvent::cancel(id, CancelReason::Refused, Some(before));
                     let dead = cx.core.press_held();
                     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
                     *gesture = gesture.ended(dead);
@@ -688,9 +692,14 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
         }
         at += 1;
     }
-    let given_now = match bind.get() {
-        Some(Mixed::Same(value)) if bind.is_given() && began => Some(value),
-        _ => None,
+    // The given value of the pass a gesture began in, for step 4's host-change comparison next pass.
+    let given_now = if began && bind.is_given() {
+        match bind.get() {
+            Some(Mixed::Same(value)) => Some(value),
+            _ => None,
+        }
+    } else {
+        None
     };
     let repaint_next = held.is_some();
     let gesture = cx.core.memory.shown::<Gesture<ValueOf<C>>>(slot);
