@@ -1078,7 +1078,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let props = comp.props(Internal::new());
             (props.collapse.is_some(), props.focus)
         };
-        let closable = collapsible || comp.open().is_some();
+        // A collapse is the user's own toggle: Escape never folds an inline container, only closes one with an open state.
+        let closable = !collapsible && comp.open().is_some();
         if !self.layer
             && closable
             && policy.cancel != CancelRule::Ignore

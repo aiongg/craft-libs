@@ -157,6 +157,8 @@ pub struct Resolved<'p> {
     pub(crate) tooltip: Option<&'p Tooltip>,
     /// The undo adapter's key for edits of this component.
     pub(crate) doc_key: Option<DocKey>,
+    /// Step 1's resolved command: the bound command as the scopes above the component see it.
+    pub(crate) command: Option<&'p crate::runtime::commands::ResolvedCommand>,
 }
 
 /// A tooltip: one type for components and parts.

@@ -4,7 +4,7 @@ use crate::windows_kit::Windows;
 use craft_behavior::{DisplayOrder, DropOperation, ItemSource, PartKey, PressPhase};
 use craft_ui::contract::{
     CollectionEvent, Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, OsFiles, PartsCx, Pointer as _, Props as _, Role,
-    Show as _, ShowCollection as _,
+    Show as _, ShowCollection as _, WindowDropTarget,
 };
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;
@@ -353,10 +353,10 @@ impl DropTarget<OsFiles> for OnRow {
 /// A drop of files anywhere in the window.
 struct OnWindow;
 
-impl DropTarget<OsFiles> for OnWindow {
+impl WindowDropTarget<OsFiles> for OnWindow {
     type Drop = Vec<String>;
 
-    fn accept(&self, files: &OsFiles, _: Pos2, _: DropOperation) -> Option<Self::Drop> {
+    fn accept(&self, files: &OsFiles, _: DropOperation) -> Option<Self::Drop> {
         Some(names(files))
     }
 

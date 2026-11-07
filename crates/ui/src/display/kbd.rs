@@ -49,9 +49,9 @@ impl Kbd {
 
     /// The text shown: the bound command's chord for the platform, else the given chord.
     fn shown(&self, command: Option<&ResolvedCommand>, ctx: &Context) -> String {
-        match (&self.common.command, command) {
-            (Some(_), Some(command)) => command.chord.as_ref().map_or_else(String::new, |chord| chord.display(os_of(ctx))),
-            _ => self.chord.as_str().to_owned(),
+        match command {
+            Some(command) => command.chord.as_ref().map_or_else(String::new, |chord| chord.display(os_of(ctx))),
+            None => self.chord.as_str().to_owned(),
         }
     }
 }
@@ -75,9 +75,7 @@ impl Component for Kbd {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let ctx = cx.ui.ctx();
-        let command = self.common.command.clone().map(|command| crate::runtime::commands::resolve(ctx, command));
-        let text = ChordText::new(self.shown(command.as_ref(), ctx));
+        let text = ChordText::new(self.shown(cx.command(), cx.ui.ctx()));
         cx.layout(&text.run().role(cx.style.text.role)).size()
     }
 
@@ -86,7 +84,7 @@ impl Component for Kbd {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if self.common.command.is_some() {
+        if cx.command.is_some() {
             access.name(Name::Text(self.shown(cx.command.as_deref(), &cx.ctx)));
         }
     }

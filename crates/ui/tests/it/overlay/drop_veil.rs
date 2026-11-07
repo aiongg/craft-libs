@@ -33,6 +33,27 @@ fn dropped_files_reach_the_output_once() {
     assert_eq!(names, ["a.png", "b.png"]);
 }
 
+/// Files that hover before the window has any pointer position show the veil and drop on the whole window.
+#[trial]
+fn files_hovering_with_no_pointer_position_show_the_veil_and_drop_on_the_window() {
+    let mut frames = Frames::new();
+    let dropped = RefCell::new(Vec::new());
+    let mut run = |ui: &mut Ui| show(ui, &dropped);
+    let named = |frames: &mut Frames| {
+        let tree = frames.tree();
+        tree.keys().into_iter().filter(|key| tree.name_of(*key) == Some("Import 2 photos")).count()
+    };
+    frames.idle(3, &mut run);
+    let before = named(&mut frames);
+    frames.hover_files(&["a.png", "b.png"]);
+    frames.idle(3, &mut run);
+    assert!(named(&mut frames) > before, "the card's text shows while the files hover");
+    frames.drop_files(&["a.png", "b.png"]);
+    frames.idle(4, &mut run);
+    let names: Vec<_> = dropped.borrow().iter().flat_map(|files| files.files.iter().map(|file| file.name.clone())).collect();
+    assert_eq!(names, ["a.png", "b.png"]);
+}
+
 #[trial]
 fn files_that_leave_without_a_drop_report_nothing() {
     let mut frames = Frames::new();
