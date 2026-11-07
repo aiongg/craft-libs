@@ -3,8 +3,10 @@
 use egui::util::IdTypeMap;
 use egui::util::id_type_map::RawKey;
 use egui::{Context, Id};
-use std::any::Any;
-use std::hash::Hash;
+use std::any::{Any, TypeId};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 /// Context data: the map the runtime's slots live in.
@@ -73,12 +75,61 @@ impl<S> Clone for Service<S> {
     }
 }
 
+/// Folds the bytes of a `TypeId`, which is already a hash.
+#[derive(Default)]
+struct TypeIdHasher(u64);
+
+impl Hasher for TypeIdHasher {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.0 ^= u64::from_le_bytes(word);
+        }
+    }
+}
+
+type HandleCache = HashMap<TypeId, Box<dyn Any>, BuildHasherDefault<TypeIdHasher>>;
+
+thread_local! {
+    /// The service handles of the passes between their begin and end hooks on this thread, innermost last: a
+    /// lookup in the context's data happens once per service type and pass. A pass is the only user of its
+    /// thread's context while it runs.
+    static HANDLES: RefCell<Vec<HandleCache>> = const { RefCell::new(Vec::new()) };
+}
+
+/// Opens the handle cache of a pass; the begin hook calls it.
+pub(crate) fn open_handles() {
+    HANDLES.with(|caches| caches.borrow_mut().push(HandleCache::default()));
+}
+
+/// Closes the handle cache of the innermost pass; the end hook calls it.
+pub(crate) fn close_handles() {
+    HANDLES.with(|caches| caches.borrow_mut().pop());
+}
+
 impl<S: Default + Send + 'static> Service<S> {
     /// The context's service of type `S`, created on first use.
     pub(crate) fn of(ctx: &Context) -> Service<S> {
+        let cached = HANDLES.with(|caches| {
+            caches.borrow().last().and_then(|cache| cache.get(&TypeId::of::<S>())).and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
+        });
+        if let Some(handle) = cached {
+            return handle;
+        }
         static SLOT: OnceLock<Id> = OnceLock::new();
         let slot = *SLOT.get_or_init(|| unique("craft_ui.service"));
-        locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone())
+        let handle = locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone());
+        HANDLES.with(|caches| {
+            if let Some(cache) = caches.borrow_mut().last_mut() {
+                cache.insert(TypeId::of::<S>(), Box::new(handle.clone()));
+            }
+        });
+        handle
     }
 
     /// Runs `f` on the state under the service's lock.

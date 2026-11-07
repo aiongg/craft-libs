@@ -948,8 +948,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     }
     let core = &mut cx.core;
     let (hovered, pressed) = (core.response.hovered(), core.press.phase.is_press());
-    let focused = focus::is_focused(&core.ctx, core.id);
-    let visible = focus::focus_visible(&core.ctx, core.id);
+    let (focused, visible) = (core.focus.focused, core.focus.visible);
     if focused {
         flags |= Flags::FOCUSED;
     }

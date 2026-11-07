@@ -76,6 +76,8 @@ pub struct CxCore<'a> {
     pub(crate) face_mode: bool,
     /// The active part while the component holds focus.
     pub(crate) active: Option<PartRef>,
+    /// What focus holds of this component, read once at step 8.
+    pub(crate) focus: crate::runtime::focus::Facts,
     /// The arena root this component is a member of; `None` for a component with its own egui widget.
     pub(crate) member_of: Option<Id>,
     pub(crate) activation: Option<Activation>,

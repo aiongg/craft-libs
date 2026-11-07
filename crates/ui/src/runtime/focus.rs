@@ -263,6 +263,25 @@ pub(crate) fn is_focused(ctx: &Context, id: Id) -> bool {
     focused_stop(ctx).is_some_and(|(focused, _)| focused == id)
 }
 
+/// What a component reads of focus in one pass.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Facts {
+    /// `is_focused`.
+    pub(crate) focused: bool,
+    /// `focus_visible`.
+    pub(crate) visible: bool,
+    /// `active_part`.
+    pub(crate) part: Option<PartRef>,
+}
+
+/// The focus facts of the component `id`, read once.
+pub(crate) fn facts(ctx: &Context, id: Id) -> Facts {
+    match focused_stop(ctx) {
+        Some((focused, part)) if focused == id => Facts { focused: true, visible: with(ctx, |state| state.visible), part },
+        _ => Facts::default(),
+    }
+}
+
 /// `is_focused` and focus arrived by keyboard, so the ring shows.
 pub(crate) fn focus_visible(ctx: &Context, id: Id) -> bool {
     is_focused(ctx, id) && with(ctx, |state| state.visible)

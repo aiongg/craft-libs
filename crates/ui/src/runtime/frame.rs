@@ -352,6 +352,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     let now = pass::now(&ctx);
     let pass_nr = pass::pass_nr(&ctx, viewport);
     RUNNING.with(|running| running.borrow_mut().push(PassFacts { viewport, pass_nr, now }));
+    store::open_handles();
     let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
         record.now = now;
         std::mem::take(&mut record.press_cancelled)
@@ -416,5 +417,6 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     for prune in prunes {
         prune(&ctx, &live);
     }
+    store::close_handles();
     RUNNING.with(|running| running.borrow_mut().pop());
 }
