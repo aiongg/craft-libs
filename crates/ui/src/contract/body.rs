@@ -4,7 +4,7 @@
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
 use super::run::{ShapeHooks, ShowAt};
-use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, Sizing};
+use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
 use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
@@ -21,8 +21,8 @@ use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
-    Axis, CancelRule, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, Roving, ScrollPos, ScrollSpan, WheelNotch,
-    WheelTaker,
+    Axis, CancelRule, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PressPhase, Roving, ScrollPos,
+    ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
@@ -32,6 +32,7 @@ use std::any::Any;
 const SCROLL_Y: PartKey = PartKey::new("body_scroll_y");
 const SCROLL_X: PartKey = PartKey::new("body_scroll_x");
 pub(crate) const MOVE_BAND: PartKey = PartKey::new("move_band");
+pub(crate) const REORDER_BAND: PartKey = PartKey::new("reorder_band");
 const GRIP: PartKey = PartKey::new("resize_grip");
 
 /// The open state a container with no `Container::open` binding keeps: for the session, or saved under `save`.
@@ -94,6 +95,11 @@ fn overlay_of(props: &ContainerProps) -> Option<&super::Overlay> {
         Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => Some(overlay),
         _ => None,
     }
+}
+
+/// The opener of a layer-like mount's overlay: a container with no `open` binding takes its open state from it.
+fn opener_of(props: &ContainerProps) -> Option<&super::overlay::Opener> {
+    overlay_of(props)?.opener.as_ref()
 }
 
 /// The floor of a resizable layer's size: the larger of the style minimum and the overlay's `min_size`.
@@ -170,6 +176,8 @@ fn rect_of(parts: [f32; 4]) -> Rect {
 struct Regions {
     header: Rect,
     body: Rect,
+    /// The end region: the line's end edge, as high as the line. The whole line before it has a measured width.
+    end: Rect,
     footer: Rect,
 }
 
@@ -186,6 +194,8 @@ pub(super) struct BodyHooks<'b> {
     remembered: Option<Vec2>,
     header_last: Vec2,
     footer_last: Vec2,
+    /// The end region's size from last pass, zero without one.
+    end_last: Vec2,
     /// The gap between an inline header and the body, and between a header and its trailing region.
     region_gap: f32,
     /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
@@ -211,6 +221,7 @@ pub(super) struct BodyHooks<'b> {
     body_size: Option<Vec2>,
     header_size: Option<Vec2>,
     footer_size: Option<Vec2>,
+    end_size: Option<Vec2>,
     extent: Option<Vec2>,
     view: Option<Rect>,
     save: Option<SaveKey>,
@@ -260,6 +271,26 @@ impl BodyHooks<'_> {
             self.moved = true;
         }
         self.clamp_offset(scroll, view);
+    }
+
+    /// Alt+Up and Alt+Down while focus is anywhere in a section whose header is a reorder band. A section has no stop of
+    /// its own, so the keys would reach the stops in its header: the container holds the chords for itself and turns
+    /// them into `Intent::MoveItem` for its own update.
+    fn reorder_keys<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        if !props.header.is_some_and(|header| header.band == DragBand::Reorder) {
+            return;
+        }
+        let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
+        let within = commands::focus_within(&ctx, id);
+        for (key, toward_end) in [(Key::Up, false), (Key::Down, true)] {
+            let chord = Chord::new(Mods::ALT, key);
+            if within {
+                keys::capture(&ctx, id, chord);
+            }
+            while keys::take_claimed(&ctx, id, chord) {
+                cx.core.intents.push(Intent::move_item(toward_end));
+            }
+        }
     }
 
     /// The `window.Move` and `window.Size` commands and the keys of the mode they start (16.3): arrows move or
@@ -328,6 +359,7 @@ impl<'b> BodyHooks<'b> {
             remembered: None,
             header_last: Vec2::ZERO,
             footer_last: Vec2::ZERO,
+            end_last: Vec2::ZERO,
             region_gap: 0.0,
             overflow: 0.0,
             room: Rect::NOTHING,
@@ -347,6 +379,7 @@ impl<'b> BodyHooks<'b> {
             body_size: None,
             header_size: None,
             footer_size: None,
+            end_size: None,
             extent: None,
             view: None,
             save: None,
@@ -383,7 +416,9 @@ impl<'b> BodyHooks<'b> {
         }
         let (body, header, footer) =
             (self.body_size.unwrap_or(Vec2::ZERO), self.header_size.unwrap_or(Vec2::ZERO), self.footer_size.unwrap_or(Vec2::ZERO));
-        let took = Vec2::new(body.x.max(header.x).max(footer.x), body.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
+        let end = self.end_size.unwrap_or(Vec2::ZERO);
+        let line = Vec2::new(body.x + if end.x > 0.0 { end.x + self.region_gap } else { 0.0 }, body.y.max(end.y));
+        let took = Vec2::new(line.x.max(header.x).max(footer.x), line.y + header.y + footer.y) + Vec2::splat(2.0 * pad);
         let real = if rtl { Rect::from_min_size(Pos2::new(rect.max.x - took.x, rect.min.y), took) } else { Rect::from_min_size(rect.min, took) };
         if !rect.contains_rect(real) {
             layout::widen_cell(ui, took);
@@ -399,7 +434,8 @@ impl<'b> BodyHooks<'b> {
     /// The width the regions ask for in a content-sized container: the widest of what each took last pass.
     fn wanted_width(&self, inline: bool) -> Option<f32> {
         self.remembered.map(|body| {
-            let line = if inline { body.x + self.header_last.x + self.region_gap } else { body.x.max(self.header_last.x) };
+            let beside = body.x + if self.end_last.x > 0.0 { self.end_last.x + self.region_gap } else { 0.0 };
+            let line = if inline { beside + self.header_last.x + self.region_gap } else { beside.max(self.header_last.x) };
             line.max(self.footer_last.x)
         })
     }
@@ -415,13 +451,14 @@ impl<'b> BodyHooks<'b> {
         let inline = props.header.is_some_and(|header| header.inline);
         let header_h = if props.header.is_some() { self.header_last.y } else { 0.0 };
         let footer_h = if props.footer.is_some() { self.footer_last.y } else { 0.0 };
+        let end_h = if props.end.is_some() { self.end_last.y } else { 0.0 };
         // An inline header takes no height of its own: the line is as high as the taller of header and body.
         let stacked_h = if inline { 0.0 } else { header_h };
         let top = inner.min.y + stacked_h;
         let content_sized = self.sizing(props) == Sizing::Content;
         let (bottom, footer_top) = if content_sized {
             let body_h = self.remembered.map_or(0.0, |size| size.y) * self.presence.t;
-            let line_h = if inline { body_h.max(header_h) } else { body_h };
+            let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h);
             (top + (room.y - stacked_h - footer_h).max(0.0), top + line_h)
         } else {
             (inner.max.y - footer_h, inner.max.y - footer_h)
@@ -445,7 +482,22 @@ impl<'b> BodyHooks<'b> {
         } else {
             header
         };
-        Regions { header, body, footer: band(footer_top, footer_top + footer_h) }
+        // The end region keeps the width it measured and takes the line's end edge; the body takes the rest. Before its
+        // first measure it spans the line and the body keeps its width.
+        let taken = if props.end.is_some() { self.end_last.x.min(width) } else { 0.0 };
+        let cut = if taken > 0.0 { taken + self.region_gap } else { 0.0 };
+        let measured = |edge: f32| if taken > 0.0 { edge } else { width };
+        let end = if rtl {
+            Rect::from_min_max(Pos2::new(left, top), Pos2::new(left + measured(taken), footer_top.max(top)))
+        } else {
+            Rect::from_min_max(Pos2::new(right - measured(taken), top), Pos2::new(right, footer_top.max(top)))
+        };
+        if rtl {
+            body.min.x = (body.min.x + cut).min(body.max.x);
+        } else {
+            body.max.x = (body.max.x - cut).max(body.min.x);
+        }
+        Regions { header, body, end, footer: band(footer_top, footer_top + footer_h) }
     }
 
     /// The room a content-sized body runs in: what the mount offers, less the padding.
@@ -510,12 +562,16 @@ impl BodyHooks<'_> {
             return;
         }
         let id = cx.core.id;
+        let opener = opener_of(comp.props(Internal::new())).cloned();
         match comp.open() {
             Some(mut bind) => {
                 let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
                 bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
             }
-            None => open_slot(&mut *cx.core.memory, id, self.save.as_ref()).0 = Some(self.open),
+            None => match &opener {
+                Some(opener) => super::overlay::set_opener_open(&mut *cx.core.memory, opener, self.open),
+                None => open_slot(&mut *cx.core.memory, id, self.save.as_ref()).0 = Some(self.open),
+            },
         }
         self.open_at_read = self.open;
     }
@@ -571,6 +627,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         comp.props(Internal::new()).roving
     }
 
+    fn key_role(&self, comp: &C) -> KeyRole {
+        KeyRole::new().reorderable(comp.props(Internal::new()).header.is_some_and(|header| header.band == DragBand::Reorder))
+    }
+
+    fn position(&self, comp: &C) -> Option<SetPosition> {
+        comp.props(Internal::new()).position
+    }
+
     fn live(&self, comp: &C) -> Option<Politeness> {
         comp.props(Internal::new()).live
     }
@@ -593,6 +657,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.remembered = layout_memory::read(&ctx, id);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        self.end_last = if props.end.is_some() { layout_memory::read(&ctx, sub(id, "end")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.region_gap = gap_of(&env.tokens, Gap::Tight);
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
             && let Some(why) = crate::runtime::overlay::take_close(&ctx, id)
@@ -603,7 +668,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.open_bound = comp.open().is_some();
         self.open = match comp.open() {
             Some(bind) => matches!(bind.get(), Some(Mixed::Same(true))),
-            None => *open_slot(stage, id, save.as_ref()).0.get_or_insert(initially_open),
+            None => match opener_of(props) {
+                Some(opener) => super::overlay::opener_open(stage, opener),
+                None => *open_slot(stage, id, save.as_ref()).0.get_or_insert(initially_open),
+            },
         };
         self.open_at_read = self.open;
         self.presence = match collapse {
@@ -707,7 +775,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Some(wanted) if self.sizing(props) == Sizing::Content => (wanted - room.max(0.0)).max(0.0),
             _ => 0.0,
         };
-        let height = if inline { body.y.max(self.header_last.y) } else { body.y + self.header_last.y } + self.footer_last.y;
+        let line = body.y.max(self.end_last.y);
+        let height = if inline { line.max(self.header_last.y) } else { line + self.header_last.y } + self.footer_last.y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
     }
 
@@ -768,6 +837,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only(reason);
         }
+        // The reorder band lies under the header's own parts and children: its default priority loses to theirs, so
+        // their buttons keep their clicks.
+        if props.header.is_some_and(|header| header.band == DragBand::Reorder) && regions.header.height() > 0.0 {
+            pcx.part(REORDER_BAND, regions.header)
+                .sense(craft_behavior::Sense::DRAG)
+                .cursor(CursorIcon::Grab)
+                .drag_cursor(CursorIcon::Grabbing)
+                .pointer_only("Alt+Up and Alt+Down move the section");
+        }
         if let Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } = &props.mount
             && overlay.resize.grips
         {
@@ -810,6 +888,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             self.access_scroll(props, cx);
         }
+        self.reorder_keys(props, cx);
         if !layer {
             return;
         }
@@ -954,6 +1033,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 room: if self.sizing(&props) == Sizing::Content { room.x } else { regions.body.width() },
                 text: resolved.label_value,
                 side,
+                help: props.help.as_ref(),
                 enabled: resolved.enabled,
                 size: resolved.size,
                 control_min: scope::last_control_min(&ctx, id),
@@ -966,15 +1046,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let is_open = open || (animated && self.presence.visible);
         let enabled = gate.unwrap_or(true);
         if is_open {
-            let body_env = region_env.derive_local(|scoped| {
-                if props.arena {
-                    scoped.arena = Some(ArenaId::new(id));
-                }
-                scoped.transform = props.transform;
+            // What the body and the end region share: gate, size, roving group and commands. The body adds its arena,
+            // transform and scroll owner; the end region lies outside them.
+            let line_env = region_env.derive_local(|scoped| {
                 scoped.enabled &= enabled;
-                if scroll.is_some() {
-                    scoped.scroll_owner = Some(id);
-                }
                 if let Some(size) = props.child_size {
                     scoped.size = size;
                 }
@@ -983,6 +1058,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 }
                 if let Some(scope) = props.command_scope {
                     scoped.commands = scoped.commands.pushed(scope, id);
+                }
+            });
+            let body_env = line_env.derive_local(|scoped| {
+                if props.arena {
+                    scoped.arena = Some(ArenaId::new(id));
+                }
+                scoped.transform = props.transform;
+                if scroll.is_some() {
+                    scoped.scroll_owner = Some(id);
                 }
             });
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
@@ -1075,6 +1159,20 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 *size += label_extra;
             }
             self.view = Some(body_rect);
+            if props.end.is_some() {
+                let mut end_cx = BodyCx::new(body_id, line_env.view(), resolved, regions.end, &mut *cx.core.memory, &mut open, gate.as_mut())
+                    .with_field_message(field_message.clone());
+                // The first control sits at the end edge, as in a header's trailing region.
+                let layout = if rtl { Layout::left_to_right(Align::Center) } else { Layout::right_to_left(Align::Center) };
+                let builder = UiBuilder::new().max_rect(regions.end).layout(layout).scope_id(sub(id, "end"));
+                let builder = if node { access::with_parent(builder, id) } else { builder };
+                let mut end_ui = alloc::child(ui, builder);
+                let installed = Env::install_for(&end_ui, line_env.clone());
+                comp.end(&mut end_ui, &mut end_cx);
+                Env::restore(&ctx, installed);
+                close = close.or(end_cx.close_requested());
+                self.end_size = Some(self.region_size(&end_ui));
+            }
         } else {
             // A collapsed body keeps its last full size in layout memory, so opening it again places by that size
             // and asks for no discard pass.
@@ -1084,16 +1182,32 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if props.label.is_some() {
             scope::finish(&ctx, id, None);
         }
-        // B4 footer
+        // B4 footer: under the control column of a label-scoped container, which starts where the label step put
+        // the control.
         if props.footer.is_some() {
-            let mut bcx = BodyCx::new(body_id, env_view, resolved, regions.footer, &mut *cx.core.memory, &mut open, gate.as_mut())
+            let mut footer_rect = regions.footer;
+            if props.label.is_some() {
+                if rtl {
+                    footer_rect.max.x = body_rect.max.x.clamp(footer_rect.min.x, footer_rect.max.x);
+                } else {
+                    footer_rect.min.x = body_rect.min.x.clamp(footer_rect.min.x, footer_rect.max.x);
+                }
+            }
+            let offset = if rtl { regions.footer.max.x - footer_rect.max.x } else { footer_rect.min.x - regions.footer.min.x };
+            let mut bcx = BodyCx::new(body_id, env_view, resolved, footer_rect, &mut *cx.core.memory, &mut open, gate.as_mut())
                 .with_field_message(field_message);
-            let mut footer_ui = alloc::child(ui, region("footer", regions.footer));
+            let mut footer_ui = alloc::child(ui, region("footer", footer_rect));
             let installed = Env::install_for(&footer_ui, region_env.clone());
             comp.footer(&mut footer_ui, &mut bcx);
             Env::restore(&ctx, installed);
             close = close.or(bcx.close_requested());
-            self.footer_size = Some(self.region_size(&footer_ui));
+            let mut took = self.region_size(&footer_ui);
+            // A footer that took the whole room records no width (see `region_size`); one that is known adds the
+            // column it starts after.
+            if took.x > 0.0 {
+                took.x += offset;
+            }
+            self.footer_size = Some(took);
         }
         self.open = open;
         self.gate = gate;
@@ -1206,6 +1320,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             if moved(self.body_size, self.remembered)
                 || moved(self.header_size, Some(self.header_last))
                 || moved(self.footer_size, Some(self.footer_last))
+                || moved(self.end_size, Some(self.end_last))
             {
                 layout_memory::ask_discard(ctx);
             }
@@ -1218,6 +1333,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         if let Some(size) = self.footer_size {
             super::steps::record_size(ctx, sub(id, "footer"), size);
+        }
+        if let Some(size) = self.end_size {
+            super::steps::record_size(ctx, sub(id, "end"), size);
         }
         if self.extent.is_some() || self.view.is_some() {
             let view = stage.shown::<BodyView>(sub(id, "view"));
@@ -1242,7 +1360,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 }
 
 /// Runs `body` in a column group named `labels` under the container `id` when `shared` is set, so the labelled
-/// rows inside share the widest label.
+/// rows directly inside share the widest label. Otherwise the body runs behind a barrier: the labelled rows of a
+/// nested container read no group of the container around it.
 fn shared_labels<R>(ui: &mut Ui, id: Id, shared: bool, body: impl FnOnce(&mut Ui) -> R) -> R {
-    if shared { ColumnGroup::scope(ui, sub(id, "labels"), |ui, _| body(ui)) } else { body(ui) }
+    if shared { ColumnGroup::scope(ui, sub(id, "labels"), |ui, _| body(ui)) } else { ColumnGroup::barrier(ui, body) }
 }
