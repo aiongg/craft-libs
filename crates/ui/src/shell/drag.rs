@@ -119,7 +119,7 @@ impl Component for WindowDrag {
             return;
         }
         match cx.part(STRIP).press.phase {
-            PressPhase::Down { start } if start.button == PointerButton::Primary => {
+            PressPhase::Down { start, .. } if start.button == PointerButton::Primary => {
                 self.pressed = true;
                 self.double_clicked = start.clicks >= 2;
             }
