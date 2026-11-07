@@ -23,7 +23,8 @@ status = "pending"
 name = "PresetFooter"
 old = "craft_ui::presets::footer::PresetFooter"
 new = "craft_ui::patterns::presets::PresetFooter"
-status = "pending"
+status = "moved"
+note = "A pattern on `FooterBar::actions` and `ThumbnailSlider`: `PresetFooter::new(Bind<f64>)` takes the zoom (`PresetState::zoom`) in place of `new(id_salt, &mut state)`; `show(ui)` returns `PresetFooterOutput { response, events, zoom }` in place of the event vector. The slider spans a `TileZoom` (`range`) in place of `thumb_range` in points."
 
 [[type]]
 name = "NamedPresetRow"
@@ -31,8 +32,267 @@ old = "craft_ui::presets::menu::named::NamedPresetRow"
 new = "craft_ui::patterns::presets::NamedPresetRow"
 status = "pending"
 
+[[type]]
+name = "PresetRow"
+old = "craft_ui::presets::PresetRow"
+new = "craft_ui::patterns::presets::PresetRow"
+status = "moved"
+note = "`preview(aspect: ThumbAspect, paint)` paints with `&ContentPainterCx` in place of `&egui::Painter`; `icon` takes an `IconId`; fields are `#[non_exhaustive]`."
+
+[[type]]
+name = "CellShape"
+old = "craft_ui::presets::CellShape"
+new = "craft_ui::patterns::presets::CellShape"
+status = "moved"
+note = "`Ratio { wide, high }` (parts, `CellShape::ratio(32, 18)`) in place of `Ratio(f32)`; `aspect()` gives a `ThumbAspect` in place of `size(thumb)`."
+
+[[type]]
+name = "ThumbInfo"
+old = "craft_ui::presets::ThumbInfo"
+new = "craft_ui::patterns::presets::ThumbInfo"
+status = "moved"
+note = "No `size`: the painter gets the rect."
+
+[[type]]
+name = "Preview"
+old = "craft_ui::presets::Preview"
+new = "craft_ui::patterns::presets::Preview"
+status = "moved"
+note = "`aspect` is a `ThumbAspect`."
+
+[[type]]
+name = "PresetKind"
+old = "craft_ui::presets::PresetKind"
+new = "craft_ui::patterns::presets::PresetKind"
+status = "moved"
+
+[[type]]
+name = "PresetKey"
+old = "craft_ui::presets::model::PresetKey"
+new = "craft_ui::patterns::presets::PresetKey"
+status = "moved"
+
+[[type]]
+name = "GroupPath"
+old = "craft_ui::presets::model::GroupPath"
+new = "craft_ui::patterns::presets::GroupPath"
+status = "moved"
+
+[[type]]
+name = "PresetId"
+old = "craft_ui::presets::model::PresetId"
+new = "craft_ui::patterns::presets::PresetId"
+status = "moved"
+
+[[type]]
+name = "PresetItem"
+old = "craft_ui::presets::model::PresetItem"
+new = "craft_ui::patterns::presets::PresetItem"
+status = "moved"
+
+[[type]]
+name = "PresetGroup"
+old = "craft_ui::presets::model::PresetGroup"
+new = "craft_ui::patterns::presets::PresetGroup"
+status = "moved"
+
+[[type]]
+name = "PresetLibrary"
+old = "craft_ui::presets::model::PresetLibrary"
+new = "craft_ui::patterns::presets::PresetLibrary"
+status = "moved"
+note = "`apply` takes the browser's `PresetEvent` (its Reorder carries a `ReorderMove`); `reorder(keys, to)` replaces `reorder(&Move)`: the keys in display order and the position they land at in the order that remains."
+
+[[type]]
+name = "PresetChange"
+old = "craft_ui::presets::model::PresetChange"
+new = "craft_ui::patterns::presets::PresetChange"
+status = "moved"
+
+[[type]]
+name = "PresetError"
+old = "craft_ui::presets::model::PresetError"
+new = "craft_ui::patterns::presets::PresetError"
+status = "moved"
+
+[[type]]
+name = "PresetState"
+old = "craft_ui::presets::PresetState"
+new = "craft_ui::patterns::presets::PresetState"
+status = "moved"
+note = "`zoom: f64` (a `TileZoom` factor) replaces `thumb: f32` in points; `zoom_in(&TileZoom)` replaces `thumb_in`; `view_menu_items(&PresetWords)` returns `[Entry<PresetView>; 2]`; `OpenChange.key` replaces `row`."
+
+[[type]]
+name = "PresetView"
+old = "craft_ui::presets::PresetView"
+new = "craft_ui::patterns::presets::PresetView"
+status = "moved"
+
+[[type]]
+name = "DefaultOpen"
+old = "craft_ui::presets::DefaultOpen"
+new = "craft_ui::patterns::presets::DefaultOpen"
+status = "moved"
+
+[[type]]
+name = "PresetEvent"
+old = "craft_ui::presets::PresetEvent"
+new = "craft_ui::patterns::presets::PresetEvent"
+status = "moved"
+note = "`Select`, `Activate` and `DropAt` carry `mods: Mods`, `DropAt` carries `at`; `Reorder` carries `EditEvent<ReorderMove<K>>`."
+
+[[type]]
+name = "PresetOutput"
+old = "craft_ui::presets::PresetOutput"
+new = "craft_ui::patterns::presets::PresetOutput"
+status = "moved"
+
+[[type]]
+name = "PresetLabels"
+old = "craft_ui::presets::PresetLabels"
+new = ""
+status = "removed"
+note = "Replaced by `PresetWords`, which the words system translates."
+
+[[type]]
+name = "PresetWords"
+old = ""
+new = "craft_ui::patterns::presets::PresetWords"
+status = "replaced"
+note = "The words of the family through `words!`; the path separator is `CommonWords::path_separator`."
+
+[[type]]
+name = "PresetFooterEvent"
+old = "craft_ui::presets::footer::PresetFooterEvent"
+new = "craft_ui::patterns::presets::PresetFooterEvent"
+status = "moved"
+note = "`Custom` and `CustomDrop` carry the index of the host action in the order given, in place of its id."
+
+[[type]]
+name = "PresetFooterOptions"
+old = "craft_ui::presets::PresetFooterOptions"
+new = ""
+status = "removed"
+note = "The browser takes a `PresetFooter` (`PresetBrowser::footer`)."
+
+[[type]]
+name = "PresetFooterOutput"
+old = ""
+new = "craft_ui::patterns::presets::PresetFooterOutput"
+status = "replaced"
+note = "What `PresetFooter::show` returns in place of the event vector."
+
+[[type]]
+name = "PresetFiles"
+old = "craft_ui::presets::menu::PresetFiles"
+new = "craft_ui::patterns::presets::PresetFiles"
+status = "moved"
+note = "Data the host drives: `commands()`, `enabled(command, selected)` and `request(command, selected) -> Option<PresetFileRequest>` in place of `take_events` and `start`, which read egui memory and the host's `Files`."
+
+[[type]]
+name = "PresetExport"
+old = "craft_ui::presets::menu::PresetExport"
+new = "craft_ui::patterns::presets::PresetExport"
+status = "moved"
+
+[[type]]
+name = "PresetFileEvent"
+old = "craft_ui::presets::menu::PresetFileEvent"
+new = "craft_ui::patterns::presets::PresetFileEvent"
+status = "moved"
+note = "Built by `PresetFileRequest::loaded`, `saved` and `failed` from the host's answer; `Failed` is new; `status(&PresetWords)` words it."
+
+[[type]]
+name = "PresetFileLabels"
+old = "craft_ui::presets::menu::PresetFileLabels"
+new = ""
+status = "removed"
+note = "Its words are in `PresetWords`."
+
+[[type]]
+name = "PresetFilesOutput"
+old = "craft_ui::presets::menu::PresetFilesOutput"
+new = ""
+status = "removed"
+note = "The host answers a `PresetFileRequest` with a `PresetFileEvent`; `PresetFileEvent::status` words the status line."
+
+[[type]]
+name = "PresetFileRequest"
+old = ""
+new = "craft_ui::patterns::presets::PresetFileRequest"
+status = "replaced"
+note = "The dialog a file command asks the host to run."
+
+[[type]]
+name = "PresetFileFailure"
+old = ""
+new = "craft_ui::patterns::presets::PresetFileFailure"
+status = "replaced"
+note = "Why a read or write failed."
+
+[[type]]
+name = "PresetCommands"
+old = ""
+new = "craft_ui::patterns::presets::PresetCommands"
+status = "replaced"
+note = "The panel menu's commands (Grid View, List View, New Group, Load, Replace, Save) as a `CommandSet`; they replace the `presets.*` and `presetFiles.*` command strings."
+
+[[type]]
+name = "PresetMenuOptions"
+old = "craft_ui::presets::menu::PresetMenuOptions"
+new = ""
+status = "removed"
+note = "The options are setters of `PresetPanelMenu`: `new_group`, `files`, `selected`."
+
+[[type]]
+name = "PresetMenuAction"
+old = "craft_ui::presets::menu::PresetMenuAction"
+new = "craft_ui::patterns::presets::PresetMenuAction"
+status = "moved"
+note = "`PickStarted` is `File(PresetFileRequest)`."
+
+[[type]]
+name = "PresetPanelMenu"
+old = "craft_ui::presets::menu::PresetPanelMenu"
+new = "craft_ui::patterns::presets::PresetPanelMenu"
+status = "moved"
+note = "`PresetPanelMenu::new(view)` with `rows()` (for `PanelMenu`), `states()` (for `CommandInput::state`) and `run_command(command)`, in place of `panel_menu(ctx, ..)` and `run_command(ctx, .., &mut state, ..)`; the host stores the view from `PresetMenuAction::View`."
+
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+
+[[setter]]
+type = "PresetFooter"
+old = "new(id_salt, &mut state)"
+new = "new(Bind::bound(&mut state.zoom))"
+
+[[setter]]
+type = "PresetFooter"
+old = "thumb_range(RangeInclusive<f32>)"
+new = "range(TileZoom)"
+
+[[setter]]
+type = "PresetFooter"
+old = "labels(&PresetLabels)"
+new = ""
+note = "The words come from the scope's `PresetWords`."
+
+[[setter]]
+type = "PresetFooter"
+old = "action(FooterAction)"
+new = "action(FooterAction)"
+note = "A `FooterAction` has no id: events name the action by its index."
+
+[[setter]]
+type = "PresetRow"
+old = "preview(f32, impl Fn(&Painter, Rect))"
+new = "preview(ThumbAspect, impl Fn(&ContentPainterCx, Rect))"
+
+[[setter]]
+type = "PresetRow"
+old = "icon(Icon)"
+new = "icon(IconId)"
+
+[[setter]]
+type = "PresetState"
+old = "thumb_in(&RangeInclusive<f32>)"
+new = "zoom_in(&TileZoom)"
