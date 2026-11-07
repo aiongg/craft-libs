@@ -36,3 +36,12 @@ pub use recent::{RecentFile, RecentSort, RecentView, Template, ThumbKey, sort_re
 pub use start::{StartAction, StartOutput, StartPinnedCommands, StartRecentCommands, StartScreen};
 pub use viewport_window::{ViewportWindow, ViewportWindowOutput};
 pub use words::StartWords;
+
+// Caption buttons: the four families' button, its slot layout and the icon-theme glyphs.
+mod caption_button;
+mod caption_icons;
+
+pub use caption_button::{CaptionButton, CaptionEnd, CaptionMetrics, CaptionPlan, CaptionSlot, WINDOWS_BUTTON_WIDTH};
+pub use caption_icons::{CaptionIcon, CaptionIcons, CaptionMask, IconThemeChain, RenderIconFn, ThemeFiles, base_dirs, caption_icon_theme};
+pub use craft_window::policy::{CaptionFamily, Captions, Frame, MacInset};
+pub use words::CaptionLabels;
