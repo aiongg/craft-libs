@@ -84,12 +84,7 @@ fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     fixture.frame(vec![pointer::secondary(at, true)]);
     fixture.frame(vec![pointer::secondary(at, false)]);
     fixture.settle();
-    let names: Vec<String> = fixture.tree().keys().into_iter().map(|k| format!("{:?}", fixture.tree().name_of(k))).collect();
-    let delete = fixture.by_label("Delete");
-    if label == "Coral" {
-        panic!("DEBUGC {names:?} {:?} {}", seen.borrow(), delete.is_some());
-    }
-    let delete = delete.unwrap_or_else(|| panic!("DEBUG {names:?} {:?}", seen.borrow()));
+    let delete = fixture.by_label("Delete").expect("a secondary click on a preset opens the row menu");
     fixture.click(&delete);
     fixture.idle(3);
     let reported = seen.borrow().clone();
@@ -108,43 +103,4 @@ fn the_row_menu_deletes_a_preset_can_delete_passes() {
 fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
     let events = events_after_menu_delete("Coral");
     assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
-}
-
-#[trial]
-fn debug_nomove() {
-    let (mut fixture, _seen) = deleting_picker();
-    open(&mut fixture);
-    let at = fixture.by_label("Amber").expect("tile").rect.center();
-    let names = |f: &Fixture| -> Vec<String> { f.tree().keys().into_iter().filter_map(|k| f.tree().name_of(k).map(str::to_owned)).collect() };
-    let mut log = Vec::new();
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    log.push(names(&fixture));
-    fixture.frame(vec![pointer::secondary(at, false)]);
-    log.push(names(&fixture));
-    fixture.idle(2);
-    log.push(names(&fixture));
-    panic!("DEBUGF {log:?}");
-}
-
-#[trial]
-fn debug_unselected_value() {
-    let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
-    let mut fixture = Fixture::new(move |ui| {
-        let mut held: Option<u32> = None;
-        let rows = rows();
-        let mut view = state.borrow_mut();
-        let _ = PresetPicker::new("Swatch", Bind::bound(&mut held), &rows, Bind::bound(&mut *view)).show(ui);
-    });
-    fixture.settle();
-    open(&mut fixture);
-    let at = fixture.by_label("Amber").expect("tile").rect.center();
-    let names = |f: &Fixture| -> Vec<String> { f.tree().keys().into_iter().filter_map(|k| f.tree().name_of(k).map(str::to_owned)).collect() };
-    let mut log = Vec::new();
-    fixture.frame(vec![pointer::moved(at)]);
-    fixture.frame(vec![pointer::secondary(at, true)]);
-    fixture.frame(vec![pointer::secondary(at, false)]);
-    log.push(names(&fixture));
-    fixture.idle(2);
-    log.push(names(&fixture));
-    panic!("DEBUGF {log:?}");
 }
