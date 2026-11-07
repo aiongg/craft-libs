@@ -85,4 +85,8 @@ impl Role {
     pub const ALERT: Role = Role::Node(accesskit::Role::Alert);
     /// A toolbar.
     pub const TOOLBAR: Role = Role::Node(accesskit::Role::Toolbar);
+    /// A canvas.
+    pub const CANVAS: Role = Role::Node(accesskit::Role::Canvas);
+    /// An object drawn on a canvas: a node of a node graph.
+    pub const GRAPHICS_OBJECT: Role = Role::Node(accesskit::Role::GraphicsObject);
 }

@@ -11,9 +11,9 @@ use crate::runtime::access::{self, scope};
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::sub;
-use crate::style::Ink;
+use crate::style::{Ink, StyleCx};
 use craft_behavior::PartRef;
-use craft_theme::ControlSize;
+use craft_theme::{ControlSize, Variant};
 use egui::{Id, Rect, Response, Ui};
 use std::cell::RefCell;
 use std::fmt::Debug;
@@ -43,6 +43,14 @@ impl PaintUi<'_> {
     /// The content-paint API: text, rules, surfaces and shapes, recorded for the later steps.
     pub fn draw(&self) -> Draw<'_> {
         Draw::new(self.ui.painter(), self.record, DrawEnv { tokens: &self.env.tokens, direction: self.env.direction, ink: self.ink })
+    }
+
+    /// Runs `f` with the style context of this component's env, so app hooks called from `paint` pick colours and
+    /// sizes through tokens as `style` does.
+    pub fn with_style<R>(&self, variant: Variant, f: impl FnOnce(&StyleCx<'_>) -> R) -> R {
+        let env = self.env;
+        let cx = StyleCx::new(self.ui.ctx(), &env.tokens, &env.values, self.size, variant, env.direction, env.scale, env.os, env.active, env.key);
+        f(&cx)
     }
 
     /// Shows a child component at a physical rect, with id `cx.key(key)`. The child `Ui` is pinned left to
