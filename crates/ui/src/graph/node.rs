@@ -108,6 +108,11 @@ impl<E: 'static> Component for Node<'_, E> {
     type Style = NodeStyle;
     type Output = NodeOutput<E>;
 
+    /// A port is a circle centred on the node's edge: half its side and half its edge stroke stick out.
+    fn paint_outset(tokens: &crate::style::UiTokens) -> f32 {
+        (tokens.size.handle.md + tokens.stroke.thin) / 2.0
+    }
+
     fn style(cx: &StyleCx<'_>, _: NodeStyleKey<E>) -> NodeStyle {
         let control = cx.control();
         let color = &cx.tokens.color;

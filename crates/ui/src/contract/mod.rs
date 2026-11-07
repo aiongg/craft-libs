@@ -232,6 +232,12 @@ pub trait Component: Meta + Sized {
         Self::SHOWS_LABEL
     }
 
+    /// How far the component paints outside its rect by design, in points (a graph node's ports sit on its edge).
+    /// Steps 13 and 14 clip to the rect grown by this much; the paint-bounds suite case reads it.
+    fn paint_outset(_tokens: &crate::style::UiTokens) -> f32 {
+        0.0
+    }
+
     /// Pure function of the resolved context and the key.
     fn style(cx: &StyleCx<'_>, key: Self::StyleKey) -> Self::Style;
 

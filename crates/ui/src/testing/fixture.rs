@@ -203,6 +203,11 @@ impl Fixture {
         self.frames.shape_bounds()
     }
 
+    /// Half the stroke width of the shape behind each of `shape_bounds`.
+    pub fn shape_overshoot(&self) -> &[f32] {
+        self.frames.shape_overshoot()
+    }
+
     /// Whether anything asked for another pass since the latest frame ended.
     pub fn repaint_requested(&self) -> bool {
         self.frames.repaint_requested()

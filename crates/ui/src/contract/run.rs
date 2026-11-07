@@ -510,8 +510,14 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let mut values = AppValues::default();
     comp.content_env(cx, &mut values);
     steps::paint_surface(ui, env, cx);
+    // Paint and content stay inside the rect (grown by the type's declared outset), however small the room is.
+    let outer_clip = ui.clip_rect();
+    let inside = cx.core.rect.expand(C::paint_outset(&env.tokens)).intersect(outer_clip);
+    ui.set_clip_rect(inside);
     comp.paint(&mut paint_ui(&mut *ui, env, cx), cx);
+    ui.set_clip_rect(outer_clip);
     steps::paint_focus(ui, cx);
+    ui.set_clip_rect(inside);
     // 14 content, then `paint_over`
     if p.trace.mark(Step::Content) {
         if C::ROLE == Role::Merged {
@@ -520,6 +526,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         p.hooks.content(comp, ui, env, cx, &values);
     }
     comp.paint_over(&mut paint_ui(&mut *ui, env, cx), cx);
+    ui.set_clip_rect(outer_clip);
     // 15 settle
     p.trace.mark(Step::Settle);
     p.hooks.settle(comp, cx);
