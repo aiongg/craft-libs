@@ -3,14 +3,22 @@
 use super::{AltText, AltTextField};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
-use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
-use egui::Ui;
+use egui::{Key, Modifiers, Ui};
 
 const PROMPT: &str = "How would you describe this object and its context to someone who is blind or has low vision?";
 const LONG: &str = "A red kite with a long white tail flying over a grey beach on a windy afternoon, with two children holding its string and a dog running behind them";
 
-#[story(AltTextField<'static>, covers = [Default], drive = Drive::Type("A kite"))]
+/// Enter inserts a line break in the multi-line description, so the typed text commits when focus leaves it.
+fn type_and_leave(fixture: &mut Fixture) {
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("A kite");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.idle(2);
+}
+
+#[story(AltTextField<'static>, covers = [Default], drive = Drive::Custom(type_and_leave))]
 fn alt_text_field(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     AltTextField::new(PROMPT, Bind::bound(data.value("alt", AltText::new("A red kite")))).show(ui).into()
 }

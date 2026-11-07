@@ -74,8 +74,8 @@ fn decorative_alt_text_stays_visible_and_is_not_a_tab_stop() {
         field.set(AltTextField::new("Describe", Bind::bound(&mut *shown.borrow_mut())).show(ui).response.id);
     });
     fixture.settle();
-    let text_node = craft_ui::testing::access::NodeKey::of(craft_ui::testing::text::widget_id(id.get(), craft_behavior::PartKey::new("text")));
-    let disabled = |fixture: &Fixture| fixture.tree().data_of(text_node).is_some_and(|node| node.is_disabled());
+    let text_id = craft_ui::testing::text::widget_id(id.get(), craft_behavior::PartKey::new("text"));
+    let disabled = |fixture: &Fixture| fixture.tree().is_disabled(text_id);
     assert!(!disabled(&fixture), "the description is editable at first");
     let check = fixture.by_label("Mark as decorative").expect("the check is shown");
     fixture.click(&check);

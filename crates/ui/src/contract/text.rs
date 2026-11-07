@@ -2,7 +2,7 @@
 //! text adapter, then the typing run over what the adapter recorded, and applies the run's events through `Cx`.
 
 use super::cx::{Cx, PartsCx, gesture_key};
-use super::{Component, Edit as _, Overlays as _, ValueOf};
+use super::{Component, Edit as _, Focus as _, Overlays as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
 use crate::runtime::access::text as text_access;
@@ -278,7 +278,13 @@ pub(crate) fn run<C: Component>(
             now,
         },
     );
-    if out.focused && !was_focused {
+    // Focus that moved to another part of the component leaves the text part like a focus loss: the draft commits.
+    let left_for_part = out.focused && cx.active_part().is_some();
+    if left_for_part {
+        state.focused = false;
+    }
+    let commit_now = step.commit_now || (was_focused && left_for_part);
+    if out.focused && !left_for_part && !was_focused {
         let len = decl.shown.chars().count();
         match decl.caret {
             Caret::All => adapter::select(&ctx, widget, 0, len),
@@ -288,7 +294,7 @@ pub(crate) fn run<C: Component>(
     if decl.options.complete.is_some() {
         drive_completions(cx, state.completions.open);
     }
-    let resolved = resolve(&mut state, cx.value(), step.commit_now);
+    let resolved = resolve(&mut state, cx.value(), commit_now);
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
     if state.draft.is_some() {
