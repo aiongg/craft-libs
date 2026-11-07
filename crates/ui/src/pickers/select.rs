@@ -229,6 +229,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.text)).show(ui);
                         query.clone_from(&typed.text);
                         // The dropdown leaves the key focus on the select; the filter field takes it so typing reaches it.
+                        eprintln!("DBG field focus={} q={:?} id={:?}", field.response.has_focus(), typed_dbg(&query), field.response.id);
                         let taken = &mut body.memory::<Query>().focused;
                         if field.response.has_focus() {
                             *taken = true;
@@ -299,3 +300,5 @@ struct Query {
 fn search_name(words: &PickerWords, select: &Label) -> Label {
     if select.as_str().is_empty() { words.search.clone() } else { Label::from(format!("{} {}", select.as_str(), words.search.as_str())) }
 }
+
+fn typed_dbg(q: &str) -> String { q.to_owned() }
