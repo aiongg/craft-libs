@@ -174,7 +174,7 @@ impl<'a> BrushCursor<'a> {
         }
         match options.painting {
             PaintingCursor::Precise => return self.crosshair(),
-            PaintingCursor::Standard => return PaintedCursor::tool(self.icon.clone(), Vec2::splat(ICON_BOX / 2.0), self.badge),
+            PaintingCursor::Standard => return PaintedCursor::tool(self.icon.clone(), (Vec2::X + Vec2::Y) * (ICON_BOX / 2.0), self.badge),
             PaintingCursor::NormalBrushTip | PaintingCursor::FullSizeBrushTip => {}
         }
         // Rule 3.

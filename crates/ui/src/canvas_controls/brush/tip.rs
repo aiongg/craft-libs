@@ -1,6 +1,6 @@
 //! The brush tip as the cursor draws it.
 
-use craft_behavior::kurbo::{Rect, Vec2};
+use craft_behavior::kurbo::{Affine, Rect, Vec2};
 use std::sync::Arc;
 
 /// The unit length of a tip axis.
@@ -137,9 +137,15 @@ impl TipPose {
         TipPose { x_axis, y_axis }
     }
 
+    /// The pose whose axes are the images of the unit axes under the linear part of `map`.
+    pub fn from_linear(map: Affine) -> TipPose {
+        let [xx, xy, yx, yy, ..] = map.as_coeffs();
+        TipPose::new(Vec2::new(xx, xy), Vec2::new(yx, yy))
+    }
+
     /// No pose: the document's axes.
-    pub const fn upright() -> TipPose {
-        TipPose::new(Vec2::new(UNIT, NONE), Vec2::new(NONE, UNIT))
+    pub fn upright() -> TipPose {
+        TipPose::from_linear(Affine::IDENTITY)
     }
 
     /// The pose of a pen: the tip turned clockwise by `degrees` (the app's angle from its shape dynamics: pen tilt

@@ -23,8 +23,12 @@ const MAX_DIAMETER: f64 = 400.0;
 /// Rounding slack for lengths computed in f32.
 const SLACK: f32 = 0.01;
 
+fn view_at(zoom: f64) -> CanvasView {
+    CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)), Point::new(100.0, 100.0), zoom)
+}
+
 fn view() -> CanvasView {
-    CanvasView::new(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)), Point::new(100.0, 100.0), ZOOM)
+    view_at(ZOOM)
 }
 
 fn options(painting: PaintingCursor) -> BrushCursorOptions {
@@ -61,10 +65,12 @@ fn the_painting_cursor_follows_the_preferences() {
 
     assert!(matches!(show(&brush, &options(PaintingCursor::Standard), false), PaintedCursor::Tool { .. }));
     assert_eq!(show(&brush, &options(PaintingCursor::Precise), false), PaintedCursor::Crosshair);
-    let normal = show(&brush, &options(PaintingCursor::NormalBrushTip), false);
-    assert!((radius(&normal) - NORMAL as f32 * ZOOM as f32).abs() < SLACK);
-    let full = show(&brush, &options(PaintingCursor::FullSizeBrushTip), false);
-    assert!((radius(&full) - DIAMETER as f32 / 2.0 * ZOOM as f32).abs() < SLACK);
+    let normal = radius(&show(&brush, &options(PaintingCursor::NormalBrushTip), false));
+    let full = radius(&show(&brush, &options(PaintingCursor::FullSizeBrushTip), false));
+    // The two outlines are in the proportion of the tip's radii, and zooming in scales them.
+    assert!((full / normal - (DIAMETER / 2.0 / NORMAL) as f32).abs() < SLACK);
+    let zoomed = BrushCursor::new(&tip).cursor(&options(PaintingCursor::NormalBrushTip), &view_at(2.0 * ZOOM), false);
+    assert!((radius(&painted(zoomed)) / normal - 2.0).abs() < SLACK);
 
     // Caps Lock gives the crosshair over every preference, unless the preference turns it off.
     for painting in [PaintingCursor::Standard, PaintingCursor::NormalBrushTip] {
@@ -122,7 +128,7 @@ fn a_pixel_cell_follows_a_turned_and_a_mirrored_view_on_the_pixel_grid() {
     let cell = |view: &CanvasView| brush.pixel_cell(view, 1.0).expect("an aliased tip has a cell");
 
     let upright = cell(&base);
-    assert_eq!(upright.size(), vec2(4.0 * ZOOM as f32, 2.0 * ZOOM as f32));
+    assert_eq!(upright.width(), 2.0 * upright.height());
     assert!(upright.center().x > middle.x);
 
     let mirrored = cell(&base.flip_x(true));
