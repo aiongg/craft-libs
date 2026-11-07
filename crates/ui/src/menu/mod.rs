@@ -15,4 +15,4 @@ pub use item::{MenuItem, MenuItemOutput, MenuItemStyle};
 pub use popup::{Menu, MenuOutput, MenuPick, MenuStyle};
 pub use panel::{GroupItem, PanelMenu, PanelRow};
 pub use words::{MenuBarWords, PanelMenuWords};
-pub(crate) use popup::{entry_rows, layer};
+pub(crate) use popup::{entry_rows, layer, pick_from};

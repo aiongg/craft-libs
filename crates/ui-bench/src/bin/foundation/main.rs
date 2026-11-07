@@ -8,18 +8,22 @@ mod kit;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, Selection};
+use craft_behavior::{ColumnKey, ColumnWidth, Selection};
 use craft_host::target::ShellInfo;
 use craft_ui::contract::{
     Bind, Collapse, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
 };
+use craft_ui::contract::ColumnSpec;
 use craft_ui::dialog::Dialog;
 use craft_ui::layout::ColumnGroup;
 use craft_ui::list::{List, ListRow};
+use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::runtime::env::RootEnv;
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
+use craft_ui::table::Table;
 use craft_ui::text::{NumberField, TextField};
+use craft_ui::tile_grid::{Tile, TileGrid};
 use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, gate_failures, print_table, read_json, run_all, write_json};
 use craft_window::system::NoWindows;
 use egui::{Context, Event, Modifiers, MouseWheelUnit, Pos2, Ui, Vec2, vec2};
@@ -61,8 +65,9 @@ impl Library for Foundation {
             "sheet-50x200" => (Box::new(SheetScene), "BenchList of 200 rows, each with 50 cell parts that paint their text"),
             // F8-MERGE: canvas: the canvas component and its declared controls.
             "canvas-50-controls" => (Box::new(CanvasScene), "a leaf with 50 control parts painted as knobs"),
-            // F8-MERGE: menu: the menu component.
-            "menu-40-rows" => (Box::new(MenuScene), "a container on the menu layer, open from the first frame, over a List of 40 ListRow rows"),
+            "menu-40-rows" => (Box::new(MenuScene), "a Menu open from the first frame over 40 MenuItem rows"),
+            "table-1000x5" => (Box::new(TableScene), "a Table of 1,000 rows and 5 columns, text in every cell"),
+            "tile-grid-500" => (Box::new(TileGridScene), "a TileGrid of 500 Tiles"),
             "text-field-100kb" => (Box::new(TextScene::new()), "TextField::lines(30) bound with Bind::bound over a 100 KB String"),
             "list-10000-selected" => (Box::new(ListScene::new(Selected::All)), "List over 10,000 ListRow rows, all 10,000 keys in the Selection"),
             "collapse-in-content-sized-panel" => {
@@ -180,15 +185,50 @@ impl Scene for MenuScene {
     }
 
     fn show(&mut self, ui: &mut Ui, _frame: u64) {
-        let rows = Count(40);
         let mut open = true;
-        let props = ContainerProps::new().mount(Mount::Layer(Overlay::menu())).sizing(Sizing::Content);
-        let _ = Panel::new(props).headerless().bind_open(Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
-            let _ = List::new("Items")
-                .select(SelectMode::Single)
-                .id_salt("rows")
-                .show_items(ui, &rows, &mut |&key, _| ListRow::new(format!("Item {key}")));
+        let _ = Menu::new("Items", Bind::bound(&mut open)).id_salt("menu").show(ui, |ui, _| {
+            for key in 0..40 {
+                let _ = MenuItem::new(format!("Item {key}")).id_salt(key).show(ui);
+            }
         });
+    }
+}
+
+const TABLE_ROWS: usize = 1_000;
+/// The five columns of the table scenario: key and header.
+const TABLE_COLUMNS: [(&str, &str); 5] = [("name", "Name"), ("kind", "Kind"), ("size", "Size"), ("pages", "Pages"), ("owner", "Owner")];
+
+struct TableScene;
+
+impl Scene for TableScene {
+    fn size(&self) -> Vec2 {
+        vec2(900.0, 700.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let columns: Vec<ColumnSpec> =
+            TABLE_COLUMNS.iter().map(|&(key, header)| ColumnSpec::new(ColumnKey::new(key), header, ColumnWidth::fill(1.0)).resizable()).collect();
+        let rows = Count(TABLE_ROWS);
+        let _ = Table::<usize>::new("Files", columns).id_salt("table").show_items(ui, &rows, &mut |&key, cx| {
+            let mut row = ListRow::new(format!("File {key}")).cells(cx.cells());
+            for (at, &(column, _)) in TABLE_COLUMNS.iter().enumerate().skip(1) {
+                row = row.cell(ColumnKey::new(column), format!("{} {key}", at * 10));
+            }
+            row
+        });
+    }
+}
+
+struct TileGridScene;
+
+impl Scene for TileGridScene {
+    fn size(&self) -> Vec2 {
+        vec2(900.0, 700.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let tiles = Count(500);
+        let _ = TileGrid::<usize>::new("Photos").id_salt("grid").show_items(ui, &tiles, &mut |&key, _| Tile::new(format!("Photo {key}")));
     }
 }
 

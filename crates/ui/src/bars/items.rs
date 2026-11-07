@@ -15,7 +15,6 @@ use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Axis, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_theme::Variant;
 use egui::{Rect, Response, Vec2, pos2};
-use std::borrow::Cow;
 
 const ITEM: PartKey = PartKey::new("item");
 const MORE: PartKey = PartKey::new("more");
@@ -204,12 +203,9 @@ impl Face {
     }
 }
 
-/// The icon of a command: only a name the registry holds as a static string has one.
+/// The icon of a command, when the registry names one.
 fn icon_of(resolved: &ResolvedCommand) -> Option<IconSpec<'static>> {
-    match resolved.icon.as_ref()? {
-        Cow::Borrowed(name) => Some(IconSpec::svg(IconId::new(*name))),
-        Cow::Owned(_) => None,
-    }
+    resolved.icon.clone().map(|name| IconSpec::svg(IconId::from(name)))
 }
 
 /// What the item shows: its display, or its label when the command has no icon for it.

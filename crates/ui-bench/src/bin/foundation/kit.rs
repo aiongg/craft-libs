@@ -278,18 +278,11 @@ pub struct Panel<'a> {
     #[container]
     props: ContainerProps,
     open: Option<Bind<'a, bool>>,
-    headed: bool,
 }
 
 impl<'a> Panel<'a> {
     pub fn new(props: ContainerProps) -> Self {
-        Panel { common: Common::new(), props, open: None, headed: true }
-    }
-
-    /// A panel with no header row, as a menu's popup has none.
-    pub fn headerless(mut self) -> Self {
-        self.headed = false;
-        self
+        Panel { common: Common::new(), props, open: None }
     }
 
     pub fn bind_open(mut self, open: Bind<'a, bool>) -> Self {
@@ -318,8 +311,6 @@ impl Container for Panel<'_> {
     }
 
     fn header(&mut self, ui: &mut egui::Ui, _: &mut BodyCx<'_>) {
-        if self.headed {
-            ui.allocate_space(vec2(100.0, ROW_H));
-        }
+        ui.allocate_space(vec2(100.0, ROW_H));
     }
 }

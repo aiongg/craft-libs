@@ -5,7 +5,6 @@ use super::words::StatusReadoutWords;
 use crate::buttons::IconButton;
 use crate::contract::{Bind, BodyCx, EditResponse, Entry, Outcome, Props as _, Show as _, ShowContainer as _, WordSetCx as _};
 use crate::display::{Elide, Text};
-use crate::menu::Menu;
 use crate::runtime::env::{Label, UnitKind};
 use craft_behavior::IconId;
 use craft_i18n::Format;
@@ -244,7 +243,7 @@ impl<'a> StatusReadout<'a> {
         let more = IconButton::new(IconId::new("chevron_right")).label(words.menu.clone()).show(ui);
         let entries: Vec<Entry<StatusItem>> =
             StatusItem::ALL.iter().map(|&item| Entry::new(item, item.name(&words)).checked(item == self.item)).collect();
-        let menu = Menu::new(words.menu.clone()).opened_by(&more).entries(&entries).show(ui, |_, _| {});
+        let menu = crate::menu::pick_from(ui, words.menu.clone(), &more, &entries);
         StatusReadoutOutput { zoom: zoom.edit, item: menu.picked }
     }
 }

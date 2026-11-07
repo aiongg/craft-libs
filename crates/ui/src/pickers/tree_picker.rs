@@ -16,7 +16,7 @@ use crate::contract::{
 use crate::list::{List, ListRow, OpenSet, RowInk};
 use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, FocusLook, StyleCx};
+use crate::style::{ComponentStyle, FocusLook, StyleCx, SurfaceLook};
 use craft_behavior::overlay::MinWidth;
 use craft_behavior::{DisplayOrder, ItemSource, Metrics, PartKey, Selection, Sense, Value};
 use egui::{Rect, Vec2};
@@ -78,6 +78,10 @@ impl<K> TreeEntry<K> {
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct TreePickerStyle {
+    /// The field well; the face carries the padding.
+    #[style(surface)]
+    surface: SurfaceLook,
+    /// No padding of its own: the face carries the field's.
     #[style(metrics)]
     metrics: Metrics,
     #[style(focus)]
@@ -204,12 +208,12 @@ impl<'a, K: Value + Eq + Hash> TreePicker<'a, K> {
         Some(names.join(separator))
     }
 
-    /// What the field shows: the picked item's path, else the placeholder.
-    fn shown(&self, value: Option<&Option<K>>, words: &TreePickerWords) -> Label {
+    /// What the field shows: the picked item's path, else the placeholder in its muted look.
+    fn face(&self, value: Option<&Option<K>>, words: &TreePickerWords, env: &crate::runtime::env::EnvView<'_>) -> SelectFace {
         let path = value.and_then(Option::as_ref).and_then(|key| self.path(key, words.separator.as_str()));
         match path {
-            Some(path) => Label::from(path),
-            None => self.placeholder.clone().unwrap_or_else(|| words.placeholder.clone()),
+            Some(path) => SelectFace::new(path),
+            None => SelectFace::new(env.resolve(&self.placeholder.clone().unwrap_or_else(|| words.placeholder.clone()))).placeholder(),
         }
     }
 }
@@ -220,7 +224,7 @@ impl<K: Value + Eq + Hash> Component for TreePicker<'_, K> {
     type Output = EditResponse<Option<K>>;
 
     fn style(cx: &StyleCx<'_>, _: TreePickerStyleKey<K>) -> TreePickerStyle {
-        TreePickerStyle { metrics: cx.control().metrics(), focus: cx.focus_look() }
+        TreePickerStyle { surface: cx.field(), metrics: Metrics::new(), focus: cx.focus_look() }
     }
 
     fn sense(&self) -> Sense {
@@ -228,8 +232,7 @@ impl<K: Value + Eq + Hash> Component for TreePicker<'_, K> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.env.resolve(&self.shown(cx.value(), &cx.words::<TreePickerWords>()));
-        cx.face(SelectFace::new(text))
+        cx.face(self.face(cx.value(), &cx.words::<TreePickerWords>(), &cx.env))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -329,8 +332,7 @@ impl<K: Value + Eq + Hash> Component for TreePicker<'_, K> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let text = cx.env.resolve(&self.shown(cx.value(), &cx.words::<TreePickerWords>()));
-        ui.face(FACE, SelectFace::new(text));
+        ui.face(FACE, self.face(cx.value(), &cx.words::<TreePickerWords>(), &cx.env));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Option<K>> {

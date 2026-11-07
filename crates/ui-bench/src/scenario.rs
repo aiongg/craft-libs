@@ -19,6 +19,8 @@ pub const SCENARIOS: &[Scenario] = &[
     Scenario { name: "sheet-50x200", description: "a sheet of 50 x 200 visible cells as row parts", no_discard: false },
     Scenario { name: "canvas-50-controls", description: "a canvas with 50 canvas controls", no_discard: false },
     Scenario { name: "menu-40-rows", description: "an open menu with 40 rows", no_discard: false },
+    Scenario { name: "table-1000x5", description: "a table of 1,000 rows and 5 columns", no_discard: false },
+    Scenario { name: "tile-grid-500", description: "a tile grid of 500 tiles", no_discard: false },
     Scenario { name: "text-field-100kb", description: "a 100 KB multi-line text field, bound", no_discard: false },
     Scenario { name: "list-10000-selected", description: "a list with 10,000 selected keys", no_discard: false },
     Scenario { name: "collapse-in-content-sized-panel", description: "a collapse animating inside a content-sized panel", no_discard: true },

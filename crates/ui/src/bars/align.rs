@@ -5,7 +5,6 @@ use super::words::AlignWords;
 use crate::buttons::IconButton;
 use crate::contract::{BodyCx, Entry, Props as _, Show as _, ShowContainer as _, WordSetCx as _};
 use crate::display::Divider;
-use crate::menu::Menu;
 use crate::runtime::env::Label;
 use craft_behavior::IconId;
 use egui::{Response, Ui};
@@ -189,7 +188,7 @@ impl<'a> AlignBar<'a> {
         let mut entries: Vec<Entry<AlignAction>> = AlignAction::ALIGN.into_iter().map(entry).collect();
         entries.push(Entry::separator());
         entries.extend(AlignAction::DISTRIBUTE.into_iter().map(entry));
-        let chosen = Menu::new(words.more.clone()).opened_by(&more).entries(&entries).show(ui, |_, _| {}).picked;
+        let chosen = crate::menu::pick_from(ui, words.more.clone(), &more, &entries).picked;
         AlignBarOutput { picked: chosen.or(picked), more }
     }
 }

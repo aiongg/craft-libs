@@ -17,7 +17,7 @@
 mod stories;
 
 use super::words::MenuBarWords;
-use super::{Menu, MenuItem};
+use super::MenuItem;
 use crate::buttons::ToggleButton;
 use crate::contract::overlay::Anchor;
 use crate::contract::{
@@ -490,8 +490,7 @@ impl Component for MenuBar<'_> {
             }
             Open::More => {
                 for title in titles.iter_mut().skip(from) {
-                    let head = MenuItem::submenu(title.label.clone()).show(ui);
-                    Menu::submenu(&head).show(ui, |ui, _| (title.body)(ui));
+                    super::popup::submenu_rows(ui, title.label.clone(), |ui| (title.body)(ui));
                 }
             }
         });

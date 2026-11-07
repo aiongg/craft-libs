@@ -2,8 +2,8 @@
 //! menu): the host's rows, then the dock's group rows.
 
 use super::words::PanelMenuWords;
-use super::{Menu, MenuItem};
-use crate::contract::{Show as _, ShowContainer as _};
+use super::MenuItem;
+use crate::contract::Show as _;
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
@@ -84,13 +84,12 @@ impl PanelMenu {
                     MenuItem::command(command.clone()).show(ui);
                 }
                 PanelRow::Item(item, label) => {
-                    if MenuItem::new(label.clone()).show(ui).clicked() {
+                    if MenuItem::new(label.clone()).show(ui).ran {
                         *picked = Some(*item);
                     }
                 }
                 PanelRow::Submenu(label, rows) => {
-                    let head = MenuItem::submenu(label.clone()).show(ui);
-                    Menu::submenu(&head).show(ui, |ui, _| Self::rows(ui, rows, picked));
+                    super::popup::submenu_rows(ui, label.clone(), |ui| Self::rows(ui, rows, picked));
                 }
                 PanelRow::Separator => {
                     Divider::horizontal().show(ui);
