@@ -1,0 +1,2 @@
+craft-ui it sections::stack::
+craft-ui it suite::craft_ui::sections::stack
