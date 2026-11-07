@@ -194,6 +194,7 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
                 tree.keys().into_iter().any(|node| tree.declares_key(node, declared))
             };
             let (can_expand, can_collapse) = (declares_before(Declared::Expand), declares_before(Declared::Collapse));
+            let can_click = declares_before(Declared::Click);
             fixture.take_outputs();
             fixture.key(key, Modifiers::NONE);
             fixture.idle(2);
@@ -214,7 +215,10 @@ fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
             }
             let opens = any_expanded(fixture.tree());
             for declared in needs {
-                if !tree.keys().into_iter().any(|node| tree.declares_key(node, declared)) {
+                // A key that closes the container (Enter on its close action) takes the declaring node with it, so
+                // `Click` counts when a node declared it before the key, as `Expand` and `Collapse` do.
+                let before = declared == Declared::Click && can_click;
+                if !before && !tree.keys().into_iter().any(|node| tree.declares_key(node, declared)) {
                     return Err(format!("{}: {key:?} took an intent and no node declares {declared:?}", story.name));
                 }
             }

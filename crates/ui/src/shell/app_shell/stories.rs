@@ -1,7 +1,7 @@
 //! Stories of `AppShell` and `ShellRegion`.
 
 use super::{AppShell, ShellRegion};
-use crate::contract::{Show as _, ShowContainer as _};
+use crate::contract::{Props as _, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::runtime::env::WindowKey;
 use crate::shell::Slot;
@@ -33,6 +33,7 @@ fn app_shell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(ShellRegion, covers = [Default], drive = Drive::Never)]
 fn shell_region(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     ShellRegion::window()
+        .label("Window")
         .show(ui, |ui, _| {
             Text::new("Window").show(ui);
         })

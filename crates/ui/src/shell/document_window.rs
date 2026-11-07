@@ -9,6 +9,7 @@ use crate::contract::{
     Props as _, Role, SaveKey, Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::Label;
+use crate::runtime::focus::FocusPolicy;
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::windows::{WindowAction, WindowHost, WindowSpec};
 use crate::sections::{HeaderAction, HeaderStrength, TitleRow};
@@ -81,7 +82,8 @@ pub struct DocumentWindow<'a> {
 impl DocumentWindow<'_> {
     /// A window titled `title`, resizable, with the installed decision's frame.
     pub fn new(title: impl Into<Label>) -> Self {
-        let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable);
+        // A document window is a pane of the app: F6 reaches it and Escape does not close it.
+        let fallback = Overlay::floating().resizable(true).fit(OverlayFit::Resizable).focus(FocusPolicy::PANE);
         let props = ContainerProps::new()
             .surface(SurfaceKind::Background)
             .pad(Pad::None)
@@ -121,8 +123,8 @@ impl DocumentWindow<'_> {
         self
     }
 
-    /// Where a window of `size` opens when it follows the window at `previous`: one cascade step down and across,
-    /// back at the monitor's corner when that would leave the monitor. `monitors` are in the points of the window
+    /// Where a window of `size` opens when it follows the window at `previous`: one cascade step down and across;
+    /// an axis on which that would leave the monitor starts again at the monitor's edge. `monitors` are in the points of the window
     /// at `previous`; without monitors the step is not bounded.
     pub fn cascade_in(previous: Rect, size: Vec2, monitors: &[Rect]) -> Rect {
         let rect = |rect: Rect| craft_window::Rect::new(rect.min.x, rect.min.y, rect.width(), rect.height());
