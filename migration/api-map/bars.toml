@@ -32,25 +32,29 @@ note = "`Bar::new(label, BarKind::Status)`; the body holds the fields in reading
 name = "StatusReadout"
 old = "craft_ui::patterns::status_readout::StatusReadout"
 new = "craft_ui::bars::StatusReadout"
-status = "pending"
+status = "moved"
+note = "A `Pattern` shown inside the body of a status `Bar` with `StatusReadout::new(zoom: Bind<Option<f64>>, item, &values).show_in(ui, cx)`; `StatusReadout::new(id_salt)` and `show(ui, zoom, item, values)` are gone. The output is `StatusReadoutOutput { zoom: EditResponse<Option<f64>>, item }`; a zoom edit is read from `zoom` and written through the binding. `StatusReadoutLabels` is `StatusReadoutWords`; `labels(..)` is gone (words come from the scope)."
 
 [[type]]
 name = "AlignBar"
 old = "craft_ui::patterns::align::AlignBar"
 new = "craft_ui::bars::AlignBar"
-status = "pending"
+status = "moved"
+note = "A `Pattern` shown inside the body of a `Bar` with `AlignBar::new().show_in(ui, cx)`; `AlignBar::new(id_salt)`, `labels(..)` and `show(ui)` are gone. The output is `AlignBarOutput { picked, more }`. `AlignLabels` is `AlignWords`. `AlignBar::style` is gone."
 
 [[type]]
 name = "PanelFooter"
 old = "craft_ui::composites::panel_footer::PanelFooter"
-new = "craft_ui::bars::PanelFooter"
-status = "pending"
+new = ""
+status = "replaced"
+note = "`FooterBar::actions([FooterAction::new(icon, label), ..]).show_footer(ui)` shows the buttons as square icon buttons under the footer region rule. `show_footer` returns `FooterOutput { picked, dropped, responses }`; `show_content` still returns the clicked index. `PanelFooter::show`, `button`, `pressed_button`, `drop_button`, `menu_button`, `drop_target`, `reserved_height` and `style` are gone; the footer region draws the rule and sizes itself."
 
 [[type]]
 name = "BreadcrumbBar"
 old = "craft_ui::controls::breadcrumb::BreadcrumbBar"
 new = "craft_ui::bars::BreadcrumbBar"
-status = "pending"
+status = "moved"
+note = "A `Component` over `&[Entry<K>]` shown with `Show::show`; `BreadcrumbBar::new(id_salt, &[Crumb<K>])` becomes `BreadcrumbBar::new(label, &[Entry<K>])`. The output is `BreadcrumbOutput { response, picked }`; `opened` is `picked`. `path_crumbs` returns `Vec<Entry<String>>`. `Crumb` is `Entry`; `BreadcrumbLabels` is `BreadcrumbWords`; `labels(..)` and `BreadcrumbBar::style` are gone."
 
 [[type]]
 name = "ToolbarItem"
@@ -191,3 +195,80 @@ type = "StatusBar"
 old = "separator(ui)"
 new = "Divider::vertical()"
 
+
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""
+
+[[type]]
+name = "StatusValues"
+old = "craft_ui::patterns::status_readout::StatusValues"
+new = "craft_ui::bars::StatusValues"
+status = "moved"
+
+[[type]]
+name = "StatusReadoutOutput"
+old = "craft_ui::patterns::status_readout::StatusReadoutOutput"
+new = "craft_ui::bars::StatusReadoutOutput"
+status = "moved"
+note = "`zoom` is an `EditResponse<Option<f64>>` instead of `Option<EditEvent<f64>>`."
+
+[[type]]
+name = "AlignBarResponse"
+old = "craft_ui::patterns::align::AlignBarResponse"
+new = ""
+status = "replaced"
+note = "`AlignBarOutput { picked, more }`; `response` is `more`, the menu button response."
+
+[[type]]
+name = "AlignStyle"
+old = "craft_ui::patterns::align::AlignStyle"
+new = ""
+status = "removed"
+note = "Sizes come from `ControlSize` and the bar; the bar has no style struct to read."
+
+[[type]]
+name = "FooterAction"
+old = "craft_ui::composites::panel_footer::FooterAction"
+new = "craft_ui::sections::FooterAction"
+status = "moved"
+note = "`FooterAction::new(id, icon, label)` is `FooterAction::new(icon, label)`; the id is the index in the order given. `enabled(bool)` is kept; `accepts_drops(bool)` is `accepts_drops::<P>(fn(&P) -> bool)`, and the drop comes back in `FooterOutput::dropped`."
+
+[[type]]
+name = "PanelFooterStyle"
+old = "craft_ui::composites::panel_footer::PanelFooterStyle"
+new = ""
+status = "removed"
+note = "The footer region draws its rule and takes its height from the footer bar."
+
+[[type]]
+name = "BreadcrumbBarResponse"
+old = "craft_ui::controls::breadcrumb::BreadcrumbBarResponse"
+new = ""
+status = "replaced"
+note = "`BreadcrumbOutput { response, picked }`; `opened` is `picked`."
+
+[[type]]
+name = "BreadcrumbStyle"
+old = "craft_ui::controls::breadcrumb::BreadcrumbStyle"
+new = ""
+status = "replaced"
+note = "`BreadcrumbBarStyle`: sizes and colours come from the component style; there is no `BreadcrumbBar::style(tokens)`."
+
+[[type]]
+name = "Crumb"
+old = "craft_ui::controls::breadcrumb::Crumb"
+new = ""
+status = "replaced"
+note = "`Crumb { label, key }` is `craft_ui::contract::Entry::new(key, label)`."
+
+[[setter]]
+type = "StatusReadout"
+old = "tooltip(StatusItem, impl Into<String>)"
+new = "tooltip(StatusItem, impl Into<Label>)"
+
+[[setter]]
+type = "FooterAction"
+old = "accepts_drops(bool)"
+new = "accepts_drops::<P>(fn(&P) -> bool)"
