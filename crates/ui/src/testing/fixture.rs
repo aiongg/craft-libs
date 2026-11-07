@@ -74,7 +74,7 @@ impl Fixture {
     }
 
     fn with_scope(story: &Story, scope: Option<fn(&mut Overrides)>) -> Self {
-        let data = Rc::new(RefCell::new(StoryData::default()));
+        let data = Rc::new(RefCell::new(StoryData::of(story)));
         let outputs = Rc::new(RefCell::new(Vec::new()));
         let root_id = Rc::new(Cell::new(None));
         let (shared_data, shared_outputs, shared_root, show) = (data.clone(), outputs.clone(), root_id.clone(), story.show);

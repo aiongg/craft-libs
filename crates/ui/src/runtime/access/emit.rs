@@ -234,6 +234,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
             .controls(!relations.controls.is_empty()),
     );
     keys::register_node(ctx, own.id, own.id, None, own.focusable);
+    keys::register_expanded(ctx, own.id, expanded);
     scope::register(ctx, scope::ScopeNode { id: own.id, keeps_name: own.keeps_name, name: name.text.clone(), description: spec.description.clone() });
 }
 
@@ -257,6 +258,9 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     spec.description = node.description.clone();
     spec.numeric = numeric.cloned();
     spec.expanded = expanded;
+    if let Some(expanded) = expanded {
+        spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
+    }
     write_position(&mut spec, node.position, None);
     write_states(&mut spec, flags, decl.enabled, false);
     declare_actions(&mut spec, decl.focusable, decl.clickable, numeric);
@@ -273,6 +277,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
             .expanded(expanded),
     );
     keys::register_node(ctx, id, decl.owner, Some(node.part), decl.focusable);
+    keys::register_expanded(ctx, id, expanded);
     if decl.active {
         adapter::set_focus(ctx, id);
     }

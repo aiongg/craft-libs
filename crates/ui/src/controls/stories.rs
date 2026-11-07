@@ -32,6 +32,12 @@ fn checkbox_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Checkbox::new(Bind::bound(data.value("disabled", true))).label("Show grid").enabled(false).show(ui).into()
 }
 
+#[story(Checkbox<'static>, covers = [], disabled_text = "Turn on the grid first")]
+fn checkbox_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let tooltip = data.tooltip("Snap to the grid");
+    Checkbox::new(Bind::bound(data.value("on", false))).label("Snap").tooltip(tooltip).show(ui).into()
+}
+
 const RANGE: std::ops::RangeInclusive<f64> = 0.0..=100.0;
 const CAP: f64 = 80.0;
 

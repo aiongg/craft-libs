@@ -32,7 +32,7 @@ fn acted(fixture: &mut Fixture, before: &crate::testing::story::StorySnapshot) -
 /// A disabled component changes no value, fires no command and takes no focus unless it explains itself: a node
 /// with a description stands for the tooltip of `disabled_text`, and then its tooltip shows on focus. A description
 /// also comes from an invalid state, so a disabled story that takes no focus is not read as lacking `disabled_text`.
-/// A story binds no command, so a fired command is read as the pass's click, which a bound command follows.
+/// A story with `disabled_text` is reached by Tab and shows that reason. A story binds no command, so a fired command is read as the pass's click, which a bound command follows.
 fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let (_, plan) = settled(story, subject.probe);
@@ -62,6 +62,14 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
                 return Err(format!("{}: the tooltip `{text}` does not show on focus", story.name));
             }
             _ => {}
+        }
+        if let Some(reason) = story.disabled_text {
+            if fixture.focused().is_none() {
+                return Err(format!("{}: a disabled story with `disabled_text` is not a Tab stop", story.name));
+            }
+            if !fixture.texts().iter().any(|run| run.text.contains(reason)) {
+                return Err(format!("{}: the reason `{reason}` does not show on focus", story.name));
+            }
         }
     }
     Ok(())

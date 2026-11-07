@@ -15,7 +15,7 @@ pub use words::DockWords;
 
 use crate::contract::{
     Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, HeaderRegion, Name, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, Sizing,
+    Focus as _, HeaderRegion, Name, Numeric, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, Sizing,
     WordSetCx as _,
 };
 use crate::layout_components::Row;
@@ -196,6 +196,8 @@ fn along_y(mv: NavMove) -> NavMove {
         NavMove::Down => NavMove::Up,
         NavMove::PageUp => NavMove::PageDown,
         NavMove::PageDown => NavMove::PageUp,
+        NavMove::Forward => NavMove::Up,
+        NavMove::Back => NavMove::Down,
         other => other,
     }
 }
@@ -220,24 +222,41 @@ fn resize_by_pointer(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &
     }
 }
 
-/// The arrow keys move the focused handle's boundary by a step, Shift or Page by a jump.
+/// A handle's boundary position along its axis and the span it can move in: the split's extent less the least
+/// size of each side.
+fn handle_span(handle: &DockHandle, least: f32) -> (f32, f32, f32) {
+    let (at, lo, hi) = match handle.axis {
+        Axis::X => (handle.bar.center().x, handle.split.left(), handle.split.right()),
+        _ => (handle.bar.center().y, handle.split.top(), handle.split.bottom()),
+    };
+    (at, lo + least, (hi - least).max(lo + least))
+}
+
+/// The arrow keys move the focused handle's boundary by a step, Shift or Page by a jump; AccessKit sets it to a value.
 fn resize_by_keys(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[DockHandle]) {
     let style = cx.style;
     let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
     let Some(key) = focused else { return };
-    let Some((mv, mods)) = cx.intents().take_move() else { return };
     let Some(handle) = handles.iter().find(|handle| u64::from(handle.key.0) == key) else { return };
-    let (at, lo, hi, axes, mv) = match handle.axis {
-        Axis::X => (handle.bar.center().x, handle.split.left(), handle.split.right(), ValueAxes::Horizontal, mv),
-        _ => (handle.bar.center().y, handle.split.top(), handle.split.bottom(), ValueAxes::Vertical, along_y(mv)),
-    };
-    let steps =
-        ValueSteps::new(f64::from(at), f64::from(lo + style.least), f64::from(hi - style.least), f64::from(style.step), f64::from(style.jump));
-    if let StepResult::Set(value) = step_value(&steps, axes, mv, mods) {
-        let mut next = tree.clone();
-        if next.move_boundary(&handle.path, handle.index, handle.split, value as f32, style.least) {
-            cx.set(next);
+    let (at, lo, hi) = handle_span(handle, style.least);
+    let value = if let Some(set) = cx.intents().take_set_value() {
+        set.clamp(f64::from(lo), f64::from(hi))
+    } else if let Some((mv, mods)) = cx.intents().take_move() {
+        let (axes, mv) = match handle.axis {
+            Axis::X => (ValueAxes::Horizontal, mv),
+            _ => (ValueAxes::Vertical, along_y(mv)),
+        };
+        let steps = ValueSteps::new(f64::from(at), f64::from(lo), f64::from(hi), f64::from(style.step), f64::from(style.jump));
+        match step_value(&steps, axes, mv, mods) {
+            StepResult::Set(value) => value,
+            _ => return,
         }
+    } else {
+        return;
+    };
+    let mut next = tree.clone();
+    if next.move_boundary(&handle.path, handle.index, handle.split, value as f32, style.least) {
+        cx.set(next);
     }
 }
 
@@ -304,7 +323,10 @@ impl Component for SplitArea<'_> {
         let Some(tree) = cx.value() else { return };
         let name = cx.words::<DockWords>().resize.as_str().to_owned();
         for handle in tree.handles(cx.rect, cx.style.reach) {
-            access.node(HANDLE.at(u64::from(handle.key.0)), Role::SPLITTER).name = Name::Text(name.clone());
+            let (at, lo, hi) = handle_span(&handle, cx.style.least);
+            let node = access.node(HANDLE.at(u64::from(handle.key.0)), Role::SPLITTER);
+            node.name = Name::Text(name.clone());
+            node.numeric = Some(Numeric::new(f64::from(at), f64::from(lo)..=f64::from(hi)).step(f64::from(cx.style.step)));
         }
     }
 
