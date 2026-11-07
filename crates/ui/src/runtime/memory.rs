@@ -624,6 +624,16 @@ impl<T: Clone + Send + Sync + 'static> Facts<T> {
     }
 }
 
+/// Runs `f` on the session slot of `id` for a service or pattern that has no component context: the slot is read,
+/// changed and written back in one call, and it goes only through `forget`. Calls nest freely and repeat within a
+/// pass, because no stage claims a base.
+pub(crate) fn with_session<T: Slot, R>(ctx: &Context, id: Id, f: impl FnOnce(&mut T) -> R) -> R {
+    let mut stage = MemoryStage::new(ctx, id, id, false);
+    let out = f(stage.session::<T>(id));
+    stage.write_back();
+    out
+}
+
 /// An id no other `source` shares: the id of something with a stable key and no component of its own.
 pub(crate) fn unique(source: impl std::hash::Hash + std::fmt::Debug) -> Id {
     store::unique(source)

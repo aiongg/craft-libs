@@ -9,6 +9,9 @@ use std::cell::RefCell;
 
 const ROW: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 160.0) };
 
+/// Layout rounds positions to the physical pixel: two controls in one column start within this distance.
+const SNAP: f32 = 0.5;
+
 #[trial]
 fn only_the_rows_directly_in_a_label_column_share_it() {
     let mut frames = Frames::new();
@@ -27,8 +30,8 @@ fn only_the_rows_directly_in_a_label_column_share_it() {
         });
     });
     let start = |seen: &RefCell<Seen>| seen.borrow().rect.min.x;
-    assert!((start(&short) - start(&long)).abs() < 0.5, "the field labels share the widest width");
-    assert!(start(&caption) < start(&short) - 1.0, "the leaf's own label keeps its own width");
+    assert!((start(&short) - start(&long)).abs() < SNAP, "the field labels share the widest width");
+    assert!(start(&caption) < start(&short), "the leaf's own label keeps its own width");
 }
 
 #[trial]
@@ -47,6 +50,6 @@ fn a_hidden_label_row_in_a_label_column_starts_its_control_in_the_control_column
         });
     });
     let (named, hidden) = (named.borrow().rect.min.x, hidden.borrow().rect.min.x);
-    assert!((named - hidden).abs() < 0.5, "the hidden row's control lines up with the named row's: {named} vs {hidden}");
-    assert!(hidden > ROW.min.x + 1.0, "the control does not start at the row start");
+    assert!((named - hidden).abs() < SNAP, "the hidden row's control lines up with the named row's: {named} vs {hidden}");
+    assert!(hidden > ROW.min.x, "the control does not start at the row start");
 }

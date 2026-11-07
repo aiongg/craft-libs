@@ -1,29 +1,46 @@
-//! The toast host (15.5): one layer per viewport that shows each queued toast as a `Notice` in `NoticeLayout::Card`.
+//! The toast host (15.5): one layer per viewport that lays out the queued toasts and tracks their holds and ends. A
+//! component of a higher layer draws each card (`notices::ToastStack`).
 
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
-use super::{Props as _, Show as _};
-use crate::notices::{Notice, NoticeAction, NoticeLayout};
 use crate::runtime::egui::memory as store;
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use crate::runtime::motion;
 use crate::runtime::toast::{self, Toast, ToastEnd};
 use craft_behavior::overlay::{Align, Side};
-use egui::{Align2, Rect, Ui};
+use egui::{Align2, IdSalt, Rect, Ui};
 
 /// The toasts of the cards shown last, so the layer's exit fade still shows them after the queue emptied.
 #[derive(Clone, Default)]
 struct Shown(Vec<Toast>);
 
-/// The layer that shows the toast queue of a viewport. The shell calls `show` once per pass.
+/// What a drawn card reports back to the host.
+#[derive(Clone, Copy, Debug, Default)]
+#[non_exhaustive]
+pub struct CardOutcome {
+    /// The pointer rests on the card; its timer stays paused.
+    pub hovered: bool,
+    /// How the user ended the card this pass.
+    pub end: Option<ToastEnd>,
+}
+
+impl CardOutcome {
+    /// A card the pointer rests on when `hovered`, which the user ended as `end`.
+    pub fn new(hovered: bool, end: Option<ToastEnd>) -> Self {
+        CardOutcome { hovered, end }
+    }
+}
+
+/// The layer that shows the toast queue of a viewport. The window root calls `show` once per pass.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct ToastHost;
 
 impl ToastHost {
-    /// Shows every queued toast of the running viewport, oldest at the top, in the viewport's end corner. A card the
-    /// pointer rests on keeps its timer paused; the first show of a toast announces it. When the queue empties the
-    /// layer fades out with the last cards.
-    pub fn show(ui: &Ui) {
+    /// Lays out every queued toast of the running viewport, oldest at the top, in the viewport's end corner, and
+    /// draws each with `card(ui, toast, salt)`, where `salt` is stable for the card. A card the pointer rests on keeps
+    /// its timer paused; the first show of a toast announces it. When the queue empties the layer fades out with the
+    /// last cards.
+    pub fn show(ui: &Ui, card: &mut dyn FnMut(&mut Ui, &Toast, IdSalt) -> CardOutcome) {
         let ctx = ui.ctx();
         let cards = toast::cards(ctx);
         let env = Env::of(ui);
@@ -47,22 +64,13 @@ impl ToastHost {
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::NOTHING, env: &env, exiting: !open, fade: presence.t };
         overlay::host(ctx, &layer, &mut |ui| {
             for (at, toast) in toasts.iter().enumerate() {
-                let card = cards.get(at);
-                let salt = ("toast", card.map(|card| card.id), card.is_none().then_some(at));
-                let mut notice = Notice::new(toast.tone, toast.message.clone()).layout(NoticeLayout::Card).dismiss().id_salt(salt);
-                if let Some(title) = &toast.title {
-                    notice = notice.title(title.clone());
-                }
-                for action in &toast.actions {
-                    notice = notice.action(NoticeAction::new(action.label.clone()));
-                }
-                let out = notice.show(ui);
-                if let Some(card) = card {
-                    toast::shown(ctx, card.id, &announcement(&env, toast), out.response.hovered());
-                    if let Some(taken) = out.action {
-                        toast::close(ctx, card.id, ToastEnd::Action(taken));
-                    } else if out.dismissed {
-                        toast::close(ctx, card.id, ToastEnd::Dismissed);
+                let live = cards.get(at);
+                let salt = IdSalt::new(("toast", live.map(|live| live.id), live.is_none().then_some(at)));
+                let out = card(ui, toast, salt);
+                if let Some(live) = live {
+                    toast::shown(ctx, live.id, &announcement(&env, toast), out.hovered);
+                    if let Some(end) = out.end {
+                        toast::close(ctx, live.id, end);
                     }
                 }
             }

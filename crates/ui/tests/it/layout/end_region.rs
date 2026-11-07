@@ -67,7 +67,7 @@ fn an_end_regions_buttons_sit_at_the_end_edge_and_join_the_roving_group() {
         after.set(Button::new("After").id_salt("after").show_at(ui, Rect::from_min_size(Pos2::new(10.0, 90.0), egui::vec2(60.0, 20.0))).id);
     };
     frames.idle(4, &mut show);
-    assert!(AREA.max.x - commit.get().max.x < 40.0, "the first end button sits against the line's end edge: {:?}", commit.get());
+    assert!(AREA.max.x - commit.get().max.x < commit.get().width(), "the first end button sits against the line's end edge: {:?}", commit.get());
     craft_ui::runtime::focus::request(&frames.ctx, craft_ui::runtime::focus::FocusTarget::Id(before.get()));
     frames.frame(Vec::new(), &mut show);
     tab(&mut frames, &mut show);

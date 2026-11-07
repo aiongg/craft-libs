@@ -52,7 +52,7 @@ fn tab_from_the_last_control_reaches_commit_at_the_end_edge() {
     assert!(last.rect.right() <= cancel.rect.left() && cancel.rect.right() <= commit.rect.left(), "cancel then commit follow the members");
     let bar = fixture.by_role(craft_ui::contract::Role::GROUP);
     let edge = bar.iter().map(|bar| bar.rect.right()).fold(f32::MIN, f32::max);
-    assert!((edge - commit.rect.right()).abs() < 24.0, "Commit sits at the bar's end edge");
+    assert!((edge - commit.rect.right()).abs() < commit.rect.width(), "Commit sits at the bar's end edge");
 }
 
 /// A bar narrower than its members scrolls to the focused one.

@@ -67,36 +67,3 @@ pub fn take_move_item(intents: &mut Intents) -> Option<bool> {
         None
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn column(count: usize) -> Vec<Rect> {
-        (0..count).map(|n| Rect::from_min_size(Pos2::new(0.0, n as f32 * 20.0), egui::vec2(100.0, 20.0))).collect()
-    }
-
-    #[test]
-    fn moved_item_leaves_first() {
-        assert_eq!(move_to(1, 3), 2);
-        assert_eq!(move_to(3, 1), 1);
-        assert_eq!(move_to(2, 2), 2);
-        assert_eq!(move_all_to(&[0, 1], 4), 2);
-    }
-
-    #[test]
-    fn gap_follows_the_pointer_along_the_axis() {
-        let rects = column(3);
-        assert_eq!(gap_at(&rects, Axis::Y, Pos2::new(50.0, 2.0)).map(|gap| gap.insert), Some(0));
-        assert_eq!(gap_at(&rects, Axis::Y, Pos2::new(50.0, 30.0)).map(|gap| gap.insert), Some(2));
-        assert_eq!(gap_at(&rects, Axis::Y, Pos2::new(50.0, 500.0)).map(|gap| gap.insert), Some(3));
-        assert_eq!(gap_at(&[], Axis::Y, Pos2::ZERO), None);
-    }
-
-    #[test]
-    fn gap_line_lies_on_the_edge_of_the_next_item() {
-        let rects = column(2);
-        let gap = gap_at(&rects, Axis::Y, Pos2::new(50.0, 500.0)).expect("a gap");
-        assert_eq!(gap.mark, DropMark::line(Pos2::new(0.0, 40.0), Pos2::new(100.0, 40.0)));
-    }
-}

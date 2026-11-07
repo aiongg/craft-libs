@@ -1,6 +1,8 @@
 //! Stories of the notices family.
 
-use super::{Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices};
+use super::{
+    Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsNotices, ToastStack,
+};
 use crate::contract::{Politeness, Show as _};
 use crate::display::Text;
 use crate::runtime::toast;
@@ -75,4 +77,14 @@ fn notice_center(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     }
     NoticeCenter::new().show(ui);
     Text::new("Notices").show(ui).into()
+}
+
+#[story(ToastStack, covers = [], drive = Drive::Never)]
+fn toast_stack(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let ctx = ui.ctx().clone();
+    if toast::cards(&ctx).is_empty() {
+        toast::post(&ctx, toast::Toast::new("poster.png was saved to Pictures.").tone(Tone::Good).title("Exported"));
+    }
+    ToastStack::show(ui);
+    Text::new("Toasts").show(ui).into()
 }

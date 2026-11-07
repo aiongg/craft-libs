@@ -159,6 +159,9 @@ pub struct StandardPrompt {
     open: bool,
     /// What a programmatic OK answers.
     chosen: PromptChoice,
+    /// Carries a typed tag back in the `PromptAnswer` (a document id with the layer ids); read it with
+    /// `PromptAnswer::tag` or `PromptAnswer::take_tag`.
+    #[prop(boxed)]
     tag: Option<Box<dyn Any + Send>>,
     /// The counted noun of the delete question, as a count word with `{n}` (one and other forms); the default is
     /// "{n} item" and "{n} items".
@@ -303,14 +306,6 @@ impl StandardPrompt {
     #[must_use]
     pub fn lines(mut self, lines: impl IntoIterator<Item = Label>) -> Self {
         self.lines = lines.into_iter().collect();
-        self
-    }
-
-    /// Carries `tag` back in the `PromptAnswer`, typed (a document id with the layer ids); read it with
-    /// `PromptAnswer::tag` or `PromptAnswer::take_tag`.
-    #[must_use]
-    pub fn tag<T: Any + Send>(mut self, tag: T) -> Self {
-        self.tag = Some(Box::new(tag));
         self
     }
 
