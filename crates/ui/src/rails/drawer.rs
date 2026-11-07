@@ -73,6 +73,23 @@ pub enum ToolbarEdit<T> {
     Reset,
 }
 
+impl<T> ToolbarEdit<T> {
+    /// Put `tool` on the toolbar at `at`.
+    pub fn add(tool: RailTool<T>, at: DropAt) -> Self {
+        ToolbarEdit::Add { tool, at }
+    }
+
+    /// Take the tool `tool` off the toolbar.
+    pub fn remove(tool: T) -> Self {
+        ToolbarEdit::Remove { tool }
+    }
+
+    /// Move the toolbar's tool `tool` to `at`.
+    pub fn move_to(tool: T, at: DropAt) -> Self {
+        ToolbarEdit::Move { tool, at }
+    }
+}
+
 /// What the drawer reports.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -162,7 +179,7 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
         let ctx = ui.ctx().clone();
         let resolved: Vec<Vec<ResolvedCommand>> =
             groups.iter().map(|group| group.tools.iter().map(|tool| commands::resolve(&ctx, tool.command.clone())).collect()).collect();
-        let mut edits: Vec<ToolbarEdit<T>> = dropped.and_then(|dropped| drop_edit(&dropped, groups, toolbar)).into_iter().collect();
+        let mut edits: Vec<ToolbarEdit<T>> = dropped.and_then(|dropped| drop_edit(dropped.drag, dropped.at, groups, toolbar)).into_iter().collect();
         let mut select: Option<T> = None;
         let mut open = true;
         let mut leave = false;
@@ -240,20 +257,20 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
     }
 }
 
-/// The edit a drag dropped on the rail asks for, `None` when it changes nothing: a tool of the rail dropped on its own
+/// The edit a drag dropped on the rail at `at` asks for, `None` when it changes nothing: a tool of the rail dropped on its own
 /// slot stays where it is, and a drag whose tool is gone is dropped.
-pub fn drop_edit<T: Value>(dropped: &ToolDropped, groups: &[DrawerGroup<T>], toolbar: &[ToolSlot<T>]) -> Option<ToolbarEdit<T>> {
-    match dropped.drag {
+pub fn drop_edit<T: Value>(drag: ToolDrag, at: DropAt, groups: &[DrawerGroup<T>], toolbar: &[ToolSlot<T>]) -> Option<ToolbarEdit<T>> {
+    match drag {
         ToolDrag::Drawer { group, index } => {
             let tool = groups.get(group)?.tools.get(index)?;
-            Some(ToolbarEdit::Add { tool: tool.clone(), at: dropped.at })
+            Some(ToolbarEdit::Add { tool: tool.clone(), at })
         }
         ToolDrag::Rail { slot, index } => {
             let tool = toolbar.iter().find(|candidate| candidate.id == slot)?.tools.get(index)?;
-            if matches!(dropped.at, DropAt::Slot { slot: onto, .. } if onto == slot) {
+            if matches!(at, DropAt::Slot { slot: onto, .. } if onto == slot) {
                 return None;
             }
-            Some(ToolbarEdit::Move { tool: tool.id.clone(), at: dropped.at })
+            Some(ToolbarEdit::Move { tool: tool.id.clone(), at })
         }
     }
 }

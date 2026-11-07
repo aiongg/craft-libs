@@ -1,6 +1,6 @@
 //! The panel rail's request: which panel a click asks to open or close.
 
-use craft_ui::contract::{Role, Show as _};
+use craft_ui::contract::Role;
 use craft_ui::rails::{PanelRail, PanelRailRequest, RailTool};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
