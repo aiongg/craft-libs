@@ -10,12 +10,14 @@ use crate::contract::{
     EditResponse, LeadOnOpen, ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
-use crate::runtime::env::Label;
+use crate::runtime::env::{Env, Label};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use crate::text::TextField;
-use craft_behavior::{ItemSource, Metrics, Selection, SpanLayout};
+use craft_behavior::{ColumnKey, DisplayOrder, ItemSource, Metrics, Selection, SizeHint, SpanLayout};
+use craft_i18n::matcher::Matcher;
 use egui::{Id, Rect, Ui};
-use std::hash::Hash;
+use std::borrow::Cow;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
 /// The style of the list: it has no look of its own beyond its container's surface.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -38,6 +40,7 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     common: Common,
     #[container]
     props: ContainerProps,
+    #[collection]
     items: CollectionProps,
     /// The selection the caller owns.
     #[prop]
@@ -67,6 +70,11 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The list is a listbox of options: the popup of a value picker.
     #[prop(flag)]
     listbox: bool,
+    /// The rows the query keeps, set by `filter`.
+    filter: Option<Filter<'a, K>>,
+    /// The kept rows are in order of how well they match the query.
+    #[prop]
+    ranked: bool,
 }
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
@@ -85,6 +93,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             accepts: None,
             takes_files: false,
             listbox: false,
+            filter: None,
+            ranked: false,
         }
         .label(label)
     }
@@ -104,108 +114,16 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
             .listbox()
     }
 
-    /// What the user can select.
+    /// Only the rows whose `label` matches `query` reach the item step, folded for the scope's language (case and
+    /// accents ignored); an empty query keeps every row. The rows stamp folds in the query, so the lead starts over
+    /// on the first shown row and the layout rebuilds when the query changes. Sets the rows stamp.
     #[must_use]
-    pub fn select(mut self, mode: SelectMode) -> Self {
-        self.items = self.items.select(mode);
-        self
-    }
-
-    /// Rows reorder by dragging and by Alt with the arrow keys.
-    #[must_use]
-    pub fn reorder(mut self, rule: ReorderRule) -> Self {
-        self.items = self.items.reorder(rule);
-        self
-    }
-
-    /// Rows rename in place: a double click on the label, F2 or the rename command opens the editor.
-    #[must_use]
-    pub fn rename(mut self, on: bool) -> Self {
-        self.items = self.items.rename(on);
-        self
-    }
-
-    /// Odd rows are tinted: the item reads `ItemCx::row.striped`.
-    #[must_use]
-    pub fn striped(mut self, on: bool) -> Self {
-        self.items = self.items.striped(on);
-        self
-    }
-
-    /// A press on the empty space below the rows empties the selection.
-    #[must_use]
-    pub fn allow_empty(mut self, on: bool) -> Self {
-        self.items = self.items.allow_empty(on);
-        self
-    }
-
-    /// A press picks and activates a row without moving key focus to the list: a popup list whose opener keeps focus.
-    #[must_use]
-    pub fn focus_on_press(mut self, on: bool) -> Self {
-        self.items = self.items.focus_on_press(on);
-        self
-    }
-
-    /// Which gesture activates a row.
-    #[must_use]
-    pub fn activate(mut self, on: ActivateOn) -> Self {
-        self.items = self.items.activate(on);
-        self
-    }
-
-    /// The column the rows are sorted by, drawn on its header.
-    #[must_use]
-    pub fn sort(mut self, sort: impl Into<Option<ColumnSort>>) -> Self {
-        self.items = self.items.sort(sort);
-        self
-    }
-
-    /// Where the lead lands when the list opens.
-    #[must_use]
-    pub fn lead_on_open(mut self, at: LeadOnOpen) -> Self {
-        self.items = self.items.lead_on_open(at);
-        self
-    }
-
-    /// The rows are the set `stamp` names; the lead starts over when the stamp changes.
-    #[must_use]
-    pub fn rows_stamp(mut self, stamp: u64) -> Self {
-        self.items = self.items.rows_stamp(stamp);
-        self
-    }
-
-    /// The lead follows the pointer over the rows.
-    #[must_use]
-    pub fn lead_follows_hover(mut self, on: bool) -> Self {
-        self.items = self.items.lead_follows_hover(on);
-        self
-    }
-
-    /// How the list takes its size: to its content or to the room it has.
-    #[must_use]
-    pub fn sizing(mut self, sizing: Sizing) -> Self {
-        self.props = self.props.sizing(sizing);
-        self
-    }
-
-    /// Commands of `scope` reach the list while focus is in it.
-    #[must_use]
-    pub fn command_scope(mut self, scope: CommandScope) -> Self {
-        self.props = self.props.command_scope(scope);
-        self
-    }
-
-    /// The text of the empty state.
-    #[must_use]
-    pub fn empty(mut self, text: impl Into<Label>) -> Self {
-        self.items = self.items.empty(text);
-        self
-    }
-
-    /// The surface the list paints behind its rows.
-    #[must_use]
-    pub fn surface(mut self, surface: SurfaceKind) -> Self {
-        self.props = self.props.surface(surface);
+    pub fn filter(mut self, query: &str, label: impl Fn(&K) -> Label + 'a) -> Self {
+        let query = query.trim();
+        let mut hasher = DefaultHasher::new();
+        query.hash(&mut hasher);
+        self.items = self.items.rows_stamp(hasher.finish());
+        self.filter = Some(Filter { query: query.to_owned(), label: Box::new(label) });
         self
     }
 }
@@ -243,6 +161,24 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
         &self.items
     }
 
+    fn filtered<'s>(&self, source: &'s dyn ItemSource<K>, env: &Env) -> Option<Box<dyn ItemSource<K> + 's>> {
+        let filter = self.filter.as_ref()?;
+        let matcher = Matcher::new(&env.folder(), &filter.query);
+        if matcher.is_empty() {
+            return None;
+        }
+        let mut kept: Vec<(craft_i18n::matcher::Rank, usize)> = (0..source.len())
+            .filter_map(|at| {
+                let label = (filter.label)(&source.key(at)).resolved(&env.words);
+                matcher.score(label.as_str()).map(|found| (found.rank, at))
+            })
+            .collect();
+        if self.ranked {
+            kept.sort_by_key(|(rank, _)| *rank);
+        }
+        Some(Box::new(Filtered { source, at: kept.into_iter().map(|(_, at)| at).collect() }))
+    }
+
     fn selection(&mut self) -> Option<BindMut<'_, Selection<K>>> {
         self.selection.as_mut().map(Bind::reborrow)
     }
@@ -278,5 +214,69 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
 
     fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
         Some(TextField::new(name.to_owned(), draft).show_at(ui, label))
+    }
+}
+
+/// What `List::filter` keeps: the query and how a row's key reads as text.
+struct Filter<'a, K> {
+    query: String,
+    label: Box<dyn Fn(&K) -> Label + 'a>,
+}
+
+/// The rows of `source` at the positions `at`, in that order.
+struct Filtered<'s, K> {
+    source: &'s dyn ItemSource<K>,
+    at: Vec<usize>,
+}
+
+impl<K> DisplayOrder<K> for Filtered<'_, K> {
+    fn len(&self) -> usize {
+        self.at.len()
+    }
+
+    fn key(&self, at: usize) -> K {
+        self.source.key(self.at[at])
+    }
+
+    fn index_of(&self, key: &K) -> Option<usize>
+    where
+        K: PartialEq,
+    {
+        let held = self.source.index_of(key)?;
+        self.at.iter().position(|&at| at == held)
+    }
+
+    fn depth(&self, at: usize) -> usize {
+        self.source.depth(self.at[at])
+    }
+
+    fn has_children(&self, at: usize) -> bool {
+        self.source.has_children(self.at[at])
+    }
+
+    fn open(&self, at: usize) -> bool {
+        self.source.open(self.at[at])
+    }
+
+    fn is_section(&self, at: usize) -> bool {
+        self.source.is_section(self.at[at])
+    }
+
+    fn enabled(&self, at: usize) -> bool {
+        self.source.enabled(self.at[at])
+    }
+
+    fn text(&self, at: usize) -> Option<Cow<'_, str>> {
+        self.source.text(self.at[at])
+    }
+}
+
+impl<K> ItemSource<K> for Filtered<'_, K> {
+    fn size_hint(&self, at: usize) -> SizeHint {
+        self.source.size_hint(self.at[at])
+    }
+
+    fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
+        self.source.toggled(self.at[at], column)
     }
 }
