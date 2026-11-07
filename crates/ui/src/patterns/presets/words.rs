@@ -34,5 +34,12 @@ craft_ui::words! {
         reason_denied: "presets.reasonDenied" = "access was denied";
         reason_unsupported: "presets.reasonUnsupported" = "this is not available here";
         reason_other: "presets.reasonOther" = "the file system reported an error";
+
+        custom: "presets.custom" = "Custom";
+        mixed: "presets.mixed" = "Mixed";
+        built_in: template "presets.builtIn" = "{name} (built-in)";
+        name_taken: "presets.nameTaken" = "A preset with this name already exists.";
+        name_invalid: "presets.nameInvalid" = "This name can't be used.";
+        more: "presets.more" = "Manage presets";
     }
 }
