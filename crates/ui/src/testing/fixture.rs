@@ -193,6 +193,11 @@ impl Fixture {
         crate::runtime::pointer::sensing_parts(self.ctx(), self.root_id()?, craft_behavior::Sense::CLICK).into_iter().next()
     }
 
+    /// The styles the pipeline resolved for the component type `type_name` in this fixture.
+    pub fn styles_of(&self, type_name: &str) -> Vec<std::sync::Arc<super::style::StyleSeen>> {
+        super::style::styles_of(self.ctx(), type_name)
+    }
+
     /// The text runs the latest frame painted.
     pub fn texts(&self) -> &[fixture::PaintedText] {
         self.frames.texts()

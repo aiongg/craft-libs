@@ -1,13 +1,18 @@
-//! Style cases: a listed variant looks unlike the default, and every flag look of the style is reachable by some
-//! state of its type. They read the style of a type's sample instance, so a type with no sample (`#[component(sample =
-//! ..)]`) has no style to read here.
+//! Style cases: a listed variant looks unlike the default, every flag look of the style is reachable by some state
+//! of its type, and text and icons read on what they sit on. They measure the styles the pipeline resolved while
+//! the type's stories ran (settled in each mode and contrast, then driven), resolved again for every listed variant
+//! and built-in theme. A type with no story is measured through its `#[component(sample = ..)]`. A type with
+//! neither fails, since its style is never measured.
 
+use super::drive::{run, settled, variants};
 use super::{ANY, Case, Subject};
 use crate::style::UiTokens;
 use crate::style::{StyleColor, SurfaceKind, SurfaceLook};
-use crate::testing::style::{themes_at, tokens, with_cx};
+use crate::testing::fixture::Fixture;
+use crate::testing::style::{StyleLooks, StyleSeen, themes_at, tokens, with_cx};
 use craft_behavior::Input;
 use craft_theme::{Contrast, ControlSize, Flags, Mode, Resolve, Rgba, State, StateMix, Stateful, contrast_ratio, text_contrast_min};
+use std::sync::Arc;
 
 pub(super) const CASES: &[Case] = &[
     Case::new("variants-differ", ANY, listed_variants_differ_from_the_default),
@@ -15,31 +20,82 @@ pub(super) const CASES: &[Case] = &[
     Case::new("text-contrast", ANY, text_and_icons_meet_the_text_minimum),
 ];
 
-/// The resolved looks of the sample of `subject` under `variant` and `tokens`; `None` for a type with no sample.
-fn looks_in(subject: &Subject, tokens: &UiTokens, variant: craft_theme::Variant) -> Option<crate::testing::style::StyleLooks> {
-    let make = subject.probe.sample?;
-    let instance = make();
-    let ctx = egui::Context::default();
-    with_cx(&ctx, tokens, variant, ControlSize::Md, |cx| (subject.probe.looks)(&*instance, cx))
+/// A style of the subject that the cases measure: one the pipeline resolved for a story, or the one of the type's
+/// sample.
+enum Source {
+    Seen(Arc<StyleSeen>),
+    Sample,
 }
 
-fn looks_under(subject: &Subject, variant: craft_theme::Variant) -> Option<crate::testing::style::StyleLooks> {
-    looks_in(subject, &tokens(Mode::Light, Contrast::Standard), variant)
+/// The styles of `subject` the stories resolve: each story settled in every mode and contrast, then each of its
+/// drives run once in the default mode. One entry per style key, variant and size.
+fn sources(subject: &Subject) -> Result<Vec<Source>, String> {
+    let name = subject.probe.type_name();
+    let mut seen: Vec<Arc<StyleSeen>> = Vec::new();
+    let mut take = |fixture: &Fixture| {
+        for style in fixture.styles_of(name) {
+            if !seen.iter().any(|known| known.inputs == style.inputs && known.variant == style.variant && known.size == style.size) {
+                seen.push(style);
+            }
+        }
+    };
+    for story in &subject.stories {
+        for mode in [Mode::Light, Mode::Dark] {
+            for contrast in [Contrast::Standard, Contrast::High] {
+                let mut fixture = Fixture::story(story);
+                fixture.theme(mode, contrast);
+                fixture.settle();
+                take(&fixture);
+            }
+        }
+        let (_, plan) = settled(story, subject.probe);
+        for variant in variants(plan, subject.probe) {
+            let (mut fixture, _) = settled(story, subject.probe);
+            run(&mut fixture, plan, variant);
+            take(&fixture);
+        }
+    }
+    if !seen.is_empty() {
+        return Ok(seen.into_iter().map(Source::Seen).collect());
+    }
+    if subject.probe.sample.is_some() {
+        return Ok(vec![Source::Sample]);
+    }
+    Err(format!("{name} has a style and neither a story that shows it nor a sample, so no measurement reads its style"))
+}
+
+/// The resolved looks of `source` under `variant` and `tokens`.
+fn looks_in(subject: &Subject, source: &Source, tokens: &UiTokens, variant: craft_theme::Variant) -> Option<StyleLooks> {
+    let ctx = egui::Context::default();
+    match source {
+        Source::Seen(seen) => Some(with_cx(&ctx, tokens, variant, seen.size, |cx| seen.resolve_in(cx))),
+        Source::Sample => {
+            let make = subject.probe.sample?;
+            let instance = make();
+            with_cx(&ctx, tokens, variant, ControlSize::Md, |cx| (subject.probe.looks)(&*instance, cx))
+        }
+    }
+}
+
+fn looks_under(subject: &Subject, source: &Source, variant: craft_theme::Variant) -> Option<StyleLooks> {
+    looks_in(subject, source, &tokens(Mode::Light, Contrast::Standard), variant)
 }
 
 fn listed_variants_differ_from_the_default(subject: &Subject) -> Result<(), String> {
-    let Some(listed) = looks_under(subject, craft_theme::Variant::SECONDARY) else {
-        return Ok(());
-    };
-    let Some((&default, others)) = listed.variants.split_first() else {
-        return Ok(());
-    };
-    let base = looks_under(subject, default);
-    for &variant in others {
-        if let (Some(base), Some(looks)) = (&base, looks_under(subject, variant))
-            && looks.same_as(base)
-        {
-            return Err(format!("the variant {variant:?} resolves to the style of {default:?}"));
+    for source in sources(subject)? {
+        let Some(listed) = looks_under(subject, &source, craft_theme::Variant::SECONDARY) else {
+            continue;
+        };
+        let Some((&default, others)) = listed.variants.split_first() else {
+            continue;
+        };
+        let base = looks_under(subject, &source, default);
+        for &variant in others {
+            if let (Some(base), Some(looks)) = (&base, looks_under(subject, &source, variant))
+                && looks.same_as(base)
+            {
+                return Err(format!("the variant {variant:?} resolves to the style of {default:?}"));
+            }
         }
     }
     Ok(())
@@ -81,20 +137,22 @@ fn unreachable_in(look: &Stateful<StyleColor>, reachable: Flags) -> Option<Strin
 }
 
 fn every_flag_look_is_reachable(subject: &Subject) -> Result<(), String> {
-    let Some(looks) = looks_under(subject, craft_theme::Variant::SECONDARY) else {
-        return Ok(());
-    };
     let reachable = reachable(subject);
-    if let Some(SurfaceLook { fill, border, .. }) = &looks.surface {
-        if let Some(problem) = unreachable_in(fill, reachable) {
-            return Err(format!("the surface fill has {problem}"));
+    for source in sources(subject)? {
+        let Some(looks) = looks_under(subject, &source, craft_theme::Variant::SECONDARY) else {
+            continue;
+        };
+        if let Some(SurfaceLook { fill, border, .. }) = &looks.surface {
+            if let Some(problem) = unreachable_in(fill, reachable) {
+                return Err(format!("the surface fill has {problem}"));
+            }
+            if let Some(problem) = border.as_ref().and_then(|border| unreachable_in(border, reachable)) {
+                return Err(format!("the surface border has {problem}"));
+            }
         }
-        if let Some(problem) = border.as_ref().and_then(|border| unreachable_in(border, reachable)) {
-            return Err(format!("the surface border has {problem}"));
+        if looks.focus.is_some() && !reachable.intersects(Flags::FOCUSED | Flags::FOCUS_VISIBLE) {
+            return Err("the style has a focus ring and the type takes no focus".to_owned());
         }
-    }
-    if looks.focus.is_some() && !reachable.intersects(Flags::FOCUSED | Flags::FOCUS_VISIBLE) {
-        return Err("the style has a focus ring and the type takes no focus".to_owned());
     }
     Ok(())
 }
@@ -126,19 +184,23 @@ const GROUNDS: [SurfaceKind; 6] =
 /// exempt, as in WCAG 1.4.3), every variant it lists and every built-in theme at both contrasts. A style with a
 /// surface fill is measured against that fill; a style without one against each of `GROUNDS`.
 fn text_and_icons_meet_the_text_minimum(subject: &Subject) -> Result<(), String> {
-    if subject.probe.sample.is_none() {
-        return Ok(());
-    }
     let reachable = reachable(subject);
+    for source in sources(subject)? {
+        measure_contrast(subject, &source, reachable)?;
+    }
+    Ok(())
+}
+
+fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Result<(), String> {
     for contrast in [Contrast::Standard, Contrast::High] {
         let min = text_contrast_min(contrast);
         for (theme, tokens) in themes_at(contrast) {
-            let Some(first) = looks_in(subject, &tokens, craft_theme::Variant::SECONDARY) else {
-                return Ok(());
+            let Some(first) = looks_in(subject, source, &tokens, craft_theme::Variant::SECONDARY) else {
+                continue;
             };
             let variants = if first.variants.is_empty() { &[craft_theme::Variant::SECONDARY][..] } else { first.variants };
             for &variant in variants {
-                let Some(looks) = looks_in(subject, &tokens, variant) else {
+                let Some(looks) = looks_in(subject, source, &tokens, variant) else {
                     continue;
                 };
                 let fill = looks.surface.as_ref().map(|surface| &surface.fill);

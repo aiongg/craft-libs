@@ -2,6 +2,7 @@
 
 use super::Frames;
 use crate::primitives::{Draw, DrawEnv, PaintRecord};
+use crate::runtime::egui::memory::Service;
 use crate::runtime::env::{AppValues, Scale};
 use crate::style::{ComponentStyle, EnvKey, Ink, StyleCx, StyleKey, UiTokens, resolve_style};
 use craft_host::target::Os;
@@ -131,16 +132,80 @@ pub(crate) fn style_looks<T: crate::contract::Component + 'static>(
     instance: &dyn std::any::Any,
     cx: &crate::style::StyleCx<'_>,
 ) -> Option<StyleLooks> {
-    use crate::style::ComponentStyle as _;
     let component = instance.downcast_ref::<T>()?;
-    let style = T::style(cx, component.style_key());
-    Some(StyleLooks {
-        variants: <T::Style as crate::style::ComponentStyle>::VARIANTS,
+    Some(looks_of(&T::style(cx, component.style_key())))
+}
+
+fn looks_of<S: crate::style::ComponentStyle>(style: &S) -> StyleLooks {
+    StyleLooks {
+        variants: S::VARIANTS,
         surface: style.surface().cloned(),
         focus: style.focus().copied(),
         texts: style.texts().into_iter().cloned().collect(),
         icons: style.icons().into_iter().cloned().collect(),
-        style: std::sync::Arc::new(style),
-        equal: |a, b| matches!((a.downcast_ref::<T::Style>(), b.downcast_ref::<T::Style>()), (Some(a), Some(b)) if a == b),
-    })
+        style: std::sync::Arc::new(style.clone()),
+        equal: |a, b| matches!((a.downcast_ref::<S>(), b.downcast_ref::<S>()), (Some(a), Some(b)) if a == b),
+    }
+}
+
+/// A style the pipeline resolved for a component run: what it looked like in the env it was resolved in, and how to
+/// resolve the same component's style in another env.
+#[non_exhaustive]
+pub struct StyleSeen {
+    /// The component type's `std::any::type_name`.
+    pub type_name: &'static str,
+    /// The variant the style was resolved under.
+    pub variant: craft_theme::Variant,
+    /// The control size it was resolved under.
+    pub size: ControlSize,
+    /// The resolved style.
+    pub looks: StyleLooks,
+    pub(crate) inputs: u64,
+    env: crate::style::EnvKey,
+    again: std::sync::Arc<dyn Fn(&crate::style::StyleCx<'_>) -> StyleLooks + Send + Sync>,
+}
+
+impl StyleSeen {
+    /// The style of the same component, from the same style key, under another style context.
+    pub fn resolve_in(&self, cx: &crate::style::StyleCx<'_>) -> StyleLooks {
+        (self.again)(cx)
+    }
+}
+
+#[derive(Default)]
+struct StyleRecord {
+    seen: Vec<std::sync::Arc<StyleSeen>>,
+}
+
+/// Records the style step 2 resolved for `C`, once per style key, env, variant and size.
+pub(crate) fn record<C: crate::contract::Component>(ctx: &Context, scx: &crate::style::StyleCx<'_>, key: C::StyleKey, style: &C::Style) {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut hasher);
+    let inputs = hasher.finish();
+    let type_name = std::any::type_name::<C>();
+    let known = Service::<StyleRecord>::run(ctx, |record| {
+        record.seen.iter().any(|seen| {
+            seen.type_name == type_name && seen.inputs == inputs && seen.env == scx.key && seen.variant == scx.variant && seen.size == scx.size
+        })
+    });
+    if known {
+        return;
+    }
+    let resolve: for<'a> fn(&crate::style::StyleCx<'a>, C::StyleKey) -> C::Style = C::style;
+    let seen = StyleSeen {
+        type_name,
+        variant: scx.variant,
+        size: scx.size,
+        looks: looks_of(style),
+        inputs,
+        env: scx.key,
+        again: std::sync::Arc::new(move |cx| looks_of(&resolve(cx, key))),
+    };
+    Service::<StyleRecord>::run(ctx, |record| record.seen.push(std::sync::Arc::new(seen)));
+}
+
+/// Every style the pipeline resolved on `ctx` for the component type `type_name`.
+pub(crate) fn styles_of(ctx: &Context, type_name: &str) -> Vec<std::sync::Arc<StyleSeen>> {
+    Service::<StyleRecord>::run(ctx, |record| record.seen.iter().filter(|seen| seen.type_name == type_name).cloned().collect())
 }
