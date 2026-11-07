@@ -10,14 +10,44 @@ new_module = "craft_ui::patterns::panels"
 [[type]]
 name = "Panel"
 old = "craft_ui::patterns::panel::Panel"
-new = "craft_ui::patterns::panels::Panel"
-status = "pending"
+new = "craft_ui::sections::Panel"
+status = "moved"
+note = "A container (layer 5) shown with `Panel::new(title).show(ui, |ui, cx| ..)`; `new` takes the title, not an id salt (`Props::id_salt` salts the id). The body closure is `FnMut(&mut Ui, &mut BodyCx)`. Header, vertical scroll and the panel surface are built in; the panel fills the room offered."
+
+[[type]]
+name = "PanelStyle"
+old = "craft_ui::patterns::panel::PanelStyle"
+new = "craft_ui::sections::PanelStyle"
+status = "moved"
+note = "Read-only style struct; `Panel::style(tokens, ppp)` and `Panel::footer_height` are gone: the surface, padding and footer height come from the theme."
+
+[[type]]
+name = "PanelOutput"
+old = "craft_ui::patterns::panel::PanelOutput"
+new = "craft_ui::sections::PanelOutput"
+status = "moved"
+note = "`PanelOutput<R>` with the body's value becomes `PanelOutput { response, action, closed }`; the body's value is `Inner::inner` of the `show` result (`shown.inner`, `shown.output`)."
 
 [[type]]
 name = "Inspector"
 old = "craft_ui::patterns::inspector::Inspector"
 new = "craft_ui::patterns::panels::Inspector"
-status = "pending"
+status = "moved"
+note = "A pattern on `Panel`: `Inspector::new(label).target(key).header(name).icon(icon).kind(kind).show(ui, |ui, cx| ..)`; no target shows the empty notice. The output is `PanelOutput`."
+
+[[type]]
+name = "InspectorHeader"
+old = "craft_ui::patterns::inspector::InspectorHeader"
+new = ""
+status = "removed"
+note = "Replaced by `TitleRow` with an icon and a subtitle, which `Inspector` builds from `header`, `icon` and `kind`."
+
+[[type]]
+name = "InspectorStyle"
+old = "craft_ui::patterns::inspector::InspectorStyle"
+new = ""
+status = "removed"
+note = "The header's look is `TitleRowStyle`; `Inspector::style` is gone."
 
 [[type]]
 name = "CommandPalette"
@@ -32,7 +62,80 @@ new = "craft_ui::patterns::panels::Tour"
 status = "pending"
 
 # One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+[[setter]]
+type = "Panel"
+old = "new(id_salt)"
+new = "new(title)"
+note = "The title is the constructor's argument; the id comes from the scope (`id_salt(..)` to salt it)."
+
+[[setter]]
+type = "Panel"
+old = "title(String)"
+new = "new(title)"
+
+[[setter]]
+type = "Panel"
+old = "scroll(bool)"
+new = ""
+note = "The body always scrolls vertically."
+
+[[setter]]
+type = "Panel"
+old = "fill(bool)"
+new = ""
+note = "The panel always fills the room offered."
+
+[[setter]]
+type = "Panel"
+old = "footer(FnOnce(&mut Ui))"
+new = "footer(FnMut(&mut Ui, &mut BodyCx))"
+note = "The closure fills a `FooterBar` body under the body."
+
+[[setter]]
+type = "Panel"
+old = "footer_label(String)"
+new = ""
+note = "The footer bar names itself from the section words."
+
+[[setter]]
+type = "Panel"
+old = "scroll_bar_label(String)"
+new = ""
+note = "The scroll bar's name comes from the theme words."
+
+[[setter]]
+type = "Inspector"
+old = "new(id_salt)"
+new = "new(label)"
+
+[[setter]]
+type = "Inspector"
+old = "target(impl AsIdSalt)"
+new = "target(impl AsIdSalt)"
+
+[[setter]]
+type = "Inspector"
+old = "header(InspectorHeader::new(icon, name).kind(kind))"
+new = "header(name).icon(IconSpec).kind(kind)"
+
+[[setter]]
+type = "Inspector"
+old = "title_only(name)"
+new = "header(name)"
+
+[[setter]]
+type = "Inspector"
+old = "empty(String)"
+new = "empty(impl Into<Label>)"
+
+[[setter]]
+type = "Inspector"
+old = "show_empty(bool)"
+new = ""
+note = "No `target(..)` shows the empty notice."
+
+[[setter]]
+type = "Inspector"
+old = "scroll_bar_label(String)"
+new = ""
+note = "The scroll bar's name comes from the theme words."
