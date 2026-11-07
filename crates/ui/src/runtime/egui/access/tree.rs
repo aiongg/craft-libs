@@ -130,6 +130,11 @@ impl AccessTree {
         Some((node.position_in_set()?, node.size_of_set()?))
     }
 
+    /// The expanded state of the node of `id`.
+    pub fn expanded(&self, id: Id) -> Option<bool> {
+        self.node(id)?.is_expanded()
+    }
+
     /// The live politeness of the node of `id`.
     pub fn live(&self, id: Id) -> Option<Politeness> {
         match self.node(id)?.live()? {
