@@ -13,6 +13,7 @@ mod collection;
 mod drive;
 mod nodes;
 mod pattern;
+mod pointer;
 mod shape;
 mod size;
 mod states;
@@ -62,10 +63,11 @@ const SHAPES: &[Case] = &[
     Case::new("items-empty", ANY, collection::empty_collection_shows_no_rows),
     Case::new("items-virtualisation", ANY, collection::long_collection_builds_only_visible_rows),
     Case::new("items-scroll-frame", ANY, collection::scroll_shows_rows_in_the_same_frame),
+    Case::new("items-cells", ANY, collection::cells_and_columns_are_reported),
 ];
 
 /// The case modules, in the order their cases run.
-const GROUPS: &[&[Case]] = &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, SHAPES];
+const GROUPS: &[&[Case]] = &[states::CASES, size::CASES, drive::CASES, activation::CASES, variants::CASES, text::CASES, pointer::CASES, SHAPES];
 
 fn cases() -> impl Iterator<Item = &'static Case> {
     GROUPS.iter().flat_map(|group| group.iter())

@@ -29,8 +29,10 @@ fn acted(fixture: &mut Fixture, before: &crate::testing::story::StorySnapshot) -
     changed || outputs.iter().any(|output| output.clicked || !output.edits.is_empty())
 }
 
-/// A disabled component changes no value, reports no click and takes no focus unless it explains itself: a node
-/// with a description stands for the tooltip of `disabled_text`.
+/// A disabled component changes no value, fires no command and takes no focus unless it explains itself: a node
+/// with a description stands for the tooltip of `disabled_text`, and then its tooltip shows on focus. A description
+/// also comes from an invalid state, so a disabled story that takes no focus is not read as lacking `disabled_text`.
+/// A story binds no command, so a fired command is read as the pass's click, which a bound command follows.
 fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let (_, plan) = settled(story, subject.probe);
@@ -47,10 +49,19 @@ fn disabled_changes_nothing(subject: &Subject) -> Result<(), String> {
         let mut fixture = Fixture::story_scoped(story, |scope| scope.enabled = Some(false));
         fixture.settle();
         fixture.key(Key::Tab, Modifiers::NONE);
-        let tree = fixture.tree();
-        let explains = tree.keys().into_iter().any(|key| tree.data_of(key).and_then(|node| node.description()).is_some_and(|text| !text.is_empty()));
-        if fixture.focused().is_some() && !explains {
-            return Err(format!("{}: a disabled story took focus", story.name));
+        fixture.idle(2);
+        let explanation = {
+            let tree = fixture.tree();
+            tree.keys()
+                .into_iter()
+                .find_map(|key| tree.data_of(key).and_then(|node| node.description()).filter(|text| !text.is_empty()).map(str::to_owned))
+        };
+        match (fixture.focused(), explanation) {
+            (Some(_), None) => return Err(format!("{}: a disabled story without `disabled_text` took focus", story.name)),
+            (Some(_), Some(text)) if !fixture.texts().iter().any(|run| run.text.contains(&text)) => {
+                return Err(format!("{}: the tooltip `{text}` does not show on focus", story.name));
+            }
+            _ => {}
         }
     }
     Ok(())
