@@ -1,0 +1,135 @@
+//! Stories of the graph family.
+
+use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
+use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Show as _};
+use crate::controls::disclosure::Disclosure;
+use crate::testing::{StoryData, StoryOutput, story};
+use craft_behavior::{CanvasTransform, EditEvent, keyed};
+use egui::{Pos2, Rect, Ui, Vec2};
+
+/// How far the zoomed story magnifies the graph.
+const ZOOM: f32 = 2.0;
+
+const NODE: Vec2 = Vec2::new(140.0, 72.0);
+const GAP: f32 = 24.0;
+const PER_ROW: u32 = 2;
+
+/// The edit type of the stories' graph: what the inline controls of the kinds report.
+#[derive(Clone, Debug, PartialEq)]
+enum CompEdit {
+    Fold(EditEvent<bool>),
+}
+
+/// Two inputs on the left and an output on the right.
+struct Mix;
+
+static MIX: Mix = Mix;
+
+impl<E: 'static> NodeKind<E> for Mix {
+    fn title(&self) -> &str {
+        "Mix"
+    }
+
+    fn port_count(&self) -> usize {
+        3
+    }
+
+    fn port_name(&self, port: usize) -> String {
+        ["Input A", "Input B", "Output"][port % 3].to_owned()
+    }
+
+    fn port_offset(&self, port: usize, size: Vec2) -> Vec2 {
+        if port == 2 { Vec2::new(size.x, size.y / 2.0) } else { Vec2::new(0.0, size.y * (port as f32 + 1.0) / 3.0) }
+    }
+}
+
+/// An input, an output and a disclosure control inside the node.
+struct Fold {
+    open: bool,
+}
+
+impl NodeKind<CompEdit> for Fold {
+    fn title(&self) -> &str {
+        "Fold"
+    }
+
+    fn port_count(&self) -> usize {
+        2
+    }
+
+    fn port_name(&self, port: usize) -> String {
+        let name = if port == 0 { "Input" } else { "Output" };
+        name.to_owned()
+    }
+
+    fn port_offset(&self, port: usize, size: Vec2) -> Vec2 {
+        Vec2::new(if port == 0 { 0.0 } else { size.x }, size.y / 2.0)
+    }
+
+    fn measure_controls(&self, cx: &MeasureCx<'_, Node<'_, CompEdit>>) -> Vec2 {
+        Vec2::splat(cx.icon())
+    }
+
+    fn controls(&self, ui: &mut PaintUi<'_>, rect: Rect) -> Option<CompEdit> {
+        let side = Rect::from_min_size(rect.min, Vec2::splat(rect.height()));
+        ui.child("fold", side, Disclosure::new(Bind::given(self.open))).event.map(CompEdit::Fold)
+    }
+}
+
+fn place(at: u32) -> Rect {
+    let (column, row) = ((at % PER_ROW) as f32, (at / PER_ROW) as f32);
+    Rect::from_min_size(Pos2::new(GAP + column * (NODE.x + GAP), GAP + row * (NODE.y + GAP)), NODE)
+}
+
+/// A graph of `count` nodes, alternating the two kinds, joined by `wired`: each pair is the output of the first
+/// node to the input of the second.
+fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zoom: Option<CanvasTransform>) -> StoryOutput {
+    let fold = Fold { open: *data.value("open", true) };
+    let kinds: Vec<&dyn NodeKind<CompEdit>> = (0..count).map(|at| if at % 2 == 0 { &MIX as &dyn NodeKind<CompEdit> } else { &fold }).collect();
+    let positions: Vec<Rect> = (0..count).map(place).collect();
+    let ids: Vec<NodeId> = (0..count).map(NodeId).collect();
+    let wires: Vec<Wire> = wired
+        .iter()
+        .enumerate()
+        .map(|(at, (from, to))| {
+            Wire::new(at as u64, PortRef::new(NodeId(*from), 2.min(kinds[*from as usize].port_count() - 1)), PortRef::new(NodeId(*to), 0))
+        })
+        .collect();
+    let source = keyed(&ids, |id| *id);
+    let mut shown = NodeGraph::new(&positions, &kinds, &wires);
+    if let Some(zoom) = zoom {
+        shown = shown.zoom(zoom);
+    }
+    let response = shown.show_items(ui, &source, &mut |id, _| Node::new(*id, kinds[id.0 as usize]));
+    for event in &response.events {
+        if let CollectionEvent::Item(_, NodeEvent::Edit(CompEdit::Fold(edit))) = event {
+            let _ = edit.apply(data.value("open", true));
+        }
+    }
+    response.into()
+}
+
+#[story(NodeGraph<'static, ()>, covers = [Empty])]
+fn no_nodes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    graph(ui, data, 0, &[], None)
+}
+
+#[story(NodeGraph<'static, ()>, covers = [One])]
+fn one_node(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    graph(ui, data, 1, &[], None)
+}
+
+#[story(NodeGraph<'static, ()>, covers = [Many, Default])]
+fn wired_nodes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], None)
+}
+
+#[story(NodeGraph<'static, ()>, covers = [Many])]
+fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, Vec2::ZERO)))
+}
+
+#[story(Node<'static, ()>, covers = [Default])]
+fn mix(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    Node::new(NodeId(0), &MIX).show(ui).response.into()
+}
