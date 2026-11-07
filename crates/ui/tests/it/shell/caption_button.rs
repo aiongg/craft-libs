@@ -2,7 +2,6 @@
 //! icon-theme search behind the round families' glyphs.
 
 use crate::windows_kit::Windows;
-use craft_behavior::PartKey;
 use craft_ui::contract::{Props as _, Show as _};
 use craft_ui::runtime::windows::{WindowHit, WindowHost};
 use craft_ui::shell::{
@@ -65,8 +64,8 @@ fn a_press_clicks_the_button_and_tab_skips_it() {
     });
     fixture.settle();
     let id = id.get().expect("the button showed");
-    let part = fixture.part(id, PartKey::new("button")).expect("the button has a part");
-    fixture.click(&part);
+    let button = fixture.node_of(id).expect("the button has a node");
+    fixture.click(&button);
     assert_eq!(clicks.get(), 1);
     fixture.key(Key::Tab, Modifiers::NONE);
     fixture.idle(2);

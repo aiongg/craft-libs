@@ -87,13 +87,14 @@ impl Host for InlineHost {
     }
 }
 
-/// The container fills the content rect of the window whose `Ui` it is shown in.
+/// The container fills the room of the `Ui` it is shown in: the window's content rect for the window's root `Ui`.
 struct WindowContentHost;
 
 impl Host for WindowContentHost {
     fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
-        let window = parent.ctx().content_rect();
+        let window = parent.max_rect();
         pass(parent, Some(ShowAt::Rect(window)), None);
+        crate::runtime::egui::alloc::advance_past(parent, window);
     }
 }
 

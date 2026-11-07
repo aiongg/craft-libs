@@ -12,8 +12,8 @@ use std::cell::Cell;
 const BODY: Vec2 = Vec2::new(120.0, 80.0);
 const WINDOW: Vec2 = Vec2::new(400.0, 300.0);
 const MONITOR: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(1000.0, 800.0) };
-/// Near the monitor's bottom right, where one more cascade step leaves it.
-const NEAR_CORNER: Rect = Rect { min: Pos2::new(560.0, 480.0), max: Pos2::new(960.0, 780.0) };
+/// Near the monitor's bottom right, where one more cascade step leaves it on both axes.
+const NEAR_CORNER: Rect = Rect { min: Pos2::new(600.0, 480.0), max: Pos2::new(1000.0, 780.0) };
 const SETTLED_FRAMES: usize = 3;
 
 #[trial]
