@@ -359,6 +359,7 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         running.retain(|facts| !(facts.ctx == ctx && facts.viewport == viewport));
         running.push(PassFacts { ctx: ctx.clone(), viewport, pass_nr, now });
     });
+    store::open_handles(&ctx);
     let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
         record.now = now;
         std::mem::take(&mut record.press_cancelled)

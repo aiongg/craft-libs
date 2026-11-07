@@ -74,6 +74,7 @@ impl Button {
 
 impl Component for Button {
     const ROLE: Role = Role::BUTTON;
+    const OVERLAYS: bool = false;
     type Style = ButtonStyle;
     type Output = Response;
 

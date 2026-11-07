@@ -10,8 +10,8 @@
       "equivalent": "Inspector > FieldGroup > 500 Field rows (alternating NumberField and TextField)",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 11.661,
-        "frame_ms_p95": 13.557,
+        "frame_ms_median": 13.763,
+        "frame_ms_p95": 19.91,
         "allocations_median": 28533.0,
         "bytes_median": 6477009.0,
         "discard_passes_per_frame": 0.0,
@@ -25,8 +25,8 @@
       "equivalent": "list::List over 10,000 RowInfo, one selected row",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 1.018,
-        "frame_ms_p95": 1.042,
+        "frame_ms_median": 1.145,
+        "frame_ms_p95": 1.196,
         "allocations_median": 160.0,
         "bytes_median": 18749.0,
         "discard_passes_per_frame": 0.0,
@@ -40,8 +40,8 @@
       "equivalent": "list::Table of 50 columns x 200 rows, a screen tall enough to draw every cell",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 22.731,
-        "frame_ms_p95": 25.423,
+        "frame_ms_median": 24.553,
+        "frame_ms_p95": 27.548,
         "allocations_median": 70752.0,
         "bytes_median": 21920166.0,
         "discard_passes_per_frame": 0.0,
@@ -56,7 +56,7 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.023,
-        "frame_ms_p95": 0.025,
+        "frame_ms_p95": 0.024,
         "allocations_median": 117.0,
         "bytes_median": 26214.0,
         "discard_passes_per_frame": 0.0,
@@ -71,7 +71,7 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.075,
-        "frame_ms_p95": 0.079,
+        "frame_ms_p95": 0.08,
         "allocations_median": 710.0,
         "bytes_median": 95083.0,
         "discard_passes_per_frame": 0.0,
@@ -85,8 +85,8 @@
       "equivalent": "controls::TextField::multiline over a 100 KB String the host owns",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.076,
-        "frame_ms_p95": 0.08,
+        "frame_ms_median": 0.078,
+        "frame_ms_p95": 0.083,
         "allocations_median": 56.0,
         "bytes_median": 835691.0,
         "discard_passes_per_frame": 0.0,
@@ -100,8 +100,8 @@
       "equivalent": "list::List over 10,000 RowInfo, all 10,000 keys in the Selection",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.978,
-        "frame_ms_p95": 1.045,
+        "frame_ms_median": 0.999,
+        "frame_ms_p95": 1.052,
         "allocations_median": 160.0,
         "bytes_median": 20957.0,
         "discard_passes_per_frame": 0.0,
@@ -116,7 +116,7 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.021,
-        "frame_ms_p95": 0.06,
+        "frame_ms_p95": 0.023,
         "allocations_median": 92.0,
         "bytes_median": 17775.0,
         "discard_passes_per_frame": 0.0,
@@ -130,8 +130,8 @@
       "equivalent": "list::List::measured over 10,000 rows of 0 to 3 wrapped lines, mouse wheel every frame",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 786.895,
-        "frame_ms_p95": 816.857,
+        "frame_ms_median": 785.35,
+        "frame_ms_p95": 818.31,
         "allocations_median": 80218.0,
         "bytes_median": 6154571.0,
         "discard_passes_per_frame": 0.0,
@@ -146,7 +146,7 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.06,
-        "frame_ms_p95": 0.065,
+        "frame_ms_p95": 0.091,
         "allocations_median": 178.0,
         "bytes_median": 21980.0,
         "discard_passes_per_frame": 0.0,
@@ -160,8 +160,8 @@
       "equivalent": "dialog::Dialog modal, open from the first frame, over 10 NumberFields and 10 TextFields in Field rows",
       "no_equivalent_reason": null,
       "measurement": {
-        "frame_ms_median": 0.529,
-        "frame_ms_p95": 0.587,
+        "frame_ms_median": 0.528,
+        "frame_ms_p95": 0.746,
         "allocations_median": 1255.0,
         "bytes_median": 279486.0,
         "discard_passes_per_frame": 0.0,
@@ -176,7 +176,7 @@
       "no_equivalent_reason": null,
       "measurement": {
         "frame_ms_median": 0.181,
-        "frame_ms_p95": 0.188,
+        "frame_ms_p95": 0.226,
         "allocations_median": 339.0,
         "bytes_median": 88388.0,
         "discard_passes_per_frame": 1.0,

@@ -3,8 +3,11 @@
 use egui::util::IdTypeMap;
 use egui::util::id_type_map::RawKey;
 use egui::{Context, Id};
-use std::any::Any;
-use std::hash::Hash;
+use std::any::{Any, TypeId};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::hash::{BuildHasherDefault, Hash, Hasher};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, PoisonError};
 
 /// Context data: the map the runtime's slots live in.
@@ -38,6 +41,24 @@ pub(crate) fn put<T: Any + Clone + Send + Sync>(ctx: &Context, id: Id, value: T)
         old
     });
     drop(replaced);
+}
+
+/// A copy of the plain value under `id`, read in place: `Copy` means no slot code runs under the data lock.
+pub(crate) fn peek_copy<T: Any + Copy + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
+    ctx.data(|data| data.get_temp::<T>(id))
+}
+
+/// Stores `mark` under `id` unless a value of its type is there already.
+pub(crate) fn mark_seen<T: Any + Clone + Send + Sync>(data: &mut Map, id: Id, mark: T) {
+    if data.get_temp::<T>(id).is_none() {
+        data.insert_temp(id, mark);
+    }
+}
+
+/// Puts a taken-out box back under `id`, in the allocation it left in. The value it replaced, if any, is returned
+/// to drop outside the lock.
+pub(crate) fn put_boxed<T: Any + Clone + Send + Sync>(data: &mut Map, id: Id, value: Box<T>) -> Option<Removed> {
+    data.insert_temp_boxed(id, value)
 }
 
 /// A copy of the slot under `id` without running slot code under the data lock: the entry moves out, is
@@ -78,12 +99,109 @@ impl<S> Clone for Service<S> {
     }
 }
 
+/// A multiply-and-rotate hasher for keys that are already hashes or ids: the maps of the runtime hold no
+/// attacker-chosen keys.
+#[derive(Default)]
+pub(crate) struct FastHasher(u64);
+
+impl FastHasher {
+    #[inline]
+    fn mix(&mut self, word: u64) {
+        self.0 = (self.0.rotate_left(5) ^ word).wrapping_mul(0x517c_c1b7_2722_0a95);
+    }
+}
+
+impl Hasher for FastHasher {
+    #[inline]
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    #[inline]
+    fn write(&mut self, bytes: &[u8]) {
+        for chunk in bytes.chunks(8) {
+            let mut word = [0u8; 8];
+            word[..chunk.len()].copy_from_slice(chunk);
+            self.mix(u64::from_le_bytes(word));
+        }
+    }
+
+    #[inline]
+    fn write_u8(&mut self, i: u8) {
+        self.mix(u64::from(i));
+    }
+
+    #[inline]
+    fn write_u64(&mut self, i: u64) {
+        self.mix(i);
+    }
+}
+
+/// A `HashMap` over [`FastHasher`].
+pub(crate) type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FastHasher>>;
+
+/// The service handles of one context, by service type.
+#[derive(Default)]
+struct Handles {
+    /// The context the handles belong to, and its token in its own data.
+    owner: Option<(Context, u64)>,
+    map: FastMap<TypeId, Box<dyn Any>>,
+}
+
+thread_local! {
+    /// The handles of the context this thread last ran a pass of, kept between passes: a lookup in the context's
+    /// data happens once per service type and context. A read for any other context bypasses it, and a pass
+    /// that ends without its end hook leaves nothing to undo. The handles are dropped when this thread runs a
+    /// pass of another context.
+    static HANDLES: RefCell<Handles> = RefCell::new(Handles::default());
+}
+
+/// Identifies the context in its own data, so handles kept for a context whose data was reset are dropped.
+#[derive(Default, Clone)]
+struct ContextToken(u64);
+
+/// Checks the cached handles against `ctx` at the start of a pass.
+pub(crate) fn open_handles(ctx: &Context) {
+    static SLOT: OnceLock<Id> = OnceLock::new();
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    let slot = *SLOT.get_or_init(|| unique("craft_ui.context_token"));
+    let token = locked(ctx, |data| {
+        let token = data.get_temp_mut_or_default::<ContextToken>(slot);
+        if token.0 == 0 {
+            token.0 = NEXT.fetch_add(1, Ordering::Relaxed);
+        }
+        token.0
+    });
+    HANDLES.with(|handles| {
+        let mut handles = handles.borrow_mut();
+        if !handles.owner.as_ref().is_some_and(|(owner, kept)| owner.ptr_eq(ctx) && *kept == token) {
+            handles.map.clear();
+            handles.owner = Some((ctx.clone(), token));
+        }
+    });
+}
+
 impl<S: Default + Send + 'static> Service<S> {
     /// The context's service of type `S`, created on first use.
     pub(crate) fn of(ctx: &Context) -> Service<S> {
+        let cached = HANDLES.with(|handles| {
+            let handles = handles.borrow();
+            let mine = handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx));
+            mine.then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
+        });
+        if let Some(handle) = cached {
+            return handle;
+        }
         static SLOT: OnceLock<Id> = OnceLock::new();
         let slot = *SLOT.get_or_init(|| unique("craft_ui.service"));
-        locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone())
+        let handle = locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone());
+        HANDLES.with(|handles| {
+            let mut handles = handles.borrow_mut();
+            if handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx)) {
+                handles.map.insert(TypeId::of::<S>(), Box::new(handle.clone()));
+            }
+        });
+        handle
     }
 
     /// Runs `f` on the state under the service's lock.

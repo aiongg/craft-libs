@@ -212,6 +212,8 @@ pub trait Component: Meta + Sized {
     const ALT_ROLES: &'static [Role] = &[];
     /// How input reaches the component.
     const INPUT: Input = Input::Pointer;
+    /// Whether the component hosts popups: `false` skips the overlay bookkeeping of steps 9, 10, 12, 15 and 16.
+    const OVERLAYS: bool = true;
     /// Keys the focused component keeps from egui and the shortcut dispatcher.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
     /// Whether the component paints its label as visible text. `false` for a face that shows only an icon or a

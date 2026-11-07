@@ -13,10 +13,10 @@ pub(crate) use nav::{enter_row, leave_row, roving_move, row_has_stops};
 pub(crate) use registration::{Group, Stop};
 
 use crate::runtime::egui::focus as egui_focus;
+use crate::runtime::egui::memory::FastMap;
 use crate::runtime::frame::PerViewport;
 use craft_behavior::{DocKey, PartRef};
 use egui::{Context, Id, ViewportId};
-use std::collections::HashMap;
 use std::sync::Arc;
 
 pub use crate::runtime::keys::Intents;
@@ -79,25 +79,36 @@ pub(crate) struct BeginIn {
     pub(crate) tab_all_controls: bool,
 }
 
+/// The row groups of one collection's visible rows in a pass: every one is a flat roving group of the same owner
+/// and direction, so the collection registers them as one record.
+pub(crate) struct RowGroups {
+    owner: Id,
+    rtl: bool,
+    /// Sorted.
+    ids: Vec<Id>,
+}
+
 #[derive(Default)]
 pub(crate) struct State {
     pub(crate) stops: Vec<StopRec>,
     pub(crate) last_stops: Vec<StopRec>,
-    pub(crate) scopes: HashMap<Id, ScopeRec>,
-    pub(crate) last_scopes: HashMap<Id, ScopeRec>,
+    pub(crate) scopes: FastMap<Id, ScopeRec>,
+    pub(crate) last_scopes: FastMap<Id, ScopeRec>,
     pub(crate) scope_order: Vec<Id>,
     pub(crate) last_scope_order: Vec<Id>,
     pub(super) open: Vec<(Id, usize)>,
     /// Where a scope's body begins in `stops`; the header's stops come before it, the footer's after the body's.
-    pub(super) body_from: HashMap<Id, usize>,
-    pub(crate) groups: HashMap<Id, Group>,
-    pub(crate) last_groups: HashMap<Id, Group>,
-    pub(crate) focused: HashMap<Id, StopKey>,
+    pub(super) body_from: FastMap<Id, usize>,
+    pub(crate) groups: FastMap<Id, Group>,
+    pub(crate) last_groups: FastMap<Id, Group>,
+    pub(crate) row_sets: Vec<RowGroups>,
+    pub(crate) last_row_sets: Vec<RowGroups>,
+    pub(crate) focused: FastMap<Id, StopKey>,
     pub(crate) focus_now: Option<Id>,
     pub(super) pending: Option<FocusTarget>,
-    pub(super) docs: HashMap<DocKey, Id>,
+    pub(super) docs: FastMap<DocKey, Id>,
     pub(super) revealed: Option<StopKey>,
-    pub(super) seen: HashMap<Id, u64>,
+    pub(super) seen: FastMap<Id, u64>,
     pub(crate) visible: bool,
     pub(crate) record: FocusedRecord,
     pub(super) menu_bar: bool,
@@ -150,6 +161,12 @@ pub(crate) fn register_group(ctx: &Context, group: Group) {
     with(ctx, |state| {
         state.groups.insert(group.id, group);
     });
+}
+
+/// Registers the row groups `ids` of the collection `owner` for the running pass.
+pub(crate) fn register_row_groups(ctx: &Context, owner: Id, rtl: bool, mut ids: Vec<Id>) {
+    ids.sort_unstable_by_key(|id| id.value());
+    with(ctx, |state| state.row_sets.push(RowGroups { owner, rtl, ids }));
 }
 
 /// The place of the component `id`'s own stop among last pass's members of the roving group `group`.
@@ -248,19 +265,38 @@ pub(crate) fn focused_rec(ctx: &Context) -> Option<StopRec> {
 pub(crate) fn in_row_child(ctx: &Context) -> bool {
     with(ctx, |state| {
         let group = state.stop_of_focus().and_then(|rec| rec.stop.group);
-        group.and_then(|group| state.last_groups.get(&group)).is_some_and(|group| group.row)
+        group.and_then(|group| state.group(group)).is_some_and(|group| group.row)
     })
 }
 
 /// Whether the stop `stop` is a child or part of a collection row's roving group: it activates itself.
 pub(crate) fn is_row_child(ctx: &Context, stop: &Stop) -> bool {
-    with(ctx, |state| stop.group.and_then(|group| state.last_groups.get(&group)).is_some_and(|group| group.row))
+    with(ctx, |state| stop.group.and_then(|group| state.group(group)).is_some_and(|group| group.row))
 }
 
 /// Whether the focus stop is the component `id`: the focused member or item of its arena, or a root that
 /// holds focus while none of its members is the stop. A root's own focused part counts as the root.
 pub(crate) fn is_focused(ctx: &Context, id: Id) -> bool {
     focused_stop(ctx).is_some_and(|(focused, _)| focused == id)
+}
+
+/// What a component reads of focus in one pass.
+#[derive(Clone, Copy, Default)]
+pub(crate) struct Facts {
+    /// `is_focused`.
+    pub(crate) focused: bool,
+    /// `focus_visible`.
+    pub(crate) visible: bool,
+    /// `active_part`.
+    pub(crate) part: Option<PartRef>,
+}
+
+/// The focus facts of the component `id`, read once.
+pub(crate) fn facts(ctx: &Context, id: Id) -> Facts {
+    match focused_stop(ctx) {
+        Some((focused, part)) if focused == id => Facts { focused: true, visible: with(ctx, |state| state.visible), part },
+        _ => Facts::default(),
+    }
 }
 
 /// `is_focused` and focus arrived by keyboard, so the ring shows.

@@ -208,6 +208,7 @@ fn blank_core<'a>(
         results: HashMap::new(),
         face_mode: false,
         active: None,
+        focus: Default::default(),
         member_of: None,
         activation: None,
         activated_member: None,
@@ -419,7 +420,8 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     }
     cx.core.response = response;
     // The focus service holds last pass's registration: a part that is not in this pass's results is not active.
-    cx.core.active = focus::active_part(&ctx, id).filter(|part| results.contains_key(&(part.key, part.index)));
+    cx.core.focus = focus::facts(&ctx, id);
+    cx.core.active = cx.core.focus.part.filter(|part| results.contains_key(&(part.key, part.index)));
     cx.core.scroll_moves = super::cx::scroll_moves(&parts.scrolls, &results);
     cx.core.value_parts = parts.decls.iter().filter(|(_, extras)| extras.value).map(|(decl, _)| (decl.key, decl.index)).collect();
     cx.core.results = results;
@@ -445,7 +447,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         return;
     }
     // The popups the text part and `update` register start over for this pass.
-    overlay::begin_owner(&ctx, id);
+    if C::OVERLAYS {
+        overlay::begin_owner(&ctx, id);
+    }
     // 8b text part
     if text_widget.is_some() {
         let ink = crate::style::ink_color(&env.tokens, env.ink);
@@ -467,10 +471,12 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     }
     // 10 overlay
     p.trace.mark(Step::Overlay);
-    let open = overlay::open_map(&mut *cx.core.memory, id);
-    let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
-    comp.overlay(&mut overlays, cx);
-    overlay::apply_closes(&ctx, overlays.closed);
+    if C::OVERLAYS {
+        let open = overlay::open_map(&mut *cx.core.memory, id);
+        let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
+        comp.overlay(&mut overlays, cx);
+        overlay::apply_closes(&ctx, overlays.closed);
+    }
     // What `update` and `overlay` left untaken goes back to the key service.
     steps::after_update(&mut cx.core);
     // 11 apply
@@ -480,7 +486,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
-    steps::state(comp, cx, overlay::popup_shown(&ctx, id), env.ink);
+    steps::state(comp, cx, C::OVERLAYS && overlay::popup_shown(&ctx, id), env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
         commands::note_focus(&ctx, id, &env.commands);
     }
@@ -560,7 +566,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let (shown, mixed) = (value.value, value.mixed);
     let cancelled: Vec<_> = value.cancelled.into_iter().collect();
     hooks.read(&mut comp, &mut stage, id, &env);
-    let own_env = hooks.instance_scope(&comp).map(|scope| env.derive(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
+    let own_env = hooks.instance_scope(&comp).map(|scope| env.derive_local(|scoped| scoped.commands = scoped.commands.pushed(scope, id)));
     let env = own_env.as_ref().unwrap_or(&env);
     trace.mark(Step::Value);
     // 5 measure

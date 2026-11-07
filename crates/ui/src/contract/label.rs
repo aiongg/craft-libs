@@ -173,6 +173,7 @@ impl LabelLeaf {
 
 impl Component for LabelLeaf {
     const ROLE: super::Role = super::Role::LABEL;
+    const OVERLAYS: bool = false;
     type Style = LabelStyle;
     type Output = LabelOutput;
 

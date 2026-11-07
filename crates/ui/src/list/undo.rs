@@ -203,6 +203,7 @@ impl<'r> UndoRow<'r> {
 
 impl Component for UndoRow<'_> {
     const ROLE: Role = Role::LIST_BOX_OPTION;
+    const OVERLAYS: bool = false;
     type Style = UndoRowStyle;
     type Output = Response;
 

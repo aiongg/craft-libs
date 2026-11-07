@@ -886,7 +886,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let is_open = open || (animated && self.presence.visible);
         let enabled = gate.unwrap_or(true);
         if is_open {
-            let body_env = region_env.derive(|scoped| {
+            let body_env = region_env.derive_local(|scoped| {
                 if props.arena {
                     scoped.arena = Some(ArenaId::new(id));
                 }

@@ -60,8 +60,17 @@ impl State {
         self.last_scopes = std::mem::take(&mut self.scopes);
         self.last_scope_order = std::mem::take(&mut self.scope_order);
         self.last_groups = std::mem::take(&mut self.groups);
+        self.last_row_sets = std::mem::take(&mut self.row_sets);
         self.open.clear();
         self.body_from.clear();
+    }
+
+    /// The registered roving group `id` of last pass: a plain group, else one of a collection's row groups.
+    pub(crate) fn group(&self, id: Id) -> Option<super::Group> {
+        self.last_groups.get(&id).copied().or_else(|| {
+            let set = self.last_row_sets.iter().find(|set| set.ids.binary_search_by_key(&id.value(), |row| row.value()).is_ok())?;
+            Some(super::Group::new(id, craft_behavior::Roving::new(craft_behavior::NavShape::Flat)).row(set.owner).rtl(set.rtl))
+        })
     }
 
     pub(super) fn find_stop(&self, key: StopKey) -> Option<StopRec> {
@@ -117,10 +126,10 @@ impl State {
         let mut seen = HashSet::new();
         let mut out = Vec::new();
         for rec in self.last_stops.iter().filter(|rec| self.in_scope(rec.scope, scope_root)) {
-            match rec.stop.group.and_then(|group| self.last_groups.get(&group)) {
+            match rec.stop.group.and_then(|group| self.group(group)) {
                 Some(group) if group.row => {}
                 Some(group) => {
-                    if let Some(arrival) = seen.insert(group.id).then(|| self.arrival(group)).flatten() {
+                    if let Some(arrival) = seen.insert(group.id).then(|| self.arrival(&group)).flatten() {
                         out.push(Entry::Group(group.id, arrival));
                     }
                 }
@@ -213,7 +222,7 @@ impl State {
     /// A roving move of the group of `from`: focus moves to the member the navigation core picks.
     fn roving_move(&mut self, from: StopKey, mv: NavMove, mods: MoveMods, horizontal: bool) -> Option<Vec<Act>> {
         let current = self.find_stop(from)?;
-        let group = *self.last_groups.get(&current.stop.group?)?;
+        let group = self.group(current.stop.group?)?;
         let mv = match (horizontal && group.rtl, mv) {
             (true, NavMove::Back) => NavMove::Forward,
             (true, NavMove::Forward) => NavMove::Back,
@@ -241,7 +250,7 @@ impl State {
 
     /// Moves focus from a child of a collection row back to the collection; `None` when `from` is no row child.
     pub(super) fn leave_row(&mut self, from: StopKey) -> Option<(Id, Vec<Act>)> {
-        let group = *self.last_groups.get(&self.find_stop(from)?.stop.group?)?;
+        let group = self.group(self.find_stop(from)?.stop.group?)?;
         if !group.row {
             return None;
         }
@@ -252,7 +261,7 @@ impl State {
 
     /// Moves focus to the arrival member of the row group `group`.
     pub(super) fn enter_row(&mut self, group: Id) -> Option<Vec<Act>> {
-        let group = *self.last_groups.get(&group)?;
+        let group = self.group(group)?;
         let member = self.arrival(&group)?;
         Some(self.focus_stop(member))
     }

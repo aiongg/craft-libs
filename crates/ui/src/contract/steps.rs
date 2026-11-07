@@ -978,7 +978,9 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     if shown_on.or(command_on) == Some(true) {
         flags |= Flags::CHECKED;
     }
-    flags |= super::items::row_flags(&cx.core.ctx, cx.core.id);
+    if let Some(facts) = cx.core.env.facts_of(cx.core.id) {
+        flags |= facts.flags;
+    }
     if cx.mixed {
         flags |= Flags::MIXED;
     }
@@ -992,8 +994,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     }
     let core = &mut cx.core;
     let (hovered, pressed) = (core.response.hovered(), core.press.phase.is_press());
-    let focused = focus::is_focused(&core.ctx, core.id);
-    let visible = focus::focus_visible(&core.ctx, core.id);
+    let (focused, visible) = (core.focus.focused, core.focus.visible);
     if focused {
         flags |= Flags::FOCUSED;
     }
@@ -1113,7 +1114,9 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
     apply_values(comp, cx);
     let owner = cx.core.id;
-    super::overlay::write_open(&mut *cx.core.memory, owner);
+    if C::OVERLAYS {
+        super::overlay::write_open(&mut *cx.core.memory, owner);
+    }
     if let Some(rect) = cx.core.reveal.take()
         && let Some(owner) = cx.core.env.scroll_owner().or_else(|| wheel::nearest_scroll_owner(&cx.core.ctx, rect))
     {
@@ -1184,7 +1187,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     }
     if access.position.is_none() {
         access.position =
-            input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
+            input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| core.env.facts_of(id).map(|facts| facts.position));
     }
     let paint = core.paint.borrow();
     if role == Role::Merged {
@@ -1224,7 +1227,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         keeps_name: resolved.keeps_name,
         scrolls: input.scrolls,
         access: &access,
-        popups: &super::overlay::popups_shown(ctx, id),
+        popups: &if C::OVERLAYS { super::overlay::popups_shown(ctx, id) } else { Vec::new() },
     };
     access::report(ctx, &own);
     if let Some(facts) = core.text_access.take() {
