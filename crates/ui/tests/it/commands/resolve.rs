@@ -3,7 +3,7 @@
 use super::kit::{Dock, Pane, PaneCommand};
 use craft_behavior::Mixed;
 use craft_ui::buttons::IconButton;
-use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
+use craft_ui::contract::{Show as _, ShowContainer as _};
 use craft_ui::runtime::commands::{CommandState, Commands as _};
 use craft_ui::testing::{Fixture, trial};
 use std::cell::RefCell;

@@ -51,6 +51,8 @@ pub(crate) struct ScopeRec {
     pub(crate) label: Option<Arc<str>>,
     /// The stop that held focus when the scope was first pushed, which `restore` returns to.
     pub(crate) opener: Option<StopKey>,
+    /// The scope's layer is playing its exit: focus inside it already returns to the opener.
+    pub(crate) closing: bool,
 }
 
 /// What the end hook recorded for the next input hook, which reads only `RawInput` and records.
@@ -215,17 +217,18 @@ pub(crate) fn group_position(ctx: &Context, id: Id, group: Id) -> Option<crate::
 
 /// Opens the scope `id` for the stops registered until the matching [`pop_scope`].
 pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
-    push_scope_from(ctx, id, policy, label, None);
+    push_scope_from(ctx, id, policy, label, None, false);
 }
 
-/// `push_scope` for a scope whose opener the caller noted before egui's modal gate took focus away from it.
-pub(crate) fn push_scope_from(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>, noted: Option<StopKey>) {
+/// `push_scope` for a scope whose opener the caller noted before egui's modal gate took focus away from it, and
+/// which `closing` marks as playing its exit.
+pub(crate) fn push_scope_from(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>, noted: Option<StopKey>, closing: bool) {
     let focused = egui_focus::focused(ctx);
     with(ctx, |state| {
         let parent = state.open.last().map(|(parent, _)| *parent);
         let opener = noted.or_else(|| focused.and_then(|root| state.focused.get(&root).copied().or(Some((root, None)))));
         let opener = state.last_scopes.get(&id).map_or(opener, |last| last.opener.or(opener));
-        state.scopes.insert(id, ScopeRec { policy, parent, label, opener });
+        state.scopes.insert(id, ScopeRec { policy, parent, label, opener, closing });
         state.scope_order.push(id);
         let first = state.stops.len();
         state.open.push((id, first));
