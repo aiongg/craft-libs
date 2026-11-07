@@ -96,7 +96,14 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         let at = output.galley.pos_from_cursor(range.primary);
         at.translate(output.galley_pos.to_vec2())
     });
-    Shown { changed: output.response.changed(), focused, lost_focus: output.response.lost_focus() || (had_focus && !focused), entered, caret, galley: output.galley }
+    Shown {
+        changed: output.response.changed(),
+        focused,
+        lost_focus: output.response.lost_focus() || (had_focus && !focused),
+        entered,
+        caret,
+        galley: output.galley,
+    }
 }
 
 /// The selection of the widget as character indices, `(primary, secondary)`.
@@ -133,4 +140,3 @@ pub(crate) fn can_undo(ctx: &Context, id: Id, current: &str, redo: bool) -> bool
     let undoer = state.undoer();
     if redo { undoer.has_redo(&now) } else { undoer.has_undo(&now) }
 }
-

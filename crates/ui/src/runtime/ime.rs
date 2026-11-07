@@ -44,7 +44,9 @@ pub(crate) fn input_hook(ctx: &Context, events: &mut Vec<Event>, viewport: Viewp
         engine.queue.extend(taken);
         let guarded = engine.composing || engine.guard > 0;
         if guarded {
-            events.retain(|event| !matches!(event, Event::Key { key: Key::Enter | Key::Escape | Key::Backspace | Key::Delete | Key::Space, pressed: true, .. }));
+            events.retain(|event| {
+                !matches!(event, Event::Key { key: Key::Enter | Key::Escape | Key::Backspace | Key::Delete | Key::Space, pressed: true, .. })
+            });
         }
         engine.guard = engine.guard.saturating_sub(1);
     });
@@ -117,14 +119,19 @@ pub(crate) fn note_caret(ctx: &Context, owner: Id, field: Rect, caret: Rect, pas
 /// The end hook: writes the pass's IME output.
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
-    let (owner, interrupt, caret, generation) = with(ctx, viewport, |engine| (engine.owner, engine.interrupt.take(), engine.caret.take(), engine.generation));
+    let (owner, interrupt, caret, generation) =
+        with(ctx, viewport, |engine| (engine.owner, engine.interrupt.take(), engine.caret.take(), engine.generation));
     os::clear(ctx);
     match (caret, interrupt, owner) {
         (Some((id, field, caret, password)), interrupt, _) if Some(id) == owner => {
             os::write(ctx, viewport, os::Output { owner: id, field, caret, interrupt: interrupt.is_some(), generation, password });
         }
         // The old owner still gets an output in the pass it lost focus, or the OS never interrupts.
-        (_, Some(old), _) => os::write(ctx, viewport, os::Output { owner: old, field: Rect::NOTHING, caret: Rect::NOTHING, interrupt: true, generation, password: false }),
+        (_, Some(old), _) => os::write(
+            ctx,
+            viewport,
+            os::Output { owner: old, field: Rect::NOTHING, caret: Rect::NOTHING, interrupt: true, generation, password: false },
+        ),
         _ => {}
     }
 }

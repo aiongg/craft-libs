@@ -3,9 +3,9 @@
 use craft_behavior::{MotionMode, PartKey};
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::runtime::env::RootEnv;
+use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::text::widget_id;
-use craft_ui::testing::Frames;
 use craft_ui::text::TextField;
 use egui::{Event, Id, Pos2, Rect};
 

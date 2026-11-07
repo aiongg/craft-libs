@@ -7,8 +7,8 @@ pub mod ghost;
 mod group;
 mod label;
 mod looks;
-pub mod overlay;
 mod mount;
+pub mod overlay;
 mod paint_ui;
 mod props;
 mod registry;
@@ -20,16 +20,22 @@ pub mod toast;
 pub mod tooltip;
 mod values;
 
+pub use crate::layout::{BodyLayout, RowAlign};
 pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
 pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
+pub use container::{
+    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes, ShellPane,
+    Sizing, ThemeScope,
+};
 pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, SideLabel};
 pub use looks::Looks;
+pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
 pub use paint_ui::PaintUi;
 pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 #[doc(hidden)]
@@ -37,13 +43,7 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 pub use registry::REGISTRATIONS;
 #[doc(hidden)]
 pub use registry::{CollectionEntry, ContainerEntry, Entry, Exemption, LeafEntry, Probe, Registration};
-pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
-pub use container::{
-    Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
-    ShellPane, Sizing, ThemeScope,
-};
 pub use shell::CollectionProps;
-pub use crate::layout::{BodyLayout, RowAlign};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 
 use crate::style::{ComponentStyle, Flags, StyleCx, StyleKey};
@@ -54,8 +54,8 @@ use run::ShowAt;
 use std::hash::Hash;
 use std::ops::Deref;
 
-pub use craft_behavior::DropOperation;
 pub use crate::runtime::drag::{DragPreview, DropMark, DropTarget};
+pub use craft_behavior::DropOperation;
 pub(crate) use run::measure_under;
 pub(crate) use steps::take_reveal;
 

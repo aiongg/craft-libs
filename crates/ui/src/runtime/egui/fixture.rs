@@ -36,9 +36,16 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
     let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
-    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay,
+    FrameResult {
+        closed,
+        cursor: output.platform_output.cursor_icon,
+        repaint_delay,
         tree: crate::runtime::egui::access::tree_of(&mut output),
-        ime: output.platform_output.ime.as_ref().map(|ime| ImeSeen { owner: ime.owner, interrupt: ime.should_interrupt_composition, caret: ime.cursor_rect }),
+        ime: output.platform_output.ime.as_ref().map(|ime| ImeSeen {
+            owner: ime.owner,
+            interrupt: ime.should_interrupt_composition,
+            caret: ime.cursor_rect,
+        }),
     }
 }
 

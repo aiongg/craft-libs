@@ -28,8 +28,8 @@ pub use scroll_bar::{BarAxis, ScrollBar};
 pub use sensing::{PartResult, TextOutcome};
 pub use state_layer::{StateLayer, StateLayerKind};
 pub use surface::Surface;
-pub use text_input::{Completer, Completion, EditorLine, EditorPurpose, EditorRun, EditorState, TextKey, TextOptions};
 pub use text::{ChordText, LayoutRun, Span, TextLayout, TextRun, Wrap};
+pub use text_input::{Completer, Completion, EditorLine, EditorPurpose, EditorRun, EditorState, TextKey, TextOptions};
 
 pub(crate) use draw::DrawEnv;
 pub(crate) use record::{Adopted, FaceRecord, PaintRecord, face_id};

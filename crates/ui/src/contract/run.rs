@@ -3,12 +3,12 @@
 
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
-use super::{overlay, tooltip};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
     TipFn, Validity,
 };
 use super::{Inner, ItemFn};
+use super::{overlay, tooltip};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::access::{Politeness, Role, scope};
@@ -475,7 +475,11 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) });
+    steps::report(
+        comp,
+        cx,
+        &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) },
+    );
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
     p.activated = comp.activated(cx) && resolved.enabled;
 }
@@ -542,7 +546,11 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         mixed,
         // A cancel step 4 raised over a document that moved is reported, not applied: the app's value stays. One that
         // carries the value the gesture began with restores it at step 11.
-        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) { 0 } else { cancelled.len() },
+        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) {
+            0
+        } else {
+            cancelled.len()
+        },
         events: cancelled,
         validity: Validity::Ok,
     };

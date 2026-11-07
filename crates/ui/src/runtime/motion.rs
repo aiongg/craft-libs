@@ -238,7 +238,8 @@ pub(crate) fn end_pass(ctx: &Context) {
 /// A layer that is closed and fully faded out answers without opening a stage.
 pub(crate) fn layer_presence(ctx: &Context, base: Id, owner: Id, policy: MotionPolicy, open: bool, spec: MotionSpec) -> Presence {
     let hidden = Presence { t: 0.0, visible: false, exiting: false };
-    let running = store::peek_clone::<Tween<f32>>(ctx, memory::sub(base, ("anim", "open"))).is_some_and(|tween| !tween.is_settled() || tween.target() > 0.0 || tween.shown() > 0.0);
+    let running = store::peek_clone::<Tween<f32>>(ctx, memory::sub(base, ("anim", "open")))
+        .is_some_and(|tween| !tween.is_settled() || tween.target() > 0.0 || tween.shown() > 0.0);
     if !open && !running {
         return hidden;
     }

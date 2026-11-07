@@ -117,7 +117,8 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
     for edit in ime::take(ctx, widget) {
         match edit {
             EditorInput::Preedit { text: composing, .. } => {
-                state.preedit = (!composing.is_empty()).then(|| Preedit { at: state.preedit.as_ref().map_or_else(|| selection(text).1, |p| p.at), text: composing.to_string() });
+                state.preedit = (!composing.is_empty())
+                    .then(|| Preedit { at: state.preedit.as_ref().map_or_else(|| selection(text).1, |p| p.at), text: composing.to_string() });
             }
             EditorInput::ImeCommit => {}
             EditorInput::Text(typed) => {

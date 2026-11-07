@@ -404,7 +404,14 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
     let outcome = with_arena(ctx, arena, pass_nr, |state| {
         let root = state.root.unwrap_or(RootInfo { id: Id::NULL, rect: Rect::NOTHING, own_sense: Sense::empty() });
         let pos = frame.pos.unwrap_or(Pos2::ZERO);
-        let input = PassInput::new(&pass_pointer.events, frame.slop, pos, pass_pointer.primary_down || frame.buttons.contains(craft_behavior::Buttons::MIDDLE)).delta(frame.delta).cancel(cancel);
+        let input = PassInput::new(
+            &pass_pointer.events,
+            frame.slop,
+            pos,
+            pass_pointer.primary_down || frame.buttons.contains(craft_behavior::Buttons::MIDDLE),
+        )
+        .delta(frame.delta)
+        .cancel(cancel);
         let mut machine = std::mem::take(&mut state.machine);
         let step = machine.step(input, |at| {
             // The press-target rule: egui's click target decides, its drag target only for a drag-only root; the

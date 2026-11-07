@@ -3,15 +3,15 @@
 mod words;
 
 use crate::contract::{
-    Accessible as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _, PartsCx,
-    Props as _, Remember as _, Role, Trigger,
+    Accessible as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _,
+    PartsCx, Props as _, Remember as _, Role, Trigger,
 };
 use crate::primitives::text_adapter::{TextState, text_id};
 use crate::primitives::{Completer, Completion, TextKey, TextOptions, TextRun};
 use crate::runtime::egui::text_edit;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{Insets, Codec, GesturePhase, Metrics, NumberCodec, PartKey, PlainText, PressPhase, Sense, ValueDrag};
+use craft_behavior::{Codec, GesturePhase, Insets, Metrics, NumberCodec, PartKey, PlainText, PressPhase, Sense, ValueDrag};
 use craft_keymap::{Chord, Key};
 use egui::{Rect, Vec2};
 use std::borrow::Cow;
@@ -329,7 +329,9 @@ impl Component for NumberField<'_> {
                     cx.propose(Some(next));
                 }
             }
-            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => cx.commit(),
+            PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => {
+                cx.commit()
+            }
             _ => {}
         }
     }

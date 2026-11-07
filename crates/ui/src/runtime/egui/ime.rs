@@ -6,7 +6,10 @@ use egui::{Context, Event, ImeEvent, Rect, ViewportId};
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Raw {
     Enabled,
-    Preedit { text: String, cursor_chars: Option<std::ops::Range<usize>> },
+    Preedit {
+        text: String,
+        cursor_chars: Option<std::ops::Range<usize>>,
+    },
     Commit(String),
     Disabled,
     /// The OS finished the reset the engine asked for.
@@ -20,7 +23,9 @@ pub(crate) fn take_events(events: &mut Vec<Event>) -> Vec<Raw> {
         Event::Ime(ime) => {
             match ime {
                 ImeEvent::Enabled => taken.push(Raw::Enabled),
-                ImeEvent::Preedit { text, active_range_chars } => taken.push(Raw::Preedit { text: text.clone(), cursor_chars: active_range_chars.clone() }),
+                ImeEvent::Preedit { text, active_range_chars } => {
+                    taken.push(Raw::Preedit { text: text.clone(), cursor_chars: active_range_chars.clone() })
+                }
                 ImeEvent::Commit(text) => taken.push(Raw::Commit(text.clone())),
                 ImeEvent::Disabled => taken.push(Raw::Disabled),
                 _ => {}
@@ -52,7 +57,13 @@ pub(crate) struct Output {
 pub(crate) fn write(ctx: &Context, viewport: ViewportId, out: Output) {
     let reset = out.interrupt.then(|| ctx.request_ime_reset(viewport)).flatten();
     ctx.output_mut(|output| {
-        let mut ime = egui::output::IMEOutput::new(out.owner, out.generation, if out.password { egui::IMEPurpose::Password } else { egui::IMEPurpose::Normal }, out.field, out.caret);
+        let mut ime = egui::output::IMEOutput::new(
+            out.owner,
+            out.generation,
+            if out.password { egui::IMEPurpose::Password } else { egui::IMEPurpose::Normal },
+            out.field,
+            out.caret,
+        );
         ime.should_interrupt_composition = out.interrupt;
         ime.reset_request = reset;
         output.ime = Some(ime);

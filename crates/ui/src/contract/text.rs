@@ -1,7 +1,7 @@
 //! The text part of the pipeline (18.2): `PartsCx::text` turns what the text adapter recorded last pass into the
 //! typing run's events, and step 8b runs the adapter and applies the events through `Cx`.
 
-use super::cx::{gesture_key, Cx, PartsCx};
+use super::cx::{Cx, PartsCx, gesture_key};
 use super::{Component, Edit as _, ValueOf};
 use crate::primitives::text_adapter::{self as adapter, End, TextState};
 use crate::primitives::{TextKey, TextOptions, TextOutcome};
@@ -124,7 +124,14 @@ impl<C: Component> PartsCx<'_, C> {
 }
 
 /// Step 8b: runs the text adapter at the part's rect and applies the typing run's events.
-pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, ui: &mut Ui, step: &mut TextStep, keys: crate::runtime::focus::KeyUse, rtl: bool, ink: egui::Color32) {
+pub(crate) fn run<C: Component>(
+    cx: &mut Cx<'_, C>,
+    ui: &mut Ui,
+    step: &mut TextStep,
+    keys: crate::runtime::focus::KeyUse,
+    rtl: bool,
+    ink: egui::Color32,
+) {
     let (Some(decl), Some(plan)) = (step.decl.take(), step.plan.take()) else { return };
     let Ok(plan) = plan.downcast::<TextPlan<ValueOf<C>>>() else {
         debug_assert!(false, "the text part's codec value is the component's value");
