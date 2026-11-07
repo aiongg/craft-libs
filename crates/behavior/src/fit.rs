@@ -4,6 +4,7 @@
 
 /// Tabs visible on a strip and tabs that need an overflow menu, all in original order.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct TabFit {
     /// `(input index, width)` for visible tabs. A nonempty input always retains the selected tab
     /// (or the final tab if `selected` was out of bounds), even when its width must become zero.
