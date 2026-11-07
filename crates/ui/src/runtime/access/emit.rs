@@ -339,4 +339,9 @@ pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, rect: Rect, modal
     spec.modal = modal;
     spec.hidden = exiting;
     write_node(ctx, id, &spec);
+    if exiting {
+        // The content `Ui` can attach to the viewport rather than to the root (a popup body that names its own
+        // parent), so it is hidden itself.
+        adapter::hide(ctx, content);
+    }
 }
