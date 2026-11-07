@@ -249,7 +249,7 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
                 store::put(ctx, scrub_slot, true);
                 memory::adopt::<bool>(ctx, scope.owner, scrub_slot);
             } else {
-                drop(store::take::<bool>(ctx, scrub_slot));
+                let _ = store::take::<bool>(ctx, scrub_slot);
             }
         }
         Kind::Merge => {

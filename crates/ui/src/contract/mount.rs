@@ -6,7 +6,6 @@ use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
 use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
-use crate::runtime::egui::memory as store;
 use crate::runtime::egui::panels::{self, Edge};
 use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, Label};

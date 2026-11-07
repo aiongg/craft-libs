@@ -75,8 +75,3 @@ pub(crate) fn clear(ctx: &Context) {
     ctx.output_mut(|output| output.ime = None);
 }
 
-/// The pass's IME output, for tests.
-#[cfg(feature = "testing")]
-pub(crate) fn current(ctx: &Context) -> Option<egui::output::IMEOutput> {
-    ctx.output(|output| output.ime.clone())
-}

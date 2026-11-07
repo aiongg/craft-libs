@@ -3,7 +3,7 @@
 
 use super::fixture;
 pub use super::areas::{LayerOrder, layer_order};
-use egui::{Area, Context, Plugin, Event, Id, LayerId, Order, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
+use egui::{Context, Event, Id, Plugin, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
 pub(super) fn raw(time: f64, events: Vec<Event>) -> RawInput {

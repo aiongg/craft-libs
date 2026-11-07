@@ -149,7 +149,7 @@ fn replace(text: &mut String, selection: (usize, usize), insert: &str) -> usize 
 fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, widget: Id) -> bool {
     let ctx = input.ctx;
     let mut changed = false;
-    let selection = |text: &str| text_edit::selection(ctx, widget).map_or((text.chars().count(), text.chars().count()), |s| s);
+    let selection = |text: &str| text_edit::selection(ctx, widget).unwrap_or((text.chars().count(), text.chars().count()));
     if let Some(preedit) = ime::take_leaving(ctx, widget).filter(|preedit| !preedit.is_empty()) {
         let at = state.preedit.take().map_or_else(|| text.chars().count(), |p| p.at);
         let caret = replace(text, (at, at), &preedit);

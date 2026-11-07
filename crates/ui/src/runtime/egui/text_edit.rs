@@ -2,7 +2,7 @@
 
 use egui::text::{CCursor, CCursorRange, LayoutJob, TextFormat};
 use egui::text_edit::TextEditState;
-use egui::{Color32, Context, Event, EventFilter, FontId, Id, Rect, Ui};
+use egui::{Color32, Context, EventFilter, FontId, Id, Rect, Ui};
 use std::ops::Range;
 
 /// One text editing widget.
@@ -130,12 +130,4 @@ pub(crate) fn undo(ctx: &Context, id: Id, current: &str, redo: bool) -> Option<S
     state.store(ctx, id);
     Some(text)
 }
-
-/// Whether the widget has something to undo or redo against `current`.
-pub(crate) fn can_undo(ctx: &Context, id: Id, current: &str, redo: bool) -> bool {
-    let Some(state) = TextEditState::load(ctx, id) else { return false };
-    let range = state.cursor.char_range().unwrap_or_default();
-    let now = (range, current.to_owned());
-    let undoer = state.undoer();
-    if redo { undoer.has_redo(&now) } else { undoer.has_undo(&now) }
 }

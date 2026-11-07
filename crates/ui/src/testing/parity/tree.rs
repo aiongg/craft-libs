@@ -5,7 +5,6 @@
 //! the child indices from the root (`0.2.1`), so reruns print the same ids. Bounds are left out.
 
 use std::collections::HashMap;
-use std::fmt::Write as _;
 
 use super::ParityState;
 use crate::runtime::egui::access::parity::{child_path, line_of, paths_of};

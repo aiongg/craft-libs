@@ -287,7 +287,7 @@ pub fn layer_order() -> LayerOrder {
     let ids = [Id::new("craft_ui.surface.la"), Id::new("craft_ui.surface.lb"), Id::new("craft_ui.surface.lc")];
     let layers = ids.map(|id| LayerId::new(Order::Middle, id));
     let ghost = LayerId::new(Order::Middle, Id::new("craft_ui.surface.ghost"));
-    let mut frame = |time: f64, list: &[LayerId]| {
+    let frame = |time: f64, list: &[LayerId]| {
         let mut output = ctx.run_ui(super::surface::raw(time, Vec::new()), |ui| {
             let ctx = ui.ctx().clone();
             for id in ids {

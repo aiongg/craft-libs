@@ -224,7 +224,7 @@ pub(crate) fn take_fired(ctx: &Context) -> Vec<Fired> {
 
 /// Whether the component that holds key focus sits inside the instance `id`.
 pub(crate) fn focus_within(ctx: &Context, id: Id) -> bool {
-    with(ctx, |board| board.focused.iter().any(|(_, chain)| chain.iter().any(|instance| *instance == id)))
+    with(ctx, |board| board.focused.iter().any(|(_, chain)| chain.contains(&id)))
 }
 
 /// Records that the container `id` is an instance of `scope` in the running pass of its viewport.
