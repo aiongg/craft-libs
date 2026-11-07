@@ -56,8 +56,9 @@ pub struct TileOutput {
     pub response: Response,
     /// What the tile's parts reported this pass.
     pub event: Option<TilePartEvent>,
-    /// Where the caption is drawn: the band under the picture, or the name's line in a start column.
-    pub caption: Rect,
+    /// Where the caption is drawn: the band under the picture, or the name's line in a start column; `None` for a
+    /// tile that shows no caption.
+    pub caption: Option<Rect>,
 }
 
 impl Outcome for TileOutput {
@@ -73,8 +74,9 @@ impl ItemOutput<TilePartEvent> for TileOutput {
         self.event
     }
 
+    /// A tile without a caption has no label line: its rename field goes over the whole tile.
     fn label_rect(&self) -> Option<Rect> {
-        Some(self.caption)
+        self.caption
     }
 }
 
@@ -323,7 +325,7 @@ pub struct Tile<'a> {
     pills: Vec<TileBadge>,
     placed: Option<Placed>,
     event: Option<TilePartEvent>,
-    caption_rect: Rect,
+    caption_rect: Option<Rect>,
 }
 
 impl<'a> Tile<'a> {
@@ -358,7 +360,7 @@ impl<'a> Tile<'a> {
             pills: Vec::new(),
             placed: None,
             event: None,
-            caption_rect: Rect::NOTHING,
+            caption_rect: None,
         }
         .label(label)
     }
@@ -750,7 +752,11 @@ impl Component for Tile<'_> {
             ui.face(CHECK, Checkbox::new(Bind::given(value)));
         }
         self.paint_caption(ui, cx, &placed);
-        self.caption_rect = if self.caption == CaptionPlace::Start { placed.name } else { placed.caption };
+        self.caption_rect = match self.caption {
+            CaptionPlace::Below => Some(placed.caption),
+            CaptionPlace::Start => Some(placed.name),
+            CaptionPlace::None => None,
+        };
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> TileOutput {

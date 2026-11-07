@@ -468,7 +468,7 @@ pub(crate) fn focus_in_scope(ctx: &Context, scope: Id) -> Option<bool> {
             if id == scope {
                 return true;
             }
-            at = state.last_scopes.get(&id).and_then(|record| record.parent);
+            at = state.scopes.get(&id).or_else(|| state.last_scopes.get(&id)).and_then(|record| record.parent);
         }
         false
     }))

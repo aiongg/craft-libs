@@ -70,7 +70,7 @@ const AMBER: u32 = 101;
 const CORAL: u32 = 102;
 
 /// A secondary click on a preset that is not the selected one opens the row menu for that preset, and the menu's
-/// Rename renames it.
+/// Rename renames it in a field over its tile, which has no caption.
 #[trial]
 fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
