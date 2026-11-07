@@ -57,3 +57,28 @@ note = "Internal; the eight zones are `WindowEdges`."
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "FloatingFrame"
+old = "new(id, rect)"
+new = "Overlay::placed(rect) on the frame container's Mount::Layer overlay"
+
+[[setter]]
+type = "FloatingFrame"
+old = "bounds(rect)"
+new = "Overlay::bounds(rect)"
+
+[[setter]]
+type = "FloatingFrame"
+old = "limits(PanelLimits { min, max })"
+new = "Overlay::size_limits(min, max)"
+
+[[setter]]
+type = "FloatingFrame"
+old = "opacity(f32)"
+new = "Overlay::opacity(f32)"
+
+[[setter]]
+type = "FrameResponse"
+old = "resized, resize_started"
+new = "Container::placement_changed(&PlacementChange): phase Begin starts a resize, rect is the rect it asks for"

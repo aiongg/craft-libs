@@ -13,10 +13,11 @@ use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
+use crate::runtime::windows::ResizeEdge;
 use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
-use craft_behavior::{CancelRule, Intent, OwnerClass, PointerButton};
+use craft_behavior::{CancelRule, GesturePhase, Intent, OwnerClass, PointerButton};
 use craft_keymap::Mods;
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
@@ -341,6 +342,15 @@ pub struct Overlay {
     pub size: Option<Vec2>,
     /// The least an `OverlayFit::Resizable` layer may be resized to.
     pub min_size: Option<Vec2>,
+    /// The most a movable or resizable layer may be resized to.
+    pub max_size: Option<Vec2>,
+    /// The rect the caller places the layer at, in the layer's parent space. The container reports the user's moves
+    /// and resizes as `PlacementChange`s and keeps no placement of its own.
+    pub placed: Option<Rect>,
+    /// The rect a move or resize keeps the layer inside.
+    pub bounds: Option<Rect>,
+    /// The layer's own opacity, below the open and close motion's.
+    pub opacity: f32,
 }
 
 /// The share of the viewport a dropdown list may take. Half the width leaves room for the list to hang from the end
@@ -368,6 +378,10 @@ impl Overlay {
             popup: PopupKind::Dialog,
             size: None,
             min_size: None,
+            max_size: None,
+            placed: None,
+            bounds: None,
+            opacity: 1.0,
         }
     }
 
@@ -498,6 +512,33 @@ impl Overlay {
         self
     }
 
+    /// Sets the least and the most a resizable layer may be resized to.
+    pub fn size_limits(mut self, min: Vec2, max: Vec2) -> Overlay {
+        self.min_size = Some(min);
+        self.max_size = Some(max);
+        self
+    }
+
+    /// Places the layer at `rect` in its parent's space. The container reports the moves and resizes the user makes
+    /// as `PlacementChange`s to `Container::placement_changed`; the caller decides the next rect. A placed rect wins
+    /// over a saved placement.
+    pub fn placed(mut self, rect: Rect) -> Overlay {
+        self.placed = Some(rect);
+        self
+    }
+
+    /// Sets the rect a move or resize keeps the layer inside.
+    pub fn bounds(mut self, bounds: Rect) -> Overlay {
+        self.bounds = Some(bounds);
+        self
+    }
+
+    /// Sets the layer's opacity, from 0 (invisible) to 1.
+    pub fn opacity(mut self, opacity: f32) -> Overlay {
+        self.opacity = opacity;
+        self
+    }
+
     /// Sets the narrowest width.
     pub fn min_width(mut self, min_width: MinWidth) -> Overlay {
         self.min_width = min_width;
@@ -553,6 +594,33 @@ impl Overlay {
         }
         self
     }
+}
+
+/// What kind of gesture a `PlacementChange` reports.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PlacementKind {
+    /// The move band was dragged.
+    Move,
+    /// A grip was dragged: the edge or corner it sits on.
+    Size(ResizeEdge),
+    /// The keyboard Move or Size mode (`window.Move`, `window.Size`) changed the rect.
+    Keyboard,
+}
+
+/// A move or resize of a layer the user made, reported to `Container::placement_changed`.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PlacementChange {
+    /// The rect after the change, in the layer's parent space, kept inside the overlay's `bounds` and `size_limits`.
+    /// On `Cancel` the rect from before the gesture.
+    pub rect: Rect,
+    /// Where the gesture stands.
+    pub phase: GesturePhase,
+    /// The pointer position of a pointer gesture.
+    pub pointer: Option<Pos2>,
+    /// What changed the rect.
+    pub kind: PlacementKind,
 }
 
 /// An id and a name; `Copy`, never a snapshot of the open state.
@@ -1243,7 +1311,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let opener = *memory.opener_stop.get_or_insert_with(|| focus::focused_stop(ctx));
     overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
-        areas::fade(ui, layer.fade);
+        areas::fade(ui, layer.fade * overlay.opacity);
         let installed = Env::install_for(ui, layer.env.clone());
         let real = !ui.is_sizing_pass();
         if real && (layer.exiting || matches!(overlay.rank, Rank::Popup | Rank::Modal { .. })) {

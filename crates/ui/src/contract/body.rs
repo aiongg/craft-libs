@@ -3,6 +3,7 @@
 
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
+use super::overlay::{OverlayFit, Place, PlacementChange, PlacementKind};
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, DragBand, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, SetPosition, Sizing};
 use crate::layout::{self, ColumnGroup};
@@ -16,13 +17,14 @@ use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, SaveKey, sub};
 use crate::runtime::motion::{Driver, Presence, spec};
 use crate::runtime::overlay::CloseReason;
+use crate::runtime::windows::{self, ResizeEdge, WindowAction};
 use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::layout_memory::measure_tolerance;
 use craft_behavior::{
-    Axis, CancelRule, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PressPhase, Roving, ScrollPos,
-    ScrollSpan, WheelNotch, WheelTaker,
+    Axis, CancelRule, CursorIcon, EditEvent, GestureId, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PressPhase, Roving,
+    ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
 use craft_keymap::{Chord, Key, Mods};
 use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
@@ -68,25 +70,90 @@ pub(crate) struct Placement {
     pub size: Option<[f32; 2]>,
 }
 
+impl Placement {
+    /// The placement that puts the layer at `rect`.
+    fn at(rect: Rect) -> Placement {
+        Placement { pos: Some(rect.min.into()), size: Some(rect.size().into()) }
+    }
+
+    /// The rect it names, taking the position and size it lacks from `rect`.
+    fn rect_over(&self, rect: Rect) -> Rect {
+        Rect::from_min_size(self.pos.map_or(rect.min, Pos2::from), self.size.map_or(rect.size(), Vec2::from))
+    }
+}
+
 pub(crate) fn placement_id(id: Id) -> Id {
     sub(id, "placement")
 }
 
-/// The one store of a layer's placement: the saved tier when `save` is set, else shown memory.
-fn placement_slot<'s>(stage: &'s mut MemoryStage, id: Id, save: Option<&SaveKey>) -> &'s mut Placement {
-    match save {
-        Some(key) => stage.saved::<Placement>(key),
-        None => stage.shown::<Placement>(placement_id(id)),
+/// The one store of a layer's placement: the saved tier when `save` is set, else shown memory. A layer whose overlay
+/// is `placed` has the caller's rect instead: the slot reads it and writes nothing, since the caller owns the
+/// placement and learns of the user's changes from `PlacementChange` reports.
+struct PlacementSlot<'s> {
+    stage: &'s mut MemoryStage,
+    id: Id,
+    save: Option<&'s SaveKey>,
+    controlled: Option<Placement>,
+}
+
+impl<'s> PlacementSlot<'s> {
+    fn new(stage: &'s mut MemoryStage, id: Id, save: Option<&'s SaveKey>, overlay: &super::Overlay) -> Self {
+        PlacementSlot { stage, id, save, controlled: overlay.placed.map(Placement::at) }
+    }
+
+    fn stored(&mut self) -> &mut Placement {
+        match self.save {
+            Some(key) => self.stage.saved::<Placement>(key),
+            None => self.stage.shown::<Placement>(placement_id(self.id)),
+        }
+    }
+
+    fn read(&mut self) -> Placement {
+        match &self.controlled {
+            Some(placement) => placement.clone(),
+            None => self.stored().clone(),
+        }
+    }
+
+    fn write(&mut self, placement: Placement) {
+        if self.controlled.is_none() {
+            *self.stored() = placement;
+        }
     }
 }
 
 /// The placement of `id` as the last pass left it, read without opening a stage: the layer host places by it before
 /// the container's own pass runs.
-pub(crate) fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Placement {
+fn placement_of(ctx: &Context, id: Id, save: Option<&SaveKey>) -> Placement {
     match save {
         Some(key) => MemoryStage::peek_saved(ctx, key),
         None => MemoryStage::peek(ctx, placement_id(id)),
     }
+}
+
+/// The placement a layer is shown at: the caller's `placed` rect, else the saved or session placement, else for a
+/// floating resizable layer with a default size (`Overlay::size`) that size, within the screen less `dialog_pad` on
+/// each side, centred or at the overlay's float position. A saved size and position win over the default.
+pub(crate) fn shown_placement(ctx: &Context, id: Id, save: Option<&SaveKey>, overlay: &super::Overlay, dialog_pad: f32) -> Placement {
+    if let Some(rect) = overlay.placed {
+        return Placement::at(rect);
+    }
+    let mut placement = placement_of(ctx, id, save);
+    let (Some(default), Place::Float(float), true) = (overlay.size, &overlay.place, overlay.fit == OverlayFit::Resizable) else {
+        return placement;
+    };
+    if placement.size.is_some() {
+        return placement;
+    }
+    let screen = areas::safe_rect(ctx);
+    let room = (screen.size() - Vec2::splat(2.0 * dialog_pad)).max(Vec2::ZERO);
+    let least = overlay.min_size.unwrap_or(Vec2::ZERO).min(room);
+    let size = default.max(least).min(overlay.max_size.unwrap_or(Vec2::INFINITY)).min(room);
+    let pos = placement.pos.map(Pos2::from).or(float.pos).unwrap_or_else(|| screen.center() - size / 2.0);
+    let pos = Pos2::new(pos.x.min(screen.right() - size.x).max(screen.left()), pos.y.min(screen.bottom() - size.y).max(screen.top()));
+    placement.pos = Some(pos.into());
+    placement.size = Some(size.into());
+    placement
 }
 
 /// The overlay a layer-like mount shows its container in.
@@ -127,11 +194,64 @@ enum WindowModeKind {
     Size,
 }
 
-/// A container's window mode with the placement Escape restores. Kept in session memory.
+/// A container's window gesture, the keyboard mode or a pointer drag, with the placement Escape restores and the
+/// rect the layer had when the gesture began. Kept in session memory.
 #[derive(Clone, Default, PartialEq)]
 struct WindowMode {
     kind: Option<WindowModeKind>,
     restore: Placement,
+    began: Option<Rect>,
+}
+
+/// What every change of a layer's rect keeps to: the least and most size, and the rect it stays inside.
+struct Limits {
+    min: Vec2,
+    max: Vec2,
+    bounds: Option<Rect>,
+}
+
+impl Limits {
+    fn new(overlay: &super::Overlay, min: Vec2) -> Limits {
+        Limits { min, max: overlay.max_size.unwrap_or(Vec2::INFINITY).max(min), bounds: overlay.bounds }
+    }
+
+    /// `rect` moved by `delta`, kept inside the bounds.
+    fn moved(&self, rect: Rect, delta: Vec2) -> Rect {
+        let rect = rect.translate(delta);
+        let Some(bounds) = self.bounds else { return rect };
+        let keep = |low: f32, high: f32, bounds_low: f32, bounds_high: f32| low.min(bounds_high - (high - low)).max(bounds_low) - low;
+        rect.translate(Vec2::new(keep(rect.min.x, rect.max.x, bounds.min.x, bounds.max.x), keep(rect.min.y, rect.max.y, bounds.min.y, bounds.max.y)))
+    }
+
+    /// `rect` with the edges `dx` and `dy` (-1: low edge, 1: high edge, 0: none) moved by `delta`, within the size
+    /// limits and the bounds. The opposite edge stays.
+    fn resized(&self, rect: Rect, dx: i8, dy: i8, delta: Vec2) -> Rect {
+        let axis = |low: f32, high: f32, edge: i8, delta: f32, min: f32, max: f32, bounds: Option<(f32, f32)>| {
+            let (bounds_low, bounds_high) = bounds.unwrap_or((f32::NEG_INFINITY, f32::INFINITY));
+            match edge {
+                -1 => ((low + delta).max((high - max).max(bounds_low)).min(high - min), high),
+                1 => (low, (high + delta).min((low + max).min(bounds_high)).max(low + min)),
+                _ => (low, high),
+            }
+        };
+        let (left, right) = axis(rect.min.x, rect.max.x, dx, delta.x, self.min.x, self.max.x, self.bounds.map(|bounds| (bounds.min.x, bounds.max.x)));
+        let (top, bottom) = axis(rect.min.y, rect.max.y, dy, delta.y, self.min.y, self.max.y, self.bounds.map(|bounds| (bounds.min.y, bounds.max.y)));
+        Rect::from_min_max(Pos2::new(left, top), Pos2::new(right, bottom))
+    }
+}
+
+/// The edge or corner the grip with direction (`dx`, `dy`) of `GRIPS` sits on.
+fn edge_of(dx: i8, dy: i8) -> ResizeEdge {
+    match (dx, dy) {
+        (-1, 0) => ResizeEdge::Left,
+        (1, 0) => ResizeEdge::Right,
+        (0, -1) => ResizeEdge::Top,
+        (-1, -1) => ResizeEdge::TopLeft,
+        (1, -1) => ResizeEdge::TopRight,
+        (-1, 1) => ResizeEdge::BottomLeft,
+        (1, 1) => ResizeEdge::BottomRight,
+        _ => ResizeEdge::Bottom,
+    }
 }
 
 /// The arrow chords, with and without Shift, a window mode holds, with the direction each moves.
@@ -262,6 +382,8 @@ pub(super) struct BodyHooks<'b> {
     nudge: f32,
     /// The window mode the container is in, and what Escape restores.
     mode: WindowMode,
+    /// The placement changes of this pass, delivered to `Container::placement_changed` at the end of the update.
+    reports: Vec<PlacementChange>,
     /// The host gives the container a rect of its own size: a full window, an OS viewport or a layer the user sized.
     fixed: bool,
     /// A bottom-anchored region is following the end of its content.
@@ -326,43 +448,54 @@ impl BodyHooks<'_> {
     /// The `window.Move` and `window.Size` commands and the keys of the mode they start (16.3): arrows move or
     /// resize by a step (Shift: four steps), Enter, the command again or a primary press keeps the placement, Escape
     /// restores it, and focus leaving the container ends the mode. The mode holds its chords through the key stage, so no
-    /// component under focus sees them.
+    /// component under focus sees them. Each step is reported as a `PlacementKind::Keyboard` change.
     fn window_keys<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
         let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
-        let Some(window) = window_instance(props, id) else { return };
+        let (Some(window), Some(overlay)) = (window_instance(props, id), overlay_of(props)) else { return };
+        let limits = Limits::new(overlay, window_min(props, cx.style.metrics().min_size));
+        let rect = cx.core.rect;
+        let mut slot = PlacementSlot::new(&mut *cx.core.memory, id, self.save.as_ref(), overlay);
+        let current = slot.read();
+        let step = |rect: Rect, phase: GesturePhase| PlacementChange { rect, phase, pointer: None, kind: PlacementKind::Keyboard };
         let started = commands::take_for_instance(&ctx, Some(window), WindowCommand::from_ref).map(|(command, _)| command);
-        let slot = placement_slot(&mut *cx.core.memory, id, self.save.as_ref()).clone();
         let mut mode = self.mode.clone();
         if let Some(command) = started {
             let kind = match command {
                 WindowCommand::Move => WindowModeKind::Move,
                 _ => WindowModeKind::Size,
             };
-            mode = if mode.kind == Some(kind) { WindowMode::default() } else { WindowMode { kind: Some(kind), restore: slot.clone() } };
+            if mode.kind.is_some() {
+                self.reports.push(step(current.rect_over(rect), GesturePhase::Commit));
+            }
+            if mode.kind == Some(kind) {
+                mode = WindowMode::default();
+            } else {
+                mode = WindowMode { kind: Some(kind), restore: current.clone(), began: Some(current.rect_over(rect)) };
+                self.reports.push(step(current.rect_over(rect), GesturePhase::Begin));
+            }
         }
         // A primary press ends the mode and keeps the placement reached, like Enter.
         let pressed = || pointer::with_frame(&ctx, |frame, _| frame.is_some_and(|frame| frame.press.is_some()));
         if mode.kind.is_some() && (!commands::focus_within(&ctx, id) || pressed()) {
+            self.reports.push(step(current.rect_over(rect), GesturePhase::Commit));
             mode = WindowMode::default();
         }
         if let Some(kind) = mode.kind {
-            let step = self.nudge;
-            let min = window_min(props, cx.style.metrics().min_size);
-            let rect = cx.core.rect;
-            let mut placement = slot;
+            let unit = self.nudge;
+            let mut placement = current;
             for (key, direction) in MODE_ARROWS {
                 for (mods, scale) in [(Mods::NONE, 1.0), (Mods::SHIFT, 4.0)] {
                     let chord = Chord::new(mods, key);
                     keys::capture(&ctx, id, chord);
                     while keys::take_claimed(&ctx, id, chord) {
-                        let delta = Vec2::new(f32::from(direction[0]), f32::from(direction[1])) * step * scale;
-                        let mut pos = placement.pos.map_or(rect.min, Pos2::from);
-                        let mut size = placement.size.map_or(rect.size(), Vec2::from);
-                        match kind {
-                            WindowModeKind::Move => pos += delta,
-                            WindowModeKind::Size => size = (size + delta).max(min),
-                        }
-                        placement = Placement { pos: Some(pos.into()), size: Some(size.into()) };
+                        let delta = Vec2::new(f32::from(direction[0]), f32::from(direction[1])) * unit * scale;
+                        let before = placement.rect_over(rect);
+                        let next = match kind {
+                            WindowModeKind::Move => limits.moved(before, delta),
+                            WindowModeKind::Size => limits.resized(before, 1, 1, delta),
+                        };
+                        placement = Placement::at(next);
+                        self.reports.push(step(next, GesturePhase::Update));
                     }
                 }
             }
@@ -372,13 +505,87 @@ impl BodyHooks<'_> {
                 if keys::take_claimed(&ctx, id, chord) {
                     if key == Key::Escape {
                         placement = mode.restore.clone();
+                        self.reports.push(step(mode.began.unwrap_or(rect), GesturePhase::Cancel));
+                    } else {
+                        self.reports.push(step(placement.rect_over(rect), GesturePhase::Commit));
                     }
                     mode = WindowMode::default();
                 }
             }
-            *placement_slot(&mut *cx.core.memory, id, self.save.as_ref()) = placement;
+            slot.write(placement);
         }
         self.mode = mode;
+    }
+
+    /// A drag of the move band or a grip of a layer (not an OS window): the layer follows the pointer within the
+    /// limits, and each step is reported. Escape, which cancels the press, restores the placement from before.
+    fn window_drag<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        let Some(overlay) = overlay_of(props) else { return };
+        let id = cx.core.id;
+        let limits = Limits::new(overlay, window_min(props, cx.style.metrics().min_size));
+        let rect = cx.core.rect;
+        // A part the container did not declare this pass (no band, no grips) has no result.
+        let phase = |key: (PartKey, Option<u64>)| cx.core.results.get(&key).map(|result| result.press.phase);
+        let mut pressed = vec![(None, phase((MOVE_BAND, None)))];
+        pressed.extend((0..GRIPS.len()).map(|index| (Some(index), phase((GRIP, Some(index as u64))))));
+        let Some((grip, phase)) = pressed.into_iter().find_map(|(grip, phase)| match phase? {
+            phase @ (PressPhase::DragStart { .. } | PressPhase::Drag { .. } | PressPhase::Release { .. } | PressPhase::Cancel { .. }) => {
+                Some((grip, phase))
+            }
+            _ => None,
+        }) else {
+            return;
+        };
+        let mut slot = PlacementSlot::new(&mut *cx.core.memory, id, self.save.as_ref(), overlay);
+        let current = slot.read();
+        let (origin, pos, gesture) = match phase {
+            PressPhase::DragStart { start, pos, .. } => {
+                self.mode.began = Some(current.rect_over(rect));
+                self.mode.restore = current.clone();
+                (start.origin, Some(pos), GesturePhase::Begin)
+            }
+            PressPhase::Drag { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Update),
+            PressPhase::Release { start, pos, .. } => (start.origin, Some(pos), GesturePhase::Commit),
+            PressPhase::Cancel { start, .. } => (start.origin, None, GesturePhase::Cancel),
+            _ => return,
+        };
+        let Some(began) = self.mode.began else { return };
+        let (dx, dy, _) = grip.map_or((0, 0, CursorIcon::Grab), |index| GRIPS[index]);
+        let kind = if grip.is_some() { PlacementKind::Size(edge_of(dx, dy)) } else { PlacementKind::Move };
+        let next = match pos {
+            Some(pos) if grip.is_some() => limits.resized(began, dx, dy, pos - origin),
+            Some(pos) => limits.moved(began, pos - origin),
+            None => began,
+        };
+        let change = |rect: Rect, phase: GesturePhase| PlacementChange { rect, phase, pointer: pos, kind };
+        if gesture == GesturePhase::Begin {
+            self.reports.push(change(began, GesturePhase::Begin));
+        }
+        self.reports.push(change(next, if gesture == GesturePhase::Begin { GesturePhase::Update } else { gesture }));
+        // A move leaves a content-sized layer its size; a resize fixes both.
+        slot.write(match (gesture, grip) {
+            (GesturePhase::Cancel, _) => self.mode.restore.clone(),
+            (_, Some(_)) => Placement::at(next),
+            (_, None) => Placement { pos: Some(next.min.into()), size: current.size },
+        });
+        if matches!(gesture, GesturePhase::Commit | GesturePhase::Cancel) {
+            self.mode.began = None;
+        }
+    }
+
+    /// A press on the move band or a grip of a container in an OS window starts the OS move or resize.
+    fn window_os<C: Container>(&self, cx: &Cx<'_, C>) {
+        let viewport = viewports::viewport_id(cx.core.id);
+        let started =
+            |key: (PartKey, Option<u64>)| cx.core.results.get(&key).is_some_and(|result| matches!(result.press.phase, PressPhase::DragStart { .. }));
+        if started((MOVE_BAND, None)) {
+            windows::act(&cx.core.ctx, viewport, WindowAction::StartMove);
+        }
+        for (index, (dx, dy, _)) in GRIPS.into_iter().enumerate() {
+            if started((GRIP, Some(index as u64))) {
+                windows::act(&cx.core.ctx, viewport, WindowAction::StartResize(edge_of(dx, dy)));
+            }
+        }
     }
 }
 
@@ -417,6 +624,7 @@ impl<'b> BodyHooks<'b> {
             presence: Presence { t: 1.0, visible: true, exiting: false },
             nudge: 0.0,
             mode: WindowMode::default(),
+            reports: Vec::new(),
             fixed: false,
             follows_end: false,
         }
@@ -766,7 +974,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             Mount::FullWindow => true,
             Mount::Viewport { .. } if viewports::available(&ctx) => true,
             Mount::Layer(_) | Mount::Viewport { .. } => {
-                let placement = placement_of(&ctx, id, save.as_ref());
+                let placement = overlay_of(props)
+                    .map_or_else(Placement::default, |overlay| shown_placement(&ctx, id, save.as_ref(), overlay, env.tokens.space.pad.dialog));
                 placement.pos.is_some() && placement.size.is_some()
             }
             _ => false,
@@ -987,50 +1196,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if !layer {
             return;
         }
-        self.window_keys(props, cx);
-        let id = cx.core.id;
-        let min = window_min(props, cx.style.metrics().min_size);
-        let rect = cx.core.rect;
-        // A part the container did not declare this pass (no band, no grips) has no result.
-        let phase = |key: (PartKey, Option<u64>)| cx.core.results.get(&key).map(|result| result.press.phase);
-        let band = phase((MOVE_BAND, None));
-        let grips: Vec<(usize, Vec2)> = (0..GRIPS.len())
-            .filter_map(|index| match phase((GRIP, Some(index as u64))) {
-                Some(PressPhase::DragStart { start, pos, .. }) => Some((index, pos - start.origin)),
-                Some(PressPhase::Drag { delta, .. }) => Some((index, delta)),
-                _ => None,
-            })
-            .collect();
-        let slot = placement_slot(&mut *cx.core.memory, id, self.save.as_ref());
-        let band_move = match band {
-            Some(PressPhase::DragStart { start, pos, .. }) => Some(pos - start.origin),
-            Some(PressPhase::Drag { delta, .. }) => Some(delta),
-            _ => None,
-        };
-        if let Some(delta) = band_move {
-            let pos = slot.pos.map_or(rect.min, Pos2::from);
-            slot.pos = Some((pos + delta).into());
+        if matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx()) {
+            self.window_os(cx);
+            return;
         }
-        for (index, delta) in grips {
-            let (dx, dy, _) = GRIPS[index];
-            let mut pos = slot.pos.map_or(rect.min, Pos2::from);
-            let mut size = slot.size.map_or(rect.size(), Vec2::from);
-            if dx < 0 {
-                let moved = delta.x.min(size.x - min.x);
-                pos.x += moved;
-                size.x -= moved;
-            } else if dx > 0 {
-                size.x = (size.x + delta.x).max(min.x);
-            }
-            if dy < 0 {
-                let moved = delta.y.min(size.y - min.y);
-                pos.y += moved;
-                size.y -= moved;
-            } else if dy > 0 {
-                size.y = (size.y + delta.y).max(min.y);
-            }
-            slot.pos = Some(pos.into());
-            slot.size = Some(size.into());
+        self.window_keys(props, cx);
+        self.window_drag(props, cx);
+        for change in std::mem::take(&mut self.reports) {
+            comp.placement_changed(&change);
         }
     }
 
