@@ -573,7 +573,7 @@ pub enum WordsOverride {
 }
 
 impl Overrides {
-    fn apply(self, scoped: &mut Scoped) {
+    fn apply(self, ctx: &Context, scoped: &mut Scoped) {
         if let Some(size) = self.size {
             scoped.size = size;
         }
@@ -591,7 +591,7 @@ impl Overrides {
         }
         match self.words {
             Some(WordsOverride::Replace(words)) => scoped.words = words,
-            Some(WordsOverride::Overlay(rows)) => scoped.words = Arc::new(scoped.words.overlay(&rows)),
+            Some(WordsOverride::Overlay(rows)) => scoped.words = overlaid_words(ctx, &scoped.words, rows),
             None => {}
         }
         scoped.values.extend(&self.values);
@@ -605,10 +605,10 @@ pub fn with_env<R>(ui: &mut Ui, set: impl FnOnce(&mut Overrides), body: impl FnO
     let mut overrides = Overrides::default();
     set(&mut overrides);
     let outer = Env::of(ui);
-    let inner = outer.derive(|scoped| overrides.apply(scoped));
+    let ctx = ui.ctx().clone();
+    let inner = outer.derive(|scoped| overrides.apply(&ctx, scoped));
     let direction = (inner.direction != outer.direction).then(|| inner.direction.is_rtl());
     let disabled = !inner.enabled;
-    let ctx = ui.ctx().clone();
     child::scope(ui, disabled, direction, |child| {
         let _restore = Restore { ctx: &ctx, installed: Some(Env::install_for(child, inner)) };
         body(child)
@@ -641,5 +641,32 @@ fn host_words(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Words> {
         cached.host = host.map(Arc::downgrade);
         cached.words = Some(Arc::clone(&words));
         words
+    })
+}
+
+/// `words` with `rows` over them, built once per (inherited words, rows): a clone of a `Words` starts with an
+/// empty set cache, so a fresh overlay each pass would rebuild every word set each frame.
+fn overlaid_words(ctx: &Context, words: &Arc<Words>, rows: WordRows) -> Arc<Words> {
+    /// Overlays kept before the oldest goes.
+    const KEPT: usize = 16;
+    struct Entry {
+        inherited: std::sync::Weak<Words>,
+        rows: WordRows,
+        words: Arc<Words>,
+    }
+    #[derive(Default)]
+    struct Overlays(Vec<Entry>);
+    Service::<Overlays>::of(ctx).with(|cache| {
+        cache.0.retain(|entry| entry.inherited.strong_count() > 0);
+        let inherited = Arc::downgrade(words);
+        if let Some(entry) = cache.0.iter().find(|entry| std::sync::Weak::ptr_eq(&entry.inherited, &inherited) && entry.rows == rows) {
+            return Arc::clone(&entry.words);
+        }
+        let overlaid = Arc::new(words.overlay(&rows));
+        if cache.0.len() == KEPT {
+            cache.0.remove(0);
+        }
+        cache.0.push(Entry { inherited, rows, words: Arc::clone(&overlaid) });
+        overlaid
     })
 }
