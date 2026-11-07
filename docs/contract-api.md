@@ -1124,17 +1124,17 @@ Pointer values and the press lifecycle (8.1, 8.2), egui-free: the runtime conver
   - `pub const fn is_drag(&self) -> bool`. Whether the phase is a drag in progress.
   - `pub const fn is_click(&self) -> bool`. Whether the phase is a click: a release within slop.
   - `pub fn mapped(self, point: impl Fn(Pos2) -> Pos2, delta: impl Fn(Vec2) -> Vec2) -> PressPhase`. The phase with its positions mapped by `point` and its drag delta by `delta`, for a part whose space
-- `craft_behavior::press::PressStart`: `pub struct PressStart { pub origin: Pos2, pub button: PointerButton, pub time: f64, pub clicks: u32, pub went_down_now: bool }`. Where and when a press began.
+- `craft_behavior::press::PressStart`: `pub struct PressStart { pub origin: Pos2, pub button: PointerButton, pub time: f64, pub clicks: u32 }`. Where and when a press began.
   - `pub const fn new(origin: Pos2, button: PointerButton, time: f64, clicks: u32) -> Self`. A press of `button` at `origin`.
-  - `pub const fn is_double_press(&self) -> bool`. Whether this is the pass in which a second or later primary press went down: true once per double click,
-- `craft_behavior::press::PressState`: `pub struct PressState { pub phase: PressPhase, pub mods: Mods, pub sample: Option<PointerSample>, pub captured: bool }`. A part's phase, the modifiers held, the pen sample and whether it holds the pointer.
+- `craft_behavior::press::PressState`: `pub struct PressState { pub phase: PressPhase, pub mods: Mods, pub sample: Option<PointerSample>, pub captured: bool, pub went_down: bool }`. A part's phase, the modifiers held, the pen sample and whether it holds the pointer.
   - `pub const IDLE: PressState`. A part with no press history.
   - `pub const fn new(phase: PressPhase) -> Self`. A state in `phase` with no modifiers, sample or capture.
   - `pub const fn mods(mut self, mods: Mods) -> Self`. The modifiers held.
   - `pub const fn sample(mut self, sample: Option<PointerSample>) -> Self`. The pen sample of the contact.
   - `pub const fn captured(mut self, captured: bool) -> Self`. Whether a drag holds the pointer.
+  - `pub const fn went_down(mut self, went_down: bool) -> Self`. Whether the button went down in this pass.
   - `pub const fn double_pressed(&self) -> bool`. Whether the second press of a double click went down in this pass: true once, false while the button is held
-- `craft_behavior::press::PressStep`: `pub struct PressStep<T> { pub target: Option<T>, pub phase: Option<PressPhase>, pub dragging: bool, pub activated: Option<T> }`. What one pass did to the press.
+- `craft_behavior::press::PressStep`: `pub struct PressStep<T> { pub target: Option<T>, pub phase: Option<PressPhase>, pub dragging: bool, pub activated: Option<T>, pub went_down: bool }`. What one pass did to the press.
 - `craft_behavior::press::count_clicks`: `pub fn count_clicks(previous: Option<(Pos2, f64, u32)>, pos: Pos2, time: f64, slop: f32) -> u32`. The click count of a press at `pos` and `time`, given the previous press `(pos, time, clicks)`: one more when
 
 ## `craft_behavior::quantity`
