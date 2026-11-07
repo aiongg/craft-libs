@@ -314,8 +314,8 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
     })
 }
 
-/// Removes the events a modal layer in another viewport blocks: pointer buttons, wheel, keys, text, clipboard and
-/// touch. Pointer moves stay, so the pointer position stays right. Returns whether anything went and whether a
+/// Removes the events a modal layer in another viewport blocks: button and key presses, wheel, text, clipboard and
+/// touch. Pointer moves and releases stay, so the pointer position stays right and no press or key sticks down. Returns whether anything went and whether a
 /// pointer press did.
 pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
     let before = input.events.len();
@@ -323,9 +323,9 @@ pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
     input.events.retain(|event| {
         let blocked = matches!(
             event,
-            Event::PointerButton { .. }
+            Event::PointerButton { pressed: true, .. }
                 | Event::MouseWheel { .. }
-                | Event::Key { .. }
+                | Event::Key { pressed: true, .. }
                 | Event::Text(_)
                 | Event::Copy
                 | Event::Cut

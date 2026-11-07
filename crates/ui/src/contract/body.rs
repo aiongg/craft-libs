@@ -143,6 +143,8 @@ pub(super) struct BodyHooks<'b> {
     gate: Option<bool>,
     gate_at_read: Option<bool>,
     close: bool,
+    /// The container is closed and its layer is fading out: the body shows as it was and nothing is written.
+    exiting: bool,
     offset: ScrollPos,
     offset_at_read: ScrollPos,
     scroll_bound: bool,
@@ -272,6 +274,7 @@ impl<'b> BodyHooks<'b> {
             gate: None,
             gate_at_read: None,
             close: false,
+            exiting: false,
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
             scroll_bound: false,
@@ -359,22 +362,56 @@ impl<'b> BodyHooks<'b> {
     }
 }
 
+impl BodyHooks<'_> {
+    /// Writes the open state when it changed since it was read: to the binding, else to the session slot.
+    fn write_open<C: Container>(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+        if self.open == self.open_at_read {
+            return;
+        }
+        let id = cx.core.id;
+        match comp.open() {
+            Some(mut bind) => {
+                let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
+                bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
+            }
+            None => cx.core.memory.session::<OpenState>(sub(id, "open")).0 = Some(self.open),
+        }
+        self.open_at_read = self.open;
+    }
+}
+
 impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn shape(&self) -> super::steps::ShapeKind {
         super::steps::ShapeKind::Body
     }
 
-    fn host(&mut self, comp: &C) -> Box<dyn super::run::Host> {
-        super::mount::host(comp.props(Internal::new()))
+    fn host(&mut self, comp: &C, at: super::run::HostCx<'_>) -> Box<dyn super::run::Host> {
+        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open);
+        if mounted.exiting {
+            self.exiting = true;
+            self.open = true;
+        }
+        mounted.host
     }
 
+    fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, _why: crate::runtime::overlay::CloseReason) {
+        self.close = true;
+        self.open = false;
+        self.write_open(comp, cx);
+    }
+
+    /// The layer's own scope is the overlay host's (one scope per layer); `Inline`, `Pane` and `FullWindow`
+    /// containers push `props.focus`.
     fn focus(&self, comp: &C) -> Option<FocusPolicy> {
         let props = comp.props(Internal::new());
-        let policy = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => overlay.focus,
-            _ => props.focus,
-        };
-        (policy != FocusPolicy::NONE).then_some(policy)
+        if matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. }) {
+            debug_assert!(
+                props.focus == FocusPolicy::NONE,
+                "a layer or viewport mount takes its focus scope from `Overlay.focus`, not `ContainerProps.focus`"
+            );
+            return None;
+        }
+        (props.focus != FocusPolicy::NONE).then_some(props.focus)
     }
 
     fn arena(&self, comp: &C) -> bool {
@@ -406,6 +443,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.remembered = layout_memory::read(&ctx, id);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        if !matches!(props.mount, Mount::Inline | Mount::Pane(_)) && crate::runtime::overlay::take_close(&ctx, id).is_some() {
+            self.close = true;
+        }
         self.open_bound = comp.open().is_some();
         self.open = match comp.open() {
             Some(bind) => matches!(bind.get(), Some(Mixed::Same(true))),
@@ -539,7 +579,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.nudge = gap_of(tokens, Gap::Row);
         let handle = tokens.tokens().size.handle.sm;
         let reason = "the Move and Size commands of the window command set do the same";
-        if props.header.is_some_and(|header| header.band == super::DragBand::Move) && regions.header.height() > 0.0 {
+        // A layer moves when its overlay says so; other mounts follow the header's band.
+        let movable = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => overlay.movable,
+            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move),
+        };
+        if props.header.is_some() && movable && regions.header.height() > 0.0 {
             pcx.part(MOVE_BAND, regions.header)
                 .sense(craft_behavior::Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
@@ -863,19 +908,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         {
             self.close = true;
         }
+        if self.exiting {
+            // The container closed already; the fade only keeps its body on screen.
+            self.open = self.open_at_read;
+            self.close = false;
+        }
         if self.close {
             self.open = false;
         }
-        if self.open != self.open_at_read {
-            match comp.open() {
-                Some(mut bind) => {
-                    let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
-                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
-                }
-                None => cx.core.memory.session::<OpenState>(sub(id, "open")).0 = Some(self.open),
-            }
-            self.open_at_read = self.open;
-        }
+        self.write_open(comp, cx);
         if self.offset != self.offset_at_read {
             match comp.scroll() {
                 Some(mut bind) => {
@@ -883,7 +924,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.offset_at_read), self.offset, label, doc_key));
                 }
                 None => {
-                    let state = cx.core.memory.session::<ScrollState>(sub(id, "scroll"));
+                    let state = cx.core.memory.session::<ScrollState>(sub(cx.core.id, "scroll"));
                     state.offset = (self.offset.x, self.offset.y);
                 }
             }

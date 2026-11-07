@@ -90,10 +90,18 @@ pub fn post_to(ctx: &Context, viewport: ViewportId, toast: Toast) -> ToastId {
     id
 }
 
-/// Removes a toast before its timer ends.
+/// Removes a toast before its timer ends, from whichever viewport holds it.
 pub fn dismiss(ctx: &Context, id: ToastId) {
-    PerViewport::<Queue>::with(ctx, pass::current_viewport(ctx), |queue| queue.live.retain(|live| live.card.id != id));
-    repaint::request(ctx);
+    for viewport in pass::live_viewports(ctx) {
+        let removed = PerViewport::<Queue>::with(ctx, viewport, |queue| {
+            let before = queue.live.len();
+            queue.live.retain(|live| live.card.id != id);
+            queue.live.len() != before
+        });
+        if removed {
+            repaint::request_of(ctx, viewport);
+        }
+    }
 }
 
 /// The cards of the running viewport, oldest first.

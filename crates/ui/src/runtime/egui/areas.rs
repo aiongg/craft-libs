@@ -151,31 +151,35 @@ pub(crate) fn show_layer(ctx: &Context, spec: &LayerSpec, body: impl FnOnce(&mut
     LayerShown { rect: shown.response.rect, layer: shown.response.layer_id }
 }
 
-/// Shows a layer that covers `screen` and takes every pointer hit on it, so nothing below it is hit. It paints
-/// `scrim` first when given, around `hole` when there is one.
-pub(crate) fn show_cover_layer(ctx: &Context, id: Id, tier: Tier, screen: Rect, scrim: Option<Color32>, hole: Option<Rect>) {
-    egui::Area::new(id).order(tier.order()).pivot(egui::Align2::LEFT_TOP).fixed_pos(screen.min).constrain(false).show(ctx, |ui| {
-        if let Some(scrim) = scrim {
-            let painter = ui.painter();
-            match hole.map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()) {
-                Some(hole) => {
-                    let bands = [
-                        Rect::from_min_max(screen.min, Pos2::new(screen.right(), hole.top())),
-                        Rect::from_min_max(Pos2::new(screen.left(), hole.bottom()), screen.max),
-                        Rect::from_min_max(Pos2::new(screen.left(), hole.top()), Pos2::new(hole.left(), hole.bottom())),
-                        Rect::from_min_max(Pos2::new(hole.right(), hole.top()), Pos2::new(screen.right(), hole.bottom())),
-                    ];
-                    for band in bands {
-                        painter.rect_filled(band, 0.0, scrim);
+/// Shows a layer that covers `screen` and paints `scrim` on it, around `hole` when there is one. While `absorbs` it
+/// takes every pointer hit on it, so nothing below it is hit.
+pub(crate) fn show_cover_layer(ctx: &Context, id: Id, tier: Tier, screen: Rect, scrim: Color32, hole: Option<Rect>, absorbs: bool) {
+    let scrim = Some(scrim);
+    egui::Area::new(id).order(tier.order()).pivot(egui::Align2::LEFT_TOP).fixed_pos(screen.min).constrain(false).interactable(absorbs).show(
+        ctx,
+        |ui| {
+            if let Some(scrim) = scrim {
+                let painter = ui.painter();
+                match hole.map(|hole| hole.intersect(screen)).filter(|hole| hole.is_positive()) {
+                    Some(hole) => {
+                        let bands = [
+                            Rect::from_min_max(screen.min, Pos2::new(screen.right(), hole.top())),
+                            Rect::from_min_max(Pos2::new(screen.left(), hole.bottom()), screen.max),
+                            Rect::from_min_max(Pos2::new(screen.left(), hole.top()), Pos2::new(hole.left(), hole.bottom())),
+                            Rect::from_min_max(Pos2::new(hole.right(), hole.top()), Pos2::new(screen.right(), hole.bottom())),
+                        ];
+                        for band in bands {
+                            painter.rect_filled(band, 0.0, scrim);
+                        }
+                    }
+                    None => {
+                        painter.rect_filled(screen, 0.0, scrim);
                     }
                 }
-                None => {
-                    painter.rect_filled(screen, 0.0, scrim);
-                }
             }
-        }
-        ui.allocate_rect(screen, Sense::click_and_drag());
-    });
+            ui.allocate_rect(screen, Sense::click_and_drag());
+        },
+    );
 }
 
 /// The rect an overlay layer had when it was last shown, in screen space.
@@ -208,10 +212,10 @@ pub(crate) fn layer_to_screen(ctx: &Context, layer: LayerId) -> TSTransform {
     ctx.layer_transform_to_global(layer).unwrap_or(TSTransform::IDENTITY)
 }
 
-/// Runs `body` in `ui` no larger than `cap`.
-pub(crate) fn capped<R>(ui: &mut egui::Ui, cap: Vec2, body: impl FnOnce(&mut egui::Ui) -> R) -> R {
-    ui.set_max_size(cap);
-    body(ui)
+/// Limits `ui` to `max` and at least `min_width` across: the room the placement leaves the layer's body.
+pub(crate) fn bound(ui: &mut egui::Ui, max: Vec2, min_width: f32) {
+    ui.set_max_size(max);
+    ui.set_min_width(min_width);
 }
 
 /// Fades everything painted in `ui` to `opacity`.
@@ -230,7 +234,7 @@ pub(crate) struct CursorInk {
 
 /// The painter of the ghost layer, over the whole screen and above every popup. The layer takes no input.
 pub(crate) fn ghost_painter(ctx: &Context) -> Painter {
-    ctx.layer_painter(LayerId::new(Order::Tooltip, crate::runtime::egui::memory::unique("craft_ui.ghost")))
+    ctx.layer_painter(layer_of(Tier::Tooltip, crate::runtime::egui::memory::unique("craft_ui.ghost")))
 }
 
 /// Paints a cursor shape at `at` on the ghost layer, above every other layer.
@@ -253,9 +257,4 @@ pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::Pai
 /// The pointer position of the running pass, in screen space.
 pub(crate) fn pointer_pos(ctx: &Context) -> Option<Pos2> {
     ctx.input(|input| input.pointer.latest_pos())
-}
-
-/// The position of this pass's primary press, in screen space.
-pub(crate) fn primary_press_at(ctx: &Context) -> Option<Pos2> {
-    ctx.input(|input| if input.pointer.primary_pressed() { input.pointer.interact_pos() } else { None })
 }
