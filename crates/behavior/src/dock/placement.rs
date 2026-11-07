@@ -7,9 +7,11 @@ use crate::monitor::Monitor;
 /// Largest native window, and the farthest it may sit from the desktop origin.
 const MAX_SIZE: f32 = 16_384.0;
 const MAX_POSITION: f32 = 100_000.0;
-const MIN_SIZE: Vec2 = vec2(160.0, 100.0);
-/// The size a non-finite extent falls back to.
-const FALLBACK_SIZE: Vec2 = vec2(420.0, 320.0);
+const MIN_WIDTH: f32 = 160.0;
+const MIN_HEIGHT: f32 = 100.0;
+/// The extent a non-finite width or height falls back to.
+const FALLBACK_WIDTH: f32 = 420.0;
+const FALLBACK_HEIGHT: f32 = 320.0;
 /// Width of a window's bar that must lie on one monitor for the window to be reachable: wide
 /// enough to grab. Half the bar's height must lie there too.
 const REACHABLE_WIDTH: f32 = 40.0;
@@ -21,7 +23,7 @@ pub fn sanitized(rect: Rect) -> Rect {
     let size = rect.size();
     Rect::from_min_size(
         pos2(finite(rect.min.x, 0.0).clamp(-MAX_POSITION, MAX_POSITION), finite(rect.min.y, 0.0).clamp(-MAX_POSITION, MAX_POSITION)),
-        vec2(finite(size.x, FALLBACK_SIZE.x).clamp(MIN_SIZE.x, MAX_SIZE), finite(size.y, FALLBACK_SIZE.y).clamp(MIN_SIZE.y, MAX_SIZE)),
+        vec2(finite(size.x, FALLBACK_WIDTH).clamp(MIN_WIDTH, MAX_SIZE), finite(size.y, FALLBACK_HEIGHT).clamp(MIN_HEIGHT, MAX_SIZE)),
     )
 }
 
@@ -124,7 +126,7 @@ pub fn restore_rect(saved: Rect, monitor: Option<&Monitor>, space: NativeSpace<'
             }
         }
         (Some((old, now)), _) => {
-            let scale = if usable(old) { vec2(now.rect.width() / old.rect.width(), now.rect.height() / old.rect.height()) } else { vec2(1.0, 1.0) };
+            let scale = if usable(old) { vec2(now.rect.width() / old.rect.width(), now.rect.height() / old.rect.height()) } else { Vec2::splat(1.0) };
             let offset = saved.min - old.rect.min;
             clamp_onto(Rect::from_min_size(now.rect.min + vec2(offset.x * scale.x, offset.y * scale.y), saved.size()), now.rect)
         }
