@@ -96,6 +96,10 @@ impl Component for ToggleButton<'_> {
     type Style = ToggleButtonStyle;
     type Output = EditResponse<bool>;
 
+    fn shows_label(&self) -> bool {
+        !self.icon_only
+    }
+
     fn style(cx: &StyleCx<'_>, key: ToggleButtonStyleKey) -> ToggleButtonStyle {
         let control = cx.control();
         let (off, on) = (cx.variant_look(), face::on_parts(cx));

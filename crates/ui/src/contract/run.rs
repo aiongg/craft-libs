@@ -486,7 +486,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             group: steps::member_group(&ctx, env.roving, id),
         },
     );
-    tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take(), parts: &parts.decls });
+    tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take(), parts: &parts.decls, shows_label: comp.shows_label() });
     // Activations accumulate across the passes of a viewport mount.
     let activated = comp.activated(cx) && resolved.enabled;
     if activated {

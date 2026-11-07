@@ -205,11 +205,21 @@ pub trait Component: Meta + Sized {
     const INPUT: Input = Input::Pointer;
     /// Keys the focused component keeps from egui and the shortcut dispatcher.
     const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(Self::INPUT);
+    /// Whether the component paints its label as visible text. `false` for a face that shows only an icon or a
+    /// glyph: with no tooltip set, its label is then its tooltip, since the label is the only visible name the
+    /// pointer can reach. A component whose answer varies per instance overrides `shows_label`.
+    const SHOWS_LABEL: bool = true;
 
     /// The style type.
     type Style: ComponentStyle;
     /// `Response`, `EditResponse<T>` or a richer type.
     type Output: Outcome;
+
+    /// Whether this instance paints its label as visible text; `SHOWS_LABEL` unless an instance prop decides, as
+    /// `icon_only` does. It reads props only, never the paint record.
+    fn shows_label(&self) -> bool {
+        Self::SHOWS_LABEL
+    }
 
     /// Pure function of the resolved context and the key.
     fn style(cx: &StyleCx<'_>, key: Self::StyleKey) -> Self::Style;

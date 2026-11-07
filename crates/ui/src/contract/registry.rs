@@ -100,6 +100,8 @@ pub struct Probe {
     pub entry: Entry,
     /// A leaf the `Canvas` body shows.
     pub canvas_control: bool,
+    /// The type's `SHOWS_LABEL`: whether it paints its label as visible text.
+    pub shows_label: bool,
     /// The type declares `#[component(overlay)]`.
     pub overlay: bool,
     /// The shared cases the type is exempt from.
@@ -162,6 +164,7 @@ impl Probe {
             keys: T::KEYS,
             entry,
             canvas_control: T::CANVAS_CONTROL,
+            shows_label: T::SHOWS_LABEL,
             overlay,
             exempt,
             purpose: "",
