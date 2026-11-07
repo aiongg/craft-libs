@@ -10,6 +10,7 @@
 //! writes `0`–`9` without grouping.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod age;
 mod catalog;
 #[cfg(feature = "collate")]
 mod collate;
@@ -64,6 +65,7 @@ use icu_locale_core::Locale as IcuLocale;
 use icu_plurals::{PluralCategory, PluralOperands, PluralRules};
 use unicode_bidi::{BidiClass, bidi_class};
 
+pub use age::{AGE_SHOWN_AS_DATE, AgeStyle, relative_age};
 #[cfg(feature = "collate")]
 pub use collate::Collator;
 pub use date::{

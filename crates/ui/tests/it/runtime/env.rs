@@ -1,11 +1,13 @@
 //! `Env`: the root, scopes and the interface scale.
 
 use craft_behavior::MotionMode;
+use craft_host::{AppInfo, Host};
 use craft_theme::ControlSize;
-use craft_ui::runtime::env::{Direction, Env, EnvValue, RootEnv, Scale, with_env};
+use craft_ui::runtime::env::{AgeStyle, Direction, Env, EnvValue, RootEnv, Scale, with_env};
 use craft_ui::testing::frames::show_area;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::{Frames, trial};
+use std::sync::Arc;
 
 #[derive(Clone, Debug, PartialEq, EnvValue)]
 #[env(root = Units("pt"))]
@@ -128,4 +130,28 @@ fn a_scope_that_changes_direction_builds_its_own_style_and_layout() {
         });
         assert_eq!(seen, Some((scope, scope.is_rtl())), "the scope's Ui reads {scope:?} under a {root:?} root");
     }
+}
+
+/// 2.1: `Units::times`, `duration` and `file_size` and `Env::relative_age` write the scope's language and digits.
+#[trial]
+fn units_and_ages_read_the_envs_language() {
+    let catalog = "@id\tunits.times\t{n} fois\n@id\tunits.seconds\t{n} sec\n@id\tage.justNow\tÀ l'instant\nunit\t{n} MB\t{n} Mo\n";
+    let (i18n, problems) = craft_i18n::I18n::from_owned([("fr".to_owned(), String::new(), catalog.to_owned())], &["fr"]);
+    assert!(problems.is_empty(), "{problems:?}");
+    i18n.set_format(craft_i18n::Format::from_tag("fr-FR"));
+    let fr = i18n.from_code("fr");
+    assert!(fr.is_some(), "the catalog offers French");
+    let host = Arc::new(
+        Host::builder(AppInfo { id: "trial", name: "Trial", version: "0" }).i18n(Arc::new(i18n)).lang(fr.unwrap_or(craft_i18n::Lang::EN)).build(),
+    );
+    let mut frames = Frames::new();
+    frames.host(host);
+    let mut seen = None;
+    frames.frame(vec![], |ui| {
+        let env = Env::of(ui);
+        let units = env.units();
+        seen = Some((units.times(3.0), units.duration(1.5), units.file_size(12 << 20), env.relative_age(10, AgeStyle::Long)));
+    });
+    let (times, duration, size, age) = seen.unwrap_or_default();
+    assert_eq!((times.as_str(), duration.as_str(), size.as_str(), age.as_str()), ("3 fois", "1,5 sec", "12,0 Mo", "À l'instant"));
 }

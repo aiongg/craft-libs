@@ -5,10 +5,10 @@
 //!   region's time locale ([`Region::time`]) and clock ([`Region::hour_cycle`]), from CLDR data
 //!   (ICU4X `icu_datetime`, data in `data/dates.postcard` from `data/generate.sh`). Build it once
 //!   per region and keep it; [`I18n::dates`] holds one, as [`I18n::format`] does for numbers.
-//! - Relative times ("3 minutes ago") are craft-ui's `localized::relative_age`: their words are
-//!   craft-ui word rows, so they follow the interface language and the catalog extraction finds
-//!   them. A list that shows the date after a week writes it with [`DateFormat`], which follows
-//!   the region.
+//! - Relative times ("3 minutes ago") are [`relative_age`](crate::relative_age) and
+//!   [`I18n::relative_age`]: their words are catalog rows, so they follow the interface language.
+//!   A list that shows the date after a week ([`AGE_SHOWN_AS_DATE`](crate::AGE_SHOWN_AS_DATE))
+//!   writes it with [`DateFormat`], which follows the region.
 //! - [`utc_stamp`]: `2026-10-08 14:05` (UTC), the same in every language: render-queue logs,
 //!   export file names, report headers.
 //!

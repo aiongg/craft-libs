@@ -1,8 +1,8 @@
 //! `Units`: what typed number input and unit readouts need from the env (core 2.1): the locale's separators and the
-//! unit spellings of a number's kind in the user's language.
+//! unit spellings of a number's kind in the user's language, and the file sizes and durations written with them.
 
 use craft_behavior::quantity::{Reader, is_unit_spelling};
-use craft_i18n::{Format, WordSet as _};
+use craft_i18n::{FileSize, Format, WordSet as _, Words};
 use std::ops::RangeInclusive;
 use std::sync::{Arc, OnceLock};
 
@@ -18,6 +18,7 @@ craft_ui::words! {
         centimetres: unit "units.centimetres" = "{n} cm";
         millimetres: unit "units.millimetres" = "{n} mm";
         picas: unit "units.picas" = "{n} pica";
+        seconds: unit "units.seconds" = "{n} s";
     }
 }
 
@@ -93,13 +94,15 @@ fn english_words() -> Arc<UnitWords> {
 pub struct Units {
     format: Arc<Format>,
     words: Arc<UnitWords>,
+    /// The scope's words, for the rows craft-i18n owns (file sizes).
+    scope_words: Arc<Words>,
     /// The readers built so far, one slot per `reader` argument (see `reader_slot`); shared by clones.
     readers: Arc<[OnceLock<Reader>; UnitKind::ALL.len() + 1]>,
 }
 
 impl Units {
-    pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>) -> Units {
-        Units { format, words, readers: Arc::default() }
+    pub(crate) fn new(format: Arc<Format>, words: Arc<UnitWords>, scope_words: Arc<Words>) -> Units {
+        Units { format, words, scope_words, readers: Arc::default() }
     }
 
     fn template(&self, kind: UnitKind) -> &str {
@@ -162,6 +165,28 @@ impl Units {
         self.show(UnitKind::Degrees, n)
     }
 
+    /// `n` times: `12×`.
+    pub fn times(&self, n: f64) -> String {
+        self.show(UnitKind::Times, n)
+    }
+
+    /// `seconds` as a duration: `0.35 s`, `12 s`, with at most two digits after the decimal mark.
+    pub fn duration(&self, seconds: f64) -> String {
+        let number = self.format.number_ungrouped(seconds, Self::digits(seconds, &(0..=2)));
+        craft_i18n::fmt(self.words.seconds.as_str(), &[("n", &number)])
+    }
+
+    /// `bytes` as a file size in steps of 1024 with one decimal (`1.5 KB`, `12.0 MB`, `512 bytes`), the unit
+    /// names and digits of the user's language.
+    pub fn file_size(&self, bytes: u64) -> String {
+        self.file_size_as(bytes, FileSize::BINARY)
+    }
+
+    /// `bytes` as a file size written the way `style` says.
+    pub fn file_size_as(&self, bytes: u64, style: FileSize) -> String {
+        style.text(bytes, &self.format, &self.scope_words)
+    }
+
     /// `n` with digit groups and between the least and most digits of `decimals` after the decimal mark, in the
     /// user's language and digits, with no unit.
     pub fn number(&self, n: f64, decimals: RangeInclusive<usize>) -> String {
@@ -186,7 +211,7 @@ impl Units {
             reader = reader.group(group);
         }
         let Some(kind) = kind else { return reader };
-        let english = Units::new(self.format.clone(), english_words());
+        let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()));
         for other in UnitKind::ALL {
             let factor = match (kind.millimetres(), other.millimetres()) {
                 (Some(of), Some(per)) => per / of,

@@ -5,10 +5,13 @@
 //! spacing (`{n} Mo`, `{n} %`). They are looked up with [`I18n::get`], never the plain row: a
 //! plain `B` row means bold. A byte count in words is the `@plural` row `{n} byte|{n} bytes`.
 
-use crate::{I18n, Lang, fmt, ltr};
+use crate::{Counted, Format, I18n, Lang, Word, Words, fmt, ltr};
 
 /// The context unit rows are in.
 const CONTEXT: &str = "unit";
+
+/// A byte count in words.
+const BYTES: Counted = Counted::new("", "{n} byte", "{n} bytes");
 
 /// A file-size unit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -162,15 +165,39 @@ impl FileSize {
     }
 }
 
+impl FileSize {
+    /// `bytes` written by `words`: the unit rows of context `unit` and the count row of bytes, the
+    /// number as `format` writes it. [`I18n::file_size`] is this with the app's catalogs; a UI scope
+    /// that holds `Words` and a `Format` and no `I18n` calls it.
+    pub fn text(&self, bytes: u64, format: &Format, words: &Words) -> String {
+        self.render(
+            bytes,
+            format,
+            |template| words.get(Word::in_context(CONTEXT, template)).into_owned(),
+            |n| words.counted(BYTES, n, &ltr(&format.integer(n))),
+        )
+    }
+
+    /// The text of `bytes`: `unit_row` gives a unit template's translation, `count` the byte count in words.
+    fn render(&self, bytes: u64, format: &Format, unit_row: impl Fn(&str) -> String, count: impl Fn(u64) -> String) -> String {
+        let (unit, n, decimals) = self.parts(bytes);
+        if unit == SizeUnit::Byte && !self.byte_symbol {
+            return count(bytes);
+        }
+        fmt(&unit_row(self.template(unit)), &[("n", &ltr(&format.number(n, decimals)))])
+    }
+}
+
 impl I18n {
     /// `bytes` as a file size in `lang`, written the way `style` says (`1.5 MB`, `512 bytes`), the
     /// number as [`I18n::format`] writes it (`1,5 Mo`).
     pub fn file_size(&self, lang: Lang, bytes: u64, style: FileSize) -> String {
-        let (unit, n, decimals) = style.parts(bytes);
-        if unit == SizeUnit::Byte && !style.byte_symbol {
-            return self.trn(lang, bytes, "{n} byte", "{n} bytes");
-        }
-        self.unit_text(lang, style.template(unit), &self.format().number(n, decimals))
+        style.render(
+            bytes,
+            &self.format(),
+            |template| self.get(lang, CONTEXT, template).unwrap_or(template).to_owned(),
+            |n| self.trn(lang, n, "{n} byte", "{n} bytes"),
+        )
     }
 
     /// `value` with `decimals` digits after the decimal separator in the unit template `unit`, an
@@ -276,9 +303,25 @@ mod tests {
         assert_eq!(i18n.file_size(fr, 1536, FileSize::BINARY), "1,5 Ko");
         assert_eq!(i18n.file_size(fr, 512, FileSize::BINARY), "512 octets");
         assert_eq!(i18n.file_size(fr, 512, FileSize::BINARY.byte_symbol()), "512 o", "not the plain row B (bold)");
+        assert_eq!(i18n.file_size(fr, 12 << 20, FileSize::BINARY), "12,0 Mo");
         assert_eq!(i18n.file_size(fr, 3 << 30, FileSize::BINARY), "3,0 GB", "a missing row is English");
         assert_eq!(i18n.measure(fr, 50.0, 0, "{n}%"), "50 %");
         assert_eq!(i18n.measure(Lang::EN, 12.34, 1, "{n} px"), "12,3 px", "numbers follow the region, not the language");
+    }
+
+    // A UI scope holds `Words` and a `Format`, not the `I18n`: the text is the same.
+    #[test]
+    fn words_write_the_same_sizes_as_the_catalogs() {
+        let (i18n, problems) = I18n::new(E, &["fr"]);
+        assert!(problems.is_empty(), "{problems:?}");
+        let fr = i18n.from_code("fr").unwrap();
+        i18n.set_format(Format::from_tag("fr-FR"));
+        let format = i18n.format();
+        let words = Words::from_i18n(std::sync::Arc::new(i18n), fr);
+        assert_eq!(FileSize::BINARY.text(12 << 20, &format, &words), "12,0 Mo");
+        assert_eq!(FileSize::BINARY.text(512, &format, &words), "512 octets");
+        assert_eq!(FileSize::BINARY.text(1, &format, &words), "1 octet");
+        assert_eq!(FileSize::BINARY.text(12 << 20, &format, &Words::english()), "12,0 MB", "English words keep the region's digits");
     }
 
     #[test]

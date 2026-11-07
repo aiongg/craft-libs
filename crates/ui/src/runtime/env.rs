@@ -17,7 +17,7 @@ use craft_host::Host;
 use craft_host::target::{Os, ShellInfo};
 pub use craft_i18n::Direction;
 use craft_i18n::Format;
-pub use craft_i18n::{Count, Counted, WordRows, WordSet, WordTemplate, Words};
+pub use craft_i18n::{AgeStyle, Count, Counted, WordRows, WordSet, WordTemplate, Words};
 use craft_theme::{
     AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
 };
@@ -403,7 +403,12 @@ impl Env {
 
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
-        Units::new(self.format.clone(), self.words::<UnitWords>())
+        Units::new(self.format.clone(), self.words::<UnitWords>(), self.words.clone())
+    }
+
+    /// How long ago `seconds` was, in the scope's language and digits: "Just now", "3 minutes ago", "Yesterday".
+    pub fn relative_age(&self, seconds: u64, style: AgeStyle) -> String {
+        craft_i18n::relative_age(&self.words, &self.format, seconds, style)
     }
 
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
@@ -720,7 +725,12 @@ impl<'a> EnvView<'a> {
 
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
-        Units::new(self.scoped.format.clone(), self.words::<UnitWords>())
+        Units::new(self.scoped.format.clone(), self.words::<UnitWords>(), self.scoped.words.clone())
+    }
+
+    /// How long ago `seconds` was, in the scope's language and digits: "Just now", "3 minutes ago", "Yesterday".
+    pub fn relative_age(&self, seconds: u64, style: AgeStyle) -> String {
+        craft_i18n::relative_age(&self.scoped.words, &self.scoped.format, seconds, style)
     }
 
     /// `label` with a `Word` replaced by its text in the scope's language.
