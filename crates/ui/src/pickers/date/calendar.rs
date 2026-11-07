@@ -19,7 +19,7 @@ use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx, TextLook, TypeRole, UiTokens};
 use craft_behavior::{Flow, HitLevel, HitPriority, IconId, Metrics, NavMove, PartKey, PartRef, Sense};
 use craft_i18n::{CalendarDate, DateFormat, DateLength, DateStyle, DateTime, Format, LocalDate, NameLength, Weekday};
-use craft_theme::Stateful;
+use craft_theme::{Rgba, Stateful, States};
 use egui::{CornerRadius, Rect, Response, Vec2, vec2};
 use std::sync::Arc;
 
@@ -449,10 +449,8 @@ pub struct CalendarStyle {
     /// The text of a cell outside the bounds.
     #[style(text)]
     disabled: TextLook,
-    /// The fill under the pointer, of the value's cell, and of the value's cell under the pointer.
-    hover: StyleColor,
-    selected: StyleColor,
-    selected_hover: StyleColor,
+    /// The fill of a cell: clear, the hover fill, and the selection fill with its hover shade for the value's cell.
+    fill: Stateful<StyleColor>,
     /// The ring around the cell that holds today.
     today: StyleColor,
     radius: CornerRadius,
@@ -631,9 +629,16 @@ impl Component for Calendar {
             weekday: TextLook::new(TypeRole::Caption, Stateful::new(cx.color(colors.text.muted))),
             text: ink(cx.ink(Ink::OnPanel)),
             disabled: ink(cx.color(colors.text.disabled)),
-            hover: cx.color(colors.state.hover),
-            selected: cx.color(colors.state.selected),
-            selected_hover: cx.color(colors.state.selected_hover),
+            fill: {
+                let clear = cx.color(Rgba::TRANSPARENT);
+                let (hover, selected) = (cx.color(colors.state.hover), cx.color(colors.state.selected_hover));
+                Stateful::new(clear).off(States::new(clear, hover, hover, clear)).on(States::new(
+                    cx.color(colors.state.selected),
+                    selected,
+                    selected,
+                    clear,
+                ))
+            },
             today: cx.color(colors.accent.solid),
             radius: UiTokens::corner(cx.tokens.shape.radius.control),
             cell,
@@ -777,13 +782,9 @@ impl Component for Calendar {
             let Some(cell) = cell else { continue };
             let rect = geometry.cell(at);
             let permitted = self.permitted(cell);
-            let hovered = cx.part(part_of(&self.view, cell.key)).hovered;
             let shape = PaintShape::Rect(rect, style.radius);
-            match (self.holds_value(cell) && permitted, hovered && permitted) {
-                (true, true) => draw.fill(&shape, style.selected_hover),
-                (true, false) => draw.fill(&shape, style.selected),
-                (false, true) => draw.fill(&shape, style.hover),
-                _ => {}
+            if permitted {
+                draw.fill(&shape, cx.resolve_part(part_of(&self.view, cell.key), &style.fill));
             }
             if self.holds_today(cell) {
                 draw.stroke(&shape, StrokeWidth::Thin, style.today);

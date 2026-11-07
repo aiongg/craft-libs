@@ -18,14 +18,14 @@ use crate::buttons::{IconButton, Link};
 use crate::choice::Segmented;
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, Input, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi,
-    PartsCx, Props as _, Remember as _, Role, Show as _, WordSetCx as _,
+    PartsCx, Props as _, Remember as _, Role, Show as _, WordSetCx as _, clicked,
 };
 use crate::primitives::{IconSpec, TextKey, TextOptions, TextRun};
 use crate::runtime::env::Label;
 use crate::text::{Adornment, FieldStyle, place, reserve};
 use craft_behavior::{CancelReason, GesturePhase, HitLevel, HitPriority, IconId, PartKey, Sense};
 use craft_host::Host;
-use craft_i18n::{CalendarDate, DateFormat, DateTime, Region};
+use craft_i18n::{CalendarDate, DateFormat, Region};
 use egui::{Rect, Vec2};
 use std::sync::{Arc, OnceLock};
 
@@ -185,18 +185,6 @@ fn dates_of(host: Option<&Arc<Host>>) -> Arc<DateFormat> {
     Arc::clone(SYSTEM.get_or_init(|| Arc::new(DateFormat::new(&Region::system()))))
 }
 
-/// The local date, where the platform has a clock.
-fn system_today() -> Option<PickedDate> {
-    #[cfg(target_arch = "wasm32")]
-    {
-        None
-    }
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        PickedDate::from_calendar_date(DateTime::from_system(std::time::SystemTime::now(), craft_i18n::TimeZone::Local).date)
-    }
-}
-
 /// Whether the hover preview of an open calendar has proposed a value that closing must cancel.
 #[derive(Clone, Default)]
 struct Previewing(bool);
@@ -230,7 +218,8 @@ pub struct DatePicker<'a> {
     /// The latest value allowed: a value is allowed when any of its days is in range.
     #[prop]
     max: Option<PickedDate>,
-    /// What today is, for tests and screenshots; by default the local date.
+    /// What today is: the calendar rings its cell and the Today link picks it. The host supplies it (the runtime has no
+    /// calendar clock); without one neither shows.
     #[prop]
     today: Option<PickedDate>,
 }
@@ -319,7 +308,7 @@ impl Component for DatePicker<'_> {
         let current = cx.value().copied().flatten();
         let precisions = self.offered();
         let (min, max) = (self.min, self.max);
-        let today = self.today.or_else(system_today);
+        let today = self.today;
         let name = cx.label();
         let chosen = ui.show(popup, Overlay::popover(), |ui, body| {
             let mut view = (*body.memory::<Option<CalendarView>>()).unwrap_or_else(|| CalendarView::open(current, today, precisions, &dates));
@@ -365,11 +354,11 @@ impl Component for DatePicker<'_> {
                 });
                 if let Some(today) = at_precision {
                     let allowed = today.in_bounds(min.as_ref(), max.as_ref());
-                    if Link::new(words.date_today.clone()).enabled(allowed).show(ui).clicked() {
+                    if clicked(&Link::new(words.date_today.clone()).enabled(allowed).show(ui)) {
                         pick = Some(Some(today));
                     }
                 }
-                if Link::new(words.date_clear.clone()).enabled(current.is_some()).show(ui).clicked() {
+                if clicked(&Link::new(words.date_clear.clone()).enabled(current.is_some()).show(ui)) {
                     pick = Some(None);
                 }
             });
