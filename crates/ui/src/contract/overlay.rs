@@ -927,6 +927,9 @@ impl<'a> OverlayUi<'a> {
             requested = bcx.close_requested().is_some();
             stage.write_back();
         });
+        if overlay.opener.is_none() && !self.parts.is_empty() {
+            overlay::note_peers(&ctx, popup.id, self.parts.iter().map(|(_, rect)| self.to_screen * *rect).collect());
+        }
         if open {
             with_popups(&ctx, |popups| popups.shown.push((self.owner, popup.id)));
             if requested {

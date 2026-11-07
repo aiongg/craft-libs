@@ -41,12 +41,6 @@ enum Mark {
     Radio(bool),
 }
 
-impl Mark {
-    fn on(self) -> bool {
-        matches!(self, Mark::Check(true) | Mark::Radio(true))
-    }
-}
-
 /// Whether the pointer at `now`, having come from `from`, heads for `submenu`: it lies inside the triangle from
 /// `from` to the submenu's edge nearer to it.
 pub(crate) fn heads_toward(from: Pos2, now: Pos2, submenu: Rect) -> bool {
@@ -72,7 +66,6 @@ struct Assigned {
     id: Id,
     mnemonic: Option<(char, usize)>,
     enabled: bool,
-    checked: bool,
 }
 
 /// The one open submenu of a level.
@@ -156,12 +149,7 @@ impl MenuLevel {
                 let labels: Vec<&str> = state.now.iter().map(|row| row.text.as_str()).collect();
                 mnemonic::assign(&labels)
             };
-            state.shown = state
-                .now
-                .iter()
-                .zip(letters)
-                .map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled, checked: row.mark.is_some_and(Mark::on) })
-                .collect();
+            state.shown = state.now.iter().zip(letters).map(|(row, mnemonic)| Assigned { id: row.id, mnemonic, enabled: row.enabled }).collect();
             state.marks = state.now.iter().any(|row| row.mark.is_some());
             state.icons = state.now.iter().any(|row| row.icon);
             state.keyboard = keyboard;
@@ -202,7 +190,7 @@ impl MenuLevel {
         self.with(|state| state.icons)
     }
 
-    fn values(&self) -> bool {
+    pub(crate) fn values(&self) -> bool {
         self.with(|state| state.values)
     }
 
@@ -224,11 +212,6 @@ impl MenuLevel {
             }
             mine
         })
-    }
-
-    /// The checked row of a value menu: the lead starts on it when the menu opens.
-    pub(crate) fn checked_row(&self) -> Option<Id> {
-        self.with(|state| state.shown.iter().find(|row| row.checked).map(|row| row.id))
     }
 
     fn is_submenu(&self) -> bool {

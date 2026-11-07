@@ -132,6 +132,9 @@ pub(crate) struct OpenEntry {
     pub keys: OwnerClass,
     /// The anchor in screen space.
     pub anchor: Option<Rect>,
+    /// The rects in screen space of the other parts of the owner that open popups: a press on one is not outside,
+    /// so the press reaches it and it switches the open popup.
+    pub peers: Vec<Rect>,
     /// The layer's rect in screen space.
     pub rect: Rect,
     /// The side of the anchor it took.
@@ -159,6 +162,7 @@ impl OpenEntry {
             rank,
             keys,
             anchor: None,
+            peers: Vec::new(),
             rect,
             side: Side::Below,
             exiting: false,
@@ -433,6 +437,15 @@ pub(crate) fn absorbed_press(ctx: &Context) -> Option<Pos2> {
     with_persist(ctx, pass::current_viewport(ctx), |persist| persist.outside_press)
 }
 
+/// Records the toggling parts that sit beside the anchor of the layer `id` shown in this pass.
+pub(crate) fn note_peers(ctx: &Context, id: Id, peers: Vec<Rect>) {
+    with_pass(ctx, |pass| {
+        if let Some(entry) = pass.current.iter_mut().find(|entry| entry.id == id) {
+            entry.peers = peers;
+        }
+    });
+}
+
 /// Records the layer shown in this pass; a layer shown again in a discarded pass replaces its entry.
 pub(crate) fn record(ctx: &Context, entry: OpenEntry) {
     with_pass(ctx, |pass| {
@@ -519,7 +532,9 @@ pub(crate) fn end_pass(ctx: &Context) {
             .rev()
             .find_map(|members| members.iter().rev().find(|entry| !entry.exiting && entry.takes_keys()).map(|top| (top, members)))
             .filter(|(top, _)| top.absorbs)
-            .map(|(_, members)| members.iter().flat_map(|member| std::iter::once(member.rect).chain(member.anchor)).collect());
+            .map(|(_, members)| {
+                members.iter().flat_map(|member| std::iter::once(member.rect).chain(member.anchor).chain(member.peers.iter().copied())).collect()
+            });
         order
     });
     areas::set_layer_order(ctx, &order);
