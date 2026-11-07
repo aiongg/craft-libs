@@ -70,10 +70,7 @@ fn stories_grow_with_text_density_and_scale(subject: &Subject) -> Result<(), Str
             for run in base.runs.iter().filter(|run| !run.elided && !run.text.trim().is_empty() && inside(run.rect, base.shown)) {
                 for same in grown.runs.iter().filter(|other| other.text == run.text) {
                     // A run the component painted elided is shortened by design and keeps its full text in the access name
-                    // (the elision rule checks that); text clipped without an elision wrap fails here.
-                    if same.elided {
-                        continue;
-                    }
+                    // (the elision rule checks that), so it is not cut; it must still stay inside its part.
                     if !inside(same.rect, grown.shown) {
                         return Err(format!("{}: under {name} the text `{}` leaves its part", story.name, run.text));
                     }
