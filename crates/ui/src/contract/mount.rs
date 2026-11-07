@@ -6,10 +6,10 @@ use super::container::PaneEdge;
 use super::run::{Host, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{areas, viewports};
+use crate::runtime::egui::{areas, memory as store, viewports};
 use crate::runtime::env::Env;
 use crate::runtime::layout_memory;
-use crate::runtime::memory::{MemoryStage, sub};
+use crate::runtime::memory::sub;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
 /// The host for `props.mount`.
@@ -60,7 +60,7 @@ struct LayerHost;
 impl Host for LayerHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        let placement: Placement = MemoryStage::peek(&ctx, placement_id(id));
+        let placement: Placement = store::peek_clone(&ctx, placement_id(id)).unwrap_or_default();
         let window = ctx.content_rect();
         let size = layout_memory::read(&ctx, id).unwrap_or(Vec2::ZERO);
         let pos = placement.pos.map_or_else(|| window.center() - size / 2.0, Pos2::from);

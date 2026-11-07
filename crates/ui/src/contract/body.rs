@@ -132,6 +132,7 @@ pub(super) struct BodyHooks<'b> {
     extent: Option<Vec2>,
     view: Option<Rect>,
     save: Option<crate::runtime::memory::SaveKey>,
+    layer: bool,
 }
 
 impl<'b> BodyHooks<'b> {
@@ -159,6 +160,7 @@ impl<'b> BodyHooks<'b> {
             extent: None,
             view: None,
             save: None,
+            layer: false,
         }
     }
 
@@ -258,6 +260,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let save = props.save.clone();
         self.save = save.clone();
         let layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. });
+        self.layer = layer;
         self.remembered = layout_memory::read(&ctx, id);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
@@ -417,15 +420,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         let id = cx.core.id;
         let min = cx.style.metrics().min_size;
         let rect = cx.core.rect;
-        let band = cx.core.part(MOVE_BAND).press.phase;
+        // A part the container did not declare this pass (no band, no grips) has no result.
+        let phase = |key: (PartKey, Option<u64>)| cx.core.results.get(&key).map(|result| result.press.phase);
+        let band = phase((MOVE_BAND, None));
         let grips: Vec<(usize, Vec2)> = (0..GRIPS.len())
-            .filter_map(|index| match cx.core.part(GRIP.at(index as u64)).press.phase {
-                PressPhase::Drag { delta, .. } => Some((index, delta)),
+            .filter_map(|index| match phase((GRIP, Some(index as u64))) {
+                Some(PressPhase::DragStart { start, pos, .. }) => Some((index, pos - start.origin)),
+                Some(PressPhase::Drag { delta, .. }) => Some((index, delta)),
                 _ => None,
             })
             .collect();
         let slot = cx.core.memory.shown::<Placement>(placement_id(id));
-        if let PressPhase::Drag { delta, .. } = band {
+        let band_move = match band {
+            Some(PressPhase::DragStart { start, pos, .. }) => Some(pos - start.origin),
+            Some(PressPhase::Drag { delta, .. }) => Some(delta),
+            _ => None,
+        };
+        if let Some(delta) = band_move {
             let pos = slot.pos.map_or(rect.min, Pos2::from);
             slot.pos = Some((pos + delta).into());
         }
@@ -667,9 +678,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             view.view = self.view.map(|view| [view.min.x, view.min.y, view.max.x, view.max.y]);
         }
-        if let Some(key) = &self.save {
+        if self.layer {
+            // The mount host places the next pass by this; it runs before this stage is written back.
             let placement = stage.shown::<Placement>(placement_id(id)).clone();
-            *stage.saved::<Placement>(key) = placement;
+            if let Some(key) = &self.save {
+                *stage.saved::<Placement>(key) = placement.clone();
+            }
+            crate::runtime::egui::memory::put(ctx, placement_id(id), placement);
         }
         if self.moved {
             let at_end = self.last.view.map(rect_of).is_some_and(|view| self.offset.y >= f64::from(self.last.extent.1 - view.height()) - 0.5);
