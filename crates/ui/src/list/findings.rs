@@ -8,7 +8,8 @@ use crate::contract::{
     Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, MeasureCx, PaintUi, Props as _,
     Role, SelectMode, Show as _, Sizing, Styled as _, WordSetCx as _,
 };
-use crate::primitives::{IconSpec, Span, TextRun};
+use crate::notices::{Notice, NoticeLayout};
+use crate::primitives::{IconSpec, TextRun};
 use crate::style::{ComponentStyle, IconLook, Stateful, StyleCx, SurfaceKind, TextLook, TypeRole};
 use craft_behavior::{DisplayOrder, Flow, IconId, Insets, ItemSource, Metrics, Selection, Sense, SpanLayout};
 use craft_i18n::Format;
@@ -211,60 +212,7 @@ impl Collection for FindingsList<'_> {
 
     fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<ListWords>();
-        EmptyNote::new().label(words.no_findings.clone()).show_at(ui, cx.rect);
-    }
-}
-
-/// The style of the empty note: the control's padding.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-pub(super) struct EmptyNoteStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-}
-
-/// The text of an empty list.
-// F8-MERGE: Notice (display family) replaces this note.
-#[derive(crate::contract::Component)]
-#[component(sample = EmptyNote::sample)]
-pub(super) struct EmptyNote {
-    #[common]
-    common: Common,
-}
-
-impl EmptyNote {
-    #[cfg(feature = "testing")]
-    fn sample() -> Self {
-        EmptyNote::new().label("No findings")
-    }
-
-    pub(super) fn new() -> Self {
-        EmptyNote { common: Common::new() }
-    }
-}
-
-impl Component for EmptyNote {
-    const ROLE: Role = Role::LABEL;
-    type Style = EmptyNoteStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, _: EmptyNoteStyleKey) -> EmptyNoteStyle {
-        EmptyNoteStyle { metrics: Metrics::new().padding(Insets::horizontal(cx.control().pad_x)).min_size(Vec2::new(0.0, cx.control().height)) }
-    }
-
-    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(cx.label().as_str())).size()
-    }
-
-    fn sense(&self) -> Sense {
-        Sense::empty()
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.draw().text(cx.content_rect, &TextRun::spans(vec![Span::new(cx.resolved.label).muted()]));
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+        Notice::new(Tone::Neutral, words.no_findings.clone()).layout(NoticeLayout::Centred).show_at(ui, cx.rect);
     }
 }
 
