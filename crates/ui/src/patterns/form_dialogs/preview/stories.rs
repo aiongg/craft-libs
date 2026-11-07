@@ -19,7 +19,7 @@ fn picture(ui: &Ui) -> SizedTexture {
 fn preview_pane(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::default());
     let shown = PreviewPane::new("Preview", picture(ui), view).show(ui);
-    if let Some(next) = shown.view {
+    if let Some(next) = shown.view.clone() {
         *view = next;
     }
     shown.into()
@@ -29,7 +29,7 @@ fn preview_pane(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn preview_zoom(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::default());
     let shown = PreviewZoom::new(view).show(ui);
-    if let Some(next) = shown.view {
+    if let Some(next) = shown.view.clone() {
         *view = next;
     }
     shown.into()
@@ -57,7 +57,7 @@ fn preview_pane_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn preview_pane_fit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let view = data.value("view", PreviewView::fitting().zoom_range(0.01..=32.0));
     let shown = PreviewPane::state("Preview", PreviewState::Ready(picture(ui)), view).show(ui);
-    if let Some(next) = shown.view {
+    if let Some(next) = shown.view.clone() {
         *view = next;
     }
     shown.into()
