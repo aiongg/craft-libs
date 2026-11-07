@@ -1186,6 +1186,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         popups: &super::overlay::popups_shown(ctx, id),
     };
     access::report(ctx, &own);
+    // The root's egui widget senses what its parts and members sense, which makes egui declare a click the node
+    // does not offer: a click that only pointer gestures take is not an action assistive technology can request.
+    let part_clicks = input.decls.iter().any(|(decl, extras)| decl.sense.contains(Sense::CLICK) && extras.pointer_only.is_none());
+    if !own.clickable && !part_clicks {
+        crate::runtime::egui::access::withdraw_click(ctx, id);
+    }
     if let Some(facts) = core.text_access.take() {
         crate::runtime::access::text::report_text(ctx, id, &facts);
     }

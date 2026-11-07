@@ -54,13 +54,21 @@ pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
     ctx.accesskit_node_builder(id, |node| node.set_label(label));
 }
 
-/// Hides the node of `id` from assistive technology: a hit-test widget whose part has its own sub-node, or one that
-/// only absorbs presses. The actions egui declared for the widget's sense go too: a hidden node is operated by nobody.
+/// Hides the node of `id` from assistive technology and strips its actions: a hit-test widget the runtime made for
+/// a part that has its own sub-node, or to stand in for a root on another layer. The sub-node or the root's own
+/// node carries the actions.
 pub(crate) fn hide(ctx: &Context, id: Id) {
+    crate::runtime::egui::widgets::note_node(ctx, id);
     ctx.accesskit_node_builder(id, |node| {
-        node.clear_actions();
         node.set_hidden();
+        node.clear_actions();
     });
+}
+
+/// Withdraws the click egui declared for the widget of `id` from its sensed gestures: a click that only pointer
+/// gestures take (a canvas tool's press) is not an action assistive technology can request.
+pub(crate) fn withdraw_click(ctx: &Context, id: Id) {
+    ctx.accesskit_node_builder(id, |node| node.remove_action(accesskit::Action::Click));
 }
 
 /// Reports `id` as the focused node of this pass.
