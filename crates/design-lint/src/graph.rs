@@ -136,7 +136,17 @@ impl Metadata {
 
 fn package(root: &Path, raw: RawPackage) -> Package {
     let lib_root = raw.targets.iter().find(|t| t.kind.iter().any(|k| k == "lib" || k == "rlib")).map(|t| root.join(&t.src_path));
-    let dependencies = raw.dependencies.into_iter().map(|d| Dependency { name: d.name, normal: d.kind.is_none(), optional: d.optional, features: d.features, default_features: d.uses_default_features }).collect();
+    let dependencies = raw
+        .dependencies
+        .into_iter()
+        .map(|d| Dependency {
+            name: d.name,
+            normal: d.kind.is_none(),
+            optional: d.optional,
+            features: d.features,
+            default_features: d.uses_default_features,
+        })
+        .collect();
     let dir = raw.manifest_path.and_then(|m| m.parent().map(|d| root.join(d)));
     Package { name: raw.name, dir, lib_root, features: raw.features, dependencies }
 }
