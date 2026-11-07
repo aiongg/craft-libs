@@ -1,7 +1,7 @@
 //! `Link`: text in the accent colour, always underlined, that reports a click.
 
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
-use crate::primitives::{PaintShape, StrokeWidth, TextRun};
+use crate::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
 use craft_theme::States;
@@ -35,13 +35,21 @@ pub struct Link {
     /// The type role, to match the text around it.
     #[prop]
     role: TypeRole,
+    /// How the text fits its room: cut with an ellipsis (`Wrap::Elide`, or `Wrap::ElidePath` for a path segment, so
+    /// the end stays) instead of clipping.
+    #[prop]
+    wrap: Wrap,
 }
 
 impl Link {
     /// A link labelled `label`, in body type.
     pub fn new(label: impl Into<crate::runtime::env::Label>) -> Self {
         use crate::contract::Props as _;
-        Link { common: Common::new(), url: None, role: TypeRole::Body }.label(label)
+        Link { common: Common::new(), url: None, role: TypeRole::Body, wrap: Wrap::Line }.label(label)
+    }
+
+    fn run<'a>(&self, label: &'a str) -> TextRun<'a> {
+        TextRun::new(label).role(self.role).wrap(self.wrap)
     }
 }
 
@@ -64,7 +72,7 @@ impl Component for Link {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(cx.resolved.label).role(self.role)).size()
+        cx.layout(&self.run(cx.resolved.label)).size()
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
@@ -91,7 +99,7 @@ impl Component for Link {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let color = cx.resolve(&cx.style.text.color);
         let draw = ui.draw();
-        let layout = draw.text(cx.content_rect, &TextRun::new(cx.resolved.label).role(self.role).color(color));
+        let layout = draw.text(cx.content_rect, &self.run(cx.resolved.label).color(color));
         let line = Flow::new(cx.content_rect, cx.flow.is_rtl()).take_start(layout.size().x).0;
         let y = cx.content_rect.top() + layout.size().y - cx.style.underline;
         draw.stroke(&PaintShape::Path(vec![Pos2::new(line.left(), y), Pos2::new(line.right(), y)]), StrokeWidth::Thin, color);
