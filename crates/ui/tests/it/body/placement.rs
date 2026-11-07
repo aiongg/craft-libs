@@ -6,6 +6,7 @@ use super::kit::{Regions, Slab};
 use crate::contract::kit::{PlainStyle, Probe, Seen};
 use crate::windows_kit::Windows;
 use craft_behavior::GesturePhase;
+use craft_host::target::WindowChrome;
 use craft_ui::contract::overlay::{PlacementChange, PlacementKind};
 use craft_ui::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _,
@@ -243,9 +244,12 @@ fn the_keyboard_move_mode_reports_keyboard_changes_and_enter_commits_while_escap
     assert!(near(caller.rect.get(), kept), "and the layer is back at it: {:?}", caller.rect.get());
 }
 
-/// The props of a viewport mount of `overlay`, opened as an undecorated tool window, whose header is the move band.
+/// The props of a viewport mount of `overlay`, opened as an app-framed (integrated chrome) tool window, whose header is the move band.
 fn viewport_props(overlay: Overlay) -> ContainerProps {
-    ContainerProps::new().mount(Mount::viewport_with(overlay, WindowSpec::tool())).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
+    ContainerProps::new()
+        .mount(Mount::viewport_with(overlay, WindowSpec::tool().chrome(WindowChrome::Integrated)))
+        .sizing(Sizing::Content)
+        .header(HeaderRegion::new().band(DragBand::Move))
 }
 
 #[trial]

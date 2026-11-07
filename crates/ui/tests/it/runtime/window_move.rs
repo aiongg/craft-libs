@@ -129,7 +129,7 @@ fn band_drag(mount: Mount, info: ViewportInfo) -> Vec<ViewportCommand> {
 /// The commands a drag at `at` sends in a child window of a container with `overlay`, opened as a tool window.
 fn grip_drag(overlay: Overlay, at: Pos2) -> Vec<ViewportCommand> {
     let windows = Windows::new();
-    let rig = Rig::new(Mount::viewport_with(overlay, WindowSpec::tool()));
+    let rig = Rig::new(Mount::viewport_with(overlay, WindowSpec::tool().chrome(WindowChrome::Integrated)));
     for _ in 0..4 {
         rig.frame(&windows, vec![], vec![]);
     }
@@ -138,7 +138,7 @@ fn grip_drag(overlay: Overlay, at: Pos2) -> Vec<ViewportCommand> {
 
 #[trial]
 fn a_viewport_containers_move_band_sends_one_os_move_unless_the_app_does_not_own_the_window() {
-    let movable = || Mount::viewport_with(Overlay::floating().movable(true), WindowSpec::tool());
+    let movable = || Mount::viewport_with(Overlay::floating().movable(true), WindowSpec::tool().chrome(WindowChrome::Integrated));
     assert_eq!(starts(&band_drag(movable(), ViewportInfo::default())), 1, "an undecorated window moves once");
     let maximized = ViewportInfo { maximized: Some(true), ..ViewportInfo::default() };
     assert_eq!(starts(&band_drag(movable(), maximized)), 0, "a maximized window does not move");
