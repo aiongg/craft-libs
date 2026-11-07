@@ -11,13 +11,14 @@ use super::words::PickerWords;
 use crate::buttons::IconButton;
 use crate::contract::overlay::{Popup, Trigger};
 use crate::contract::{
-    Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadSource, MeasureCx,
-    Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _, ShowCollection as _,
-    ShowContainer as _, WordSetCx as _,
+    Access, Bind, BindMut, BodyCx, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, LeadOnOpen, LeadSource,
+    MeasureCx, Numeric, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Show as _,
+    ShowCollection as _, ShowContainer as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
 use crate::menu::Menu;
 use crate::runtime::env::Label;
+use crate::runtime::focus::{self, FocusTarget};
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
@@ -222,8 +223,19 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                 ui.horizontal(|ui| {
                     if searchable {
                         let typed = body.memory::<Query>();
-                        TextField::search(search_name(&words, &name), Bind::bound(&mut typed.0)).show(ui);
-                        query.clone_from(&typed.0);
+                        if Popup::opening(popup, cx) {
+                            *typed = Query::default();
+                        }
+                        let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.text)).show(ui);
+                        query.clone_from(&typed.text);
+                        // The dropdown leaves the key focus on the select; the filter field takes it once the layer has
+                        // recorded the select as its opener, so typing reaches the field.
+                        let taken = &mut body.memory::<Query>().focused;
+                        if field.response.has_focus() {
+                            *taken = true;
+                        } else if !*taken && !Popup::opening(popup, cx) {
+                            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+                        }
                     }
                     if let Some(rows) = header_menu.as_mut() {
                         let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).label(words.header_menu.clone()).show(ui);
@@ -236,9 +248,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
             }
             let rows = EntryRows::new(entries, &labels);
             let selection = held.filter(|_| query.trim().is_empty()).map_or_else(Selection::default, Selection::single);
+            // While a query narrows the list the lead starts nowhere, so Down lands on the first match and Enter picks it.
+            let lead = if query.trim().is_empty() { LeadOnOpen::First } else { LeadOnOpen::Selected };
             List::options(name.clone())
                 .empty(words.no_matches.clone())
                 .selection(Bind::given(selection))
+                .lead_on_open(lead)
                 .filter(&query, |at| labels[*at].clone())
                 .show_items(ui, &rows, &mut |at, _| rows.row(*at, dress))
                 .events
@@ -277,9 +292,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     }
 }
 
-/// The filter text of a searchable select's open list.
+/// The filter text of a searchable select's open list, and whether its field has taken the key focus yet.
 #[derive(Clone, Default)]
-struct Query(String);
+struct Query {
+    text: String,
+    focused: bool,
+}
 
 /// The filter field's accessible name: the select's own name leads, so the field reads as part of it.
 fn search_name(words: &PickerWords, select: &Label) -> Label {

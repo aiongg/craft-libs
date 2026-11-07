@@ -59,10 +59,13 @@ impl Rig {
         self.fixture.idle(10);
     }
 
-    /// The names of the rows the tree shows, in order.
+    /// The names of the rows the tree shows, top to bottom: the tree's node list has no visual order.
     fn listed(&self) -> Vec<String> {
         let tree = self.fixture.tree();
-        tree.with_role(Role::TREE_ITEM).iter().filter_map(|key| tree.name_of(*key)).map(str::to_owned).collect()
+        let mut rows: Vec<_> =
+            tree.with_role(Role::TREE_ITEM).into_iter().filter_map(|key| Some((tree.bounds_of(key)?.min.y, tree.name_of(key)?))).collect();
+        rows.sort_by(|a, b| a.0.total_cmp(&b.0));
+        rows.into_iter().map(|(_, name)| name.to_owned()).collect()
     }
 
     fn click_row(&mut self, name: &str) {
