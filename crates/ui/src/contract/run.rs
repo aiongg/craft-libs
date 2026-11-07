@@ -4,12 +4,13 @@
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn};
 use super::{Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show, TipFn};
-use super::Inner;
+use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{egui::child, focus, inspect, keys, layout_memory, memory};
+use crate::runtime::egui::{alloc, child};
+use crate::runtime::{focus, inspect, keys, layout_memory, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{
     Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, ScrollPos, Sense,
@@ -93,7 +94,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
         });
         let rtl = env.direction.is_rtl();
-        let mut body_ui = ui.new_child(UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id));
+        let mut body_ui = alloc::child(ui, UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id));
         let installed = Env::install_for(&body_ui, inner);
         {
             let mut body_cx = BodyCx::new(body_id, cx.core.env, cx.core.resolved, rect, &mut *cx.core.memory);
@@ -112,7 +113,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
 
 struct ItemsHooks<'s, 'r, C: Collection> {
     source: &'s dyn ItemSource<C::Key>,
-    item: &'s mut dyn FnMut(&C::Key, &mut ItemCx<'_, 'r, C::Key>) -> C::Item<'r>,
+    item: &'s mut ItemFn<'r, C>,
     layout: Option<C::ItemLayout>,
 }
 
@@ -141,7 +142,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             scoped.values.extend(values);
             scoped.arena = Some(ArenaId::new(id));
         });
-        let mut items_ui = ui.new_child(UiBuilder::new().max_rect(rect).scope_id(sub(id, "items")));
+        let mut items_ui = alloc::child(ui, UiBuilder::new().max_rect(rect).scope_id(sub(id, "items")));
         items_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
         let installed = Env::install_for(&items_ui, inner);
         let (offset, flow) = (ScrollPos::default(), Flow::new(rect, rtl));
@@ -325,7 +326,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
             comp.parts(rect, &mut pcx);
         }
         if C::CANVAS_CONTROL {
-            crate::canvas_controls::declare(&ctx, std::any::type_name::<C>());
+            inspect::canvas_control(&ctx, std::any::type_name::<C>());
         }
         steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
         let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
@@ -445,7 +446,7 @@ pub(crate) fn show_items<'r, C: Collection>(
     comp: C,
     ui: &mut Ui,
     source: &dyn ItemSource<C::Key>,
-    item: &mut dyn FnMut(&C::Key, &mut ItemCx<'_, 'r, C::Key>) -> C::Item<'r>,
+    item: &mut ItemFn<'r, C>,
 ) -> C::Output {
     run(comp, ui, ShowAt::Flow, None, &mut ItemsHooks::<C> { source, item, layout: None })
 }

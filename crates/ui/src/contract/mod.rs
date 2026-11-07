@@ -141,7 +141,15 @@ impl<O, R> Deref for Inner<O, R> {
 
 /// The shell pane a `Mount::Pane` names.
 #[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
 pub struct ShellPane(pub &'static str);
+
+impl ShellPane {
+    /// The pane named `name`.
+    pub const fn new(name: &'static str) -> Self {
+        ShellPane(name)
+    }
+}
 
 /// The most a component may measure on either side, in points.
 pub const MAX_EXTENT: f32 = 32_768.0;
@@ -346,7 +354,7 @@ pub trait ShowCollection: Collection + sealed::ShowCollection {
         self,
         ui: &mut Ui,
         source: &dyn ItemSource<Self::Key>,
-        item: &mut dyn FnMut(&Self::Key, &mut ItemCx<'_, 'r, Self::Key>) -> Self::Item<'r>,
+        item: &mut ItemFn<'r, Self>,
     ) -> Self::Output {
         run::show_items(self, ui, source, item)
     }
@@ -358,6 +366,9 @@ impl<C: Collection> sealed::ShowCollection for C {}
 impl<C: Component + Meta<Shape = shape::Leaf>> Show for C {}
 impl<C: Container> ShowContainer for C {}
 impl<C: Collection> ShowCollection for C {}
+
+/// The item closure of `ShowCollection::show_items`: one call per visible key.
+pub type ItemFn<'r, C> = dyn FnMut(&<C as Collection>::Key, &mut ItemCx<'_, 'r, <C as Collection>::Key>) -> <C as Collection>::Item<'r>;
 
 /// A tooltip closure the pipeline runs at step 16.
 pub(crate) type TipFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;

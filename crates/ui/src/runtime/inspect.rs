@@ -22,6 +22,7 @@ pub struct Finding {
 struct Log {
     steps: HashMap<Id, Vec<&'static str>>,
     findings: Vec<Finding>,
+    canvas_controls: Vec<&'static str>,
 }
 
 /// Whether records are kept: in test builds, and in any build while the debug inspector is on.
@@ -62,4 +63,20 @@ pub(crate) fn finding(ctx: &Context, finding: Finding) {
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by trials and the debug inspector"))]
 pub(crate) fn findings(ctx: &Context) -> Vec<Finding> {
     Service::<Log>::of(ctx).with(|log| log.findings.clone())
+}
+
+/// Records that the canvas control `type_name` showed in this pass, so the canvas-control cases can check that a
+/// press away from its parts reaches the tool.
+pub(crate) fn canvas_control(ctx: &Context, type_name: &'static str) {
+    Service::<Log>::of(ctx).with(|log| {
+        if !log.canvas_controls.contains(&type_name) {
+            log.canvas_controls.push(type_name);
+        }
+    });
+}
+
+/// The canvas-control types that have shown on the context.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by trials and the debug inspector"))]
+pub(crate) fn canvas_controls(ctx: &Context) -> Vec<&'static str> {
+    Service::<Log>::of(ctx).with(|log| log.canvas_controls.clone())
 }

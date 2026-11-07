@@ -27,6 +27,7 @@ style_key!(RowProbeKey);
 
 /// A style with a minimum size.
 #[derive(Clone, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct PlainStyle {
     pub min: Vec2,
 }
@@ -39,6 +40,7 @@ impl ComponentStyle for PlainStyle {
 
 /// A part a probe declares: its rect relative to the probe's own, what it senses and whether Tab reaches it.
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub struct PartSpec {
     pub key: PartKey,
     pub at: Rect,
@@ -47,6 +49,7 @@ pub struct PartSpec {
 }
 
 /// What a probe saw while it ran.
+#[non_exhaustive]
 pub struct Seen {
     pub rect: Rect,
     pub id: Option<Id>,
@@ -257,6 +260,7 @@ impl Component for Panel<'_> {
 impl Container for Panel<'_> {}
 
 /// A list of `rows` rows of fixed height.
+#[non_exhaustive]
 pub struct Rows(pub usize);
 
 impl ItemSource<usize> for Rows {
@@ -337,6 +341,7 @@ impl Collection for Table {
 }
 
 /// One row of a `Table`: it records its key and the arena it joined.
+#[non_exhaustive]
 pub struct RowProbe {
     common: Common,
     pub log: &'static std::sync::Mutex<Vec<(usize, Rect)>>,

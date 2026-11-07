@@ -5,6 +5,7 @@ use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
+use crate::runtime::egui::{access, alloc};
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use craft_behavior::PartRef;
@@ -54,13 +55,8 @@ impl PaintUi<'_> {
         let scope = sub(self.id, "children");
         let parent = &mut *self.ui;
         let kids = self.kids.get_or_insert_with(|| {
-            parent.new_child(
-                egui::UiBuilder::new()
-                    .layout(egui::Layout::left_to_right(egui::Align::Min))
-                    .scope_id(scope)
-                    .accessibility_parent(self.id)
-                    .max_rect(self.rect),
-            )
+            let builder = egui::UiBuilder::new().layout(egui::Layout::left_to_right(egui::Align::Min)).scope_id(scope).max_rect(self.rect);
+            alloc::child(parent, access::with_parent(builder, self.id))
         });
         let ctx = kids.ctx().clone();
         let env = super::cx::child_env(&Env::of(kids), self.enabled, self.size);

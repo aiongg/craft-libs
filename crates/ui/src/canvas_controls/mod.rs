@@ -2,24 +2,22 @@
 
 mod words;
 
-use crate::runtime::egui::memory::Service;
-use egui::Context;
-
-/// The types declared as canvas controls that showed in a pass, so the canvas-control cases can check a press away
-/// from their parts reaches the tool.
-#[derive(Default)]
-struct Declared(Vec<&'static str>);
-
-/// Records that the canvas control `type_name` showed in this pass.
-pub(crate) fn declare(ctx: &Context, type_name: &'static str) {
-    Service::<Declared>::of(ctx).with(|declared| {
-        if !declared.0.contains(&type_name) {
-            declared.0.push(type_name);
-        }
-    });
+/// A canvas-control type, as `#[component(canvas_control)]` registers it, so the canvas-control cases run over it.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct CanvasControl {
+    /// The component's type name.
+    pub type_name: &'static str,
 }
 
-/// The canvas-control types that have shown on the context.
-pub fn shown(ctx: &Context) -> Vec<&'static str> {
-    Service::<Declared>::of(ctx).with(|declared| declared.0.clone())
+impl CanvasControl {
+    /// A registration for the type named `type_name`.
+    pub const fn new(type_name: &'static str) -> Self {
+        CanvasControl { type_name }
+    }
 }
+
+/// Every registered canvas-control type in the running binary.
+#[cfg(feature = "testing")]
+#[linkme::distributed_slice]
+pub static CANVAS_CONTROLS: [CanvasControl];

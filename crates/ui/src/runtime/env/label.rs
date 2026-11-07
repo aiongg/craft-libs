@@ -5,7 +5,15 @@ use std::sync::Arc;
 
 /// A word from a `words!` catalogue.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Word(pub &'static str);
+
+impl Word {
+    /// The word `text`, as a catalogue holds it.
+    pub const fn new(text: &'static str) -> Self {
+        Word(text)
+    }
+}
 
 /// A label: a literal stays borrowed, a built string is shared. Cloning is cheap.
 #[derive(Clone, Debug, Default, PartialEq)]

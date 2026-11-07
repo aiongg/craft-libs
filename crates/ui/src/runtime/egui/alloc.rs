@@ -11,3 +11,8 @@ pub(crate) fn space(ui: &mut Ui, size: Vec2) -> Rect {
 pub(crate) fn advance_past(ui: &mut Ui, rect: Rect) {
     ui.advance_cursor_after_rect(rect);
 }
+
+/// A child `Ui` of `ui` built by `builder`: it takes no space in the parent.
+pub(crate) fn child(ui: &mut Ui, builder: egui::UiBuilder) -> Ui {
+    ui.new_child(builder)
+}

@@ -108,6 +108,7 @@ impl StageAccess for CxCore<'_> {
 ///     cx.rect = egui::Rect::NOTHING;
 /// }
 /// ```
+#[non_exhaustive]
 pub struct Cx<'a, C: Component> {
     pub(crate) core: CxCore<'a>,
     /// The component's cached style.
@@ -466,6 +467,9 @@ impl WordSetCx for BodyCx<'_> {
     }
 }
 
+/// Rich tooltip content an item stored.
+pub(crate) type ItemTip<'r> = Box<dyn FnOnce(&mut Ui) + 'r>;
+
 /// What the item closure reads for one item: a view over the pipeline's memory stage keyed by the item.
 #[non_exhaustive]
 pub struct ItemCx<'a, 'r, K> {
@@ -480,7 +484,7 @@ pub struct ItemCx<'a, 'r, K> {
     /// Base id of the item's stage: `sub(item_id, "item")`.
     pub(crate) id: Id,
     pub(crate) memory: &'a mut MemoryStage,
-    pub(crate) tip: Option<Box<dyn FnOnce(&mut Ui) + 'r>>,
+    pub(crate) tip: Option<ItemTip<'r>>,
 }
 
 impl<'r, K> ItemCx<'_, 'r, K> {
@@ -572,6 +576,9 @@ pub struct PartBuilder<'a> {
     declared: &'a mut PartExtras,
 }
 
+/// The parts a component declared, each with what it declares beyond the sensing core's `PartDecl`.
+pub(crate) type Decls = Vec<(PartDecl, PartExtras)>;
+
 /// What a part declares beyond the sensing core's `PartDecl`.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct PartExtras {
@@ -658,7 +665,7 @@ pub struct PartsCx<'a, C: Component> {
     pub content_rect: Rect,
     /// Start and end geometry of the rect.
     pub flow: Flow,
-    pub(crate) decls: &'a mut Vec<(PartDecl, PartExtras)>,
+    pub(crate) decls: &'a mut Decls,
     pub(crate) rovings: &'a mut Vec<Roving>,
     pub(crate) last_state: (bool, bool),
     pub(crate) measure: MeasureCx<'a, C>,
@@ -689,8 +696,9 @@ impl<C: Component> PartsCx<'_, C> {
         let mut decl = PartDecl::new(part.key, shape, Sense::HOVER);
         decl.index = part.index;
         decl.priority = HitPriority::new(HitLevel::Body, 0);
+        let at = self.decls.len();
         self.decls.push((decl, PartExtras::default()));
-        let (decl, declared) = self.decls.last_mut().map(|(decl, declared)| (decl, declared)).unwrap_or_else(|| unreachable_part());
+        let (decl, declared) = &mut self.decls[at];
         PartBuilder { decl, declared }
     }
 
@@ -698,11 +706,6 @@ impl<C: Component> PartsCx<'_, C> {
     pub fn roving(&mut self, roving: Roving) {
         self.rovings.push(roving);
     }
-}
-
-#[allow(clippy::unreachable, reason = "a part was pushed on the line before")]
-fn unreachable_part<T>() -> T {
-    unreachable!("a part was just pushed")
 }
 
 /// The cursor requests of the hovered parts' declared cursors, in registration order.

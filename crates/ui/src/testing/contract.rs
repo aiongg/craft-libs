@@ -13,6 +13,11 @@ pub fn findings(ctx: &Context) -> Vec<Finding> {
     inspect::findings(ctx)
 }
 
+/// The canvas-control types that have shown on `ctx`.
+pub fn canvas_controls(ctx: &Context) -> Vec<&'static str> {
+    inspect::canvas_controls(ctx)
+}
+
 /// The reveal request addressed to the scroll owner `owner`, once.
 pub fn take_reveal(ctx: &Context, owner: Id) -> Option<egui::Rect> {
     crate::contract::take_reveal(ctx, owner)

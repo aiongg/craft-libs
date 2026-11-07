@@ -1,9 +1,8 @@
 //! The step functions of the pipeline (1.6): named functions over plain data, in pipeline order. `run` calls
 //! them for every shape.
 
-use super::cx::{CxCore, MeasureCx, PartExtras};
+use super::cx::{CxCore, Decls, MeasureCx};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, ValueOf};
-use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
 use crate::runtime::commands::ResolvedCommand;
 use crate::runtime::egui::{memory as store, pass, response};
@@ -137,7 +136,7 @@ pub(crate) struct EnvStep {
     pub command: Option<Arc<ResolvedCommand>>,
 }
 
-/// 1. env: enabled = instance AND scopes; read-only = instance OR scopes; size; variant; label.
+/// Step 1, env: enabled = instance AND scopes; read-only = instance OR scopes; size; variant; label.
 pub(crate) fn env<C: Component>(env: &Env, common: &Common) -> EnvStep {
     let default = <C::Style as ComponentStyle>::VARIANTS.first().copied().unwrap_or(Variant::SECONDARY);
     let requested = common.variant.unwrap_or(default);
@@ -180,7 +179,7 @@ pub(crate) fn style_cx<'a>(ctx: &'a Context, env: &'a Env, step: &EnvStep) -> St
     StyleCx::new(ctx, &env.tokens, &env.values, step.size, step.requested, env.direction, env.scale, env.os, env.active, env.key)
 }
 
-/// 2. style: `&C::Style` from the cache, keyed `(TypeId of StyleKey, key, EnvKey, variant, size)`.
+/// Step 2, style: `&C::Style` from the cache, keyed `(TypeId of StyleKey, key, EnvKey, variant, size)`.
 pub(crate) fn style<C: Component>(ctx: &Context, scx: &StyleCx<'_>, key: C::StyleKey) -> Arc<C::Style> {
     resolve_style(scx, key, ctx, C::style)
 }
@@ -192,7 +191,9 @@ struct IdPass {
     seen: HashSet<Id>,
 }
 
-/// 3. id. `register` is false for `measure_in`, which peeks, and in a sizing pass. `advance` is false only for
+/// Step 3, id.
+///
+/// `register` is false for `measure_in`, which peeks, and in a sizing pass. `advance` is false only for
 /// `measure_in`: a sizing pass advances the ordinals, so its ids equal those of the pass that follows it.
 pub(crate) fn id<C: Component>(ui: &Ui, source: &IdSource, register: bool, advance: bool) -> Id {
     let ctx = ui.ctx();
@@ -250,7 +251,7 @@ impl<V> Default for ShownCopy<V> {
     }
 }
 
-/// 4. value: the shown copy of the binding's value. A binding equal to the held copy is not cloned.
+/// Step 4, value: the shown copy of the binding's value. A binding equal to the held copy is not cloned.
 // F3-LATER: values (F4: the live gesture, `Kept` and saved bindings, `Mixed`, the `HostChanged` cancel)
 pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id) -> Option<Arc<ValueOf<C>>> {
     let held = stage.shown::<ShownCopy<ValueOf<C>>>(id).0.clone();
@@ -281,7 +282,7 @@ pub(crate) struct MeasureIn<'a> {
     pub room: Option<f32>,
 }
 
-/// 5. measure: content size plus padding, then `max(min_size)`.
+/// Step 5, measure: content size plus padding, then `max(min_size)`.
 pub(crate) fn measure<C: Component>(
     comp: &mut C,
     input: &MeasureIn<'_>,
@@ -325,7 +326,7 @@ pub(crate) fn guard(size: Vec2, shape: ShapeKind) -> bool {
     sane && (shape == ShapeKind::Body || size.x > 0.0 && size.y > 0.0)
 }
 
-/// 6. place: in flow one allocation with no widget, at a rect none.
+/// Step 6, place: in flow one allocation with no widget, at a rect none.
 pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
     match at {
         // F5-LATER: the `Grid` cursor places a child in flow under a grid body (16.3).
@@ -336,7 +337,7 @@ pub(crate) fn place(ui: &mut Ui, at: super::run::ShowAt, size: Vec2) -> Rect {
 
 /// What step 7 gathers.
 pub(crate) struct PartsStep {
-    pub decls: Vec<(PartDecl, PartExtras)>,
+    pub decls: Decls,
     pub rovings: Vec<Roving>,
 }
 
@@ -421,7 +422,7 @@ pub(crate) fn part_state(result: &crate::primitives::PartResult, enabled: bool, 
     StateSet::new(state, flags, StateMix::new(f32::from(u8::from(result.hovered)), f32::from(u8::from(pressed)), f32::from(u8::from(on))))
 }
 
-/// 9. update, the part the library writes: the keyboard activation.
+/// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) {
         core.activation = Some(super::Activation { by_key: true });
@@ -471,7 +472,7 @@ fn ease(core: &mut CxCore<'_>, targets: [bool; 3]) -> StateMix {
     StateMix::new(mix[0], mix[1], mix[2])
 }
 
-/// 12. state: flags first, then `state`; animates hover, press and on.
+/// Step 12, state: flags first, then `state`; animates hover, press and on.
 pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool) {
     let core = &mut cx.core;
     let mut flags = comp.flags();
@@ -484,7 +485,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool) {
     if core.resolved.selected == Some(true) {
         flags |= Flags::SELECTED;
     }
-    let (hovered, pressed) = (core.response.hovered(), core.response.is_pointer_button_down_on());
+    let (hovered, pressed) = (core.response.hovered(), core.press.phase.is_press());
     let focused = focus::is_focused(&core.ctx, core.id);
     let visible = focus::focus_visible(&core.ctx, core.id);
     if focused {
@@ -509,7 +510,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool) {
     core.stated = true;
 }
 
-/// 13. paint, the pipeline's part before `C::paint`: the root surface and the state fill.
+/// Step 13, paint, the pipeline's part before `C::paint`: the root surface and the state fill.
 pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
     let Some(look) = cx.style.surface() else { return };
     let fill = cx.core.resolve(&look.fill);
@@ -531,7 +532,7 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
     ui.painter().extend(shapes);
 }
 
-/// 13. paint, after `C::paint`: the focus ring of the focused component or its active part, when focus is
+/// Step 13, paint, after `C::paint`: the focus ring of the focused component or its active part, when focus is
 /// keyboard-visible. Never on `Well` surfaces.
 pub(crate) fn paint_focus<C: Component>(ui: &Ui, cx: &Cx<'_, C>) {
     let Some(look) = cx.style.focus() else { return };
@@ -566,7 +567,7 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
-/// 15. settle: what the component asked for during the pass is written to its owner. A reveal request goes to the
+/// Step 15, settle: what the component asked for during the pass is written to its owner. A reveal request goes to the
 /// nearest scroll owner; anything queued for the next pass requests a repaint.
 pub(crate) fn settle<C: Component>(cx: &mut Cx<'_, C>) {
     // F4-LATER: values (adopted child edits, check and apply again), F5-LATER: open and gate changes.
@@ -578,13 +579,13 @@ pub(crate) fn settle<C: Component>(cx: &mut Cx<'_, C>) {
     }
 }
 
-/// 16. report: the cursor request.
+/// Step 16, report: the cursor request.
 // F4-LATER: access (the AccessKit node, sub-nodes, actions and focus); F5-LATER: tooltips (`contract::tooltip`)
 pub(crate) fn report<C: Component>(cx: &Cx<'_, C>) {
     super::cx::write_cursor(&cx.core);
 }
 
-/// 17. finish, before `C::finish`: the click flags of the response are rewritten, so every output built from it
+/// Step 17, finish, before `C::finish`: the click flags of the response are rewritten, so every output built from it
 /// carries them.
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
