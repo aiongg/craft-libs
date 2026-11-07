@@ -6,15 +6,16 @@ use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
     Remember as _, Role, Styled as _,
 };
-use super::track::{self, Fill, TrackLook};
+use super::track::{self, Along, Fill, MarkInk, Marks, TrackFace, TrackLook};
 use crate::primitives::{PaintShape, StrokeWidth};
+use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
-use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx};
+use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, TextLook};
 use craft_behavior::intent::{MoveMods, NavMove};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{HitLevel, HitPriority, Metrics, PartKey, PressPhase, Sense, ValueDrag};
 use craft_theme::Stateful;
-use egui::{Rect, Vec2};
+use egui::{Pos2, Rect, Vec2};
 use std::ops::RangeInclusive;
 
 #[cfg(feature = "testing")]
@@ -42,6 +43,9 @@ pub struct SliderStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
+    /// The labels under labelled marks.
+    #[style(text)]
+    mark_text: TextLook,
     /// The track and the part of it from the start edge to the thumb.
     track: TrackLook,
     /// The thumb's fill.
@@ -208,12 +212,73 @@ pub struct Slider<'a> {
     /// How positions along the track map to values.
     #[prop]
     scale: SliderScale,
+    /// Whether the part of the track from the start edge to the thumb is filled.
+    #[prop]
+    fill: bool,
+    /// The shape of the thumb.
+    #[prop]
+    thumb: SliderThumb,
+    /// Evenly spaced ticks under the track: one more than this, none for 0.
+    #[prop]
+    ticks: usize,
+    marks: Marks,
+    value_text: Option<Label>,
+    track_face: Option<TrackFace<'a>>,
+}
+
+/// The shape of a slider's thumb.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SliderThumb {
+    /// A knob on the track.
+    #[default]
+    Round,
+    /// A pointer under the track, as colour channel sliders draw it.
+    Triangle,
 }
 
 impl<'a> Slider<'a> {
     /// A slider of `value` over `range`.
     pub fn new(value: Bind<'a, f64>, range: RangeInclusive<f64>) -> Self {
-        Slider { common: Common::new(), value, range, step: None, scale: SliderScale::Linear }
+        Slider {
+            common: Common::new(),
+            value,
+            range,
+            step: None,
+            scale: SliderScale::Linear,
+            fill: true,
+            thumb: SliderThumb::Round,
+            ticks: 0,
+            marks: Marks::default(),
+            value_text: None,
+            track_face: None,
+        }
+    }
+
+    /// Values the thumb snaps to when a drag or a press brings it near, drawn as marks under the track. A mark outside
+    /// the range is ignored. Keys and the wheel use the step only, so with a step the marks should lie on it.
+    pub fn marks(mut self, marks: &[f64]) -> Self {
+        self.marks.set(marks);
+        self
+    }
+
+    /// [`Slider::marks`] at the values, each with a caption centred under its mark and kept inside the slider. The
+    /// slider is taller by one caption line. The captions are drawing only: assistive technology gets the value.
+    pub fn marks_labelled<L: Into<Label>>(mut self, marks: impl IntoIterator<Item = (f64, L)>) -> Self {
+        self.marks.set_labelled(marks);
+        self
+    }
+
+    /// The value as the caller words it ("50 %"), which assistive technology reads in place of the number.
+    pub fn value_text(mut self, text: impl Into<Label>) -> Self {
+        self.value_text = Some(text.into());
+        self
+    }
+
+    /// Paints the groove with `face`, a component shown as the look of the track (a colour gradient). The fill is not
+    /// drawn over it.
+    pub fn track_face(mut self, face: TrackFace<'a>) -> Self {
+        self.track_face = Some(face);
+        self
     }
 
     fn scale(&self) -> Scale {
@@ -242,6 +307,7 @@ impl Component for Slider<'_> {
         SliderStyle {
             metrics: Metrics::new().min_size(Vec2::new(control.icon * LENGTH_IN_ICONS, control.height)),
             focus: crate::controls::focus_look(cx),
+            mark_text: track::mark_text(cx),
             track: TrackLook::new(cx),
             thumb: track::states(cx, colors.surface.knob, colors.surface.knob, colors.surface.knob),
             thumb_edge: track::states(cx, colors.line.knob_edge, accent.strong_hover, accent.strong_pressed),
@@ -250,7 +316,8 @@ impl Component for Slider<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        Vec2::new(cx.icon() * LENGTH_IN_ICONS, cx.icon())
+        self.marks.lay_out(&cx.style.mark_text, |label| cx.env.resolve(label), |run| cx.layout(run).size());
+        Vec2::new(cx.icon() * LENGTH_IN_ICONS, cx.icon() + self.marks.below(&cx.style.track))
     }
 
     fn sense(&self) -> Sense {
@@ -258,10 +325,15 @@ impl Component for Slider<'_> {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        self.marks.lay_out(&cx.style.mark_text, |label| cx.env.resolve(label), |run| cx.layout(run).size());
         let scale = self.scale();
+        let area = self.marks.area(rect, &cx.style.track);
         let value = cx.value().copied().unwrap_or_else(|| scale.middle());
-        let thumb = thumb_rect(&scale, value, rect, cx.flow);
-        cx.part(TRACK, rect).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the value");
+        let thumb = thumb_rect(&scale, value, area, cx.flow);
+        if self.track_face.is_some() {
+            cx.part(track::GROOVE, cx.style.track.groove(area));
+        }
+        cx.part(TRACK, area).sense(Sense::CLICK | Sense::DRAG).value_part().pointer_only("the arrow keys step the value");
         cx.part(THUMB, thumb)
             .sense(Sense::DRAG)
             .priority(HitPriority::new(HitLevel::Handle, 0))
@@ -279,10 +351,15 @@ impl Component for Slider<'_> {
         }
         let scale = self.scale();
         let bounds = (scale.min, scale.max);
-        let (rtl, half) = (cx.flow.is_rtl(), cx.rect.height() / 2.0);
+        let area = self.marks.area(cx.rect, &cx.style.track);
+        let (rtl, half) = (cx.flow.is_rtl(), area.height() / 2.0);
+        let length = (area.width() - area.height()).max(1.0);
         // The drag runs over positions along the track, so every scale shares the maths.
-        let drag = ValueDrag::absolute((cx.rect.left() + half)..(cx.rect.right() - half), 0.0..=1.0);
-        let at = |position: Option<f64>| position.map(|position| scale.snap(scale.at_position(position)));
+        let drag = ValueDrag::absolute((area.left() + half)..(area.right() - half), 0.0..=1.0);
+        let (marks, look) = (&self.marks, cx.style.track.clone());
+        let at = |position: Option<f64>| {
+            position.map(|position| marks.snapped(&scale, &look, length, position).unwrap_or_else(|| scale.snap(scale.at_position(position))))
+        };
         for key in [THUMB, TRACK] {
             let press = cx.part(key).press;
             let start = scale.position(cx.memory::<DragStart>().0);
@@ -342,21 +419,53 @@ impl Component for Slider<'_> {
             Some(value) => Numeric::new(*value, range),
             None => Numeric::empty(range),
         };
-        access.numeric(numeric.step(scale.small()));
+        let numeric = numeric.step(scale.small());
+        access.numeric(match &self.value_text {
+            Some(text) => numeric.text(cx.env.resolve(text).as_str().to_owned()),
+            None => numeric,
+        });
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let style = cx.style;
-        let draw = ui.draw();
         let flow = cx.flow;
         let scale = self.scale();
+        let area = self.marks.area(cx.rect, &style.track);
         let value = cx.value().copied();
-        let thumb = thumb_rect(&scale, value.unwrap_or_else(|| scale.middle()), cx.rect, flow);
-        let fill = value.map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: (thumb.center().x - flow.start_x()).abs() });
-        track::paint(&draw, &style.track, cx.rect, flow, cx.resolve(&style.track.groove), fill);
-        let knob = PaintShape::Circle(thumb.center(), style.diameter / 2.0);
-        draw.fill(&knob, if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.groove) });
-        draw.stroke(&knob, StrokeWidth::Thin, cx.resolve_part(THUMB, &style.thumb_edge));
+        let faced = match &self.track_face {
+            Some(face) => {
+                face.paint(ui);
+                true
+            }
+            None => false,
+        };
+        let draw = ui.draw();
+        let thumb = thumb_rect(&scale, value.unwrap_or_else(|| scale.middle()), area, flow);
+        if !faced {
+            let reach = (thumb.center().x - flow.start_x()).abs();
+            let fill = value.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: reach });
+            track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.groove), fill);
+        }
+        let ink = MarkInk {
+            marks: cx.resolve(&style.track.mark_color),
+            labels: cx.resolve(&style.mark_text.color),
+            role: style.mark_text.role,
+        };
+        track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
+        let (fill, edge) = (
+            if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.groove) },
+            cx.resolve_part(THUMB, &style.thumb_edge),
+        );
+        let knob = match self.thumb {
+            SliderThumb::Round => PaintShape::Circle(thumb.center(), style.diameter / 2.0),
+            SliderThumb::Triangle => {
+                let (half, top) = (style.diameter / 2.0, style.track.groove(area).bottom());
+                let centre = thumb.center().x;
+                PaintShape::Polygon(vec![Pos2::new(centre, top), Pos2::new(centre + half, top + half), Pos2::new(centre - half, top + half)])
+            }
+        };
+        draw.fill(&knob, fill);
+        draw.stroke(&knob, StrokeWidth::Thin, edge);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<f64> {

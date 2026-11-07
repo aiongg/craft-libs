@@ -60,3 +60,17 @@ fn the_lower_thumb_stops_at_the_upper_thumb() {
 
     assert_eq!(*fixture.data().value("range", (20.0, 60.0)), (60.0, 60.0));
 }
+
+fn show_marked(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 0.0)), 0.0..=100.0).marks(&[48.0]).label("Level").show(ui).into()
+}
+
+#[trial]
+fn a_press_near_a_mark_sets_the_mark() {
+    let mut fixture = Fixture::story(&Story::new("slider-marks", show_marked));
+    fixture.settle();
+    let slider = fixture.by_label("Level").expect("the slider is named by its label");
+    fixture.click(&slider);
+
+    assert_eq!(*fixture.data().value("value", 0.0), 48.0, "the middle of the track is 50, two units from the mark");
+}

@@ -1,6 +1,6 @@
 //! Stories of `Slider`.
 
-use super::{Slider, SliderScale, THUMB};
+use super::{Slider, SliderScale, SliderThumb, THUMB};
 use crate::contract::{Bind, Props as _, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -34,4 +34,35 @@ fn slider_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn slider_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_over = |value: &f64| if *value > CAP { Validity::Refuse(Message::new("Above the limit")) } else { Validity::Ok };
     Slider::new(Bind::bound(data.value("over", 95.0)).check(refuse_over), RANGE).label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_marks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 25.0)), RANGE).marks(&[0.0, 25.0, 50.0, 100.0]).label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_labelled_marks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let marks = [(0.0, "Off"), (50.0, "Half"), (100.0, "Full")];
+    Slider::new(Bind::bound(data.value("value", 50.0)), RANGE).marks_labelled(marks).label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_ticks(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).ticks(10).label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_triangle(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).thumb(SliderThumb::Triangle).label("Hue").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_unfilled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).fill(false).label("Opacity").show(ui).into()
+}
+
+#[story(Slider<'static>, covers = [], drive = Drive::Never)]
+fn slider_value_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).value_text("40 percent").label("Opacity").show(ui).into()
 }

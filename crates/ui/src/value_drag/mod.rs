@@ -6,5 +6,6 @@ pub(crate) mod track;
 mod words;
 
 pub use range_slider::{RangeSlider, RangeSliderStyle};
-pub use slider::{Slider, SliderScale, SliderStyle};
+pub use slider::{Slider, SliderScale, SliderStyle, SliderThumb};
+pub use track::TrackFace;
 pub use words::ValueDragWords;
