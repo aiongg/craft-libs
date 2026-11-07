@@ -224,6 +224,9 @@ pub struct KeyUse {
     /// The component's arrows step a value: Alt with an arrow is a fine move. Set per instance by a component that
     /// keeps Alt+Down for something else when it has a dropdown.
     pub value: bool,
+    /// The component acts on the arrow moves routed to it (`Intent::Move`: it takes them with `take_move`), so a
+    /// shortcut never shares them. A control that does not (a button) leaves them to the commands around the focus.
+    pub moves: bool,
 }
 
 impl KeyUse {
@@ -239,6 +242,7 @@ impl KeyUse {
         edits: EditSet::NONE,
         owner: OwnerClass::Widget,
         value: false,
+        moves: false,
     };
     /// A shortcut recorder.
     pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, ..KeyUse::CANVAS };
@@ -256,7 +260,7 @@ impl KeyUse {
             OwnerClass::Text => EditSet::ALL,
             _ => EditSet::NONE,
         };
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false }
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false }
     }
 
     /// The same use claiming `claims`.
@@ -280,6 +284,12 @@ impl KeyUse {
     /// The same use with `value` as whether its arrows step a value.
     pub const fn with_value(mut self, value: bool) -> Self {
         self.value = value;
+        self
+    }
+
+    /// The same use declaring that the component acts on the moves routed to it.
+    pub const fn with_moves(mut self) -> Self {
+        self.moves = true;
         self
     }
 

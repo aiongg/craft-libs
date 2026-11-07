@@ -524,6 +524,7 @@ impl Component for MenuItem<'_> {
     const ROLE: Role = Role::MENU_ITEM;
     const ALT_ROLES: &'static [Role] = &[Role::MENU_ITEM_CHECK_BOX, Role::MENU_ITEM_RADIO];
     const OVERLAYS: bool = false;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = MenuItemStyle;
     type Output = MenuItemOutput;
 

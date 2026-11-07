@@ -420,7 +420,7 @@ fn stops_step<C: Component>(at: StopsStep<'_>, hooks: &dyn ShapeHooks<C>, comp: 
         parts_focus: !inert && steps::takes_focus(resolved),
         text,
         keys,
-        role: role.resettable(resettable).value(value).text(text),
+        role: role.resettable(resettable).value(value).text(text).moves(role.moves || keys.moves),
         rtl,
         parts,
         group: steps::member_group(ctx, env.roving, id),

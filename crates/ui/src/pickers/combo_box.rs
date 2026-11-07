@@ -102,6 +102,7 @@ impl<'a> ComboBox<'a> {
 impl Component for ComboBox<'_> {
     const ROLE: Role = Role::COMBO_BOX;
     const INPUT: Input = Input::Text;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Text).with_moves();
     type Style = crate::text::FieldStyle;
     type Output = EditResponse<String>;
 

@@ -96,6 +96,7 @@ impl<'a, T: Value + 'static> SplitButton<'a, T> {
 
 impl<T: Value + 'static> Component for SplitButton<'_, T> {
     const ROLE: Role = Role::BUTTON;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Pointer).with_moves();
     type Style = SplitButtonStyle;
     type Output = SplitOutput<T>;
 

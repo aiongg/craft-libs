@@ -30,6 +30,8 @@ pub struct KeyRole {
     pub value: bool,
     /// The stop is a text part: Alt+Left and Alt+Right keep their word-move rows.
     pub text: bool,
+    /// The component acts on the arrow moves routed to it: they are not shortcut candidates.
+    pub moves: bool,
 }
 
 impl KeyRole {
@@ -46,6 +48,7 @@ impl KeyRole {
             digits: false,
             value: false,
             text: false,
+            moves: false,
         }
     }
 
@@ -100,6 +103,12 @@ impl KeyRole {
     /// Alt with an arrow is a fine move.
     pub const fn value(mut self, on: bool) -> Self {
         self.value = on;
+        self
+    }
+
+    /// The component acts on the moves routed to it.
+    pub const fn moves(mut self, on: bool) -> Self {
+        self.moves = on;
         self
     }
 

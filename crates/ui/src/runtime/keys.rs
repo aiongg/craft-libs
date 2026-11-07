@@ -52,8 +52,8 @@ pub(crate) struct Shortcut {
     typed: bool,
     /// The index of the press in `Batch::presses`.
     press: Option<usize>,
-    /// The focused widget only routed the press to itself as a move, which it may not use: a command scoped to a
-    /// container around the focus takes the press, an app command does not.
+    /// The focused widget does not act on the arrow move the press became: a command scoped to a container around
+    /// the focus takes the press, an app command does not.
     pub(crate) moved: bool,
 }
 
@@ -62,7 +62,7 @@ pub(crate) struct Shortcut {
 enum Taken {
     /// Nothing: the press is a shortcut candidate.
     No,
-    /// The press became a move routed to the focused stop itself, which takes it only if it moves something.
+    /// The press became an arrow move routed to a focused stop that does not act on moves.
     Moved,
     /// The press became an intent, a focus move or an activation.
     Yes,
@@ -727,7 +727,10 @@ fn route_press(
                 push(routed, Some(owner), Intent::Move(mv, mods), horizontal);
             } else if focus::roving_move(ctx, rec.stop.key(), mv, mods, horizontal).is_none() {
                 push(routed, id, Intent::Move(mv, mods), horizontal);
-                taken = Taken::Moved;
+                // Page, Home and End go to the scroll owner around the stop; a stop that acts on its moves keeps its arrows.
+                if !stop.role.moves && matches!(press.key, Key::Left | Key::Right | Key::Up | Key::Down) {
+                    taken = Taken::Moved;
+                }
             }
         }
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),

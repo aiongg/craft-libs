@@ -448,6 +448,7 @@ impl ItemSource<usize> for Presets<'_> {}
 impl Component for NumberField<'_> {
     const ROLE: Role = Role::SPIN_BUTTON;
     const INPUT: Input = Input::Text;
+    const KEYS: crate::runtime::focus::KeyUse = crate::runtime::focus::KeyUse::of(crate::contract::Input::Text).with_moves();
     type Style = NumberStyle;
     type Output = NumberOutput;
 

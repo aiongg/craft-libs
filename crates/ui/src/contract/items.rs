@@ -289,7 +289,13 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn key_role(&self, comp: &C) -> craft_behavior::KeyRole {
         let props = comp.items();
-        craft_behavior::KeyRole::new().reorderable(props.reorder.is_some()).rename(props.rename).type_ahead(true).digits(props.digit_keys).space(true)
+        craft_behavior::KeyRole::new()
+            .reorderable(props.reorder.is_some())
+            .rename(props.rename)
+            .type_ahead(true)
+            .digits(props.digit_keys)
+            .space(true)
+            .moves(true)
     }
 
     fn instance_scope(&self, comp: &C) -> Option<crate::runtime::commands::CommandScope> {
