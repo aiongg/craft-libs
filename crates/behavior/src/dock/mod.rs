@@ -3,9 +3,31 @@
 //!
 //! The tree and its rects are logical: the first child is at the start edge. A caller under right-to-left maps
 //! each rect with `Flow::to_physical`.
+//!
+//! The panel layout of a dock ([`Layout`]) is the persisted model: docked tree, floating windows, the actions that
+//! edit it and the rules that validate it.
 
 use crate::flow::Axis;
 use emath::{Pos2, Rect, Vec2};
+
+mod action;
+mod edit;
+mod groups;
+mod inner;
+mod layout;
+mod limits;
+mod node;
+mod policy;
+mod split;
+
+pub use action::{Action, Location, Placement};
+pub use edit::{first_active, leaves, node_at, tree_groups, tree_panels};
+pub use groups::{Column, ColumnLocation, Group, GroupLocation, PanelState, Place, Side, Target};
+pub use layout::Layout;
+pub use limits::{MAX_DEPTH, MAX_PANELS};
+pub use node::{Floating, Monitor, Node, StackEntry, Zone};
+pub use policy::{DockError, Permissions};
+pub use split::{SplitAxis, SplitSize};
 
 /// The id of a dock group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

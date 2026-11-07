@@ -128,6 +128,209 @@ new = ""
 status = "replaced"
 note = "`DockTargets` registers `DockSpot`s with hit rects; resolution against a pointer is `DockTargets::at` (dock-drop-a adds the model step)."
 
+# Dock model (dock-model-a): moved UI-free into craft-behavior, serde shapes unchanged.
+
+[[type]]
+name = "Layout"
+old = "craft_ui::docking::model::Layout"
+new = "craft_behavior::dock::Layout"
+status = "moved"
+
+[[type]]
+name = "Node"
+old = "craft_ui::docking::model::Node"
+new = "craft_behavior::dock::Node"
+status = "moved"
+
+[[type]]
+name = "Floating"
+old = "craft_ui::docking::model::Floating"
+new = "craft_behavior::dock::Floating"
+status = "moved"
+
+[[type]]
+name = "Placement"
+old = "craft_ui::docking::model::Placement"
+new = "craft_behavior::dock::Placement"
+status = "moved"
+
+[[type]]
+name = "Location"
+old = "craft_ui::docking::model::Location"
+new = "craft_behavior::dock::Location"
+status = "moved"
+
+[[type]]
+name = "Permissions"
+old = "craft_ui::docking::model::Permissions"
+new = "craft_behavior::dock::Permissions"
+status = "moved"
+
+[[type]]
+name = "DockError"
+old = "craft_ui::docking::model::DockError"
+new = "craft_behavior::dock::DockError"
+status = "moved"
+
+[[type]]
+name = "Action"
+old = "craft_ui::docking::model::Action"
+new = "craft_behavior::dock::Action"
+status = "moved"
+
+[[type]]
+name = "StackEntry"
+old = "craft_ui::docking::model::StackEntry"
+new = "craft_behavior::dock::StackEntry"
+status = "moved"
+
+[[type]]
+name = "Zone"
+old = "craft_ui::docking::model::Zone"
+new = "craft_behavior::dock::Zone"
+status = "moved"
+
+[[type]]
+name = "Monitor"
+old = "craft_ui::docking::model::Monitor"
+new = "craft_behavior::dock::Monitor"
+status = "moved"
+
+[[type]]
+name = "Group"
+old = "craft_ui::docking::dock_model::Group"
+new = "craft_behavior::dock::Group"
+status = "moved"
+
+[[type]]
+name = "Column"
+old = "craft_ui::docking::dock_model::Column"
+new = "craft_behavior::dock::Column"
+status = "moved"
+
+[[type]]
+name = "Side"
+old = "craft_ui::docking::dock_model::Side"
+new = "craft_behavior::dock::Side"
+status = "moved"
+
+[[type]]
+name = "Target"
+old = "craft_ui::docking::dock_model::Target"
+new = "craft_behavior::dock::Target"
+status = "moved"
+
+[[type]]
+name = "GroupLocation"
+old = "craft_ui::docking::dock_model::GroupLocation"
+new = "craft_behavior::dock::GroupLocation"
+status = "moved"
+
+[[type]]
+name = "ColumnLocation"
+old = "craft_ui::docking::dock_model::ColumnLocation"
+new = "craft_behavior::dock::ColumnLocation"
+status = "moved"
+
+[[type]]
+name = "PanelState"
+old = "craft_ui::docking::dock_model::PanelState"
+new = "craft_behavior::dock::PanelState"
+status = "moved"
+
+[[type]]
+name = "MAX_DEPTH"
+old = "craft_ui::docking::model::MAX_DEPTH"
+new = "craft_behavior::dock::MAX_DEPTH"
+status = "moved"
+note = "A constant."
+
+[[type]]
+name = "MAX_PANELS"
+old = "craft_ui::docking::model::MAX_PANELS"
+new = "craft_behavior::dock::MAX_PANELS"
+status = "moved"
+note = "A constant."
+
+[[type]]
+name = "SplitAxis"
+old = "craft_ui::layout::SplitAxis"
+new = "craft_behavior::dock::SplitAxis"
+status = "moved"
+
+[[type]]
+name = "SplitSize"
+old = "craft_ui::layout::SplitSize"
+new = "craft_behavior::dock::SplitSize"
+status = "moved"
+
+# Literals of types that are now `#[non_exhaustive]`.
+
+[[setter]]
+type = "Layout"
+old = "Layout { root, floating }"
+new = "Layout::new(root, floating)"
+
+[[setter]]
+type = "Node"
+old = "Node::Tabs { panels, active }"
+new = "Node::tabs(panels, active)"
+
+[[setter]]
+type = "Node"
+old = "Node::Split { axis, size, first: Box::new(first), second: Box::new(second) }"
+new = "Node::split(axis, size, first, second)"
+
+[[setter]]
+type = "Floating"
+old = "Floating { ..Floating::single(..) } with fields set"
+new = "Floating::single(panels, active, rect); then assign `native`, `monitor`, `monitor_size` or `minimized` on the value"
+
+[[setter]]
+type = "StackEntry"
+old = "StackEntry { panel, open, height }"
+new = "StackEntry::new(panel); then assign `open` and `height`"
+
+[[setter]]
+type = "Monitor"
+old = "Monitor { name, rect, scale }"
+new = "Monitor::new(name, rect, scale)"
+
+[[setter]]
+type = "Permissions"
+old = "Permissions { movable, floatable, closable, accepts_tabs, accepts_splits }"
+new = "Permissions::new(movable, floatable, closable, accepts_tabs, accepts_splits)"
+
+[[setter]]
+type = "Permissions"
+old = "Permissions { accepts_splits: true, ..Permissions::PROTECTED }"
+new = "Permissions::new(false, false, false, false, true)"
+
+[[setter]]
+type = "Location"
+old = "Location { floating, anchor, placement, size, stack, sibling, group }"
+new = "Location::new(anchor, placement); then assign the other fields"
+
+[[setter]]
+type = "GroupLocation"
+old = "GroupLocation { minimized, height, column }"
+new = "GroupLocation::new(minimized, height, column)"
+
+[[setter]]
+type = "ColumnLocation"
+old = "ColumnLocation { side, width, iconic, iconic_width }"
+new = "ColumnLocation::new(side, width, iconic, iconic_width)"
+
+[[setter]]
+type = "Group"
+old = "Group { panels, active, minimized, height }"
+new = "Group::new(panels, active); then assign `minimized` and `height`"
+
+[[setter]]
+type = "Column"
+old = "Column { groups, width, iconic, iconic_width }"
+new = "Column::new(groups, width); then assign `iconic` and `iconic_width`"
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
