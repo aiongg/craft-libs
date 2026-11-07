@@ -118,6 +118,8 @@ pub static STORIES: [StoryRegistration];
 #[derive(Default)]
 pub struct StoryData {
     values: HashMap<(&'static str, TypeId), Box<dyn Shown>>,
+    /// The values that print themselves for the parity replay, in the order they were first used.
+    printed: Vec<(&'static str, TypeId, fn(&dyn Any) -> String)>,
 }
 
 /// A story value with its type erased: it copies and compares itself.
@@ -156,6 +158,24 @@ impl StoryData {
             Some(value) => value,
             None => unreachable!("a slot's value has the type its key names"),
         }
+    }
+
+    /// Like [`StoryData::value`], and the value is one of the story's args in the parity replay, shown as its `Debug`
+    /// text in the order the story first uses its values.
+    pub fn shown<T: Value + std::fmt::Debug>(&mut self, name: &'static str, init: T) -> &mut T {
+        let type_id = TypeId::of::<T>();
+        if !self.printed.iter().any(|(printed, id, _)| *printed == name && *id == type_id) {
+            self.printed.push((name, type_id, |value| value.downcast_ref::<T>().map_or_else(String::new, |value| format!("{value:?}"))));
+        }
+        self.value(name, init)
+    }
+
+    /// The `shown` values as `(name, Debug text)`, in first-use order.
+    pub(crate) fn shown_args(&self) -> Vec<(String, String)> {
+        self.printed
+            .iter()
+            .filter_map(|(name, id, print)| self.values.get(&(*name, *id)).map(|value| ((*name).to_owned(), print(value.any()))))
+            .collect()
     }
 
     /// The names of the values that differ from `before`; a value added since counts as changed.

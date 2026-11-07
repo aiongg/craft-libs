@@ -13,6 +13,8 @@ struct Set {
     stroke_width: Option<f64>,
     /// The base set: every icon has a file in it, and the other sets fall back to it.
     base: bool,
+    /// The set `IconSet::default()` names.
+    default: bool,
 }
 
 struct Entry {
@@ -60,12 +62,14 @@ fn sets(manifest: &Table) -> Vec<Set> {
                 licence: str_field(table, "licence", &what).to_owned(),
                 stroke_width,
                 base: table.get("base").and_then(Value::as_bool).unwrap_or(false),
+                default: table.get("default").and_then(Value::as_bool).unwrap_or(false),
                 id,
             }
         })
         .collect();
     assert!(!sets.is_empty(), "icons/icons.toml: no sets");
     assert_eq!(sets.iter().filter(|s| s.base).count(), 1, "icons/icons.toml: exactly one [[set]] must have `base = true`");
+    assert_eq!(sets.iter().filter(|s| s.default).count(), 1, "icons/icons.toml: exactly one [[set]] must have `default = true`");
     sets
 }
 
@@ -146,7 +150,7 @@ fn generate(root: &str, sets: &[Set], icons: &[Entry]) -> String {
     out.push_str("/// An icon set. The base set draws every icon; the others are packs that draw the icons they have and fall back to the base set for the rest.\n");
     out.push_str("#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]\n#[non_exhaustive]\npub enum IconSet {\n");
     for set in sets {
-        if set.id == "lucide" {
+        if set.default {
             out.push_str("    #[default]\n");
         }
         let _ = writeln!(out, "    /// {}, {}.\n    {},", set.title, set.licence, camel(&set.id));

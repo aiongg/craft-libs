@@ -188,7 +188,8 @@ pub(crate) fn show_cover_layer(ctx: &Context, id: Id, tier: Tier, screen: Rect, 
                     }
                 }
             }
-            ui.allocate_rect(screen, Sense::click_and_drag());
+            let absorber = ui.allocate_rect(screen, Sense::click_and_drag());
+            crate::runtime::egui::widgets::note_widget(ui.ctx(), absorber.id);
         },
     );
 }

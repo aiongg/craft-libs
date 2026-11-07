@@ -1,6 +1,8 @@
 //! Tests of the egui APIs, behaviours and fork patches the runtime relies on; run on every egui or fork bump.
 
-use craft_ui::testing::surface;
+use craft_i18n::Direction;
+use craft_ui::runtime::env::RootEnv;
+use craft_ui::testing::{Frames, surface};
 use craft_ui::testing::trial;
 use std::path::Path;
 
@@ -74,4 +76,27 @@ fn discard_pass_gets_no_events_and_keeps_the_frame_number() {
     assert_eq!(passes[1].events, 0, "the discard pass gets none: {passes:?}");
     assert_eq!(passes[0].frame, passes[1].frame, "{passes:?}");
     assert_eq!(passes[0].pass + 1, passes[1].pass, "{passes:?}");
+}
+
+/// The option table's focus row: egui clears focus on a bare Escape unless the filter given to
+/// `request_focus_with_filter` lists Escape.
+#[trial]
+fn a_focus_filter_that_lists_escape_keeps_focus_on_a_bare_escape() {
+    assert!(surface::focus_survives_escape(true), "the filter keeps focus");
+    assert!(!surface::focus_survives_escape(false), "control: without the filter egui clears focus");
+}
+
+/// The pinned egui has no `RawInput.system_locale`; a backend that derived the direction from the locale would
+/// write it into the style before the first pass. The root's direction wins in every pass, the first included.
+#[trial]
+fn system_locale_never_sets_the_direction() {
+    for (preset_rtl, root) in [(true, Direction::Ltr), (false, Direction::Rtl)] {
+        let mut frames = Frames::new();
+        surface::preset_style_direction(&frames.ctx, preset_rtl);
+        frames.root(RootEnv::default().direction(root));
+        let mut seen = Vec::new();
+        frames.frame(Vec::new(), |ui| seen.push(ui.style().right_to_left));
+        frames.frame(Vec::new(), |ui| seen.push(ui.style().right_to_left));
+        assert!(!seen.is_empty() && seen.iter().all(|rtl| *rtl == root.is_rtl()), "{root:?}: {seen:?}");
+    }
 }

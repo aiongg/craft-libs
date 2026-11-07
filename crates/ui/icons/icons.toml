@@ -6,6 +6,7 @@
 # name. A file a set folder holds but no icon lists fails the build. Sources and licences:
 # ATTRIBUTION.md.
 #
+# `default`: the set `IconSet::default()` is; exactly one set has it.
 # `directional`: mirrored in a right-to-left interface (arrows of reading order, undo, redo).
 # `kind`: "stroke" sets get their stroke width rewritten to the suite's drawn width; "fill" sets
 # render as drawn. `stroke_width` is the set's own width in view-box units.
@@ -16,6 +17,7 @@ title = "Lucide"
 licence = "ISC"
 kind = "stroke"
 stroke_width = 2.0
+default = true
 
 [[set]]
 id = "phosphor"
