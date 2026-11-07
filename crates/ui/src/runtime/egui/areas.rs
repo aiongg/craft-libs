@@ -96,6 +96,7 @@ pub(crate) fn show_body_layer<R>(ctx: &Context, body_layer: BodyLayer, body: imp
         .show(ctx, |ui| {
             if let Some(forward) = forward {
                 ui.interact(transform.inverse() * forward.rect, forward.id, forward.sense);
+                super::access::hide(ctx, forward.id);
             }
             ui.set_clip_rect(transform.inverse() * clip);
             body(ui)

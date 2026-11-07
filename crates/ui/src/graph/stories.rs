@@ -1,7 +1,7 @@
 //! Stories of the graph family.
 
 use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
-use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Show as _, ShowCollection as _};
+use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Props as _, Show as _, ShowCollection as _};
 use crate::controls::disclosure::Disclosure;
 use crate::testing::{StoryData, StoryOutput, story};
 use craft_behavior::{CanvasTransform, EditEvent, keyed};
@@ -73,7 +73,7 @@ impl NodeKind<CompEdit> for Fold {
 
     fn controls(&self, ui: &mut PaintUi<'_>, rect: Rect) -> Option<CompEdit> {
         let side = Rect::from_min_size(rect.min, Vec2::splat(rect.height()));
-        ui.child("fold", side, Disclosure::new(Bind::given(self.open))).event.map(CompEdit::Fold)
+        ui.child("fold", side, Disclosure::new(Bind::given(self.open)).label("Details")).event.map(CompEdit::Fold)
     }
 }
 
@@ -98,7 +98,7 @@ fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zo
         })
         .collect();
     let source = keyed(&ids, |id| *id);
-    let mut shown = NodeGraph::new(&positions, &kinds, &wires);
+    let mut shown = NodeGraph::new(&positions, &kinds, &wires).label("Graph");
     if let Some(zoom) = zoom {
         shown = shown.zoom(zoom);
     }

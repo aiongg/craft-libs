@@ -2,6 +2,7 @@
 
 use super::{Finding, FindingRow, Findings, FindingsList, Severity};
 use crate::contract::ShowCollection as _;
+use crate::testing::show_as_only_item;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
@@ -32,4 +33,10 @@ fn findings_list_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(FindingsList<'static>, covers = [Empty], drive = Drive::Never)]
 fn findings_list_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     show(ui, &[])
+}
+
+#[story(FindingRow<'static>, covers = [Default], drive = Drive::Never)]
+fn finding_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let finding = Finding::new(Severity::Warning, "The font Avenir is missing");
+    show_as_only_item(ui, FindingRow::new(&finding)).response.into()
 }

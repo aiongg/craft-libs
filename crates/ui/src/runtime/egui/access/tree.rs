@@ -260,6 +260,11 @@ impl AccessTree {
         Some(egui::Rect::from_min_max(egui::pos2(bounds.x0 as f32, bounds.y0 as f32), egui::pos2(bounds.x1 as f32, bounds.y1 as f32)))
     }
 
+    /// Whether a node by key is hidden from assistive technology.
+    pub fn is_hidden(&self, key: NodeKey) -> bool {
+        self.lookup(NodeId(key.0)).is_some_and(|node| node.is_hidden())
+    }
+
     /// Whether a node by key declares `action`.
     pub fn declares_key(&self, key: NodeKey, action: Declared) -> bool {
         self.lookup(NodeId(key.0)).is_some_and(|node| node.supports_action(action.action()))

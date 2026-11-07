@@ -235,6 +235,11 @@ pub(crate) fn in_row_child(ctx: &Context) -> bool {
     })
 }
 
+/// Whether the stop `stop` is a child or part of a collection row's roving group: it activates itself.
+pub(crate) fn is_row_child(ctx: &Context, stop: &Stop) -> bool {
+    with(ctx, |state| stop.group.and_then(|group| state.last_groups.get(&group)).is_some_and(|group| group.row))
+}
+
 /// Whether the focus stop is the component `id`: the focused member or item of its arena, or a root that
 /// holds focus while none of its members is the stop. A root's own focused part counts as the root.
 pub(crate) fn is_focused(ctx: &Context, id: Id) -> bool {

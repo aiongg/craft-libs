@@ -9,7 +9,8 @@ use egui::{Key, Modifiers};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-const ROWS: usize = 8;
+/// Enough rows that two steps down from the clicked middle cell stay inside the sheet.
+const ROWS: usize = 12;
 const COLUMNS: [&str; 4] = ["A", "B", "C", "D"];
 
 struct Rig {

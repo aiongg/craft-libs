@@ -53,6 +53,11 @@ pub(crate) fn set_label(ctx: &Context, id: Id, label: &str) {
     ctx.accesskit_node_builder(id, |node| node.set_label(label));
 }
 
+/// Hides the node of `id` from assistive technology: a hit-test widget whose part has its own sub-node.
+pub(crate) fn hide(ctx: &Context, id: Id) {
+    ctx.accesskit_node_builder(id, |node| node.set_hidden());
+}
+
 /// Reports `id` as the focused node of this pass.
 pub(crate) fn set_focus(ctx: &Context, id: Id) {
     ctx.set_accesskit_focus(id);

@@ -14,14 +14,15 @@
 
 use super::code_editor::{CodeDocument, caret_x};
 use crate::contract::{
-    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, Name, NoValue,
-    Outcome, PaintUi, PartsCx, Remember as _, Role, SelectMode, Styled as _,
+    Access, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Focus as _, MeasureCx, Name,
+    NoValue, Outcome, PaintUi, PartsCx, Remember as _, Role, SelectMode, Styled as _,
 };
 use crate::primitives::{EditorLine, EditorPurpose, EditorState, PaintShape, StrokeWidth, TextRun};
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::style::{ComponentStyle, Flags, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{
-    CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Insets, ItemSource, Metrics, Mixed, PartKey, SelectionModel as _, SheetLayout,
+    CellSelection, ColumnKey, DisplayOrder, EditorInput, Flow, Insets, ItemSource, Metrics, Mixed, MoveMods, NavMove, PartKey, SelectionModel as _,
+    SheetLayout,
 };
 use craft_keymap::{Chord, Key};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
@@ -268,6 +269,13 @@ impl Component for SheetGrid<'_> {
                 state.draft.set_text(&text);
                 state.point = Some(Point { at: to, from });
             }
+        } else if state.mode == Mode::Edit {
+            // The claimed Left and Right move the caret; the document reads left to right.
+            for (at, mv) in [(2, NavMove::Back), (3, NavMove::Forward)] {
+                if arrows[at] {
+                    state.draft.apply(EditorInput::Move(mv, MoveMods::PLAIN));
+                }
+            }
         }
         let pointing = state.pointing();
         for input in cx.editor_input().collect::<Vec<_>>() {
@@ -409,6 +417,11 @@ impl Component for SheetRow<'_> {
             edge: Stateful::new(clear).when(Flags::LEAD, cx.color(cx.tokens.color.line.focus)),
             pad: cx.control().pad_x,
         }
+    }
+
+    /// The row as the item step laid its cells out.
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        self.cells.iter().fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect)).size().max(Vec2::ZERO)
     }
 
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {

@@ -63,7 +63,7 @@ pub(crate) fn run<C: Component>(cx: &mut Cx<'_, C>, ui: &mut Ui, step: &mut supe
                 inputs.push(EditorInput::select(anchor, focus));
             }
         }
-        while let Some(input) = cx.core.intents.take_editor_input() {
+        while let Some(input) = cx.core.intents.take_editor_input(keys.keep) {
             inputs.push(input);
         }
     }

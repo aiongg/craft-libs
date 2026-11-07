@@ -29,7 +29,7 @@ pub fn violations(ctx: &Context, tree: &AccessTree) -> Vec<String> {
     let mut found: Vec<String> = tree
         .keys()
         .into_iter()
-        .filter(|key| is_interactive(tree, *key) && name(tree, *key).is_none())
+        .filter(|key| !tree.is_hidden(*key) && is_interactive(tree, *key) && name(tree, *key).is_none())
         .map(|key| format!("an interactive node with no name: {:?}", tree.role_of(key)))
         .collect();
     found.extend(super::contract::findings(ctx).into_iter().map(|finding| format!("{}: {} {}", finding.rule, finding.component, finding.subject)));

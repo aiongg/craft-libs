@@ -11,20 +11,18 @@
 
 use crate::contract::{
     Access, Collection, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component, ContainerProps, Cx, Focus as _, ItemOutput,
-    Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
+    MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, Styled as _, ToggleColumn,
 };
 use crate::controls::select::row_look;
 use crate::primitives::{PaintShape, TextRun};
 use crate::style::{ComponentStyle, Flags, Ink, Stateful, StyleColor, StyleCx, SurfaceLook};
-use craft_behavior::{
-    ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, Intent, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout,
-};
-use egui::{CornerRadius, Pos2, Rect, Response};
+use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, Flow, Insets, ItemSource, Metrics, PartKey, PressPhase, Selection, Sense, SpanLayout};
+use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
-const NAME: ColumnKey = ColumnKey::new("name");
-const MUTE: ColumnKey = ColumnKey::new("mute");
-const LOCK: ColumnKey = ColumnKey::new("lock");
-const LANE: ColumnKey = ColumnKey::new("lane");
+pub(super) const NAME: ColumnKey = ColumnKey::new("name");
+pub(super) const MUTE: ColumnKey = ColumnKey::new("mute");
+pub(super) const LOCK: ColumnKey = ColumnKey::new("lock");
+pub(super) const LANE: ColumnKey = ColumnKey::new("lane");
 const CLIP: PartKey = PartKey::new("clip");
 /// A track row is this many control heights tall.
 const TRACK_IN_HEIGHTS: f32 = 2.0;
@@ -268,6 +266,11 @@ impl Component for TrackRow<'_> {
         }
     }
 
+    /// The row as the item step laid its cells out.
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        self.cells.iter().fold(Rect::NOTHING, |all, (_, rect)| all.union(*rect)).size().max(Vec2::ZERO)
+    }
+
     fn parts(&mut self, _: Rect, cx: &mut PartsCx<'_, Self>) {
         let Some(lane) = self.cell(&LANE) else { return };
         for clip in &self.track.clips {
@@ -282,7 +285,7 @@ impl Component for TrackRow<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let keyed = cx.intents().take(Intent::Activate);
+        let keyed = cx.activation().is_some_and(|activation| activation.by_key);
         for clip in &self.track.clips {
             let part = CLIP.at(clip.id);
             let clicked = matches!(cx.part(part).press.phase, PressPhase::Release { click: true, .. });
