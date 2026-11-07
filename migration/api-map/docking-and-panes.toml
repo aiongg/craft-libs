@@ -502,3 +502,32 @@ new = "Overlay::opacity(f32)"
 type = "FrameResponse"
 old = "resized, resize_started"
 new = "Container::placement_changed(&PlacementChange): phase Begin starts a resize, rect is the rect it asks for"
+
+# dock-render-a: the rendering types of the split tree and its groups.
+[[type]]
+name = "SplitArea"
+old = ""
+new = "craft_ui::docking::SplitArea"
+status = "replaced"
+note = "Legacy renders the split tree inside `DockArea` (private `render` types). `SplitArea` shows a `Layout`'s docked tree; `tree::frames(root, rect, &FrameRules, rtl)` gives the group rects its body places groups at, and a divider drag writes the sizes `tree::drag_sizes` returns, in each split's own mode."
+
+[[type]]
+name = "DockGroup"
+old = ""
+new = "craft_ui::docking::DockGroup"
+status = "replaced"
+note = "Legacy draws a tab group inside `DockArea` (private `render::group`). `DockGroup` is a container whose header is a collapse arrow, a `GroupGrip`, a `TabStrip` and the panel menu button; it is named by an anchor panel and registers its drop spots with `DockTargets`."
+
+[[type]]
+name = "GroupGrip"
+old = ""
+new = "craft_ui::docking::GroupGrip"
+status = "replaced"
+note = "The legacy drag bar of a tab group; a double click minimizes the group and a drag carries a `GroupDrag`."
+
+[[type]]
+name = "section_heights"
+old = ""
+new = "craft_ui::docking::stack::section_heights"
+status = "replaced"
+note = "The legacy accordion section sizing in `render::dock` and `render::mod` (private); a closed section is its title row, open ones share the rest."

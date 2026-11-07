@@ -1,24 +1,28 @@
 //! `SplitArea`, `Splitter` and `DockGroup`.
 //!
-//! `SplitArea` shows a `DockTree` (craft-behavior's pure geometry): its body shows one `DockGroup` per group at
-//! the rects `group_rects` gives, and its handles resize the splits. A panel dragged from a group's tab carries a
-//! `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
+//! `SplitArea` shows the docked tree of a `Layout` (craft-behavior's dock model): its body shows one `DockGroup`
+//! per group at the rects `tree::frames` gives, and its handles resize the splits. A panel dragged from a group's
+//! tab carries a `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
 
 mod config;
 mod event;
+pub mod frame;
+mod group;
 mod panels;
 mod spec;
 mod splitter;
+pub mod stack;
 #[cfg(feature = "testing")]
 mod stories;
-mod tab;
 pub mod targets;
+pub mod tree;
 mod words;
 
 pub mod desktop;
 
 pub use config::{DockConfig, DockSides};
 pub use event::{DockEvent, FloatSpace, HidePanels};
+pub use group::{DockGroup, DockGroupOutput, DockGroupStyle, GroupGrip, GroupGripOutput, GroupGripStyle, HeaderHook};
 pub use panels::DockPanels;
 pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};
@@ -26,21 +30,19 @@ pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
 
 use crate::contract::{
-    Access, Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
-    Focus as _, HeaderRegion, Name, Numeric, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _, ShowContainer as _, Sizing,
-    WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, Edit as _, EditResponse,
+    Focus as _, Name, Numeric, Outcome, Pad, PaintUi, PartsCx, Pointer as _, Props as _, Role, Sizing, WordSetCx as _,
 };
-use crate::layout_components::Row;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
-use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
-use craft_behavior::dock::{ZoneSize, zones};
+use crate::style::{ComponentStyle, StyleCx};
+use craft_behavior::dock::{Layout, ZoneSize, zones};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{
-    Axis, CursorIcon, DockHandle, DockSide, DockTree, Flow, GroupId, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense,
-};
-use egui::{Pos2, Rect, Response, Ui};
-use tab::PanelTab;
+use craft_behavior::{Axis, CursorIcon, DockSide, Flow, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use egui::{Pos2, Rect, Response};
+use std::fmt::Debug;
+use std::hash::{DefaultHasher, Hash, Hasher};
+use tree::{FrameRules, SplitHandle};
 
 const HANDLE: PartKey = PartKey::new("handle");
 
@@ -53,6 +55,13 @@ impl PanelKey {
     /// The panel keyed `key`.
     pub const fn new(key: u64) -> Self {
         PanelKey(key)
+    }
+
+    /// The key of the panel `panel`, from its hash. Equal panels have equal keys.
+    pub fn of<P: Hash + ?Sized>(panel: &P) -> Self {
+        let mut hasher = DefaultHasher::new();
+        panel.hash(&mut hasher);
+        PanelKey(hasher.finish())
     }
 }
 
@@ -79,35 +88,23 @@ impl PanelTitle {
 pub struct PanelDrag {
     /// The dragged panel.
     pub panel: PanelKey,
-    /// The group the tab was in.
-    pub from: GroupId,
-}
-
-impl PanelDrag {
-    pub(crate) const fn new(panel: PanelKey, from: GroupId) -> Self {
-        PanelDrag { panel, from }
-    }
+    /// The group the tab was in, named by its anchor panel.
+    pub from: PanelKey,
 }
 
 /// Where a dropped panel lands: the group the pointer is over and the side of it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DockDrop {
-    /// The group the pointer is over.
-    pub group: GroupId,
+    /// The group the pointer is over, named by its anchor panel.
+    pub group: PanelKey,
     /// The side of the group: an edge docks beside it, the middle joins its tabs.
     pub side: DockSide,
 }
 
-/// Where each group of `tree` sits in `rect`, mirrored under right-to-left.
-pub fn group_rects(tree: &DockTree, rect: Rect, rtl: bool) -> Vec<(GroupId, Rect)> {
-    let flow = Flow::new(rect, rtl);
-    tree.layout(rect).into_iter().map(|(group, cell)| (group, flow.to_physical(cell))).collect()
-}
-
 /// The accepting side of a `SplitArea`: groups take a panel on any side, by move only.
 struct GroupDrops {
-    groups: Vec<(GroupId, Rect)>,
+    groups: Vec<(PanelKey, Rect)>,
     rtl: bool,
 }
 
@@ -147,26 +144,24 @@ pub struct SplitAreaStyle {
     metrics: Metrics,
     /// How thick a handle is across its boundary.
     reach: f32,
-    /// The least extent of a group along a split.
-    least: f32,
     /// One arrow press.
     step: f32,
     /// One Shift-arrow or Page press.
     jump: f32,
 }
 
-/// What a split area reports: the tree's edits and the drop of a panel.
+/// What a split area reports: the layout's edits and the drop of a panel.
 #[derive(Debug)]
 #[non_exhaustive]
-pub struct DockOutput {
-    /// The resize edits of the tree and the area's response.
-    pub edit: EditResponse<DockTree>,
+pub struct DockOutput<P> {
+    /// The resize edits of the layout and the area's response.
+    pub edit: EditResponse<Layout<P>>,
     /// A panel dropped on a group this pass.
     pub dropped: Option<DockDrop>,
 }
 
-impl Outcome for DockOutput {
-    type Value = DockTree;
+impl<P: Clone + PartialEq + Send + Sync + 'static> Outcome for DockOutput<P> {
+    type Value = Layout<P>;
 
     fn response(&self) -> &Response {
         &self.edit.response
@@ -178,23 +173,25 @@ impl Outcome for DockOutput {
     }
 }
 
-/// A tree of groups with a handle between neighbours. Its body shows the groups, each at its rect.
+/// The docked tree of a layout, with a handle between neighbouring groups. Its body shows the groups, each at its
+/// frame (`tree::frames` with the same rules).
 #[derive(crate::contract::Component)]
-#[component(container)]
-pub struct SplitArea<'a> {
+#[component(container, probe(SplitArea<'static, usize>))]
+pub struct SplitArea<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
-    tree: Bind<'a, DockTree>,
+    layout: Bind<'a, Layout<P>>,
+    rules: FrameRules<'a, P>,
     dropped: Option<DockDrop>,
 }
 
-impl<'a> SplitArea<'a> {
-    /// A split area named `label` over `tree`. A mixed tree shows no handles.
-    pub fn new(label: impl Into<Label>, tree: Bind<'a, DockTree>) -> Self {
+impl<'a, P: Clone + Eq + Hash + Debug + Send + Sync + 'static> SplitArea<'a, P> {
+    /// A split area named `label` over `layout`, sized by `rules`. A mixed layout shows no handles.
+    pub fn new(label: impl Into<Label>, layout: Bind<'a, Layout<P>>, rules: FrameRules<'a, P>) -> Self {
         let props = ContainerProps::new().arena(true).sizing(Sizing::Fill).pad(Pad::None);
-        SplitArea { common: Common::new(), props, tree, dropped: None }.label(label)
+        SplitArea { common: Common::new(), props, layout, rules, dropped: None }.label(label)
     }
 }
 
@@ -216,17 +213,62 @@ fn along_y(mv: NavMove) -> NavMove {
     }
 }
 
+/// The dividers of the layout's docked tree in `rect`.
+fn dividers<P>(layout: &Layout<P>, rect: Rect, rules: &FrameRules<'_, P>, rtl: bool) -> Vec<SplitHandle> {
+    layout.root.as_ref().map_or_else(Vec::new, |root| tree::frames(root, rect, rules, rtl).handles)
+}
+
+/// The handle's strip across its divider, as thick as `reach`.
+fn bar(handle: &SplitHandle, reach: f32) -> Rect {
+    let (centre, split) = (handle.divider.center(), handle.split);
+    match handle.axis {
+        Axis::X => Rect::from_min_max(Pos2::new(centre.x - reach / 2.0, split.top()), Pos2::new(centre.x + reach / 2.0, split.bottom())),
+        _ => Rect::from_min_max(Pos2::new(split.left(), centre.y - reach / 2.0), Pos2::new(split.right(), centre.y + reach / 2.0)),
+    }
+}
+
+/// The boundary's coordinate along its axis, in reading order, and the least and most it can take.
+fn boundary<P>(layout: &Layout<P>, handle: &SplitHandle, rect: Rect, rules: &FrameRules<'_, P>, rtl: bool) -> (f32, f32, f32) {
+    let centre = handle.divider.center();
+    let at = match handle.axis {
+        Axis::X => logical_x(rect, rtl, centre.x),
+        _ => centre.y,
+    };
+    let (lo, hi) = layout.root.as_ref().map_or((0.0, 0.0), |root| tree::drag_range(root, rect, rules, &handle.path));
+    (at, at + lo, at + hi)
+}
+
+/// The layout with the boundary of `handle` moved by `delta` points in reading order; `None` when nothing moves.
+fn moved<P: Clone>(layout: &Layout<P>, rect: Rect, rules: &FrameRules<'_, P>, handle: &SplitHandle, delta: f32) -> Option<Layout<P>> {
+    let root = layout.root.as_ref()?;
+    let sizes = tree::drag_sizes(root, rect, rules, &handle.path, delta);
+    if sizes.is_empty() {
+        return None;
+    }
+    let mut next = layout.clone();
+    tree::apply_sizes(next.root.as_mut()?, &sizes);
+    Some(next)
+}
+
 /// Dragging a handle moves its boundary: one gesture from the drag's start to its release.
-fn resize_by_pointer(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[DockHandle]) {
-    let (rect, rtl, least) = (cx.rect, cx.flow.is_rtl(), cx.style.least);
-    for handle in handles {
-        let phase = cx.part(HANDLE.at(u64::from(handle.key.0))).press.phase;
+fn resize_by_pointer<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
+    cx: &mut Cx<'_, SplitArea<'_, P>>,
+    layout: &Layout<P>,
+    handles: &[SplitHandle],
+    rules: &FrameRules<'_, P>,
+) {
+    let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
+    for (at, handle) in handles.iter().enumerate() {
+        let phase = cx.part(HANDLE.at(at as u64)).press.phase;
         match phase {
             PressPhase::DragStart { .. } => cx.begin(),
             PressPhase::Drag { pos, .. } => {
-                let along = if handle.axis == Axis::X { logical_x(rect, rtl, pos.x) } else { pos.y };
-                let mut next = tree.clone();
-                if next.move_boundary(&handle.path, handle.index, handle.split, along, least) {
+                let centre = handle.divider.center();
+                let delta = match handle.axis {
+                    Axis::X => logical_x(rect, rtl, pos.x) - logical_x(rect, rtl, centre.x),
+                    _ => pos.y - centre.y,
+                };
+                if let Some(next) = moved(layout, rect, rules, handle, delta) {
                     cx.propose(next);
                 }
             }
@@ -236,23 +278,18 @@ fn resize_by_pointer(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &
     }
 }
 
-/// A handle's boundary position along its axis and the span it can move in: the split's extent less the least
-/// size of each side.
-fn handle_span(handle: &DockHandle, least: f32) -> (f32, f32, f32) {
-    let (at, lo, hi) = match handle.axis {
-        Axis::X => (handle.bar.center().x, handle.split.left(), handle.split.right()),
-        _ => (handle.bar.center().y, handle.split.top(), handle.split.bottom()),
-    };
-    (at, lo + least, (hi - least).max(lo + least))
-}
-
 /// The arrow keys move the focused handle's boundary by a step, Shift or Page by a jump; AccessKit sets it to a value.
-fn resize_by_keys(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[DockHandle]) {
-    let style = cx.style;
+fn resize_by_keys<P: Clone + Eq + Hash + Debug + Send + Sync + 'static>(
+    cx: &mut Cx<'_, SplitArea<'_, P>>,
+    layout: &Layout<P>,
+    handles: &[SplitHandle],
+    rules: &FrameRules<'_, P>,
+) {
+    let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
+    let (step, jump) = (cx.style.step, cx.style.jump);
     let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
-    let Some(key) = focused else { return };
-    let Some(handle) = handles.iter().find(|handle| u64::from(handle.key.0) == key) else { return };
-    let (at, lo, hi) = handle_span(handle, style.least);
+    let Some(handle) = focused.and_then(|key| handles.get(key as usize)) else { return };
+    let (at, lo, hi) = boundary(layout, handle, rect, rules, rtl);
     let value = if let Some(set) = cx.intents().take_set_value() {
         set.clamp(f64::from(lo), f64::from(hi))
     } else if let Some((mv, mods)) = cx.intents().take_move() {
@@ -260,7 +297,7 @@ fn resize_by_keys(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[Do
             Axis::X => (ValueAxes::Horizontal, mv),
             _ => (ValueAxes::Vertical, along_y(mv)),
         };
-        let steps = ValueSteps::new(f64::from(at), f64::from(lo), f64::from(hi), f64::from(style.step), f64::from(style.jump));
+        let steps = ValueSteps::new(f64::from(at), f64::from(lo), f64::from(hi), f64::from(step), f64::from(jump));
         match step_value(&steps, axes, mv, mods) {
             StepResult::Set(value) => value,
             _ => return,
@@ -268,44 +305,36 @@ fn resize_by_keys(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[Do
     } else {
         return;
     };
-    let mut next = tree.clone();
-    if next.move_boundary(&handle.path, handle.index, handle.split, value as f32, style.least) {
+    if let Some(next) = moved(layout, rect, rules, handle, value as f32 - at) {
         cx.set(next);
     }
 }
 
-impl Component for SplitArea<'_> {
+impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Component for SplitArea<'_, P> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS;
     type Style = SplitAreaStyle;
-    type Output = DockOutput;
+    type Output = DockOutput<P>;
 
-    fn style(cx: &StyleCx<'_>, _: SplitAreaStyleKey) -> SplitAreaStyle {
+    fn style(cx: &StyleCx<'_>, _: SplitAreaStyleKey<P>) -> SplitAreaStyle {
         let control = cx.control();
-        SplitAreaStyle {
-            metrics: Metrics::new(),
-            reach: cx.tokens.size.hit.target,
-            least: cx.tokens.size.panel_header,
-            step: control.gap,
-            jump: control.height,
-        }
+        SplitAreaStyle { metrics: Metrics::new(), reach: cx.tokens.size.hit.target, step: control.gap, jump: control.height }
     }
 
     fn sense(&self) -> Sense {
         Sense::empty()
     }
 
-    fn bind(&mut self) -> Option<BindMut<'_, DockTree>> {
-        Some(self.tree.reborrow())
+    fn bind(&mut self) -> Option<BindMut<'_, Layout<P>>> {
+        Some(self.layout.reborrow())
     }
 
     /// The handles: edge parts above the groups, each its own Tab stop that the arrow keys move.
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        let Some(tree) = cx.value() else { return };
-        let flow = Flow::new(rect, cx.flow.is_rtl());
-        for handle in tree.handles(rect, cx.style.reach) {
+        let Some(layout) = cx.value() else { return };
+        for (at, handle) in dividers(layout, rect, &self.rules, cx.flow.is_rtl()).iter().enumerate() {
             let cursor = if handle.axis == Axis::X { CursorIcon::ResizeHorizontal } else { CursorIcon::ResizeVertical };
-            cx.part(HANDLE.at(u64::from(handle.key.0)), flow.to_physical(handle.bar))
+            cx.part(HANDLE.at(at as u64), bar(handle, cx.style.reach))
                 .sense(Sense::DRAG | Sense::TAKE_FOCUS)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
                 .cursor(cursor)
@@ -315,118 +344,43 @@ impl Component for SplitArea<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(tree) = cx.value().cloned() else { return };
-        let handles = tree.handles(cx.rect, cx.style.reach);
-        resize_by_pointer(cx, &tree, &handles);
-        resize_by_keys(cx, &tree, &handles);
+        let Some(layout) = cx.value().cloned() else { return };
         let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
-        let target = GroupDrops { groups: group_rects(&tree, rect, rtl), rtl };
+        let rules = self.rules;
+        let handles = dividers(&layout, rect, &rules, rtl);
+        resize_by_pointer(cx, &layout, &handles, &rules);
+        resize_by_keys(cx, &layout, &handles, &rules);
+        let groups = layout.root.as_ref().map_or_else(Vec::new, |root| {
+            tree::frames(root, rect, &rules, rtl).groups.iter().filter_map(|group| Some((PanelKey::of(group.anchor()?), group.rect))).collect()
+        });
+        let target = GroupDrops { groups, rtl };
         if let Some(drop) = cx.drop_target::<PanelDrag, _>(&target) {
             self.dropped = Some(drop);
         }
     }
 
     fn paint_over(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let Some(tree) = cx.value() else { return };
-        for handle in tree.handles(cx.rect, cx.style.reach) {
-            ui.face(HANDLE.at(u64::from(handle.key.0)), Splitter::new(handle.axis));
+        let Some(layout) = cx.value() else { return };
+        for (at, handle) in dividers(layout, cx.rect, &self.rules, cx.flow.is_rtl()).iter().enumerate() {
+            ui.face(HANDLE.at(at as u64), Splitter::new(handle.axis));
         }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        let Some(tree) = cx.value() else { return };
+        let Some(layout) = cx.value() else { return };
+        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
         let name = cx.words::<DockWords>().resize.as_str().to_owned();
-        for handle in tree.handles(cx.rect, cx.style.reach) {
-            let (at, lo, hi) = handle_span(&handle, cx.style.least);
-            let node = access.node(HANDLE.at(u64::from(handle.key.0)), Role::SPLITTER);
+        for (at, handle) in dividers(layout, rect, &self.rules, rtl).iter().enumerate() {
+            let (value, lo, hi) = boundary(layout, handle, rect, &self.rules, rtl);
+            let node = access.node(HANDLE.at(at as u64), Role::SPLITTER);
             node.name = Name::Text(name.clone());
-            node.numeric = Some(Numeric::new(f64::from(at), f64::from(lo)..=f64::from(hi)).step(f64::from(cx.style.step)));
+            node.numeric = Some(Numeric::new(f64::from(value), f64::from(lo)..=f64::from(hi)).step(f64::from(cx.style.step)));
         }
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> DockOutput {
+    fn finish(self, cx: Cx<'_, Self>) -> DockOutput<P> {
         DockOutput { edit: cx.edit_response(), dropped: self.dropped }
     }
 }
 
-impl Container for SplitArea<'_> {}
-
-/// What a dock group reports: its response and the tab the user picked.
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct DockGroupOutput {
-    /// The group's response.
-    pub response: Response,
-    /// The panel whose tab was clicked this pass; the app makes it the group's active panel.
-    pub picked: Option<PanelKey>,
-}
-
-impl Outcome for DockGroupOutput {
-    type Value = crate::contract::NoValue;
-
-    fn response(&self) -> &Response {
-        &self.response
-    }
-}
-
-/// The style of a dock group: no look of its own.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
-#[non_exhaustive]
-pub struct DockGroupStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-}
-
-/// A group of panels: a strip of tabs over the active panel's body. Show it with `show_at(group_rect)` in the
-/// body of a `SplitArea`, with an `IdSource::Id` made from the group's id so its state survives a re-dock.
-#[derive(crate::contract::Component)]
-#[component(container)]
-pub struct DockGroup<'a> {
-    #[common]
-    common: Common,
-    #[container]
-    props: ContainerProps,
-    group: GroupId,
-    panels: &'a [PanelTitle],
-    active: PanelKey,
-    picked: Option<PanelKey>,
-}
-
-impl<'a> DockGroup<'a> {
-    /// The group `group` with its `panels`, `active` showing. The group is named by the active panel's title.
-    pub fn new(group: GroupId, panels: &'a [PanelTitle], active: PanelKey) -> Self {
-        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).header(HeaderRegion::new().rule(true));
-        let title = panels.iter().find(|panel| panel.key == active).map(|panel| panel.title.clone()).unwrap_or_default();
-        DockGroup { common: Common::new(), props, group, panels, active, picked: None }.label(title)
-    }
-}
-
-impl Component for DockGroup<'_> {
-    const ROLE: Role = Role::TAB_PANEL;
-    const PARTS: bool = false;
-    type Style = DockGroupStyle;
-    type Output = DockGroupOutput;
-
-    fn style(_: &StyleCx<'_>, _: DockGroupStyleKey) -> DockGroupStyle {
-        DockGroupStyle::default()
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> DockGroupOutput {
-        DockGroupOutput { response: cx.response.clone(), picked: self.picked }
-    }
-}
-
-impl Container for DockGroup<'_> {
-    // F8-MERGE: tabs (a `TabStrip` of the panels replaces this row)
-    fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
-        let (group, active, panels) = (self.group, self.active, self.panels);
-        let picked = &mut self.picked;
-        Row::new().show(ui, |ui, _| {
-            for panel in panels {
-                if PanelTab::new(group, panel.key, panel.title.clone(), panel.key == active).id_salt(panel.key.0).show(ui).chosen {
-                    *picked = Some(panel.key);
-                }
-            }
-        });
-    }
-}
+impl<P: Clone + Eq + Hash + Debug + Send + Sync + 'static> Container for SplitArea<'_, P> {}
