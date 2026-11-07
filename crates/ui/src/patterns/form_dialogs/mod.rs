@@ -27,3 +27,13 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod save_for_web;
+mod watermark;
+
+pub use save_for_web::{
+    Animation, ColorTable, Dither, HostedSaveForWeb, MATTE_COLOR_KEY, SaveForWebDialog, SaveForWebOptions, SaveForWebOutput, SaveForWebResult,
+    SaveForWebWords, SaveRequest, WantedVariant, WebFormat, WebMetadata, WebPane, WebPictures, WebPreset, WebVariant, WebView, advance_frame,
+    download_seconds, four_up_variants,
+};
+pub use watermark::{ROTATIONS, Stash, WATERMARK_IMAGE_KEY, Watermark, WatermarkOutput, WatermarkSettings, WatermarkStyle, WatermarkWords};

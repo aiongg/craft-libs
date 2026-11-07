@@ -9,3 +9,7 @@ mod preview;
 mod rows;
 
 mod size_model;
+
+mod save_for_web;
+
+mod watermark;
