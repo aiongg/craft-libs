@@ -525,6 +525,8 @@ pub(crate) fn pasted_text(ctx: &Context, id: Id) -> Option<Arc<str>> {
 /// The collection of an open `KeepAnchor` dropdown whose opener has the key focus.
 #[derive(Clone, Copy)]
 struct Dropdown {
+    /// The dropdown's layer.
+    layer: Id,
     /// The collection inside the dropdown's layer.
     list: Id,
     /// The opener is a text owner: its typing and caret keys stay with it, and Tab goes to the list.
@@ -536,8 +538,8 @@ const LIST_KEYS: [Key; 8] = [Key::Up, Key::Down, Key::PageUp, Key::PageDown, Key
 
 impl Dropdown {
     fn of(ctx: &Context, opener: &StopRec) -> Option<Dropdown> {
-        let list = focus::registration::dropdown_target(ctx, opener.stop.key())?;
-        Some(Dropdown { list, text: matches!(opener.stop.keys.owner, OwnerClass::Text) })
+        let (layer, list) = focus::registration::dropdown_target(ctx, opener.stop.key())?;
+        Some(Dropdown { layer, list, text: matches!(opener.stop.keys.owner, OwnerClass::Text) })
     }
 
     /// The intent a claimed chord of the opener becomes for the list.
@@ -598,6 +600,10 @@ fn route_press(
             }
         }
         Some(Intent::Activate) => route_activate(ctx, rec, routed, activated),
+        Some(Intent::Close) => match dropdown {
+            Some(dropdown) => overlay::request_close(ctx, dropdown.layer, overlay::CloseReason::Requested),
+            None => push(routed, id, Intent::Close, false),
+        },
         Some(intent) => push(routed, id, intent, false),
         None if press.key == Key::Enter && plain => {
             if stop.keys.activate.enter() {

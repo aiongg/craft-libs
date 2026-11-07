@@ -183,6 +183,8 @@ pub enum Intent {
     },
     /// Open a `Trigger::Hold` or dropdown opener.
     Open,
+    /// Close the dropdown of a dropdown opener.
+    Close,
     /// An AccessKit action with no intent of its own.
     Access(AccessRequest),
 }

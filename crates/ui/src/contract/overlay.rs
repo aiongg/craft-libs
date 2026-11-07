@@ -1070,8 +1070,9 @@ fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>, inside: 
         return None;
     }
     // A modal on top also owns Escape while the focus is in no layer (nothing focused, or a stop of the window
-    // below): its card may have nothing to focus.
-    if inside != Some(true) && !(layer.overlay.rank.is_modal() && focus_in_no_layer(ctx)) {
+    // below): its card may have nothing to focus. So does a keep-anchor popup, which leaves the focus where it was.
+    let owns_loose = layer.overlay.rank.is_modal() || policy.initial == Initial::KeepAnchor;
+    if inside != Some(true) && !(owns_loose && focus_in_no_layer(ctx)) {
         return None;
     }
     let step = keys::scope_escape(ctx, policy.cancel, pointer::press_captured(ctx), false)?;

@@ -13,4 +13,4 @@ pub(crate) use column_group::{LABELS, ambient_width};
 pub use label::{place_label, record_control_baseline};
 pub use slot::measure_slot;
 
-pub(crate) use body::{place_in_flow, run_body};
+pub(crate) use body::{place_in_flow, run_body, widen_cell};

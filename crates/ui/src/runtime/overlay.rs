@@ -207,8 +207,8 @@ struct Persist {
     absorb_zone: Option<Vec<Rect>>,
     /// An outside press the input hook removed for the running pass.
     outside_press: Option<Pos2>,
-    /// The root frame each shown layer first ran its body in; gone with the layer's last entry.
-    appeared: HashMap<Id, u64>,
+    /// The root frame and pass each shown layer first ran its body in; gone with the layer's last entry.
+    appeared: HashMap<Id, (u64, u64)>,
 }
 
 /// The closes queued and not yet taken, each with the root frame that queued it.
@@ -319,17 +319,19 @@ pub(crate) fn drawing_parent(ctx: &Context) -> Option<Id> {
 /// Marks the layer `id`'s body as running, so layers opened from inside it become its children.
 pub(crate) fn begin_layer(ctx: &Context, id: Id) {
     with_pass(ctx, |pass| pass.drawing.push(id));
-    let frame = pass::root_frame_nr(ctx);
-    with_persist(ctx, pass::current_viewport(ctx), |persist| {
-        persist.appeared.entry(id).or_insert(frame);
+    let viewport = pass::current_viewport(ctx);
+    let first = (pass::root_frame_nr(ctx), pass::pass_nr(ctx, viewport));
+    with_persist(ctx, viewport, |persist| {
+        persist.appeared.entry(id).or_insert(first);
     });
 }
 
-/// Whether the layer `id` is in the frame it first shows: true in every pass of that frame, the discard passes
-/// included, and false from the next frame on.
+/// Whether the running pass is the one the layer `id` first ran its body in: false in the discard passes that
+/// repeat that frame, so what a body resets on opening resets once.
 pub(crate) fn opening(ctx: &Context, id: Id) -> bool {
-    let frame = pass::root_frame_nr(ctx);
-    with_persist(ctx, pass::current_viewport(ctx), |persist| persist.appeared.get(&id) == Some(&frame))
+    let viewport = pass::current_viewport(ctx);
+    let now = (pass::root_frame_nr(ctx), pass::pass_nr(ctx, viewport));
+    with_persist(ctx, viewport, |persist| persist.appeared.get(&id) == Some(&now))
 }
 
 /// Queues a close of every layer opened from inside the layer `id`, so the open state of a popup in its body does

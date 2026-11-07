@@ -432,6 +432,11 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
             } else {
                 true
             };
+            // A root whose own widget is not the click target still starts the press its parts win under it.
+            let allowed = allowed
+                || state
+                    .root
+                    .is_some_and(|own| own.rect.contains(at) && pointer::press_winner(ctx, at, targets).is_some_and(|(_, winner)| winner == own.id));
             if !enabled || !allowed {
                 return None;
             }

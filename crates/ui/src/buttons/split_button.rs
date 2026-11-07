@@ -176,6 +176,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
                 .activate(ActivateOn::Click)
                 .lead_on_open(LeadOnOpen::First)
                 .lead_follows_hover(true)
+                .listbox()
                 .selection(Bind::given(Selection::new(checked, lead, lead)))
                 .show_items(ui, &rows, &mut |at, _| {
                     let entry = &entries[*at];

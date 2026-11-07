@@ -87,6 +87,19 @@ impl GridCursor {
         Rect::from_min_size(Pos2::new(span.min.x, self.flow.rect().top() + top), Vec2::new(width, height))
     }
 
+    /// The cell last placed measured `size` after all: its column and row record that, and a `Content` column offers
+    /// the cells after it in this pass the wider width.
+    pub fn widen(&mut self, size: Vec2) {
+        let Some(placed) = self.next.checked_sub(1) else { return };
+        let count = self.columns.len().max(1);
+        let (column, row) = (placed % count, placed / count);
+        self.measured.columns[column] = self.measured.columns[column].max(size.x);
+        self.measured.rows[row] = self.measured.rows[row].max(size.y);
+        if let (Some(ColumnWidth::Content), Some(width)) = (self.columns.get(column), self.widths.get_mut(column)) {
+            *width = width.max(size.x);
+        }
+    }
+
     /// What this pass measured.
     pub fn measured(&self) -> &GridMeasure {
         &self.measured
@@ -104,6 +117,17 @@ mod tests {
 
     fn flow(rtl: bool) -> Flow {
         Flow::new(Rect::from_min_size(Pos2::ZERO, Vec2::new(300.0, 100.0)), rtl)
+    }
+
+    #[test]
+    fn a_widened_content_cell_moves_the_cells_after_it() {
+        let columns = [ColumnWidth::Content, ColumnWidth::Content];
+        let mut cursor = GridCursor::new(flow(false), &columns, Vec2::ZERO, &GridMeasure::default());
+        cursor.cell(Vec2::new(0.0, 10.0));
+        cursor.widen(Vec2::new(80.0, 10.0));
+        let second = cursor.cell(Vec2::new(20.0, 10.0));
+        assert_eq!(second.min.x, 80.0);
+        assert_eq!(cursor.measured().columns, vec![80.0, 20.0]);
     }
 
     #[test]
