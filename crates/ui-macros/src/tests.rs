@@ -128,3 +128,19 @@ fn register_contract_needs_a_type_and_known_options() {
     assert!(error(crate::component::register(quote!())).contains("component types"));
     assert!(error(crate::component::register(quote!(Chip; sticky))).contains("overlay"));
 }
+
+fn words(input: TokenStream) -> String {
+    error(crate::words::expand_words(input))
+}
+
+#[test]
+fn words_rows_are_checked() {
+    let id = words(quote! { struct W { save: "Save" = "Save"; } });
+    assert!(id.contains("module.camelCase"), "{id}");
+    let unit = words(quote! { struct W { size: unit "w.size" = "px"; } });
+    assert!(unit.contains("{n}"), "{unit}");
+    let count = words(quote! { struct W { items: count "w.items" = "{n} item" | "items"; } });
+    assert!(count.contains("{n}"), "{count}");
+    let braces = words(quote! { struct W { saved: template "w.saved" = "Saved {name"; } });
+    assert!(braces.contains("unmatched"), "{braces}");
+}

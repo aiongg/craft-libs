@@ -60,11 +60,7 @@ pub(crate) fn role_violations(facts: &RoleFacts<'_>) -> Vec<&'static str> {
                 found.push("`controls` while open");
             }
         }
-        Role::Heading => {
-            if facts.level.is_none() {
-                found.push("a level");
-            }
-        }
+        Role::Heading if facts.level.is_none() => found.push("a level"),
         _ => {}
     }
     found

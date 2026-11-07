@@ -6,7 +6,7 @@ use craft_ui::contract::announce;
 use craft_ui::contract::{
     Access, Common, Component, Cx, Name, Numeric, Politeness, Props as _, Role as UiRole, Show as _, ShowCollection as _, ShowContainer as _,
 };
-use craft_ui::style::{ComponentStyle, StyleCx};
+use craft_ui::style::StyleCx;
 use craft_ui::testing::access::{Declared, NodeKey};
 use craft_ui::testing::contract::findings;
 use craft_ui::testing::{Frames, trial};

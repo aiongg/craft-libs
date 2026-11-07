@@ -5,17 +5,18 @@ use craft_behavior::Sense;
 use craft_ui::contract::{Common, Component, Container, ContainerProps, Cx, FieldLabel, Props as _, Role as UiRole, Show as _, ShowContainer as _};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::access::{AccessTree, NodeKey, begin_label_scope};
+use craft_ui::testing::memory::global;
 use craft_ui::testing::{Frames, trial};
 use egui::{Id, Rect, Response};
 use std::cell::RefCell;
 
 fn field_label() -> FieldLabel {
-    FieldLabel::new(Id::unique("the label"), Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(40.0, 10.0)), "Name")
+    FieldLabel::new(global("access.label", "name"), Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(40.0, 10.0)), "Name")
 }
 
 /// One frame of a container with a side label around `controls` probes.
 fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>, AccessTree) {
-    let container = Id::unique("field");
+    let container = global("access.field", "scope");
     let mut ids = Vec::new();
     frames.frame(vec![], |ui| {
         ids.clear();
