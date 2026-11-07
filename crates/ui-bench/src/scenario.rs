@@ -24,6 +24,7 @@ pub const SCENARIOS: &[Scenario] = &[
     Scenario { name: "collapse-in-content-sized-panel", description: "a collapse animating inside a content-sized panel", no_discard: true },
     Scenario { name: "auto-height-list-scroll-10000", description: "scrolling a 10,000-row auto-height list", no_discard: true },
     Scenario { name: "second-viewport", description: "a second viewport open", no_discard: true },
+    Scenario { name: "dialog-20-fields", description: "a modal dialog open over 20 fields", no_discard: false },
     Scenario {
         name: "readout-and-content-column",
         description: "an end-aligned readout and a Content grid column changing every frame",
