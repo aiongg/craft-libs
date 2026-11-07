@@ -33,7 +33,7 @@ name = "ToolbarDrawer"
 old = "craft_ui::patterns::toolbar_drawer::ToolbarDrawer"
 new = "craft_ui::rails::ToolbarDrawer"
 status = "moved"
-note = "A pattern: `ToolbarDrawer::new(rail_rect, &groups, &toolbar, rail_out.dropped).opens(Side).show(ui)`; the output holds `edits`, `select` and `closed`."
+note = "A pattern: `ToolbarDrawer::new(rail_rect, &groups, &toolbar, rail_out.dropped).opens(Side).show(ui)`; the output holds `edits`, `select` and `closed`. One list over all groups with a heading row per group; a press outside the drawer and the rail closes it."
 
 [[type]]
 name = "Rail"
