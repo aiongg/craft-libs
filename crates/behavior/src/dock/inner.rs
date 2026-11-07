@@ -268,7 +268,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
     /// the end of the first shown dock group that accepts tabs, in the end-side dock if one has
     /// such a group, else a new frame at the end edge of the docked area.
-    pub fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
+    pub(super) fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
         let docked: Vec<(&P, PanelPlace)> = self
             .panels()
             .into_iter()

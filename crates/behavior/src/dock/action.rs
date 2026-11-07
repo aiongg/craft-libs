@@ -1,5 +1,7 @@
 //! Where a panel goes ([`Placement`]), where it was ([`Location`]) and the transaction unit ([`Action`]).
 
+use emath::Rect;
+
 use crate::monitor::Monitor;
 
 use super::{
@@ -72,8 +74,9 @@ pub enum Placement<P> {
 #[serde(bound(deserialize = "P: serde::Deserialize<'de>"))]
 #[non_exhaustive]
 pub struct Location<P> {
-    /// The window rect `[x, y, width, height]` when the panel was floating.
-    pub floating: Option<[f32; 4]>,
+    /// The window rect when the panel was floating. Saved as `[x, y, width, height]`.
+    #[serde(with = "crate::monitor::rect_serde::option", default)]
+    pub floating: Option<Rect>,
     /// The panel the placement is relative to.
     pub anchor: Option<P>,
     /// Where the panel sat relative to `anchor`.
@@ -111,8 +114,9 @@ pub enum Action<P> {
     Float {
         /// The panel the action applies to.
         panel: P,
-        /// The window rect `[x, y, width, height]` in logical points.
-        rect: [f32; 4],
+        /// The window rect in logical points. Saved as `[x, y, width, height]`.
+        #[serde(with = "crate::monitor::rect_serde")]
+        rect: Rect,
     },
     /// Close a panel.
     #[non_exhaustive]
@@ -154,8 +158,9 @@ pub enum Action<P> {
     MoveFloating {
         /// The panel the action applies to.
         panel: P,
-        /// The window rect `[x, y, width, height]` in logical points.
-        rect: [f32; 4],
+        /// The window rect in logical points. Saved as `[x, y, width, height]`.
+        #[serde(with = "crate::monitor::rect_serde")]
+        rect: Rect,
     },
     /// Path from the root: false is the first child, true the second.
     #[non_exhaustive]
@@ -293,8 +298,9 @@ pub enum Action<P> {
     SetNative {
         /// The panel the action applies to.
         panel: P,
-        /// The window rect `[x, y, width, height]` in logical points.
-        rect: Option<[f32; 4]>,
+        /// The window rect in logical points. Saved as `[x, y, width, height]`.
+        #[serde(with = "crate::monitor::rect_serde::option", default)]
+        rect: Option<Rect>,
     },
     /// Record the monitor of the native window holding `panel`: from the application's
     /// monitor list, or else only the size egui reported.
@@ -332,7 +338,7 @@ impl<P> Action<P> {
     }
 
     /// Builds [`Action::Float`].
-    pub fn float(panel: P, rect: [f32; 4]) -> Self {
+    pub fn float(panel: P, rect: Rect) -> Self {
         Self::Float { panel, rect }
     }
 
@@ -357,7 +363,7 @@ impl<P> Action<P> {
     }
 
     /// Builds [`Action::MoveFloating`].
-    pub fn move_floating(panel: P, rect: [f32; 4]) -> Self {
+    pub fn move_floating(panel: P, rect: Rect) -> Self {
         Self::MoveFloating { panel, rect }
     }
 
@@ -442,7 +448,7 @@ impl<P> Action<P> {
     }
 
     /// Builds [`Action::SetNative`].
-    pub fn set_native(panel: P, rect: Option<[f32; 4]>) -> Self {
+    pub fn set_native(panel: P, rect: Option<Rect>) -> Self {
         Self::SetNative { panel, rect }
     }
 
@@ -483,7 +489,7 @@ impl<P> Placement<P> {
     /// Whether the anchor's permissions take this placement: tabs need `accepts_tabs`, side
     /// splits `accepts_splits`, and so does a group placed at an anchor in a floating window
     /// (`floating`), which splits the anchor's frame.
-    pub fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
+    pub(super) fn allowed_by(&self, anchor: Permissions, floating: bool) -> bool {
         match self {
             Self::Tab { .. } | Self::Split(DockSide::Center) => anchor.accepts_tabs,
             Self::Split(_) | Self::SplitSized { .. } => anchor.accepts_splits,

@@ -1,5 +1,7 @@
 //! The docked tree, its leaves and the floating windows.
 
+use emath::Rect;
+
 use crate::{flow::Axis, monitor::Monitor};
 
 use super::{
@@ -81,10 +83,10 @@ pub struct Floating<P> {
     pub id: u64,
     /// `Split`, `Tabs` and `Stack` nodes; a `Dock` is invalid here.
     pub root: Node<P>,
-    /// `[x, y, width, height]` in logical points, in the application's viewport.
-    pub rect: [f32; 4],
+    /// The window's area in logical points, in the application's viewport. Saved as `[x, y, width, height]`.
+    pub rect: Rect,
     /// Desktop rect while the window is in its own OS window.
-    pub native: Option<[f32; 4]>,
+    pub native: Option<Rect>,
     /// The monitor holding the center of `native`, from the application's monitor list.
     pub monitor: Option<Monitor>,
     /// Without a monitor list: the size of the monitor reported for the native window.
@@ -140,12 +142,12 @@ impl<P> Floating<P> {
     /// A window holding `root`. Each call makes a new window, with a fresh [`Self::id`]: build
     /// a layout once and keep it, or give its windows ids with [`Self::with_id`]. A layout
     /// built anew each frame without them opens new OS windows each frame.
-    pub fn new(root: Node<P>, rect: [f32; 4]) -> Self {
+    pub fn new(root: Node<P>, rect: Rect) -> Self {
         Self { id: fresh_window_id(), root, rect, native: None, monitor: None, monitor_size: None, minimized: false }
     }
 
     /// A window with one group. Each call makes a new window, as [`Self::new`] does.
-    pub fn single(panels: Vec<P>, active: usize, rect: [f32; 4]) -> Self {
+    pub fn single(panels: Vec<P>, active: usize, rect: Rect) -> Self {
         Self::new(Node::Tabs { panels, active }, rect)
     }
 
@@ -165,7 +167,7 @@ impl<P> Floating<P> {
     /// Groups stacked top to bottom, as a v1 layout stored them: each group over a vertical
     /// split of the ones below it, sized by their heights. `None` without groups. Each call
     /// makes a new window, as [`Self::new`] does.
-    pub fn stack(groups: Vec<Group<P>>, rect: [f32; 4]) -> Option<Self> {
+    pub fn stack(groups: Vec<Group<P>>, rect: Rect) -> Option<Self> {
         stack_tree(groups).map(|root| Self::new(root, rect))
     }
 
@@ -192,7 +194,10 @@ pub(super) mod floating_serde {
 
     use super::{Floating, Group, Node, fresh_window_id};
     use crate::dock::edit::stack_tree;
-    use crate::monitor::Monitor;
+    use crate::monitor::{
+        Monitor,
+        rect_serde::{from_array, to_array},
+    };
 
     #[derive(Serialize)]
     struct V1<'a, P> {
@@ -221,13 +226,13 @@ pub(super) mod floating_serde {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
             match &self.root {
                 Node::Tabs { panels, active } if !self.minimized && self.native.is_none() => {
-                    V1 { id: self.id, panels, active: *active, rect: self.rect }.serialize(serializer)
+                    V1 { id: self.id, panels, active: *active, rect: to_array(self.rect) }.serialize(serializer)
                 }
                 root => Tree {
                     id: self.id,
                     root,
-                    rect: self.rect,
-                    native: self.native,
+                    rect: to_array(self.rect),
+                    native: self.native.map(to_array),
                     monitor: self.monitor.as_ref(),
                     monitor_size: self.monitor_size,
                     minimized: self.minimized,
@@ -334,8 +339,8 @@ pub(super) mod floating_serde {
             Ok(Floating {
                 id: repr.id.unwrap_or_else(fresh_window_id),
                 root,
-                rect: repr.rect.ok_or_else(|| serde::de::Error::missing_field("rect"))?,
-                native: repr.native,
+                rect: from_array(repr.rect.ok_or_else(|| serde::de::Error::missing_field("rect"))?),
+                native: repr.native.map(from_array),
                 monitor: repr.monitor,
                 monitor_size: repr.monitor_size,
                 minimized,
