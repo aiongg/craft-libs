@@ -128,9 +128,7 @@ impl<'a> Tour<'a> {
                 .initial_focus(Initial::Default)
                 .command_scope(TourCommands::SCOPE)
                 .show(ui, |ui, cx| {
-                    eprintln!("DIAG tour body at={at}");
                     while let Some((command, _)) = cx.take_command::<TourCommands>() {
-                        eprintln!("DIAG tour command {command:?}");
                         taken = match command {
                             TourCommands::Next => Some(forward),
                             TourCommands::Back if at > 0 => Some(TourEvent::Back),
