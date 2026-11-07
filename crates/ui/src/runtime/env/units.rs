@@ -19,6 +19,9 @@ craft_ui::words! {
         millimetres: unit "units.millimetres" = "{n} mm";
         picas: unit "units.picas" = "{n} pica";
         seconds: unit "units.seconds" = "{n} s";
+        pixels_per_inch: unit "units.pixels_per_inch" = "{n} ppi";
+        pixels_per_centimetre: unit "units.pixels_per_centimetre" = "{n} ppcm";
+        minutes: unit "units.minutes" = "{n} min";
     }
 }
 
@@ -44,10 +47,16 @@ pub enum UnitKind {
     Millimetres,
     /// `{n} pica`.
     Picas,
+    /// `{n} ppi`.
+    PixelsPerInch,
+    /// `{n} ppcm`.
+    PixelsPerCentimetre,
+    /// `{n} min`.
+    Minutes,
 }
 
 impl UnitKind {
-    const ALL: [UnitKind; 9] = [
+    const ALL: [UnitKind; 12] = [
         UnitKind::Pixels,
         UnitKind::Percent,
         UnitKind::Degrees,
@@ -57,13 +66,16 @@ impl UnitKind {
         UnitKind::Centimetres,
         UnitKind::Millimetres,
         UnitKind::Picas,
+        UnitKind::PixelsPerInch,
+        UnitKind::PixelsPerCentimetre,
+        UnitKind::Minutes,
     ];
 
     /// The digits after the decimal mark a number of this kind shows by default, at most.
     pub const fn decimals(self) -> RangeInclusive<usize> {
         match self {
-            UnitKind::Pixels => 0..=0,
-            UnitKind::Percent | UnitKind::Degrees | UnitKind::Points => 0..=1,
+            UnitKind::Pixels | UnitKind::Minutes => 0..=0,
+            UnitKind::Percent | UnitKind::Degrees | UnitKind::Points | UnitKind::PixelsPerInch | UnitKind::PixelsPerCentimetre => 0..=1,
             UnitKind::Times | UnitKind::Centimetres | UnitKind::Millimetres | UnitKind::Picas => 0..=2,
             UnitKind::Inches => 0..=3,
         }
@@ -117,6 +129,9 @@ impl Units {
             UnitKind::Centimetres => words.centimetres.as_str(),
             UnitKind::Millimetres => words.millimetres.as_str(),
             UnitKind::Picas => words.picas.as_str(),
+            UnitKind::PixelsPerInch => words.pixels_per_inch.as_str(),
+            UnitKind::PixelsPerCentimetre => words.pixels_per_centimetre.as_str(),
+            UnitKind::Minutes => words.minutes.as_str(),
         }
     }
 

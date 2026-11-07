@@ -287,6 +287,13 @@ pub trait Commands: CommandAccess {
     fn take_command<S: CommandSet>(&mut self) -> Option<(S, Fired)> {
         board::take(self.command_ctx(), self.command_chain().innermost(S::SCOPE.name()), S::from_ref)
     }
+
+    /// `command` as this context shows it: the label, icon and chord with the scoped bindings of the scopes above
+    /// the context, and the enabled state of its instance. `None` when the command is scoped and no instance of its
+    /// scope is above the context.
+    fn resolve_command(&self, command: impl Into<CommandRef>) -> Option<ResolvedCommand> {
+        board::resolve_scoped(self.command_ctx(), self.command_chain(), &command.into())
+    }
 }
 
 /// Fires `command` from a surface that has no component of its own: a menu, the palette or automation. Scoped

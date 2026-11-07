@@ -57,3 +57,33 @@ name = "Tone"
 old = "craft_theme::Tone"
 new = "craft_theme::variant::Tone"
 status = "moved"
+
+[[call]]
+old = "commands::resolve(ctx, _)"
+new = "cx.resolve_command(_)"
+note = "`Commands::resolve_command` resolves a command with the scoped bindings above any of `Cx`, `BodyCx` and `ItemCx`; `commands::resolve` knows no scopes."
+
+[[call]]
+old = "BindMut::get / BindMut::apply (crate-private)"
+new = "bind.reborrow().read(cx) / bind.reborrow().write(cx, &event)"
+note = "A pattern reads and writes a caller `Bind` from a body or item context; `Bind::kept()` values live under the context's base id."
+
+[[call]]
+old = "dates_of(host)"
+new = "Env::dates()"
+note = "The scope's `Arc<DateFormat>`: the host's, else the system region's, held by the env."
+
+[[call]]
+old = "DatePicker::today fed by an app clock"
+new = "RootEnv::today(date) and Env::today()"
+note = "The host gives today's `CalendarDate` in its time zone; the runtime reads no wall clock."
+
+[[call]]
+old = "NumberField + Select<String> for ppi and ppcm; \"{n} minutes\" labels"
+new = "UnitKind::PixelsPerInch, UnitKind::PixelsPerCentimetre, UnitKind::Minutes"
+note = "New `UnitKind` variants with translated unit words."
+
+[[call]]
+old = "Fixture command state through CommandInput by hand"
+new = "Fixture::command_state(command, state)"
+note = "Gives an app-scope command a state in every following pass of a fixture."

@@ -17,8 +17,8 @@ use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
 use craft_host::target::{Os, ShellInfo};
 pub use craft_i18n::Direction;
-use craft_i18n::Format;
 pub use craft_i18n::{AgeStyle, Count, Counted, WordRows, WordSet, WordTemplate, Words};
+use craft_i18n::{CalendarDate, DateFormat, Format};
 use craft_theme::{
     AppSizes, Appearance, Contrast, ControlSize, Mode, MotionTokens, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized,
 };
@@ -195,6 +195,8 @@ pub struct RootEnv {
     pub tab_all_controls: bool,
     /// Root app values.
     pub values: AppValues,
+    /// Today's date in the host's time zone; the runtime reads no wall clock.
+    pub today: Option<CalendarDate>,
 }
 
 impl Default for RootEnv {
@@ -210,6 +212,7 @@ impl Default for RootEnv {
             scale: Scale::default(),
             tab_all_controls: true,
             values: AppValues::default(),
+            today: None,
         }
     }
 }
@@ -262,6 +265,12 @@ impl RootEnv {
         self.density = density;
         self
     }
+
+    /// Sets today's date, as the host's clock and time zone give it.
+    pub fn today(mut self, date: CalendarDate) -> Self {
+        self.today = Some(date);
+        self
+    }
 }
 
 /// The inherited context of a `Ui`: one `Arc` clone per read.
@@ -298,6 +307,10 @@ pub struct Scoped {
     pub(crate) words: Arc<Words>,
     /// How the scope writes numbers: the host's catalog format, else the system region's.
     pub(crate) format: Arc<Format>,
+    /// How the scope writes dates: the host's catalog format, else the system region's.
+    pub(crate) dates: Arc<DateFormat>,
+    /// Today's date as the host supplied it.
+    pub(crate) today: Option<CalendarDate>,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -404,6 +417,16 @@ impl Env {
         &self.format
     }
 
+    /// How the scope writes dates: the host's catalog format, else the system region's.
+    pub fn dates(&self) -> Arc<DateFormat> {
+        Arc::clone(&self.dates)
+    }
+
+    /// Today's date as the host supplied it with `RootEnv::today`; `None` when it gave none.
+    pub fn today(&self) -> Option<CalendarDate> {
+        self.today
+    }
+
     /// The scope's number format and unit words, to read and write numbers with their unit.
     pub fn units(&self) -> Units {
         Units::new(self.format.clone(), self.words::<UnitWords>(), self.words.clone())
@@ -450,6 +473,8 @@ impl Env {
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 format: host_format(ctx, host.as_ref()),
+                dates: host_dates(ctx, host.as_ref()),
+                today: root.today,
                 host,
                 values: root.values.clone(),
             }),
@@ -853,6 +878,16 @@ fn host_format(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<Format> {
     struct System(Option<Arc<Format>>);
     Service::<System>::of(ctx)
         .with(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(Format::new(&craft_i18n::Region::system(), craft_i18n::Digits::Locale)))))
+}
+
+/// The date format of `host`'s catalogs, else the system region's, built once.
+fn host_dates(ctx: &Context, host: Option<&Arc<Host>>) -> Arc<DateFormat> {
+    if let Some(i18n) = host.and_then(|host| host.i18n_shared()) {
+        return i18n.dates();
+    }
+    #[derive(Default)]
+    struct System(Option<Arc<DateFormat>>);
+    Service::<System>::of(ctx).with(|system| Arc::clone(system.0.get_or_insert_with(|| Arc::new(DateFormat::new(&craft_i18n::Region::system())))))
 }
 
 /// `words` with `rows` over them, built once per (inherited words, rows): a clone of a `Words` starts with an

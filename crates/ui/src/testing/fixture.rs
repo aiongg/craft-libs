@@ -3,6 +3,7 @@
 use super::Frames;
 use super::story::{Story, StoryData, StoryOutput};
 use crate::runtime::access::Role;
+use crate::runtime::commands::{CommandInput, CommandRef, CommandState};
 use crate::runtime::egui::access::{AccessTree, NodeKey};
 use crate::runtime::egui::fixture::{self, AccessActionKind};
 use crate::runtime::env::{Direction, Overrides, RootEnv, Scale, with_env};
@@ -36,6 +37,7 @@ pub struct Fixture {
     frames: Frames,
     show: Box<dyn FnMut(&mut Ui)>,
     root: RootEnv,
+    commands: CommandInput,
     room: Vec2,
     tree: AccessTree,
     shown: Rect,
@@ -53,6 +55,7 @@ impl Fixture {
             frames: Frames::new(),
             show: Box::new(show),
             root: RootEnv::default(),
+            commands: CommandInput::new(),
             room: Vec2::new(400.0, 300.0),
             tree: AccessTree::none(),
             shown: Rect::NOTHING,
@@ -95,6 +98,16 @@ impl Fixture {
     fn set_root(&mut self, change: impl FnOnce(&mut RootEnv)) -> &mut Self {
         change(&mut self.root);
         self.frames.root(self.root.clone());
+        self
+    }
+
+    /// Gives app-scope `command` this state in every following pass, as an app's `FrameInput.commands` does; a later
+    /// call for the same command replaces the earlier one.
+    pub fn command_state(&mut self, command: impl Into<CommandRef>, state: CommandState) -> &mut Self {
+        let command = command.into();
+        self.commands.states.retain(|(held, _)| *held != command);
+        self.commands.states.push((command, state));
+        self.frames.commands(self.commands.clone());
         self
     }
 
