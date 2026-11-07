@@ -163,13 +163,16 @@ fn is_plain(text: &str) -> bool {
 
 /// The field's codec with what a committed value is held to: the range, the step grid when typed values snap, and
 /// the decimals a committed value is rounded to. A plain number applies as it is typed unless typed values snap,
-/// which apply on commit only.
+/// which apply on commit only. While the field shows no value (a mixed binding) typed numbers apply on commit only,
+/// and empty text is not a value: it would clear every target, so the draft stays open until Escape or a focus
+/// loss restores the mixed display.
 #[derive(Clone)]
 struct Ruled {
     inner: NumberCodec,
     rule: Rule,
     snap: bool,
     decimals: Option<usize>,
+    mixed: bool,
 }
 
 impl Ruled {
@@ -187,11 +190,14 @@ impl Codec for Ruled {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
+        if self.mixed && text.trim().is_empty() {
+            return Err(NotAValue);
+        }
         self.inner.parse(text, start).map(|read| read.map(|number| self.held(number)))
     }
 
     fn applies_as_typed(&self, text: &str) -> bool {
-        !self.snap && is_plain(text) && matches!(self.inner.parse(text, &None), Ok(Some(_)))
+        !self.snap && !self.mixed && is_plain(text) && matches!(self.inner.parse(text, &None), Ok(Some(_)))
     }
 
     fn filter(&self, c: char) -> bool {
@@ -312,8 +318,8 @@ impl<'a> NumberField<'a> {
         self.codec.as_ref().map_or_else(|| self.unit_kind.map_or(DEFAULT_DECIMALS, |kind| *kind.decimals().end()), NumberCodec::decimals)
     }
 
-    fn ruled(&self, units: &Units) -> Ruled {
-        Ruled { inner: self.number_codec(units), rule: self.rule(), snap: self.snap_typed, decimals: self.commit_decimals }
+    fn ruled(&self, units: &Units, mixed: bool) -> Ruled {
+        Ruled { inner: self.number_codec(units), rule: self.rule(), snap: self.snap_typed, decimals: self.commit_decimals, mixed }
     }
 
     /// The unit's size, the room it takes and the gap before it.
@@ -481,7 +487,8 @@ impl Component for NumberField<'_> {
         let placed = Self::laid_out(cx.style, rect, rtl, &chevrons);
         let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
         self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
-        cx.text(text_part::<Option<f64>>(), text, &self.ruled(&cx.env.units()), cx.value().unwrap_or(&None), &self.options);
+        let shown = cx.value();
+        cx.text(text_part::<Option<f64>>(), text, &self.ruled(&cx.env.units(), shown.is_none()), shown.unwrap_or(&None), &self.options);
         let slider_reason =
             if self.presets.is_some() { "Alt+Down opens the presets list; the slider opens by pointer" } else { "Alt+Down opens the slider" };
         for ((key, _), at) in chevrons.iter().zip(&placed.trailing) {

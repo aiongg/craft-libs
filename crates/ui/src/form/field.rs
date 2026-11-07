@@ -11,13 +11,13 @@ use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
 /// The text under a field's control.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum Help<'a> {
+pub enum Help {
     /// Muted text: a hint or a unit.
-    Text(&'a str),
+    Text(Label),
     /// A line in the colour of a tone.
-    Status(Tone, &'a str),
+    Status(Tone, Label),
 }
 
 /// The style of a field: no look of its own; the label step and the help line carry it.
@@ -34,40 +34,47 @@ pub struct FieldRowStyle {
 /// the control.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
-pub struct Field<'a> {
+pub struct Field {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
     /// Shows `help` under the control while the control has no validity message.
     #[prop]
-    help: Option<Help<'a>>,
+    help: Option<Help>,
+    /// The layout `Field::layout` set, which `Field::side` keeps.
+    layout: Option<FieldLayout>,
 }
 
-impl<'a> Field<'a> {
+impl Field {
     /// A field labelled `label`, beside its control, filling the width offered.
     pub fn new(label: impl Into<Label>) -> Self {
         let props = ContainerProps::new().sizing(Sizing::FillWidth).footer(FooterRegion::new()).label(SideLabel::new());
-        Field { common: Common::new(), props, help: None }.label(label)
+        Field { common: Common::new(), props, help: None, layout: None }.label(label)
     }
 
     /// Where the label sits relative to the control.
     #[must_use]
     pub fn layout(mut self, layout: FieldLayout) -> Self {
+        self.layout = Some(layout);
         self.props.label = self.props.label.take().map(|side| side.layout(layout));
         self
     }
 
     /// How the label is shown and what it does: its icon, detail, scrub, whether it is visible and whether it names
-    /// or describes the control. The text stays the field's label.
+    /// or describes the control. The text stays the field's label. A layout set with `Field::layout` stays, whichever
+    /// is called first; without one, the layout is the side label's own.
     #[must_use]
     pub fn side(mut self, side: SideLabel) -> Self {
-        self.props.label = Some(side);
+        self.props.label = Some(match self.layout {
+            Some(layout) => side.layout(layout),
+            None => side,
+        });
         self
     }
 }
 
-impl Component for Field<'_> {
+impl Component for Field {
     const ROLE: Role = Role::GROUP;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -87,27 +94,16 @@ impl Component for Field<'_> {
     }
 }
 
-impl Container for Field<'_> {
+impl Container for Field {
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        if let Some(message) = cx.field_message() {
-            Text::new(message.text.clone()).role(TypeRole::Caption).tone(message_tone(message.tone)).show(ui);
+        if let Some((message, tone)) = cx.field_message() {
+            Text::new(message.text.clone()).role(TypeRole::Caption).tone(tone).show(ui);
             return;
         }
-        match self.help {
-            Some(Help::Text(text)) => Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted).show(ui),
-            Some(Help::Status(tone, text)) => Text::new(text.to_owned()).role(TypeRole::Caption).tone(tone).show(ui),
+        match &self.help {
+            Some(Help::Text(text)) => Text::new(text.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui),
+            Some(Help::Status(tone, text)) => Text::new(text.clone()).role(TypeRole::Caption).tone(*tone).show(ui),
             None => return,
         };
-    }
-}
-
-/// The variant tone of a message's tone override; a message without one reads as a failure.
-fn message_tone(tone: Option<craft_theme::Tone>) -> Tone {
-    match tone {
-        Some(craft_theme::Tone::Neutral) => Tone::Neutral,
-        Some(craft_theme::Tone::Info) => Tone::Info,
-        Some(craft_theme::Tone::Good) => Tone::Good,
-        Some(craft_theme::Tone::Warn) => Tone::Warn,
-        _ => Tone::Bad,
     }
 }
