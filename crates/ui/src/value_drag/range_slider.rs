@@ -266,7 +266,7 @@ impl Component for RangeSlider<'_> {
                     cx.begin();
                 }
                 PressPhase::Drag { .. } => {
-                    if let Some((from, picked)) = cx.memory::<Held>().drag.clone()
+                    if let Some((from, picked)) = cx.memory::<Held>().drag
                         && let Some((upper, value)) = moved(&from, picked, &press, true)
                     {
                         cx.propose(with(from, upper, value));
@@ -274,7 +274,7 @@ impl Component for RangeSlider<'_> {
                 }
                 PressPhase::Release { start, click, .. } => {
                     if cx.gesture().is_some() {
-                        if let Some((from, picked)) = cx.memory::<Held>().drag.clone()
+                        if let Some((from, picked)) = cx.memory::<Held>().drag
                             && let Some((upper, value)) = moved(&from, picked, &press, true)
                         {
                             cx.propose(with(from, upper, value));

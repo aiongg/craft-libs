@@ -167,7 +167,7 @@ impl<C: Codec + Clone + 'static> TextField<'_, C> {
 
     /// The clear button's name, from the library words.
     fn clear_name(words: &words::TextWords) -> Label {
-        Label::from(words.clear.clone())
+        words.clear.clone()
     }
 }
 

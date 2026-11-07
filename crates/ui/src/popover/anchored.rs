@@ -9,7 +9,7 @@ use crate::runtime::focus::{FocusPolicy, Initial};
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{CancelRule, Metrics, Sense};
-use egui::{Pos2, Response, Vec2};
+use egui::{Pos2, Response};
 
 /// The style of a popover: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]

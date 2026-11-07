@@ -75,7 +75,7 @@ fn angle(fixture: &Fixture) -> f64 {
 
 /// The picker's point, with a mixed axis as NaN.
 fn point(fixture: &Fixture) -> [f64; 2] {
-    let value = fixture.data().value("point", Mixed::each([f64::NAN; 2])).clone();
+    let value = *fixture.data().value("point", Mixed::each([f64::NAN; 2]));
     value.map(|part| part.same().copied().unwrap_or(f64::NAN))
 }
 
@@ -242,6 +242,6 @@ fn keys_do_nothing_to_a_dial_while_a_drag_runs() {
 fn right_on_a_mixed_axis_sets_that_axis_and_leaves_the_other_mixed() {
     let mut fixture = focused(picker_mixed);
     key(&mut fixture, Key::ArrowRight, Modifiers::NONE);
-    let value = fixture.data().value("mixed", Mixed::Mixed).clone();
+    let value = *fixture.data().value("mixed", Mixed::Mixed);
     assert_eq!(value, Mixed::Same([Mixed::Same(51.0), Mixed::Mixed]), "X steps from the middle of its range; Y stays mixed");
 }

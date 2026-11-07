@@ -123,12 +123,15 @@ impl Codec for PlainText {
     }
 }
 
+/// A reader a caller adds for words that stand for numbers.
+type Custom = Arc<dyn Fn(&str) -> Option<f64> + Send + Sync>;
+
 /// An optional number: empty text is `None`; anything else reads through a [`Reader`].
 #[derive(Clone)]
 pub struct NumberCodec {
     reader: Reader,
     decimals: usize,
-    custom: Option<Arc<dyn Fn(&str) -> Option<f64> + Send + Sync>>,
+    custom: Option<Custom>,
 }
 
 impl fmt::Debug for NumberCodec {

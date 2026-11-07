@@ -386,7 +386,7 @@ impl<const N: usize> RowRules<'_, N> {
     pub fn apply(&self, op: &RowOp, row: &[Mixed<f64>; N]) -> [Mixed<f64>; N] {
         let values = self.placed(row);
         let i = op.thumb;
-        let mut out = row.clone();
+        let mut out = *row;
         out[i] = Mixed::Same(if self.wrap.is_some() { self.apply_wrapped(&op.op, &values, i) } else { self.apply_plain(&op.op, &values, i) });
         out
     }
@@ -484,7 +484,7 @@ impl<'r, const N: usize> Layout<'r, N> {
     /// keeping the spread, unless the press moves it alone. `click` is a release that was not a drag: Alt does not
     /// scale it.
     fn moved(&self, anchor: &[Mixed<f64>; N], press: Press, state: &PressState, click: bool) -> [Mixed<f64>; N] {
-        let mut out = anchor.clone();
+        let mut out = *anchor;
         let Some((origin, pos)) = track::pointer(state) else { return out };
         let Some(i) = press.thumb(origin.x, pos.x) else { return out };
         if press.grabs() && pos.x == origin.x {

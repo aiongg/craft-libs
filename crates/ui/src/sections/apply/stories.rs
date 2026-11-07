@@ -16,10 +16,10 @@ fn toggle_apply(fixture: &mut Fixture) {
 
 #[story(ApplyRow<'static>, covers = [Default], drive = Drive::Custom(toggle_apply))]
 fn apply_row(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    let value = data.value("opacity", Mixed::<Option<f64>>::Mixed).clone();
+    let value = *data.value("opacity", Mixed::<Option<f64>>::Mixed);
     ApplyRow::new("Opacity", Bind::bound(data.value("apply", false)))
         .show(ui, |ui, _| {
-            NumberField::new("Opacity", Bind::given(value.clone())).show(ui);
+            NumberField::new("Opacity", Bind::given(value)).show(ui);
         })
         .into()
 }

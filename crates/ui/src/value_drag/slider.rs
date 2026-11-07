@@ -212,7 +212,7 @@ impl Component for Slider<'_> {
         let at = |position: f64| marks.snapped(&scale, length, position).unwrap_or_else(|| scale.snap(scale.at_position(position)));
         let current = |cx: &Cx<'_, Self>| cx.value().copied().unwrap_or_else(|| scale.middle());
         let flow = cx.flow;
-        let press_at = |cx: &Cx<'_, Self>, x: f32| pick.press(&[thumb_rect(&scale, current(&*cx), area, flow).center().x], x);
+        let press_at = |cx: &Cx<'_, Self>, x: f32| pick.press(&[thumb_rect(&scale, current(cx), area, flow).center().x], x);
         for key in [THUMB, TRACK] {
             let press = cx.part(key).press;
             match press.phase {

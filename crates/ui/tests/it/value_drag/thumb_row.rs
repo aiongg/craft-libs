@@ -78,7 +78,7 @@ fn levels_fixture() -> Fixture {
 }
 
 fn row(fixture: &Fixture) -> [f64; 2] {
-    let row = fixture.data().value("row", Mixed::each([f64::NAN; 2])).clone();
+    let row = *fixture.data().value("row", Mixed::each([f64::NAN; 2]));
     row.map(|part| *part.same().expect("every thumb has a number"))
 }
 
@@ -168,7 +168,7 @@ fn a_key_on_a_mixed_thumb_sets_that_thumb_alone() {
     fixture.idle(2);
     fixture.key(Key::ArrowRight, Modifiers::NONE);
     fixture.idle(2);
-    let row = fixture.data().value("mixed", [Mixed::<f64>::Mixed, Mixed::Mixed]).clone();
+    let row = *fixture.data().value("mixed", [Mixed::<f64>::Mixed, Mixed::Mixed]);
     let stepped = [Mixed::Same(1.0), Mixed::Mixed];
     assert_eq!(row, stepped, "the first thumb steps from the start of its range; the second stays mixed");
 }

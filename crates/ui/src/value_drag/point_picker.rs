@@ -240,7 +240,7 @@ fn arrow(mv: NavMove, rtl: bool) -> Option<(usize, f64)> {
 
 /// `value` with `axis` set to `to`; the other axis stays as it is, mixed or not.
 fn with_axis(value: &[Mixed<f64>; 2], axis: usize, to: f64) -> [Mixed<f64>; 2] {
-    let mut next = value.clone();
+    let mut next = *value;
     next[axis] = Mixed::Same(to);
     next
 }
@@ -329,19 +329,19 @@ impl Component for PointPicker<'_> {
             let Some((axis, toward)) = arrow(mv, rtl).filter(|_| !running) else { continue };
             let from = self.placed(&now)[axis];
             now = with_axis(&now, axis, self.stepped(axis, from, toward, mods));
-            cx.set(now.clone());
+            cx.set(now);
         }
         if let Some(wheel) = cx.take_wheel()
             && !running
             && let Some((axis, next)) = self.wheeled(&wheel, self.placed(&now))
         {
             now = with_axis(&now, axis, next);
-            cx.set(now.clone());
+            cx.set(now);
         }
         for (axis, key) in AXES.into_iter().enumerate() {
             if let Some(next) = cx.intents().take_set_value_at(key).filter(|next| next.is_finite() && !running) {
                 now = with_axis(&now, axis, self.settle(axis, next, self.grid(false)));
-                cx.set(now.clone());
+                cx.set(now);
             }
         }
         while let Some(request) = cx.intents().take_access() {
@@ -354,7 +354,7 @@ impl Component for PointPicker<'_> {
             if !running {
                 let from = self.placed(&now)[axis];
                 now = with_axis(&now, axis, self.settle(axis, from + steps * self.small(axis), self.grid(false)));
-                cx.set(now.clone());
+                cx.set(now);
             }
         }
     }
