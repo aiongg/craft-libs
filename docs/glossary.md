@@ -21,6 +21,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `Bind<T>` | The one value binding | `craft_ui::contract` | 10.2 |
 | `BindMut<T>` | A reborrowed `Bind<T>` that `bind()`, `open()`, `scroll()` and `selection()` return | `craft_ui::contract` | 10.2 |
 | Body | The caller's closure that a container shows, its one caller region | — | 16.3 |
+| `BarItems`, `BarItem` | A leaf inside a `Bar`'s body that shows command items in a strip and overflows them by `fit` into a menu of command rows | the bar family | 20.3 |
 | `BodyCx` | The non-generic context a body closure, header, footer or empty hook and popup content receive, as `&mut` | `craft_ui::contract` | 1.5 |
 | `BodyLayout`, `RowAlign` | How the body step lays out a body (`ContainerProps.layout`) | `craft_ui::contract` | 6.3, 16.2 |
 | `CancelReason` | Why a gesture or press was cancelled (`Refused`, `Dismissed`, `HostChanged`, `UndoDuringGesture`, ...) | craft-behavior | 10.2 |
@@ -57,7 +58,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `ControlMetrics` | Height, icon, horizontal padding and gap per `ControlSize`, read from a craft-theme `BySize` table to build `Metrics` | craft-behavior | 4.3 |
 | `ControlSize` | The control size scale `BySize` tables are read by | craft-theme | Overview, 2.1 |
 | `Corners` | Which corners of a surface are rounded | `craft_ui::style` | 4.3 |
-| Cursor service | The service that picks the winning cursor request in the end hook and records it as data | `craft_ui::runtime::cursor` | 8.5 |
+| `CursorHost` | The `runtime::cursor` service that picks the winning cursor request in the end hook and records it as data | `craft_ui::runtime::cursor` | 8.5 |
 | `Cursor`, `PaintedCursor`, `CursorBadge`, `CursorPriority` | A cursor request (system or painted), a painted cursor's shape, its badge, and the request's priority | craft-behavior | 8.5 |
 | `CustomVariant` | A `const` variant built for one component's `StyleKey` with a crate-prefixed id and a look function over semantic tokens | craft-theme | 4.4 |
 | `CxCore`, `Cx` | The per-show interaction context | `craft_ui::contract` | 1.5 |
@@ -92,7 +93,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `EnvView` | The view of `Env` that component code reads | `craft_ui::runtime::env` | 2.1 |
 | Face | An instance of a component painted by another component's `paint` as the look of one of its parts, with `PaintUi::face` | — | 5.3, 20.1 |
 | Field container | `Field` | `craft_ui` form family | 20.1, 20.3 |
-| `LabelKind`, `FieldLayout` | A field's label kind and its layout | `craft_ui::contract` | 20.3 |
+| `Help`, `LabelKind`, `FieldLayout` | A field's help text, its label's kind and its layout | `craft_ui` form family | 20.3 |
 | `Fired`, `FireSource`, `FirePhase` | One fired command in the queue | `craft_ui::runtime::commands` | 11.3 |
 | `Flags` | Value-driven and interaction flags, merged at step 12 | craft-theme | 4.1 |
 | `Flow` | Start and end geometry resolved once for the layout direction | craft-behavior | 6.2 |
@@ -154,7 +155,7 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | Layer | One of the architecture layers 0 to 8 | — | Overview |
 | Layer stack | The runtime's per-viewport record of shown egui layers and their order | `craft_ui::runtime` | 15.2 |
 | `Arrangement`, `arrange` | A logical custom placement for a body's keyed children, and the function that measures, mirrors (unless `mirrors()` is false) and shows them once | craft-behavior (`Arrangement`), `craft_ui::layout` (`arrange`) | 6.3 |
-| Layout memory | Values measured in one pass and read in the next, with the tolerance rule for discard passes | `craft_ui::runtime::layout_memory` | 6.3 |
+| `LayoutMemory` | Values measured in one pass and read in the next, with size tweens and the tolerance rule for discard passes | `craft_ui::runtime` | 6.3 |
 | Leaf | A component with neither body nor items | — | 1.1 |
 | Lifetime | How long a memory slot lives | `craft_ui::runtime::memory` | 7.2 |
 | Lock rule | No app-supplied code runs while a runtime or context lock is held | `craft_ui::runtime` | 7.2 |
@@ -230,8 +231,9 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `Role` | A component's or sub-node's AccessKit role | `craft_ui::runtime::access` | 12.1 |
 | `RootEnv` | The app's root values each frame | `craft_ui::runtime::env` | 2.3 |
 | `Roving` | A roving group | `craft_ui::runtime::focus` | 9.5 |
-| `RowState` | An item's row facts from the collection | `craft_ui::contract` | 17.2, 17.5 |
-| Row shape | The theme's row drawing shape (`shape.rows`): `Divided` or `Rounded` | `craft_theme::RowStyle` | 4.6 |
+| `RowState`, `RowScope` | An item's row facts from the collection | `craft_ui::contract` | 17.2, 17.5 |
+| `RowShape` | The theme's row drawing shape | craft-theme | 4.6 |
+| `RowStyle` | `ListRow`'s style struct, read with the theme's `RowShape` | the list family | 17.7 |
 | `runtime::toast::post` | Posts a toast from any code with a `Context` | `craft_ui::runtime::toast` | 15.5 |
 | `SaveKey` | A crate-prefixed key for the saved lifetime, never derived from an id | `craft_ui::runtime::memory` | 7.2 |
 | `ScopeKind`, `CancelRule`, `Initial`, `EnterRule` | A focus scope's kind, Escape rule, initial focus and Enter rule | craft-behavior (`ScopeKind`, `CancelRule`), `craft_ui::runtime::focus` (`Initial`, `EnterRule`) | 9.4 |
@@ -272,9 +274,9 @@ One row per name in the author table (Overview) and per `pub` item a component a
 | `SurfaceKind` | The surface a container or part sits on (`Panel`, `Raised`, `Well`, `Popup`, ...), which picks fill, edge, shadow and ink | `craft_ui::style` | 5.2 |
 | `TextKey`, `Codec` | The key of a text part and the conversion between its text and value | `craft_ui::primitives` (`TextKey`), craft-behavior (`Codec`) | 18.2 |
 | `TextPos` | A position in an editor's visible lines | craft-behavior | 18.4 |
-| `TextOptions`, `Completer`, `Completion` | A text part's options, and the trait and candidate type of its completion list | `craft_ui::primitives` (text adapter) | 18.2 |
+| `TextOptions`, `SpanStyler`, `Completer`, `Completion` | A text part's options, the trait that colours text spans, and the trait and candidate type of its completion list | `craft_ui::primitives` (text adapter) | 18.2 |
 | `TextOutcome` | A text part's result this pass, with its `TextLayout`, from `cx.text(&key)` | `craft_ui::primitives` | 18.2 |
-| Text methods | `MeasureCx::layout`, `Cx::text`, `Cx::editor_input` and `Cx::editor_state`: layout, text outcomes and the editor stream and state | `craft_ui::contract` | 1.5, 18 |
+| `TextParts` | The `Cx` trait for `layout`, text outcomes and the editor stream and state | `craft_ui::contract` | 1.5, 18 |
 | `TextRun`, `TextLayout` | The one description of UI text, and its laid-out form | `craft_ui::primitives` | 5.2 |
 | `TextureCache` | The one texture path | `craft_ui::primitives::textures` | 5.5 |
 | `ThemeScope` | Token-changing values (mode, contrast, a named theme, density, text size) for a container's body | `craft_ui::runtime::env` | 2.3 |
