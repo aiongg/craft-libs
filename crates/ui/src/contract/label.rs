@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, IconId, Intent, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{ColumnWidth, Flow, IconId, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
 use egui::{Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 
