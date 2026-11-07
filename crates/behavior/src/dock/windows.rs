@@ -1,12 +1,12 @@
 //! Multi-window document host: the floating document windows Window › Arrange makes (Float in
 //! Window, Float All, New Window for Document) and their return to tabs. Each window is a
-//! [`Floating`] of the dock whose root holds a document group.
+//! [`Floating`](super::Floating) of the dock whose root holds a document group.
 
 use std::hash::Hash;
 
 use emath::{Rect, Vec2};
 
-use super::{action::Action, arrange::cascade_rects, layout::Layout, node::Floating};
+use super::{action::Action, arrange::cascade_rects, layout::Layout};
 
 /// A document group: the documents in one tab strip, one of them shown.
 #[derive(Clone, Debug, PartialEq)]

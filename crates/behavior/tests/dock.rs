@@ -9,6 +9,10 @@ use serde_json::json;
 
 const WINDOW: Rect = Rect::from_min_max(Pos2::new(100.0, 100.0), Pos2::new(400.0, 500.0));
 
+fn area(x: f32, y: f32, width: f32, height: f32) -> Rect {
+    Rect::from_min_size(Pos2::new(x, y), Vec2::new(width, height))
+}
+
 fn g(panels: &[u32], active: usize) -> Group<u32> {
     Group::new(panels.to_vec(), active)
 }
@@ -78,7 +82,7 @@ fn validation_rejects_bad_floating_windows_and_duplicate_panels() {
     docked_window.floating[0].root = Node::dock(DockEdge::End, vec![Column::new(vec![g(&[6, 7], 0)], 100.0)]);
     assert_eq!(docked_window.validate(), Err(DockError::InvalidPlacement));
     let mut native = docked();
-    native.floating[0].native = Some([0.0, 0.0, -1.0, 10.0]);
+    native.floating[0].native = Some(area(0.0, 0.0, -1.0, 10.0));
     assert_eq!(native.validate(), Err(DockError::InvalidGeometry));
     let mut monitor = docked();
     monitor.floating[0].monitor = Some(Monitor::new(None, Rect::from_min_size(Pos2::ZERO, Vec2::new(1920.0, 1080.0)), f32::NAN));
@@ -113,7 +117,10 @@ fn without(skip: Option<u32>) -> Layout<u32> {
     let columns: Vec<Column<u32>> = [Column::new(a, 180.0), b].into_iter().filter(|c| !c.groups.is_empty()).collect();
     let end = Node::dock(DockEdge::End, columns);
     let windows: Vec<Group<u32>> = [group(&[6], 0), tall].into_iter().flatten().collect();
-    Layout::new(Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)), vec![Floating::stack(windows, [10.0, 10.0, 200.0, 300.0]).unwrap()])
+    Layout::new(
+        Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1], 0), end)),
+        vec![Floating::stack(windows, area(10.0, 10.0, 200.0, 300.0)).unwrap()],
+    )
 }
 
 #[test]
@@ -244,7 +251,7 @@ fn a_layout_saved_with_the_physical_names_loads_and_writes_back_in_reading_order
     layout.validate().unwrap();
     let expected = Layout::new(
         Some(hsplit(SplitSize::FixedSecond(300.0), tabs(&[1, 2], 1), Node::dock(DockEdge::End, vec![Column::new(vec![g(&[3], 0)], 180.0)]))),
-        vec![Floating::single(vec![4], 0, [1.0, 2.0, 300.0, 200.0]).with_id(5)],
+        vec![Floating::single(vec![4], 0, area(1.0, 2.0, 300.0, 200.0)).with_id(5)],
     );
     assert_eq!(layout, expected);
     let written = serde_json::to_value(&layout).unwrap();
