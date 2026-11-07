@@ -52,7 +52,7 @@ name = "MenuBarLabels"
 old = "craft_ui::menu::bar::MenuBarLabels"
 new = ""
 status = "removed"
-note = "Replaced by the word set `craft_ui::menu::MenuBarWords`, read from the scope's words read from the scope's words; `more`, `all`, `search` and `no_matches` remain, `clear` and the scroll labels belong to the controls that show them."
+note = "Replaced by the word set `craft_ui::menu::MenuBarWords`, read from the scope's words; `more`, `all`, `search` and `no_matches` remain, `clear` and the scroll labels belong to the controls that show them."
 
 [[type]]
 name = "MenuBarResponse"
