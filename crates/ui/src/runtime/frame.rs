@@ -90,13 +90,14 @@ struct FrameState {
 /// Records of one runtime service, one per viewport. A viewport egui stops reporting has its record dropped
 /// at once, by the frame loop's end hook.
 pub(crate) struct PerViewport<T> {
-    records: HashMap<ViewportId, T>,
+    /// One or two entries: a linear search beats hashing.
+    records: Vec<(ViewportId, T)>,
     pruning: bool,
 }
 
 impl<T> Default for PerViewport<T> {
     fn default() -> Self {
-        PerViewport { records: HashMap::new(), pruning: false }
+        PerViewport { records: Vec::new(), pruning: false }
     }
 }
 
@@ -115,13 +116,25 @@ pub(crate) struct Stamped<T> {
     value: T,
 }
 
+impl<T: Default> PerViewport<T> {
+    fn record(&mut self, viewport: ViewportId) -> &mut T {
+        let at = match self.records.iter().position(|(id, _)| *id == viewport) {
+            Some(at) => at,
+            None => {
+                self.records.push((viewport, T::default()));
+                self.records.len() - 1
+            }
+        };
+        &mut self.records[at].1
+    }
+}
+
 impl<T: Default + Send + 'static> PerViewport<T> {
     /// Runs `f` on the record of `viewport`, created on first use.
     pub(crate) fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut T) -> R) -> R {
         let service = Service::<PerViewport<T>>::of(ctx);
         // The prune registration runs outside the service's lock: it reaches the context.
-        let (registered, out) =
-            service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.records.entry(viewport).or_default())));
+        let (registered, out) = service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.record(viewport))));
         if !registered {
             Self::register_prune(ctx);
         }
@@ -130,7 +143,7 @@ impl<T: Default + Send + 'static> PerViewport<T> {
 
     fn register_prune(ctx: &Context) {
         fn prune<T: Default + Send + 'static>(ctx: &Context, live: &[ViewportId]) {
-            Service::<PerViewport<T>>::of(ctx).with(|records| records.records.retain(|viewport, _| live.contains(viewport)));
+            Service::<PerViewport<T>>::of(ctx).with(|records| records.records.retain(|(viewport, _)| live.contains(viewport)));
         }
         register_prune(ctx, TypeId::of::<T>(), prune::<T>);
     }
