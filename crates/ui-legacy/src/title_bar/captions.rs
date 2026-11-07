@@ -26,12 +26,14 @@ pub enum Caption {
     Close,
 }
 
-impl From<Button> for Caption {
-    fn from(b: Button) -> Self {
+impl Caption {
+    /// The caption for a window button; `None` for a button this bar doesn't draw.
+    fn of(b: Button) -> Option<Self> {
         match b {
-            Button::Minimize => Self::Minimize,
-            Button::Maximize => Self::Maximize,
-            Button::Close => Self::Close,
+            Button::Minimize => Some(Self::Minimize),
+            Button::Maximize => Some(Self::Maximize),
+            Button::Close => Some(Self::Close),
+            _ => None,
         }
     }
 }
@@ -129,7 +131,7 @@ pub(crate) fn metrics(family: CaptionFamily) -> (f32, f32, f32) {
 /// The buttons at the (left, right) ends, left to right. A right-to-left UI mirrors the Windows
 /// captions; the Linux desktops' layouts are the user's and stay as set.
 pub(crate) fn arranged(captions: &Captions, rtl: bool) -> (Vec<Caption>, Vec<Caption>) {
-    let side = |s: &[Button]| s.iter().map(|&b| Caption::from(b)).collect::<Vec<_>>();
+    let side = |s: &[Button]| s.iter().filter_map(|&b| Caption::of(b)).collect::<Vec<_>>();
     let (mut left, mut right) = (side(&captions.layout.left), side(&captions.layout.right));
     if rtl && captions.family == CaptionFamily::Windows {
         std::mem::swap(&mut left, &mut right);
