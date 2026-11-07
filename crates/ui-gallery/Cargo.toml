@@ -27,3 +27,17 @@ eframe = { version = "0.37", default-features = false }
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
+
+# The theme workspace.
+craft-behavior = { workspace = true }
+
+[dev-dependencies]
+libtest-mimic = "0.8"
+
+[lib]
+path = "src/lib.rs"
+
+[[test]]
+name = "it"
+path = "tests/it/main.rs"
+harness = false
