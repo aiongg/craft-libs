@@ -384,7 +384,6 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         let mut events: Vec<PresetEvent<K>> = Vec::new();
 
         if toolbar {
-            let tree = view_lock.unwrap_or(local.view) == PresetView::List;
             let modes = [
                 Entry::new(PresetView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
                 Entry::new(PresetView::List, words.list_view.clone()).icon(IconId::new("list")),
@@ -392,7 +391,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
             let locked = view_lock.is_some();
             let _ = Bar::new(Label::Empty, BarKind::Tool).show(ui, |ui, _| {
                 let field = TextField::search(words.search.clone(), Bind::bound(&mut local.filter)).placeholder(words.search.clone());
-                let field = if tree { field.drives_tree(list_id) } else { field.drives(list_id) };
+                let field = field.drives(list_id);
                 field.show(ui);
                 if !locked {
                     Segmented::new(words.view.clone(), Bind::bound(&mut local.view), &modes).show(ui);

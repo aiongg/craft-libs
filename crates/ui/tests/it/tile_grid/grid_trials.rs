@@ -249,10 +249,10 @@ fn activate_on_click_reports_the_clicked_tile() {
     assert_eq!(seen.borrow().selection.lead, Some(2));
 }
 
-/// A focused group header takes the keys of its row: Left closes an open group, Right opens a closed one, and Enter
-/// picks the group.
+/// Group headers are rows of the grid's outline: Down from the last tile row of a group lands on the next header,
+/// Up from the first tile row lands on the group's own header, and a header takes Left, Right and Enter.
 #[trial]
-fn a_focused_group_header_collapses_opens_and_picks_by_key() {
+fn group_headers_are_rows_of_the_outline_with_their_own_keys() {
     let groups: &'static [TileGroup] = Box::leak(Box::new([TileGroup::new(0, 6, "First"), TileGroup::new(6, 6, "Second").open(false)]));
     let (mut fixture, seen) = rig(12, move |grid| grid.groups(groups).collapsible(), plain);
     let opened = |seen: &Rc<RefCell<Seen>>| -> Vec<(usize, bool)> {
@@ -262,25 +262,32 @@ fn a_focused_group_header_collapses_opens_and_picks_by_key() {
             .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
             .collect()
     };
-    let header = |fixture: &Fixture, label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} is a node"));
-    let target = header(&fixture, "First");
-    fixture.click(&target);
-    fixture.idle(2);
+    let picked = |seen: &Rc<RefCell<Seen>>| -> Vec<usize> {
+        seen.borrow().grid.iter().filter_map(|event| if let GridEvent::GroupPicked { group, .. } = event { Some(*group) } else { None }).collect()
+    };
+    let press = |fixture: &mut Fixture, key: Key| {
+        fixture.key(key, Modifiers::NONE);
+        fixture.idle(2);
+    };
+
+    click(&mut fixture, "foxtrot");
     seen.borrow_mut().grid.clear();
-    fixture.key(Key::ArrowLeft, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(opened(&seen), [(0, false)], "Left closes the open group");
+    press(&mut fixture, Key::ArrowDown);
+    press(&mut fixture, Key::ArrowRight);
+    assert_eq!(opened(&seen), [(1, true)], "Down from the last tile row of the first group lands on the closed second header, and Right opens it");
+    press(&mut fixture, Key::Enter);
+    assert_eq!(picked(&seen), [1], "Enter picks the header's group");
+    assert!(!seen.borrow().events.iter().any(|event| matches!(event, CollectionEvent::Activate(_))), "the lead tile does not take the Enter");
+
+    press(&mut fixture, Key::ArrowUp);
+    let lead = seen.borrow().selection.lead.expect("Up from a header returns the lead to the tiles");
+    assert_eq!(seen.borrow().card(lead).min.y, seen.borrow().card(5).min.y, "the lead is in the last tile row of the first group");
+
+    click(&mut fixture, "alpha");
     seen.borrow_mut().grid.clear();
-    fixture.key(Key::Enter, Modifiers::NONE);
-    fixture.idle(2);
-    let picked: Vec<_> =
-        seen.borrow().grid.iter().filter_map(|event| if let GridEvent::GroupPicked { group, .. } = event { Some(*group) } else { None }).collect();
-    assert_eq!(picked, [0], "Enter picks the focused group");
-    let target = header(&fixture, "Second");
-    fixture.click(&target);
-    fixture.idle(2);
-    seen.borrow_mut().grid.clear();
-    fixture.key(Key::ArrowRight, Modifiers::NONE);
-    fixture.idle(2);
-    assert_eq!(opened(&seen), [(1, true)], "Right opens the closed group");
+    press(&mut fixture, Key::ArrowUp);
+    press(&mut fixture, Key::ArrowLeft);
+    assert_eq!(opened(&seen), [(0, false)], "Up from the first tile row lands on the group's header, and Left closes it");
+    press(&mut fixture, Key::ArrowDown);
+    assert_eq!(seen.borrow().selection.lead, Some(0), "Down from the header returns to the first tile row");
 }

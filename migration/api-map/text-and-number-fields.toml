@@ -575,5 +575,5 @@ note = "The mixed text is the field's placeholder."
 [[setter]]
 type = "TextField"
 old = "raw `consume_key(ArrowDown)` beside a filter field"
-new = "drives(Id) / drives_tree(Id)"
-note = "The field names the collection that takes its list keys: the id the collection is built with (`Props::id`). Up, Down, Page Up, Page Down and Enter go to it; Home and End (and Left and Right with `drives_tree`) go to it while the field is empty."
+new = "drives(Id)"
+note = "The field names the collection that takes its list keys: the id the collection is built with (`Props::id`). Up, Down, Page Up, Page Down and Enter go to it; Home and End go to it while the field is empty, and Left and Right too when the collection is a tree (the item step records each collection's navigation shape)."

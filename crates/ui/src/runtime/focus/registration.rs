@@ -184,9 +184,7 @@ pub(crate) fn dropdown_target(ctx: &Context, opener: StopKey) -> Option<(Id, Id)
 pub(crate) struct Drive {
     /// The collection that takes the field's list keys.
     pub(crate) list: Id,
-    /// The collection is a tree: Left and Right go to it as well.
-    pub(crate) tree: bool,
-    /// The field holds no text, so Home and End leave the caret and go to the collection.
+    /// The field holds no text, so Home, End and, for a tree, Left and Right leave the caret and go to the collection.
     pub(crate) empty: bool,
     pass: u64,
 }
@@ -196,9 +194,9 @@ fn drive_slot(field: Id) -> Id {
 }
 
 /// Records that the text field `field` drives the collection `list` in this pass.
-pub(crate) fn drive(ctx: &Context, field: Id, list: Id, tree: bool, empty: bool) {
+pub(crate) fn drive(ctx: &Context, field: Id, list: Id, empty: bool) {
     let slot = drive_slot(field);
-    store::put(ctx, slot, Drive { list, tree, empty, pass: crate::runtime::pointer::pass_of(ctx) });
+    store::put(ctx, slot, Drive { list, empty, pass: crate::runtime::pointer::pass_of(ctx) });
     crate::runtime::memory::adopt::<Drive>(ctx, field, slot);
 }
 
@@ -206,4 +204,29 @@ pub(crate) fn drive(ctx: &Context, field: Id, list: Id, tree: bool, empty: bool)
 pub(crate) fn driven(ctx: &Context, field: Id) -> Option<Drive> {
     let drive = store::peek_clone::<Drive>(ctx, drive_slot(field))?;
     (drive.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx)).then_some(drive)
+}
+
+/// Whether a collection navigates as a tree, and the pass that recorded it.
+#[derive(Clone, Copy)]
+struct TreeFact {
+    tree: bool,
+    pass: u64,
+}
+
+fn tree_slot(collection: Id) -> Id {
+    sub(collection, "nav_tree")
+}
+
+/// Records whether the collection `collection` navigates as a tree in this pass: the item step writes it from its
+/// layout, and the key router reads it for the text field that drives the collection.
+pub(crate) fn record_tree(ctx: &Context, collection: Id, tree: bool) {
+    let slot = tree_slot(collection);
+    store::put(ctx, slot, TreeFact { tree, pass: crate::runtime::pointer::pass_of(ctx) });
+    crate::runtime::memory::adopt::<TreeFact>(ctx, collection, slot);
+}
+
+/// Whether the collection `collection` navigated as a tree in this pass or the one before.
+pub(crate) fn is_tree(ctx: &Context, collection: Id) -> bool {
+    store::peek_clone::<TreeFact>(ctx, tree_slot(collection))
+        .is_some_and(|fact| fact.tree && fact.pass.saturating_add(1) >= crate::runtime::pointer::pass_of(ctx))
 }

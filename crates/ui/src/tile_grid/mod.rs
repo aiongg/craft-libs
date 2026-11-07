@@ -4,6 +4,7 @@
 //! rows and columns and reads the tile size from the value a `ThumbnailSlider` edits.
 
 mod grid;
+mod headers;
 mod layout;
 mod slider;
 #[cfg(feature = "testing")]

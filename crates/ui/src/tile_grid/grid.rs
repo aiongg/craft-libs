@@ -1,20 +1,22 @@
 //! `TileGrid`: a collection of `Tile`s in wrapped cards or justified rows, under optional group headers. The item step
 //! does the work: virtualisation, lead and selection rules, arrow, Home, End and page keys over the layout, type-ahead,
 //! drag with drop marks, OS file drops, the rename lifecycle and the context-menu request. The grid adds the layout,
-//! the pinned group headers with their focusable parts and keys, and the rating keys. It owns what its cards have in common: where the
+//! the pinned group headers, which are rows of the grid's outline, and the rating keys. It owns what its cards have in common: where the
 //! caption goes, whether a detail line is reserved, and the zoom.
 
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::layout::{Around, ArrangeSpacing, GridLayout, Recipe, TileGroup, Tiling, arrange, aspects_of};
+use super::headers::{self, HeaderLead, Stop};
+use super::layout::{Around, ArrangeSpacing, GridLayout, Recipe, TileArrangement, TileGroup, Tiling, arrange, aspects_of};
 use super::tile::AroundPicture;
 use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, ColumnKind, ColumnSpec, Common, Component,
-    ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
-    Show as _, Sizing, SpaceAction, ToggleColumn,
+    ContainerProps, Cx, EditResponse, Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role,
+    RowState, SelectMode, Show as _, Sizing, SpaceAction, ToggleColumn,
 };
+use crate::contract::{Move, lead_position, request_move};
 use crate::controls::disclosure::Disclosure;
 use crate::list::{DropTest, ListRow, RowTest, SourceTest};
 use crate::primitives::PaintShape;
@@ -35,6 +37,8 @@ const GROUP: PartKey = PartKey::new("group");
 /// The heading level of a group header: the grid's groups are its top-level sections.
 const GROUP_LEVEL: usize = 1;
 const TOGGLE: PartKey = PartKey::new("group_toggle");
+/// The keyboard path of the header parts: the header is a row of the outline, and the lead on it takes these keys.
+const HEADER_KEYS: &str = "Up and Down move to a group header; Enter picks it and Left and Right close and open it";
 /// The toggle column that carries the tiles' check boxes, so Space toggles the lead tile's check.
 const CHECKS: ColumnKey = ColumnKey::new("check");
 
@@ -225,6 +229,8 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     laid: RefCell<Option<GridLayout>>,
     /// The headers this pass shows, in the grid's layer space: the group, its rect and whether it is pinned.
     placed: Vec<Placed>,
+    /// The group header that holds the keyboard lead this pass.
+    header_lead: Option<usize>,
     events: Vec<GridEvent<K>>,
 }
 
@@ -261,6 +267,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             takes_files: false,
             laid: RefCell::new(None),
             placed: Vec::new(),
+            header_lead: None,
             events: Vec::new(),
         }
         .label(label)
@@ -340,32 +347,96 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
         layout
     }
 
-    /// The keys of the focused group header: Forward opens a collapsible group and Back closes it, Enter picks the
-    /// group, the context-menu key asks for its menu, and a move along the list hands focus to the tiles.
+    /// The keys of the group headers, which are rows of the grid's outline: Up and Down walk the headers and the
+    /// tile rows, Forward opens a collapsible group and Back closes it, Enter picks the group and the context-menu
+    /// key asks for its menu. Any other move or typed text hands the lead back to the tiles.
     fn header_keys(&mut self, cx: &mut Cx<'_, Self>) {
-        let Some(active) = cx.active_part() else { return };
-        let Some(Placed { group, rect, .. }) = self.placed.iter().copied().find(|placed| GROUP.at(placed.group as u64) == active) else { return };
-        let open = self.groups.get(group).is_some_and(|held| held.open);
-        if self.collapsible {
-            if cx.intents().take_exact(&Intent::Move(NavMove::Forward, MoveMods::PLAIN)) && !open {
-                self.events.push(GridEvent::GroupOpen { group, open: true });
+        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
+        let held = *cx.keep::<HeaderLead>();
+        let tile = lead_position(&ctx, id);
+        let focused = cx.is_focused();
+        let mut group = held.group.filter(|group| focused && *group < self.groups.len() && held.tile == tile);
+        let arrangement = self.laid.borrow().as_ref().and_then(|layout| layout.arrangement().cloned());
+        if let Some(arrangement) = arrangement
+            && focused
+        {
+            group = self.header_turn(cx, &arrangement, group, tile);
+        }
+        self.header_lead = group;
+        *cx.keep::<HeaderLead>() = HeaderLead { group, tile };
+    }
+
+    /// One pass of header keys: the header that holds the lead afterwards.
+    fn header_turn(&mut self, cx: &mut Cx<'_, Self>, arrangement: &TileArrangement, group: Option<usize>, tile: Option<usize>) -> Option<usize> {
+        let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
+        let outline = headers::outline(arrangement);
+        let plain = |mv| Intent::Move(mv, MoveMods::PLAIN);
+        let neighbours = |stop: Stop| {
+            let at = outline.iter().position(|held| *held == stop)?;
+            Some((at.checked_sub(1).map(|before| outline[before]), outline.get(at + 1).copied()))
+        };
+        let reveal = |target: usize| {
+            let rect = arrangement.headers[target];
+            request_move(&ctx, id, Move::Reveal { top: rect.top(), bottom: rect.bottom() });
+        };
+        let Some(group) = group else {
+            let row = arrangement.row_of(tile?)?;
+            let (before, after) = neighbours(Stop::Row(row))?;
+            for (mv, next) in [(NavMove::Up, before), (NavMove::Down, after)] {
+                if let Some(Stop::Header(target)) = next
+                    && cx.intents().take_exact(&plain(mv))
+                {
+                    reveal(target);
+                    return Some(target);
+                }
             }
-            if cx.intents().take_exact(&Intent::Move(NavMove::Back, MoveMods::PLAIN)) && open {
-                self.events.push(GridEvent::GroupOpen { group, open: false });
+            return None;
+        };
+        let open = self.groups.get(group).is_some_and(|held| held.open);
+        for (mv, wants_open) in [(NavMove::Forward, true), (NavMove::Back, false)] {
+            if cx.intents().take_exact(&plain(mv)) && self.collapsible && open != wants_open {
+                self.events.push(GridEvent::GroupOpen { group, open: wants_open });
             }
         }
         // `update_inputs` turned the Enter into the activation; the lead tile does not take it.
-        if cx.core.activation.is_some_and(|activation| activation.by_key) {
-            cx.core.activation = None;
+        if cx.intents().take(Intent::Activate) | cx.core.activation.take_if(|activation| activation.by_key).is_some() {
             self.events.push(GridEvent::GroupPicked { group, mods: Mods::NONE });
         }
-        if cx.intents().take(Intent::ContextMenu) {
+        cx.intents().take(Intent::Space);
+        if cx.intents().take(Intent::ContextMenu)
+            && let Some(Placed { rect, .. }) = self.placed.iter().copied().find(|placed| placed.group == group)
+        {
             let at = if cx.flow.is_rtl() { rect.right_bottom() } else { rect.left_bottom() };
             self.events.push(GridEvent::GroupMenu { group, at });
         }
-        if cx.intents().take_move().is_some() {
-            cx.focus_own();
+        let column = tile.and_then(|at| arrangement.row_of(at).map(|row| at - arrangement.rows[row].tiles.start)).unwrap_or(0);
+        let (before, after) = neighbours(Stop::Header(group))?;
+        for (mv, next) in [(NavMove::Up, before), (NavMove::Down, after)] {
+            if !cx.intents().take_exact(&plain(mv)) {
+                continue;
+            }
+            return match next {
+                Some(Stop::Header(target)) => {
+                    reveal(target);
+                    Some(target)
+                }
+                Some(Stop::Row(row)) => {
+                    let tiles = &arrangement.rows[row].tiles;
+                    request_move(&ctx, id, Move::Lead(tiles.start + column.min(tiles.len() - 1)));
+                    None
+                }
+                None => Some(group),
+            };
         }
+        if let Some((mv, mods)) = cx.intents().take_move() {
+            cx.intents().push(Intent::Move(mv, mods));
+            return None;
+        }
+        if let Some(text) = cx.intents().take_text() {
+            cx.intents().push(Intent::Text(text));
+            return None;
+        }
+        Some(group)
     }
 
     fn group_rect(rect: Rect, view: Rect, rtl: bool) -> Rect {
@@ -393,7 +464,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         TileGridStyle::build(cx)
     }
 
-    /// One part per header in view, over the tiles, and a disclosure part in it when headers collapse.
+    /// One pointer part per header in view, over the tiles, and a disclosure part in it when headers collapse.
     fn parts(&mut self, area: Rect, cx: &mut PartsCx<'_, Self>) {
         self.placed.clear();
         let Some(arrangement) = self.laid.borrow().as_ref().and_then(|layout| layout.arrangement().cloned()) else { return };
@@ -420,10 +491,10 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             }
             self.placed.push(Placed { group, rect, pinned: held });
             let priority = HitPriority::new(HitLevel::Edge, 0);
-            cx.part(GROUP.at(group as u64), rect).sense(Sense::CLICK | Sense::FOCUS).focusable().priority(priority).over();
+            cx.part(GROUP.at(group as u64), rect).sense(Sense::CLICK).priority(priority).over().pointer_only(HEADER_KEYS);
             if self.collapsible {
                 let column = Self::toggle_rect(rect, cx.style, rtl);
-                cx.part(TOGGLE.at(group as u64), column).sense(Sense::CLICK).priority(priority).over().keyboard_via(GROUP);
+                cx.part(TOGGLE.at(group as u64), column).sense(Sense::CLICK).priority(priority).over().pointer_only(HEADER_KEYS);
             }
         }
     }
@@ -504,7 +575,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 draw.fill(&PaintShape::Rect(rect, CornerRadius::ZERO), style.pinned);
                 draw.rule(RuleKind::Divider, rect.left_bottom(), rect.right_bottom());
             }
-            let mut heading = ListRow::new(group.title.clone()).heading().node(false);
+            let lead = RowState { emphasized: self.header_lead == Some(placed.group), ..RowState::default() };
+            let mut heading = ListRow::new(group.title.clone()).heading().node(false).state(lead);
             if !group.detail.is_empty() {
                 heading = heading.trailing(group.detail.clone());
             }

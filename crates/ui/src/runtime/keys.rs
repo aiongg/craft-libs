@@ -616,9 +616,13 @@ fn list_of_field(ctx: &Context, rec: &StopRec) -> Option<Driven> {
         })
     });
     match (focus::registration::driven(ctx, rec.stop.id), layer) {
-        (Some(drive), layer) => {
-            Some(Driven { layer: layer.map(|(layer, _)| layer), list: drive.list, text: false, ends: drive.empty, tree: drive.tree && drive.empty })
-        }
+        (Some(drive), layer) => Some(Driven {
+            layer: layer.map(|(layer, _)| layer),
+            list: drive.list,
+            text: false,
+            ends: drive.empty,
+            tree: drive.empty && focus::registration::is_tree(ctx, drive.list),
+        }),
         (None, Some((_, opener))) => {
             let (layer, list) = focus::registration::dropdown_target(ctx, opener)?;
             Some(Driven { layer: Some(layer), list, text: false, ends: true, tree: false })
