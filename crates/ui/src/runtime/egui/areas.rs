@@ -109,6 +109,11 @@ pub(crate) fn body_transform(at: Pos2, scale: f32, offset: Vec2) -> TSTransform 
     TSTransform::new(at.to_vec2() * (1.0 - scale) + offset, scale)
 }
 
+/// The mapping between the screen and a body zoomed by `scale` about `at` and moved by `offset`.
+pub(crate) fn body_map(at: Pos2, scale: f32, offset: Vec2) -> LayerMap {
+    LayerMap(body_transform(at, scale, offset))
+}
+
 /// An egui layer, as the runtime's shape records name it.
 pub type LayerKey = egui::LayerId;
 
