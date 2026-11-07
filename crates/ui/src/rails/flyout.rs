@@ -229,7 +229,7 @@ impl<T: Value + 'static> Component for FlyoutButton<'_, T> {
             held
         };
         self.open = open;
-        self.double = cx.response.double_clicked();
+        self.double = matches!(cx.press().phase, PressPhase::Down { start, .. } if start.clicks >= 2);
         if activated && enabled && !(held && !self.hold_selects) {
             let tool = &self.tools[shown_at];
             cx.fire(tool.command.clone(), FireSource::Pointer);
