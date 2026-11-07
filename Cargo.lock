@@ -1126,6 +1126,8 @@ dependencies = [
  "craft-keymap",
  "craft-theme",
  "emath",
+ "serde",
+ "serde_json",
  "smallvec",
 ]
 
