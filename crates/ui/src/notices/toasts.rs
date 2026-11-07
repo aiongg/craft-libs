@@ -7,7 +7,7 @@ use crate::runtime::toast::ToastEnd;
 use egui::Ui;
 
 /// The cards of the toast queue. Whoever owns the window root calls `show` once per pass.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, crate::contract::Pattern)]
 pub struct ToastStack;
 
 impl ToastStack {
@@ -27,7 +27,7 @@ impl ToastStack {
                 (None, true) => Some(ToastEnd::Dismissed),
                 (None, false) => None,
             };
-            CardOutcome { hovered: out.response.hovered(), end }
+            CardOutcome::new(out.response.hovered(), end)
         });
     }
 }

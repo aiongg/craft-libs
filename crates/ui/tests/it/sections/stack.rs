@@ -36,7 +36,7 @@ fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
         let rows = stack.rows();
         let shown = stack
             .show(ui, |ui, _| {
-                rows.show(ui, |ui, key, slot| {
+                rows.each(ui, |ui, key, slot| {
                     let out = Section::new(TITLES[usize::from(*key)])
                         .in_stack(slot)
                         .show(ui, |ui, _| {

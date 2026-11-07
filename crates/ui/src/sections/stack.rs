@@ -78,7 +78,7 @@ type SeenRows<K> = Arc<Mutex<Vec<Seen<K>>>>;
 /// or pressing Alt+Up or Alt+Down in a section moves it among the others; the stack reports the move and the app
 /// applies it. A section is moved, never copied.
 ///
-/// The stack is a container: show it with `ShowContainer::show` and fill its body with [`StackRows::show`] from
+/// The stack is a container: show it with `ShowContainer::show` and fill its body with [`StackRows::each`] from
 /// `rows()`.
 #[derive(crate::contract::Component)]
 #[component(container, probe(SectionStack<'static, u8>))]
@@ -100,7 +100,7 @@ pub struct StackRows<'a, K> {
 
 impl<K: Clone + std::hash::Hash> StackRows<'_, K> {
     /// Shows the section of every key in order; `each` shows one as a `Section::in_stack(slot)`.
-    pub fn show(&self, ui: &mut Ui, mut each: impl FnMut(&mut Ui, &K, StackSlot) -> SectionOutput) {
+    pub fn each(&self, ui: &mut Ui, mut each: impl FnMut(&mut Ui, &K, StackSlot) -> SectionOutput) {
         let mut rows = Vec::with_capacity(self.order.len());
         for (index, key) in self.order.iter().enumerate() {
             let slot = StackSlot { position: SetPosition::new(index).of(self.order.len()), salt: slot_hash(key) };
