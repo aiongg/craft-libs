@@ -443,7 +443,9 @@ impl Component for MenuItem<'_> {
         let gap = cx.gap();
         let step = |width: f32| if width > 0.0 { width + gap } else { 0.0 };
         let width = step(columns.mark) + step(columns.icon) + label.x + step(columns.detail) + step(columns.trail);
-        Vec2::new(width, label.y.max(cx.icon()))
+        let padding = cx.style.metrics.padding;
+        let room = cx.room.map(|room| (room - padding.start - padding.end).max(0.0));
+        Vec2::new(room.map_or(width, |room| width.min(room)), label.y.max(cx.icon()))
     }
 
     fn sense(&self) -> Sense {
