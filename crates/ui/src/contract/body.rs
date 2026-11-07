@@ -23,7 +23,6 @@ use craft_behavior::{
     WheelTaker,
 };
 use craft_keymap::{Chord, Key, Mods};
-use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
@@ -115,8 +114,7 @@ struct WindowMode {
 }
 
 /// The arrow chords, with and without Shift, a window mode holds, with the direction each moves.
-const MODE_ARROWS: [(Key, Vec2); 4] =
-    [(Key::Left, Vec2::new(-1.0, 0.0)), (Key::Right, Vec2::new(1.0, 0.0)), (Key::Up, Vec2::new(0.0, -1.0)), (Key::Down, Vec2::new(0.0, 1.0))];
+const MODE_ARROWS: [(Key, [i8; 2]); 4] = [(Key::Left, [-1, 0]), (Key::Right, [1, 0]), (Key::Up, [0, -1]), (Key::Down, [0, 1])];
 
 /// The eight edge and corner grips of a resizable layer, in the order of `GRIPS`: which edges each moves.
 const GRIPS: [(i8, i8, CursorIcon); 8] = [
@@ -211,7 +209,7 @@ pub(super) struct BodyHooks<'b> {
 impl BodyHooks<'_> {
     /// AccessKit scroll actions aimed at the container's node: a page along an axis, or an offset.
     fn access_scroll<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
-        use accesskit::{Action, ActionData};
+        use craft_behavior::{AccessAction as Action, AccessData as ActionData};
         let Some(scroll) = scroll_of(props) else { return };
         let rtl = cx.core.env.direction().is_rtl();
         let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
@@ -275,7 +273,7 @@ impl BodyHooks<'_> {
                     let chord = Chord::new(mods, key);
                     keys::capture(&ctx, id, chord);
                     while keys::take_claimed(&ctx, id, chord) {
-                        let delta = direction * step * scale;
+                        let delta = Vec2::new(f32::from(direction[0]), f32::from(direction[1])) * step * scale;
                         let mut pos = placement.pos.map_or(rect.min, Pos2::from);
                         let mut size = placement.size.map_or(rect.size(), Vec2::from);
                         match kind {

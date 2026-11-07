@@ -152,7 +152,7 @@ pub fn attach(response: &egui::Response, tooltip: &Tooltip) {
         rich: None,
         spec: Some(spec),
         wants_input: response.hovered() || response.has_focus(),
-        pressed: response.is_pointer_button_down_on(),
+        pressed: crate::runtime::egui::response::is_pressed(response),
         subject: None,
     };
     show_tip(call);

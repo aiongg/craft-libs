@@ -16,14 +16,26 @@ pub enum SelectionChange<K> {
     Clear,
     /// Replaces the selection by the cells of `rows` in `columns`; `lead_column` is the lead cell's column.
     /// A model with no columns selects the rows.
-    Cells {
-        /// The selected rows, from the first to the last of the range.
-        rows: Vec<K>,
-        /// The column positions the range covers.
-        columns: Range<u32>,
-        /// The column of the lead cell.
-        lead_column: ColumnKey,
-    },
+    Cells(CellRange<K>),
+}
+
+/// The cells a [`SelectionChange::Cells`] selects.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct CellRange<K> {
+    /// The selected rows, from the first to the last of the range.
+    pub rows: Vec<K>,
+    /// The column positions the range covers.
+    pub columns: Range<u32>,
+    /// The column of the lead cell.
+    pub lead_column: ColumnKey,
+}
+
+impl<K> CellRange<K> {
+    /// The cells of `rows` in `columns`, with the lead cell in `lead_column`.
+    pub fn new(rows: Vec<K>, columns: Range<u32>, lead_column: ColumnKey) -> Self {
+        Self { rows, columns, lead_column }
+    }
 }
 
 /// The selection a collection reads and the app owns.
@@ -108,7 +120,7 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
                 self.lead = None;
                 self.anchor = None;
             }
-            SelectionChange::Cells { rows, .. } => self.apply(SelectionChange::Set(rows)),
+            SelectionChange::Cells(CellRange { rows, .. }) => self.apply(SelectionChange::Set(rows)),
         }
     }
 }
@@ -153,7 +165,7 @@ impl<K: Value> SelectionModel<K> for CellSelection<K> {
 
     fn apply(&mut self, change: SelectionChange<K>) {
         match change {
-            SelectionChange::Cells { rows, columns, lead_column } => {
+            SelectionChange::Cells(CellRange { rows, columns, lead_column, .. }) => {
                 if let (Some(first), Some(last)) = (rows.first().cloned(), rows.last().cloned()) {
                     self.ranges = vec![(first, last, columns)];
                 }
@@ -209,7 +221,7 @@ mod tests {
     #[test]
     fn a_cell_range_selects_its_rows_and_columns_and_a_row_change_selects_every_column() {
         let mut cells = CellSelection::<u32>::default();
-        cells.apply(SelectionChange::Cells { rows: vec![2, 3], columns: 1..3, lead_column: ColumnKey::new("c") });
+        cells.apply(SelectionChange::Cells(CellRange::new(vec![2, 3], 1..3, ColumnKey::new("c"))));
         assert_eq!((cells.contains_cell(&3, 2), cells.contains_cell(&3, 0), cells.contains_cell(&5, 1)), (true, false, false));
         assert_eq!((cells.lead(), cells.lead_column()), (Some(&3), Some(&ColumnKey::new("c"))));
         cells.apply(SelectionChange::Set(vec![4]));

@@ -397,7 +397,7 @@ impl<C: Container> ShowContainer for C {}
 impl<C: Collection> ShowCollection for C {}
 
 /// The item closure of `ShowCollection::show_items`: one call per visible key.
-pub type ItemFn<'r, C> = dyn FnMut(&<C as Collection>::Key, &mut ItemCx<'_, 'r, <C as Collection>::Key>) -> <C as Collection>::Item<'r>;
+pub type ItemFn<'r, C> = dyn FnMut(&<C as Collection>::Key, &mut ItemCx<'_, 'r, <C as Collection>::Key>) -> <C as Collection>::Item<'r> + 'r;
 
 /// A tooltip closure the pipeline runs at step 16.
 pub(crate) type TipFn<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;

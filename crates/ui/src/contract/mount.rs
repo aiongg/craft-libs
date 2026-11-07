@@ -190,7 +190,7 @@ impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
         let focus = self.focus;
-        let title = env.resolve(&self.title);
+        let title = env.view().resolve(&self.title);
         let open =
             ViewportOpen { id, title: title.as_str(), size: layout_memory::read(&ctx, id), save: self.save.as_deref(), kind: WindowKind::Tool };
         windows::show_viewport(&ctx, &open, |ui| {

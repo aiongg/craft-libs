@@ -38,9 +38,9 @@ pub(crate) fn create_node(ctx: &Context, id: Id) -> bool {
     ctx.accesskit_node_builder(id, |_| ()).is_some()
 }
 
-/// Whether AccessKit is running: nodes are built only then.
-pub(crate) fn enabled(ctx: &Context) -> bool {
-    ctx.is_accesskit_enabled()
+/// Whether AccessKit is running and the widget `id` is visible: nodes are built only then. Creates the node of `id`.
+pub(crate) fn enabled(ctx: &Context, id: Id) -> bool {
+    create_node(ctx, id)
 }
 
 /// Reports `id` as the focused node of this pass.

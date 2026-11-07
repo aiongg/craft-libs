@@ -86,6 +86,8 @@ pub(crate) struct AdapterIn<'a> {
     pub placeholder: Option<&'a str>,
     /// Whether the caret stroke shows, from the blink.
     pub caret_visible: bool,
+    /// The width of the preedit underline.
+    pub underline: f32,
     pub now: f64,
 }
 
@@ -250,6 +252,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
             preedit: preedit.clone(),
             rtl: input.rtl,
             caret_visible: input.caret_visible,
+            underline: input.underline,
         },
     );
     // egui's own IME output is dropped: the engine writes the pass's.

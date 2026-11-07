@@ -27,12 +27,9 @@ pub fn set_window_movable(ctx: &Context, movable: bool) {
 /// A window is told apart by its viewport: the key window is the one whose viewport has focus, so an unfocused
 /// viewport is left as it is. Only a window with a full-size content view and visible window buttons is touched,
 /// because floating panels in their own windows keep their own `movable`, which AppKit also needs to resize them.
-/// macOS only; Apple builds do not run on the dev box, so this compiles by inspection until the Mac builds it.
-#[cfg(target_os = "macos")]
+/// Only a macOS window has a flag to set; elsewhere the call does nothing. Apple builds do not run on the dev box,
+/// so the macOS side compiles by inspection until the Mac builds it.
 pub fn sync_movable(ctx: &Context, applied: &mut Option<bool>) {
-    use objc2::MainThreadMarker;
-    use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
-
     if !viewports::current(ctx).focus_reported {
         return;
     }
@@ -40,12 +37,5 @@ pub fn sync_movable(ctx: &Context, applied: &mut Option<bool>) {
     if *applied == Some(movable) {
         return;
     }
-    // eframe runs the app on the main thread; anywhere else AppKit is out of reach.
-    let Some(mtm) = MainThreadMarker::new() else { return };
-    let Some(window) = NSApplication::sharedApplication(mtm).keyWindow() else { return };
-    let buttons = window.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden());
-    if window.styleMask().contains(NSWindowStyleMask::FullSizeContentView) && buttons {
-        window.setMovable(movable);
-        *applied = Some(movable);
-    }
+    viewports::set_native_movable(movable, applied);
 }

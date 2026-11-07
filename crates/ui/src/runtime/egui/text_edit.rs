@@ -24,6 +24,8 @@ pub(crate) struct Edit<'a> {
     pub rtl: bool,
     /// Whether the caret is drawn in this pass.
     pub caret_visible: bool,
+    /// The width of the preedit underline.
+    pub underline: f32,
 }
 
 /// What the widget did in one pass.
@@ -39,7 +41,7 @@ pub(crate) struct Shown {
 
 /// Runs the widget at `edit.rect`.
 pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
-    let Edit { id, rect, text, read_only, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible } = edit;
+    let Edit { id, rect, text, read_only, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } = edit;
     let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
     let font_id = font.resolve(ui.style());
     let had_focus = ui.memory(|memory| memory.has_focus(id));
@@ -52,7 +54,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
         match preedit.as_ref().filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)) {
             Some(range) => {
                 job.append(&text[..range.start], 0.0, plain.clone());
-                job.append(&text[range.clone()], 0.0, TextFormat { underline: egui::Stroke::new(1.0, ink), ..plain.clone() });
+                job.append(&text[range.clone()], 0.0, TextFormat { underline: egui::Stroke::new(underline, ink), ..plain.clone() });
                 job.append(&text[range.end..], 0.0, plain);
             }
             None => job.append(text, 0.0, plain),
@@ -61,10 +63,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     };
     let hint_text = hint.map(|hint| egui::RichText::new(hint).font(FontId::proportional(font_id.size)));
     let output = ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-        ui.visuals_mut().text_cursor.blink = false;
-        if !caret_visible {
-            ui.visuals_mut().text_cursor.stroke.color = Color32::TRANSPARENT;
-        }
+        super::style::set_text_cursor(ui, caret_visible);
         let mut read = text.as_str();
         macro_rules! build {
             ($buffer:expr) => {{

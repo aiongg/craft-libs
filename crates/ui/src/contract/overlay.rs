@@ -227,7 +227,7 @@ pub struct Opener {
     /// The opener's rect in its layer space.
     pub rect: Rect,
     /// The opener's egui layer: its rect maps to the screen through this layer's transform.
-    pub layer: egui::LayerId,
+    pub layer: areas::Layer,
     /// The trigger.
     pub trigger: Trigger,
 }

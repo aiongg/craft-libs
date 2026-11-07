@@ -57,7 +57,7 @@ struct CompletionState {
 
 /// A text field over a codec: plain text by default.
 #[derive(crate::contract::Component)]
-#[component(probe(TextField<'static, PlainText>))]
+#[component(overlay, probe(TextField<'static, PlainText>))]
 pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     #[common]
     common: Common,
@@ -249,11 +249,13 @@ impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
 const SCRUB_RATE: f64 = 1.0;
 
 /// A number field: a text part over [`NumberCodec`]; empty text is `None`.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 pub struct NumberField<'a> {
     #[common]
     common: Common,
     value: Bind<'a, Option<f64>>,
+    /// The codec, to read another locale's separators or units.
+    #[prop]
     codec: NumberCodec,
     options: TextOptions,
     scrub: bool,
@@ -263,13 +265,6 @@ impl<'a> NumberField<'a> {
     /// A number field named `label`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>) -> Self {
         NumberField { common: Common::new(), value, codec: NumberCodec::default(), options: TextOptions::default(), scrub: false }.label(label)
-    }
-
-    /// The codec, to read another locale's separators or units.
-    #[must_use]
-    pub fn codec(mut self, codec: NumberCodec) -> Self {
-        self.codec = codec;
-        self
     }
 
     /// A drag on the field's side label scrubs the value.

@@ -210,7 +210,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         ShapeKind::Item
     }
 
-    fn host(&mut self, _: &C) -> Box<dyn super::run::Host> {
+    fn host(&mut self, _: &C, _: super::run::HostCx<'_>) -> Box<dyn super::run::Host> {
         Box::new(super::run::Inline)
     }
 

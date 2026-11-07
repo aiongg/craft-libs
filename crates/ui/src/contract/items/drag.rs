@@ -237,7 +237,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let free = matches!(layout.nav(), NavShape::Spatial);
         let phase = cx.core.press.phase;
         match phase {
-            PressPhase::DragStart { start, pos } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
+            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } if start.button == PointerButton::Primary => {
                 let origin = Self::logical(layout, rect, rtl, start.origin);
                 let hit = (start.origin.y >= rect.min.y).then(|| layout.hit(origin, offset)).flatten().filter(|&at| self.source.enabled(at));
                 if self.drags.sweep.is_some() {

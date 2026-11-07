@@ -2,11 +2,11 @@
 //! egui did, so the trials pin the egui behaviours the runtime relies on without calling egui themselves.
 
 use super::fixture;
-use egui::{Area, Context, Event, Id, LayerId, Order, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
+use egui::{Area, Context, Plugin, Event, Id, LayerId, Order, Pos2, RawInput, Rect, Sense, Ui, Vec2, ViewportBuilder, ViewportId};
 use std::sync::{Arc, Mutex};
 
 fn raw(time: f64, events: Vec<Event>) -> RawInput {
-    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(800.0, 600.0))), time: Some(time), events, ..RawInput::default() }
+    RawInput { screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::from([800.0, 600.0]))), time: Some(time), events, ..RawInput::default() }
 }
 
 /// What the plugin hooks of one context saw around a nested immediate viewport.
@@ -28,7 +28,7 @@ enum Entry {
 
 struct Recorder(Arc<Mutex<Vec<Entry>>>);
 
-impl egui::Plugin for Recorder {
+impl Plugin for Recorder {
     fn debug_name(&self) -> &'static str {
         "craft_ui.surface.recorder"
     }
@@ -103,8 +103,8 @@ pub struct PressHits {
 pub fn press_hits() -> PressHits {
     let ctx = fixture::bare_context();
     let (a, b) = (Id::new("craft_ui.surface.a"), Id::new("craft_ui.surface.b"));
-    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0));
-    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), Vec2::splat(40.0));
+    let rect_a = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
+    let rect_b = Rect::from_min_size(Pos2::new(100.0, 10.0), Vec2::from([40.0; 2]));
     let mut show = |ui: &mut Ui| {
         ui.interact(rect_a, a, Sense::click());
         ui.interact(rect_b, b, Sense::click());
@@ -168,7 +168,7 @@ pub fn layer_order() -> LayerOrder {
 pub fn registered_parent_owns_member_node() -> bool {
     let ctx = fixture::bare_context();
     let (parent, member) = (Id::new("craft_ui.surface.parent"), Id::new("craft_ui.surface.member"));
-    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::splat(40.0));
+    let rect = Rect::from_min_size(Pos2::new(10.0, 10.0), Vec2::from([40.0; 2]));
     let mut output = ctx.run_ui(raw(1.0, Vec::new()), |ui| {
         let ctx = ui.ctx().clone();
         ui.interact(rect, parent, Sense::click());

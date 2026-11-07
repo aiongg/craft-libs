@@ -23,6 +23,11 @@ pub(crate) fn filter(tab: bool, horizontal_arrows: bool, vertical_arrows: bool, 
 }
 
 /// The widget egui holds key focus on.
+/// Whether `id` holds egui's keyboard focus.
+pub(crate) fn has_focus(ctx: &Context, id: Id) -> bool {
+    ctx.memory(|memory| memory.has_focus(id))
+}
+
 pub(crate) fn focused(ctx: &Context) -> Option<Id> {
     ctx.memory(|memory| memory.focused())
 }

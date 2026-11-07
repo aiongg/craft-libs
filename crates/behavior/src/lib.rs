@@ -73,7 +73,8 @@ pub use press::{
 pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
 pub use quantity::Reader;
 pub use scroll::{ScrollPos, ScrollSpan};
-pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
+pub use accesskit::{Action as AccessAction, ActionData as AccessData};
+pub use selection::{CellRange, CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use typing::{EditRun, Ended, EscapeRule, Escaped, Typed, TypingRun};

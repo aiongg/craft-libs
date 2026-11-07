@@ -138,7 +138,7 @@ pub(crate) fn paint_while_hidden(ctx: &Context) {
 
 /// The pass number and movable flag the title bar of the running viewport last recorded.
 pub(crate) fn movable_record(ctx: &Context) -> Option<(u64, bool)> {
-    ctx.data(|data| data.get_temp::<(u64, bool)>(movable_id(ctx.viewport_id())))
+    super::memory::peek_clone::<(u64, bool)>(ctx, movable_id(ctx.viewport_id()))
 }
 
 /// The running viewport's pass number.
@@ -149,9 +149,31 @@ pub(crate) fn pass_number(ctx: &Context) -> u64 {
 /// Records the movable flag of the running viewport's title bar for this pass.
 pub(crate) fn write_movable(ctx: &Context, movable: bool) {
     let (pass, id) = (ctx.cumulative_pass_nr(), movable_id(ctx.viewport_id()));
-    ctx.data_mut(|data| data.insert_temp(id, (pass, movable)));
+    super::memory::put(ctx, id, (pass, movable));
 }
 
 fn movable_id(viewport: ViewportId) -> egui::Id {
     egui::Id::new(("craft_ui.title_bar.movable", viewport))
+}
+
+/// Sets the `movable` flag of the key window when it has a full-size content view and visible window buttons;
+/// floating panels in their own windows keep their own flag, which AppKit also needs to resize them. `applied`
+/// holds the value last set. Does nothing off macOS.
+pub(crate) fn set_native_movable(movable: bool, applied: &mut Option<bool>) {
+    #[cfg(target_os = "macos")]
+    {
+        use objc2::MainThreadMarker;
+        use objc2_app_kit::{NSApplication, NSWindowButton, NSWindowStyleMask};
+
+        // eframe runs the app on the main thread; anywhere else AppKit is out of reach.
+        let Some(mtm) = MainThreadMarker::new() else { return };
+        let Some(window) = NSApplication::sharedApplication(mtm).keyWindow() else { return };
+        let buttons = window.standardWindowButton(NSWindowButton::CloseButton).is_some_and(|close| !close.isHidden());
+        if window.styleMask().contains(NSWindowStyleMask::FullSizeContentView) && buttons {
+            window.setMovable(movable);
+            *applied = Some(movable);
+        }
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = (movable, applied);
 }

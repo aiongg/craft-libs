@@ -246,7 +246,7 @@ pub(crate) fn set_os(ctx: &Context, os: craft_host::target::Os) {
     ctx.set_os(match os {
         craft_host::target::Os::Mac => egui::os::OperatingSystem::Mac,
         craft_host::target::Os::Windows => egui::os::OperatingSystem::Windows,
-        craft_host::target::Os::Linux => egui::os::OperatingSystem::Nix,
+        _ => egui::os::OperatingSystem::Nix,
     });
 }
 
@@ -266,7 +266,7 @@ pub(crate) fn text_event(text: &str) -> Event {
 }
 
 /// An AccessKit `SetValue` request carrying `text` for the node of `target`.
-pub(crate) fn set_value_request(target: egui::Id, text: &str) -> Event {
+pub fn set_value_request(target: egui::Id, text: &str) -> Event {
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
     Event::AccessKitActionRequest(accesskit::ActionRequest {
         action: accesskit::Action::SetValue,
@@ -278,7 +278,7 @@ pub(crate) fn set_value_request(target: egui::Id, text: &str) -> Event {
 
 /// An AccessKit `SetTextSelection` request for the node of `target`, from character `anchor.1` of the run node
 /// `anchor.0` to character `focus.1` of `focus.0`.
-pub(crate) fn text_selection_request(target: egui::Id, anchor: (egui::Id, usize), focus: (egui::Id, usize)) -> Event {
+pub fn text_selection_request(target: egui::Id, anchor: (egui::Id, usize), focus: (egui::Id, usize)) -> Event {
     let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
     let position = |(node, character_index): (egui::Id, usize)| accesskit::TextPosition { node: node.accesskit_id(), character_index };
     Event::AccessKitActionRequest(accesskit::ActionRequest {

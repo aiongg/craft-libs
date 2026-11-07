@@ -642,7 +642,7 @@ impl Intents {
 
     /// Takes the next AccessKit request that asks a scroll region to scroll, or with `into_view` to show its target.
     pub(crate) fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest> {
-        use accesskit::Action;
+        use craft_behavior::AccessAction as Action;
         let at = self.items.iter().position(|(item, taken)| {
             !taken
                 && matches!(
