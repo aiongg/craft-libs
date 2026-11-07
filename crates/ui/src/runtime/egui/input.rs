@@ -82,6 +82,8 @@ pub(crate) enum KeyEvent {
     Access(Action),
     /// The held modifiers changed.
     Modifiers(craft_keymap::Mods),
+    /// The right Alt key (AltGr on layouts that have it) went down or up, or the window lost focus (up).
+    RightAlt(bool),
     /// Anything else.
     Other,
 }
@@ -96,6 +98,8 @@ pub(crate) fn key_event(event: &Event, os: Os, latin: &[(egui::Key, char)]) -> K
         Some(input)
     };
     match event {
+        Event::Key { physical_key: Some(egui::Key::AltRight), pressed, .. } => KeyEvent::RightAlt(*pressed),
+        Event::WindowFocused(false) => KeyEvent::RightAlt(false),
         Event::Key { pressed: true, repeat, .. } => match read(event) {
             Some(input) => input.typed.map_or(KeyEvent::Other, |key| KeyEvent::Press { key, input, repeat: *repeat }),
             None => KeyEvent::Other,
@@ -323,7 +327,14 @@ pub(crate) fn drop_under_modal(input: &mut RawInput) -> (bool, bool) {
     input.events.retain(|event| {
         let blocked = matches!(
             event,
-            Event::PointerButton { .. } | Event::MouseWheel { .. } | Event::Key { .. } | Event::Text(_) | Event::Copy | Event::Cut | Event::Paste(_) | Event::Touch { .. }
+            Event::PointerButton { .. }
+                | Event::MouseWheel { .. }
+                | Event::Key { .. }
+                | Event::Text(_)
+                | Event::Copy
+                | Event::Cut
+                | Event::Paste(_)
+                | Event::Touch { .. }
         );
         press |= matches!(event, Event::PointerButton { pressed: true, .. });
         !blocked

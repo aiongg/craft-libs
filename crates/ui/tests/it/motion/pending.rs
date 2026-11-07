@@ -132,6 +132,35 @@ fn a_job_that_panics_is_submitted_again() {
     assert_eq!(attempts.load(Ordering::Relaxed), 2);
 }
 
+// A job that always panics is submitted a bounded number of times, then the key shows `Lost`.
+#[trial]
+fn a_job_that_always_panics_ends_lost() {
+    let jobs = Arc::new(ManualJobs::new());
+    let mut frames = Frames::new();
+    frames.host(host_over(jobs.clone()));
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let mut last = Pending::default();
+    for _ in 0..12 {
+        let out = RefCell::new(Pending::default());
+        let counted = attempts.clone();
+        frames.frame(Vec::new(), |ui| {
+            let mut stage = Stage::open(ui.ctx(), global("pending.trial", "always"));
+            let counted = counted.clone();
+            *out.borrow_mut() = stage
+                .pending("k", move || {
+                    counted.fetch_add(1, Ordering::Relaxed);
+                    Job::new(|_, _| -> Result<u32, String> { panic!("always") })
+                })
+                .clone();
+            stage.finish();
+        });
+        jobs.run_all();
+        last = out.into_inner();
+    }
+    assert_eq!(last, Pending::Lost);
+    assert_eq!(attempts.load(Ordering::Relaxed), craft_ui::runtime::pending::LOST_LIMIT as usize, "no further submissions");
+}
+
 /// A `Jobs` that drops what it is given while `refusing` (a thread that could not start).
 struct Refusing {
     refusing: AtomicBool,

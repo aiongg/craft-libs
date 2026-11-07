@@ -85,4 +85,3 @@ impl Component for ToastCard<'_> {
         cx.response.clone()
     }
 }
-

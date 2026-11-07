@@ -27,7 +27,10 @@ pub struct FooterBar {
 impl FooterBar {
     /// A footer bar whose content is its body.
     pub fn body() -> Self {
-        FooterBar { common: Common::new(), props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)) }
+        FooterBar {
+            common: Common::new(),
+            props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)),
+        }
     }
 }
 

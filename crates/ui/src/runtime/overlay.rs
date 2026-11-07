@@ -319,7 +319,11 @@ pub(crate) fn end_pass(ctx: &Context) {
             persist.raised.insert(id, persist.counter);
         };
         let live = |entry: &&OpenEntry| !entry.exiting;
-        let roots: Vec<Id> = current.iter().filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent))).map(|entry| entry.id).collect();
+        let roots: Vec<Id> = current
+            .iter()
+            .filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent)))
+            .map(|entry| entry.id)
+            .collect();
         for root in &roots {
             if !last_ids.contains(root) {
                 stamp(*root, persist);

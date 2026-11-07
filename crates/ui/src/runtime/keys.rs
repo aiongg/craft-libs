@@ -7,8 +7,8 @@ use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
-use craft_behavior::focus::key_owner;
 use crate::runtime::overlay;
+use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
 use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
@@ -78,6 +78,10 @@ struct Batch {
     claimed: Vec<Chord>,
     nav: NavKeys,
     menu: Vec<MenuKey>,
+    /// The latest key press of the pass, which a following text event was typed by.
+    last_press: Option<KeyInput>,
+    /// What this pass's typed text taught: the physical key, the modifiers and the text.
+    learned: Vec<(Key, Mods, String)>,
 }
 
 #[derive(Clone)]
@@ -105,6 +109,8 @@ struct Node {
 struct AltTrack {
     down: bool,
     other_key: bool,
+    /// The right Alt key is down: text typed with it (AltGr) teaches the layout nothing.
+    right: bool,
 }
 
 #[derive(Default)]
@@ -155,6 +161,7 @@ impl Strip<'_> {
         match event {
             KeyEvent::Press { key, input, repeat } => {
                 alt.other_key = true;
+                batch.last_press = Some(input);
                 self.press(batch, key, &input, repeat)
             }
             KeyEvent::Release { input } => {
@@ -165,6 +172,11 @@ impl Strip<'_> {
                 alt.other_key = true;
                 if let Some(press) = batch.shortcuts.last_mut().filter(|shortcut| shortcut.phase == FirePhase::Press) {
                     press.typed = true;
+                }
+                if let Some(input) = batch.last_press.take().filter(|_| !alt.right)
+                    && let Some(physical) = input.physical
+                {
+                    batch.learned.push((physical, input.mods, text.clone()));
                 }
                 batch.texts.push(text);
                 true
@@ -192,10 +204,16 @@ impl Strip<'_> {
                 if !sent {
                     batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None });
                 }
-                true
+                // The event stands for the chord, so the shortcut path is its only reader: egui does not copy or paste
+                // on top of the command.
+                false
             }
             KeyEvent::PointerPress => {
                 alt.other_key = true;
+                true
+            }
+            KeyEvent::RightAlt(down) => {
+                alt.right = down;
                 true
             }
             KeyEvent::Modifiers(held) => {
@@ -312,6 +330,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             };
             strip.event(&mut batch, &mut stage.alt, read)
         });
+        for (physical, mods, text) in std::mem::take(&mut batch.learned) {
+            stage.layout.observe(physical, mods, &text);
+        }
         (batch, visible)
     });
     if let Some(visible) = visible {

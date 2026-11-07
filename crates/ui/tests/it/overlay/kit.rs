@@ -1,9 +1,7 @@
 //! Components for the overlay trials: an opener with one popup and a leaf that records what reaches it.
 
 use craft_behavior::{Metrics, Sense};
-use craft_ui::contract::{
-    CommandSet, Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pointer as _, Props as _, Role, Trigger,
-};
+use craft_ui::contract::{CommandSet, Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pointer as _, Props as _, Role, Trigger};
 use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Response, Vec2};
 use std::cell::{Cell, RefCell};

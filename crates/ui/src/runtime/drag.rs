@@ -234,7 +234,11 @@ pub(crate) fn take_drop<P: 'static>(ctx: &Context, owner: Id, ordinal: u32, op: 
 pub(crate) fn ended<P: 'static>(ctx: &Context, source: Id) -> Option<DropOperation> {
     let frame = pass::root_frame_nr(ctx);
     board(ctx, |board| {
-        board.ended.as_ref().filter(|ended| ended.source == source && ended.payload == TypeId::of::<P>() && ended.frame + 1 == frame).map(|ended| ended.op)
+        board
+            .ended
+            .as_ref()
+            .filter(|ended| ended.source == source && ended.payload == TypeId::of::<P>() && ended.frame + 1 == frame)
+            .map(|ended| ended.op)
     })
 }
 
@@ -245,7 +249,12 @@ pub(crate) fn end_pass(ctx: &Context) {
     let winner = PerViewport::<Targets>::with(ctx, viewport, |targets| {
         // The topmost layer in the order the overlay host handed egui wins, then the target registered last: a target
         // shown later lies over an enclosing one.
-        let best = targets.this.iter().enumerate().max_by_key(|(at, registration)| (areas::layer_position(ctx, registration.layer), *at)).map(|(_, registration)| registration);
+        let best = targets
+            .this
+            .iter()
+            .enumerate()
+            .max_by_key(|(at, registration)| (areas::layer_position(ctx, registration.layer), *at))
+            .map(|(_, registration)| registration);
         let best = best.map(|registration| ((registration.owner, registration.ordinal), registration.mark));
         targets.winner = best.map(|(key, _)| key);
         targets.this.clear();

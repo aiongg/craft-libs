@@ -6,13 +6,13 @@ use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{Adopted, PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
 use crate::runtime::access::{self, FieldLabel, Politeness};
 use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
+use crate::runtime::drag::{self, DragPreview, DropTarget};
+use crate::runtime::egui::areas;
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
 use crate::runtime::memory::{MemoryStage, StageAccess, sealed};
 use crate::runtime::motion::{Driver, Drives};
-use crate::runtime::egui::areas;
-use crate::runtime::drag::{self, DragPreview, DropTarget};
 use crate::runtime::{cursor, frame, pointer, wheel};
 use crate::style::{ComponentStyle as _, Ink, Mix, StateSet, Stateful, UiTokens};
 use craft_behavior::{
@@ -1240,8 +1240,14 @@ impl<C: Component> PartsCx<'_, C> {
         let min_thumb = crate::style::scroll_bar_look(self.measure.tokens).min_thumb;
         let (at, len) = craft_behavior::scroll::thumb(&span, track_length(rect, axis), min_thumb);
         let thumb = thumb_rect(rect, axis, rtl, at, len);
-        self.part(key, rect).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Body, 0)).pointer_only("Page Up and Page Down scroll the region");
-        self.part(key.at(THUMB), thumb).sense(Sense::DRAG).priority(HitPriority::new(HitLevel::Body, 1)).pointer_only("Page Up and Page Down scroll the region");
+        self.part(key, rect)
+            .sense(Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Body, 0))
+            .pointer_only("Page Up and Page Down scroll the region");
+        self.part(key.at(THUMB), thumb)
+            .sense(Sense::DRAG)
+            .priority(HitPriority::new(HitLevel::Body, 1))
+            .pointer_only("Page Up and Page Down scroll the region");
         self.scrolls.push(ScrollDecl { key, axis, rtl, track: rect, thumb, span, min_thumb });
     }
 }

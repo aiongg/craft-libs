@@ -3,7 +3,6 @@
 
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
-use crate::style::ComponentStyle as _;
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Pad, PartsCx, Scroll, Sizing};
 use crate::layout;
@@ -14,9 +13,10 @@ use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, layout_memory, wheel};
+use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::{
-    Axis, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelTaker,
+    Axis, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, Roving, ScrollPos, ScrollSpan, WheelTaker,
 };
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Shape, Stroke, Ui, UiBuilder, Vec2};
@@ -212,7 +212,10 @@ impl<'b> BodyHooks<'b> {
             bars.push((Bar { key: SCROLL_Y, axis: Axis::Y, track }, span));
         }
         if h_on {
-            let track = Rect::from_min_max(Pos2::new(view.min.x, view.max.y - thickness), Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y));
+            let track = Rect::from_min_max(
+                Pos2::new(view.min.x, view.max.y - thickness),
+                Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y),
+            );
             let content = f64::from(ex).max(f64::from(view.width()));
             let span = ScrollSpan::new(0.0..content, self.offset.x..self.offset.x + f64::from(view.width()));
             bars.push((Bar { key: SCROLL_X, axis: Axis::X, track }, span));
@@ -373,7 +376,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             wheel::register(
                 &ctx,
-                WheelTaker::new(pcx.id, view).vertical(props.scroll.is_some_and(|scroll| scroll.vertical_on())).horizontal(props.scroll.is_some_and(|scroll| scroll.horizontal_on())),
+                WheelTaker::new(pcx.id, view)
+                    .vertical(props.scroll.is_some_and(|scroll| scroll.vertical_on()))
+                    .horizontal(props.scroll.is_some_and(|scroll| scroll.horizontal_on())),
             );
         }
         let handle = tokens.tokens().size.handle.sm;
@@ -567,12 +572,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Some(scroll) => {
                         let off = self.offset;
                         let big = super::MAX_EXTENT;
-                        let (width, height) = (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
+                        let (width, height) =
+                            (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
                         let x = if scroll.horizontal_on() { off.x as f32 } else { 0.0 };
                         let min_x = if rtl { at.max.x - width + x } else { at.min.x - x };
                         let max = Rect::from_min_size(Pos2::new(min_x, at.min.y - off.y as f32), Vec2::new(width, height));
                         let layout_of = *body_ui.layout();
-                        let mut region_ui = alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
+                        let mut region_ui =
+                            alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| body(ui, bcx));
                         self.extent = Some(region_ui.min_rect().size());
@@ -591,7 +598,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if props.arena {
                         crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
                     }
-                    let forward = areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: rect.intersect(ui.clip_rect()) };
+                    let forward = areas::Forward {
+                        id: sub(id, "transform"),
+                        sense: response::to_egui(cx.core.root_sense),
+                        rect: rect.intersect(ui.clip_rect()),
+                    };
                     areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
                 None => run(ui, body_rect, &mut bcx),
@@ -633,7 +644,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     let (at, len) = craft_behavior::scroll::thumb(&span, length, look.min_thumb);
                     let thumb = super::cx::thumb_rect(bar.track, bar.axis, rtl, at, len);
                     let enabled = cx.core.resolved.enabled;
-                    let state = super::steps::part_state(cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE), enabled, None);
+                    let state = super::steps::part_state(
+                        cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE),
+                        enabled,
+                        None,
+                    );
                     ui.painter().extend(ScrollBar::shapes(&look, bar.track, thumb, &state));
                 }
             }

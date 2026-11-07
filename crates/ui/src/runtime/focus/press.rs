@@ -75,7 +75,9 @@ impl State {
                 }
                 None => focused.map(Act::Surrender).into_iter().collect(),
             },
-            PressFocus::Unclaimed if focused == self.press.focus_at_begin && !self.in_trapping_scope() => focused.map(Act::Surrender).into_iter().collect(),
+            PressFocus::Unclaimed if focused == self.press.focus_at_begin && !self.in_trapping_scope() => {
+                focused.map(Act::Surrender).into_iter().collect()
+            }
             _ => Vec::new(),
         }
     }

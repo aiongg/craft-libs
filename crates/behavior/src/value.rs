@@ -339,7 +339,17 @@ pub struct Gesture<V> {
 
 impl<V> Default for Gesture<V> {
     fn default() -> Self {
-        Gesture { id: GestureId(0), before: None, proposal: None, last_given: None, emitted: None, held: None, dead: false, cancel_seen: 0, watched: false }
+        Gesture {
+            id: GestureId(0),
+            before: None,
+            proposal: None,
+            last_given: None,
+            emitted: None,
+            held: None,
+            dead: false,
+            cancel_seen: 0,
+            watched: false,
+        }
     }
 }
 

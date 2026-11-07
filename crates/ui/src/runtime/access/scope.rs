@@ -99,7 +99,7 @@ struct Stack(Vec<Scope>);
 
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, kind: Kind) {
-Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None }));
+    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None }));
 }
 
 /// The innermost label scope's label, read by `cx.field_label()`.

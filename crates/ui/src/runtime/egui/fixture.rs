@@ -30,7 +30,10 @@ pub(crate) fn run_viewport_pass(ctx: &Context, time: f64, viewport: egui::Viewpo
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
     let mut input = RawInput { screen_rect: Some(screen), time: Some(time), viewport_id: viewport, ..RawInput::default() };
     for id in [egui::ViewportId::ROOT, viewport] {
-        input.viewports.insert(id, egui::ViewportInfo { parent: (id != egui::ViewportId::ROOT).then_some(egui::ViewportId::ROOT), ..egui::ViewportInfo::default() });
+        input.viewports.insert(
+            id,
+            egui::ViewportInfo { parent: (id != egui::ViewportId::ROOT).then_some(egui::ViewportId::ROOT), ..egui::ViewportInfo::default() },
+        );
     }
     let _ = ctx.run_ui(input, ui);
 }
