@@ -147,7 +147,7 @@ mod stories;
 
 /// Opens the popup of a picker whose face part toggles it, from the keyboard: Enter and Space (an activation by key)
 /// toggle it. A click on the face reaches the popup through the part's `toggles`, so the pointer is not read here.
-pub(super) fn toggle_on_key<C: Component>(cx: &mut Cx<'_, C>, popup: PopupHandle) {
+pub(crate) fn toggle_on_key<C: Component>(cx: &mut Cx<'_, C>, popup: PopupHandle) {
     if cx.activation().is_some_and(|activation| activation.by_key) {
         if popup.is_open(cx) {
             popup.close(cx);

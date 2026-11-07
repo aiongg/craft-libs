@@ -19,21 +19,24 @@ use super::words::PresetWords;
 use crate::bars::{Bar, BarKind};
 use crate::choice::Segmented;
 use crate::contract::{
-    Bind, CollectionEvent, Entry, LeadSource, ListDrag, OpenChange, Pattern, Props, Rename, ReorderMove, ReorderRule, SelectMode, Show as _,
-    ShowCollection as _, ShowContainer as _,
+    Bind, BodyCx, CollectionEvent, Entry, LeadSource, ListDrag, OpenChange, Pattern, Props, Rename, ReorderMove, ReorderRule, SelectMode, Show as _,
+    ShowCollection as _, ShowContainer as _, request_rename,
 };
 use crate::display::Divider;
+use crate::layout_components::Stack;
 use crate::list::{List, ListRow, RowInk, RowTest, ThumbSize};
 use crate::menu::{Menu, MenuItem};
 use crate::notices::{Notice, NoticeLayout};
 use crate::primitives::ContentPainterCx;
 use crate::runtime::env::{Env, Label};
+use crate::runtime::memory::StageAccess;
 use crate::text::TextField;
 use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup, TileZoom};
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, GesturePhase, IconId, ItemSource, Mixed, Selection, SelectionChange};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
 use egui::{Rect, Ui};
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -49,6 +52,12 @@ pub enum PresetItemCommands {
     /// Delete the group and the presets in it.
     #[command(label = "Delete Group")]
     DeleteGroup,
+    /// Rename the preset.
+    #[command(label = "Rename…")]
+    Rename,
+    /// Rename the group.
+    #[command(label = "Rename Group…")]
+    RenameGroup,
 }
 
 /// The zoom from which list rows show their large thumbnail, and the zoom up to which they show the small one.
@@ -66,11 +75,11 @@ impl<'a, K> ThumbPainter<'a, K> {
 }
 
 /// Adds the host's buttons to the footer the browser makes.
-pub struct FooterSetup<'a, K>(Box<dyn for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a>);
+pub struct FooterSetup<'a, K>(Box<dyn for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a>);
 
 impl<'a, K> FooterSetup<'a, K> {
     /// The setup that runs `setup`.
-    pub fn new(setup: impl for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a) -> Self {
+    pub fn new(setup: impl for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K> + 'a) -> Self {
         FooterSetup(Box::new(setup))
     }
 }
@@ -85,7 +94,7 @@ impl<'a, K> FooterSetup<'a, K> {
 ///   a group, and a drag reorders by the `reorder` rules. The host performs the delete, rename and move it is told of.
 /// - **Search.** The toolbar's field keeps the presets whose name matches, with their groups, all open; Up, Down and
 ///   Enter go from the field to the presets.
-/// - **Context menu.** Delete and the host's `extra_items` act on the row the menu was asked for in this pass, else on
+/// - **Row menu.** Rename, Move to, Delete and the host's `extra_items` act on the row the menu was asked for in this pass, else on
 ///   `selected`.
 ///
 /// ```ignore
@@ -114,9 +123,10 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// A row above the presets with the search field and the grid and list buttons.
     #[prop]
     toolbar: bool,
-    /// Whether a secondary click or the context-menu key opens the context menu.
+    /// Whether a secondary click or the context-menu key opens the row menu: Rename, Move to, Delete and the host's
+    /// `extra_items`.
     #[prop]
-    context_menu: bool,
+    row_menu: bool,
     /// Fixes the view, whatever the state says; the toolbar then has no view buttons.
     #[prop]
     view_lock: Option<PresetView>,
@@ -126,6 +136,9 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// Which presets and groups the context menu may delete; its row is disabled for the others.
     #[prop(func = "Fn(&K) -> bool")]
     can_delete: Option<RowTest<'a, K>>,
+    /// Which presets the row menu's Move to may move; the menu has no such row for the others.
+    #[prop(func = "Fn(&K) -> bool")]
+    can_move: Option<RowTest<'a, K>>,
     /// Paints a preset's thumbnail; without it the row's own `preview` paints.
     #[prop(func = "Fn(&ContentPainterCx, Rect, ThumbInfo<'_, K>)")]
     thumb: Option<ThumbPainter<'a, K>>,
@@ -135,7 +148,7 @@ pub struct PresetBrowser<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     extra_items: Vec<Entry<String>>,
     /// A footer under the presets. The closure receives it with the browser's zoom bound to its slider and the count
     /// of presets, and adds the host's buttons and options.
-    #[prop(func = "for<'f> FnOnce(PresetFooter<'f, K>) -> PresetFooter<'f, K>")]
+    #[prop(func = "for<'f> Fn(PresetFooter<'f, K>) -> PresetFooter<'f, K>")]
     footer: Option<FooterSetup<'a, K>>,
 }
 
@@ -152,10 +165,11 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'a, K> {
             thumb_range: TileZoom::Ladder,
             default_open: DefaultOpen::All,
             toolbar: false,
-            context_menu: true,
+            row_menu: true,
             view_lock: None,
             can_rename: None,
             can_delete: None,
+            can_move: None,
             thumb: None,
             reorder: None,
             extra_items: Vec::new(),
@@ -351,22 +365,54 @@ fn seen<K, E>(events: Vec<CollectionEvent<K, E>>) -> Vec<Seen<K>> {
         .collect()
 }
 
+/// The browser's view settings across the passes of its body and footer: the state as read, the state as the
+/// pass changes it, and the events in order. Its binding is written once, by the last region that runs.
+struct Session<'a, K> {
+    state: Bind<'a, PresetState<K>>,
+    before: PresetState<K>,
+    local: PresetState<K>,
+    events: Vec<PresetEvent<K>>,
+}
+
+impl<K: Clone + Eq + Hash + Send + Sync + 'static> Session<'_, K> {
+    /// Starts a pass: reads the state and clears the events of an earlier run of the body.
+    fn begin(&mut self, cx: &mut impl StageAccess, thumb_range: &TileZoom) {
+        self.before = match self.state.reborrow().read(cx) {
+            Some(Mixed::Same(held)) => held,
+            _ => PresetState::new(),
+        };
+        self.local = self.before.clone();
+        self.local.zoom = self.local.zoom_in(thumb_range);
+        self.events.clear();
+    }
+
+    /// Writes the state the pass changed through the binding.
+    fn commit(&mut self, cx: &mut impl StageAccess, rows: &[PresetRow<K>], name: &str) {
+        self.local.retain_groups(rows);
+        if self.local != self.before {
+            let event = EditEvent::set(GestureId::default(), Mixed::Same(self.before.clone()), self.local.clone(), Arc::from(name), None);
+            let _ = self.state.reborrow().write(cx, &event);
+        }
+    }
+}
+
 impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
     /// Shows the browser across the available width and reports what the user did, in order.
     pub fn show(self, ui: &mut Ui) -> PresetOutput<K> {
         let PresetBrowser {
             label,
-            mut state,
+            state,
             rows,
             selected,
             cell_shape,
             thumb_range,
             default_open,
             toolbar,
-            context_menu,
+            row_menu,
             view_lock,
             can_rename,
             can_delete,
+            can_move,
             thumb,
             reorder,
             extra_items,
@@ -374,255 +420,296 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
         } = self;
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
-        let before = match state.reborrow().get() {
-            Some(Mixed::Same(held)) => held,
-            _ => PresetState::new(),
-        };
-        let mut local = before.clone();
-        local.zoom = local.zoom_in(&thumb_range);
         let list_id = ui.scope_id().with("browser-rows");
-        let mut events: Vec<PresetEvent<K>> = Vec::new();
+        let name = label.as_str().to_owned();
+        let has_footer = footer.is_some();
+        let session = RefCell::new(Session { state, before: PresetState::new(), local: PresetState::new(), events: Vec::new() });
 
-        if toolbar {
-            let modes = [
-                Entry::new(PresetView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
-                Entry::new(PresetView::List, words.list_view.clone()).icon(IconId::new("list")),
-            ];
-            let locked = view_lock.is_some();
-            let _ = Bar::new(Label::Empty, BarKind::Tool).show(ui, |ui, _| {
-                let field = TextField::search(words.search.clone(), Bind::bound(&mut local.filter)).placeholder(words.search.clone());
-                let field = field.drives(list_id);
-                field.show(ui);
-                if !locked {
-                    Segmented::new(words.view.clone(), Bind::bound(&mut local.view), &modes).show(ui);
-                }
-            });
-        }
-        let view = view_lock.unwrap_or(local.view);
+        let body = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+            session.borrow_mut().begin(cx, &thumb_range);
+            let mut local = session.borrow().local.clone();
+            let mut events: Vec<PresetEvent<K>> = Vec::new();
 
-        let query = local.filter.trim().to_owned();
-        let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), &query));
-        let shown = shown_rows(rows, &local, default_open, matcher.as_ref());
-        let open_flags: Vec<bool> = {
-            let test = local.open_test(rows, default_open);
-            (0..rows.len()).map(test).collect()
-        };
-        let counted = |at: usize| rows[at].count.map(|n| words.group_count.text(n as u64, &env.format().integer(n as u64)));
-        let selection = selected.clone().map_or_else(|| Selection::new(Vec::new(), None, None), Selection::single);
-        let stamp = query_stamp(&query);
-        let zoom = local.zoom;
-
-        let can_drag = |key: &K| {
-            rows.iter().find(|row| row.key == *key).is_some_and(|row| !row.is_group() || reorder.as_ref().is_some_and(PresetReorder::moves_groups))
-        };
-        let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
-        let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
-        let painter = thumb.as_ref();
-        let paint = |row: &PresetRow<K>, selected: bool| {
-            let key = row.key.clone();
-            let preview = row.preview.clone();
-            move |cx: &ContentPainterCx, rect: Rect, painter: Option<&ThumbPainter<'_, K>>| match (painter, &preview) {
-                (Some(painter), _) => (painter.0)(cx, rect, ThumbInfo::new(&key, selected, false)),
-                (None, Some(preview)) => (preview.paint)(cx, rect),
-                (None, None) => {}
-            }
-        };
-
-        let mut menu_target: Option<K> = None;
-        let mut hovered: Option<K> = None;
-        let (response, displayed, pass) = if shown.is_empty() {
-            let message = if query.is_empty() { words.empty.clone() } else { words.no_match.clone() };
-            let response = Notice::new(Tone::Neutral, message).layout(NoticeLayout::Centred).show(ui).response;
-            (response, Vec::new(), Pass { seen: Vec::new(), grid: Vec::new() })
-        } else if view == PresetView::Grid {
-            let plan = grid_plan(rows, &shown, |at| open_flags[at], counted);
-            let tiles = Shown { rows, at: plan.tiles.clone(), open: vec![false; plan.tiles.len()], tree: false };
-            let captions = if has_captions(rows) { CaptionPlace::Below } else { CaptionPlace::None };
-            let mut grid = TileGrid::<K>::new(label.clone())
-                .id(list_id)
-                .select(SelectMode::Single)
-                .selection(Bind::given(selection))
-                .caption(captions)
-                .aspect(card_aspect(cell_shape))
-                .zoom(zoom as f32)
-                .groups(&plan.groups)
-                .collapsible()
-                .rename(true)
-                .rows_stamp(stamp)
-                .can_rename(&rename_ok)
-                .can_drag(&can_drag)
-                .accepts(&accepts);
-            if reorder.is_some() {
-                grid = grid.reorder(ReorderRule::new());
-            }
-            let aspect = cell_shape.aspect();
-            let out = grid.show_items(ui, &tiles, &mut |_, icx| {
-                let row = &rows[tiles.at[icx.at]];
-                let mut tile = Tile::new(row.label.clone());
-                if let Some(detail) = &row.caption {
-                    tile = tile.detail(detail.clone());
-                }
-                if row.dimmed {
-                    tile = tile.dimmed();
-                }
-                if let Some(tip) = &row.tooltip {
-                    tile = tile.tooltip(tip.clone());
-                }
-                if let Some(name) = &row.accessible_name {
-                    tile = tile.accessible_name(name.clone());
-                }
-                let selected = icx.row.selected;
-                let draw = paint(row, selected);
-                tile.thumb(row.preview.as_ref().map_or(aspect, |preview| preview.aspect), move |cx, rect| draw(cx, rect, painter))
-            });
-            (out.response.response.clone(), plan.tiles.clone(), Pass { seen: seen(out.response.events), grid: out.events })
-        } else {
-            let open: Vec<bool> = shown.iter().map(|&at| open_flags[at]).collect();
-            let source = Shown { rows, at: shown.clone(), open, tree: true };
-            let thumb_size = list_thumb(zoom);
-            let mut list = List::<K>::new(label.clone())
-                .id(list_id)
-                .tree(true)
-                .select(SelectMode::Single)
-                .selection(Bind::given(selection))
-                .rename(true)
-                .rows_stamp(stamp)
-                .can_rename(&rename_ok)
-                .can_drag(&can_drag)
-                .accepts(&accepts);
-            if reorder.is_some() {
-                list = list.reorder(ReorderRule::new());
-            }
-            let aspect = cell_shape.aspect();
-            let out = list.show_items(ui, &source, &mut |_, icx| {
-                let row = &rows[source.at[icx.at]];
-                if row.is_group() {
-                    let mut line = ListRow::new(row.label.clone()).heading().depth(row.depth).group(icx.row.open);
-                    if let Some(detail) = counted(source.at[icx.at]) {
-                        line = line.detail(detail);
+            if toolbar {
+                let modes = [
+                    Entry::new(PresetView::Grid, words.grid_view.clone()).icon(IconId::new("layout-grid")),
+                    Entry::new(PresetView::List, words.list_view.clone()).icon(IconId::new("list")),
+                ];
+                let locked = view_lock.is_some();
+                let _ = Bar::new(Label::Empty, BarKind::Tool).show(ui, |ui, _| {
+                    let field = TextField::search(words.search.clone(), Bind::bound(&mut local.filter)).placeholder(words.search.clone());
+                    let field = field.drives(list_id);
+                    field.show(ui);
+                    if !locked {
+                        Segmented::new(words.view.clone(), Bind::bound(&mut local.view), &modes).show(ui);
                     }
-                    return line;
-                }
-                let mut line = ListRow::new(row.label.clone()).depth(row.depth);
-                if let Some(caption) = &row.caption {
-                    line = line.detail(caption.clone());
-                }
-                if row.dimmed {
-                    line = line.ink(RowInk::Dimmed);
-                }
-                if let Some(tip) = &row.tooltip {
-                    line = line.tooltip(tip.clone());
-                }
-                if let Some(name) = &row.accessible_name {
-                    line = line.accessible_name(name.clone());
-                }
-                let draw = paint(row, icx.row.selected);
-                line.thumb_aspect(thumb_size, row.preview.as_ref().map_or(aspect, |preview| preview.aspect), move |cx, rect| draw(cx, rect, painter))
-            });
-            (out.response.clone(), shown.clone(), Pass { seen: seen(out.events), grid: Vec::new() })
-        };
-
-        let mods = crate::runtime::pointer::frame(ui.ctx()).mods;
-        let row_of = |key: &K| rows.iter().position(|row| row.key == *key);
-        let toggle = |local: &mut PresetState<K>, events: &mut Vec<PresetEvent<K>>, at: usize, open: Option<bool>| {
-            let open = open.unwrap_or_else(|| !local.is_open(rows, at, default_open));
-            let change = OpenChange::new(rows[at].key.clone(), open);
-            local.apply_open(rows, &change, default_open);
-            events.push(PresetEvent::Open(change));
-        };
-        for event in pass.grid {
-            match event {
-                GridEvent::GroupOpen { group, open } => {
-                    if let Some(&at) = grid_group_row(&shown, rows, group) {
-                        toggle(&mut local, &mut events, at, Some(open));
-                    }
-                }
-                GridEvent::GroupPicked { group, .. } => {
-                    if let Some(&at) = grid_group_row(&shown, rows, group) {
-                        toggle(&mut local, &mut events, at, None);
-                    }
-                }
-                GridEvent::GroupMenu { group, .. } => {
-                    menu_target = grid_group_row(&shown, rows, group).map(|&at| rows[at].key.clone());
-                }
-                _ => {}
+                });
             }
-        }
-        for event in pass.seen {
-            match event {
-                Seen::Select(key) => {
-                    if row_of(&key).is_some_and(|at| !rows[at].is_group()) {
-                        events.push(PresetEvent::Select { key, mods });
+            let view = view_lock.unwrap_or(local.view);
+
+            let query = local.filter.trim().to_owned();
+            let matcher = (!query.is_empty()).then(|| Matcher::new(&env.folder(), &query));
+            let shown = shown_rows(rows, &local, default_open, matcher.as_ref());
+            let open_flags: Vec<bool> = {
+                let test = local.open_test(rows, default_open);
+                (0..rows.len()).map(test).collect()
+            };
+            let counted = |at: usize| rows[at].count.map(|n| words.group_count.text(n as u64, &env.format().integer(n as u64)));
+            let selection = selected.clone().map_or_else(|| Selection::new(Vec::new(), None, None), Selection::single);
+            let stamp = query_stamp(&query);
+            let zoom = local.zoom;
+
+            let can_drag = |key: &K| {
+                rows.iter()
+                    .find(|row| row.key == *key)
+                    .is_some_and(|row| !row.is_group() || reorder.as_ref().is_some_and(PresetReorder::moves_groups))
+            };
+            let accepts = |drag: &ListDrag<K>, over: &K, insert: usize| reorder.as_ref().is_some_and(|rules| rules.allows(rows, drag, over, insert));
+            let rename_ok = |key: &K| can_rename.as_ref().is_none_or(|test| test.passes(key));
+            let painter = thumb.as_ref();
+            let paint = |row: &PresetRow<K>, selected: bool| {
+                let key = row.key.clone();
+                let preview = row.preview.clone();
+                move |cx: &ContentPainterCx, rect: Rect, painter: Option<&ThumbPainter<'_, K>>| match (painter, &preview) {
+                    (Some(painter), _) => (painter.0)(cx, rect, ThumbInfo::new(&key, selected, false)),
+                    (None, Some(preview)) => (preview.paint)(cx, rect),
+                    (None, None) => {}
+                }
+            };
+
+            let mut menu_target: Option<K> = None;
+            let mut hovered: Option<K> = None;
+            let (response, displayed, pass) = if shown.is_empty() {
+                let message = if query.is_empty() { words.empty.clone() } else { words.no_match.clone() };
+                let response = Notice::new(Tone::Neutral, message).layout(NoticeLayout::Centred).show(ui).response;
+                (response, Vec::new(), Pass { seen: Vec::new(), grid: Vec::new() })
+            } else if view == PresetView::Grid {
+                let plan = grid_plan(rows, &shown, |at| open_flags[at], counted);
+                let tiles = Shown { rows, at: plan.tiles.clone(), open: vec![false; plan.tiles.len()], tree: false };
+                let captions = if has_captions(rows) { CaptionPlace::Below } else { CaptionPlace::None };
+                let mut grid = TileGrid::<K>::new(label.clone())
+                    .id(list_id)
+                    .select(SelectMode::Single)
+                    .selection(Bind::given(selection))
+                    .caption(captions)
+                    .aspect(card_aspect(cell_shape))
+                    .zoom(zoom as f32)
+                    .groups(&plan.groups)
+                    .collapsible()
+                    .rename(true)
+                    .rows_stamp(stamp)
+                    .can_rename(&rename_ok)
+                    .can_drag(&can_drag)
+                    .accepts(&accepts);
+                if reorder.is_some() {
+                    grid = grid.reorder(ReorderRule::new().into_groups());
+                }
+                let aspect = cell_shape.aspect();
+                let out = grid.show_items(ui, &tiles, &mut |_, icx| {
+                    let row = &rows[tiles.at[icx.at]];
+                    let mut tile = Tile::new(row.label.clone());
+                    if let Some(detail) = &row.caption {
+                        tile = tile.detail(detail.clone());
+                    }
+                    if row.dimmed {
+                        tile = tile.dimmed();
+                    }
+                    if let Some(tip) = &row.tooltip {
+                        tile = tile.tooltip(tip.clone());
+                    }
+                    if let Some(name) = &row.accessible_name {
+                        tile = tile.accessible_name(name.clone());
+                    }
+                    let selected = icx.row.selected;
+                    let draw = paint(row, selected);
+                    tile.thumb(row.preview.as_ref().map_or(aspect, |preview| preview.aspect), move |cx, rect| draw(cx, rect, painter))
+                });
+                (out.response.response.clone(), plan.tiles.clone(), Pass { seen: seen(out.response.events), grid: out.events })
+            } else {
+                let open: Vec<bool> = shown.iter().map(|&at| open_flags[at]).collect();
+                let source = Shown { rows, at: shown.clone(), open, tree: true };
+                let thumb_size = list_thumb(zoom);
+                let mut list = List::<K>::new(label.clone())
+                    .id(list_id)
+                    .tree(true)
+                    .select(SelectMode::Single)
+                    .selection(Bind::given(selection))
+                    .rename(true)
+                    .rows_stamp(stamp)
+                    .can_rename(&rename_ok)
+                    .can_drag(&can_drag)
+                    .accepts(&accepts);
+                if reorder.is_some() {
+                    list = list.reorder(ReorderRule::new().into_groups());
+                }
+                let aspect = cell_shape.aspect();
+                let out = list.show_items(ui, &source, &mut |_, icx| {
+                    let row = &rows[source.at[icx.at]];
+                    if row.is_group() {
+                        let mut line = ListRow::new(row.label.clone()).heading().depth(row.depth).group(icx.row.open);
+                        if let Some(detail) = counted(source.at[icx.at]) {
+                            line = line.detail(detail);
+                        }
+                        return line;
+                    }
+                    let mut line = ListRow::new(row.label.clone()).depth(row.depth);
+                    if let Some(caption) = &row.caption {
+                        line = line.detail(caption.clone());
+                    }
+                    if row.dimmed {
+                        line = line.ink(RowInk::Dimmed);
+                    }
+                    if let Some(tip) = &row.tooltip {
+                        line = line.tooltip(tip.clone());
+                    }
+                    if let Some(name) = &row.accessible_name {
+                        line = line.accessible_name(name.clone());
+                    }
+                    let draw = paint(row, icx.row.selected);
+                    line.thumb_aspect(thumb_size, row.preview.as_ref().map_or(aspect, |preview| preview.aspect), move |cx, rect| {
+                        draw(cx, rect, painter)
+                    })
+                });
+                (out.response.clone(), shown.clone(), Pass { seen: seen(out.events), grid: Vec::new() })
+            };
+
+            let mods = crate::runtime::pointer::frame(ui.ctx()).mods;
+            let row_of = |key: &K| rows.iter().position(|row| row.key == *key);
+            let toggle = |local: &mut PresetState<K>, events: &mut Vec<PresetEvent<K>>, at: usize, open: Option<bool>| {
+                let open = open.unwrap_or_else(|| !local.is_open(rows, at, default_open));
+                let change = OpenChange::new(rows[at].key.clone(), open);
+                local.apply_open(rows, &change, default_open);
+                events.push(PresetEvent::Open(change));
+            };
+            for event in pass.grid {
+                match event {
+                    GridEvent::GroupOpen { group, open } => {
+                        if let Some(&at) = grid_group_row(&shown, rows, group) {
+                            toggle(&mut local, &mut events, at, Some(open));
+                        }
+                    }
+                    GridEvent::GroupPicked { group, .. } => {
+                        if let Some(&at) = grid_group_row(&shown, rows, group) {
+                            toggle(&mut local, &mut events, at, None);
+                        }
+                    }
+                    GridEvent::GroupMenu { group, .. } => {
+                        menu_target = grid_group_row(&shown, rows, group).map(|&at| rows[at].key.clone());
+                    }
+                    _ => {}
+                }
+            }
+            for event in pass.seen {
+                match event {
+                    Seen::Select(key) => {
+                        if row_of(&key).is_some_and(|at| !rows[at].is_group()) {
+                            events.push(PresetEvent::Select { key, mods });
+                        }
+                    }
+                    Seen::Activate(key) => match row_of(&key) {
+                        Some(at) if rows[at].is_group() => toggle(&mut local, &mut events, at, None),
+                        Some(_) => events.push(PresetEvent::Activate { key, mods }),
+                        None => {}
+                    },
+                    Seen::Open(change) => {
+                        local.apply_open(rows, &change, default_open);
+                        events.push(PresetEvent::Open(change));
+                    }
+                    Seen::Menu(key) => menu_target = Some(key),
+                    Seen::Pointer(key) => hovered = row_of(&key).filter(|&at| !rows[at].is_group()).map(|_| key),
+                    Seen::Reorder(edit) => {
+                        let moved = |mv: ReorderMove<K>| {
+                            let to = full_position(rows, &displayed, &mv);
+                            ReorderMove { to, ..mv }
+                        };
+                        events.push(PresetEvent::Reorder(edit.map(moved)));
+                    }
+                    Seen::Rename(edit) => {
+                        let ended = matches!(edit.phase(), Some(GesturePhase::Commit) | None);
+                        if let (true, Some(rename)) = (ended, edit.value()) {
+                            let text = rename.name.trim();
+                            let changed = row_of(&rename.key).is_some_and(|at| rows[at].label != text);
+                            if changed && !text.is_empty() {
+                                events.push(PresetEvent::Rename { key: rename.key.clone(), text: text.to_owned() });
+                            }
+                        }
                     }
                 }
-                Seen::Activate(key) => match row_of(&key) {
-                    Some(at) if rows[at].is_group() => toggle(&mut local, &mut events, at, None),
-                    Some(_) => events.push(PresetEvent::Activate { key, mods }),
-                    None => {}
-                },
-                Seen::Open(change) => {
-                    local.apply_open(rows, &change, default_open);
-                    events.push(PresetEvent::Open(change));
-                }
-                Seen::Menu(key) => menu_target = Some(key),
-                Seen::Pointer(key) => hovered = row_of(&key).filter(|&at| !rows[at].is_group()).map(|_| key),
-                Seen::Reorder(edit) => {
-                    let moved = |mv: ReorderMove<K>| {
-                        let to = full_position(rows, &displayed, &mv);
-                        ReorderMove { to, ..mv }
+            }
+
+            if row_menu && let Some(target) = menu_target.or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
+                let at = row_of(&target).unwrap_or_default();
+                let group = rows[at].is_group();
+                let deletable = can_delete.as_ref().is_none_or(|test| test.passes(&target));
+                let renamable = rename_ok(&target) && (!group || view == PresetView::List);
+                let movable = !group && can_move.as_ref().is_none_or(|test| test.passes(&target));
+                let home = rows[..at].iter().rposition(|row| row.is_group() && row.depth < rows[at].depth);
+                let destinations: Vec<usize> = (0..rows.len()).filter(|&to| rows[to].is_group() && Some(to) != home).collect();
+                let mut ran: Vec<PresetEvent<K>> = Vec::new();
+                let _ = Menu::context(words.menu.clone(), &response).show(ui, |ui, _| {
+                    let (rename, delete) = if group {
+                        (PresetItemCommands::RenameGroup, PresetItemCommands::DeleteGroup)
+                    } else {
+                        (PresetItemCommands::Rename, PresetItemCommands::Delete)
                     };
-                    events.push(PresetEvent::Reorder(edit.map(moved)));
-                }
-                Seen::Rename(edit) => {
-                    let ended = matches!(edit.phase(), Some(GesturePhase::Commit) | None);
-                    if let (true, Some(rename)) = (ended, edit.value()) {
-                        let text = rename.name.trim();
-                        let changed = row_of(&rename.key).is_some_and(|at| rows[at].label != text);
-                        if changed && !text.is_empty() {
-                            events.push(PresetEvent::Rename { key: rename.key.clone(), text: text.to_owned() });
-                        }
+                    if MenuItem::command(rename).enabled(renamable).show(ui).ran {
+                        request_rename(ui.ctx(), list_id, &target);
                     }
-                }
-            }
-        }
-
-        if context_menu && let Some(target) = menu_target.or_else(|| selected.clone()).filter(|key| row_of(key).is_some()) {
-            let group = rows[row_of(&target).unwrap_or_default()].is_group();
-            let deletable = can_delete.as_ref().is_none_or(|test| test.passes(&target));
-            let mut ran: Vec<PresetEvent<K>> = Vec::new();
-            let _ = Menu::context(words.menu.clone(), &response).show(ui, |ui, _| {
-                let command = if group { PresetItemCommands::DeleteGroup } else { PresetItemCommands::Delete };
-                if MenuItem::command(command).enabled(deletable).show(ui).ran {
-                    ran.push(PresetEvent::Delete(target.clone()));
-                }
-                if !extra_items.is_empty() {
-                    Divider::horizontal().show(ui);
-                }
-                for entry in &extra_items {
-                    if entry.is_separator() {
+                    if movable && !destinations.is_empty() {
+                        let _ = Menu::submenu_row(ui, words.move_to.clone(), |ui, _| {
+                            for &to in &destinations {
+                                if MenuItem::new(Label::from(rows[to].label.clone())).show(ui).ran {
+                                    ran.push(PresetEvent::MoveTo { key: target.clone(), group: rows[to].key.clone() });
+                                }
+                            }
+                        });
+                    }
+                    if MenuItem::command(delete).enabled(deletable).show(ui).ran {
+                        ran.push(PresetEvent::Delete(target.clone()));
+                    }
+                    if !extra_items.is_empty() {
                         Divider::horizontal().show(ui);
-                    } else if let Some(value) = entry.value() {
-                        let row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled());
-                        if row.show(ui).ran {
-                            ran.push(PresetEvent::Menu { target: target.clone(), command: value.clone() });
+                    }
+                    for entry in &extra_items {
+                        if entry.is_separator() {
+                            Divider::horizontal().show(ui);
+                        } else if let Some(value) = entry.value() {
+                            let row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled());
+                            if row.show(ui).ran {
+                                ran.push(PresetEvent::Menu { target: target.clone(), command: value.clone() });
+                            }
                         }
                     }
-                }
-            });
-            events.extend(ran);
-        }
+                });
+                events.extend(ran);
+            }
 
-        if let Some(setup) = footer {
+            let mut shared = session.borrow_mut();
+            shared.local = local;
+            shared.events = events;
+            if !has_footer {
+                shared.commit(cx, rows, &name);
+            }
+            (response, hovered)
+        };
+
+        let footer_region = |ui: &mut Ui, cx: &mut BodyCx<'_>| {
+            let Some(setup) = footer.as_ref() else { return };
+            let mut shared = session.borrow_mut();
+            let mut zoom = shared.local.zoom;
             let count = rows.iter().filter(|row| !row.is_group()).count();
-            let bar = (setup.0)(PresetFooter::new(Bind::bound(&mut local.zoom)).range(thumb_range).count(count));
-            events.extend(bar.show(ui).events.into_iter().map(PresetEvent::Footer));
-        }
+            let bar = (setup.0)(PresetFooter::new(Bind::bound(&mut zoom)).range(thumb_range).count(count));
+            let events = bar.show(ui).events;
+            shared.local.zoom = zoom;
+            shared.events.extend(events.into_iter().map(PresetEvent::Footer));
+            shared.commit(cx, rows, &name);
+        };
 
-        local.retain_groups(rows);
-        if local != before {
-            let name: Arc<str> = Arc::from(label.as_str());
-            let _ = state.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), local, name, None));
-        }
+        let stack = Stack::new().fill();
+        let stack = if has_footer { stack.footer(footer_region) } else { stack };
+        let shown = stack.show(ui, body);
+        let (response, hovered) = shown.inner.unwrap_or_else(|| (shown.output.clone(), None));
+        let events = std::mem::take(&mut session.borrow_mut().events);
         let drag = crate::runtime::drag::active::<ListDrag<K>>(ui.ctx()).filter(|drag| drag.list == list_id).map(|drag| (*drag).clone());
         PresetOutput::new(response, events, drag, hovered)
     }

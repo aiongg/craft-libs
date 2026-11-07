@@ -14,7 +14,7 @@ use super::panel_menu::PresetCommands;
 use super::picker::PresetPicker;
 use super::words::PresetWords;
 use crate::buttons::{Button, IconButton};
-use crate::contract::{Bind, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, Trigger, Validity, clicked};
+use crate::contract::{Bind, Outcome, Props as _, Remember as _, Show as _, ShowContainer as _, StopProps as _, Trigger, Validity, clicked};
 use crate::display::Divider;
 use crate::form::Field;
 use crate::layout_components::Row;
@@ -163,21 +163,25 @@ impl<'a, K: Value + Eq + Hash + 'static> NamedPresetRow<'a, K> {
         let env = Env::of(ui);
         let words = env.words::<PresetWords>();
         let common = env.words::<CommonWords>();
-        let mut picker = picker;
         let rows = picker.preset_rows();
-        let held = picker.held_key();
-        let current = held.as_ref().and_then(|key| rows.iter().find(|row| !row.is_group() && row.key == *key));
         let is_built_in = |key: &K| built_in.as_ref().is_some_and(|test| test.passes(key));
-        let user = current.filter(|row| !is_built_in(&row.key));
-        if let Some(row) = current.filter(|row| is_built_in(&row.key)) {
-            picker = picker.display_name(words.built_in.fill(&[("name", row.label.as_str())]));
-        }
         let suggestion = suggest_name.as_deref().unwrap_or("");
         let mut picker = Some(picker);
+        let mut held: Option<K> = None;
         let mut events: Vec<NamedPresetEvent<K>> = Vec::new();
         let mut from_picker: Vec<PresetEvent<K>> = Vec::new();
 
         let shown = Field::new(label.clone()).show(ui, |ui, body| {
+            if let Some(shown) = picker.as_mut() {
+                held = shown.held_key(body);
+            }
+            let current = held.as_ref().and_then(|key| rows.iter().find(|row| !row.is_group() && row.key == *key));
+            let user = current.filter(|row| !is_built_in(&row.key));
+            if let Some(row) = current.filter(|row| is_built_in(&row.key))
+                && let Some(shown) = picker.take()
+            {
+                picker = Some(shown.display_name(words.built_in.fill(&[("name", row.label.as_str())])));
+            }
             let naming = body.memory::<Option<Draft<K>>>();
             Row::new().wrap(true).show(ui, |ui, _| {
                 if let Some(picker) = picker.take() {
@@ -213,7 +217,11 @@ impl<'a, K: Value + Eq + Hash + 'static> NamedPresetRow<'a, K> {
                                 Some(message) => Validity::Refuse(Message::new(message)),
                                 None => Validity::Ok,
                             };
-                            TextField::new(words.name.clone(), Bind::given(draft.text.clone()).check(check)).id_salt("name-text").show(ui)
+                            TextField::new(words.name.clone(), Bind::given(draft.text.clone()).check(check))
+                                .id_salt("name-text")
+                                .select_on_focus()
+                                .default_stop()
+                                .show(ui)
                         })
                         .inner;
                     let (mut submitted, mut escaped) = (false, false);
