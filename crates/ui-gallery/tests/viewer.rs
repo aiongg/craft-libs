@@ -22,7 +22,9 @@ fn viewer(settings: &GallerySettings) -> Viewer {
 
 #[trial]
 fn a_saved_layout_restores_the_shares() {
-    let shares = PanelShares { columns: [1.0, 4.0, 2.5], right: [3.0, 1.0] };
+    let mut shares = PanelShares::default();
+    shares.columns = [1.0, 4.0, 2.5];
+    shares.right = [3.0, 1.0];
     assert_eq!(PanelShares::load(&shares.save()), shares);
     assert_eq!(PanelShares::of_tree(&shares.tree()), Some(shares));
 }
@@ -30,8 +32,10 @@ fn a_saved_layout_restores_the_shares() {
 #[trial]
 fn a_layout_that_cannot_be_read_costs_only_the_layout() {
     for layout in ["{not json", "", r#"{"columns":[1.0,0.0,1.0],"right":[1.0,1.0]}"#] {
-        let settings =
-            GallerySettings { mode: "dark".to_owned(), filter: "link".to_owned(), layout: layout.to_owned(), ..GallerySettings::default() };
+        let mut settings = GallerySettings::default();
+        settings.mode = "dark".to_owned();
+        settings.filter = "link".to_owned();
+        settings.layout = layout.to_owned();
         let restored = viewer(&settings);
         assert_eq!(restored.layout(), PanelShares::default(), "layout {layout:?}");
         assert_eq!(restored.appearance.mode, Mode::Dark);
@@ -57,7 +61,9 @@ fn settings_restore_the_state_they_were_saved_from() {
 
 #[trial]
 fn a_name_this_build_does_not_know_keeps_the_default() {
-    let settings = GallerySettings { mode: "sepia".to_owned(), selected: "gone::Type".to_owned(), ..GallerySettings::default() };
+    let mut settings = GallerySettings::default();
+    settings.mode = "sepia".to_owned();
+    settings.selected = "gone::Type".to_owned();
     let restored = viewer(&settings);
     assert_eq!(restored.appearance, viewer(&GallerySettings::default()).appearance);
     assert_eq!(restored.selected_type(), None);
