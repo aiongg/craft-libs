@@ -192,6 +192,9 @@ pub enum RowKind<'a> {
         value: &'a str,
         /// The options, labelled in the host's language.
         options: Vec<Entry<&'a str>>,
+        /// What each option's id counts. The row then labels the options itself, spelling each id as a number of
+        /// this unit in the user's language.
+        unit: Option<UnitKind>,
     },
     /// A swatch and a hex field. A press on the swatch reports [`PreferencesOutput::pick_color`]; the host opens its
     /// colour picker.
@@ -227,7 +230,7 @@ pub enum RowKind<'a> {
 impl<'a> RowKind<'a> {
     /// A choice of `options`, with `value` chosen.
     pub fn choice(value: &'a str, options: Vec<Entry<&'a str>>) -> Self {
-        RowKind::Choice { value, options }
+        RowKind::Choice { value, options, unit: None }
     }
 
     /// An integer field limited to `range`.
@@ -240,10 +243,11 @@ impl<'a> RowKind<'a> {
         RowKind::Float { value, range, decimals, unit: None }
     }
 
-    /// What an integer or number field counts, shown after it; other kinds ignore it.
+    /// What an integer or number field counts, shown after it, or what the ids of a choice count (the choice labels its
+    /// options with them); other kinds ignore it.
     #[must_use]
     pub fn counting(mut self, kind: UnitKind) -> Self {
-        if let RowKind::Int { unit, .. } | RowKind::Float { unit, .. } = &mut self {
+        if let RowKind::Int { unit, .. } | RowKind::Float { unit, .. } | RowKind::Choice { unit, .. } = &mut self {
             *unit = Some(kind);
         }
         self

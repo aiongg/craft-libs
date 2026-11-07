@@ -10,6 +10,7 @@ use craft_ui::patterns::preferences::{
     GroupSpec, PageInfo, PageSpec, PrefValue, PreferencesModel, RowKind, RowSpec, SettingRule, SettingsDocument, StandardPage, list_pages, matches,
     row_shown, setting_label, shown_position,
 };
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::trial;
 use serde::{Deserialize, Serialize};
 
@@ -403,12 +404,23 @@ fn autosave_choice(doc: &impl PreferencesModel) -> (String, Vec<(String, String)
     (value.to_string(), options)
 }
 
+fn autosave_unit(doc: &impl PreferencesModel) -> Option<UnitKind> {
+    let pages = doc.pages();
+    let row = pages
+        .iter()
+        .flat_map(|page| page.groups.iter().flat_map(|group| group.rows.iter()))
+        .find(|row| row.key == "general.autosaveMinutes")
+        .expect("a row");
+    let RowKind::Choice { unit, .. } = &row.kind else { panic!("not a choice") };
+    *unit
+}
+
 fn autosave_rule() -> Vec<SettingRule> {
     vec![SettingRule::new("general.autosaveMinutes").minutes(&[5, 10, 15, 30, 60])]
 }
 
 /// The minutes rule stores integers, an old settings file that holds the minutes as text still shows its choice, and the
-/// row offers the five intervals as "{n} minutes".
+/// row offers the five intervals counted in minutes.
 #[trial]
 fn the_minutes_rule_stores_integers_and_still_reads_text() {
     let pages = StandardPage::ALL.map(PageInfo::from).to_vec();
@@ -424,8 +436,9 @@ fn the_minutes_rule_stores_integers_and_still_reads_text() {
         .rules(autosave_rule());
     let (chosen, options) = autosave_choice(&doc);
     assert_eq!(chosen, "10");
-    let expected: Vec<_> = [5, 10, 15, 30, 60].map(|n| (n.to_string(), format!("{n} minutes"))).to_vec();
+    let expected: Vec<_> = [5, 10, 15, 30, 60].map(|n| (n.to_string(), n.to_string())).to_vec();
     assert_eq!(options, expected);
+    assert_eq!(autosave_unit(&doc), Some(UnitKind::Minutes), "the row spells the counts as minutes");
     doc.set("general.autosaveMinutes", PrefValue::Choice("15".into()));
     assert_eq!(autosave_choice(&doc).0, "15");
     assert_eq!(doc.apply(), Ok(()), "the integer field reads what the row wrote");

@@ -170,6 +170,8 @@ pub struct SettingRule {
     pub group: Option<String>,
     /// A choice whose ids are whole numbers is stored as an integer ([`SettingRule::minutes`]).
     integer: bool,
+    /// What the ids of a choice count; the row labels the options with it ([`SettingRule::minutes`]).
+    counted: Option<UnitKind>,
 }
 
 /// A rule's control, where the value's type alone isn't enough.
@@ -217,6 +219,7 @@ impl SettingRule {
             keep_on_reset: false,
             group: None,
             integer: false,
+            counted: None,
         }
     }
 
@@ -264,14 +267,15 @@ impl SettingRule {
         self
     }
 
-    /// A choice of minute counts, stored as the integer count (`10`). Labels read "{n} minutes" and translate under
-    /// `setting.<key>.<n>`, like any other choice. A settings file that holds the count as text ("10") still shows its
+    /// A choice of minute counts, stored as the integer count (`10`). The row spells each count as minutes in the
+    /// user's language ([`UnitKind::Minutes`]). A settings file that holds the count as text ("10") still shows its
     /// choice; the next change writes an integer, so the app's field reads both.
     #[must_use]
     pub fn minutes(mut self, counts: &[u32]) -> Self {
-        let labels: Vec<(String, String)> = counts.iter().map(|n| (n.to_string(), format!("{n} minutes"))).collect();
+        let labels: Vec<(String, String)> = counts.iter().map(|n| (n.to_string(), n.to_string())).collect();
         let options: Vec<(&str, &str)> = labels.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect();
         self.integer = true;
+        self.counted = Some(UnitKind::Minutes);
         self.choices(&options)
     }
 
@@ -648,8 +652,8 @@ enum Shape {
         unit: Option<UnitKind>,
     },
     Text,
-    /// `(id, translated label)`.
-    Choice(Vec<(String, Label)>),
+    /// `(id, translated label)`, and what the ids count when the row labels them itself.
+    Choice(Vec<(String, Label)>, Option<UnitKind>),
     Color,
     Custom,
 }
@@ -665,7 +669,8 @@ fn shape_of(rule: Option<&SettingRule>, value: Option<&toml::Value>) -> Option<S
     }
     Some(match (kind, value?) {
         (Some(RuleKind::Choice(options)), Value::String(_) | Value::Integer(_)) => {
-            Shape::Choice(options.iter().map(|(id, label)| (id.clone(), Label::from(label.clone()))).collect())
+            let counted = rule.and_then(|rule| rule.counted);
+            Shape::Choice(options.iter().map(|(id, label)| (id.clone(), Label::from(label.clone()))).collect(), counted)
         }
         (Some(RuleKind::Color), Value::String(_)) => Shape::Color,
         (Some(RuleKind::Int { range, unit }), Value::Integer(_)) => Shape::Int { range: range.clone(), unit: *unit },
@@ -679,8 +684,12 @@ fn shape_of(rule: Option<&SettingRule>, value: Option<&toml::Value>) -> Option<S
 }
 
 /// A choice row of the translated `options`, with `value` chosen.
-fn choice_kind<'a>(options: &'a [(String, Label)], value: &'a str) -> RowKind<'a> {
-    RowKind::choice(value, options.iter().map(|(id, label)| Entry::new(id.as_str(), label.clone())).collect())
+fn choice_kind<'a>(options: &'a [(String, Label)], counted: Option<UnitKind>, value: &'a str) -> RowKind<'a> {
+    let kind = RowKind::choice(value, options.iter().map(|(id, label)| Entry::new(id.as_str(), label.clone())).collect());
+    match counted {
+        Some(unit) => kind.counting(unit),
+        None => kind,
+    }
 }
 
 /// What `shown_when` compares: a string as it is, a bool or number as Rust writes it.
@@ -767,7 +776,7 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
             let path = format!("{}.{key}", page.id);
             let rule = self.rules.get(&path);
             let Some(mut shape) = shape_of(rule, table.and_then(|t| t.get(&key))) else { continue };
-            if let Shape::Choice(options) = &mut shape {
+            if let Shape::Choice(options, None) = &mut shape {
                 for (id, label) in options.iter_mut() {
                     *label = Label::from(self.translate(&format!("setting.{path}.{id}"), label.as_str()));
                 }
@@ -820,11 +829,11 @@ impl<T: Serialize + DeserializeOwned + Default + Clone + PartialEq, C: CustomSet
                 RowKind::Float { value: *x, range: range.clone(), decimals: *decimals, unit: *unit }
             }
             (Shape::Text, Some(Value::String(text))) => RowKind::Text(text),
-            (Shape::Choice(options), Some(Value::Integer(n))) => {
+            (Shape::Choice(options, counted), Some(Value::Integer(n))) => {
                 let id = options.iter().map(|(id, _)| id.as_str()).find(|id| *id == n.to_string()).unwrap_or("");
-                choice_kind(options, id)
+                choice_kind(options, *counted, id)
             }
-            (Shape::Choice(options), Some(Value::String(id))) => choice_kind(options, id),
+            (Shape::Choice(options, counted), Some(Value::String(id))) => choice_kind(options, *counted, id),
             (Shape::Color, Some(Value::String(text))) => RowKind::Color(Rgba::from_hex(text).unwrap_or(Rgba::rgb(128, 128, 128))),
             (Shape::Custom, _) => RowKind::Custom,
             _ => return None,
