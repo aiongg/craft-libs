@@ -107,5 +107,5 @@ fn a_refused_apply_keeps_the_window_open() {
     press(&mut fixture, "OK");
     assert_eq!(log.applied.get(), 1);
     assert_eq!(log.closed.get(), None);
-    assert!(fixture.by_label("Refused").is_some(), "the message shows over the buttons");
+    assert!(fixture.by_label("Refused").is_some(), "the message shows in the footer");
 }

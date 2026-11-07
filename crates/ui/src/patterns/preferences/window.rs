@@ -7,8 +7,7 @@ mod stories;
 use super::body::{self, BodyOut};
 use super::model::{Closed, PreferencesModel, PreferencesOutput};
 use super::words::PreferencesWords;
-use crate::buttons::Button;
-use crate::contract::{Bind, Props as _, SaveKey, Show as _, ShowContainer as _, clicked};
+use crate::contract::{Bind, Props as _, SaveKey, Show as _, ShowContainer as _};
 use crate::dialog::{Dialog, DialogOutput};
 use crate::notices::{Notice, NoticeLayout};
 use crate::runtime::env::{Env, Label};
@@ -19,8 +18,12 @@ use craft_behavior::{EditEvent, GestureId, Mixed};
 use craft_i18n::matcher::Matcher;
 use craft_theme::variant::Tone;
 use egui::Ui;
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::Arc;
+
+/// The footer indices of the OK and Apply buttons, in the order they are given to the dialog.
+const OK_AT: usize = 0;
+const APPLY_AT: usize = 1;
 
 /// What the window keeps between passes; the host owns it and binds it with [`PreferencesWindow::new`].
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -31,7 +34,7 @@ pub struct PreferencesState {
     pub selected: String,
     /// The text in the search field. Empty lists every page.
     pub search: String,
-    /// The message of a failed Apply, shown over the buttons until the next edit or Apply.
+    /// The message of a failed Apply, shown in the footer until the next edit or Apply.
     pub error: Option<String>,
 }
 
@@ -46,7 +49,7 @@ pub struct PreferencesState {
 /// - **Rows.** Each row is the library's control for its `RowKind`; an edit goes to [`PreferencesModel::set`] and
 ///   nothing is saved before OK or Apply. Reset Section resets the shown page's rows in the draft.
 /// - **Buttons.** OK applies and closes, Apply applies and stays (enabled while the draft differs), Cancel drops the
-///   draft. A failed apply keeps the window open and shows its message over the buttons. Enter is OK and Escape
+///   draft. A failed apply keeps the window open and shows its message in the footer. Enter is OK and Escape
 ///   cancels, once the search text, a field's own gesture and a popup have had them.
 /// - **Nested dialogs.** While [`PreferencesModel::nested_open`] is true the window takes no input and refuses to
 ///   close; [`PreferencesModel::nested`] draws the nested dialogs inside the window's own viewport.
@@ -97,53 +100,69 @@ impl<'a> PreferencesWindow<'a> {
         if !can_ok {
             ok = ok.disabled_reason(words.cannot_ok.clone());
         }
-        let buttons = [ok, FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
+        let apply = FooterButton::new(words.apply.clone(), DialogRole::Other).enabled(differs).stays_open(true);
+        let buttons = [ok, apply, FooterButton::new(common.cancel.clone(), DialogRole::Cancel)];
 
         let mut open = true;
-        let apply_clicked = Cell::new(false);
         let error = work.error.clone();
+        let failure = RefCell::new(None);
+        let applied_by_ok = Cell::new(false);
+        let edited = Cell::new(false);
         let mut body_out = BodyOut::default();
-        let mut dialog = Dialog::new(title.clone()).modeless().resizable(true).close_on_enter(can_ok);
+        let host_cell = RefCell::new(&mut *host);
+        let mut dialog = Dialog::new(title.clone()).collection_body().modeless().resizable(true).close_on_enter(can_ok).close_guard(|at| {
+            if at != OK_AT {
+                return true;
+            }
+            match host_cell.borrow_mut().apply() {
+                Ok(()) => {
+                    applied_by_ok.set(true);
+                    true
+                }
+                Err(message) => {
+                    *failure.borrow_mut() = Some(message);
+                    false
+                }
+            }
+        });
         if !embedded {
             dialog = dialog.viewport();
         }
         if let Some(key) = remember {
             dialog = dialog.remember(key);
         }
-        let shown = dialog
-            .opened(Bind::bound(&mut open))
-            .enabled(!nested)
-            .buttons(buttons)
-            .footer(|ui, _| {
-                if let Some(message) = &error {
-                    Notice::new(Tone::Bad, Label::from(message.clone())).layout(NoticeLayout::Inline).show(ui);
-                }
-                if clicked(&Button::new(words.apply.clone()).enabled(differs).show(ui)) {
-                    apply_clicked.set(true);
-                }
-            })
-            .show(ui, |ui, _| {
-                body_out = BodyOut::default();
-                body::show_body(ui, &mut *host, &snap, &mut work, &words, &units, &mut body_out);
-                host.nested(ui.ctx());
+        if let Some(message) = &error {
+            dialog = dialog.footer(|ui, _| {
+                Notice::new(Tone::Bad, Label::from(message.clone())).layout(NoticeLayout::Inline).show(ui);
             });
+        }
+        let shown = dialog.opened(Bind::bound(&mut open)).enabled(!nested).buttons(buttons).show(ui, |ui, _| {
+            body_out = BodyOut::default();
+            let mut host = host_cell.borrow_mut();
+            body::show_body(ui, &mut **host, &snap, &mut work, &words, &units, &mut body_out);
+            let edits = body_out.edits();
+            edited.set(!edits.is_empty() || body_out.reset);
+            for (key, value) in edits {
+                host.set(&key, value);
+            }
+            if body_out.reset
+                && let Some(page) = &snap.shown
+            {
+                host.reset_page(&page.id);
+            }
+            host.nested(ui.ctx());
+        });
+        drop(host_cell);
 
-        let DialogOutput { response, closed, .. } = shown.output;
+        let DialogOutput { response, closed, picked, .. } = shown.output;
         let mut result = PreferencesOutput::new(response);
-        let edits = body_out.edits();
-        let edited = !edits.is_empty() || body_out.reset;
-        for (key, value) in edits {
-            host.set(&key, value);
-        }
-        if body_out.reset
-            && let Some(page) = &snap.shown
-        {
-            host.reset_page(&page.id);
-        }
-        if edited {
+        if edited.get() {
             work.error = None;
         }
-        if apply_clicked.get() && !nested {
+        if let Some(message) = failure.into_inner() {
+            work.error = Some(message);
+        }
+        if picked == Some(APPLY_AT) && !nested {
             match host.apply() {
                 Ok(()) => {
                     work.error = None;
@@ -153,7 +172,11 @@ impl<'a> PreferencesWindow<'a> {
             }
         }
         match closed.filter(|_| !nested) {
-            Some(CloseReason::Enter | CloseReason::Activated) => match host.apply() {
+            Some(CloseReason::Activated) => {
+                result.applied = applied_by_ok.get();
+                result.closed = Some(Closed::Ok);
+            }
+            Some(CloseReason::Enter) => match host.apply() {
                 Ok(()) => {
                     result.applied = true;
                     result.closed = Some(Closed::Ok);
