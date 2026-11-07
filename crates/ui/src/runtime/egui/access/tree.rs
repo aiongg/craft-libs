@@ -248,13 +248,13 @@ impl AccessTree {
         Some((end(selection.anchor), end(selection.focus)))
     }
 
-    /// The nodes of `role`.
+    /// The nodes of `role` that assistive technology reports: not hidden, and not below a hidden node.
     pub fn with_role(&self, role: Role) -> Vec<NodeKey> {
         let Role::Node(role) = role else { return Vec::new() };
         self.update
             .nodes
             .iter()
-            .filter(|(key, node)| node.role() == role && !self.below_hidden.contains(key))
+            .filter(|(key, node)| node.role() == role && !node.is_hidden() && !self.below_hidden.contains(key))
             .map(|(key, _)| NodeKey(key.0))
             .collect()
     }
@@ -333,9 +333,9 @@ impl AccessTree {
         self.lookup(NodeId(key.0))
     }
 
-    /// Every node.
+    /// Every node that assistive technology reports.
     pub fn keys(&self) -> Vec<NodeKey> {
-        self.update.nodes.iter().filter(|(key, _)| !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0)).collect()
+        self.update.nodes.iter().filter(|(key, node)| !node.is_hidden() && !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0)).collect()
     }
 
     /// The role of a node by key.
