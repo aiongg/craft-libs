@@ -30,6 +30,19 @@ pub use tool_host::{ToolHost, ToolHostResponse, ToolInput, ToolReadout};
 mod raster_source;
 pub use raster_source::{PixelRect, RasterSource};
 
+// canvas-navigate-a
+mod momentary;
+mod navigate;
+mod rotate;
+mod tools;
+mod zoom_motion;
+
+pub use momentary::{Momentary, MomentaryCommand, MomentaryTool};
+pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGlide, WheelAction, WheelInput, WheelNavigation, pan};
+pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
+pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
+pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;

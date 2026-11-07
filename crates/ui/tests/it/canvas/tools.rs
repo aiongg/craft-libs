@@ -1,0 +1,109 @@
+//! The view tools: what a gesture asks the app's view to become, and the checks every tool owes the canvas.
+
+use craft_behavior::kurbo::{Point, Size};
+use craft_behavior::{CancelReason, CanvasView, PointerButton};
+use craft_ui::canvas::{
+    CanvasSpace, CanvasTool, HandTool, NavigationOptions, RotateViewTool, ToolContext, ToolKey, ToolPointer, ViewCommand, ZoomTool,
+};
+use craft_ui::testing::{ToolFixture, trial};
+use egui::{Pos2, Rect, Vec2};
+
+const CANVAS: Vec2 = Vec2::new(800.0, 600.0);
+const DOCUMENT: Size = Size::new(2000.0, 1500.0);
+const DRAG: Vec2 = Vec2::new(60.0, 40.0);
+
+fn view() -> CanvasView {
+    CanvasView::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Point::new(1000.0, 750.0), 1.0)
+}
+
+fn context<'a>(view: CanvasView, time: f64) -> ToolContext<'a> {
+    ToolContext::new(Rect::from_min_size(Pos2::ZERO, CANVAS), Some(CanvasSpace::new(view, 1.0))).time(time)
+}
+
+fn at(pos: Pos2, time: f64) -> ToolPointer {
+    ToolPointer::new(pos, PointerButton::Primary, time)
+}
+
+#[trial]
+fn the_hand_drag_moves_the_document_with_the_pointer_and_escape_puts_the_view_back() {
+    let start = view();
+    let mut hand = HandTool::new(NavigationOptions::default());
+    let from = Pos2::new(300.0, 300.0);
+    hand.press(&at(from, 0.0), &mut context(start, 0.0));
+    hand.drag(&at(from + DRAG, 0.5), &mut context(start, 0.5));
+    let moved = hand.take_change().expect("a drag asks for a new view").view;
+    let point = Point::new(1000.0, 750.0);
+    let before = start.to_screen(point);
+    let after = moved.to_screen(point);
+    assert!((after - before - DRAG).length() < 1e-3, "the document follows the pointer: {before:?} -> {after:?}");
+
+    hand.cancel(CancelReason::Escape, &mut context(moved, 0.6));
+    assert_eq!(hand.take_change().map(|change| change.view), Some(start), "a cancelled drag restores the view");
+}
+
+#[trial]
+fn a_zoom_click_steps_the_ladder_about_the_point_and_alt_steps_out() {
+    let start = view();
+    let click = Pos2::new(200.0, 100.0);
+    let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
+    zoom.press(&at(click, 0.0), &mut context(start, 0.0));
+    zoom.release(&at(click, 0.05), &mut context(start, 0.05));
+    let change = zoom.take_change().expect("a click zooms");
+    assert!(change.view.zoom > start.zoom && change.eased, "a click zooms in, eased under Animated Zoom");
+    let doc = start.to_doc(click);
+    let kept = change.view.to_doc(click);
+    assert!((kept.x - doc.x).abs() < 1e-6 && (kept.y - doc.y).abs() < 1e-6, "the clicked point stays put");
+
+    zoom.out = true;
+    zoom.press(&at(click, 1.0), &mut context(start, 1.0));
+    zoom.release(&at(click, 1.05), &mut context(start, 1.05));
+    let out = zoom.take_change().expect("an out click zooms");
+    assert!(out.view.zoom < start.zoom);
+}
+
+#[trial]
+fn a_zoom_press_held_still_zooms_instead_of_stepping() {
+    let start = view();
+    let click = Pos2::new(200.0, 100.0);
+    let mut zoom = ZoomTool::new(DOCUMENT, NavigationOptions::default());
+    zoom.press(&at(click, 0.0), &mut context(start, 0.0));
+    zoom.each_pass(&mut context(start, 0.7));
+    let held = zoom.take_change().expect("a hold zooms").view;
+    assert!(held.zoom > start.zoom);
+    zoom.release(&at(click, 0.8), &mut context(held, 0.8));
+    assert_eq!(zoom.take_change(), None, "the release of a hold is no click step");
+}
+
+#[trial]
+fn the_rotate_drag_turns_the_view_and_shift_snaps_and_a_double_click_resets() {
+    let mut turned = view();
+    turned.rotation = 40.0;
+    let mut tool = RotateViewTool::default();
+    let pivot = turned.rect.center();
+    tool.press(&at(pivot + Vec2::new(100.0, 0.0), 0.0), &mut context(turned, 0.0));
+    tool.drag(&at(pivot + Vec2::new(0.0, 100.0), 0.1), &mut context(turned, 0.1));
+    let quarter = tool.take_change().expect("a drag turns the view").view.rotation;
+    assert!((quarter - 130.0).abs() < 1e-6, "a quarter turn clockwise adds 90 degrees: {quarter}");
+
+    tool.release(&at(pivot + Vec2::new(0.0, 100.0), 0.2).clicks(2), &mut context(turned, 0.2));
+    assert_eq!(tool.take_change().map(|change| change.view.rotation), Some(0.0), "a double click resets");
+
+    assert!(tool.key(&ToolKey::Cancel, &mut context(turned, 0.3)), "Escape resets a turned view");
+    assert_eq!(tool.take_change().map(|change| change.view.rotation), Some(0.0));
+}
+
+#[trial]
+fn the_view_commands_zoom_fit_and_turn_the_view() {
+    let mut view = view();
+    assert!(ViewCommand::ZoomIn.apply(&mut view, DOCUMENT, 1.0) && view.zoom > 1.0);
+    assert!(ViewCommand::FitOnScreen.apply(&mut view, DOCUMENT, 1.0));
+    assert!(ViewCommand::RotateClockwise.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 15.0);
+    assert!(ViewCommand::ResetRotation.apply(&mut view, DOCUMENT, 1.0) && view.rotation == 0.0);
+}
+
+#[trial]
+fn each_view_tool_owes_the_canvas_its_checks() {
+    ToolFixture::new("Hand", HandTool::new(NavigationOptions::default())).check();
+    ToolFixture::new("Zoom", ZoomTool::new(DOCUMENT, NavigationOptions::default())).check();
+    ToolFixture::new("Rotate View", RotateViewTool::default()).check();
+}
