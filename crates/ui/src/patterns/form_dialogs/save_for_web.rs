@@ -467,7 +467,7 @@ impl Animation {
 }
 
 /// What the dialog remembers under its key: the last view and the last confirmed settings.
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 struct Last {
     view: WebView,
     options: SaveForWebOptions,
