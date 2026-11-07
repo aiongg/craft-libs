@@ -295,7 +295,7 @@ impl Component for PreviewPane {
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
             // The second press of a double click returns to fit, as the other double-click readers detect it.
-            PressPhase::Down { start } if start.clicks >= 2 && self.fit.is_some() => self.refit = true,
+            PressPhase::Down { start, .. } if start.clicks >= 2 && self.fit.is_some() => self.refit = true,
             PressPhase::Release { start, pos, click: true, .. } if self.click_centres && !(start.clicks >= 2 && self.fit.is_some()) => {
                 next.offset += well.center() - pos;
             }
