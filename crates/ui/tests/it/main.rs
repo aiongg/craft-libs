@@ -1,7 +1,8 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
 mod access;
-mod body;
+pub(crate) mod body;
+mod collection;
 mod callsites;
 mod commands;
 mod contract;

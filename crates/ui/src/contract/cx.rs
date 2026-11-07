@@ -95,6 +95,9 @@ pub struct CxCore<'a> {
     pub(crate) root_sense: Sense,
     /// The member of the container's roving group Tab arrives at, set by the group's pick.
     pub(crate) roving_arrival: Option<Id>,
+    /// The events and visible range the item step left for `collection_response`.
+    pub(crate) collection_events: Option<Box<dyn std::any::Any>>,
+    pub(crate) visible_rows: Range<usize>,
 }
 
 impl<C: Component> Cx<'_, C> {
@@ -1007,15 +1010,38 @@ pub struct ItemCx<'a, 'r, K> {
     pub at: usize,
     /// The item's rect.
     pub rect: Rect,
+    /// Selection, lead, open and renaming state of the row.
+    pub row: super::RowState,
+    /// The nesting depth, 0 for a root.
+    pub depth: usize,
+    /// The item's place in the set.
+    pub set: crate::runtime::access::SetPosition,
     /// What the inherited context holds that component code may read.
     pub env: EnvView<'a>,
     /// Base id of the item's stage: `sub(item_id, "item")`.
     pub(crate) id: Id,
     pub(crate) memory: &'a mut MemoryStage,
     pub(crate) tip: Option<ItemTip<'r>>,
+    pub(crate) cells: Vec<(craft_behavior::ColumnKey, Rect)>,
+    pub(crate) grid: Option<&'a craft_behavior::GridView>,
 }
 
 impl<'r, K> ItemCx<'_, 'r, K> {
+    /// The visible columns of the row with their rects.
+    pub fn cells(&self) -> &[(craft_behavior::ColumnKey, Rect)] {
+        &self.cells
+    }
+
+    /// The rect of column `key` in this row.
+    pub fn cell(&self, key: &craft_behavior::ColumnKey) -> Option<Rect> {
+        self.cells.iter().find(|(column, _)| column == key).map(|(_, rect)| *rect)
+    }
+
+    /// The sections of a sheet layout.
+    pub fn grid(&self) -> Option<&craft_behavior::GridView> {
+        self.grid
+    }
+
     /// Rich tooltip content for the item; it may borrow app data.
     pub fn tip(&mut self, tip: impl FnOnce(&mut Ui) + 'r) {
         self.tip = Some(Box::new(tip));

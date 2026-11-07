@@ -296,6 +296,8 @@ pub struct Scoped {
     pub(crate) grid: Option<Id>,
     /// A scrolling body encloses the scope: a collection under it owns no scroll of its own.
     pub(crate) in_scroll: bool,
+    /// The id of the collection item the scope shows: its root is not a Tab stop (17.3).
+    pub(crate) item: Option<Id>,
     /// The container instances above that receive scoped commands.
     pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
@@ -372,6 +374,7 @@ impl Env {
                 transform: None,
                 grid: None,
                 in_scroll: false,
+                item: None,
                 commands: CommandChain::default(),
                 words: host_words(ctx, host.as_ref()),
                 host,
@@ -419,6 +422,7 @@ impl Env {
             s.transform = None;
             s.grid = None;
             s.in_scroll = false;
+            s.item = None;
             s.ink = Ink::default();
         }))
     }

@@ -2,6 +2,7 @@
 //! single-value keys. Focus movement and collection selection share it.
 
 use crate::intent::{MoveMods, NavMove};
+use emath::Rect;
 
 /// The geometry a collection's keyboard navigation follows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +48,21 @@ pub trait NavOutline {
     /// Whether the position can take the lead.
     fn enabled(&self, at: usize) -> bool;
 
+    /// `RaggedGrid`: the number of positions in `row`; rows hold consecutive positions. `None` past the last row.
+    fn row_len(&self, _row: usize) -> Option<usize> {
+        None
+    }
+
+    /// `Cell`: the cells of every position (a row of a sheet).
+    fn columns(&self) -> usize {
+        1
+    }
+
+    /// `Spatial`: where the position sits, in any one coordinate space.
+    fn rect(&self, _at: usize) -> Option<Rect> {
+        None
+    }
+
     /// Whether there are no positions.
     fn is_empty(&self) -> bool {
         self.len() == 0
@@ -65,17 +81,19 @@ pub struct NavState {
     pub page: usize,
     /// Whether a move past an end continues at the other end.
     pub wrap: bool,
+    /// `Cell`: the column of the lead cell.
+    pub column: usize,
 }
 
 impl NavState {
     /// A state with no lead, a page of ten and no wrap.
     pub const fn new() -> Self {
-        NavState { lead: None, anchor: None, page: 10, wrap: false }
+        NavState { lead: None, anchor: None, page: 10, wrap: false, column: 0 }
     }
 
     /// A state at `lead`.
     pub const fn at(lead: usize) -> Self {
-        NavState { lead: Some(lead), anchor: None, page: 10, wrap: false }
+        NavState { lead: Some(lead), anchor: None, page: 10, wrap: false, column: 0 }
     }
 
     /// Sets the page size.
@@ -87,6 +105,12 @@ impl NavState {
     /// Sets whether moves wrap.
     pub const fn wrap(mut self, on: bool) -> Self {
         self.wrap = on;
+        self
+    }
+
+    /// Sets the lead cell's column.
+    pub const fn column(mut self, column: usize) -> Self {
+        self.column = column;
         self
     }
 }
@@ -109,13 +133,15 @@ pub enum NavStep {
     Expand(usize),
     /// A tree row closes.
     Collapse(usize),
-    /// The shape has no stepping rule here; the caller handles the move.
+    /// The lead cell moved to this column of the same row; `state.column` holds it.
+    Column(usize),
+    /// The shape has no stepping rule for this move; the caller handles it.
     Unhandled,
 }
 
 /// Steps the lead of a navigation of `shape` over `outline` by `mv`. `mods.extend` keeps the anchor at the
-/// old lead; any other move clears it. `Cell`, `RaggedGrid` and `Spatial` need row lengths or geometry the
-/// outline does not carry, so their steps are `Unhandled`.
+/// old lead; any other move clears it. `RaggedGrid` reads `row_len`, `Cell` reads `columns` and `Spatial` reads
+/// `rect` from the outline.
 pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv: NavMove, mods: MoveMods) -> NavStep {
     let len = outline.len();
     if len == 0 {
@@ -129,8 +155,13 @@ pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv:
         NavShape::Flat => linear(outline, state, lead, mv),
         NavShape::Tree => tree(outline, state, lead, mv),
         NavShape::WrappedGrid { columns } => grid(outline, state, lead, mv, columns.max(1)),
-        _ => return NavStep::Unhandled,
+        NavShape::RaggedGrid => ragged(outline, state, lead, mv),
+        NavShape::Cell => cell(outline, state, lead, mv, mods),
+        NavShape::Spatial => spatial(outline, lead, mv),
     };
+    if let NavStep::Column(_) = result {
+        state.anchor = if mods.extend { state.anchor.or(Some(lead)) } else { None };
+    }
     if let NavStep::Moved(to) = result {
         state.anchor = if mods.extend { state.anchor.or(Some(lead)) } else { None };
         state.lead = Some(to);
@@ -230,6 +261,85 @@ fn tree(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove) ->
     }
 }
 
+/// The row and column of position `at` in a ragged grid, with the first position of its row.
+fn locate(outline: &dyn NavOutline, at: usize) -> Option<(usize, usize, usize)> {
+    let mut start = 0;
+    for row in 0.. {
+        let len = outline.row_len(row)?;
+        if at < start + len {
+            return Some((row, at - start, start));
+        }
+        start += len;
+    }
+    None
+}
+
+/// The position at `column` of `row`, clamped to the row's last position.
+fn ragged_at(outline: &dyn NavOutline, row: usize, column: usize) -> Option<usize> {
+    let start: usize = (0..row).map(|earlier| outline.row_len(earlier).unwrap_or(0)).sum();
+    let len = outline.row_len(row).filter(|&len| len > 0)?;
+    let at = start + column.min(len - 1);
+    selectable(outline, at).then_some(at)
+}
+
+fn ragged(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove) -> NavStep {
+    let Some((row, column, _)) = locate(outline, lead) else { return NavStep::Unhandled };
+    let rows = (0..).take_while(|&r| outline.row_len(r).is_some()).count();
+    let vertical = |to: Option<usize>| moved(to.and_then(|row| ragged_at(outline, row, column)));
+    match mv {
+        NavMove::Back => moved(neighbour(outline, state, lead, false)),
+        NavMove::Forward => moved(neighbour(outline, state, lead, true)),
+        NavMove::Up => vertical(row.checked_sub(1)),
+        NavMove::Down => vertical(Some(row + 1).filter(|&r| r < rows)),
+        NavMove::PageUp => vertical(Some(row.saturating_sub(state.page))),
+        NavMove::PageDown => vertical(Some((row + state.page).min(rows - 1))),
+        NavMove::Start => moved(first_enabled(outline)),
+        NavMove::End => moved(last_enabled(outline)),
+    }
+}
+
+/// A sheet: positions are rows and `state.column` is the lead cell's column. Home and End go to the row's ends,
+/// with Ctrl (`mods.lead`) to the sheet's first and last row.
+fn cell(outline: &dyn NavOutline, state: &mut NavState, lead: usize, mv: NavMove, mods: MoveMods) -> NavStep {
+    let last_column = outline.columns().saturating_sub(1);
+    let column = state.column.min(last_column);
+    let across = |state: &mut NavState, to: usize| {
+        state.column = to;
+        if to == column { NavStep::Stay } else { NavStep::Column(to) }
+    };
+    match mv {
+        NavMove::Back => across(state, column.saturating_sub(1)),
+        NavMove::Forward => across(state, (column + 1).min(last_column)),
+        NavMove::Start if mods.lead => moved(first_enabled(outline)),
+        NavMove::End if mods.lead => moved(last_enabled(outline)),
+        NavMove::Start => across(state, 0),
+        NavMove::End => across(state, last_column),
+        NavMove::Up | NavMove::Down | NavMove::PageUp | NavMove::PageDown => linear(outline, state, lead, mv),
+    }
+}
+
+type Axis = fn(emath::Vec2) -> f32;
+
+/// Items at free positions: the nearest item whose centre lies beyond the lead's in the move's direction, with
+/// the off-axis distance counting double. Back and Forward are toward lower and higher x.
+fn spatial(outline: &dyn NavOutline, lead: usize, mv: NavMove) -> NavStep {
+    let Some(from) = outline.rect(lead).map(|rect| rect.center()) else { return NavStep::Unhandled };
+    let (along, across): (Axis, Axis) = match mv {
+        NavMove::Back => (|d| -d.x, |d| d.y),
+        NavMove::Forward => (|d| d.x, |d| d.y),
+        NavMove::Up | NavMove::PageUp => (|d| -d.y, |d| d.x),
+        NavMove::Down | NavMove::PageDown => (|d| d.y, |d| d.x),
+        NavMove::Start => return moved(first_enabled(outline)),
+        NavMove::End => return moved(last_enabled(outline)),
+    };
+    let nearest = (0..outline.len())
+        .filter(|&at| at != lead && selectable(outline, at))
+        .filter_map(|at| outline.rect(at).map(|rect| (at, rect.center() - from)))
+        .filter(|(_, delta)| along(*delta) > 0.0)
+        .min_by(|(_, a), (_, b)| (along(*a) + 2.0 * across(*a).abs()).total_cmp(&(along(*b) + 2.0 * across(*b).abs())));
+    moved(nearest.map(|(at, _)| at))
+}
+
 fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, columns: usize) -> NavStep {
     let len = outline.len();
     let vertical = |down: bool, rows: usize| {
@@ -317,7 +427,7 @@ impl Roving {
             Some(rows) if rows > 0 => rows,
             _ => 10,
         };
-        NavState { lead, anchor: None, page, wrap: self.wrap }
+        NavState { lead, anchor: None, page, wrap: self.wrap, column: 0 }
     }
 
     /// Whether the group handles `mv`: Page moves only with a page size, Start and End only with Home and End.
@@ -536,7 +646,75 @@ mod tests {
         assert_eq!(go(shape, &rows, &mut state, NavMove::PageDown), NavStep::Moved(9), "a short last row takes the last position");
         assert_eq!(go(shape, &rows, &mut state, NavMove::Forward), NavStep::Stay);
         assert_eq!(go(shape, &rows, &mut state, NavMove::Back), NavStep::Moved(8));
-        assert_eq!(go(NavShape::Cell, &rows, &mut state, NavMove::Back), NavStep::Unhandled);
+    }
+
+    /// Rows of 3, 1 and 2 positions; a sheet of 3 rows by 4 columns; four items at free positions.
+    struct Shapes;
+
+    impl NavOutline for Shapes {
+        fn len(&self) -> usize {
+            6
+        }
+        fn depth(&self, _: usize) -> usize {
+            0
+        }
+        fn has_children(&self, _: usize) -> bool {
+            false
+        }
+        fn open(&self, _: usize) -> bool {
+            false
+        }
+        fn is_section(&self, _: usize) -> bool {
+            false
+        }
+        fn enabled(&self, _: usize) -> bool {
+            true
+        }
+        fn row_len(&self, row: usize) -> Option<usize> {
+            [3, 1, 2].get(row).copied()
+        }
+        fn columns(&self) -> usize {
+            4
+        }
+        fn rect(&self, at: usize) -> Option<Rect> {
+            let spots = [(0.0, 0.0), (100.0, 10.0), (10.0, 100.0), (110.0, 110.0), (200.0, 0.0), (0.0, 200.0)];
+            spots.get(at).map(|&(x, y)| Rect::from_min_size(emath::Pos2::new(x, y), emath::Vec2::splat(20.0)))
+        }
+    }
+
+    #[test]
+    fn ragged_rows_keep_the_column_where_the_row_is_long_enough() {
+        let mut state = NavState::at(2).page(5);
+        let go = |state: &mut NavState, mv| step(NavShape::RaggedGrid, &Shapes, state, mv, MoveMods::PLAIN);
+        assert_eq!(go(&mut state, NavMove::Down), NavStep::Moved(3), "the single-item row takes any column");
+        assert_eq!(go(&mut state, NavMove::Down), NavStep::Moved(4), "the lead of the single-item row sits in column 0");
+        assert_eq!(go(&mut state, NavMove::Down), NavStep::Stay);
+        assert_eq!(go(&mut state, NavMove::PageUp), NavStep::Moved(0));
+        assert_eq!(go(&mut state, NavMove::Forward), NavStep::Moved(1));
+    }
+
+    #[test]
+    fn sheet_cells_move_by_column_and_rows_stop_at_the_ends() {
+        let mut state = NavState::at(1);
+        let go = |state: &mut NavState, mv, lead| step(NavShape::Cell, &Shapes, state, mv, MoveMods::new(false, lead, Granularity::Unit));
+        assert_eq!(go(&mut state, NavMove::Forward, false), NavStep::Column(1));
+        assert_eq!(go(&mut state, NavMove::End, false), NavStep::Column(3));
+        assert_eq!(go(&mut state, NavMove::Forward, false), NavStep::Stay);
+        assert_eq!((state.lead, state.column), (Some(1), 3));
+        assert_eq!(go(&mut state, NavMove::Up, false), NavStep::Moved(0));
+        assert_eq!(go(&mut state, NavMove::End, true), NavStep::Moved(5), "Ctrl+End is the last row");
+        assert_eq!(state.column, 3, "a row move keeps the column");
+    }
+
+    #[test]
+    fn spatial_moves_go_to_the_nearest_item_in_that_direction() {
+        let mut state = NavState::at(0);
+        let go = |state: &mut NavState, mv| step(NavShape::Spatial, &Shapes, state, mv, MoveMods::PLAIN);
+        assert_eq!(go(&mut state, NavMove::Forward), NavStep::Moved(1), "the near item at the right, not the far one in line");
+        assert_eq!(go(&mut state, NavMove::Down), NavStep::Moved(3));
+        assert_eq!(go(&mut state, NavMove::Back), NavStep::Moved(2));
+        assert_eq!(go(&mut state, NavMove::Up), NavStep::Moved(0));
+        assert_eq!(go(&mut state, NavMove::Up), NavStep::Stay);
     }
 
     #[test]

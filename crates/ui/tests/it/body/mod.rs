@@ -2,6 +2,6 @@
 //! viewport mounts.
 
 mod keyboard;
-mod kit;
+pub(crate) mod kit;
 mod mounts;
 mod scroll;

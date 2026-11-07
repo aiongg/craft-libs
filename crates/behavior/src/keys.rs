@@ -22,12 +22,14 @@ pub struct KeyRole {
     pub pages: bool,
     /// The component reads arrow nudges: arrows are not moves.
     pub nudge: bool,
+    /// Typed letters reach the component as `Intent::Text` (type-ahead).
+    pub type_ahead: bool,
 }
 
 impl KeyRole {
     /// A role with no special rows.
     pub const fn new() -> KeyRole {
-        KeyRole { resettable: false, multi: false, reorderable: false, rename: false, pages: false, nudge: false }
+        KeyRole { resettable: false, multi: false, reorderable: false, rename: false, pages: false, nudge: false, type_ahead: false }
     }
 
     /// Delete resets the control.
@@ -63,6 +65,12 @@ impl KeyRole {
     /// Arrows are nudges, not moves.
     pub const fn nudge(mut self, on: bool) -> Self {
         self.nudge = on;
+        self
+    }
+
+    /// Typed letters are delivered as text.
+    pub const fn type_ahead(mut self, on: bool) -> Self {
+        self.type_ahead = on;
         self
     }
 }

@@ -5,6 +5,7 @@
 //! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
 mod emit;
+pub(crate) mod items;
 mod live;
 pub(crate) mod scope;
 
@@ -395,4 +396,14 @@ impl SubNode {
         self.custom_actions.push((id, label));
         self
     }
+}
+
+/// Records the place of collection item `id` in its set for this pass's step 16.
+pub(crate) fn put_item_position(ctx: &egui::Context, id: Id, position: SetPosition) {
+    crate::runtime::egui::memory::put(ctx, crate::runtime::memory::sub(id, "item_position"), position);
+}
+
+/// The place the item step recorded for `id`.
+pub(crate) fn item_position(ctx: &egui::Context, id: Id) -> Option<SetPosition> {
+    crate::runtime::egui::memory::peek_clone(ctx, crate::runtime::memory::sub(id, "item_position"))
 }
