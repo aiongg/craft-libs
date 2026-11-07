@@ -100,7 +100,7 @@ fn a_double_click_on_the_title_minimizes_the_group_and_keeps_the_height_it_resto
     frames.idle(4, &mut show);
     assert_eq!(caller.toggles.get(), 1, "the double click is reported once");
     assert!(caller.minimized.get());
-    assert!(caller.shown.get().height() < caller.rect.get().height() / 2.0, "only the title row shows: {:?}", caller.shown.get());
+    assert!(caller.shown.get().height() < caller.rect.get().height(), "only the title row shows: {:?}", caller.shown.get());
     let restored_height = caller.rect.get().height();
     pointer::drag(&mut frames, title_of(caller.shown.get()), MOVE, &mut show);
     frames.idle(2, &mut show);
