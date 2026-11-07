@@ -95,14 +95,18 @@ impl UnitKind {
         }
     }
 
-    /// The length of one unit of this kind in millimetres, for the kinds that measure length.
-    fn millimetres(self) -> Option<f64> {
+    /// The points in an inch of PostScript points, the default of Points and Picas.
+    pub const POINTS_PER_INCH: f64 = 72.0;
+
+    /// How many units of this kind make an inch, for the kinds that measure length; `points_per_inch` sets the size
+    /// of Points and Picas (72, or 72.27 for traditional points). `None` for a kind that is not a length.
+    pub fn per_inch(self, points_per_inch: f64) -> Option<f64> {
         match self {
-            UnitKind::Inches => Some(25.4),
-            UnitKind::Centimetres => Some(10.0),
-            UnitKind::Millimetres => Some(1.0),
-            UnitKind::Points => Some(25.4 / 72.0),
-            UnitKind::Picas => Some(25.4 / 6.0),
+            UnitKind::Inches => Some(1.0),
+            UnitKind::Centimetres => Some(2.54),
+            UnitKind::Millimetres => Some(25.4),
+            UnitKind::Points => Some(points_per_inch),
+            UnitKind::Picas => Some(points_per_inch / 12.0),
             _ => None,
         }
     }
@@ -231,7 +235,13 @@ impl Units {
     /// A reader for numbers of `kind` (plain numbers when `None`): the locale's decimal and group separators and
     /// the unit spellings that convert to `kind`, in the user's language and in English.
     pub fn reader(&self, kind: Option<UnitKind>) -> Reader {
-        self.readers[Self::reader_slot(kind)].get_or_init(|| self.build_reader(kind)).clone()
+        self.readers[Self::reader_slot(kind)].get_or_init(|| self.build_reader(kind, UnitKind::POINTS_PER_INCH)).clone()
+    }
+
+    /// Like [`reader`](Units::reader), with Points and Picas of `points_per_inch` to the inch (72.27 for traditional
+    /// points), so a typed `12pt` is the length `LinkedSize` converts for the same preference.
+    pub fn reader_with_points(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader {
+        if points_per_inch == UnitKind::POINTS_PER_INCH { self.reader(kind) } else { self.build_reader(kind, points_per_inch) }
     }
 
     /// The index of the reader for `kind` in `readers`: 0 for plain numbers, then one per unit kind.
@@ -239,7 +249,7 @@ impl Units {
         kind.map_or(0, |kind| 1 + UnitKind::ALL.iter().position(|other| *other == kind).unwrap_or(0))
     }
 
-    fn build_reader(&self, kind: Option<UnitKind>) -> Reader {
+    fn build_reader(&self, kind: Option<UnitKind>, points_per_inch: f64) -> Reader {
         let (decimal, group) = self.format.separators();
         let mut reader = Reader::new().decimal(decimal);
         if let Some(group) = group {
@@ -248,8 +258,8 @@ impl Units {
         let Some(kind) = kind else { return reader };
         let english = Units::new(self.format.clone(), english_words(), Arc::new(Words::english()));
         for other in UnitKind::ALL {
-            let factor = match (kind.millimetres(), other.millimetres()) {
-                (Some(of), Some(per)) => per / of,
+            let factor = match (kind.per_inch(points_per_inch), other.per_inch(points_per_inch)) {
+                (Some(of), Some(per)) => of / per,
                 _ if other == kind => 1.0,
                 _ => continue,
             };

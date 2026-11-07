@@ -24,9 +24,6 @@ pub use dialog::{
 pub use host_requests::HostRequests;
 pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewWords, PreviewZoom, PreviewZoomOutput};
 
-pub mod size_model;
+mod size_model;
 
-pub use size_model::{
-    COMMIT_DECIMALS, DEFAULT_RESOLUTION, LinkedSize, MAX_PIXELS, POINTS_PER_INCH, PPI_RANGE, PixelSize, SizeError, resize_from_scale,
-    resize_from_side,
-};
+pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};

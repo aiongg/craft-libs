@@ -9,7 +9,7 @@ use craft_ui::patterns::form_dialogs::{
 use craft_ui::sections::{DialogRole, FooterButton};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
-use egui::{Modifiers, Vec2};
+use egui::{Key, Modifiers, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -138,7 +138,7 @@ fn alt_turns_cancel_into_reset_and_reset_keeps_the_dialog_open() {
     assert!(open.get(), "Reset keeps the dialog open");
 }
 
-/// A second dialog built on `ResetFooter` swaps its button the same way.
+/// A second dialog built on `ResetFooter` swaps its button the same way and reads the pick from `DialogOutput::picked`.
 #[trial]
 fn the_shared_reset_footer_serves_any_dialog() {
     let picked = Rc::new(Cell::new(None));
@@ -146,15 +146,14 @@ fn the_shared_reset_footer_serves_any_dialog() {
         let seen = Rc::clone(&picked);
         let mut fixture = Fixture::new(move |ui| {
             let mut open = true;
-            Dialog::new("Other")
+            let footer = ResetFooter::new(ui, None, true);
+            let shown = Dialog::new("Other")
                 .opened(Bind::bound(&mut open))
-                .footer(|ui, _| {
-                    let footer = ResetFooter::new(ui, None, true);
-                    if let Some(pick) = footer.buttons(ui, FooterButton::new("OK", DialogRole::Accept), true) {
-                        seen.set(Some(pick));
-                    }
-                })
+                .buttons(footer.buttons(FooterButton::new("OK", DialogRole::Accept), true))
                 .show(ui, |_, _| {});
+            if let Some(pick) = footer.pick(shown.output.picked) {
+                seen.set(Some(pick));
+            }
         });
         fixture.hold(if alt { Modifiers::ALT } else { Modifiers::NONE });
         fixture.settle();
@@ -165,4 +164,53 @@ fn the_shared_reset_footer_serves_any_dialog() {
         fixture.idle(2);
         assert_eq!(picked.get(), Some(if alt { ResetPick::Reset } else { ResetPick::Cancel }), "the footer answers with the pick (alt: {alt})");
     }
+}
+
+/// A fixture with a `ParamDialog` whose `close_guard` answers `allow` and counts its calls.
+fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
+    let params = vec![Param::number("width", "Width", 640.0, 1.0, 0)];
+    let fields = Rc::new(RefCell::new(DialogFields::new()));
+    let open = Rc::new(Cell::new(true));
+    let asked = Rc::new(Cell::new(0));
+    let (state, counted) = (Rc::clone(&open), Rc::clone(&asked));
+    let mut fixture = Fixture::new(move |ui| {
+        let mut fields = fields.borrow_mut();
+        let mut now = state.get();
+        let counted = Rc::clone(&counted);
+        ParamDialog::new("size", "Size", params.clone())
+            .values(Bind::bound(&mut *fields))
+            .opened(Bind::bound(&mut now))
+            .shaped(move |dialog| {
+                dialog.close_guard(move |_, _| {
+                    counted.set(counted.get() + 1);
+                    allow
+                })
+            })
+            .show(ui);
+        state.set(now);
+    });
+    fixture.settle();
+    (fixture, asked, open)
+}
+
+/// OK and Enter take the same way through the dialog's buttons: the `close_guard` is asked for both, and a refusal
+/// keeps the dialog open.
+#[trial]
+fn param_dialog_ok_and_enter_go_through_the_close_guard() {
+    let (mut refused, asked, open) = guarded_rig(false);
+    let ok = refused.by_label("OK").expect("the OK button is shown");
+    refused.click(&ok);
+    refused.idle(3);
+    assert_eq!(asked.get(), 1, "OK asks the guard");
+    assert!(open.get(), "a refused OK keeps the dialog open");
+    refused.key(Key::Enter, Modifiers::NONE);
+    refused.idle(3);
+    assert_eq!(asked.get(), 2, "Enter asks the guard through the OK button");
+    assert!(open.get(), "a refused Enter keeps the dialog open");
+
+    let (mut allowed, asked, open) = guarded_rig(true);
+    allowed.key(Key::Enter, Modifiers::NONE);
+    allowed.idle(3);
+    assert_eq!(asked.get(), 1, "Enter asks the guard once");
+    assert!(!open.get(), "an allowed Enter closes the dialog");
 }

@@ -21,9 +21,30 @@ impl HostRequests {
 
     /// Moves the requests of `rows` in, leaving the rows' fields empty.
     pub fn absorb(&mut self, rows: &mut ParamRowsOutput) {
-        self.color = rows.pick_color.take().or(self.color.take());
-        self.path = rows.path.take().or(self.path.take());
-        self.eyedropper = rows.eyedropper.take().or(self.eyedropper.take());
+        if let Some(request) = rows.pick_color.take() {
+            self.request_color(request);
+        }
+        if let Some(request) = rows.path.take() {
+            self.request_path(request);
+        }
+        if let Some(request) = rows.eyedropper.take() {
+            self.request_eyedropper(request);
+        }
+    }
+
+    /// Files a colour request; it replaces one not taken yet.
+    pub fn request_color(&mut self, request: ColorRequest) {
+        self.color = Some(request);
+    }
+
+    /// Files a Browse request; it replaces one not taken yet.
+    pub fn request_path(&mut self, request: PathRequest) {
+        self.path = Some(request);
+    }
+
+    /// Files an eyedropper request; it replaces one not taken yet.
+    pub fn request_eyedropper(&mut self, request: EyedropperRequest) {
+        self.eyedropper = Some(request);
     }
 
     /// The colour parameter whose button was pressed, once.

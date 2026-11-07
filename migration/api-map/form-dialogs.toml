@@ -61,21 +61,21 @@ name = "HostRequests"
 old = ""
 new = "craft_ui::patterns::form_dialogs::HostRequests"
 status = "replaced"
-note = "The colour, path and eyedropper requests of hosted rows, kept until the host takes them: `absorb(&mut ParamRowsOutput)`, `take_color`, `take_path`, `take_eyedropper`, `cancel`. `HostedParamDialog` embeds it."
+note = "The colour, path and eyedropper requests of hosted rows, kept until the host takes them: `absorb(&mut ParamRowsOutput)`, `request_color(ColorRequest)`, `request_path(PathRequest)`, `request_eyedropper(EyedropperRequest)`, `take_color`, `take_path`, `take_eyedropper`, `cancel`. `HostedParamDialog` embeds it."
 
 [[type]]
 name = "ResetFooter"
 old = ""
 new = "craft_ui::patterns::form_dialogs::ResetFooter"
 status = "replaced"
-note = "The footer whose Cancel turns into Reset while Alt is held, shared by `ParamDialog` and other dialogs: `ResetFooter::new(ui, cancel_label, alt_resets)`, `show(ui, accept, changed) -> Option<ResetPick>`, `restore(values, target)`."
+note = "The footer whose Cancel turns into Reset while Alt is held, shared by `ParamDialog` and other dialogs: `ResetFooter::new(ui, cancel_label, alt_resets)`, `buttons(accept, changed) -> [FooterButton; 2]` for `Dialog::buttons` (Reset is role `Other` and stays open), and `pick(DialogOutput::picked) -> Option<ResetPick>`. The restore of the values is `ParamDialog`'s own; a `LinkedSize` dialog resets through `LinkedSize::reset`."
 
 [[type]]
 name = "ResetPick"
 old = ""
 new = "craft_ui::patterns::form_dialogs::ResetPick"
 status = "replaced"
-note = "What `ResetFooter::show` answers with: `Accept`, `Reset` or `Cancel`."
+note = "What `ResetFooter::pick` answers with: `Accept`, `Reset` or `Cancel`."
 
 [[type]]
 name = "PreviewZoom"
@@ -474,7 +474,7 @@ name = "LinkedSizeFields"
 old = "craft_ui::dialog::LinkedSizeFields"
 new = ""
 status = "replaced"
-note = "Replaced by `craft_ui::patterns::form_dialogs::size_model::LinkedSize`, the pure model with no rows: `new(PixelSize)`, `opening_resolution`, `points_per_inch`, `chain`, `lock`, `resampling`, `relative`, `set_unit(UnitKind)`, `set_resolution_unit(UnitKind)`, `width`, `height`, `resolution`, `set_width`, `set_height`, `set_resolution`, `pixels`. The dialogs show each field as a `UnitSelect` row over those values; Save for Web and New Document use the same model instead of their own copies. `SizeUnit` and `ResolutionUnit` are `UnitKind` (`Pixels`, `Percent`, `Points`, `Picas`, `Inches`, `Centimetres`, `Millimetres`; `PixelsPerInch`, `PixelsPerCentimetre`), and `PixelSize` has no `pixels_per_inch` field: the resolution is `LinkedSize::pixels_per_inch()`."
+note = "Replaced by `craft_ui::patterns::form_dialogs::LinkedSize`, the pure model with no rows: `new(PixelSize)`, `opening_resolution`, `points_per_inch`, `chain`, `lock`, `resampling`, `relative`, `set_unit(UnitKind)`, `set_resolution_unit(UnitKind)`, `width`, `height`, `resolution`, `set_width`, `set_height`, `set_resolution`, `pixels`. The dialogs show each field as a `UnitSelect` row over those values; Save for Web and New Document use the same model instead of their own copies. `SizeUnit` and `ResolutionUnit` are `UnitKind` (`Pixels`, `Percent`, `Points`, `Picas`, `Inches`, `Centimetres`, `Millimetres`; `PixelsPerInch`, `PixelsPerCentimetre`), and `PixelSize` is `craft_behavior::PixelSize` and has no `pixels_per_inch` field: the resolution is `LinkedSize::pixels_per_inch()`."
 
 [[type]]
 name = "Anchor"
@@ -500,3 +500,11 @@ type = "AnchorGrid"
 old = "arrows(bool)"
 new = ""
 note = "Removed: a picker without `growth` shows no arrows."
+
+# Pixel size and the size rules (l4c-forms).
+[[type]]
+name = "PixelSize"
+old = "craft_ui::dialog::PixelSize"
+new = "craft_behavior::PixelSize"
+status = "replaced"
+note = "Whole pixels, `PixelSize::new(width, height)`; the resolution is not part of it (`LinkedSize::pixels_per_inch()`). `resize_from_scale` and `resize_from_side` of `craft_ui::patterns::form_dialogs` take and return it."

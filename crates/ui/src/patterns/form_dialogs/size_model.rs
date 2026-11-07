@@ -3,49 +3,27 @@
 //! `LinkedSize` through `UnitSelect` rows, one per field.
 
 use crate::runtime::env::UnitKind;
+use craft_behavior::PixelSize;
 use std::ops::RangeInclusive;
 
-/// The decimals a typed size or resolution keeps; the fields show fewer.
-pub const COMMIT_DECIMALS: usize = 8;
 /// The engine's greatest document side, in pixels.
-pub const MAX_PIXELS: f64 = 300_000.0;
+pub const MAX_DOCUMENT_SIDE: f64 = 300_000.0;
 /// The least and greatest resolution, in pixels per inch.
-pub const PPI_RANGE: RangeInclusive<f64> = 1.0..=30_000.0;
+const PPI_RANGE: RangeInclusive<f64> = 1.0..=30_000.0;
 /// The resolution of a document whose dialog names none, in pixels per inch.
-pub const DEFAULT_RESOLUTION: f64 = 72.0;
-/// The points in an inch of PostScript points.
-pub const POINTS_PER_INCH: f64 = 72.0;
+const DEFAULT_RESOLUTION: f64 = 72.0;
 /// The greatest scale of an export, in percent.
 const MAX_SCALE: f64 = 1000.0;
 /// The least scale of an export, in percent.
 const MIN_SCALE: f64 = 1.0;
-const CM_PER_INCH: f64 = 2.54;
-const MM_PER_CM: f64 = 10.0;
-const POINTS_PER_PICA: f64 = 12.0;
 const PERCENT: f64 = 100.0;
 
-/// The size of a document in whole pixels; `PixelSize::new` builds one.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[non_exhaustive]
-pub struct PixelSize {
-    /// Width in pixels.
-    pub width: u32,
-    /// Height in pixels.
-    pub height: u32,
-}
-
-impl PixelSize {
-    /// A size of `width` by `height` pixels.
-    pub const fn new(width: u32, height: u32) -> Self {
-        PixelSize { width, height }
-    }
-
-    fn side(self, field: Side) -> f64 {
-        f64::from(match field {
-            Side::Width => self.width,
-            Side::Height => self.height,
-        })
-    }
+/// The pixels of `size` along `field`.
+fn pixels_along(size: PixelSize, field: Side) -> f64 {
+    f64::from(match field {
+        Side::Width => size.width,
+        Side::Height => size.height,
+    })
 }
 
 /// Why a size was refused.
@@ -61,24 +39,24 @@ pub enum SizeError {
 /// The output size at `scale` percent (1 to 1000) of a `source` size: each side scaled and rounded, at least 1 pixel
 /// (a source side under 1 counts as 1). A scale outside the range is [`SizeError::Scale`]; a side over 300,000 pixels
 /// is [`SizeError::Pixels`].
-pub fn resize_from_scale(source: (u32, u32), scale: f64) -> Result<(u32, u32), SizeError> {
+pub fn resize_from_scale(source: PixelSize, scale: f64) -> Result<PixelSize, SizeError> {
     if !scale.is_finite() || !(MIN_SCALE..=MAX_SCALE).contains(&scale) {
         return Err(SizeError::Scale);
     }
     let side = |source: u32| (f64::from(source.max(1)) * scale / PERCENT).round().max(1.0);
-    let (width, height) = (side(source.0), side(source.1));
-    if width > MAX_PIXELS || height > MAX_PIXELS {
+    let (width, height) = (side(source.width), side(source.height));
+    if width > MAX_DOCUMENT_SIDE || height > MAX_DOCUMENT_SIDE {
         return Err(SizeError::Pixels);
     }
-    Ok((width as u32, height as u32))
+    Ok(PixelSize::new(width as u32, height as u32))
 }
 
 /// The output size after the user typed `width` (`edited_width`) or `height`: the typed side is rounded and must be 1
 /// to 300,000 pixels. With `lock` the other side follows the source's aspect (at least 1 pixel, same range);
 /// otherwise it keeps its value (same range). Returns the size and the scale it amounts to, in percent of the edited
 /// side.
-pub fn resize_from_side(source: (u32, u32), width: f64, height: f64, lock: bool, edited_width: bool) -> Result<((u32, u32), f64), SizeError> {
-    let (source_width, source_height) = (f64::from(source.0.max(1)), f64::from(source.1.max(1)));
+pub fn resize_from_side(source: PixelSize, width: f64, height: f64, lock: bool, edited_width: bool) -> Result<(PixelSize, f64), SizeError> {
+    let (source_width, source_height) = (f64::from(source.width.max(1)), f64::from(source.height.max(1)));
     let (width, height) = if edited_width {
         let width = finite_pixels(width)?;
         let height = if lock { finite_pixels((source_height * width / source_width).max(1.0))? } else { finite_pixels(height)? };
@@ -89,17 +67,17 @@ pub fn resize_from_side(source: (u32, u32), width: f64, height: f64, lock: bool,
         (width, height)
     };
     let scale = if edited_width { width / source_width * PERCENT } else { height / source_height * PERCENT };
-    Ok(((width as u32, height as u32), scale))
+    Ok((PixelSize::new(width as u32, height as u32), scale))
 }
 
 fn finite_pixels(value: f64) -> Result<f64, SizeError> {
-    if value.is_finite() && (1.0..=MAX_PIXELS).contains(&value) { Ok(value.round()) } else { Err(SizeError::Pixels) }
+    if value.is_finite() && (1.0..=MAX_DOCUMENT_SIDE).contains(&value) { Ok(value.round()) } else { Err(SizeError::Pixels) }
 }
 
 /// Whole pixels from `pixels`, at least one and at most the engine's limit; `fallback` for a value that is not a
 /// number.
 fn clamp_pixels(pixels: f64, fallback: u32) -> u32 {
-    if pixels.is_finite() { pixels.round().clamp(1.0, MAX_PIXELS) as u32 } else { fallback }
+    if pixels.is_finite() { pixels.round().clamp(1.0, MAX_DOCUMENT_SIDE) as u32 } else { fallback }
 }
 
 /// Which side of the size a field edits.
@@ -121,12 +99,7 @@ fn from_pixels(unit: UnitKind, pixels: f64, original: f64, ppi: f64, points_per_
     Some(match unit {
         UnitKind::Pixels => pixels,
         UnitKind::Percent => pixels / original.max(1.0) * PERCENT,
-        UnitKind::Inches => pixels / resolution,
-        UnitKind::Centimetres => pixels / resolution * CM_PER_INCH,
-        UnitKind::Millimetres => pixels / resolution * CM_PER_INCH * MM_PER_CM,
-        UnitKind::Points => pixels / resolution * points_per_inch,
-        UnitKind::Picas => pixels / resolution * points_per_inch / POINTS_PER_PICA,
-        _ => return None,
+        _ => pixels / resolution * unit.per_inch(points_per_inch)?,
     })
 }
 
@@ -136,12 +109,7 @@ fn to_pixels(unit: UnitKind, value: f64, original: f64, ppi: f64, points_per_inc
     Some(match unit {
         UnitKind::Pixels => value,
         UnitKind::Percent => value * original / PERCENT,
-        UnitKind::Inches => value * resolution,
-        UnitKind::Centimetres => value / CM_PER_INCH * resolution,
-        UnitKind::Millimetres => value / (CM_PER_INCH * MM_PER_CM) * resolution,
-        UnitKind::Points => value / points_per_inch * resolution,
-        UnitKind::Picas => value / points_per_inch * POINTS_PER_PICA * resolution,
-        _ => return None,
+        _ => value / unit.per_inch(points_per_inch)? * resolution,
     })
 }
 
@@ -149,7 +117,7 @@ fn to_pixels(unit: UnitKind, value: f64, original: f64, ppi: f64, points_per_inc
 fn resolution_per_inch(unit: UnitKind) -> Option<f64> {
     match unit {
         UnitKind::PixelsPerInch => Some(1.0),
-        UnitKind::PixelsPerCentimetre => Some(CM_PER_INCH),
+        UnitKind::PixelsPerCentimetre => UnitKind::Centimetres.per_inch(UnitKind::POINTS_PER_INCH),
         _ => None,
     }
 }
@@ -205,7 +173,7 @@ impl LinkedSize {
             resampling: true,
             relative: false,
             chain: true,
-            points_per_inch: POINTS_PER_INCH,
+            points_per_inch: UnitKind::POINTS_PER_INCH,
             typed: None,
         }
     }
@@ -247,15 +215,25 @@ impl LinkedSize {
         self.lock = on;
     }
 
-    /// Whether the chain shows as linked: the lock is on, or resampling is off (the pixel count is fixed, so the
-    /// sides scale together).
+    /// Whether the chain shows as linked: the model has a chain and its lock is on, or resampling is off (the pixel
+    /// count is fixed, so the sides scale together).
     pub fn is_linked(&self) -> bool {
-        !self.resampling || self.lock
+        !self.resampling || self.sides_scale_together()
     }
 
-    /// Whether the pixel count may change: Image Size with Resample on, and always in Canvas Size.
+    /// Whether setting one side scales the other: only a model with a chain links its sides.
+    fn sides_scale_together(&self) -> bool {
+        self.chain && self.lock
+    }
+
+    /// Whether the pixel count may change: Image Size with Resample on, and always in Canvas Size. Turning it off
+    /// puts back the opening pixel size, since the pixel count is fixed from then on.
     pub fn resampling(&mut self, on: bool) {
         self.resampling = on;
+        if !on {
+            self.current = self.original;
+            self.typed = None;
+        }
     }
 
     /// Whether the pixel count may change.
@@ -395,8 +373,8 @@ impl LinkedSize {
     }
 
     fn range(&self, side: Side) -> RangeInclusive<f64> {
-        let original = self.original.side(side);
-        let limit = self.from_pixels(MAX_PIXELS, original);
+        let original = pixels_along(self.original, side);
+        let limit = self.from_pixels(MAX_DOCUMENT_SIDE, original);
         if self.relative { -limit..=limit } else { self.from_pixels(1.0, original).min(self.shown(side))..=limit }
     }
 
@@ -416,7 +394,7 @@ impl LinkedSize {
         {
             return typed.value;
         }
-        let (current, original) = (self.current.side(side), self.original.side(side));
+        let (current, original) = (pixels_along(self.current, side), pixels_along(self.original, side));
         self.from_pixels(if self.relative { current - original } else { current }, original)
     }
 
@@ -424,7 +402,7 @@ impl LinkedSize {
         if !value.is_finite() {
             return;
         }
-        let (current, original) = (self.current.side(side), self.original.side(side));
+        let (current, original) = (pixels_along(self.current, side), pixels_along(self.original, side));
         let Some(pixels) = to_pixels(self.unit, value, original, self.ppi, self.points_per_inch) else { return };
         self.typed = None;
         if !self.resampling {
@@ -450,14 +428,14 @@ impl LinkedSize {
         match side {
             Side::Width => {
                 self.current.width = clamp_pixels(pixels, self.current.width);
-                if self.lock {
+                if self.sides_scale_together() {
                     let scaled = f64::from(self.current.width) * original_height / original_width;
                     self.current.height = clamp_pixels(scaled, self.current.height);
                 }
             }
             Side::Height => {
                 self.current.height = clamp_pixels(pixels, self.current.height);
-                if self.lock {
+                if self.sides_scale_together() {
                     let scaled = f64::from(self.current.height) * original_width / original_height;
                     self.current.width = clamp_pixels(scaled, self.current.width);
                 }

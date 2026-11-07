@@ -1,8 +1,9 @@
 //! The size model of the size dialogs: linked fields, units, the pixel cap and the export size rules.
 
-use craft_ui::patterns::form_dialogs::size_model::{LinkedSize, MAX_PIXELS, PixelSize, SizeError, resize_from_scale, resize_from_side};
-use craft_ui::runtime::env::UnitKind;
-use craft_ui::testing::trial;
+use craft_behavior::PixelSize;
+use craft_ui::patterns::form_dialogs::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+use craft_ui::runtime::env::{Env, UnitKind};
+use craft_ui::testing::{Frames, trial};
 
 fn document() -> LinkedSize {
     LinkedSize::new(PixelSize::new(1200, 800))
@@ -39,9 +40,9 @@ fn the_pixel_cap_stops_a_size_above_300000() {
     let mut size = document();
     size.lock(false);
     size.set_width(400_000.0);
-    assert_eq!(f64::from(size.pixels().width), MAX_PIXELS);
-    assert_eq!(*size.width_range().end(), MAX_PIXELS);
-    assert_eq!(resize_from_side((1200, 800), 300_001.0, 10.0, false, true), Err(SizeError::Pixels));
+    assert_eq!(f64::from(size.pixels().width), MAX_DOCUMENT_SIDE);
+    assert_eq!(*size.width_range().end(), MAX_DOCUMENT_SIDE);
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 300_001.0, 10.0, false, true), Err(SizeError::Pixels));
     assert_eq!(resize_from_scale((100_000, 10), 400.0), Err(SizeError::Pixels));
 }
 
@@ -147,18 +148,64 @@ fn a_relative_size_holds_the_change() {
 /// a locked side follows the source's aspect.
 #[trial]
 fn the_export_rules_refuse_sizes_the_engine_cannot_make() {
-    assert_eq!(resize_from_scale((101, 3), 50.0), Ok((51, 2)));
-    assert_eq!(resize_from_scale((0, 5), 100.0), Ok((1, 5)));
-    assert_eq!(resize_from_scale((100, 100), 0.0), Err(SizeError::Scale));
-    assert_eq!(resize_from_scale((100, 100), 1001.0), Err(SizeError::Scale));
-    assert_eq!(resize_from_scale((100, 100), f64::NAN), Err(SizeError::Scale));
+    assert_eq!(resize_from_scale(PixelSize::new(101, 3), 50.0), Ok(PixelSize::new(51, 2)));
+    assert_eq!(resize_from_scale(PixelSize::new(0, 5), 100.0), Ok(PixelSize::new(1, 5)));
+    assert_eq!(resize_from_scale(PixelSize::new(100, 100), 0.0), Err(SizeError::Scale));
+    assert_eq!(resize_from_scale(PixelSize::new(100, 100), 1001.0), Err(SizeError::Scale));
+    assert_eq!(resize_from_scale(PixelSize::new(100, 100), f64::NAN), Err(SizeError::Scale));
 
-    assert_eq!(resize_from_side((1200, 800), 600.0, 0.0, true, true), Ok(((600, 400), 50.0)));
-    assert_eq!(resize_from_side((1200, 800), 0.0, 400.0, true, false), Ok(((600, 400), 50.0)));
-    assert_eq!(resize_from_side((1200, 800), 600.0, 123.0, false, true), Ok(((600, 123), 50.0)));
-    assert_eq!(resize_from_side((1200, 800), 0.4, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side((1200, 800), 0.0, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side((1200, 800), f64::NAN, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side((1200, 800), 600.0, f64::INFINITY, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_side((800, 1200), 300_000.0, 0.0, true, true), Err(SizeError::Pixels));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, 0.0, true, true), Ok((PixelSize::new(600, 400), 50.0)));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.0, 400.0, true, false), Ok((PixelSize::new(600, 400), 50.0)));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, 123.0, false, true), Ok((PixelSize::new(600, 123), 50.0)));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.4, 10.0, false, true), Err(SizeError::Pixels));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 0.0, 10.0, false, true), Err(SizeError::Pixels));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), f64::NAN, 10.0, false, true), Err(SizeError::Pixels));
+    assert_eq!(resize_from_side(PixelSize::new(1200, 800), 600.0, f64::INFINITY, false, true), Err(SizeError::Pixels));
+    assert_eq!(resize_from_side(PixelSize::new(800, 1200), 300_000.0, 0.0, true, true), Err(SizeError::Pixels));
+}
+
+/// A model without the chain never scales the other side, whatever its lock says (Canvas Size).
+#[trial]
+fn a_model_without_the_chain_keeps_the_other_side() {
+    let mut size = document().chain(false);
+    size.set_width(600.0);
+    assert_eq!(pixels(&size), (600, 800));
+    size.set_height(100.0);
+    assert_eq!(pixels(&size), (600, 100));
+    assert!(!size.is_linked());
+}
+
+/// Turning Resample off puts back the opening pixel size, so a size typed in inches afterwards reads back as typed.
+#[trial]
+fn resample_off_puts_back_the_opening_pixels() {
+    let mut size = document();
+    size.set_width(300.0);
+    assert_eq!(pixels(&size), (300, 200));
+    size.resampling(false);
+    assert_eq!(pixels(&size), (1200, 800));
+    assert!(size.set_unit(UnitKind::Inches));
+    size.set_width(8.0);
+    assert_eq!(size.width(), 8.0);
+    assert!((size.pixels_per_inch() - 150.0).abs() < 1e-9);
+}
+
+/// A length typed with a point suffix and the model's own point conversion agree under the traditional point.
+#[trial]
+fn a_typed_point_and_the_model_convert_alike() {
+    const TRADITIONAL: f64 = 72.27;
+    let mut read = None;
+    let mut frames = Frames::new();
+    frames.frame(vec![], |ui| {
+        let inches = Env::of(ui).units().reader_with_points(Some(UnitKind::Inches), TRADITIONAL);
+        read = inches.read("12pt", None).ok();
+    });
+    let typed = read.expect("the reader takes a point suffix in an inches field");
+
+    let mut by_reader = document().points_per_inch(TRADITIONAL);
+    assert!(by_reader.set_unit(UnitKind::Inches));
+    by_reader.set_width(typed);
+    let mut by_model = document().points_per_inch(TRADITIONAL);
+    assert!(by_model.set_unit(UnitKind::Points));
+    by_model.set_width(12.0);
+    assert_eq!(by_reader.pixels(), by_model.pixels());
 }
