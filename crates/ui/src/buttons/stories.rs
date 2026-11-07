@@ -50,7 +50,7 @@ fn presets() -> [MenuEntry<u8>; 3] {
 #[story(SplitButton<'static, u8>, covers = [Default], drive = Drive::Activate)]
 fn split_button(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let entries = presets();
-    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).response.into()
+    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).into()
 }
 
 fn open_menu(fixture: &mut Fixture) {
@@ -61,7 +61,7 @@ fn open_menu(fixture: &mut Fixture) {
 #[story(SplitButton<'static, u8>, covers = [Open], drive = Drive::Custom(open_menu))]
 fn split_button_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let entries = presets();
-    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).response.into()
+    SplitButton::new("Image Trace", &entries).arrow_label("Tracing presets").show(ui).into()
 }
 
 #[story(Link, covers = [Default])]

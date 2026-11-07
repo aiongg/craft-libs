@@ -1,7 +1,7 @@
 //! Stories: named ways to show one registered type, and the data and output the runner reads from them.
 
 use super::Fixture;
-use crate::contract::{CollectionEvent, EditResponse, Inner, TooltipSpec};
+use crate::contract::{CollectionEvent, Inner, Outcome, TooltipSpec};
 use craft_behavior::{EditEvent, PartKey, Value};
 use egui::{Id, Response, Ui};
 use std::any::{Any, TypeId};
@@ -334,44 +334,33 @@ pub struct StoryOutput {
     pub visible: Option<Range<usize>>,
 }
 
-impl From<Response> for StoryOutput {
-    fn from(response: Response) -> Self {
-        StoryOutput { id: Some(response.id), clicked: super::contract::clicked(&response), ..StoryOutput::default() }
+impl StoryOutput {
+    pub(crate) fn from_response(response: &Response) -> Self {
+        StoryOutput { id: Some(response.id), clicked: super::contract::clicked(response), ..StoryOutput::default() }
     }
-}
 
-impl From<crate::dialog::DialogOutput> for StoryOutput {
-    fn from(output: crate::dialog::DialogOutput) -> Self {
-        output.response.into()
+    pub(crate) fn of_edit<T>(response: &Response, event: Option<&EditEvent<T>>) -> Self {
+        StoryOutput { edits: event.into_iter().filter_map(EditKind::of).collect(), ..Self::from_response(response) }
     }
-}
 
-impl<K, E> From<crate::contract::CollectionResponse<K, E>> for StoryOutput {
-    fn from(response: crate::contract::CollectionResponse<K, E>) -> Self {
+    pub(crate) fn of_collection<K, E>(response: &Response, events: &[CollectionEvent<K, E>], visible: &Range<usize>) -> Self {
         StoryOutput {
-            id: Some(response.response.id),
-            collection: response.events.iter().filter_map(CollectionKind::of).collect(),
-            visible: Some(response.visible),
-            clicked: super::contract::clicked(&response.response),
-            ..StoryOutput::default()
+            collection: events.iter().filter_map(CollectionKind::of).collect(),
+            visible: Some(visible.clone()),
+            ..Self::from_response(response)
         }
     }
 }
 
-impl<T> From<EditResponse<T>> for StoryOutput {
-    fn from(response: EditResponse<T>) -> Self {
-        StoryOutput {
-            id: Some(response.response.id),
-            edits: response.event.iter().filter_map(EditKind::of).collect(),
-            clicked: super::contract::clicked(&response.response),
-            ..StoryOutput::default()
-        }
+impl<O: Outcome> From<O> for StoryOutput {
+    fn from(output: O) -> Self {
+        output.story_facts()
     }
 }
 
-impl<O: Into<StoryOutput>, R> From<Inner<O, R>> for StoryOutput {
+impl<O: Outcome, R> From<Inner<O, R>> for StoryOutput {
     fn from(shown: Inner<O, R>) -> Self {
-        shown.output.into()
+        shown.output.story_facts()
     }
 }
 

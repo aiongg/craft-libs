@@ -98,6 +98,11 @@ impl<const N: usize> Outcome for LinkedOutput<N> {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 impl<const N: usize> Deref for LinkedOutput<N> {

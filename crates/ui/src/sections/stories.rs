@@ -62,25 +62,25 @@ fn toggle_disclosure(fixture: &mut Fixture) {
 #[story(Section<'static>, covers = [Default], drive = Drive::Custom(toggle_disclosure))]
 fn section(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let shown = Section::new("Layers", Bind::bound(data.value("open", true))).show(ui, |ui, _| body(ui));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(Section<'static>, covers = [], drive = Drive::Never)]
 fn section_closed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let shown = Section::new("Layers", Bind::bound(data.value("open", false))).show(ui, |ui, _| body(ui));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(Section<'static>, covers = [], drive = Drive::Never)]
 fn section_fixed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shown = Section::fixed("Layers").show(ui, |ui, _| body(ui));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(Section<'static>, covers = [], drive = Drive::Never)]
 fn section_with_menu_and_reorder(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let shown = Section::new("Layers", Bind::bound(data.value("open", true))).actions([HeaderAction::Menu]).reorder(true).show(ui, |ui, _| body(ui));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(TitleRow<'static>, covers = [Default])]

@@ -21,6 +21,14 @@ pub trait Outcome {
 
     /// The component's response.
     fn response(&self) -> &Response;
+
+    /// The facts a story reports about this output: its id, click, edit kinds, collection kinds and visible range.
+    /// Outputs that hold an `EditResponse` or a `CollectionResponse` forward to it.
+    #[cfg(feature = "testing")]
+    #[doc(hidden)]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        crate::testing::StoryOutput::from_response(self.response())
+    }
 }
 
 impl Outcome for Response {
@@ -267,6 +275,11 @@ impl<T: Value> Outcome for EditResponse<T> {
 
     fn response(&self) -> &Response {
         &self.response
+    }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        crate::testing::StoryOutput::of_edit(&self.response, self.event.as_ref())
     }
 }
 

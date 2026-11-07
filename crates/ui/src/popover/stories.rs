@@ -20,7 +20,7 @@ fn body(ui: &mut Ui) {
 
 fn popover_with(ui: &mut Ui, data: &mut StoryData, build: impl FnOnce(Popover<'_>) -> Popover<'_>) -> StoryOutput {
     let opener = Button::new("Grid").show(ui);
-    build(Popover::new("Grid options", Bind::bound(data.value("open", true))).opened_by(&opener)).show(ui, |ui, _| body(ui)).output.response.into()
+    build(Popover::new("Grid options", Bind::bound(data.value("open", true))).opened_by(&opener)).show(ui, |ui, _| body(ui)).output.into()
 }
 
 #[story(Popover<'static>, covers = [Default], drive = Drive::Never)]

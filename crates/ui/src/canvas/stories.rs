@@ -37,7 +37,7 @@ fn drag_top_left(fixture: &mut Fixture) {
 #[story(Canvas, covers = [Default])]
 fn crop_tool(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shown = Canvas::new("Document", CROP_TO).show(ui, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(Canvas, covers = [Default])]
@@ -45,12 +45,12 @@ fn zoomed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let shown = Canvas::new("Document", CROP_TO)
         .transform(CanvasTransform::new(ZOOM, Vec2::ZERO))
         .show(ui, |ui, body| CropOverlay::new("Crop", Bind::given(crop())).show_at(ui, body.rect));
-    shown.output.response.into()
+    shown.output.into()
 }
 
 #[story(Canvas, covers = [Default])]
 fn freehand(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Canvas::new("Painting", ToolPath::Freehand).show(ui, |_, _| ()).output.response.into()
+    Canvas::new("Painting", ToolPath::Freehand).show(ui, |_, _| ()).output.into()
 }
 
 #[story(CropOverlay<'static>, covers = [Default], drive = Drive::Custom(drag_top_left))]
