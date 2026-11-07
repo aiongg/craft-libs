@@ -1,17 +1,19 @@
-//! `Prompt` (24.4): a question with answers on the modal preset of `Dialog`, and `accelerator_labels`.
+//! `Prompt` (24.4): a question with answers on the modal preset of `Dialog`, and `accelerator_labels`, which the
+//! footer bar uses to show the letters.
 
 use super::frame::DialogOutput;
 use super::modal::Dialog;
-use crate::contract::{Bind, NoValue, Outcome, Show as _, ShowContainer as _};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _, ShowContainer as _};
 use crate::display::Text;
 use crate::layout_components::Stack;
 use crate::notices::{Notice, NoticeLayout};
-use crate::runtime::env::Label;
+use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton, Section};
 use craft_host::target::Os;
-use craft_theme::Tone;
+use craft_keymap::mnemonic;
+use craft_theme::variant::Tone;
 use egui::{Response, Ui};
 
 #[cfg(feature = "testing")]
@@ -36,37 +38,52 @@ pub fn accelerator_labels(answers: &[(&str, Option<char>)], os: Os) -> Vec<Strin
         .collect()
 }
 
-/// One answer of a prompt before its button exists: the label, what the button means, its letter and whether it is
-/// available.
+/// One answer of a prompt before its button exists: the label, what the button means, whether it has a letter and
+/// whether it is available.
 pub(super) struct Reply {
-    pub(super) label: Label,
-    pub(super) role: DialogRole,
-    pub(super) letter: Option<char>,
-    pub(super) enabled: bool,
+    label: Label,
+    role: DialogRole,
+    lettered: bool,
+    enabled: bool,
+    reason: Option<Label>,
 }
 
 impl Reply {
-    pub(super) fn new(label: impl Into<Label>, role: DialogRole, letter: Option<char>) -> Self {
-        Reply { label: label.into(), role, letter, enabled: true }
+    /// An answer with a letter.
+    pub(super) fn new(label: impl Into<Label>, role: DialogRole) -> Self {
+        Reply { label: label.into(), role, lettered: true, enabled: true, reason: None }
     }
 
-    pub(super) fn enabled(mut self, on: bool) -> Self {
+    /// An answer without a letter.
+    pub(super) fn plain(label: impl Into<Label>, role: DialogRole) -> Self {
+        Reply { lettered: false, ..Reply::new(label, role) }
+    }
+
+    /// Whether the answer is available; `reason` is what the disabled button tells.
+    pub(super) fn enabled(mut self, on: bool, reason: Option<Label>) -> Self {
         self.enabled = on;
+        self.reason = reason;
         self
     }
 }
 
-/// The buttons of `replies`, in the given order, with their letters shown in the labels by `accelerator_labels`.
-pub(super) fn buttons(replies: &[Reply], os: Os) -> Vec<FooterButton> {
-    let shown: Vec<(&str, Option<char>)> = replies.iter().map(|reply| (reply.label.as_str(), reply.letter)).collect();
-    let labels = accelerator_labels(&shown, os);
+/// The buttons of `replies`, in the given order. The letters are assigned over the labels in the scope's language
+/// (`craft_keymap::mnemonic::assign`), so every language gets letters from its own words; the footer shows them.
+pub(super) fn buttons(env: &Env, replies: Vec<Reply>) -> Vec<FooterButton> {
+    let view = env.view();
+    let labels: Vec<Label> = replies.iter().map(|reply| view.resolve(&reply.label)).collect();
+    let lettered: Vec<&str> = replies.iter().zip(&labels).filter(|(reply, _)| reply.lettered).map(|(_, label)| label.as_str()).collect();
+    let mut letters = mnemonic::assign(&lettered).into_iter();
     replies
-        .iter()
+        .into_iter()
         .zip(labels)
         .map(|(reply, label)| {
-            let button = FooterButton::new(label, reply.role).enabled(reply.enabled);
-            match reply.letter {
-                Some(letter) => button.letter(letter),
+            let mut button = FooterButton::new(label, reply.role).enabled(reply.enabled);
+            if let Some(reason) = reply.reason {
+                button = button.disabled_reason(reason);
+            }
+            match reply.lettered.then(|| letters.next().flatten()).flatten() {
+                Some((letter, _)) => button.letter(letter),
                 None => button,
             }
         })
@@ -96,15 +113,15 @@ impl Outcome for PromptOutput {
 
 /// The index Escape and the close action answer with: the answer of `chosen` when there is one, else Cancel, else
 /// the first Other answer, else the default answer.
-fn escape_answer(roles: &[DialogRole], chosen: Option<DialogRole>) -> Option<usize> {
-    let find = |wanted: DialogRole| roles.iter().position(|role| *role == wanted);
-    chosen.and_then(find).or_else(|| find(DialogRole::Cancel)).or_else(|| find(DialogRole::Other)).or_else(|| default_answer(roles))
+fn escape_answer(answers: &[FooterButton], chosen: Option<DialogRole>) -> Option<usize> {
+    let find = |wanted: DialogRole| answers.iter().position(|answer| answer.role() == wanted);
+    chosen.and_then(find).or_else(|| find(DialogRole::Cancel)).or_else(|| find(DialogRole::Other)).or_else(|| default_answer(answers))
 }
 
-/// The index Enter answers with: the first Accept answer, else the first Destructive one.
-fn default_answer(roles: &[DialogRole]) -> Option<usize> {
-    let find = |wanted: DialogRole| roles.iter().position(|role| *role == wanted);
-    find(DialogRole::Accept).or_else(|| find(DialogRole::Destructive))
+/// The index Enter answers with: the first Accept answer, else the first Destructive one, when it is available.
+fn default_answer(answers: &[FooterButton]) -> Option<usize> {
+    let find = |wanted: DialogRole| answers.iter().position(|answer| answer.role() == wanted);
+    find(DialogRole::Accept).or_else(|| find(DialogRole::Destructive)).filter(|at| answers[*at].is_enabled())
 }
 
 type Below<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -120,17 +137,6 @@ pub(super) struct Extras<'a> {
     below: Option<Below<'a>>,
 }
 
-fn notice_tone(tone: Tone) -> craft_theme::variant::Tone {
-    use craft_theme::variant::Tone as Look;
-    match tone {
-        Tone::Neutral => Look::Neutral,
-        Tone::Info => Look::Info,
-        Tone::Good => Look::Good,
-        Tone::Warn => Look::Warn,
-        Tone::Bad => Look::Bad,
-    }
-}
-
 impl Extras<'_> {
     fn is_empty(&self) -> bool {
         self.tone.is_none() && self.paragraphs.is_empty() && self.lines.is_empty() && self.details.is_none() && self.below.is_none()
@@ -139,7 +145,7 @@ impl Extras<'_> {
     fn show(self, ui: &mut Ui) {
         let Extras { tone, paragraphs, lines, details, below } = self;
         if let Some((tone, text)) = tone {
-            Notice::new(notice_tone(tone), text).layout(NoticeLayout::Inline).show(ui);
+            Notice::new(tone, text).layout(NoticeLayout::Inline).show(ui);
         }
         for paragraph in paragraphs {
             Text::new(paragraph).show(ui);
@@ -164,7 +170,8 @@ impl Extras<'_> {
 /// - Answers: `FooterButton`s with a `DialogRole` each, placed in the platform's order. A bare letter given with
 ///   `FooterButton::letter` answers while the focus is inside the prompt and no text part owns keys.
 /// - Escape and the close action give the escape answer (Cancel, else the first Other answer, else the default
-///   answer); Enter, when no part takes it, gives the Accept answer. Both come back as `PromptOutput::picked`.
+///   answer); Enter, when no part takes it, gives the Accept answer while that button is enabled. Both come back as
+///   `PromptOutput::picked`.
 /// - The open state is the `opened` binding, else the prompt's own, which starts open.
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct Prompt<'a> {
@@ -178,15 +185,29 @@ pub struct Prompt<'a> {
     /// The role whose answer Escape and the close action give, instead of the default choice.
     #[prop]
     escape: Option<DialogRole>,
-    /// Whether Enter gives the Accept answer when no part takes it; off while that answer is not available.
-    #[prop]
-    enter: bool,
+    /// Whether the dialog reports the alert-dialog role, described by the message.
+    alert: bool,
 }
 
 impl<'a> Prompt<'a> {
     /// A prompt titled `title` asking `message`; add its answers with `answers`.
     pub fn new(title: impl Into<Label>, message: impl Into<Label>) -> Self {
-        Prompt { title: title.into(), message: message.into(), answers: Vec::new(), extras: Extras::default(), open: None, escape: None, enter: true }
+        Prompt {
+            title: title.into(),
+            message: message.into(),
+            answers: Vec::new(),
+            extras: Extras::default(),
+            open: None,
+            escape: None,
+            alert: false,
+        }
+    }
+
+    /// The prompt is an alert: its node has the alert-dialog role and the message as its description.
+    #[must_use]
+    pub(super) fn alert(mut self) -> Self {
+        self.alert = true;
+        self
     }
 
     /// The answers, one footer button each.
@@ -233,10 +254,12 @@ impl<'a> Prompt<'a> {
 
     /// Shows the prompt.
     pub fn show(self, ui: &mut Ui) -> PromptOutput {
-        let Prompt { title, message, answers, extras, open, escape, enter } = self;
-        let roles: Vec<DialogRole> = answers.iter().map(FooterButton::role).collect();
-        let (escape_at, enter_at) = (escape_answer(&roles, escape), default_answer(&roles).filter(|_| enter));
+        let Prompt { title, message, answers, extras, open, escape, alert } = self;
+        let (escape_at, enter_at) = (escape_answer(&answers, escape), default_answer(&answers));
         let mut dialog = Dialog::prompt(title).buttons(answers).initial_focus(Initial::Default).close_on_enter(enter_at.is_some());
+        if alert {
+            dialog = dialog.alert().description(Env::of(ui).view().resolve(&message).as_str());
+        }
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }

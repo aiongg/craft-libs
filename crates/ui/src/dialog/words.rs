@@ -1,10 +1,10 @@
 //! Built-in words of the dialog family.
 
 craft_ui::words! {
-    /// The words of the standard prompts: titles, messages and answers.
-    pub struct PromptLabels {
-        cancel: "prompt.cancel" = "Cancel";
-        ok: "prompt.ok" = "OK";
+    /// The words of the dialog family: the standard prompts, the unsaved-changes question and the recovery dialog.
+    /// Cancel, OK and "Don't show again" are the common words. The unsaved-changes question asks Yes, No and Cancel
+    /// on Windows and Linux and Save, Don't Save and Cancel on macOS.
+    pub struct DialogWords {
         confirm_delete_title: "prompt.confirmDeleteTitle" = "Delete";
         confirm_delete_one: template "prompt.confirmDeleteOne" = "Delete {name}?";
         confirm_delete_many: template "prompt.confirmDeleteMany" = "Delete {things}? {names}";
@@ -26,42 +26,22 @@ craft_ui::words! {
         trash_vector_mask_message: "prompt.trashVectorMaskMessage" = "Delete the vector mask?";
         /// The title of a custom prompt the app gave none.
         custom_title: "prompt.customTitle" = "Confirm";
-        /// The header of the collapsible section of a custom prompt.
-        details: "prompt.details" = "Details";
         apply: "prompt.apply" = "Apply";
         discard: "prompt.discard" = "Delete";
-        dont_show_again: "prompt.dontShowAgain" = "Don't show again";
-    }
-}
-
-craft_ui::words! {
-    /// The unsaved-changes question's words. Windows and Linux ask Yes, No and Cancel; macOS asks Save, Don't Save
-    /// and Cancel.
-    pub struct UnsavedLabels {
-        title: "unsaved.title" = "Unsaved changes";
-        closing: template "unsaved.closing" = "Do you want to save the changes you made to “{name}” before closing?";
-        quitting: template "unsaved.quitting" = "Do you want to save the changes you made to “{name}” before quitting?";
-        reverting: template "unsaved.reverting" = "Revert “{name}” to the last saved version? Your changes will be lost.";
-        save: "unsaved.save" = "Save";
-        dont_save: "unsaved.dontSave" = "Don't Save";
-        yes: "unsaved.yes" = "Yes";
-        no: "unsaved.no" = "No";
-        revert: "unsaved.revert" = "Revert";
-        apply_to_all: "unsaved.applyToAll" = "Apply to All";
-    }
-}
-
-craft_ui::words! {
-    /// The recovery dialog's words.
-    pub struct RecoveryLabels {
-        title: "recovery.title" = "Recover Unsaved Work";
+        unsaved_title: "unsaved.title" = "Unsaved changes";
+        unsaved_closing: template "unsaved.closing" = "Do you want to save the changes you made to “{name}” before closing?";
+        unsaved_quitting: template "unsaved.quitting" = "Do you want to save the changes you made to “{name}” before quitting?";
+        unsaved_reverting: template "unsaved.reverting" = "Revert “{name}” to the last saved version? Your changes will be lost.";
+        unsaved_save: "unsaved.save" = "Save";
+        unsaved_dont_save: "unsaved.dontSave" = "Don't Save";
+        unsaved_yes: "unsaved.yes" = "Yes";
+        unsaved_no: "unsaved.no" = "No";
+        unsaved_revert: "unsaved.revert" = "Revert";
+        unsaved_apply_to_all: "unsaved.applyToAll" = "Apply to All";
+        recovery_title: "recovery.title" = "Recover Unsaved Work";
         /// `{name}` is the document and `{age}` when it was autosaved ("5 minutes ago").
-        message: template "recovery.message" = "“{name}” has unsaved changes from an earlier run, autosaved {age}.";
-        recover: "recovery.recover" = "Recover";
-        discard: "recovery.discard" = "Discard";
-        recently: "recovery.recently" = "recently";
-        minutes_ago: count "recovery.minutesAgo" = "{n} minute ago" | "{n} minutes ago";
-        hours_ago: count "recovery.hoursAgo" = "{n} hour ago" | "{n} hours ago";
-        days_ago: count "recovery.daysAgo" = "{n} day ago" | "{n} days ago";
+        recovery_message: template "recovery.message" = "“{name}” has unsaved changes from an earlier run, autosaved {age}.";
+        recovery_recover: "recovery.recover" = "Recover";
+        recovery_discard: "recovery.discard" = "Discard";
     }
 }

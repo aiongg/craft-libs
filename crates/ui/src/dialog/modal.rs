@@ -6,6 +6,7 @@ use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
 };
+use crate::runtime::access::Access;
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
@@ -47,6 +48,7 @@ pub struct Dialog<'a> {
     closable: bool,
     closed: Option<CloseReason>,
     picked: Option<usize>,
+    alert: bool,
 }
 
 impl<'a> Dialog<'a> {
@@ -65,8 +67,18 @@ impl<'a> Dialog<'a> {
 
     fn on(title: impl Into<Label>, overlay: Overlay, header: HeaderRegion) -> Self {
         let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(header);
-        Dialog { common: Common::new(), props, open: None, footer: None, buttons: Vec::new(), closable: true, closed: None, picked: None }
-            .label(title)
+        Dialog {
+            common: Common::new(),
+            props,
+            open: None,
+            footer: None,
+            buttons: Vec::new(),
+            closable: true,
+            closed: None,
+            picked: None,
+            alert: false,
+        }
+        .label(title)
     }
 
     fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
@@ -148,6 +160,13 @@ impl<'a> Dialog<'a> {
         self
     }
 
+    /// The dialog reports the alert-dialog role instead of the dialog role.
+    #[must_use]
+    pub(super) fn alert(mut self) -> Self {
+        self.alert = true;
+        self
+    }
+
     /// The dialog buttons in the footer, in the platform's order for their roles. A click closes the dialog: `Cancel`
     /// as `CloseReason::Requested`, every other role as `CloseReason::Activated`; `DialogOutput::picked` says which.
     #[must_use]
@@ -170,6 +189,7 @@ impl Component for Dialog<'_> {
     const ROLE: Role = Role::DIALOG;
     const PARTS: bool = false;
     const STOPS: bool = false;
+    const ALT_ROLES: &'static [Role] = &[Role::ALERT_DIALOG];
     type Style = DialogStyle;
     type Output = DialogOutput;
 
@@ -179,6 +199,12 @@ impl Component for Dialog<'_> {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if self.alert {
+            access.role(Role::ALERT_DIALOG);
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {

@@ -4,15 +4,17 @@
 use super::host::{DialogResult, StackDialog};
 use super::prompt::{Prompt, Reply, buttons};
 use super::stack::{DialogId, DialogStack, dialog_id};
-use super::words::PromptLabels;
+use super::words::DialogWords;
 use crate::choice::Checkbox;
-use crate::contract::{Bind, Props as _, Show as _};
+use crate::contract::{Bind, NoValue, Outcome, Props as _, Show as _};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::windows::os_of;
+use crate::runtime::overlay::CloseReason;
+use crate::runtime::words::CommonWords;
 use crate::sections::DialogRole;
+use craft_behavior::Mixed;
 use craft_i18n::{Count, Format};
-use craft_theme::Tone;
-use egui::{Context, Ui};
+use craft_theme::variant::Tone;
+use egui::{Context, Response, Ui};
 use std::any::Any;
 use std::fmt;
 
@@ -116,13 +118,39 @@ impl fmt::Debug for PromptAnswer {
     }
 }
 
+/// What a standard prompt reports: its response, how it closed, the answer given and the "Don't show again" box.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct StandardPromptOutput {
+    /// The dialog's response.
+    pub response: Response,
+    /// How the prompt closed in this pass; `None` while it stays open.
+    pub closed: Option<CloseReason>,
+    /// The answer given in this pass; `None` while the prompt stays open.
+    pub answer: Option<PromptAnswer>,
+    /// The "Don't show again" box is ticked. Storing it is the app's: it skips the prompt next time when the answer
+    /// is Proceed.
+    pub skipped: bool,
+}
+
+impl Outcome for StandardPromptOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
 /// A standard confirmation on the dialog host: a prompt with the platform's button order, a letter on every answer
 /// and, with `dont_show_again`, a check box under the message. Escape and the close action cancel.
 ///
 /// The question comes from the `PromptKind` constructor; `title`, `message`, `paragraph` and `button` replace or add
 /// to it. The app's own texts are labels, translated by the scope's catalog before they reach the prompt. The skip
-/// choice is the app's to store: the answer says whether the box was ticked.
-#[derive(crate::contract::Pattern)]
+/// choice is the app's to store: the output says whether the box was ticked.
+///
+/// `show` is the pattern entry: the prompt keeps its open state and the box in memory. On the dialog host the
+/// prompt is a `StackDialog` that holds both itself.
+#[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct StandardPrompt {
     id: DialogId,
     kind: PromptKind,
@@ -133,13 +161,20 @@ pub struct StandardPrompt {
     chosen: PromptChoice,
     tag: Option<Box<dyn Any + Send>>,
     noun: Option<Count>,
+    /// Replaces the title of any kind.
+    #[prop(into)]
     title: Option<Label>,
+    /// Replaces the message of any kind.
+    #[prop(into)]
     message: Option<Label>,
     paragraphs: Vec<Label>,
-    buttons: Vec<(PromptChoice, Label, Option<char>)>,
-    details: Option<Label>,
+    buttons: Vec<(PromptChoice, Label)>,
+    details: Option<(Label, Label)>,
     tone: Option<(Tone, Label)>,
-    warnings: Vec<Label>,
+    lines: Vec<Label>,
+    /// Whether the host can apply the mask (`PromptKind::TrashMask`); with `false` the Apply button is disabled and
+    /// takes no click, letter or Enter. Other kinds ignore it.
+    #[prop]
     can_apply: bool,
     /// Set by `instance`.
     instance: Option<DialogId>,
@@ -166,7 +201,7 @@ impl StandardPrompt {
             buttons: Vec::new(),
             details: None,
             tone: None,
-            warnings: Vec::new(),
+            lines: Vec::new(),
             can_apply: true,
             instance: None,
         }
@@ -230,20 +265,6 @@ impl StandardPrompt {
         Self::new(PromptKind::Custom).message(message)
     }
 
-    /// Replaces the title of any kind.
-    #[must_use]
-    pub fn title(mut self, title: impl Into<Label>) -> Self {
-        self.title = Some(title.into());
-        self
-    }
-
-    /// Replaces the message of any kind.
-    #[must_use]
-    pub fn message(mut self, message: impl Into<Label>) -> Self {
-        self.message = Some(message.into());
-        self
-    }
-
     /// Adds a paragraph after the message, a label of its own.
     #[must_use]
     pub fn paragraph(mut self, paragraph: impl Into<Label>) -> Self {
@@ -251,20 +272,20 @@ impl StandardPrompt {
         self
     }
 
-    /// Adds a button with the app's label and its letter. The first call replaces the kind's own buttons.
-    /// `PromptChoice::Proceed` is the default button (Enter), `PromptChoice::Cancel` answers Escape and the close
-    /// action, and `PromptChoice::Alternate` is a third answer; each is listed once.
+    /// Adds a button with the app's label; its letter comes from the translated labels of the prompt. The first call
+    /// replaces the kind's own buttons. `PromptChoice::Proceed` is the default button (Enter), `PromptChoice::Cancel`
+    /// answers Escape and the close action, and `PromptChoice::Alternate` is a third answer; each is listed once.
     #[must_use]
-    pub fn button(mut self, choice: PromptChoice, label: impl Into<Label>, letter: Option<char>) -> Self {
-        debug_assert!(self.buttons.iter().all(|(listed, ..)| *listed != choice), "a prompt answers each choice once");
-        self.buttons.push((choice, label.into(), letter));
+    pub fn button(mut self, choice: PromptChoice, label: impl Into<Label>) -> Self {
+        debug_assert!(self.buttons.iter().all(|(listed, _)| *listed != choice), "a prompt answers each choice once");
+        self.buttons.push((choice, label.into()));
         self
     }
 
-    /// A collapsible "Details" section under the message.
+    /// A collapsible section under the message; `label` names its header ("Details").
     #[must_use]
-    pub fn details(mut self, text: impl Into<Label>) -> Self {
-        self.details = Some(text.into());
+    pub fn details(mut self, label: impl Into<Label>, text: impl Into<Label>) -> Self {
+        self.details = Some((label.into(), text.into()));
         self
     }
 
@@ -275,18 +296,10 @@ impl StandardPrompt {
         self
     }
 
-    /// Warnings under the message, one text each (a damaged file's problems).
+    /// Lines under the message, one text each (a damaged file's problems).
     #[must_use]
-    pub fn warnings(mut self, warnings: impl IntoIterator<Item = Label>) -> Self {
-        self.warnings = warnings.into_iter().collect();
-        self
-    }
-
-    /// Whether the host can apply the mask (`PromptKind::TrashMask`); with `false` the Apply button is disabled and
-    /// takes no click, letter or Enter. Other kinds ignore it.
-    #[must_use]
-    pub fn can_apply(mut self, can_apply: bool) -> Self {
-        self.can_apply = can_apply;
+    pub fn lines(mut self, lines: impl IntoIterator<Item = Label>) -> Self {
+        self.lines = lines.into_iter().collect();
         self
     }
 
@@ -319,8 +332,8 @@ impl StandardPrompt {
     }
 
     /// The title, message and answers of the kind, with the app's replacements applied.
-    fn content(&self, words: &PromptLabels, format: &Format) -> Content {
-        let (mut title, mut message, mut answers) = self.kind_content(words, format);
+    fn content(&self, words: &DialogWords, common: &CommonWords, format: &Format) -> Content {
+        let (mut title, mut message, mut answers) = self.kind_content(words, common, format);
         if let Some(own) = &self.title {
             title = own.clone();
         }
@@ -328,7 +341,7 @@ impl StandardPrompt {
             message = own.clone();
         }
         if !self.buttons.is_empty() {
-            answers = self.buttons.iter().map(|(choice, label, letter)| (*choice, Reply::new(label.clone(), choice.role(), *letter))).collect();
+            answers = self.buttons.iter().map(|(choice, label)| (*choice, Reply::new(label.clone(), choice.role()))).collect();
         }
         if title.as_str().is_empty() {
             title = words.custom_title.clone();
@@ -336,9 +349,9 @@ impl StandardPrompt {
         (title, message, answers)
     }
 
-    fn kind_content(&self, words: &PromptLabels, format: &Format) -> Content {
-        let cancel = (PromptChoice::Cancel, Reply::new(words.cancel.clone(), DialogRole::Cancel, Some('C')));
-        let proceed = |label: &Label, role: DialogRole, letter: char| (PromptChoice::Proceed, Reply::new(label.clone(), role, Some(letter)));
+    fn kind_content(&self, words: &DialogWords, common: &CommonWords, format: &Format) -> Content {
+        let cancel = (PromptChoice::Cancel, Reply::new(common.cancel.clone(), DialogRole::Cancel));
+        let proceed = |label: &Label, role: DialogRole| (PromptChoice::Proceed, Reply::new(label.clone(), role));
         match &self.kind {
             PromptKind::ConfirmDelete { names, count } => {
                 let message = if *count <= 1 && names.len() == 1 {
@@ -353,46 +366,90 @@ impl StandardPrompt {
                     let things = noun.text(n, &format.integer(n));
                     words.confirm_delete_many.fill(&[("things", things.as_str()), ("names", listed.as_str())])
                 };
-                (words.confirm_delete_title.clone(), message.into(), vec![proceed(&words.delete, DialogRole::Destructive, 'D'), cancel])
+                (words.confirm_delete_title.clone(), message.into(), vec![proceed(&words.delete, DialogRole::Destructive), cancel])
             }
             PromptKind::DamagedFile { name } => (
                 words.damaged_title.clone(),
                 words.damaged_message.fill(&[("name", name.as_str())]).into(),
-                vec![proceed(&words.open_anyway, DialogRole::Accept, 'O'), cancel],
+                vec![proceed(&words.open_anyway, DialogRole::Accept), cancel],
             ),
             PromptKind::ChangedOnDisk { name } => {
                 let message =
                     format!("{}\n\n{}", words.changed_on_disk_message.fill(&[("name", name.as_str())]), words.changed_on_disk_detail.as_str());
-                (words.changed_on_disk_title.clone(), message.into(), vec![proceed(&words.replace, DialogRole::Destructive, 'R'), cancel])
+                (words.changed_on_disk_title.clone(), message.into(), vec![proceed(&words.replace, DialogRole::Destructive), cancel])
             }
             PromptKind::ReplaceFile { name, answered } => {
                 let mut message = words.replace_file_message.fill(&[("name", name.as_str())]);
                 if let Some(answered) = answered {
                     message = format!("{message}\n\n{}", words.replace_file_detail.fill(&[("answered", answered.as_str())]));
                 }
-                (words.replace_file_title.clone(), message.into(), vec![proceed(&words.replace, DialogRole::Destructive, 'R'), cancel])
+                (words.replace_file_title.clone(), message.into(), vec![proceed(&words.replace, DialogRole::Destructive), cancel])
             }
             PromptKind::Custom => (Label::Empty, Label::Empty, Vec::new()),
             PromptKind::TrashVectorMask => (
                 words.trash_vector_mask_title.clone(),
                 words.trash_vector_mask_message.clone(),
-                vec![proceed(&words.ok, DialogRole::Accept, 'O'), cancel],
+                vec![proceed(&common.ok, DialogRole::Accept), cancel],
             ),
             PromptKind::TrashMask => (
                 words.trash_mask_title.clone(),
                 words.trash_mask_message.clone(),
                 vec![
-                    (PromptChoice::Proceed, Reply::new(words.apply.clone(), DialogRole::Accept, Some('A')).enabled(self.can_apply)),
-                    (PromptChoice::Alternate, Reply::new(words.discard.clone(), DialogRole::Other, Some('D'))),
+                    (PromptChoice::Proceed, Reply::new(words.apply.clone(), DialogRole::Accept).enabled(self.can_apply, None)),
+                    (PromptChoice::Alternate, Reply::new(words.discard.clone(), DialogRole::Other)),
                     cancel,
                 ],
             ),
         }
     }
 
-    /// The answer of `choice`; Proceed reports the skip box.
-    fn answer(&mut self, choice: PromptChoice) -> PromptAnswer {
-        PromptAnswer { choice, skip: choice == PromptChoice::Proceed && self.skip_box && self.skip, tag: self.tag.take() }
+    /// The answer of `choice`; Proceed reports the skip box when it is `ticked`.
+    fn answer(&mut self, choice: PromptChoice, ticked: bool) -> PromptAnswer {
+        PromptAnswer { choice, skip: choice == PromptChoice::Proceed && self.skip_box && ticked, tag: self.tag.take() }
+    }
+
+    /// Shows the prompt; `hosted` holds the open state and the box in the prompt's own fields, else in memory.
+    fn present(&mut self, ui: &mut Ui, hosted: bool) -> StandardPromptOutput {
+        let env = Env::of(ui);
+        let (words, common) = (env.words::<DialogWords>(), env.words::<CommonWords>());
+        let (title, message, answers) = self.content(&words, &common, env.format());
+        let choices: Vec<PromptChoice> = answers.iter().map(|(choice, _)| *choice).collect();
+        let replies: Vec<Reply> = answers.into_iter().map(|(_, reply)| reply).collect();
+        let mut prompt = Prompt::new(title, message).answers(buttons(&env, replies));
+        for paragraph in &self.paragraphs {
+            prompt = prompt.paragraph(paragraph.clone());
+        }
+        if let Some((tone, text)) = &self.tone {
+            prompt = prompt.tone(*tone, text.clone());
+        }
+        if !self.lines.is_empty() {
+            prompt = prompt.lines(self.lines.iter().cloned());
+        }
+        if let Some((label, text)) = &self.details {
+            prompt = prompt.details(label.clone(), text.clone());
+        }
+        let mut ticked = hosted && self.skip;
+        if self.skip_box {
+            let label = common.dont_show_again.clone();
+            let tick = &mut ticked;
+            let value = if hosted { Bind::bound(&mut self.skip) } else { Bind::kept() };
+            prompt = prompt.extras(move |ui| {
+                if let Some(Mixed::Same(shown)) = Checkbox::new(value).label(label).show(ui).shown {
+                    *tick = *shown;
+                }
+            });
+        }
+        if hosted {
+            prompt = prompt.opened(Bind::bound(&mut self.open));
+        }
+        let shown = prompt.show(ui);
+        let answer = shown.picked.map(|at| self.answer(choices[at], ticked));
+        StandardPromptOutput { response: shown.response, closed: shown.closed, answer, skipped: ticked }
+    }
+
+    /// Shows the prompt; `answer` is `Some` the pass a button, Enter, Escape or the close action answers.
+    pub fn show(mut self, ui: &mut Ui) -> StandardPromptOutput {
+        self.present(ui, false)
     }
 }
 
@@ -408,37 +465,11 @@ impl StackDialog for StandardPrompt {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<PromptAnswer>> {
-        let env = Env::of(ui);
-        let words = env.words::<PromptLabels>();
-        let (title, message, answers) = self.content(&words, env.format());
-        let choices: Vec<PromptChoice> = answers.iter().map(|(choice, _)| *choice).collect();
-        let replies: Vec<Reply> = answers.into_iter().map(|(_, reply)| reply).collect();
-        let enter = replies.iter().all(|reply| reply.enabled || reply.role != DialogRole::Accept);
-        let mut prompt = Prompt::new(title, message).answers(buttons(&replies, os_of(ui.ctx()))).enter(enter).opened(Bind::bound(&mut self.open));
-        for paragraph in &self.paragraphs {
-            prompt = prompt.paragraph(paragraph.clone());
-        }
-        if let Some((tone, text)) = &self.tone {
-            prompt = prompt.tone(*tone, text.clone());
-        }
-        if !self.warnings.is_empty() {
-            prompt = prompt.lines(self.warnings.iter().cloned());
-        }
-        if let Some(text) = &self.details {
-            prompt = prompt.details(words.details.clone(), text.clone());
-        }
-        if self.skip_box {
-            let (skip, label) = (&mut self.skip, words.dont_show_again.clone());
-            prompt = prompt.extras(move |ui| {
-                Checkbox::new(Bind::bound(skip)).label(label).show(ui);
-            });
-        }
-        let picked = prompt.show(ui).picked?;
-        Some(DialogResult::Ok(self.answer(choices[picked])))
+        self.present(ui, true).answer.map(DialogResult::Ok)
     }
 
     /// The answer set with `set_choice`: the default button's, Proceed, unless set.
     fn confirm(&mut self, _: &Context) -> Option<PromptAnswer> {
-        Some(self.answer(self.chosen))
+        Some(self.answer(self.chosen, self.skip))
     }
 }

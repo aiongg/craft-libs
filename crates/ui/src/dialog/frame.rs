@@ -92,7 +92,7 @@ pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<Foot
         FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
     }
     if !buttons.is_empty() {
-        *picked = FooterBar::buttons(buttons.iter().cloned()).show_content(ui);
+        *picked = FooterBar::buttons(buttons.iter().cloned()).show_footer(ui).picked;
         if let Some(at) = *picked {
             close.get_or_insert(if buttons[at].role() == DialogRole::Cancel { CloseReason::Requested } else { CloseReason::Activated });
         }
