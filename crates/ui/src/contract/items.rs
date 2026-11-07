@@ -981,7 +981,15 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             let mut state = NavState::new().page(page).column(self.lead.column);
             state.lead = lead;
             state.anchor = lead.map(|at| self.anchor_at(at)).filter(|_| mods.extend);
-            match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
+            let step = match nav::step(layout.nav(), &outline, &mut state, mv, mods) {
+                // The ends of the outline, and the first move into it, land on an item, not on a section stop.
+                NavStep::Moved(to) if self.source.section_stop(to) && (lead.is_none() || matches!(mv, NavMove::Start | NavMove::End)) => {
+                    let forward = !matches!(mv, NavMove::End | NavMove::Back | NavMove::Up | NavMove::PageUp);
+                    NavStep::Moved(self.off_section(layout, to, forward))
+                }
+                step => step,
+            };
+            match step {
                 NavStep::Moved(to) if cells => {
                     self.cell_move(layout, to, state.column, mods);
                     self.reveal_with(layout, to, view);
@@ -1007,6 +1015,13 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 _ => {}
             }
         }
+    }
+
+    /// The nearest row from `at` in the direction that is an item the lead can take, `at` when there is none.
+    fn off_section(&self, layout: &C::ItemLayout, at: usize, forward: bool) -> usize {
+        let item = |row: &usize| self.source.enabled(*row) && !self.source.is_section(*row) && layout.shown(*row);
+        let found = if forward { (at..self.source.len()).find(item) } else { (0..=at).rev().find(item) };
+        found.unwrap_or(at)
     }
 
     /// Forward and Back on the lead section `at` open and close it when it has children, the tree rule; whether or not

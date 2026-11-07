@@ -304,7 +304,7 @@ fn a_click_on_a_group_header_focuses_the_grid_with_the_header_as_lead() {
     let header = fixture.by_label("Second").expect("the header is a node");
     fixture.click(&header);
     fixture.idle(2);
-    assert!(fixture.focused().is_some(), "the click focused the grid");
+    assert!(fixture.focused().is_some(), "the click focused the grid: {:?}", seen.borrow().grid);
     assert_eq!(focused_key(fixture.tree()), header.node, "the access tree reports the header focused");
     seen.borrow_mut().grid.clear();
     fixture.key(Key::ArrowLeft, Modifiers::NONE);
