@@ -22,7 +22,7 @@ pub use dialog::{
     BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult, ResetFooter, ResetPick,
 };
 pub use host_requests::HostRequests;
-pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewWords, PreviewZoom, PreviewZoomOutput};
+pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, PreviewView, PreviewWords, PreviewZoom, PreviewZoomOutput};
 
 mod size_model;
 

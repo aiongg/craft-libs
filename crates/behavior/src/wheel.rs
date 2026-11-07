@@ -28,6 +28,7 @@ pub enum WheelPhase {
     Cancel,
 }
 
+use crate::Sense;
 use craft_keymap::Mods;
 use emath::{Pos2, Rect, Vec2};
 
@@ -99,6 +100,17 @@ impl<O> WheelTaker<O> {
     /// A taker over `rect` that takes no axis yet.
     pub const fn new(owner: O, rect: Rect) -> Self {
         WheelTaker { owner, rect, horizontal: false, vertical: false, zoom: false, gated: false, notch: WheelNotch::DEFAULT }
+    }
+
+    /// The taker a shape with `sense` registers, `None` when `sense` has no wheel bit: `WHEEL` takes both scroll
+    /// axes and zoom; `WHEEL_X`, `WHEEL_Y` and `WHEEL_ZOOM` take one share each and combine.
+    pub fn for_sense(owner: O, rect: Rect, sense: Sense) -> Option<Self> {
+        let all = sense.contains(Sense::WHEEL);
+        let taker = WheelTaker::new(owner, rect)
+            .horizontal(all || sense.contains(Sense::WHEEL_X))
+            .vertical(all || sense.contains(Sense::WHEEL_Y))
+            .zoom(all || sense.contains(Sense::WHEEL_ZOOM));
+        (taker.horizontal || taker.vertical || taker.zoom).then_some(taker)
     }
 
     /// Whether it takes horizontal scroll.
@@ -216,6 +228,27 @@ mod tests {
         assert_eq!(owner_of_vertical(Some(2), None), Some(2));
         assert_eq!(owner_of_vertical(None, Some(2)), Some(2));
         assert_eq!(split(&takers, at, wheel(3.0, 0.0), None, None).first().map(|(o, _)| *o), Some(2));
+    }
+
+    #[test]
+    fn a_zoom_only_taker_takes_zoom_and_passes_both_scroll_shares_on() {
+        let panel = WheelTaker::new(1u8, rect(200.0)).vertical(true).horizontal(true);
+        let pane = WheelTaker::for_sense(2u8, rect(100.0), Sense::WHEEL_ZOOM).expect("a wheel bit makes a taker");
+        let at = pos2(10.0, 10.0);
+        let shares = split(&[panel, pane], at, wheel(4.0, 6.0).zoom(1.5), None, None);
+        let of = |owner| shares.iter().find(|(o, _)| *o == owner).map(|(_, w)| (w.scroll, w.zoom));
+        assert_eq!(of(1), Some((Vec2::new(4.0, 6.0), 1.0)), "both scroll shares reach the panel");
+        assert_eq!(of(2), Some((Vec2::ZERO, 1.5)), "the zoom share stays with the pane");
+    }
+
+    #[test]
+    fn wheel_bits_combine_into_the_axes_a_taker_takes() {
+        let axes = |sense| WheelTaker::for_sense(1u8, rect(10.0), sense).map(|t| (t.horizontal, t.vertical, t.zoom));
+        assert_eq!(axes(Sense::FOCUS), None);
+        assert_eq!(axes(Sense::WHEEL), Some((true, true, true)));
+        assert_eq!(axes(Sense::WHEEL | Sense::WHEEL_X), Some((true, true, true)));
+        assert_eq!(axes(Sense::WHEEL_X), Some((true, false, false)));
+        assert_eq!(axes(Sense::WHEEL_Y | Sense::WHEEL_ZOOM), Some((false, true, true)));
     }
 
     #[test]

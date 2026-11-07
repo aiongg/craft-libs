@@ -47,7 +47,14 @@ name = "PreviewPane"
 old = ""
 new = "craft_ui::patterns::form_dialogs::PreviewPane"
 status = "replaced"
-note = "The preview panes of `ParamDialog` and Save for Web: `PreviewPane::new(label, texture: SizedTexture, view: CanvasTransform)` shows the picture; `PreviewPane::state(label, PreviewState, view)` is the second constructor; `.fit(bool)`, `.zoom_range(RangeInclusive<f32>)` and `.click_centres(bool)` are builders. `show(ui) -> PreviewOutput { response, view, fit, shown }` reports the next view after a pan or zoom, whether the view still follows the well, and the view drawn. `PreviewZoom::new(view)` is the zoom row. The pane declares AccessKit's scroll actions on the axes it pans on (`Access::pans`) and takes them as the arrow moves."
+note = "The preview panes of `ParamDialog` and Save for Web: `PreviewPane::new(label, texture: SizedTexture, view: &PreviewView)` shows the picture; `PreviewPane::state(label, PreviewState, view)` is the second constructor; `.click_centres(bool)` is a builder (fit and the zoom range belong to the `PreviewView`). `show(ui) -> PreviewOutput { response, view: Option<PreviewView>, shown: PreviewView }` reports the next view after a pan, a zoom or a double click (which returns to fit) and the view drawn; a caller keeps `view.unwrap_or(shown)`. The pane declares AccessKit's scroll actions on the axes it pans on (`Access::pans`) and takes the wheel's scroll only on those axes (`Sense::WHEEL_X`, `WHEEL_Y`), always the zoom (`Sense::WHEEL_ZOOM`)."
+
+[[type]]
+name = "PreviewView"
+old = ""
+new = "craft_ui::patterns::form_dialogs::PreviewView"
+status = "replaced"
+note = "The one value a caller keeps per preview pane and passes to `PreviewPane` and `PreviewZoom`, both of which report the next one: `PreviewView { transform: CanvasTransform, fit: bool, range: RangeInclusive<f32> }`, built by `PreviewView::new(transform)` or `PreviewView::fitting()` and `.zoom_range(range)`."
 
 [[type]]
 name = "PreviewState"
@@ -82,7 +89,7 @@ name = "PreviewZoom"
 old = ""
 new = "craft_ui::patterns::form_dialogs::PreviewZoom"
 status = "replaced"
-note = "The zoom-out and zoom-in buttons with the zoom percentage over the same `CanvasTransform` view as `PreviewPane`; `.zoom_range(..)` bounds the buttons like the pane's."
+note = "The zoom-out and zoom-in buttons with the zoom percentage over the same `PreviewView` as `PreviewPane`: `PreviewZoom::new(&view)`; the buttons stay inside the view's zoom range and `show(ui)` reports `PreviewZoomOutput { response, view: Option<PreviewView> }`."
 
 
 # Parameter model and rows (form-dialogs-a).

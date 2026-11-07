@@ -4,7 +4,7 @@
 use super::fields::DialogFields;
 use super::host_requests::HostRequests;
 use super::param::{ColorRequest, EyedropperRequest, Param, ParamKind, PathRequest, open_fields};
-use super::preview::{PreviewPane, PreviewZoom};
+use super::preview::{PreviewPane, PreviewView, PreviewZoom};
 use super::rows::{ParamRows, ParamRowsOutput};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, NoValue, Outcome, Props as _, Remember as _, SaveKey, Show as _, ShowContainer as _};
@@ -14,10 +14,10 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
-use crate::sections::{DialogRole, FooterButton};
+use crate::sections::{DialogRole, FooterBar, FooterButton};
 use craft_behavior::{CanvasTransform, EditEvent, GestureId, Mixed};
 use egui::load::SizedTexture;
-use egui::{Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::borrow::Cow;
 use std::cell::{Cell, RefCell};
 use std::sync::Arc;
@@ -71,12 +71,12 @@ impl ParamResult {
 #[derive(Clone)]
 struct Live {
     on: bool,
-    view: CanvasTransform,
+    view: PreviewView,
 }
 
 impl Default for Live {
     fn default() -> Self {
-        Live { on: true, view: CanvasTransform::new(1.0, Vec2::ZERO) }
+        Live { on: true, view: PreviewView::default() }
     }
 }
 
@@ -507,11 +507,9 @@ impl ResetFooter {
 /// The Preview check box, the zoom row and the pane.
 fn show_preview(ui: &mut Ui, words: &ParamDialogWords, texture: &SizedTexture, live: &mut Live) {
     Checkbox::new(Bind::bound(&mut live.on)).label(words.preview.clone()).show(ui);
-    let zoom = PreviewZoom::new(live.view).show(ui);
-    let pane = PreviewPane::new(words.preview.clone(), *texture, live.view).show(ui);
-    if let Some(view) = zoom.view.or(pane.view) {
-        live.view = view;
-    }
+    let zoom = PreviewZoom::new(&live.view).show(ui);
+    let pane = PreviewPane::new(words.preview.clone(), *texture, &live.view).show(ui);
+    live.view = zoom.view.or(pane.view).unwrap_or(pane.shown);
 }
 
 /// Builds the dialog over the host-owned values of a [`HostedParamDialog`] for one pass.

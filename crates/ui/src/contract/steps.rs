@@ -587,16 +587,13 @@ pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsS
     }
 }
 
-/// Registers a wheel taker for next pass's split (8.6). A component with `WHEEL` takes vertical scroll and zoom, and
-/// one with `WHEEL_X` the horizontal share, with no focus needed; a value control takes the vertical wheel only
-/// while focused or armed.
+/// Registers a wheel taker for next pass's split (8.6) from the wheel bits of `sense` (`WheelTaker::for_sense`); a
+/// value control without them takes the vertical wheel only while focused or armed.
 pub(crate) fn register_wheel(ctx: &Context, id: Id, rect: Rect, sense: Sense, value_control: bool) {
-    let taker = craft_behavior::WheelTaker::new(id, rect);
-    if sense.intersects(Sense::WHEEL | Sense::WHEEL_X) {
-        let wheel_y = sense.contains(Sense::WHEEL);
-        wheel::register(ctx, taker.horizontal(true).vertical(wheel_y).zoom(wheel_y));
+    if let Some(taker) = craft_behavior::WheelTaker::for_sense(id, rect, sense) {
+        wheel::register(ctx, taker);
     } else if value_control {
-        wheel::register(ctx, taker.vertical(true).gated(true));
+        wheel::register(ctx, craft_behavior::WheelTaker::new(id, rect).vertical(true).gated(true));
     }
 }
 
