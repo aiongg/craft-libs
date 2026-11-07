@@ -35,7 +35,7 @@ pub use fixture::{Fixture, Target};
 pub use frames::Frames;
 #[doc(hidden)]
 pub use story::STORIES;
-pub use story::{Drive, EditKind, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot};
+pub use story::{CollectionKind, Drive, EditKind, Required, Story, StoryData, StoryOutput, StoryRegistration, StorySnapshot};
 pub use windows::install_spec;
 
 /// One registered trial.

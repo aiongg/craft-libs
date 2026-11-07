@@ -30,7 +30,7 @@ use std::any::Any;
 
 const SCROLL_Y: PartKey = PartKey::new("body_scroll_y");
 const SCROLL_X: PartKey = PartKey::new("body_scroll_x");
-const MOVE_BAND: PartKey = PartKey::new("move_band");
+pub(crate) const MOVE_BAND: PartKey = PartKey::new("move_band");
 const GRIP: PartKey = PartKey::new("resize_grip");
 
 /// The open state a container with no `Container::open` binding keeps: for the session, or saved under `save`.
