@@ -16,7 +16,7 @@ use crate::runtime::overlay::CloseReason;
 use crate::sections::{DialogRole, FooterButton};
 use craft_behavior::{EditEvent, GestureId, Mixed, PixelSize};
 use craft_theme::Srgba;
-use egui::{Response, Ui, Vec2};
+use egui::{Response, Ui};
 use std::cell::RefCell;
 use std::sync::Arc;
 
@@ -37,11 +37,6 @@ const RECENT_KEY: SaveKey = SaveKey::new("craft_ui.newDocument.recent");
 const PRESETS_KEY: SaveKey = SaveKey::new("craft_ui.newDocument.presets");
 /// The key of the settings of the last created document.
 const LAST_KEY: SaveKey = SaveKey::new("craft_ui.newDocument.last");
-
-/// The size the dialog opens at until the user resizes it: three columns of cards beside the details column.
-const OPENS_AT: Vec2 = Vec2::new(800.0, 560.0);
-/// The least the dialog can be resized to.
-const LEAST: Vec2 = Vec2::new(560.0, 420.0);
 
 craft_ui::words! {
     /// The words of New Document, beside the common OK and Cancel and the names of the built-in presets (`PresetWords`).
@@ -466,8 +461,6 @@ impl<'a> NewDocumentDialog<'a> {
         let pass = RefCell::new(Pass::default());
         let mut dialog = Dialog::new(words.title.clone())
             .collection_body()
-            .resizable(true)
-            .overlay(|overlay| overlay.size(OPENS_AT).min_size(LEAST))
             .outer_gesture(true)
             .close_on_enter(true)
             .buttons(reset.buttons(accept, false))
