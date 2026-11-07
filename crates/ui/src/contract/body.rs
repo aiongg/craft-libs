@@ -177,6 +177,8 @@ pub(super) struct BodyHooks<'b> {
     pub(super) body: &'b mut dyn FnMut(&mut Ui, &mut BodyCx<'_>),
     /// The body's size from last frame's layout memory; `None` before its first run.
     remembered: Option<Vec2>,
+    /// How many blocks had been placed without a size entry once this container's own placement was counted.
+    unknown_at_read: u64,
     header_last: Vec2,
     footer_last: Vec2,
     /// The room the mount offers, in which a content-sized body runs.
@@ -313,6 +315,7 @@ impl<'b> BodyHooks<'b> {
         BodyHooks {
             body,
             remembered: None,
+            unknown_at_read: 0,
             header_last: Vec2::ZERO,
             footer_last: Vec2::ZERO,
             room: Rect::NOTHING,
@@ -536,6 +539,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         // The overlay host decides a layer's Escape; so does a full-window mount's.
         self.layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow);
         self.remembered = layout_memory::read(&ctx, id);
+        if self.remembered.is_none() && matches!(props.mount, Mount::Inline) && props.sizing == Sizing::Content {
+            layout_memory::note_unknown(&ctx);
+        }
+        self.unknown_at_read = layout_memory::unknown_count(&ctx);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         if !matches!(props.mount, Mount::Inline | Mount::Pane(_))
@@ -1089,14 +1096,19 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     }
 
     fn record(&mut self, stage: &mut MemoryStage, ctx: &Context, id: Id) {
-        if let Some(size) = self.body_size {
-            super::steps::record_size(ctx, id, size);
-        }
-        if let Some(size) = self.header_size {
-            super::steps::record_size(ctx, sub(id, "header"), size);
-        }
-        if let Some(size) = self.footer_size {
-            super::steps::record_size(ctx, sub(id, "footer"), size);
+        // A block inside took a placeholder place for want of its own entry: the sizes the regions took say nothing
+        // yet, and recording them would pin a zero width. The block's own record asks for the pass that measures
+        // this container again.
+        if layout_memory::unknown_count(ctx) == self.unknown_at_read {
+            if let Some(size) = self.body_size {
+                super::steps::record_size(ctx, id, size);
+            }
+            if let Some(size) = self.header_size {
+                super::steps::record_size(ctx, sub(id, "header"), size);
+            }
+            if let Some(size) = self.footer_size {
+                super::steps::record_size(ctx, sub(id, "footer"), size);
+            }
         }
         if self.extent.is_some() || self.view.is_some() {
             let view = stage.shown::<BodyView>(sub(id, "view"));

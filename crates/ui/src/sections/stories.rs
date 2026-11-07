@@ -19,7 +19,8 @@ fn body(ui: &mut Ui) {
 }
 
 fn toggle_gate(fixture: &mut Fixture) {
-    if let Some(gate) = fixture.by_role(Role::CHECK_BOX).first().copied() {
+    let gate = fixture.by_role(Role::CHECK_BOX).into_iter().find(|check| fixture.tree().name_of(check.node) == Some("Enable"));
+    if let Some(gate) = gate {
         fixture.click(&gate);
     }
 }

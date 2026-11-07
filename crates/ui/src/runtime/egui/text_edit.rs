@@ -43,7 +43,8 @@ pub(crate) struct Shown {
 
 /// Runs the widget at `edit.rect`.
 pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
-    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } = edit;
+    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } =
+        edit;
     let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
     let font_id = font.resolve(ui.style());
     let had_focus = ui.memory(|memory| memory.has_focus(id));
@@ -51,7 +52,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
         let text = text.as_str();
         let mut job = LayoutJob::default();
-        job.wrap.max_width = wrap_width;
+        job.wrap.max_width = if multiline { wrap_width } else { f32::INFINITY };
         let plain = TextFormat::simple(font_id.clone(), ink);
         match preedit.as_ref().filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)) {
             Some(range) => {
