@@ -23,14 +23,63 @@ use std::sync::Arc;
 pub use crate::runtime::access::scope::FieldLabelRole;
 
 /// How a side label is shown.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub enum LabelKind {
     /// The label's text.
     #[default]
     Text,
-    /// No visible label: the text still names the control.
+    /// No visible label: the text still names the control. In a body whose labelled rows share a label column, the
+    /// row keeps the column, so its control starts in the control column.
     Hidden,
+    /// An icon or a short text shown in place of the label; the text still names the control. Glyph labels share
+    /// a column of their own, apart from the text labels'. The label's detail joins the description and is not shown.
+    Glyph(GlyphLabel),
+}
+
+/// What a glyph label shows.
+#[derive(Clone, Debug, PartialEq)]
+enum Glyph {
+    Icon(IconSpec<'static>),
+    Text(Label),
+}
+
+/// The visible form of a glyph label: an icon, or a short text such as "W" or "H". The accessible name stays the
+/// label's `Common.label`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct GlyphLabel {
+    shown: Glyph,
+}
+
+impl GlyphLabel {
+    /// Shows `icon`, as large as the control's icons.
+    pub fn icon(icon: impl Into<IconSpec<'static>>) -> Self {
+        GlyphLabel { shown: Glyph::Icon(icon.into()) }
+    }
+
+    /// Shows `text`, resolved in the scope's language.
+    pub fn text(text: impl Into<Label>) -> Self {
+        GlyphLabel { shown: Glyph::Text(text.into()) }
+    }
+
+    /// What the label leaf draws: the icon, or the text resolved in `env`.
+    fn resolved(&self, env: &Env) -> Glyph {
+        match &self.shown {
+            Glyph::Icon(icon) => Glyph::Icon(icon.clone()),
+            Glyph::Text(text) => Glyph::Text(env.view().resolve(text)),
+        }
+    }
+}
+
+/// Where a beside label sits in its column.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LabelAlign {
+    /// Against the control: the text ends where the gap before the control begins, on the start side under RTL.
+    #[default]
+    End,
+    /// At the row's start edge.
+    Start,
 }
 
 /// Where a side label sits relative to its control.
@@ -60,6 +109,8 @@ pub struct SideLabel {
     pub kind: LabelKind,
     /// Where it sits.
     pub layout: FieldLayout,
+    /// Where a beside label sits in its column.
+    pub align: LabelAlign,
     /// Whether it names or describes its control.
     pub role: FieldLabelRole,
     /// Dragging the label scrubs the control's value.
@@ -73,12 +124,20 @@ pub struct SideLabel {
 impl SideLabel {
     /// A text label beside its control that names it.
     pub const fn new() -> Self {
-        SideLabel { kind: LabelKind::Text, layout: FieldLayout::Beside, role: FieldLabelRole::Names, scrub: false, icon: None, detail: None }
+        SideLabel {
+            kind: LabelKind::Text,
+            layout: FieldLayout::Beside,
+            align: LabelAlign::End,
+            role: FieldLabelRole::Names,
+            scrub: false,
+            icon: None,
+            detail: None,
+        }
     }
 
     /// How the label is shown.
     #[must_use]
-    pub const fn kind(mut self, kind: LabelKind) -> Self {
+    pub fn kind(mut self, kind: LabelKind) -> Self {
         self.kind = kind;
         self
     }
@@ -87,6 +146,13 @@ impl SideLabel {
     #[must_use]
     pub const fn layout(mut self, layout: FieldLayout) -> Self {
         self.layout = layout;
+        self
+    }
+
+    /// Where a beside label sits in its column: against the control by default.
+    #[must_use]
+    pub const fn align(mut self, align: LabelAlign) -> Self {
+        self.align = align;
         self
     }
 
@@ -188,6 +254,8 @@ struct LabelLeaf {
     /// The width the dot's slot takes at the end of the label, 0 without one.
     slot: f32,
     icon: Option<IconSpec<'static>>,
+    /// A glyph shown in place of the name, icon and detail.
+    glyph: Option<Glyph>,
     /// The detail, resolved in the scope's language.
     detail: Option<Label>,
     baseline: Cell<f32>,
@@ -214,6 +282,7 @@ impl LabelLeaf {
             differs: false,
             slot,
             icon: None,
+            glyph: None,
             detail: None,
             baseline: Cell::new(0.0),
             double_click: false,
@@ -241,7 +310,22 @@ impl Component for LabelLeaf {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let name = cx.layout(&TextRun::new(cx.resolved.label)).size();
+        let line = cx.layout(&TextRun::new(cx.resolved.label));
+        let name = line.size();
+        if let Some(glyph) = &self.glyph {
+            let (shown, baseline) = match glyph {
+                Glyph::Icon(_) => {
+                    let height = cx.style.icon.max(name.y);
+                    (Vec2::new(cx.style.icon, height), line.first_baseline + (height - name.y) / 2.0)
+                }
+                Glyph::Text(text) => {
+                    let run = cx.layout(&TextRun::new(text.as_str()));
+                    (run.size(), run.first_baseline)
+                }
+            };
+            self.baseline.set(baseline);
+            return Vec2::new(shown.x + self.slot, shown.y);
+        }
         let (mut width, mut height) = (name.x, name.y);
         if self.icon.is_some() {
             width += cx.style.icon + cx.style.gap;
@@ -259,7 +343,7 @@ impl Component for LabelLeaf {
             height = height.max(detail.y);
         }
         // The text sits at the row's vertical centre, so an icon taller than the text moves the baseline down.
-        self.baseline.set(cx.layout(&TextRun::new(cx.resolved.label)).first_baseline + (height - name.y) / 2.0);
+        self.baseline.set(line.first_baseline + (height - name.y) / 2.0);
         Vec2::new(width + self.slot, height)
     }
 
@@ -293,20 +377,33 @@ impl Component for LabelLeaf {
         let draw = ui.draw();
         let middle = cx.rect.center().y;
         let centred = |rect: Rect, height: f32| Rect::from_min_size(egui::pos2(rect.min.x, middle - height / 2.0), Vec2::new(rect.width(), height));
-        if let Some(icon) = &self.icon {
-            let (cell, after) = rest.take_start(cx.style.icon);
-            draw.icon(centred(cell, cx.style.icon), icon);
-            rest = after.take_start(cx.style.gap).1;
-        }
-        let run = TextRun::new(cx.core.resolved.label);
-        let name = draw.layout(&run, rest.rect().width()).size();
-        let (name_rect, after) = rest.take_start(name.x);
-        draw.text(centred(name_rect, name.y), &run);
-        if let Some(detail) = &self.detail {
-            let run = self.detail_run(detail, cx.style);
-            let (_, detail_flow) = after.take_start(cx.style.gap);
-            let size = draw.layout(&run, detail_flow.rect().width()).size();
-            draw.text(centred(detail_flow.rect(), size.y), &run);
+        if let Some(glyph) = &self.glyph {
+            match glyph {
+                Glyph::Icon(icon) => {
+                    draw.icon(centred(rest.take_start(cx.style.icon).0, cx.style.icon), icon);
+                }
+                Glyph::Text(text) => {
+                    let run = TextRun::new(text.as_str());
+                    let size = draw.layout(&run, rest.rect().width()).size();
+                    draw.text(centred(rest.take_start(size.x).0, size.y), &run);
+                }
+            }
+        } else {
+            if let Some(icon) = &self.icon {
+                let (cell, after) = rest.take_start(cx.style.icon);
+                draw.icon(centred(cell, cx.style.icon), icon);
+                rest = after.take_start(cx.style.gap).1;
+            }
+            let run = TextRun::new(cx.core.resolved.label);
+            let name = draw.layout(&run, rest.rect().width()).size();
+            let (name_rect, after) = rest.take_start(name.x);
+            draw.text(centred(name_rect, name.y), &run);
+            if let Some(detail) = &self.detail {
+                let run = self.detail_run(detail, cx.style);
+                let (_, detail_flow) = after.take_start(cx.style.gap);
+                let size = draw.layout(&run, detail_flow.rect().width()).size();
+                draw.text(centred(detail_flow.rect(), size.y), &run);
+            }
         }
         if self.differs && self.slot > 0.0 {
             draw.reset_mark(&cx.style.reset, slot.center());
@@ -338,19 +435,21 @@ pub(crate) struct LabelIn<'a> {
     pub room: f32,
     pub text: &'a Label,
     pub side: &'a SideLabel,
+    /// The help line the container's footer shows; it joins the control's description with the label's detail.
+    pub help: Option<&'a Label>,
     pub enabled: bool,
     pub size: craft_theme::ControlSize,
     /// The narrowest the control can be; a row too narrow for the label column, the gap and this stacks the label above.
     pub control_min: f32,
 }
 
-/// The label fact the scope records: the name's text, and the detail (resolved) as the control's description.
+/// The label fact the scope records: the name's text, and the detail and the help line (resolved) as the control's
+/// description.
 fn field_label(env: &Env, input: &LabelIn<'_>, id: Id, rect: Rect) -> FieldLabel {
     let label = FieldLabel::new(id, rect, input.text.as_str()).role(input.side.role);
-    match &input.side.detail {
-        Some(detail) => label.detail(env.view().resolve(detail).as_str()),
-        None => label,
-    }
+    let described: Vec<String> =
+        [input.side.detail.as_ref(), input.help].into_iter().flatten().map(|text| env.view().resolve(text).as_str().to_owned()).collect();
+    if described.is_empty() { label } else { label.detail(&described.join(". ")) }
 }
 
 /// What the label step needs of one leaf child it labels (`PaintUi::labelled`, `BodyCx::labelled`).
@@ -398,6 +497,7 @@ pub(crate) fn leaf<C: Show>(ui: &mut Ui, env: &Env, at: &LeafLabel<'_>, child: &
         room: at.row.width(),
         text: at.text,
         side: at.side,
+        help: None,
         enabled: at.enabled,
         size: at.size,
         control_min,
@@ -430,6 +530,22 @@ fn place_after(ctx: &egui::Context, scope: Id, flow: Flow, control_min: f32, gap
     Placed { label, control }
 }
 
+/// The rect a hidden label leaves for its control. In a body whose labelled rows share a label column the label
+/// still takes the column, so the control starts in the control column; elsewhere, or where the row is too narrow
+/// for the column, the control takes the row.
+fn hidden_control(ctx: &egui::Context, input: &LabelIn<'_>, flow: Flow, gap: f32) -> Rect {
+    if input.side.layout != FieldLayout::Beside {
+        return input.row;
+    }
+    match crate::layout::ambient_width(ctx, &crate::layout::LABELS, 0.0).filter(|column| *column > 0.0) {
+        Some(column) if input.room >= column + gap + input.control_min => {
+            let (_, rest) = flow.take_start(column);
+            rest.take_start(gap).1.rect()
+        }
+        _ => input.row,
+    }
+}
+
 /// Runs the label step in `ui`: shows the label, opens the label scope and returns where the label and the control
 /// sit. The caller closes the scope with `scope::finish` after the control ran.
 pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
@@ -442,15 +558,21 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let label_id = sub(input.scope, "label");
     if input.side.kind == LabelKind::Hidden {
         scope::begin(&ctx, input.scope, input.owner, scope::Kind::Label(field_label(env, input, label_id, Rect::NOTHING)));
-        return Placed { label: Rect::NOTHING, control: input.row };
+        return Placed { label: Rect::NOTHING, control: hidden_control(&ctx, input, flow, gap) };
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
     leaf.scrub = input.side.scrub || scope::last_scrub(&ctx, input.scope);
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
-    leaf.icon = input.side.icon.clone();
-    leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
+    match &input.side.kind {
+        LabelKind::Glyph(glyph) => leaf.glyph = Some(glyph.resolved(env)),
+        _ => {
+            leaf.icon = input.side.icon.clone();
+            leaf.detail = input.side.detail.as_ref().map(|detail| env.view().resolve(detail));
+        }
+    }
+    let glyph = leaf.glyph.is_some();
     let kids_scope = sub(input.scope, "label_ui");
     let builder = UiBuilder::new().max_rect(input.row).layout(child::pinned_layout()).scope_id(kids_scope);
     let builder = match input.parent {
@@ -472,7 +594,9 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
     let (column, stack_below) = match input.side.layout {
         FieldLayout::Beside => {
             let own = natural.x;
-            let width = crate::layout::ambient_width(&ctx, &crate::layout::LABELS, own).filter(|width| *width > 0.0).unwrap_or(own);
+            let width = crate::layout::ambient_width(&ctx, if glyph { &crate::layout::GLYPHS } else { &crate::layout::LABELS }, own)
+                .filter(|width| *width > 0.0)
+                .unwrap_or(own);
             (width, width + gap + input.control_min)
         }
         FieldLayout::Above => (natural.x, f32::INFINITY),
@@ -509,7 +633,12 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Placed {
             natural.min(Vec2::new(column, natural.y)),
             baseline,
         );
-        Placed { label: placed.label, control: placed.control }
+        let mut label = placed.label;
+        if !placed.stacked && input.side.align == LabelAlign::End {
+            let spare = (column - label.width()).max(0.0);
+            label = label.translate(Vec2::new(if rtl { -spare } else { spare }, 0.0));
+        }
+        Placed { label, control: placed.control }
     };
     let label_id_for_scope = sub(input.scope, "label");
     let shown = Props::id(leaf, label_id_for_scope).show_at(&mut kids, placed.label);

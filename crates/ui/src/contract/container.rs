@@ -3,8 +3,9 @@
 use super::label::SideLabel;
 use super::overlay::Overlay;
 use crate::layout::BodyLayout;
-use crate::runtime::access::Politeness;
+use crate::runtime::access::{Politeness, SetPosition};
 use crate::runtime::commands::CommandScope;
+use crate::runtime::env::Label;
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::SaveKey;
 use crate::style::SurfaceKind;
@@ -119,7 +120,8 @@ pub enum DragBand {
     None,
     /// Moves the container.
     Move,
-    /// Reorders the container among its siblings.
+    /// Reorders the container among its siblings. The header's band takes the drag (the `REORDER_BAND` part), and
+    /// Alt+Up and Alt+Down on the container give `Intent::MoveItem` instead of closing or opening it.
     Reorder,
 }
 
@@ -187,6 +189,19 @@ impl FooterRegion {
     pub const fn rule(mut self, on: bool) -> Self {
         self.rule = on;
         self
+    }
+}
+
+/// An end region, filled by `Container::end`: a column of controls at the line's end edge, beside the body and outside
+/// its scroll region. Its stops join the body's roving group.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EndRegion;
+
+impl EndRegion {
+    /// An end region.
+    pub const fn new() -> Self {
+        EndRegion
     }
 }
 
@@ -332,7 +347,8 @@ pub enum Gap {
     Section,
 }
 
-/// What a container or collection adds to `Common`.
+/// What a container or collection adds to `Common`. A builder added here is added to the forwarder list in
+/// `crates/ui-macros/src/props.rs` too.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct ContainerProps {
@@ -352,6 +368,13 @@ pub struct ContainerProps {
     pub scroll: Option<Scroll>,
     /// A footer region.
     pub footer: Option<FooterRegion>,
+    /// An end region at the line's end edge.
+    pub end: Option<EndRegion>,
+    /// The help line the footer shows under the control column of a label-scoped container; its text joins the
+    /// control's description.
+    pub help: Option<Label>,
+    /// The container's place in its set, reported on its node.
+    pub position: Option<SetPosition>,
     /// The focus scope of an `Inline`, `Pane` or `FullWindow` mount.
     pub focus: FocusPolicy,
     /// Collapse configuration; the initial state seeds the open slot.
@@ -402,6 +425,9 @@ impl ContainerProps {
             header: None,
             scroll: None,
             footer: None,
+            end: None,
+            help: None,
+            position: None,
             focus: FocusPolicy::NONE,
             collapse: None,
             body_gap: Gap::Row,
@@ -472,6 +498,26 @@ impl ContainerProps {
     /// A footer region.
     pub const fn footer(mut self, footer: FooterRegion) -> Self {
         self.footer = Some(footer);
+        self
+    }
+
+    /// An end region at the line's end edge, outside the body's scroll region. Its stops join the body's roving
+    /// group.
+    pub const fn end(mut self, end: EndRegion) -> Self {
+        self.end = Some(end);
+        self
+    }
+
+    /// The help line the footer shows under the control column. Its text joins the description of the control the
+    /// label scope names, as a validity message does; the footer draws the visible line.
+    pub fn help(mut self, help: impl Into<Label>) -> Self {
+        self.help = Some(help.into());
+        self
+    }
+
+    /// The container's place in its set (`n of m`), reported on its node.
+    pub const fn position(mut self, position: SetPosition) -> Self {
+        self.position = Some(position);
         self
     }
 
