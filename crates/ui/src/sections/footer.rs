@@ -1,6 +1,6 @@
 //! `FooterBar` (16.4): the container that fills a container's footer region.
 
-use crate::contract::{Common, Component, Container, ContainerProps, Cx, Role};
+use crate::contract::{BodyLayout, Common, Component, Container, ContainerProps, Cx, Role, RowAlign};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, NavShape, Roving, Sense};
 use egui::Response;
@@ -15,7 +15,6 @@ pub struct FooterBarStyle {
 
 /// A footer region's content: its body is the caller's closure, and its members are one roving group.
 // F8-LATER: `FooterBar::actions(..)` and `FooterBar::buttons(..)` need `IconButton` and `Button`.
-// F5-MERGE: F5c. The row layout with end alignment comes from `ContainerProps.layout` once the body step has it.
 #[derive(crate::contract::Component)]
 #[component(container)]
 pub struct FooterBar {
@@ -28,7 +27,7 @@ pub struct FooterBar {
 impl FooterBar {
     /// A footer bar whose content is its body.
     pub fn body() -> Self {
-        FooterBar { common: Common::new(), props: ContainerProps::new().roving(Roving::new(NavShape::Flat)) }
+        FooterBar { common: Common::new(), props: ContainerProps::new().roving(Roving::new(NavShape::Flat)).layout(BodyLayout::row().align(RowAlign::End)) }
     }
 }
 

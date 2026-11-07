@@ -1,13 +1,16 @@
 //! `TitleRow`: lead and action parts wear faces, report a value and an action, and form one roving stop.
 
 use craft_behavior::PartKey;
-use craft_ui::contract::{Bind, Props as _, Role, Show as _};
+use crate::contract::kit::PlainStyle;
+use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_ui::sections::FooterBar;
+use craft_ui::style::StyleCx;
 use craft_ui::sections::{HeaderAction, HeaderStrength, TitleOutput, TitleRow};
 use craft_ui::testing::focus::{active_part, egui_focused, key_release};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Key, Modifiers, Pos2, Rect, Ui};
+use egui::{Id, Key, Modifiers, Pos2, Rect, Response, Ui};
 use std::cell::RefCell;
 
 const ROW: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 40.0) };
@@ -85,4 +88,57 @@ fn a_title_row_is_a_heading_with_a_level_and_its_title_as_name() {
     let id = out.borrow().id.expect("the row showed");
     let tree = frames.tree();
     assert_eq!((tree.role(id), tree.name(id)), (Some(Role::HEADING), Some("Options")));
+}
+
+/// A container whose header region holds a `TitleRow` bound to the container's open state and whose footer region
+/// holds a `FooterBar`.
+#[derive(craft_ui::contract::Component)]
+#[component(container)]
+struct Panel {
+    #[common]
+    common: Common,
+    #[container]
+    props: ContainerProps,
+}
+
+impl Component for Panel {
+    const ROLE: Role = Role::GROUP;
+    type Style = PlainStyle;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: PanelStyleKey) -> PlainStyle {
+        PlainStyle::default()
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+impl Container for Panel {
+    fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
+        TitleRow::new("Options").disclosure(Bind::bound(cx.open())).show(ui);
+    }
+
+    fn footer(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
+        FooterBar::body().id_salt("footer").show(ui, |_, _| {});
+    }
+}
+
+#[trial]
+fn a_title_row_in_a_containers_header_toggles_the_body() {
+    const PANEL: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 110.0) };
+    let mut frames = Frames::new();
+    let ran = std::cell::Cell::new(false);
+    let mut show = |ui: &mut Ui| {
+        let props = ContainerProps::new().header(HeaderRegion::new()).footer(FooterRegion::new());
+        ran.set(false);
+        Panel { common: Common::new(), props }.id_salt("panel").show_at(ui, PANEL, |_, _| ran.set(true));
+    };
+    frames.idle(3, &mut show);
+    assert!(ran.get(), "the body runs while the container is open");
+    let lead = Pos2::new(PANEL.left() + side() / 2.0, PANEL.top() + 14.0);
+    click(&mut frames, lead, &mut show);
+    frames.idle(2, &mut show);
+    assert!(!ran.get(), "a click on the header's disclosure closes the body");
 }
