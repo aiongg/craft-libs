@@ -1,17 +1,11 @@
 //! Stories of `LinkedFields`.
 
-use super::{LinkMode, LinkedFields, LinkedLayout, LinkedOutput};
+use super::{LinkMode, LinkedFields, LinkedLayout};
 use crate::contract::{Bind, Show as _, Validity};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::Mixed;
 use egui::Ui;
-
-impl<const N: usize> From<LinkedOutput<N>> for StoryOutput {
-    fn from(output: LinkedOutput<N>) -> Self {
-        output.edit.into()
-    }
-}
 
 #[story(LinkedFields<'static, 2>, covers = [Default], drive = Drive::Type("120"))]
 fn linked_fields(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {

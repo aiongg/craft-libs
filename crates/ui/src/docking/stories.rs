@@ -68,7 +68,7 @@ fn a_dock_of_one_group(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(DockGroup<'static>, covers = [Default])]
 fn two_panels(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let panels = panels_of(GroupId::new(0));
-    DockGroup::new(GroupId::new(0), &panels, active_of(&panels)).show(ui, |_, _| ()).output.response.into()
+    DockGroup::new(GroupId::new(0), &panels, active_of(&panels)).show(ui, |_, _| ()).output.into()
 }
 
 #[story(Splitter, covers = [Default])]

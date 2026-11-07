@@ -56,7 +56,7 @@ impl Component for Link {
         let color = cx.color(colors.accent.text);
         LinkStyle {
             metrics: Metrics::new(),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             text: TextLook::new(TypeRole::Body, Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled)))),
             underline: cx.tokens.stroke.thin / 2.0,
         }

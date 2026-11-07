@@ -74,6 +74,11 @@ impl Outcome for SheetOutput {
     fn response(&self) -> &Response {
         &self.collection.response
     }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        self.collection.story_facts()
+    }
 }
 
 /// The rows of a sheet as a collection source: `count` rows keyed by position.

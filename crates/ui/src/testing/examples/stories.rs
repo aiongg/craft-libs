@@ -29,13 +29,13 @@ const VISIBLE: f32 = 10.0;
 #[story(CodeEditor<'static>, covers = [Default])]
 fn code_editor(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let doc = data.value("doc", CodeDocument::new("fn main() {\n    run();\n}"));
-    CodeEditor::new(doc).label("Source").show(ui).response.into()
+    CodeEditor::new(doc).label("Source").show(ui).into()
 }
 
 #[story(CodeEditor<'static>, covers = [LongText])]
 fn code_editor_long(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let doc = data.value("doc", CodeDocument::new(&format!("let total = {};", "value + ".repeat(40))));
-    CodeEditor::new(doc).label("Source").show(ui).response.into()
+    CodeEditor::new(doc).label("Source").show(ui).into()
 }
 
 fn sheet_rows(count: usize) -> Vec<Vec<String>> {
@@ -117,5 +117,5 @@ fn track_stack_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 #[story(TrackRow<'static>, covers = [Default], drive = Drive::Never)]
 fn track_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     let tracks = tracks(1);
-    TrackRow::new(&tracks[0], cells(ui, &[NAME, MUTE, LOCK, LANE]), VISIBLE).show(ui).response.into()
+    TrackRow::new(&tracks[0], cells(ui, &[NAME, MUTE, LOCK, LANE]), VISIBLE).show(ui).into()
 }

@@ -534,4 +534,9 @@ impl<K, E> super::Outcome for CollectionResponse<K, E> {
     fn response(&self) -> &Response {
         &self.response
     }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        crate::testing::StoryOutput::of_collection(&self.response, &self.events, &self.visible)
+    }
 }

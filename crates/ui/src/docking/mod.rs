@@ -162,6 +162,11 @@ impl Outcome for DockOutput {
     fn response(&self) -> &Response {
         &self.edit.response
     }
+
+    #[cfg(feature = "testing")]
+    fn story_facts(&self) -> crate::testing::StoryOutput {
+        self.edit.story_facts()
+    }
 }
 
 /// A tree of groups with a handle between neighbours. Its body shows the groups, each at its rect.

@@ -2,12 +2,12 @@
 //! because `child` and `face` show components; `Draw` and the painters stay in `primitives`.
 
 use super::SideLabel;
-use super::label::{self, LabelIn};
+use super::label::{self, LeafLabel};
 use super::run::{self, FaceSource, ShowAt};
 use super::{ContentPainter, Cx, Show, TipFn};
 use crate::primitives::sensing::PartResults;
 use crate::primitives::{ContentPainterCx, Draw, DrawEnv, PaintRecord};
-use crate::runtime::access::{self, scope};
+use crate::runtime::access;
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::sub;
@@ -68,25 +68,13 @@ impl PaintUi<'_> {
     /// label scope, scrub and the reset dot. The child gets the rect the label leaves.
     pub fn labelled<C: Show>(&mut self, key: impl Hash + Debug, rect: Rect, label: Label, side: SideLabel, child: C) -> C::Output {
         let id = self.id.with(key);
-        let row = sub(id, "field");
         let env = Env::of(self.ui);
         let mut child = child;
-        let control_min = run::measure_under(&mut child, &*self.ui, Some(id), craft_behavior::Proposal::Min, Some((self.enabled, self.size))).x;
-        let input = LabelIn {
-            scope: row,
-            owner: self.id,
-            parent: Some(self.id),
-            row: rect,
-            room: rect.width(),
-            text: &label,
-            side: &side,
-            enabled: self.enabled,
-            size: self.size,
-            control_min,
-        };
-        let control = label::run(&mut *self.ui, &env, &input);
-        let output = self.child_with(id, control, child, None);
-        scope::finish(self.ui.ctx(), row, None);
+        let at =
+            LeafLabel { id, owner: self.id, parent: Some(self.id), row: rect, text: &label, side: &side, enabled: self.enabled, size: self.size };
+        let placed = label::leaf(&mut *self.ui, &env, &at, &mut child);
+        let output = self.child_with(id, placed.control, child, None);
+        placed.finish(self.ui.ctx());
         output
     }
 

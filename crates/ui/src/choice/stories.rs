@@ -5,7 +5,7 @@ use super::radio::{Radio, RadioGroup};
 use super::rating::Rating;
 use super::segmented::{Segment, Segmented};
 use super::switch::Switch;
-use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, SideLabel, Validity};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -74,6 +74,25 @@ fn radio_group_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn radio_group_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_large = |size: &u8| if *size == 3 { Validity::Refuse(Message::new("Too large")) } else { Validity::Ok };
     spread(ui, RadioGroup::new("Size", Bind::bound(data.value("large", 3u8)).check(refuse_large))).0
+}
+
+/// Rows that carry an icon and a count through the body's label step.
+#[story(RadioGroup<'static, u8>, covers = [], drive = Drive::Never)]
+fn radio_group_with_icons_and_counts(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let rows = [(1u8, "Layers", "list", "12"), (2, "Pages", "grid", "4"), (3, "Masks", "eye", "0")];
+    RadioGroup::new("Show", Bind::bound(data.value("show", 1u8)))
+        .show(ui, |ui, cx| {
+            for (value, label, icon, count) in rows {
+                cx.labelled(
+                    ui,
+                    value,
+                    label.into(),
+                    SideLabel::new().icon(IconId::new(icon)).detail(count),
+                    Radio::new(value).label(label).keeps_name(true),
+                );
+            }
+        })
+        .into()
 }
 
 // The shown member is the selected one, where Tab arrives, so the key drives reach it.

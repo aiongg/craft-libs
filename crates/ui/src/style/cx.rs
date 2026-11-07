@@ -1,7 +1,7 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink};
-use super::look::{StyleColor, SurfaceKind, SurfaceLook};
+use super::look::{FocusLook, StyleColor, SurfaceKind, SurfaceLook};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
@@ -103,6 +103,11 @@ impl<'a> StyleCx<'a> {
     /// The one constructor of `StyleColor`: a semantic token read or a token-group field becomes a style colour here.
     pub fn color(&self, color: Rgba) -> StyleColor {
         StyleColor(egui_color(color))
+    }
+
+    /// The one builder of the focus ring: the line's focus colour at the medium stroke, on the shape's edge.
+    pub fn focus_look(&self) -> FocusLook {
+        FocusLook::new(egui::Stroke::new(self.tokens.stroke.medium, self.color(self.tokens.color.line.focus).egui()), 0.0)
     }
 
     /// The colour text and icons of `tone` read in.

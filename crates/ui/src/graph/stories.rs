@@ -140,5 +140,5 @@ fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(Node<'static, ()>, covers = [Default])]
 fn mix(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    Node::<()>::new(NodeId(0), &MIX).show(ui).response.into()
+    Node::<()>::new(NodeId(0), &MIX).show(ui).into()
 }

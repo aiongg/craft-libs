@@ -177,7 +177,7 @@ impl Component for LabelledDial<'_> {
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        ui.labelled("dial", cx.rect, self.label.into(), self.side, Dial::new(&mut *self.value, self.seen));
+        ui.labelled("dial", cx.rect, self.label.into(), self.side.clone(), Dial::new(&mut *self.value, self.seen));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

@@ -9,9 +9,9 @@ use crate::contract::{
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
-use egui::{Id, Vec2};
+use egui::Vec2;
 use std::marker::PhantomData;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Arc, Mutex};
 
 /// The group kind of radios whose members stand for values of type `T`.
 pub struct RadioKind<T>(PhantomData<fn() -> T>);
@@ -20,50 +20,20 @@ impl<T: Value + 'static> GroupKind for RadioKind<T> {
     type Member = T;
 }
 
-/// The members a group registered, as `GroupState` holds them.
-type Members<T> = Vec<(T, Id, bool)>;
-
 /// The group's registrations, kept in its shown memory so the members registered last pass are readable this pass.
-/// `kept` holds the last non-empty registration: a pass that ran no body clears the live list, and the pick that
-/// arrives in the next pass still finds its member.
 struct GroupMemory<T: Value + 'static> {
     live: Arc<Mutex<GroupState<T>>>,
-    kept: Arc<Mutex<Members<T>>>,
-}
-
-impl<T: Value + 'static> Clone for GroupMemory<T> {
-    fn clone(&self) -> Self {
-        GroupMemory { live: Arc::clone(&self.live), kept: Arc::clone(&self.kept) }
-    }
 }
 
 impl<T: Value + 'static> Default for GroupMemory<T> {
     fn default() -> Self {
-        GroupMemory { live: Arc::default(), kept: Arc::default() }
+        GroupMemory { live: Arc::default() }
     }
 }
 
-impl<T: Value + 'static> GroupMemory<T> {
-    /// The enabled member registered with `id`, in the live list or else the kept one.
-    fn member(&self, id: Id) -> Option<T> {
-        let find = |members: &Members<T>| members.iter().find(|(_, member, enabled)| *member == id && *enabled).map(|(value, ..)| value.clone());
-        let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-        find(&live.members).or_else(|| find(&self.kept.lock().unwrap_or_else(PoisonError::into_inner)))
-    }
-
-    /// The id of the enabled member registered with `value`, in the live list or else the kept one.
-    fn member_id(&self, value: &T) -> Option<Id> {
-        let find = |members: &Members<T>| members.iter().find(|(member, _, enabled)| member == value && *enabled).map(|(_, id, _)| *id);
-        let live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-        find(&live.members).or_else(|| find(&self.kept.lock().unwrap_or_else(PoisonError::into_inner)))
-    }
-
-    /// Keeps the live registrations when there are any, then clears them for the pass's body to register again.
-    fn begin_registration(&self) {
-        let mut live = self.live.lock().unwrap_or_else(PoisonError::into_inner);
-        if !live.members.is_empty() {
-            *self.kept.lock().unwrap_or_else(PoisonError::into_inner) = std::mem::take(&mut live.members);
-        }
+impl<T: Value + 'static> Clone for GroupMemory<T> {
+    fn clone(&self) -> Self {
+        GroupMemory { live: Arc::clone(&self.live) }
     }
 }
 
@@ -117,20 +87,23 @@ impl<T: Value + 'static> Component for RadioGroup<'_, T> {
         let memory = cx.memory::<GroupMemory<T>>().clone();
         let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&memory.live));
         let activated = cx.activated_member();
-        if let Some(picked) = activated.and_then(|id| memory.member(id)) {
+        if let Some(picked) = activated.and_then(|id| handle.member(id)) {
             cx.propose(picked);
             cx.commit();
         }
         let selected = cx.value().cloned();
-        if let Some(id) = selected.as_ref().and_then(|value| memory.member_id(value)) {
+        if let Some(id) = selected.as_ref().and_then(|value| handle.member_id(value)) {
             cx.roving_arrival(id);
         }
         handle.select(selected);
-        memory.begin_registration();
     }
 
     fn content_env(&self, cx: &Cx<'_, Self>, values: &mut crate::runtime::env::AppValues) {
-        values.set(GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().live)));
+        let handle = GroupHandle::<RadioKind<T>>::new(Arc::clone(&cx.recall::<GroupMemory<T>>().live));
+        // Step 13 runs right before the body: the members the body shows register again, and a pass that runs no
+        // body leaves the registrations of the last one.
+        handle.begin_registration();
+        values.set(handle);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<T> {
@@ -180,7 +153,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         let control = cx.control();
         RadioStyle {
             metrics: control.metrics(),
-            focus: crate::controls::focus_look(cx),
+            focus: cx.focus_look(),
             icon: control.icon,
             ring: cx.ink(Ink::OnPanel),
             dot: cx.tone(craft_theme::variant::Tone::Accent),
