@@ -202,9 +202,13 @@ fn rig_unbound(build: impl Fn(TileGrid<'_, usize>) -> TileGrid<'_, usize> + 'sta
 fn a_star_click_and_a_digit_key_give_the_same_rate_event() {
     let rated = |tile: Tile<'static>| tile.rating(2).bar(BadgeVisibility::Always);
     let (mut fixture, seen) = rig(1, |grid| grid.rating_keys(RatingKeys::Digits), move |_, tile| rated(tile));
-    click(&mut fixture, "alpha");
-    let star = fixture.by_label("4 stars").expect("the fourth star is a node");
-    fixture.click(&star);
+    // The rated tile's name carries its rating, so the tile is clicked by its place.
+    let card = seen.borrow().card(0);
+    fixture.click_at(card.max - Vec2::splat(4.0));
+    fixture.idle(2);
+    // The stars are one node; the fourth of five lies at seven tenths of its width.
+    let stars = fixture.by_label("Rating of alpha").expect("the rating is a node");
+    fixture.click_at(egui::Pos2::new(stars.rect.left() + stars.rect.width() * 0.7, stars.center().y));
     fixture.idle(2);
     fixture.type_text("4");
     fixture.idle(2);

@@ -118,10 +118,20 @@ fn escape_answer(answers: &[FooterButton], chosen: Option<DialogRole>) -> Option
     chosen.and_then(find).or_else(|| find(DialogRole::Cancel)).or_else(|| find(DialogRole::Other)).or_else(|| default_answer(answers))
 }
 
-/// The index Enter answers with: the first Accept answer, else the first Destructive one, when it is available.
-fn default_answer(answers: &[FooterButton]) -> Option<usize> {
+/// The first Accept answer, else the first Destructive one, whether it is enabled or not.
+fn default_position(answers: &[FooterButton]) -> Option<usize> {
     let find = |wanted: DialogRole| answers.iter().position(|answer| answer.role() == wanted);
-    find(DialogRole::Accept).or_else(|| find(DialogRole::Destructive)).filter(|at| answers[*at].is_enabled())
+    find(DialogRole::Accept).or_else(|| find(DialogRole::Destructive))
+}
+
+/// The index Enter answers with: the default answer, when it is available.
+fn default_answer(answers: &[FooterButton]) -> Option<usize> {
+    default_position(answers).filter(|at| answers[*at].is_enabled())
+}
+
+/// Whether the answers include a default one, available or not.
+fn has_default(answers: &[FooterButton]) -> bool {
+    default_position(answers).is_some()
 }
 
 type Below<'a> = Box<dyn FnOnce(&mut Ui) + 'a>;
@@ -256,7 +266,10 @@ impl<'a> Prompt<'a> {
     pub fn show(self, ui: &mut Ui) -> PromptOutput {
         let Prompt { title, message, answers, extras, open, escape, alert } = self;
         let (escape_at, enter_at) = (escape_answer(&answers, escape), default_answer(&answers));
-        let mut dialog = Dialog::prompt(title).buttons(answers).initial_focus(Initial::Default).close_on_enter(enter_at.is_some());
+        // A blocked default answer leaves focus off the buttons: landing on the first other one would let Enter answer
+        // with it (Discard under a blocked Recover).
+        let initial = if enter_at.is_none() && has_default(&answers) { Initial::Keep } else { Initial::Default };
+        let mut dialog = Dialog::prompt(title).buttons(answers).initial_focus(initial).close_on_enter(enter_at.is_some());
         if alert {
             dialog = dialog.alert().description(Env::of(ui).view().resolve(&message).as_str());
         }

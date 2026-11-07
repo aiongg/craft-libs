@@ -124,7 +124,8 @@ fn a_disabled_action_takes_a_drop_only_when_flagged_and_then_reports_enabled() {
     let mut frames = Frames::new();
     let over = drag_over_delete(&mut frames, &mut show, &plain);
     let id = plain.borrow().delete.expect("the action showed");
-    assert!(frames.tree().is_disabled(id), "the disabled action stays disabled under a drag");
+    let tree = frames.tree();
+    assert!(tree.is_disabled(id), "the disabled action stays disabled under a drag");
     frames.frame(vec![release(over)], &mut show);
     let first = plain.borrow().dropped_on;
     frames.idle(2, &mut show);
@@ -170,8 +171,9 @@ fn an_action_with_a_menu_popup_reports_has_popup_and_expanded() {
     };
     frames.idle(3, &mut show);
     let id = id.get().expect("the action showed");
-    assert_eq!(frames.tree().has_popup(id), Some(PopupKind::Menu), "the action reports its popup");
-    assert_eq!(frames.tree().expanded(id), Some(false), "closed");
+    let tree = frames.tree();
+    assert_eq!(tree.has_popup(id), Some(PopupKind::Menu), "the action reports its popup");
+    assert_eq!(tree.expanded(id), Some(false), "closed");
     open.set(true);
     frames.idle(2, &mut show);
     assert_eq!(frames.tree().expanded(id), Some(true), "and open once the host says so");
