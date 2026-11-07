@@ -95,12 +95,41 @@ pub struct ColumnSpec {
     pub frozen: bool,
     /// What the cells are.
     pub kind: ColumnKind,
+    /// Where the cells' content sits in the column.
+    pub align: ColumnAlign,
+    /// The cells' figures are tabular, so a column of numbers lines up.
+    pub tabular: bool,
+    /// The first press on the header sorts descending: sizes, dates and ratings, where the largest comes first.
+    pub first_descending: bool,
+}
+
+/// Where a column's content sits.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ColumnAlign {
+    /// At the start edge.
+    #[default]
+    Start,
+    /// At the end edge.
+    End,
 }
 
 impl ColumnSpec {
     /// A content column with a header and a width; the other settings off.
     pub fn new(key: ColumnKey, header: impl Into<Label>, width: ColumnWidth) -> Self {
-        ColumnSpec { key, header: header.into(), width, resizable: false, sortable: false, movable: false, frozen: false, kind: ColumnKind::Content }
+        ColumnSpec {
+            key,
+            header: header.into(),
+            width,
+            resizable: false,
+            sortable: false,
+            movable: false,
+            frozen: false,
+            kind: ColumnKind::Content,
+            align: ColumnAlign::Start,
+            tabular: false,
+            first_descending: false,
+        }
     }
 
     /// Activating the header sorts.
@@ -137,6 +166,51 @@ impl ColumnSpec {
         self.kind = kind;
         self
     }
+
+    /// The cells' content sits at `align`.
+    #[must_use]
+    pub fn align(mut self, align: ColumnAlign) -> Self {
+        self.align = align;
+        self
+    }
+
+    /// A column of numbers: content at the end edge, tabular figures.
+    #[must_use]
+    pub fn numeric(mut self) -> Self {
+        self.align = ColumnAlign::End;
+        self.tabular = true;
+        self
+    }
+
+    /// The first press on the header sorts descending.
+    #[must_use]
+    pub fn first_descending(mut self) -> Self {
+        self.first_descending = true;
+        self
+    }
+}
+
+/// What Space does in a collection (Enter always activates the lead).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum SpaceAction {
+    /// Picks the lead row in a collection that selects, else activates it.
+    #[default]
+    Activate,
+    /// Flips the lead row's first enabled toggle cell; with several rows selected, the cell of every selected row.
+    ToggleCell,
+    /// Nothing: the key is the app's.
+    None,
+}
+
+/// What moved the lead.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LeadSource {
+    /// A key: arrows, type-ahead, or the rows changing under the lead.
+    Keys,
+    /// The pointer: a press or a hover.
+    Pointer,
 }
 
 /// The pointer gesture that activates an item.
@@ -189,8 +263,9 @@ impl ColumnSort {
     }
 }
 
-/// What a collection reads from the app: plain data.
-#[derive(Clone, Debug, Default)]
+/// What a collection reads from the app: plain data. A new builder's name is added to the forwarder list in
+/// `crates/ui-macros/src/props.rs`, so the components that embed these props forward it.
+#[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct CollectionProps {
     /// What can be selected.
@@ -223,6 +298,21 @@ pub struct CollectionProps {
     /// Identifies the set the rows are, where it can change while the collection is shown: the lead starts over when
     /// it differs from the last pass's. Completion candidates, which are new rows at every keystroke.
     pub rows_stamp: Option<u64>,
+    /// What Space does.
+    pub space: SpaceAction,
+    /// The header row shows when a column has a header text. Off: the columns lay the rows out and no header row is built.
+    pub header: bool,
+    /// Typed digits reach the collection's own `update` as `Intent::Digit` (rating keys); other typed text stays
+    /// type-ahead.
+    pub digit_keys: bool,
+    /// A drag from empty space draws a marquee that selects the items it sweeps.
+    pub marquee: bool,
+}
+
+impl Default for CollectionProps {
+    fn default() -> Self {
+        CollectionProps::new()
+    }
 }
 
 impl CollectionProps {
@@ -242,6 +332,10 @@ impl CollectionProps {
             lead_follows_hover: false,
             focus_on_press: true,
             rows_stamp: None,
+            space: SpaceAction::Activate,
+            header: true,
+            digit_keys: false,
+            marquee: false,
         }
     }
 
@@ -326,6 +420,34 @@ impl CollectionProps {
     #[must_use]
     pub const fn focus_on_press(mut self, on: bool) -> Self {
         self.focus_on_press = on;
+        self
+    }
+
+    /// What Space does.
+    #[must_use]
+    pub const fn space(mut self, action: SpaceAction) -> Self {
+        self.space = action;
+        self
+    }
+
+    /// Whether the header row shows.
+    #[must_use]
+    pub const fn header(mut self, on: bool) -> Self {
+        self.header = on;
+        self
+    }
+
+    /// Typed digits go to the collection's `update` as `Intent::Digit`.
+    #[must_use]
+    pub const fn digit_keys(mut self, on: bool) -> Self {
+        self.digit_keys = on;
+        self
+    }
+
+    /// A drag from empty space selects with a marquee.
+    #[must_use]
+    pub const fn marquee(mut self, on: bool) -> Self {
+        self.marquee = on;
         self
     }
 
@@ -496,8 +618,14 @@ pub enum ColumnEvent {
 pub enum CollectionEvent<K, E> {
     /// The selection changed.
     Selection(SelectionChange<K>),
-    /// The lead moved.
-    LeadMoved(K),
+    /// The lead moved, by keys or by the pointer.
+    #[non_exhaustive]
+    LeadMoved {
+        /// The item that took the lead.
+        key: K,
+        /// What moved it.
+        by: LeadSource,
+    },
     /// Enter or a double click on an item.
     Activate(K),
     /// The user asked for an item's context menu.
