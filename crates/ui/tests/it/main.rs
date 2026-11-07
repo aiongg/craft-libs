@@ -21,6 +21,7 @@ mod egui_surface;
 mod examples;
 mod focus;
 mod form;
+mod form_dialogs;
 mod glossary;
 mod internals;
 mod label;
