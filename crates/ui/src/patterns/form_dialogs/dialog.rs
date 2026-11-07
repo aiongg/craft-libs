@@ -2,6 +2,7 @@
 //! owned by a `DialogHost`. A command form is a `ParamDialog` without a preview.
 
 use super::fields::DialogFields;
+use super::host_requests::HostRequests;
 use super::param::{ColorRequest, EyedropperRequest, Param, ParamKind, PathRequest, open_fields};
 use super::preview::{PreviewPane, PreviewZoom};
 use super::rows::{ParamRows, ParamRowsOutput};
@@ -144,6 +145,18 @@ pub struct ParamDialog<'a> {
     /// The accepting button's label when it is not OK.
     #[prop]
     ok_label: Option<Label>,
+    /// The second button's label when it is not Cancel (Close, say).
+    #[prop]
+    cancel_label: Option<Label>,
+    /// Whether holding Alt turns the second button into Reset; the default is true.
+    #[prop]
+    alt_resets: bool,
+    /// Whether the dialog holds one outer gesture over its fields, from open to close.
+    #[prop]
+    outer_gesture: bool,
+    /// Whether the body is one collection that owns the scroll (a browse list): the dialog's own body scroll is off.
+    #[prop]
+    collection_body: bool,
     /// The values Reset sets, instead of the values from when the dialog opened. Keys the target lacks keep their
     /// value.
     #[prop]
@@ -163,7 +176,11 @@ pub struct ParamDialog<'a> {
     /// A section under the rows that only reads the values (a monitor note).
     #[prop(func = "Fn(&mut Ui, &DialogFields)")]
     below: Option<BelowRows<'a>>,
+    shaped: Option<Shaped<'a>>,
 }
+
+/// What `ParamDialog::shaped` applies to the built [`Dialog`].
+struct Shaped<'a>(Box<dyn FnOnce(Dialog<'a>) -> Dialog<'a> + 'a>);
 
 /// What `ParamDialog::footer_extra` draws before the buttons.
 pub struct FooterExtra<'a>(Box<dyn FnMut(&mut Ui) + 'a>);
@@ -198,13 +215,26 @@ impl<'a> ParamDialog<'a> {
             ok_enabled: true,
             ok_reason: None,
             ok_label: None,
+            cancel_label: None,
+            alt_resets: true,
+            outer_gesture: false,
+            collection_body: false,
             reset_to: None,
             layout: ParamLayout::default(),
             closable: true,
             preview: None,
             footer_extra: None,
             below: None,
+            shaped: None,
         }
+    }
+
+    /// Changes the built [`Dialog`] before it shows, for the `Dialog` settings a form track needs and `ParamDialog`
+    /// has no setter for (`Dialog::overlay`, say). It runs after the settings `ParamDialog` makes itself.
+    #[must_use]
+    pub fn shaped(mut self, shape: impl FnOnce(Dialog<'a>) -> Dialog<'a> + 'a) -> Self {
+        self.shaped = Some(Shaped(Box::new(shape)));
+        self
     }
 
     /// The part of `fields` a remembering dialog saves: numbers, angles, choices and check boxes of the remembered
@@ -241,16 +271,21 @@ impl<'a> ParamDialog<'a> {
             ok_enabled,
             ok_reason,
             ok_label,
+            cancel_label,
+            alt_resets,
+            outer_gesture,
+            collection_body,
             reset_to,
             layout,
             closable,
             preview,
             mut footer_extra,
             below,
+            shaped,
         } = self;
         let env = Env::of(ui);
-        let (words, common) = (env.words::<ParamDialogWords>(), env.words::<CommonWords>());
-        let alt = crate::runtime::pointer::frame(ui.ctx()).mods.alt;
+        let words = env.words::<ParamDialogWords>();
+        let common = env.words::<CommonWords>();
         let unbound = bound.is_none();
         let mut bound = bound;
         let mut before = DialogFields::new();
@@ -258,40 +293,30 @@ impl<'a> ParamDialog<'a> {
         let work = RefCell::new(DialogFields::new());
         let opened = Cell::new(false);
 
-        let mut dialog = Dialog::new(title.clone()).closable(closable).close_on_enter(ok_enabled);
+        let mut dialog = Dialog::new(title.clone()).closable(closable).close_on_enter(ok_enabled).outer_gesture(outer_gesture);
         if let Some(open) = open {
             dialog = dialog.opened(open);
+        }
+        if collection_body {
+            dialog = dialog.collection_body();
+        }
+        if let Some(Shaped(shape)) = shaped {
+            dialog = shape(dialog);
         }
         let dialog = dialog.footer(|ui, footer| {
             if let Some(FooterExtra(extra)) = footer_extra.as_mut() {
                 extra(ui);
             }
-            let second = if alt {
-                FooterButton::new(words.reset.clone(), DialogRole::Other).enabled(work.borrow().changed())
-            } else {
-                FooterButton::new(common.cancel.clone(), DialogRole::Cancel)
-            };
             let mut accept = FooterButton::new(ok_label.clone().unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
             if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
                 accept = accept.disabled_reason(reason.clone());
             }
-            match FooterBar::buttons([accept, second]).show_footer(ui).picked {
-                Some(0) => footer.request_close_as(CloseReason::Activated),
-                Some(_) if alt => {
-                    let mut values = work.borrow_mut();
-                    match &reset_to {
-                        Some(target) => {
-                            for (key, value) in target.iter() {
-                                values.set(key, value.clone());
-                            }
-                        }
-                        None => {
-                            values.reset();
-                        }
-                    }
-                    crate::runtime::frame::request_repaint(ui.ctx());
-                }
-                Some(_) => footer.request_close_as(CloseReason::Requested),
+            let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
+            let changed = work.borrow().changed();
+            match reset.show(ui, accept, changed) {
+                Some(ResetPick::Accept) => footer.request_close_as(CloseReason::Activated),
+                Some(ResetPick::Reset) => ResetFooter::restore(&mut work.borrow_mut(), reset_to.as_ref()),
+                Some(ResetPick::Cancel) => footer.request_close_as(CloseReason::Requested),
                 None => {}
             }
         });
@@ -375,6 +400,88 @@ impl<'a> ParamDialog<'a> {
     }
 }
 
+/// What a footer with a Reset alternative answered with.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ResetPick {
+    /// The accepting button.
+    Accept,
+    /// The second button while Alt is held: the dialog resets its values and stays open.
+    Reset,
+    /// The second button while Alt is not held: the dialog closes without an answer.
+    Cancel,
+}
+
+/// The footer of a dialog whose Cancel turns into Reset while Alt is held: Reset restores the values from when the
+/// dialog opened (or a target) and keeps the dialog open. `ParamDialog` and every other dialog with this behaviour
+/// build their footer with it.
+///
+/// ```ignore
+/// let footer = ResetFooter::new(ui, None, true);
+/// match footer.show(ui, FooterButton::new(common.ok.clone(), DialogRole::Accept), values.changed()) {
+///     Some(ResetPick::Reset) => ResetFooter::restore(&mut values, None),
+///     _ => {}
+/// }
+/// ```
+#[derive(Clone, Debug)]
+pub struct ResetFooter {
+    resetting: bool,
+    cancel: Label,
+    reset: Label,
+}
+
+impl ResetFooter {
+    /// The footer for this pass: `cancel` names the second button when it is not Cancel; with `alt_resets` false
+    /// the second button stays Cancel whatever is held.
+    pub fn new(ui: &Ui, cancel: Option<Label>, alt_resets: bool) -> Self {
+        let env = Env::of(ui);
+        ResetFooter {
+            resetting: alt_resets && crate::runtime::pointer::frame(ui.ctx()).mods.alt,
+            cancel: cancel.unwrap_or_else(|| env.words::<CommonWords>().cancel.clone()),
+            reset: env.words::<ParamDialogWords>().reset.clone(),
+        }
+    }
+
+    /// Whether the second button is Reset in this pass.
+    pub fn resetting(&self) -> bool {
+        self.resetting
+    }
+
+    /// Shows `accept` and the second button, which is Reset (enabled while `changed`) or Cancel, and answers with
+    /// the one pressed.
+    pub fn show(&self, ui: &mut Ui, accept: FooterButton, changed: bool) -> Option<ResetPick> {
+        let second = if self.resetting {
+            FooterButton::new(self.reset.clone(), DialogRole::Other).enabled(changed)
+        } else {
+            FooterButton::new(self.cancel.clone(), DialogRole::Cancel)
+        };
+        match FooterBar::buttons([accept, second]).show_footer(ui).picked {
+            Some(0) => Some(ResetPick::Accept),
+            Some(_) if self.resetting => {
+                crate::runtime::frame::request_repaint(ui.ctx());
+                Some(ResetPick::Reset)
+            }
+            Some(_) => Some(ResetPick::Cancel),
+            None => None,
+        }
+    }
+
+    /// Sets `values` to `target`, key by key (keys the target lacks keep their value), or to the values they
+    /// opened with when there is no target.
+    pub fn restore(values: &mut DialogFields, target: Option<&DialogFields>) {
+        match target {
+            Some(target) => {
+                for (key, value) in target.iter() {
+                    values.set(key, value.clone());
+                }
+            }
+            None => {
+                values.reset();
+            }
+        }
+    }
+}
+
 /// The Preview check box, the zoom row and the pane.
 fn show_preview(ui: &mut Ui, words: &ParamDialogWords, texture: &SizedTexture, live: &mut Live) {
     Checkbox::new(Bind::bound(&mut live.on)).label(words.preview.clone()).show(ui);
@@ -387,14 +494,6 @@ fn show_preview(ui: &mut Ui, words: &ParamDialogWords, texture: &SizedTexture, l
 
 /// Builds the dialog over the host-owned values of a [`HostedParamDialog`] for one pass.
 type Build = dyn for<'b> Fn(&'b mut DialogFields) -> ParamDialog<'b> + Send;
-
-/// The requests of the rows that the host answers: the colour picker, the file dialog and the eyedropper.
-#[derive(Default)]
-struct Requests {
-    color: Option<ColorRequest>,
-    path: Option<PathRequest>,
-    eyedropper: Option<EyedropperRequest>,
-}
 
 /// A [`ParamDialog`] the [`DialogHost`](crate::dialog::DialogHost) owns: the host keeps the values, and `build` makes
 /// the dialog over them each pass.
@@ -410,7 +509,7 @@ pub struct HostedParamDialog {
     instance: Option<DialogId>,
     fields: DialogFields,
     build: Box<Build>,
-    requests: Requests,
+    requests: HostRequests,
 }
 
 impl HostedParamDialog {
@@ -421,7 +520,7 @@ impl HostedParamDialog {
         build: impl for<'b> Fn(&'b mut DialogFields) -> ParamDialog<'b> + Send + 'static,
     ) -> Self {
         let key = key.into();
-        HostedParamDialog { id: dialog_id(key.as_str()), key, instance: None, fields, build: Box::new(build), requests: Requests::default() }
+        HostedParamDialog { id: dialog_id(key.as_str()), key, instance: None, fields, build: Box::new(build), requests: HostRequests::new() }
     }
 
     /// Names this dialog among others made with the same key (one per document, say), so they keep separate state.
@@ -444,17 +543,17 @@ impl HostedParamDialog {
 
     /// The colour parameter whose button was pressed, once.
     pub fn pick_color(&mut self) -> Option<ColorRequest> {
-        self.requests.color.take()
+        self.requests.take_color()
     }
 
     /// The Browse button that was pressed, once.
     pub fn pick_path(&mut self) -> Option<PathRequest> {
-        self.requests.path.take()
+        self.requests.take_path()
     }
 
     /// The eyedropper toggle that was pressed, once.
     pub fn pick_eyedropper(&mut self) -> Option<EyedropperRequest> {
-        self.requests.eyedropper.take()
+        self.requests.take_eyedropper()
     }
 }
 
@@ -468,9 +567,9 @@ impl StackDialog for HostedParamDialog {
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ParamResult>> {
         let shown = (self.build)(&mut self.fields).show(ui);
         if let Some(rows) = shown.rows {
-            self.requests.color = rows.pick_color.or(self.requests.color.take());
-            self.requests.path = rows.path.or(self.requests.path.take());
-            self.requests.eyedropper = rows.eyedropper.or(self.requests.eyedropper.take());
+            self.requests.color = rows.pick_color.or(self.requests.take_color());
+            self.requests.path = rows.path.or(self.requests.take_path());
+            self.requests.eyedropper = rows.eyedropper.or(self.requests.take_eyedropper());
         }
         match (shown.result, shown.closed) {
             (Some(result), _) => Some(DialogResult::Ok(result)),

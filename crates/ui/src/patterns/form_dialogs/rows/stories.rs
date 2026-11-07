@@ -41,3 +41,10 @@ fn param_rows(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let fields = data.value("fields", DialogFields::new());
     ParamRows::new("Filter", &params, Bind::bound(fields)).show(ui).into()
 }
+
+#[story(ParamRows<'static>, covers = [], drive = Drive::Never)]
+fn param_rows_read_only(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let params = params();
+    let fields = data.value("fields", DialogFields::new());
+    ParamRows::new("Filter", &params, Bind::bound(fields)).read_only(true).show(ui).into()
+}
