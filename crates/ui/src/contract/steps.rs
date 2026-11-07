@@ -882,7 +882,7 @@ fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
     )
 }
 
-/// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
+/// Step 12, state: flags first (CHECKED from a shown `bool` or a command's checked state, MIXED from a mixed binding), then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
 pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inherited: Ink) {
     let mut flags = comp.flags();
     if open {
@@ -896,6 +896,11 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     }
     if cx.core.command.as_deref().is_some_and(|command| command.checked == Some(true)) {
         flags |= Flags::ON;
+    }
+    let shown_on = cx.shown.as_deref().and_then(|value| (value as &dyn std::any::Any).downcast_ref::<bool>()).copied();
+    let command_on = cx.core.command.as_deref().and_then(|command| command.checked);
+    if shown_on.or(command_on) == Some(true) {
+        flags |= Flags::CHECKED;
     }
     flags |= super::items::row_flags(&cx.core.ctx, cx.core.id);
     if cx.mixed {

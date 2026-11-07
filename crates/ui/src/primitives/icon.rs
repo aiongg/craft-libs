@@ -2,7 +2,7 @@
 
 use super::svg_set;
 use super::textures::TextureCache;
-use crate::style::{Ink, UiTokens, ink_color};
+use crate::style::{Ink, StyleColor, UiTokens, ink_color};
 use craft_behavior::IconId;
 use craft_i18n::Direction;
 use egui::emath::GuiRounding as _;
@@ -49,6 +49,8 @@ pub struct IconSpec<'a> {
     pub source: IconSource<'a>,
     /// The ink the icon reads in.
     pub ink: Ink,
+    /// A colour a style resolved from the state set (hover, disabled, tone); it replaces the ink's colour.
+    pub color: Option<StyleColor>,
     /// Mirroring under right-to-left.
     pub mirror: Mirror,
     /// The set an SVG icon is drawn from.
@@ -58,17 +60,23 @@ pub struct IconSpec<'a> {
 impl<'a> IconSpec<'a> {
     /// An icon of the SVG set or a tool icon, in the panel ink.
     pub fn svg(id: IconId) -> Self {
-        IconSpec { source: IconSource::Svg(id), ink: Ink::OnPanel, mirror: Mirror::Auto, set: IconSet::default() }
+        IconSpec { source: IconSource::Svg(id), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default() }
     }
 
     /// An icon of `glyph` in the panel ink.
     pub fn glyph(glyph: &'a dyn Glyph) -> Self {
-        IconSpec { source: IconSource::Glyph(glyph), ink: Ink::OnPanel, mirror: Mirror::Auto, set: IconSet::default() }
+        IconSpec { source: IconSource::Glyph(glyph), ink: Ink::OnPanel, color: None, mirror: Mirror::Auto, set: IconSet::default() }
     }
 
     /// Sets the ink.
     pub fn ink(mut self, ink: Ink) -> Self {
         self.ink = ink;
+        self
+    }
+
+    /// Sets the colour, in place of the ink's.
+    pub fn color(mut self, color: StyleColor) -> Self {
+        self.color = Some(color);
         self
     }
 
@@ -97,7 +105,7 @@ pub fn icon_names() -> &'static [&'static str] {
 
 /// Paints `spec` centred in the square of `rect`'s shorter side.
 pub(crate) fn paint(painter: &Painter, tokens: &UiTokens, direction: Direction, rect: Rect, spec: &IconSpec<'_>) {
-    let color = ink_color(tokens, spec.ink);
+    let color = spec.color.map_or_else(|| ink_color(tokens, spec.ink), StyleColor::egui);
     let rtl = direction == Direction::Rtl;
     let side = rect.width().min(rect.height());
     let square = Rect::from_center_size(rect.center(), vec2(side, side));

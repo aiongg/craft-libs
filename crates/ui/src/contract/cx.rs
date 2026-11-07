@@ -118,6 +118,11 @@ pub struct CxCore<'a> {
 }
 
 impl<C: Component> Cx<'_, C> {
+    /// Asks the platform to open `url`, in a new tab where the platform has tabs and `new_tab` is set.
+    pub fn open_url(&mut self, url: &str, new_tab: bool) {
+        crate::runtime::egui::clipboard::open_url(&self.core.ctx, url, new_tab);
+    }
+
     /// Makes this component a member of the roving group of the body it is shown in: its stop joins the group and
     /// Tab visits the group once. A component that never calls it keeps its own Tab stop.
     pub fn join_roving(&mut self) {
