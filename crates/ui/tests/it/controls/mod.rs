@@ -3,3 +3,4 @@
 mod disclosure;
 mod radio;
 mod slider;
+mod select;

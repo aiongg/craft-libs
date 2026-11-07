@@ -9,6 +9,7 @@
 pub mod access;
 pub mod contract;
 pub mod dump;
+pub mod examples;
 pub mod fixture;
 pub mod focus;
 pub mod frames;

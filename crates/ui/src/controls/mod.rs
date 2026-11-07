@@ -1,11 +1,13 @@
-//! Value controls: `Checkbox`, `Slider`, `RadioGroup` and `Radio`, `Disclosure`.
+//! Value controls: `Checkbox`, `Slider`, `RadioGroup` and `Radio`, `Disclosure`, `Select`.
 
 pub mod check;
 pub mod disclosure;
 pub mod radio;
+pub mod select;
 pub mod slider;
 #[cfg(feature = "testing")]
 mod stories;
+mod words;
 
 use crate::style::{FocusLook, StyleCx};
 
