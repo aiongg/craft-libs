@@ -38,6 +38,45 @@ old = "craft_ui::viewport::window::ViewportWindow"
 new = "craft_ui::shell::ViewportWindow"
 status = "pending"
 
+[[type]]
+name = "ShellCx"
+old = "craft_ui::shell::ShellCx"
+new = "craft_ui::shell::ShellCx"
+status = "same"
+note = "Read through `BodyCx::shell() -> Option<ShellCx>`, which returns a clone; built with `ShellCx::new`, `detached` or the `with_*` builders."
+
+[[type]]
+name = "Slot"
+old = "craft_ui::shell::Slot"
+new = "craft_ui::shell::Slot"
+status = "same"
+note = "Sizes are `SlotSize` names; the label is a `Label`; `frame` is gone."
+
+[[type]]
+name = "SlotKey"
+old = "craft_ui::shell::SlotKey"
+new = "craft_ui::shell::SlotKey"
+status = "same"
+
+[[type]]
+name = "WindowKey"
+old = "craft_ui::shell::WindowKey"
+new = "craft_ui::shell::WindowKey"
+status = "same"
+
+[[type]]
+name = "BodyMode"
+old = "craft_ui::shell::BodyMode"
+new = "craft_ui::shell::BodyMode"
+status = "same"
+
+[[type]]
+name = "Edge"
+old = "craft_ui::shell::Edge"
+new = ""
+status = "replaced"
+note = "`craft_ui::contract::PaneEdge` (`Center`, `Start`, `End`, `Top`, `Bottom`); the shell adds no second edge type."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
@@ -72,3 +111,33 @@ old = "craft_ui::title_bar::release_after_os_resize"
 new = ""
 status = "replaced"
 note = "The runtime ends a press the operating system took over; an app installs no raw-input hook for it."
+
+[[setter]]
+type = "Slot"
+old = "height(f32)"
+new = "size(SlotSize)"
+note = "A size is a named theme size: `SlotSize::TitleBar`, `TabBar`, `StatusBar`, `OptionsBar` or `RailWidth`."
+
+[[setter]]
+type = "Slot"
+old = "width(f32)"
+new = "size(SlotSize)"
+note = "A size is a named theme size: `SlotSize::RailWidth` for a rail."
+
+[[setter]]
+type = "Slot"
+old = "size(f32)"
+new = "size(SlotSize)"
+note = "No point sizes: the slot takes a named theme size."
+
+[[setter]]
+type = "Slot"
+old = "frame(Frame)"
+new = ""
+note = "removed: the slot's container paints its own surface."
+
+[[setter]]
+type = "ShellCx"
+old = "canvas(CanvasId)"
+new = ""
+note = "removed: the key stage asks the focused component's `KeyUse` whether Tab toggles the chrome, so a canvas registers nothing."

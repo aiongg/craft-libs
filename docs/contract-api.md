@@ -1184,6 +1184,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub fn gate(&mut self) -> Option<&mut bool>`. The gate's shown copy, for a container whose value is a bool: a title row's check box binds to it, and
   - `pub fn request_close(&mut self)`. Asks the container to close, as `CloseReason::Requested`: step 15 closes it.
   - `pub fn request_close_as(&mut self, why: CloseReason)`. Asks the container to close and tells it why (an OK button is `Activated`, Enter is `Enter`): step 15
+  - `pub fn shell(&self) -> Option<ShellCx>`. The skeleton around the body when it runs inside an `AppShell` or under `ShellCx::put`, else `None`.
   - `pub fn labelled<C: Show>(&mut self, ui: &mut Ui, key: impl Hash + Debug, label: Label, side: SideLabel, child: C) -> C::Output`. Runs the label step (B2, 16.3) for one leaf child in the body's flow: `label` sits beside the child or above
 - `craft_ui::contract::BodyLayout`: `pub enum BodyLayout { Stack, Row { wrap: bool, align: RowAlign }, Grid { columns: Cow<'static, [ColumnWidth]> } }`. How a body lays out its children, in reading order: mirrored under a right-to-left direction.
   - `pub const fn stack() -> Self`. Children one under another.
@@ -2155,7 +2156,7 @@ Raw input in the input hook, key events converted to craft-keymap's key types, `
 - `craft_ui::runtime::env::MotionPolicy`: `pub struct MotionPolicy { pub mode: MotionMode, pub tokens: MotionTokens }`. The motion mode in effect, carried in `Env.motion`.
   - `pub const fn new(mode: MotionMode, tokens: MotionTokens) -> Self`. The policy that runs animations at `mode` with `tokens`.
 - `craft_ui::runtime::env::Overrides`: `pub struct Overrides { pub size: Option<ControlSize>, pub enabled: Option<bool>, pub read_only: Option<bool>, pub motion: Option<MotionMode>, pub direction: Option<Direction>, pub words: Option<WordsOverride>, pub values: AppValues }`. Changes to the inherited values for a stretch of code.
-- `craft_ui::runtime::env::RootEnv`: `pub struct RootEnv { pub sizes: Arc<AppSizes>, pub text_size: TextSize, pub direction: Direction, pub motion: MotionMode, pub mode: Mode, pub contrast: Contrast, pub density: Size, pub scale: Scale, pub tab_all_controls: bool, pub values: AppValues }`. The app's root values each frame.
+- `craft_ui::runtime::env::RootEnv`: `pub struct RootEnv { pub sizes: Arc<AppSizes>, pub text_size: TextSize, pub direction: Direction, pub motion: MotionMode, pub mode: Mode, pub contrast: Contrast, pub density: Size, pub scale: Scale, pub tab_all_controls: bool, pub tab_toggles_chrome: bool, pub values: AppValues }`. The app's root values each frame.
   - `pub fn new() -> Self`. A root with every value at its default.
   - `pub fn scale(mut self, scale: Scale) -> Self`. Sets the interface scale.
   - `pub fn direction(mut self, direction: Direction) -> Self`. Sets the layout direction.

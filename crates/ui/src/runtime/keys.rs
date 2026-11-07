@@ -5,8 +5,9 @@
 use crate::runtime::commands::{self, EditCommands, FirePhase};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
-use crate::runtime::focus::{self, StopRec};
-use crate::runtime::frame::PerViewport;
+use crate::runtime::env::Env;
+use crate::runtime::focus::{self, KeepKeys, KeyUse, StopRec};
+use crate::runtime::frame::{PerViewport, request_chrome_toggle};
 use crate::runtime::overlay;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
@@ -86,6 +87,8 @@ struct Batch {
     last_press: Option<KeyInput>,
     /// What this pass's typed text taught: the physical key, the modifiers and the text.
     learned: Vec<(Key, Mods, String)>,
+    /// A bare Tab press asked to toggle the chrome.
+    chrome_toggle: bool,
 }
 
 #[derive(Clone)]
@@ -167,6 +170,8 @@ struct Strip<'a> {
     os: Os,
     layout: &'a Layout,
     keeps_tab: bool,
+    /// A bare Tab toggles the chrome instead of moving focus (`tab_toggles_chrome`).
+    chrome_tab: bool,
     pages: bool,
     claims: &'a [Chord],
     edits: &'a dyn Fn(EditCommand) -> bool,
@@ -279,6 +284,10 @@ impl Strip<'_> {
         } else if let Some((command, _)) = edit {
             batch.clips.push(*command);
             false
+        } else if bare_tab && self.chrome_tab {
+            // A repeat of the toggling press is dropped: it neither toggles again nor moves focus.
+            batch.chrome_toggle |= !repeat;
+            false
         } else if bare_tab && !self.keeps_tab {
             batch.nav.tabs.push(!mods.shift);
             false
@@ -307,6 +316,22 @@ impl Strip<'_> {
     }
 }
 
+/// Whether a bare Tab toggles the chrome (spec 1.8) instead of moving focus: `enabled` is
+/// `RootEnv.tab_toggles_chrome`, and `focused` is the `KeyUse` of the focused component, `None` when nothing is
+/// focused. It is on when nothing is focused or the focused component keeps Tab and is no text part; a text part that
+/// keeps Tab for indentation never loses it, and elsewhere Tab moves focus.
+///
+/// Open question Q3 (README of briefs/l4): the owner has not chosen between this rule (A), toggling only when a canvas
+/// has focus (B), and A or B by window plus rebindable commands (C). An answer changes this function only.
+/// `KeyUse::CANVAS` keeps the arrows, not Tab, so a canvas does not match yet; the answer to Q3 decides how a canvas is
+/// recognised.
+fn tab_toggles_chrome(enabled: bool, focused: Option<&KeyUse>) -> bool {
+    enabled && focused.is_none_or(|keys| keys.keep == KeepKeys::Tab && keys.owner != OwnerClass::Text)
+}
+
+#[cfg(feature = "testing")]
+mod trials;
+
 /// The input hook's key steps (H3). Reads only `RawInput` and records keyed by `input.viewport_id`. Returns
 /// whether it removed an event, so the hook asks for a repaint.
 pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
@@ -331,6 +356,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         Arc::default()
     };
     let latin = input.latin_layout_chars.clone();
+    let chrome_tab = tab_toggles_chrome(Env::root_for(ctx, viewport).is_some_and(|env| env.tab_toggles_chrome), keys.as_ref());
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
@@ -341,6 +367,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             os,
             layout: &stage.layout,
             keeps_tab: keys.is_some_and(|keys| keys.keep == focus::KeepKeys::Tab),
+            chrome_tab,
             pages: record.pages,
             claims: &claims,
             edits: &edits,
@@ -365,6 +392,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     });
     if let Some(visible) = visible {
         focus::set_visible(ctx, viewport, visible);
+    }
+    if batch.chrome_toggle {
+        request_chrome_toggle(ctx);
     }
     with(ctx, viewport, |stage| {
         stage.batch = batch;
