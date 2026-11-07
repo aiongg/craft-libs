@@ -131,25 +131,24 @@ pub(crate) type FastMap<K, V> = HashMap<K, V, BuildHasherDefault<FastHasher>>;
 /// The service handles of one context, by service type.
 #[derive(Default)]
 struct Handles {
-    /// The context the handles belong to: its token in the context's data, 0 before the first pass.
-    token: u64,
-    /// The passes open on this thread.
-    open: usize,
+    /// The context the handles belong to, and its token in its own data.
+    owner: Option<(Context, u64)>,
     map: FastMap<TypeId, Box<dyn Any>>,
 }
 
 thread_local! {
     /// The handles of the context this thread last ran a pass of, kept between passes: a lookup in the context's
-    /// data happens once per service type and context. A pass is the only user of its thread's context while it
-    /// runs, and a context's handles are dropped when this thread runs a pass of another context.
+    /// data happens once per service type and context. A read for any other context bypasses it, and a pass
+    /// that ends without its end hook leaves nothing to undo. The handles are dropped when this thread runs a
+    /// pass of another context.
     static HANDLES: RefCell<Handles> = RefCell::new(Handles::default());
 }
 
-/// Identifies the context in its own data, so a cache of its handles is never read for another.
+/// Identifies the context in its own data, so handles kept for a context whose data was reset are dropped.
 #[derive(Default, Clone)]
 struct ContextToken(u64);
 
-/// Opens a pass's use of the handle cache; the begin hook calls it.
+/// Checks the cached handles against `ctx` at the start of a pass.
 pub(crate) fn open_handles(ctx: &Context) {
     static SLOT: OnceLock<Id> = OnceLock::new();
     static NEXT: AtomicU64 = AtomicU64::new(1);
@@ -163,19 +162,10 @@ pub(crate) fn open_handles(ctx: &Context) {
     });
     HANDLES.with(|handles| {
         let mut handles = handles.borrow_mut();
-        if handles.token != token {
-            handles.token = token;
+        if !handles.owner.as_ref().is_some_and(|(owner, kept)| owner.ptr_eq(ctx) && *kept == token) {
             handles.map.clear();
+            handles.owner = Some((ctx.clone(), token));
         }
-        handles.open += 1;
-    });
-}
-
-/// Closes a pass's use of the handle cache; the end hook calls it.
-pub(crate) fn close_handles() {
-    HANDLES.with(|handles| {
-        let mut handles = handles.borrow_mut();
-        handles.open = handles.open.saturating_sub(1);
     });
 }
 
@@ -184,7 +174,8 @@ impl<S: Default + Send + 'static> Service<S> {
     pub(crate) fn of(ctx: &Context) -> Service<S> {
         let cached = HANDLES.with(|handles| {
             let handles = handles.borrow();
-            (handles.open > 0).then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
+            let mine = handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx));
+            mine.then(|| handles.map.get(&TypeId::of::<S>())).flatten().and_then(|handle| handle.downcast_ref::<Service<S>>()).cloned()
         });
         if let Some(handle) = cached {
             return handle;
@@ -194,7 +185,7 @@ impl<S: Default + Send + 'static> Service<S> {
         let handle = locked(ctx, |data| data.get_temp_mut_or_default::<Service<S>>(slot).clone());
         HANDLES.with(|handles| {
             let mut handles = handles.borrow_mut();
-            if handles.open > 0 {
+            if handles.owner.as_ref().is_some_and(|(owner, _)| owner.ptr_eq(ctx)) {
                 handles.map.insert(TypeId::of::<S>(), Box::new(handle.clone()));
             }
         });

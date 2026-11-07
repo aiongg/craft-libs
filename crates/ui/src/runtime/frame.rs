@@ -417,6 +417,5 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     for prune in prunes {
         prune(&ctx, &live);
     }
-    store::close_handles();
     RUNNING.with(|running| running.borrow_mut().pop());
 }
