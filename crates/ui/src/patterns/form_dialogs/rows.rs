@@ -115,7 +115,7 @@ impl<'a> ParamRows<'a> {
         let mut pass = Pass::new(&words, &units);
         let mut changed = false;
         let mut values = None;
-        let group = |ui: &mut Ui| {
+        let mut group = |ui: &mut Ui| {
             FieldGroup::new(label.clone()).show(ui, |ui, cx| {
                 let before = match fields.reborrow().read(cx) {
                     Some(Mixed::Same(held)) => held,

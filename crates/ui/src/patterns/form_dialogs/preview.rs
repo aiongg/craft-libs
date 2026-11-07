@@ -312,7 +312,7 @@ impl Component for PreviewPane {
                 next.offset += delta;
                 cx.cursor(CursorIcon::Grabbing, CursorPriority::Drag);
             }
-            PressPhase::Release { start, pos, click: true } => {
+            PressPhase::Release { start, pos, click: true, .. } => {
                 if start.clicks >= 2 && self.fit.is_some() {
                     self.refit = true;
                 } else if self.click_centres {

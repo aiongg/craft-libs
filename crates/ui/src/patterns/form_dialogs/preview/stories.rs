@@ -56,14 +56,14 @@ fn preview_pane_failed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(PreviewPane, covers = [], drive = Drive::Drag(WELL))]
 fn preview_pane_fit(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let fit = *data.value("fit", true);
     let view = data.value("view", CanvasTransform::new(1.0, Vec2::ZERO));
-    let fit = data.value("fit", true);
-    let shown = PreviewPane::state("Preview", PreviewState::Ready(picture(ui)), *view).fit(*fit).zoom_range(0.01..=32.0).show(ui);
+    let shown = PreviewPane::state("Preview", PreviewState::Ready(picture(ui)), *view).fit(fit).zoom_range(0.01..=32.0).show(ui);
     if let Some(next) = shown.view {
         *view = next;
     }
     if let Some(on) = shown.fit {
-        *fit = on;
+        *data.value("fit", true) = on;
     }
     shown.into()
 }

@@ -566,10 +566,8 @@ impl StackDialog for HostedParamDialog {
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<ParamResult>> {
         let shown = (self.build)(&mut self.fields).show(ui);
-        if let Some(rows) = shown.rows {
-            self.requests.color = rows.pick_color.or(self.requests.take_color());
-            self.requests.path = rows.path.or(self.requests.take_path());
-            self.requests.eyedropper = rows.eyedropper.or(self.requests.take_eyedropper());
+        if let Some(mut rows) = shown.rows {
+            self.requests.absorb(&mut rows);
         }
         match (shown.result, shown.closed) {
             (Some(result), _) => Some(DialogResult::Ok(result)),
