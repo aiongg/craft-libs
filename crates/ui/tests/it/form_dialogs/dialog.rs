@@ -169,7 +169,7 @@ fn the_shared_reset_footer_serves_any_dialog() {
 
 /// A fixture with a `ParamDialog` whose `close_guard` answers `allow` and counts its calls.
 fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
-    let params = vec![Param::new("smooth", "Smooth", ParamKind::bool(false))];
+    let params = vec![Param::new("note", "Note", ParamKind::text(""))];
     let fields = Rc::new(RefCell::new(DialogFields::new()));
     let open = Rc::new(Cell::new(true));
     let asked = Rc::new(Cell::new(0));
@@ -194,28 +194,29 @@ fn guarded_rig(allow: bool) -> (Fixture, Rc<Cell<usize>>, Rc<Cell<bool>>) {
     (fixture, asked, open)
 }
 
-/// OK and Enter take the same way through the dialog's buttons: the `close_guard` is asked for both, and a refusal
-/// keeps the dialog open.
+/// OK and Enter take the same way through the dialog's buttons: the `close_guard` is asked for both, also for Enter
+/// right after a click on OK, and a refusal keeps the dialog open.
 #[trial]
 fn param_dialog_ok_and_enter_go_through_the_close_guard() {
     let (mut clicked, asked, open) = guarded_rig(false);
     let ok = clicked.by_label("OK").expect("the OK button is shown");
     clicked.click(&ok);
-    clicked.idle(3);
-    assert_eq!(asked.get(), 1, "OK asks the guard");
-    assert!(open.get(), "a refused OK keeps the dialog open");
+    let after_click = (asked.get(), open.get());
+    clicked.key(Key::Enter, Modifiers::NONE);
+    let after_enter = (asked.get(), open.get());
 
-    let (mut refused, asked, open) = guarded_rig(false);
-    refused.idle(30);
-    refused.key(Key::Enter, Modifiers::NONE);
-    refused.idle(5);
-    assert_eq!(asked.get(), 1, "Enter asks the guard through the OK button");
-    assert!(open.get(), "a refused Enter keeps the dialog open");
+    let (mut fresh, asked, open) = guarded_rig(false);
+    fresh.key(Key::Enter, Modifiers::NONE);
+    let fresh_enter = (asked.get(), open.get());
 
     let (mut allowed, asked, open) = guarded_rig(true);
-    allowed.idle(30);
     allowed.key(Key::Enter, Modifiers::NONE);
-    allowed.idle(5);
-    assert_eq!(asked.get(), 1, "Enter asks the guard once");
-    assert!(!open.get(), "an allowed Enter closes the dialog");
+    allowed.idle(1);
+    let allowed_enter = (asked.get(), open.get());
+
+    assert_eq!(
+        (after_click, after_enter, fresh_enter, allowed_enter),
+        ((1, true), (2, true), (1, true), (1, false)),
+        "(asked, open) after a refused click, then Enter; after a refused Enter; after an allowed Enter"
+    );
 }

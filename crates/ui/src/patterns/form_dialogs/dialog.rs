@@ -84,8 +84,8 @@ impl Default for Live {
 #[derive(Clone, Default)]
 struct Held(DialogFields);
 
-/// Whether the values differ from the ones the dialog opened with, as of the last pass: Reset's enabled state is
-/// set before the dialog shows, so it reads the pass before.
+/// Whether the values differ from the ones the dialog opened with: the body writes it each pass and the footer reads
+/// it, so Reset's enabled state follows the rows shown in the same pass.
 #[derive(Clone, Copy, Default)]
 struct Changed(bool);
 
@@ -314,8 +314,6 @@ impl<'a> ParamDialog<'a> {
         let opened = Cell::new(false);
 
         let reset = ResetFooter::new(ui, cancel_label.clone(), alt_resets);
-        let changed_mark = unique(("craft_ui::param_changed", key.as_str()));
-        let changed = MemoryStage::open_peek(ui.ctx(), changed_mark).recall::<Changed>(changed_mark).0;
         let mut accept = FooterButton::new(ok_label.clone().unwrap_or_else(|| common.ok.clone()), DialogRole::Accept).enabled(ok_enabled);
         if let (false, Some(reason)) = (ok_enabled, &ok_reason) {
             accept = accept.disabled_reason(reason.clone());
@@ -324,7 +322,11 @@ impl<'a> ParamDialog<'a> {
             .closable(closable)
             .close_on_enter(ok_enabled)
             .outer_gesture(outer_gesture)
-            .buttons(reset.buttons(accept, changed));
+            .buttons(reset.buttons(accept, false))
+            .settle_buttons({
+                let reset = reset.clone();
+                move |cx, buttons| reset.settle(buttons, cx.memory::<Changed>().0)
+            });
         if let Some(open) = open {
             dialog = dialog.opened(open);
         }
@@ -384,6 +386,7 @@ impl<'a> ParamDialog<'a> {
                 draw(ui, &work.borrow());
             }
             *cx.memory::<Live>() = live.clone();
+            cx.memory::<Changed>().0 = work.borrow().changed();
             if unbound {
                 cx.memory::<Held>().0 = work.borrow().clone();
             }
@@ -403,13 +406,6 @@ impl<'a> ParamDialog<'a> {
             crate::runtime::frame::request_repaint(ui.ctx());
         }
         let after = work.into_inner();
-        let changing = Changed(closed.is_none() && after.changed());
-        if changing.0 != changed {
-            let mut stage = MemoryStage::open(ui.ctx(), changed_mark);
-            *stage.shown::<Changed>(changed_mark) = changing;
-            stage.write_back();
-            crate::runtime::frame::request_repaint(ui.ctx());
-        }
         let result = match closed {
             Some(CloseReason::Enter | CloseReason::Activated) if ok_enabled => {
                 let kept = remember.map(|key| (key, Self::remembered(&params, &after)));
@@ -488,6 +484,14 @@ impl ResetFooter {
             FooterButton::new(self.cancel.clone(), DialogRole::Cancel)
         };
         [accept, second]
+    }
+
+    /// Sets the Reset button's enabled state to `changed` in `buttons` as `buttons` made them; the rule for
+    /// `Dialog::settle_buttons`, for a dialog whose rows decide `changed` in the same pass.
+    pub fn settle(&self, buttons: &mut [FooterButton], changed: bool) {
+        if let (true, Some(second)) = (self.resetting, buttons.get_mut(1)) {
+            second.set_enabled(changed);
+        }
     }
 
     /// Which button `DialogOutput::picked` names, for the buttons of this footer.
