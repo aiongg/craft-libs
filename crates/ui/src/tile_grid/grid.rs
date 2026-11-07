@@ -166,9 +166,12 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// The tile size as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
     #[prop]
     zoom: f32,
-    /// Where a caption goes; `None` shows no captions.
+    /// Where a caption goes.
     #[prop]
-    caption: Option<CaptionPlace>,
+    caption: CaptionPlace,
+    /// The tiles show no captions, so the layout keeps no room for them.
+    #[prop(flag)]
+    captionless: bool,
     /// The headers over runs of tiles, in display order.
     #[prop]
     groups: &'a [TileGroup],
@@ -221,7 +224,8 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> TileGrid<'a, K> {
             justified: false,
             aspect: 1.0,
             zoom: 1.0,
-            caption: Some(CaptionPlace::Below),
+            caption: CaptionPlace::Below,
+            captionless: false,
             groups: &[],
             collapsible: false,
             rating_keys: RatingKeys::None,
@@ -525,8 +529,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for TileGrid<'_, K
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> GridLayout {
         let spacing = spacing(cx);
         let side = cx.tokens.size.thumb.md * self.zoom.max(f32::EPSILON);
-        let band = if self.caption == Some(CaptionPlace::Below) { Tile::caption_height(cx) } else { 0.0 };
-        let start = if self.caption == Some(CaptionPlace::Start) { Tile::start_width(cx) } else { 0.0 };
+        let band = if !self.captionless && self.caption == CaptionPlace::Below { Tile::caption_height(cx) } else { 0.0 };
+        let start = if !self.captionless && self.caption == CaptionPlace::Start { Tile::start_width(cx) } else { 0.0 };
         let layout = if self.justified || !self.groups.is_empty() {
             let tiling = if self.justified { Tiling::justified(side) } else { Tiling::cards(side, self.aspect, band) };
             GridLayout::arranged(arrange(&aspects_of(source), self.groups, width, tiling, spacing, start), width, start)

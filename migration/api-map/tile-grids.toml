@@ -32,7 +32,7 @@ name = "TileLayout"
 old = "craft_ui::list::tiles::TileLayout"
 new = ""
 status = "replaced"
-note = "`TileGrid::justified()` for `Justified`; cards are the default with `.aspect(w / h)`. The size is `.zoom(factor)`, a multiple of the medium thumbnail side that the app's `ThumbnailSlider` binds; `Cards { caption }` is `.caption(Some(CaptionPlace::Below))` or `None`. `Tiling` holds the sizes in points for `arrange`."
+note = "`TileGrid::justified()` for `Justified`; cards are the default with `.aspect(w / h)`. The size is `.zoom(factor)`, a multiple of the medium thumbnail side that the app's `ThumbnailSlider` binds; `Cards { caption }` is `.caption(CaptionPlace::Below)`, or `.captionless()`. `Tiling` holds the sizes in points for `arrange`."
 
 [[type]]
 name = "TileArrangement"
@@ -114,7 +114,7 @@ note = "The source goes to `show_items`; the id salt is the label's id."
 [[setter]]
 type = "TileGrid"
 old = "layout(TileLayout)"
-new = "justified() / aspect(f32) / zoom(f32) / caption(Option<CaptionPlace>)"
+new = "justified() / aspect(f32) / zoom(f32) / caption(CaptionPlace) / captionless()"
 note = "See `TileLayout`."
 
 [[setter]]
@@ -217,7 +217,7 @@ note = "Not built: see the report (page-panel features)."
 [[setter]]
 type = "TileGrid"
 old = "caption_place(CaptionPlace)"
-new = "caption(Option<CaptionPlace>)"
+new = "caption(CaptionPlace) / captionless()"
 
 [[setter]]
 type = "TileGrid"
