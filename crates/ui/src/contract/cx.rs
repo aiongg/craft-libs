@@ -1496,6 +1496,7 @@ pub(crate) struct PartExtras {
     pub value: bool,
     pub own_reset: bool,
     pub selected: bool,
+    pub default_stop: bool,
     pub toggles: Option<crate::contract::overlay::ToggleDecl>,
 }
 
@@ -1534,6 +1535,12 @@ impl PartBuilder<'_> {
     /// on the first member. The last part declared `selected` wins.
     pub fn selected(self) -> Self {
         self.declared.selected = true;
+        self
+    }
+
+    /// The part's stop is its scope's default (`Initial::Default`); the scope focuses the first default stop in tab order.
+    pub fn default_stop(self) -> Self {
+        self.declared.default_stop = true;
         self
     }
 

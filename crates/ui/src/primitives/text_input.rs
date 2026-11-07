@@ -64,6 +64,8 @@ pub struct TextOptions {
     pub enabled: bool,
     /// The text is a value its arrows step: Alt with Up or Down is a fine move.
     pub steps_value: bool,
+    /// The whole text is selected when the field takes focus, whatever the codec's caret rule says.
+    pub select_on_focus: bool,
 }
 
 impl Default for TextOptions {
@@ -82,6 +84,7 @@ impl Default for TextOptions {
             commit_on: &[],
             enabled: true,
             steps_value: false,
+            select_on_focus: false,
         }
     }
 }

@@ -166,3 +166,43 @@ fn tab_arrives_at_the_selected_part_of_a_part_group() {
     tap(&mut frames, Key::Tab, Modifiers::SHIFT, &mut show);
     assert_eq!(active_part(&frames.ctx, id("row")), Some(KNOB.at(2)), "after the selection moves Tab arrives at the new part");
 }
+
+/// A wrapped grid whose first row starts at column 3 (the leading blanks of a calendar month): Up and Down keep
+/// the member's column, Home and End go to the ends of its row, and a step past the first or last row takes nothing.
+#[trial]
+fn a_wrapped_grid_with_a_first_column_steps_up_and_down_in_the_members_column() {
+    const CELL: PartKey = PartKey::new("cell");
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        control(ui, "before");
+        widget(ui, id("grid"));
+        for part in 0..10 {
+            register_stop(ui.ctx(), Stop::new(id("grid"), KeyUse::of(Input::Pointer)).part(CELL.at(part)).in_group(id("cells")));
+        }
+        register_group(ui.ctx(), Group::new(id("cells"), Roving::new(NavShape::wrapped_grid(7)).first_column(3)));
+    };
+    let part = |frames: &Frames| active_part(&frames.ctx, id("grid"));
+    frames.idle(2, &mut show);
+    focus(&mut frames, "before", &mut show);
+    tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(0)));
+    tap(&mut frames, Key::ArrowUp, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(0)), "no row above the first member");
+    tap(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(7)), "the member below sits in the same column");
+    tap(&mut frames, Key::ArrowUp, Modifiers::NONE, &mut show);
+    tap(&mut frames, Key::ArrowRight, Modifiers::NONE, &mut show);
+    tap(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(8)));
+    tap(&mut frames, Key::ArrowUp, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(1)));
+    tap(&mut frames, Key::End, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(3)), "End goes to the last member of the first row");
+    tap(&mut frames, Key::Home, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(0)), "Home goes to the first member of the row");
+    tap(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    tap(&mut frames, Key::End, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(9)), "a short last row ends at the last member");
+    tap(&mut frames, Key::Home, Modifiers::NONE, &mut show);
+    assert_eq!(part(&frames), Some(CELL.at(4)));
+}

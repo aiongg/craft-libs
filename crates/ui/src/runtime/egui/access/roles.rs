@@ -75,6 +75,10 @@ impl Role {
     pub const ROW: Role = Role::Node(accesskit::Role::Row);
     /// A table cell.
     pub const CELL: Role = Role::Node(accesskit::Role::Cell);
+    /// A grid: a table whose cells are navigated by arrow keys, like a calendar.
+    pub const GRID: Role = Role::Node(accesskit::Role::Grid);
+    /// A cell of a grid.
+    pub const GRID_CELL: Role = Role::Node(accesskit::Role::GridCell);
     /// A column header.
     pub const COLUMN_HEADER: Role = Role::Node(accesskit::Role::ColumnHeader);
     /// An image.

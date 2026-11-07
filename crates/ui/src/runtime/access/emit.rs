@@ -329,11 +329,14 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     }
 }
 
-/// The root node of an overlay layer: the layer's content attaches below it, and a modal layer's root is modal.
-pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, rect: Rect, modal: bool) {
+/// The root node of an overlay layer: the layer's content attaches below it, and a modal layer's root is modal. An
+/// exiting layer's root is hidden from the first pass it fades out, so nothing under it is reported while it still
+/// paints; the ids stay the same if the layer reopens.
+pub(crate) fn report_layer(ctx: &Context, id: Id, content: Id, rect: Rect, modal: bool, exiting: bool) {
     adapter::register_parent(ctx, content, id);
     let mut spec = NodeSpec::layer_root();
     spec.rect = Some(rect);
     spec.modal = modal;
+    spec.hidden = exiting;
     write_node(ctx, id, &spec);
 }

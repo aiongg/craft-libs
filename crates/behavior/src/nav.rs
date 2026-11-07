@@ -59,6 +59,13 @@ pub trait NavOutline {
         1
     }
 
+    /// `WrappedGrid`: the column of position 0 when the grid has blank cells before it (the leading days of a
+    /// calendar month), `None` for a grid that fills from its first column. A grid with a first column keeps its rows
+    /// whole: Home and End go to the ends of the lead's row.
+    fn first_column(&self) -> Option<usize> {
+        None
+    }
+
     /// `Spatial`: where the position sits, in any one coordinate space.
     fn rect(&self, _at: usize) -> Option<Rect> {
         None
@@ -158,7 +165,7 @@ pub fn step(shape: NavShape, outline: &dyn NavOutline, state: &mut NavState, mv:
     let result = match shape {
         NavShape::Flat => linear(outline, state, lead, mv),
         NavShape::Tree => tree(outline, state, lead, mv),
-        NavShape::WrappedGrid { columns } => grid(outline, state, lead, mv, columns.max(1)),
+        NavShape::WrappedGrid { columns } => grid(outline, state, lead, mv, mods, columns.max(1)),
         NavShape::RaggedGrid => ragged(outline, state, lead, mv),
         NavShape::Cell => cell(outline, state, lead, mv, mods),
         NavShape::Spatial => spatial(outline, lead, mv),
@@ -359,24 +366,38 @@ fn spatial(outline: &dyn NavOutline, lead: usize, mv: NavMove) -> NavStep {
     moved(nearest.map(|(at, _)| at))
 }
 
-fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, columns: usize) -> NavStep {
+fn grid(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove, mods: MoveMods, columns: usize) -> NavStep {
     let len = outline.len();
+    let blanks = outline.first_column().map_or(0, |column| column % columns);
+    // Members sit after `blanks` blank cells of the first row.
+    let column = lead.saturating_add(blanks) % columns;
     let vertical = |down: bool, rows: usize| {
         let delta = columns * rows;
         let to = if down { lead.checked_add(delta).filter(|&at| at < len) } else { lead.checked_sub(delta) };
         // A step past the last row's end lands on the last position of a shorter row only for pages.
         to.filter(|&at| selectable(outline, at))
     };
+    let row_start = (lead + blanks) / columns * columns;
     match mv {
         NavMove::Back => moved(neighbour(outline, state, lead, false)),
         NavMove::Forward => moved(neighbour(outline, state, lead, true)),
         NavMove::Up => moved(vertical(false, 1)),
         NavMove::Down => moved(vertical(true, 1)),
-        NavMove::PageUp => moved(vertical(false, state.page).or_else(|| Some(lead % columns).filter(|&at| selectable(outline, at)))),
+        NavMove::PageUp => {
+            let top = if column >= blanks { column - blanks } else { column + columns - blanks };
+            moved(vertical(false, state.page).or_else(|| Some(top).filter(|&at| at < len && selectable(outline, at))))
+        }
         NavMove::PageDown => {
-            let last_row_start = (len - 1) / columns * columns;
-            let column = lead % columns;
-            moved(vertical(true, state.page).or_else(|| Some((last_row_start + column).min(len - 1)).filter(|&at| selectable(outline, at))))
+            let last = len - 1 + blanks;
+            let at = ((last / columns * columns + column).min(last)).saturating_sub(blanks);
+            moved(vertical(true, state.page).or_else(|| Some(at).filter(|&at| selectable(outline, at))))
+        }
+        NavMove::Start if outline.first_column().is_some() && !mods.lead => {
+            moved(Some(row_start.saturating_sub(blanks)).filter(|&at| selectable(outline, at)))
+        }
+        NavMove::End if outline.first_column().is_some() && !mods.lead => {
+            let end = (row_start + columns - 1).min(len - 1 + blanks) - blanks;
+            moved(Some(end).filter(|&at| selectable(outline, at)))
         }
         NavMove::Start => moved(first_enabled(outline)),
         NavMove::End => moved(last_enabled(outline)),
@@ -410,6 +431,9 @@ pub struct Roving {
     pub letters: Letters,
     /// The arrows the group takes; the others reach the focused member.
     pub arrows: Arrows,
+    /// `WrappedGrid`: the column of the first member when blank cells come before it, `None` when members fill the
+    /// rows from the first column.
+    pub first_column: Option<usize>,
 }
 
 /// Which arrow keys a roving group moves its lead with.
@@ -428,7 +452,7 @@ pub enum Arrows {
 impl Roving {
     /// A group of `shape` with Home and End, no wrap, no paging and no letters.
     pub const fn new(shape: NavShape) -> Roving {
-        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All }
+        Roving { shape, wrap: false, home_end: true, page: None, letters: Letters::None, arrows: Arrows::All, first_column: None }
     }
 
     /// Whether moves wrap.
@@ -458,6 +482,13 @@ impl Roving {
     /// The arrows the group takes.
     pub const fn arrows(mut self, arrows: Arrows) -> Self {
         self.arrows = arrows;
+        self
+    }
+
+    /// The column of the first member of a wrapped grid with `column` blank cells before it: Up and Down keep the
+    /// column, Home and End go to the ends of the row.
+    pub const fn first_column(mut self, column: usize) -> Self {
+        self.first_column = Some(column);
         self
     }
 

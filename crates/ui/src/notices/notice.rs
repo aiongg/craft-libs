@@ -49,17 +49,26 @@ pub enum NoticeIcon<'a> {
 pub struct NoticeAction {
     label: Label,
     command: Option<CommandRef>,
+    default: bool,
 }
 
 impl NoticeAction {
     /// An action named `label`; the notice reports it as `NoticeOutput.action`.
     pub fn new(label: impl Into<Label>) -> Self {
-        NoticeAction { label: label.into(), command: None }
+        NoticeAction { label: label.into(), command: None, default: false }
     }
 
     /// An action that shows `command`'s label and fires it when taken; the notice reports it as well.
     pub fn command(command: impl Into<CommandRef>) -> Self {
-        NoticeAction { label: Label::Empty, command: Some(command.into()) }
+        NoticeAction { label: Label::Empty, command: Some(command.into()), default: false }
+    }
+
+    /// Makes this the notice's default action: a layer with `Initial::Default` focuses it when it opens, so Enter
+    /// takes it. When several actions are marked, the last one is the default.
+    #[must_use]
+    pub fn default_action(mut self) -> Self {
+        self.default = true;
+        self
     }
 }
 
@@ -430,8 +439,12 @@ impl Component for Notice<'_> {
         {
             cx.part(TITLE, title).sense(Sense::HOVER);
         }
+        let default = self.actions.iter().rposition(|action| action.default);
         for (at, rect) in placed.actions.iter().enumerate() {
-            cx.part(ACTION.at(at as u64), *rect).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            let part = cx.part(ACTION.at(at as u64), *rect).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            if default == Some(at) {
+                part.default_stop();
+            }
         }
         if let Some(rect) = placed.dismiss {
             cx.part(DISMISS, rect).sense(Sense::CLICK | Sense::FOCUS).focusable();

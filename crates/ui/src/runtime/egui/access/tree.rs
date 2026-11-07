@@ -4,6 +4,7 @@ use super::{NodeRole, node_key};
 use crate::runtime::access::{GridPlace, Numeric, Politeness, PopupKind, Role};
 use accesskit::{Action, Node, NodeId, TreeUpdate};
 use egui::Id;
+use std::collections::{HashMap, HashSet};
 
 /// A node's number in the tree.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -64,15 +65,34 @@ impl Declared {
     }
 }
 
+/// Every node that has a hidden node among its ancestors.
+fn nodes_below_hidden(update: &TreeUpdate) -> HashSet<NodeId> {
+    let by_id: HashMap<NodeId, &Node> = update.nodes.iter().map(|(id, node)| (*id, node)).collect();
+    let mut below = HashSet::new();
+    let mut pending: Vec<NodeId> = update.nodes.iter().filter(|(_, node)| node.is_hidden()).map(|(id, _)| *id).collect();
+    while let Some(id) = pending.pop() {
+        let Some(node) = by_id.get(&id) else { continue };
+        for child in node.children() {
+            if below.insert(*child) {
+                pending.push(*child);
+            }
+        }
+    }
+    below
+}
+
 /// The AccessKit tree update of one frame.
 #[non_exhaustive]
 pub struct AccessTree {
     update: TreeUpdate,
+    /// The nodes below a hidden node: assistive technology does not report them, so no lookup finds them.
+    below_hidden: HashSet<NodeId>,
 }
 
 impl AccessTree {
     pub(crate) fn new(update: TreeUpdate) -> Self {
-        AccessTree { update }
+        let below_hidden = nodes_below_hidden(&update);
+        AccessTree { update, below_hidden }
     }
 
     /// The tree of a frame that made none.
@@ -85,6 +105,9 @@ impl AccessTree {
     }
 
     fn lookup(&self, id: NodeId) -> Option<&Node> {
+        if self.below_hidden.contains(&id) {
+            return None;
+        }
         self.update.nodes.iter().find(|(node, _)| *node == id).map(|(_, node)| node)
     }
 
@@ -228,7 +251,12 @@ impl AccessTree {
     /// The nodes of `role`.
     pub fn with_role(&self, role: Role) -> Vec<NodeKey> {
         let Role::Node(role) = role else { return Vec::new() };
-        self.update.nodes.iter().filter(|(_, node)| node.role() == role).map(|(key, _)| NodeKey(key.0)).collect()
+        self.update
+            .nodes
+            .iter()
+            .filter(|(key, node)| node.role() == role && !self.below_hidden.contains(key))
+            .map(|(key, _)| NodeKey(key.0))
+            .collect()
     }
 
     /// The name of a node by key.
@@ -307,7 +335,7 @@ impl AccessTree {
 
     /// Every node.
     pub fn keys(&self) -> Vec<NodeKey> {
-        self.update.nodes.iter().map(|(key, _)| NodeKey(key.0)).collect()
+        self.update.nodes.iter().filter(|(key, _)| !self.below_hidden.contains(key)).map(|(key, _)| NodeKey(key.0)).collect()
     }
 
     /// The role of a node by key.
