@@ -1,7 +1,7 @@
 //! `SectionStack`: Alt+Up and Alt+Down and a header drag move a section, each section reports its place, and Alt+Down
 //! in a stack's section moves it instead of closing it.
 
-use craft_ui::contract::{Role, ShowContainer as _};
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::runtime::drag;
 use craft_ui::sections::{Section, SectionStack};
 use craft_ui::testing::access::NodeKey;
