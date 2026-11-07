@@ -235,3 +235,10 @@ pub use navigate::{Autoscroll, FlickPan, NavigationOptions, PageKey, TouchpadGli
 pub use rotate::{CompassOutput, RotateView, RotateViewStyle, ViewTurn};
 pub use tools::{HandTool, RotateViewTool, ViewChange, ViewCommand, ZoomTool};
 pub use zoom_motion::{HoldZoom, ZoomAnimation, ZoomDrag};
+
+mod rulers;
+mod scrollbars;
+pub use rulers::{
+    INCH_EIGHTHS, INCH_SIXTEENTHS, RulerCommands, RulerMargins, RulerOutput, RulerPart, RulerTick, Rulers, TickRule, ZeroSnap,
+};
+pub use scrollbars::{CanvasScrollbars, ScrollbarsOutput};

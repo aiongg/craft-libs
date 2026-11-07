@@ -69,3 +69,6 @@ mod readout;
 mod tool;
 
 mod raster;
+
+mod rulers;
+mod scrollbars;
