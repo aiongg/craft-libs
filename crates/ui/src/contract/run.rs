@@ -486,7 +486,12 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
-    steps::state(comp, cx, C::OVERLAYS && overlay::popup_shown(&ctx, id), env.ink);
+    let popup_open = C::OVERLAYS && overlay::popup_shown(&ctx, id);
+    if popup_open {
+        // A layer that opened in step 10 moved focus into itself in this pass, so the facts of step 8 are stale.
+        cx.core.focus = focus::facts(&ctx, id);
+    }
+    steps::state(comp, cx, popup_open, env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
         commands::note_focus(&ctx, id, &env.commands);
     }
