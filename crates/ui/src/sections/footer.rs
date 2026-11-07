@@ -234,7 +234,7 @@ impl EnvValue for Accepting {
 
 /// A container that is as large as its one child and takes drops of payload type `P` over that child. A slot that is
 /// not enabled takes nothing, unless it takes drops while disabled.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container, probe(DropAction<u8>))]
 pub struct DropAction<P: Clone + Send + Sync + 'static> {
     #[common]
@@ -242,7 +242,8 @@ pub struct DropAction<P: Clone + Send + Sync + 'static> {
     #[container]
     props: ContainerProps,
     accepts: Arc<dyn Fn(&P) -> bool + Send + Sync>,
-    enabled: bool,
+    /// Whether the slot takes drops while it is not enabled.
+    #[prop]
     takes_disabled: bool,
     over: bool,
     dropped: Option<P>,
@@ -252,22 +253,7 @@ impl<P: Clone + Send + Sync + 'static> DropAction<P> {
     /// A slot that takes the payloads `accepts` takes.
     pub fn new(accepts: impl Fn(&P) -> bool + Send + Sync + 'static) -> Self {
         let props = ContainerProps::new().pad(Pad::None).sizing(Sizing::Content);
-        DropAction { common: Common::new(), props, accepts: Arc::new(accepts), enabled: true, takes_disabled: false, over: false, dropped: None }
-    }
-
-    /// Whether the child is enabled. A slot that is not takes no drop, unless it
-    /// [takes drops while disabled](DropAction::takes_disabled).
-    #[must_use]
-    pub fn enabled(mut self, on: bool) -> Self {
-        self.enabled = on;
-        self
-    }
-
-    /// Whether the slot takes drops while it is not enabled.
-    #[must_use]
-    pub fn takes_disabled(mut self, on: bool) -> Self {
-        self.takes_disabled = on;
-        self
+        DropAction { common: Common::new(), props, accepts: Arc::new(accepts), takes_disabled: false, over: false, dropped: None }
     }
 
     /// Whether a drag the enclosing slot accepts is over it: a body shows its child enabled then, as the slot takes
@@ -276,8 +262,8 @@ impl<P: Clone + Send + Sync + 'static> DropAction<P> {
         Env::of(ui).get::<Accepting>().0
     }
 
-    fn live(&self) -> bool {
-        self.enabled || self.takes_disabled
+    fn takes_drops(&self) -> bool {
+        self.common.enabled.unwrap_or(true) || self.takes_disabled
     }
 }
 
@@ -316,7 +302,7 @@ impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let live = self.live();
+        let live = self.takes_drops();
         // Decided before the child shows, so its look follows the drag in the same pass.
         self.over = live && cx.dragging::<P>().is_some_and(|(payload, at)| cx.rect.contains(at) && (self.accepts)(&payload));
         let target = OnSlot { rect: cx.rect, live, accepts: &*self.accepts };

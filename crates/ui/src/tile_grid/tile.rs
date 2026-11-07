@@ -258,8 +258,10 @@ pub struct Tile<'a> {
     #[common]
     common: Common,
     /// Where the caption goes: the grid's, applied to its tiles.
+    #[prop]
     caption: CaptionPlace,
     /// The card has a line for the detail, whether this tile has one or not: the grid's, applied to its tiles.
+    #[prop]
     detail_line: bool,
     /// A second line under the name.
     #[prop(into)]
@@ -308,6 +310,7 @@ pub struct Tile<'a> {
     #[prop(flag)]
     folder: bool,
     /// The rename editor replaces the name: the row's state, applied by the grid.
+    #[prop]
     renaming: bool,
     /// The check box, in check mode; `None` outside it.
     #[prop]
@@ -390,27 +393,6 @@ impl<'a> Tile<'a> {
     /// What a tile adds around its picture for every caption arrangement.
     pub(super) fn around(cx: &StyleCx<'_>) -> AroundPicture {
         Sizes::of(cx).around
-    }
-
-    /// The caption goes in `place`.
-    #[must_use]
-    pub(super) fn caption(mut self, place: CaptionPlace) -> Self {
-        self.caption = place;
-        self
-    }
-
-    /// The card has a line for the detail.
-    #[must_use]
-    pub(super) fn detail_line(mut self, reserved: bool) -> Self {
-        self.detail_line = reserved;
-        self
-    }
-
-    /// The row's name is being edited.
-    #[must_use]
-    pub(super) fn renaming(mut self, on: bool) -> Self {
-        self.renaming = on;
-        self
     }
 
     /// Whether the caption band holds a detail line.

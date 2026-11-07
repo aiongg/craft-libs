@@ -418,6 +418,7 @@ pub struct MenuItem<'a> {
     #[prop]
     keep_open: bool,
     /// The checked state of the entry the row shows: a radio mark in a value menu, a check mark elsewhere while true.
+    #[prop(name = "entry_checked")]
     entry: Option<bool>,
     ran: bool,
     opens: bool,
@@ -472,12 +473,6 @@ impl<'a> MenuItem<'a> {
 
     fn lead_icon(&self, command: Option<&ResolvedCommand>) -> Option<IconSpec<'_>> {
         self.icon.clone().or_else(|| MenuItem::command_icon(command))
-    }
-
-    /// The entry's checked state, as the entries of a menu show it.
-    pub(crate) fn entry_checked(mut self, checked: bool) -> Self {
-        self.entry = Some(checked);
-        self
     }
 
     /// The mark in the mark column: the caller's own, the bound command's, or the entry's.

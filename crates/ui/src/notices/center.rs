@@ -52,6 +52,7 @@ pub enum NoticeEnd {
     /// The timeout passed.
     Expired(ToastId),
     /// "Don't Show Again": the app stores `key` as silenced.
+    #[non_exhaustive]
     Silenced {
         /// The notice.
         id: ToastId,

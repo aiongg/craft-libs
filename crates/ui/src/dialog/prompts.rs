@@ -160,6 +160,9 @@ pub struct StandardPrompt {
     /// What a programmatic OK answers.
     chosen: PromptChoice,
     tag: Option<Box<dyn Any + Send>>,
+    /// The counted noun of the delete question, as a count word with `{n}` (one and other forms); the default is
+    /// "{n} item" and "{n} items".
+    #[prop]
     noun: Option<Count>,
     /// Replaces the title of any kind.
     #[prop(into)]
@@ -308,14 +311,6 @@ impl StandardPrompt {
     #[must_use]
     pub fn tag<T: Any + Send>(mut self, tag: T) -> Self {
         self.tag = Some(Box::new(tag));
-        self
-    }
-
-    /// The counted noun of the delete question, as a count word with `{n}` (one and other forms); the default is
-    /// "{n} item" and "{n} items".
-    #[must_use]
-    pub fn noun(mut self, noun: Count) -> Self {
-        self.noun = Some(noun);
         self
     }
 

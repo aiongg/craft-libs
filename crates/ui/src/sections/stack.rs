@@ -11,7 +11,7 @@ use crate::contract::{
 use crate::runtime::access::SetPosition;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Axis, EditEvent, Metrics, Mixed, Sense};
-use egui::{Id, Pos2, Rect, Response, Ui};
+use egui::{Pos2, Rect, Response, Ui};
 use std::sync::{Arc, Mutex, PoisonError};
 
 #[cfg(feature = "testing")]
@@ -22,7 +22,7 @@ mod stories;
 #[non_exhaustive]
 pub struct StackSlot {
     position: SetPosition,
-    salt: Id,
+    salt: u64,
 }
 
 impl StackSlot {
@@ -32,7 +32,7 @@ impl StackSlot {
     }
 
     /// The id salt that makes the section's id follow its key, so its state stays with it when it moves.
-    pub fn salt(self) -> Id {
+    pub fn salt(self) -> u64 {
         self.salt
     }
 }
@@ -112,7 +112,7 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
             let Some(each) = each.as_mut() else { return };
             let mut rows = Vec::with_capacity(order.len());
             for (index, key) in order.iter().enumerate() {
-                let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: Id::unique(("section", slot_hash(key))) };
+                let slot = StackSlot { position: SetPosition::new(index).of(order.len()), salt: slot_hash(key) };
                 let out = each(ui, key, slot);
                 rows.push(Seen { key: key.clone(), rect: out.response.rect, grabbed: out.grabbed, nudged: out.nudged });
             }

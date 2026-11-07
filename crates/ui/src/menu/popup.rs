@@ -25,6 +25,7 @@ pub struct MenuStyle {
 /// The neighbouring menu a top-level menu asks its bar for when Left or Right reaches it unhandled. The directions
 /// are the keys', not reading order: `Prev` is the Left key, which a right-to-left bar reads as the next title.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum MenuStep {
     /// The Left key.
     Prev,
@@ -138,6 +139,8 @@ pub struct Menu<'a> {
     common: Common,
     #[container]
     props: ContainerProps,
+    /// The caller's binding takes the open state over from the menu's slot.
+    #[prop]
     open: Option<Bind<'a, bool>>,
     closed: Option<CloseReason>,
     submenu: bool,
@@ -157,13 +160,6 @@ impl<'a> Menu<'a> {
             ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).roving(Roving::new(NavShape::Flat)).mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: None, closed: None, submenu: false, values: false, opener: None, back: false, step: None }
             .label(label)
-    }
-
-    /// The caller's binding takes the open state over from the menu's slot.
-    #[must_use]
-    pub fn open(mut self, open: Bind<'a, bool>) -> Self {
-        self.open = Some(open);
-        self
     }
 
     /// Marks the menu as a value menu: every row is a radio item, whether or not an entry is checked, and the checked

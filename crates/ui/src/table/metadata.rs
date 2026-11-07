@@ -259,7 +259,7 @@ impl<'a> MetadataTable<'a> {
             .striped(true)
             .header(false)
             .lead_on_open(LeadOnOpen::First)
-            .rows_stamp(egui::Id::unique(query).value())
+            .rows_stamp(query_stamp(query))
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
                 Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).heading(),
@@ -313,3 +313,11 @@ impl<'a> MetadataTable<'a> {
 
 #[cfg(feature = "testing")]
 mod stories;
+
+/// The rows stamp of a filter query: the same query keeps the layout, another one rebuilds it.
+fn query_stamp(query: &str) -> u64 {
+    use std::hash::{Hash as _, Hasher as _};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    query.hash(&mut hasher);
+    hasher.finish()
+}
