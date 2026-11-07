@@ -47,6 +47,11 @@ pub mod wheel;
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
+
+pub use canvas::{CanvasView, RulerUnits, Ticks, ViewHistory, ViewPlace, ZoomLadder, resize_cursor};
+/// The f64 geometry crate the canvas view and its callers share.
+pub use kurbo;
+
 pub use codec::{Caret, Codec, NotAValue, NumberCodec, PlainText, decimals_for_step};
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
 pub use command::{CommandFlags, pick_instance, resolve_flags};
