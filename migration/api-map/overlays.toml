@@ -24,14 +24,16 @@ note = "A container on Mount::Layer(Overlay::dropdown()) whose body is the calle
 [[type]]
 name = "Tooltip"
 old = "craft_ui::controls::tooltip::Tooltip"
-new = "craft_ui::popover::Tooltip"
-status = "pending"
+new = "craft_ui::contract::Tooltip"
+status = "replaced"
+note = "No widget type. A tooltip is `Common.tooltip` (`.tooltip(text)` on any component) or `PartBuilder::tooltip(label)` on a part; the overlay host shows it after `DELAY`, hides it during a press, a drag and a key-owning menu, and keeps it for a disabled control when `TooltipSpec::disabled_text` is set. The associated `Tooltip::DELAY` is `craft_ui::contract::tooltip::DELAY`."
 
 [[type]]
 name = "DragBadge"
 old = "craft_ui::behavior::drag_feedback::DragBadge"
-new = "craft_ui::popover::DragBadge"
-status = "pending"
+new = ""
+status = "replaced"
+note = "No widget type; `craft_ui::contract::DragPreview::Badge(label)` replaces it. The drag source passes `DragPreview::Badge(label)` to `Cx::start_drag`; the ghost layer paints the badge beside the pointer and the host sets the drag cursor. The count text is the app's `Label` (a counted word of its own words set); `DragBadge::count(n)` has no counterpart. `set_drop_hint` and `drop_hint` go: a drop target that wants other text starts its drag with the badge it needs."
 
 [[type]]
 name = "DropVeil"
@@ -89,6 +91,28 @@ status = "removed"
 note = "Replaced by `contract::overlay::Resize`. Grips are the overlay host's Resize; a popover's resizable(true) turns them on."
 
 # One entry per renamed, removed or reshaped setter or constructor.
+
+[[type]]
+name = "TooltipExt"
+old = "craft_ui::controls::tooltip::TooltipExt"
+new = ""
+status = "replaced"
+note = "Extension methods on a response go: `response.tooltip(text)` becomes `Component::tooltip(text)` before `show`. `tooltip_with(text, shortcut)`: bind the command to the component; the chord shows after the text from the command. `tooltip_ui(..)` is `Show::show_with_tip(ui, |ui| ..)` (containers: `ShowContainer::show_with_tip`; parts and children: `PaintUi::child_with_tip`; list items: `ItemCx::tip`). `tooltip_at_pointer(text)` is `.tooltip(TooltipSpec::new(text).at(TooltipAt::Pointer))`. `show_tooltip(text)` is `.tooltip(TooltipSpec::new(text).when(TooltipWhen::Now))`. A disabled control keeps its tip through `TooltipSpec::disabled_text`."
+
+[[type]]
+name = "TooltipStyle"
+old = "craft_ui::controls::tooltip::TooltipStyle"
+new = ""
+status = "removed"
+
+[[type]]
+name = "DragFeedbackLabels"
+old = "craft_ui::behavior::drag_feedback::DragFeedbackLabels"
+new = ""
+status = "removed"
+
+# One entry per renamed, removed or reshaped setter or constructor.
+
 [[setter]]
 type = "Popover"
 old = "new(id_salt, PopoverAnchor)"
@@ -133,3 +157,14 @@ new = "opened_by(&Response)"
 type = "Popover"
 old = "group(Id)"
 new = "removed: the app closes the other popover when it opens one"
+
+[[setter]]
+type = "DropVeil"
+old = "DropVeil::new(id_salt, lines)"
+new = "DropVeil::new(label)"
+
+[[setter]]
+type = "DropVeil"
+old = "DropVeil::show(self, ctx)"
+new = "Show::show(ui, body)"
+
