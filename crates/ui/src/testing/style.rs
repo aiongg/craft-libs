@@ -108,7 +108,6 @@ pub(crate) fn style_looks<T: crate::contract::Component + 'static>(
     instance: &dyn std::any::Any,
     cx: &crate::style::StyleCx<'_>,
 ) -> Option<StyleLooks> {
-    use crate::contract::Meta as _;
     use crate::style::ComponentStyle as _;
     let component = instance.downcast_ref::<T>()?;
     let style = T::style(cx, component.style_key());
