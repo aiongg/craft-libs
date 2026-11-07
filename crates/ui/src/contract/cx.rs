@@ -209,6 +209,9 @@ pub trait Pointer {
     /// The result of `part` this pass: idle for a part first registered this frame. A part `parts` did not
     /// declare is a debug panic.
     fn part(&self, part: impl Into<PartRef>) -> &PartResult;
+    /// The result of `part` this pass, `None` when `parts` did not declare it: for parts that exist only under a
+    /// condition.
+    fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult>;
     /// The component's own press.
     fn press(&self) -> &PressState;
     /// The pointer is over the component's own shapes.
@@ -249,6 +252,11 @@ impl Pointer for CxCore<'_> {
                 &PartResult::IDLE
             }
         }
+    }
+
+    fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult> {
+        let part = part.into();
+        self.results.get(&(part.key, part.index))
     }
 
     fn press(&self) -> &PressState {
@@ -319,6 +327,10 @@ impl Pointer for CxCore<'_> {
 impl<C: Component> Pointer for Cx<'_, C> {
     fn part(&self, part: impl Into<PartRef>) -> &PartResult {
         self.core.part(part)
+    }
+
+    fn part_if_declared(&self, part: impl Into<PartRef>) -> Option<&PartResult> {
+        self.core.part_if_declared(part)
     }
 
     fn press(&self) -> &PressState {
