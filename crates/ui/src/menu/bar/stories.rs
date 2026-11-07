@@ -57,7 +57,7 @@ fn menu_bar_with_help_search(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(EditMenu, covers = [Default], drive = Drive::Never)]
 fn edit_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    StoryOutput::from(Menu::new("Edit", Bind::bound(data.value("open", true))).show(ui, |ui, _| EditMenu::show(ui)).output)
+    StoryOutput::from(Menu::new("Edit").open(Bind::bound(data.value("open", true))).show(ui, |ui, _| EditMenu::show(ui)).output)
 }
 
 #[story(PanelMenu, covers = [Default], drive = Drive::Never)]
@@ -65,5 +65,5 @@ fn panel_menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let host = vec![PanelRow::Command(EditCommands::Undo.into()), PanelRow::Separator];
     let group = vec![PanelRow::Item(GroupItem::Float, "Float".into()), PanelRow::Item(GroupItem::Close, "Close".into())];
     let menu = PanelMenu::new(host, group);
-    StoryOutput::from(Menu::new("Panel menu", Bind::bound(data.value("open", true))).show(ui, |ui, cx| menu.show(ui, cx)).output)
+    StoryOutput::from(Menu::new("Panel menu").open(Bind::bound(data.value("open", true))).show(ui, |ui, cx| menu.show(ui, cx)).output)
 }

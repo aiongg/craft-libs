@@ -1,7 +1,16 @@
-//! The menu bar's own rules: which titles show in a room, and which help entries a query finds.
+//! The menu bar: which titles show in a room, how a title's menu opens, runs a row and hands over to its neighbour,
+//! how F10 takes focus and returns it, what a title reports to assistive technology, and what the help search finds.
 
-use craft_ui::menu::bar::{MAX_RESULTS, TitleFit, fit_titles, search_order};
-use craft_ui::testing::trial;
+use craft_i18n::Direction;
+use craft_ui::buttons::Button;
+use craft_ui::contract::{PopupKind, Show as _};
+use craft_ui::menu::MenuItem;
+use craft_ui::menu::bar::{HelpEntry, MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
+use craft_ui::runtime::commands::EditCommands;
+use craft_ui::testing::{Fixture, trial};
+use egui::{Id, Key, Modifiers};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 const TITLES: [f32; 3] = [40.0, 50.0, 60.0];
 const MORE: f32 = 20.0;
@@ -17,20 +26,142 @@ fn titles_that_do_not_fit_go_into_an_overflow_menu() {
     assert_eq!(fit(50.0), (0, true), "none fit beside the overflow title");
 }
 
-#[trial]
-fn help_search_ranks_by_label_and_matches_the_path_and_the_english_label() {
-    let texts =
-        [["Curves…", "", "Image › Adjustments"], ["Levels…", "", "Image › Adjustments"], ["All", "", "Select"], ["Level Horizon", "", "Select"]];
-    assert_eq!(search_order(" LEV ", &texts), [1, 3], "a label starting with the query, in menu order");
-    assert_eq!(search_order("adjust", &texts), [0, 1], "the path matches");
-    assert_eq!(search_order("levels", &[["Niveaux…", "Levels…", "Image"]]), [0], "the English label matches");
-    assert_eq!(search_order("level horizon", &texts), [3], "an exact label ranks first and every word must occur");
-    assert!(search_order("  ", &texts).is_empty());
+/// A button, then a menu bar with File, Edit and Help; the rows' runs and the ids of the button and the bar are
+/// recorded.
+struct Rig {
+    fixture: Fixture,
+    ran: Rc<RefCell<Vec<&'static str>>>,
+    button: Rc<Cell<Option<Id>>>,
+    bar: Rc<Cell<Option<Id>>>,
+}
+
+fn entries() -> Vec<HelpEntry> {
+    // The help rows show their command's label, so each entry has its own command.
+    vec![
+        HelpEntry::new(EditCommands::Paste, "Café").path(["Edit"]),
+        HelpEntry::new(EditCommands::Copy, "Copy").english("Duplicate").path(["Edit"]),
+        HelpEntry::new(EditCommands::Cut, "Cut").path(["Edit", "Clipboard"]),
+    ]
+}
+
+fn rig(direction: Direction) -> Rig {
+    let ran = Rc::new(RefCell::new(Vec::new()));
+    let (button, bar) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(None)));
+    let shown = (ran.clone(), button.clone(), bar.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        let (ran, button, bar) = &shown;
+        button.set(Some(Button::new("Apply").show(ui).response.id));
+        let log = ran.clone();
+        let titles = vec![
+            MenuTitle::new("&File", move |ui| {
+                MenuItem::new("&New").show(ui);
+                if MenuItem::new("&Save").show(ui).ran {
+                    log.borrow_mut().push("Save");
+                }
+            }),
+            MenuTitle::new("&Edit", |ui| {
+                MenuItem::new("Cu&t").show(ui);
+            }),
+            MenuTitle::new("&Help", |ui| {
+                MenuItem::new("&About").show(ui);
+            }),
+        ];
+        let help = entries();
+        bar.set(Some(MenuBar::new("Main menu", titles).help(MenuHelp::new(2, &help)).show(ui).response.id));
+    });
+    fixture.direction(direction).settle();
+    Rig { fixture, ran, button, bar }
+}
+
+impl Rig {
+    fn open(&self, label: &str) -> bool {
+        self.fixture.by_label(label).is_some()
+    }
+
+    fn key(&mut self, key: Key) {
+        self.fixture.key(key, Modifiers::NONE);
+        self.fixture.settle();
+    }
 }
 
 #[trial]
-fn help_search_lists_at_most_the_limit() {
-    let labels: Vec<String> = (0..40).map(|at| format!("Row {at}")).collect();
-    let texts: Vec<[&str; 3]> = labels.iter().map(|label| [label.as_str(), "", "Many"]).collect();
-    assert_eq!(search_order("row", &texts).len(), MAX_RESULTS);
+fn a_press_on_a_title_opens_its_menu_and_a_release_on_a_row_runs_it() {
+    let mut rig = rig(Direction::Ltr);
+    let file = rig.fixture.by_label("File").expect("the File title");
+    rig.fixture.press(&file);
+    rig.fixture.idle(3);
+    assert!(rig.open("Save"), "the menu is open while the press is still held");
+    let save = rig.fixture.by_label("Save").expect("the Save row");
+    rig.fixture.release(&save);
+    rig.fixture.settle();
+    assert_eq!(*rig.ran.borrow(), ["Save"]);
+    assert!(!rig.open("Save"), "running a row closes the menu");
+}
+
+#[trial]
+fn left_and_right_move_between_the_open_menus_in_reading_order() {
+    for (direction, key) in [(Direction::Ltr, Key::ArrowRight), (Direction::Rtl, Key::ArrowLeft)] {
+        let mut rig = rig(direction);
+        let file = rig.fixture.by_label("File").expect("the File title");
+        rig.fixture.click(&file);
+        rig.fixture.settle();
+        assert!(rig.open("Save"));
+        rig.key(key);
+        assert!(rig.open("Cut") && !rig.open("Save"), "{direction:?}: the key toward the end edge opens Edit");
+    }
+}
+
+#[trial]
+fn f10_focuses_the_first_title_and_escape_returns_focus_to_the_previous_owner() {
+    let mut rig = rig(Direction::Ltr);
+    rig.key(Key::Tab);
+    assert_eq!(rig.fixture.focused(), rig.button.get(), "the button holds focus");
+    rig.key(Key::F10);
+    assert_eq!(rig.fixture.focused(), rig.bar.get(), "F10 takes focus for the bar");
+    rig.key(Key::Escape);
+    assert_eq!(rig.fixture.focused(), rig.button.get(), "Escape with no menu open gives focus back");
+}
+
+#[trial]
+fn running_a_row_returns_focus_to_the_component_that_held_it() {
+    let mut rig = rig(Direction::Ltr);
+    rig.key(Key::Tab);
+    rig.key(Key::F10);
+    rig.key(Key::ArrowDown);
+    assert!(rig.open("Save"), "Down on a title opens its menu");
+    let save = rig.fixture.by_label("Save").expect("the Save row");
+    rig.fixture.click(&save);
+    rig.fixture.settle();
+    assert_eq!(*rig.ran.borrow(), ["Save"]);
+    assert_eq!(rig.fixture.focused(), rig.button.get());
+}
+
+#[trial]
+fn a_title_reports_its_popup_its_state_and_its_access_key() {
+    let mut rig = rig(Direction::Ltr);
+    let file = rig.fixture.by_label("File").expect("the File title");
+    let tree = rig.fixture.tree();
+    assert_eq!(tree.has_popup_of(file.node), Some(PopupKind::Menu));
+    assert_eq!(tree.access_key_of(file.node), Some('F'));
+    assert_eq!(tree.expanded_of(file.node), Some(false));
+    rig.fixture.click(&file);
+    rig.fixture.settle();
+    assert_eq!(rig.fixture.tree().expanded_of(file.node), Some(true));
+}
+
+#[trial]
+fn help_search_ignores_accents_and_matches_the_english_label_and_the_path() {
+    let mut rig = rig(Direction::Ltr);
+    let help = rig.fixture.by_label("Help").expect("the Help title");
+    rig.fixture.click(&help);
+    rig.fixture.settle();
+    let search = rig.fixture.by_label("Search menus").expect("the search field");
+    rig.fixture.click(&search);
+    for (typed, found, absent) in [("cafe", "Paste", "Copy"), ("duplic", "Copy", "Paste"), ("clipboard", "Cut", "Copy")] {
+        rig.fixture.key(Key::A, Modifiers::COMMAND);
+        rig.fixture.type_text(typed);
+        rig.fixture.settle();
+        assert!(rig.open(found), "{typed:?} finds the entry whose command row reads {found:?}");
+        assert!(!rig.open(absent), "{typed:?} leaves {absent:?} out");
+    }
 }

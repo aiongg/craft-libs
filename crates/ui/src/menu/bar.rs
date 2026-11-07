@@ -1,14 +1,16 @@
 //! `MenuBar`: a row of menu titles, each opening a menu the caller writes.
 //!
-//! The titles are parts of one component in one roving group, so the bar is one Tab stop. A press on a title opens
-//! its menu and a press on the open title closes it; while a menu is open the pointer moving onto another title
-//! switches to that menu. Titles that do not fit go into a trailing "…" menu that holds them as submenus, or all of
-//! them into one "Menu". Under `MenuPlacement::ScreenTop` the bar shows nothing: the OS menu bar takes the same
-//! items.
+//! The titles are parts of one component in one roving group, so the bar is one Tab stop. Each title owns a popup
+//! (the indexed popup `"menu"`) that its part toggles on the press, and the popup shows a `Menu` below the title.
+//! While a menu is open the pointer moving onto another title switches to that menu, and Left and Right at the top
+//! of the menu move to the previous and next one. Titles that do not fit go into a trailing "…" menu that holds them
+//! as submenus, or all of them into one "Menu". Under `MenuPlacement::ScreenTop` the bar shows nothing: the OS menu
+//! bar takes the same items.
 //!
-//! Keys follow spec 9.7: Alt and a letter open the menu with that mnemonic (also while another is open), F10 or a
-//! second lone Alt closes an open menu. A `&` in a title's words row marks its mnemonic; without one the title takes
-//! the first letter no earlier title holds.
+//! Keys follow spec 9.7: Alt and a letter open the menu with that mnemonic (also while another is open). F10 or a
+//! lone Alt closes an open menu; with none open it moves focus to the first title, and the next F10 or lone Alt, an
+//! Escape, or running a row returns focus to where it was. A `&` in a title's words row marks its mnemonic; without
+//! one the title takes the first letter no earlier title holds. The mnemonic is underlined while Alt is held.
 //!
 //! The Help menu can start with a search field over a list of `HelpEntry` commands: typing lists up to `MAX_RESULTS`
 //! matches by label, English label or menu path, each as a command row with its path as detail.
@@ -16,24 +18,29 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::MenuItem;
 use super::words::MenuBarWords;
+use super::{Menu, MenuItem, MenuStep};
 use crate::buttons::ToggleButton;
-use crate::contract::overlay::Anchor;
 use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, SeenPress, SetPosition, Show as _,
+    Pointer as _, PopupHandle, PopupKind, Props as _, Role, SetPosition, Show as _, ShowContainer as _,
 };
 use crate::display::{Divider, Text};
+use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::{EnvView, Label};
+use crate::runtime::focus::{self, FocusTarget};
 use crate::runtime::memory::{Facts, Remember as _};
-use crate::style::{ComponentStyle, StyleCx};
+use crate::runtime::words::common::CommonWords;
+use crate::style::{ComponentStyle, StyleCx, TextLook, TypeRole};
 use crate::text::TextField;
-use craft_behavior::{Axis, Flow, Metrics, NavMove, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_behavior::{Axis, Flow, Intent, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
 use craft_host::target::MenuPlacement;
+use craft_i18n::fold::Folder;
+use craft_i18n::matcher::Matcher;
 use craft_keymap::mnemonic;
-use egui::{Context, Pos2, Rect, Response, Ui, Vec2};
+use craft_theme::Stateful;
+use egui::{Context, Pos2, Rect, Response, Ui, Vec2, pos2};
 
 const TITLE: PartKey = PartKey::new("title");
 const MORE: PartKey = PartKey::new("more");
@@ -41,15 +48,16 @@ const MORE: PartKey = PartKey::new("more");
 /// The most matches the help search lists.
 pub const MAX_RESULTS: usize = 15;
 
-/// Between the menu names of a match's path.
-const PATH_SEPARATOR: &str = " › ";
-
-/// The style of a menu bar: no look of its own; the titles wear toggle-button faces.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+/// The style of a menu bar: the titles wear toggle-button faces; the bar itself draws the mnemonic underline in the
+/// faces' label role and ink.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct MenuBarStyle {
     #[style(metrics)]
     metrics: Metrics,
+    /// The mnemonic underline's ink and the role the underlined run is measured in.
+    #[style(text)]
+    text: TextLook,
 }
 
 /// A menu of the bar: its title and the body that fills the menu when it opens.
@@ -141,8 +149,6 @@ enum Open {
 /// Bar state between passes.
 #[derive(Clone, Debug, Default)]
 struct BarState {
-    /// The menu shown, or about to open.
-    open: Option<Open>,
     /// Where the pointer last was over a title, so that only a moving pointer switches menus.
     hover: Option<Pos2>,
 }
@@ -198,39 +204,27 @@ pub fn fit_titles(widths: &[f32], more: f32, room: f32) -> TitleFit {
 }
 
 /// The entries matching `query`, best first and in menu order within a rank, at most `MAX_RESULTS`. Each entry is
-/// its `[label, english label, menu path]` texts. Every word of the query must occur in one of them, in any case.
-/// Rank 0 is a label named exactly as the query, 1 one that starts with it, 2 one that contains it, 3 a match
-/// found only through the words or the path.
-pub fn search_order(query: &str, texts: &[[&str; 3]]) -> Vec<usize> {
-    let query = query.trim().to_lowercase();
+/// its `[label, english label, menu path]` texts, matched by `folder` (case and accents folded). A label or English
+/// label that matches ranks before an entry found only through its path; within each, the matcher's rank decides.
+pub fn search_order(folder: &Folder, query: &str, texts: &[[&str; 3]]) -> Vec<usize> {
+    let query = query.trim();
     if query.is_empty() {
         return Vec::new();
     }
-    let words: Vec<&str> = query.split_whitespace().collect();
-    let mut ranked: Vec<(u8, usize)> = texts
+    let matcher = Matcher::new(folder, query);
+    let mut ranked: Vec<_> = texts
         .iter()
         .enumerate()
         .filter_map(|(at, [label, english, path])| {
-            let (label, english, path) = (label.to_lowercase(), english.to_lowercase(), path.to_lowercase());
-            let all = format!("{label} {english} {path}");
-            if !words.iter().all(|word| all.contains(word)) {
-                return None;
+            let named = [label, english].into_iter().filter_map(|text| matcher.score(text)).min();
+            match named {
+                Some(found) => Some((0_u8, found, at)),
+                None => matcher.score(path).map(|found| (1, found, at)),
             }
-            let names = [label.as_str(), english.as_str()];
-            let rank = if names.contains(&query.as_str()) {
-                0
-            } else if names.iter().any(|name| name.starts_with(&query)) {
-                1
-            } else if names.iter().any(|name| name.contains(&query)) {
-                2
-            } else {
-                3
-            };
-            Some((rank, at))
         })
         .collect();
     ranked.sort();
-    ranked.into_iter().take(MAX_RESULTS).map(|(_, at)| at).collect()
+    ranked.into_iter().take(MAX_RESULTS).map(|(_, _, at)| at).collect()
 }
 
 /// Which titles a pass declared as parts.
@@ -247,7 +241,8 @@ fn declared(cx: &impl crate::contract::Pointer) -> Declared {
 
 /// A menu bar. Titles are the caller's `MenuTitle`s; the bar itself shows no menu rows.
 ///
-/// AccessKit: the bar is a `MenuBar`; titles are `MenuItem`s that report `expanded` while their menu is open.
+/// AccessKit: the bar is a `MenuBar`; titles are `MenuItem`s that have a menu popup, report `expanded` while their
+/// menu is open and carry their access key.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay)]
 pub struct MenuBar<'a> {
@@ -273,12 +268,12 @@ impl<'a> MenuBar<'a> {
         env.shell().menu == MenuPlacement::InWindow
     }
 
-    /// Each title's text without its marker, and its mnemonic.
-    fn texts(&self, env: &EnvView<'_>) -> Vec<(String, Option<char>)> {
+    /// Each title's text without its marker, and its mnemonic: the letter and its character index in the text.
+    fn texts(&self, env: &EnvView<'_>) -> Vec<(String, Option<(char, usize)>)> {
         let labels: Vec<Label> = self.titles.iter().map(|title| env.resolve(&title.label)).collect();
         let refs: Vec<&str> = labels.iter().map(Label::as_str).collect();
-        let letters = mnemonic::assign(&refs);
-        refs.iter().zip(letters).map(|(label, letter)| (mnemonic::marked(label).0, letter)).collect()
+        let marks = mnemonic::assign(&refs);
+        refs.iter().zip(marks).map(|(label, mark)| (mnemonic::marked(label).0, mark)).collect()
     }
 
     fn face(text: &str, lit: bool) -> ToggleButton<'static> {
@@ -310,6 +305,89 @@ impl<'a> MenuBar<'a> {
     fn slots(declared: Declared) -> Vec<Open> {
         (0..declared.shown).map(Open::Title).chain(declared.more.then_some(Open::More)).collect()
     }
+
+    /// The index of a slot's popup: the title's position, and the overflow menu after the last title.
+    fn popup_index(slot: Open, declared: Declared) -> usize {
+        match slot {
+            Open::Title(at) => at,
+            Open::More => declared.shown,
+        }
+    }
+
+    fn popup(cx: &mut Cx<'_, Self>, slot: Open, declared: Declared) -> PopupHandle {
+        cx.popup("menu").at(Self::popup_index(slot, declared))
+    }
+
+    /// The menu that is open, if any.
+    fn opened(cx: &mut Cx<'_, Self>, slots: &[Open], declared: Declared) -> Option<Open> {
+        slots.iter().copied().find(|slot| Self::popup(cx, *slot, declared).is_open(cx))
+    }
+
+    /// Opens `target`'s menu and closes the others.
+    fn open_only(cx: &mut Cx<'_, Self>, slots: &[Open], declared: Declared, target: Open) {
+        for slot in slots {
+            let popup = Self::popup(cx, *slot, declared);
+            if *slot == target {
+                popup.open(cx);
+            } else if popup.is_open(cx) {
+                popup.close(cx);
+            }
+        }
+    }
+
+    /// F10 or a lone Alt: closes an open menu; else moves focus to the first title, or gives it back to the
+    /// component that held it when the bar already has it.
+    fn focus_key(cx: &mut Cx<'_, Self>, slots: &[Open], declared: Declared, opened: Option<Open>) {
+        if opened.is_some() {
+            for slot in slots {
+                let popup = Self::popup(cx, *slot, declared);
+                if popup.is_open(cx) {
+                    popup.close(cx);
+                }
+            }
+        } else if cx.is_focused() {
+            focus::give_back_bar(&cx.core.ctx);
+        } else {
+            let target = slots.first().map_or(FocusTarget::Id(cx.id), |slot| FocusTarget::Part(cx.id, Self::slot_part(*slot)));
+            focus::take_for_bar(&cx.core.ctx, cx.id, target);
+            cx.core.sync_focus();
+        }
+    }
+
+    /// Left or Right at the top of the open menu `from`: the previous or next menu opens, wrapping at the ends. The
+    /// directions are the keys', so they mirror in a right-to-left bar.
+    fn step_menu(cx: &mut Cx<'_, Self>, slots: &[Open], declared: Declared, from: Open, step: MenuStep) {
+        let Some(at) = slots.iter().position(|slot| *slot == from) else { return };
+        let forward = matches!(step, MenuStep::Next) != cx.flow.is_rtl();
+        let to = if forward { (at + 1) % slots.len() } else { (at + slots.len() - 1) % slots.len() };
+        Self::open_only(cx, slots, declared, slots[to]);
+    }
+
+    /// The help search's entries as `[label, English label, path]` texts.
+    fn help_texts(entries: &[HelpEntry], env: &EnvView<'_>, separator: &str) -> Vec<[String; 3]> {
+        entries
+            .iter()
+            .map(|entry| {
+                let path: Vec<String> = entry.path.iter().map(|label| env.resolve(label).as_str().to_owned()).collect();
+                let english = entry.english.as_ref().map(|label| env.resolve(label).as_str().to_owned());
+                [env.resolve(&entry.label).as_str().to_owned(), english.unwrap_or_default(), path.join(separator)]
+            })
+            .collect()
+    }
+
+    /// The line under the mnemonic letter of the title in `part`, shown while Alt is held.
+    fn underline(ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>, part: PartRef, text: &str, at: usize) {
+        let Some(cell) = cx.part_if_declared(part).map(|result| result.rect) else { return };
+        let draw = ui.draw();
+        let role = cx.style.text.role;
+        let size_of = |run: &str| if run.is_empty() { Vec2::ZERO } else { draw.layout(&TextRun::new(run).role(role), f32::INFINITY).size() };
+        let before: String = text.chars().take(at).collect();
+        let letter: String = text.chars().skip(at).take(1).collect();
+        let (whole, before, letter) = (size_of(text), size_of(&before).x, size_of(&letter).x);
+        let line = cell.center().y + whole.y / 2.0;
+        let from = if cx.flow.is_rtl() { cell.center().x + whole.x / 2.0 - before - letter } else { cell.center().x - whole.x / 2.0 + before };
+        draw.stroke(&PaintShape::Path(vec![pos2(from, line), pos2(from + letter, line)]), StrokeWidth::Thin, cx.resolve(&cx.style.text.color));
+    }
 }
 
 impl Component for MenuBar<'_> {
@@ -317,8 +395,9 @@ impl Component for MenuBar<'_> {
     type Style = MenuBarStyle;
     type Output = MenuBarOutput;
 
-    fn style(_: &StyleCx<'_>, _: MenuBarStyleKey) -> MenuBarStyle {
-        MenuBarStyle::default()
+    fn style(cx: &StyleCx<'_>, _: MenuBarStyleKey) -> MenuBarStyle {
+        let ink = cx.color(cx.tokens.color.text.normal);
+        MenuBarStyle { metrics: Metrics::new(), text: TextLook::new(TypeRole::Label, Stateful::new(ink)) }
     }
 
     /// Every title's width when the room allows it; the bar fills the row, so what is left over is room for the
@@ -349,153 +428,140 @@ impl Component for MenuBar<'_> {
         for (at, width) in widths.iter().take(fit.shown).enumerate() {
             let (cell, rest) = flow.take_start(*width);
             flow = rest;
-            cx.part(TITLE.at(at as u64), cell).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            cx.part(TITLE.at(at as u64), cell).sense(Sense::CLICK | Sense::FOCUS).focusable().toggles_at("menu", at).on_press();
         }
         if fit.overflow {
             let (cell, _) = flow.take_start(more);
-            cx.part(MORE, cell).sense(Sense::CLICK | Sense::FOCUS).focusable();
+            cx.part(MORE, cell).sense(Sense::CLICK | Sense::FOCUS).focusable().toggles_at("menu", fit.shown).on_press();
         }
         cx.roving(Roving::new(NavShape::Flat));
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let popup = cx.popup("menu");
         let found = declared(cx);
         let slots = Self::slots(found);
         let texts = self.texts(&cx.env);
-        let mut state = cx.memory::<BarState>().clone();
-        let open = popup.is_open(cx);
-        if !open {
-            state.open = None;
-        }
+        let opened = Self::opened(cx, &slots, found);
         let keys = if self.keyboard && Self::in_window(&cx.env) {
             cx.register_menu_bar();
             cx.take_menu_keys()
         } else {
             Vec::new()
         };
+        if opened.is_none() && !cx.is_focused() {
+            focus::forget_bar_return(&cx.core.ctx);
+        }
         for key in keys {
             match key {
                 MenuKey::Letter(letter) => {
-                    if let Some(at) = texts.iter().take(found.shown).position(|(_, held)| *held == Some(letter)) {
-                        state.open = Some(Open::Title(at));
-                        popup.open(cx);
+                    let held = |(_, mark): &(String, Option<(char, usize)>)| mark.is_some_and(|(held, _)| held == letter);
+                    if let Some(at) = texts.iter().take(found.shown).position(held) {
+                        Self::open_only(cx, &slots, found, Open::Title(at));
                     }
                 }
-                MenuKey::Focus => {
-                    if open {
-                        popup.close(cx);
-                        state.open = None;
-                    }
-                }
+                MenuKey::Focus => Self::focus_key(cx, &slots, found, opened),
             }
         }
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
-        let mut asked = None;
-        while let Some((step, _)) = cx.intents().take_move() {
-            if matches!(step, NavMove::Down) {
-                asked = cx.active_part();
-            }
+        if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Close) {
+            focus::give_back_bar(&cx.core.ctx);
         }
-        let mut seen: Vec<(Open, PartRef, bool, Option<Pos2>)> = Vec::new();
-        for slot in &slots {
-            let part = Self::slot_part(*slot);
-            let result = cx.part(part);
-            let (phase, hover) = (result.press.phase, result.hover_pos);
-            let began = cx.memory_at::<SeenPress>(part).began(&phase);
-            seen.push((*slot, part, began, hover));
-        }
-        for (slot, part, pressed, _) in &seen {
-            if *pressed || by_key == Some(*part) || asked == Some(*part) {
-                if open && state.open == Some(*slot) {
-                    popup.close(cx);
-                    state.open = None;
-                } else {
-                    state.open = Some(*slot);
-                    popup.open(cx);
-                }
-            }
-        }
-        match seen.iter().find_map(|(slot, _, _, hover)| hover.map(|pos| (*slot, pos))) {
+        let mut state = cx.memory::<BarState>().clone();
+        let hovered = slots.iter().find_map(|slot| cx.hover_pos(Self::slot_part(*slot)).map(|pos| (*slot, pos)));
+        match hovered {
             Some((slot, pos)) => {
-                if open && state.hover.is_some_and(|before| before != pos) && state.open != Some(slot) {
-                    state.open = Some(slot);
+                if opened.is_some_and(|open| open != slot) && state.hover.is_some_and(|before| before != pos) {
+                    Self::open_only(cx, &slots, found, slot);
                 }
                 state.hover = Some(pos);
             }
             None => state.hover = None,
         }
-        self.open = state.open.is_some();
+        let opened = Self::opened(cx, &slots, found);
+        self.open = opened.is_some();
         Facts::<BarFact>::register(&cx.ctx, BarFact { open: self.open, focused: cx.is_focused() });
         *cx.memory::<BarState>() = state;
     }
 
     /// The open title's menu below it: the caller's body, with the help search above it in the Help menu. The
-    /// overflow menu lists each hidden title as a submenu.
+    /// overflow menu lists each hidden title as a submenu. Running a row returns focus to the component that held
+    /// it when F10 or Alt took it for the bar.
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
-        let popup = cx.popup("menu");
         let found = declared(cx);
-        let Some(open) = cx.memory::<BarState>().open else { return };
-        let Some(rect) = cx.part_if_declared(Self::slot_part(open)).map(|result| result.rect) else { return };
+        let slots = Self::slots(found);
+        let opened = Self::opened(cx, &slots, found);
         let words = cx.env.words::<MenuBarWords>();
+        let folder = cx.env.folder();
+        let texts = self.texts(&cx.env);
+        let help = self.help;
+        let help_rows = help
+            .filter(|help| opened == Some(Open::Title(help.menu)))
+            .map(|help| Self::help_texts(help.entries, &cx.env, cx.env.words::<CommonWords>().path_separator.as_str()));
         let mut query = cx.memory::<Query>().clone();
-        let helped = match (self.help, open) {
-            (Some(help), Open::Title(at)) if help.menu == at => Some(help.entries),
-            _ => None,
-        };
-        let listed: Vec<usize> = match helped {
-            Some(entries) => {
-                let texts: Vec<[String; 3]> = entries
-                    .iter()
-                    .map(|entry| {
-                        let path: Vec<String> = entry.path.iter().map(|label| cx.env.resolve(label).as_str().to_owned()).collect();
-                        let english = entry.english.as_ref().map(|label| cx.env.resolve(label).as_str().to_owned());
-                        [cx.env.resolve(&entry.label).as_str().to_owned(), english.unwrap_or_default(), path.join(PATH_SEPARATOR)]
+        let (mut stepped, mut ran) = (None, false);
+        for slot in &slots {
+            let popup = Self::popup(cx, *slot, found);
+            let layer = super::layer(false).anchor(ui.anchor_part(Self::slot_part(*slot)));
+            let name = match slot {
+                Open::Title(at) => texts[*at].0.clone(),
+                Open::More => Self::more_text(&words, found.shown),
+            };
+            let titles = &mut self.titles;
+            let step = ui.show(popup, layer, |ui, _| {
+                Menu::inline(Label::from(name.clone()))
+                    .show(ui, |ui, body| match slot {
+                        Open::Title(at) => {
+                            if let (Some(help), Some(rows)) = (help.filter(|help| help.menu == *at), help_rows.as_ref()) {
+                                TextField::search(words.search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
+                                let refs: Vec<[&str; 3]> =
+                                    rows.iter().map(|[label, english, path]| [label.as_str(), english.as_str(), path.as_str()]).collect();
+                                let mut seen: Vec<&CommandRef> = Vec::new();
+                                let listed: Vec<usize> = search_order(&folder, &query.0, &refs)
+                                    .into_iter()
+                                    .filter(|at| {
+                                        let command = &help.entries[*at].command;
+                                        let fresh = !seen.contains(&command);
+                                        seen.push(command);
+                                        fresh
+                                    })
+                                    .collect();
+                                for at in &listed {
+                                    let entry = &help.entries[*at];
+                                    let row = MenuItem::command(entry.command.clone());
+                                    if entry.path.is_empty() {
+                                        row.show(ui)
+                                    } else {
+                                        row.detail(rows[*at][2].clone()).show(ui)
+                                    };
+                                }
+                                if listed.is_empty() && !query.0.trim().is_empty() {
+                                    Text::new(words.no_matches.as_str().to_owned()).show(ui);
+                                }
+                                Divider::horizontal().show(ui);
+                            }
+                            (titles[*at].body)(ui);
+                        }
+                        Open::More => {
+                            for (at, title) in titles.iter_mut().enumerate().skip(found.shown) {
+                                let mut open = *body.memory_at::<bool>(("submenu", at));
+                                super::popup::submenu_rows(ui, title.label.clone(), &mut open, |ui, _| (title.body)(ui));
+                                *body.memory_at::<bool>(("submenu", at)) = open;
+                            }
+                        }
                     })
-                    .collect();
-                let refs: Vec<[&str; 3]> = texts.iter().map(|[label, english, path]| [label.as_str(), english.as_str(), path.as_str()]).collect();
-                let mut seen: Vec<&CommandRef> = Vec::new();
-                search_order(&query.0, &refs)
-                    .into_iter()
-                    .filter(|at| {
-                        let command = &entries[*at].command;
-                        let fresh = !seen.contains(&command);
-                        seen.push(command);
-                        fresh
-                    })
-                    .collect()
+                    .output
+                    .step
+            });
+            if let Some(Some(step)) = step {
+                stepped = Some((*slot, step));
             }
-            None => Vec::new(),
-        };
-        let (titles, from) = (&mut self.titles, found.shown);
-        let overlay = super::layer(false).anchor(Anchor::Rect(rect));
-        let typed = !query.0.trim().is_empty();
-        ui.show(popup, overlay, |ui, cx| match open {
-            Open::Title(at) => {
-                if let Some(entries) = helped {
-                    TextField::search(words.search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
-                    for at in &listed {
-                        let entry = &entries[*at];
-                        let path: Vec<String> = entry.path.iter().map(|label| cx.env.resolve(label).as_str().to_owned()).collect();
-                        let row = MenuItem::command(entry.command.clone());
-                        let row = if path.is_empty() { row } else { row.detail(path.join(PATH_SEPARATOR)) };
-                        row.show(ui);
-                    }
-                    if listed.is_empty() && typed {
-                        Text::new(words.no_matches.as_str().to_owned()).show(ui);
-                    }
-                    Divider::horizontal().show(ui);
-                }
-                (titles[at].body)(ui);
-            }
-            Open::More => {
-                for (at, title) in titles.iter_mut().enumerate().skip(from) {
-                    let mut open = *cx.memory_at::<bool>(("submenu", at));
-                    super::popup::submenu_rows(ui, title.label.clone(), &mut open, |ui, _| (title.body)(ui));
-                    *cx.memory_at::<bool>(("submenu", at)) = open;
-                }
-            }
-        });
+            ran |= crate::runtime::overlay::activated_inside(&cx.core.ctx, popup.id());
+        }
+        if let Some((from, step)) = stepped {
+            Self::step_menu(cx, &slots, found, from, step);
+        }
+        if ran {
+            focus::give_back_bar(&cx.core.ctx);
+        }
         *cx.memory::<Query>() = query;
     }
 
@@ -503,17 +569,21 @@ impl Component for MenuBar<'_> {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
         let words = cx.env.words::<MenuBarWords>();
-        let state = cx.recall::<BarState>();
-        let total = found.shown + usize::from(found.more);
-        for (at, slot) in Self::slots(found).into_iter().enumerate() {
+        let slots = Self::slots(found);
+        for (at, slot) in slots.iter().enumerate() {
             let name = match slot {
-                Open::Title(title) => texts[title].0.clone(),
+                Open::Title(title) => texts[*title].0.clone(),
                 Open::More => Self::more_text(&words, found.shown),
             };
-            let node = access.node(Self::slot_part(slot), Role::MENU_ITEM);
+            let node = access.node(Self::slot_part(*slot), Role::MENU_ITEM);
             node.name = Name::Text(name);
-            node.expanded = Some(state.open == Some(slot));
-            node.position = Some(SetPosition::new(at).of(total));
+            node.has_popup(PopupKind::Menu);
+            if let Open::Title(title) = slot
+                && let Some((letter, _)) = texts[*title].1
+            {
+                node.access_key(letter);
+            }
+            node.position = Some(SetPosition::new(at).of(slots.len()));
         }
     }
 
@@ -521,13 +591,21 @@ impl Component for MenuBar<'_> {
         let found = declared(cx);
         let texts = self.texts(&cx.env);
         let words = cx.env.words::<MenuBarWords>();
-        let state = cx.recall::<BarState>();
+        let underlined = cx.modifiers().alt && !cx.env.shell().os.is_mac();
         for slot in Self::slots(found) {
+            let part = Self::slot_part(slot);
             let text = match slot {
                 Open::Title(at) => texts[at].0.clone(),
                 Open::More => Self::more_text(&words, found.shown),
             };
-            ui.face(Self::slot_part(slot), Self::face(&text, state.open == Some(slot)));
+            let lit = cx.core.toggles.iter().any(|toggle| toggle.part == part && toggle.open);
+            ui.face(part, Self::face(&text, lit));
+            if let Open::Title(at) = slot
+                && underlined
+                && let Some((_, index)) = texts[at].1
+            {
+                Self::underline(ui, cx, part, &text, index);
+            }
         }
     }
 
