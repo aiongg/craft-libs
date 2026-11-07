@@ -227,7 +227,8 @@ impl SeenPress {
         match phase {
             PressPhase::Down { start, .. } | PressPhase::DragStart { start, .. } | PressPhase::Drag { start, .. } => {
                 // `went_down_now` differs between the pass of the press and the passes that follow; the press is the same.
-                let same = PressStart { went_down_now: false, ..*start };
+                let mut same = *start;
+                same.went_down_now = false;
                 let fresh = self.0 != Some(same);
                 self.0 = Some(same);
                 fresh
