@@ -6,7 +6,7 @@ use crate::list::ThumbAspect;
 use crate::testing::{StoryData, StoryOutput, story};
 use egui::Ui;
 
-#[story(SelectFace<'static>, covers = [])]
+#[story(SelectFace<'static>, covers = [Default])]
 fn face_with_thumbnail_and_name(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     SelectFace::new("Soft light").thumb(ThumbAspect::SQUARE, |_, _| {}).show(ui).into()
 }
