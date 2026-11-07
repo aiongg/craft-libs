@@ -3,6 +3,7 @@
 use super::{BlockingOverlay, Dialog, FullWindowDialog};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
 use crate::sections::{DialogRole, FooterButton};
 use crate::testing::focus::is_focused;
@@ -132,6 +133,30 @@ fn a_full_window_dialog_is_modal_and_closes_on_escape() {
     frames.frame(vec![key_press(Key::Escape, Modifiers::NONE)], &mut ui);
     frames.idle(2, &mut ui);
     assert!(!open.get(), "Escape closed the full-window dialog");
+}
+
+/// A full-window dialog has no overlay layer; its footer letters follow its own focus scope.
+#[trial]
+fn a_footer_letter_activates_its_button_in_a_full_window_dialog() {
+    let picked = Cell::new(None);
+    let mut frames = Frames::new();
+    let mut ui = |ui: &mut Ui| {
+        let (mut open, mut snap) = (true, false);
+        let shown = FullWindowDialog::new("Preferences")
+            .opened(Bind::bound(&mut open))
+            .initial_focus(Initial::First)
+            .buttons([FooterButton::new("Reset", DialogRole::Destructive).letter('r'), FooterButton::new("Close", DialogRole::Cancel)])
+            .show(ui, |ui, _| {
+                Checkbox::new(Bind::bound(&mut snap)).label("Snap").show(ui);
+            });
+        if shown.output.picked.is_some() {
+            picked.set(shown.output.picked);
+        }
+    };
+    frames.idle(30, &mut ui);
+    frames.frame(vec![key_press(Key::R, Modifiers::NONE)], &mut ui);
+    frames.idle(2, &mut ui);
+    assert_eq!(picked.get(), Some(0), "the letter picks its button");
 }
 
 #[trial]

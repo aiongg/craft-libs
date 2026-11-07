@@ -211,9 +211,10 @@ struct Persist {
     appeared: HashMap<Id, (u64, u64)>,
 }
 
-/// The closes queued and not yet taken, each with the root frame that queued it.
+/// The closes queued and not yet taken, each with the root frame that queued it and whether it is carried: a carried
+/// close waits for its owner however long the owner does not run.
 #[derive(Default)]
-struct Closes(Vec<(Id, CloseReason, u64)>);
+struct Closes(Vec<(Id, CloseReason, u64, bool)>);
 
 fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
     let viewport = pass::current_viewport(ctx);
@@ -246,8 +247,17 @@ pub fn is_open(ctx: &Context, id: Id) -> bool {
 /// Queues a close of the layer `id` (a popup or a container). The owner's step 9 or `OverlayUi::show` collects it and
 /// step 15 writes it.
 pub fn request_close(ctx: &Context, id: Id, why: CloseReason) {
+    push_close(ctx, id, why, false);
+}
+
+fn push_close(ctx: &Context, id: Id, why: CloseReason, carried: bool) {
     let frame = pass::root_frame_nr(ctx);
-    Service::<Closes>::run(ctx, |closes| closes.0.push((id, why, frame)));
+    Service::<Closes>::run(ctx, |closes| {
+        if carried {
+            closes.0.retain(|(closed, .., kept)| !(*closed == id && *kept));
+        }
+        closes.0.push((id, why, frame, carried));
+    });
     crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
 
@@ -344,10 +354,11 @@ pub(crate) fn opening(ctx: &Context, id: Id) -> bool {
 }
 
 /// Queues a close of every layer opened from inside the layer `id`, so the open state of a popup in its body does
-/// not outlive it.
+/// not outlive it. The closes are carried: with no motion the layer's body hides in the same frame, so the owner of
+/// a popup in it runs again only when the layer reopens, and takes the close then.
 pub(crate) fn close_descendants(ctx: &Context, id: Id) {
     for descendant in family(ctx, id).into_iter().filter(|member| *member != id) {
-        request_close(ctx, descendant, CloseReason::Requested);
+        push_close(ctx, descendant, CloseReason::Requested, true);
     }
 }
 
@@ -500,7 +511,7 @@ pub(crate) fn end_pass(ctx: &Context) {
     areas::set_layer_order(ctx, &order);
     // An owner takes a close in the frame after the request at the latest; one nobody took is for a layer that is not shown.
     let now = pass::root_frame_nr(ctx);
-    Service::<Closes>::run(ctx, |closes| closes.0.retain(|(.., queued)| queued + 1 >= now));
+    Service::<Closes>::run(ctx, |closes| closes.0.retain(|(.., queued, carried)| *carried || queued + 1 >= now));
     let top_modal = current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting);
     if let Some(entry) = top_modal.filter(|entry| !entry.window) {
         areas::set_modal_layer(ctx, entry.layer);

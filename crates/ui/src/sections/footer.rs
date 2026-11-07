@@ -9,7 +9,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::runtime::focus;
-use crate::runtime::{keys, overlay};
+use crate::runtime::keys;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, NavShape, OwnerClass, Roving, Sense};
 use craft_host::target::Os;
@@ -114,11 +114,11 @@ impl FooterButton {
     }
 }
 
-/// Whether a bare letter reaches the footer being shown: focus is inside the layer whose body shows it, on a
-/// component that does not own text keys.
+/// Whether a bare letter reaches the footer being shown: focus is inside the focus scope the footer sits in (the
+/// dialog's, whether it is a layer or a full window), on a component that does not own text keys.
 fn letters_reach_footer(ctx: &Context) -> bool {
-    let Some(layer) = overlay::drawing_parent(ctx) else { return false };
-    focus::focus_in_scope(ctx, layer) == Some(true) && focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
+    let Some(scope) = focus::open_scope(ctx) else { return false };
+    focus::focus_in_scope(ctx, scope) == Some(true) && focus::focused_rec(ctx).is_some_and(|rec| rec.stop.keys.owner == OwnerClass::Widget)
 }
 
 #[derive(Default)]

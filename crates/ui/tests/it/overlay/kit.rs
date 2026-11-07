@@ -1,6 +1,6 @@
 //! Components for the overlay trials: an opener with one popup and a leaf that records what reaches it.
 
-use craft_behavior::{Metrics, Sense};
+use craft_behavior::{Metrics, MotionMode, Sense};
 use craft_ui::contract::{Bind, Show as _, ShowContainer as _};
 use craft_ui::contract::{CommandSet, Common, Component, Cx, MeasureCx, Overlay, OverlayUi, Overlays as _, Pointer as _, Props as _, Role, Trigger};
 use craft_ui::popover::Popover;
@@ -171,9 +171,8 @@ impl Component for Opener<'_> {
     }
 }
 
-/// A popup opened inside a popover closes when the popover closes, so reopening the popover does not show it open.
-#[trial]
-fn closing_a_popover_closes_the_popup_opened_inside_it() {
+/// Opens a popup inside a popover, closes the popover, reopens it and reports whether the popup is open.
+fn popup_open_after_popover_reopens(motion: MotionMode) -> bool {
     let (outer, inner_open, inner_wanted) = (Rc::new(Cell::new(true)), Rc::new(Cell::new(false)), Rc::new(Cell::new(false)));
     let (shown_outer, shown_inner, wanted) = (outer.clone(), inner_open.clone(), inner_wanted.clone());
     let mut fixture = Fixture::new(move |ui| {
@@ -186,6 +185,7 @@ fn closing_a_popover_closes_the_popup_opened_inside_it() {
         });
         shown_outer.set(is_open);
     });
+    fixture.motion(motion);
     fixture.settle();
     inner_wanted.set(true);
     fixture.frame(Vec::new());
@@ -196,5 +196,18 @@ fn closing_a_popover_closes_the_popup_opened_inside_it() {
     fixture.idle(60);
     outer.set(true);
     fixture.idle(10);
-    assert!(!inner_open.get(), "the popup closed with the popover that held it");
+    inner_open.get()
+}
+
+/// A popup opened inside a popover closes when the popover closes, so reopening the popover does not show it open.
+#[trial]
+fn closing_a_popover_closes_the_popup_opened_inside_it() {
+    assert!(!popup_open_after_popover_reopens(MotionMode::Full), "the popup closed with the popover that held it");
+}
+
+/// With motion off the popover hides in the frame it closes, so the popup's owner does not run until the popover
+/// reopens; the close waits for it.
+#[trial]
+fn closing_a_popover_closes_the_popup_opened_inside_it_with_motion_off() {
+    assert!(!popup_open_after_popover_reopens(MotionMode::Off), "the popup closed with the popover that held it");
 }
