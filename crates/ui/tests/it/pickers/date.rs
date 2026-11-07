@@ -91,6 +91,32 @@ fn the_calendar_crosses_months_past_the_grids_ends_and_pages() {
     assert_eq!(view.crossed(NavMove::Start, 1, &dates), view, "Home is the grid's");
 }
 
+/// On a Month page a step past the first or last month goes on into the neighbouring year's page, at the mirrored cell;
+/// on a Year page a step past the last row goes on into the next twelve years.
+#[craft_ui::testing::trial]
+fn month_and_year_pages_cross_their_edges() {
+    const DECEMBER: i32 = 12;
+    const COLUMNS: i32 = 4;
+    let dates = DateFormat::from_tag("en-US");
+    let months = CalendarView::open(Some(PickedDate::month(YEAR, 12)), None, &[DatePrecision::Month], &dates);
+    assert_eq!(months.precision, DatePrecision::Month);
+    let next = months.crossed(NavMove::Forward, DECEMBER, &dates);
+    assert_eq!((next.year, next.active), (YEAR + 1, 1), "Right on the last month");
+    let below = months.crossed(NavMove::Down, DECEMBER - 1, &dates);
+    assert_eq!((below.year, below.active), (YEAR + 1, 3), "Down from the last row keeps the column");
+    let before = next.crossed(NavMove::Back, 1, &dates);
+    assert_eq!((before.year, before.active), (YEAR, DECEMBER), "Left on the first month");
+    let above = next.crossed(NavMove::Up, 2, &dates);
+    assert_eq!((above.year, above.active), (YEAR, DECEMBER - COLUMNS + 2), "Up from the first row keeps the column");
+
+    let years = CalendarView::open(Some(PickedDate::year(YEAR)), None, &[DatePrecision::Year], &dates);
+    let last_row = YEAR - 1;
+    let onward = years.crossed(NavMove::Down, last_row, &dates);
+    assert_eq!(onward.active, last_row + COLUMNS, "Down from the last row of the page");
+    assert!(onward.year > YEAR, "the next page of twelve years");
+    assert!(onward.land, "focus follows");
+}
+
 /// A month whose first day sits in the fourth column of the week, in the region the fixture runs in.
 fn month_starting_in_fourth_column() -> (u8, CalendarView, DateFormat) {
     let dates = DateFormat::new(&Region::system());
