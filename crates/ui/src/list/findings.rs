@@ -5,8 +5,8 @@ use super::view_words::FindingsWords;
 use super::words::ListWords;
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Sizing, MeasureCx, PaintUi, Props as _,
-    Role, SelectMode, Show as _, WordSetCx as _,
+    Bind, BindMut, BodyCx, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, MeasureCx, PaintUi, Props as _,
+    Role, SelectMode, Show as _, Sizing, WordSetCx as _,
 };
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};

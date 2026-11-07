@@ -92,7 +92,7 @@ fn findings_summary(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 /// The time the event stories take as now, in milliseconds.
-const NOW_MS: u64 = 600_000;
+const NOW_MS: u64 = 3_600_000;
 
 fn events(count: usize) -> Vec<LogEvent> {
     let levels = [EventLevel::Info, EventLevel::Warning, EventLevel::Error];
@@ -157,5 +157,5 @@ fn undo_list_empty(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(UndoRow<'static>, covers = [Default], drive = Drive::Never)]
 fn undo_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    UndoRow::new("Delete Layer").show(ui).response.into()
+    crate::testing::show_as_only_item(ui, UndoRow::new("Delete Layer")).into()
 }

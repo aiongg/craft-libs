@@ -456,11 +456,16 @@ struct Placed {
 }
 
 impl ListRow<'_> {
+    /// Whether the leading part holds thumbnails; without a first thumbnail or a thumbnail side none are placed.
+    fn shows_thumbs(&self, sizes: &Sizes) -> bool {
+        self.first.is_some() && sizes.side(self.thumb) > 0.0
+    }
+
     /// The width of the leading part: every thumbnail and what is between them, or the icon; `None` for a row with
     /// neither.
     fn leading(&self, sizes: &Sizes) -> Option<f32> {
         let side = sizes.side(self.thumb);
-        if side > 0.0 && self.first.is_some() {
+        if self.shows_thumbs(sizes) {
             let first = self.thumb_side.map_or(side, |size| size.x);
             let between = |extra: &Thumb<'_>| if extra.link.is_some() { sizes.icon } else { sizes.gap };
             Some(first + self.extras.iter().map(|extra| first + between(extra)).sum::<f32>())
@@ -561,7 +566,7 @@ impl ListRow<'_> {
         let mut at = leading_start;
         let (mut icon, mut first, mut extras) = (None, None, Vec::new());
         match leading {
-            Some(_) if self.first.is_some() && sizes.side(self.thumb) > 0.0 => {
+            Some(_) if self.shows_thumbs(sizes) => {
                 let size = self.thumb_size(sizes);
                 let place = |x: f32, width: f32| Rect::from_center_size(inner.span(x, width).center(), Vec2::new(width, size.y));
                 first = Some(place(at, size.x));
@@ -729,7 +734,8 @@ impl Component for ListRow<'_> {
         {
             self.event = Some(RowEvent::Open { open: !open });
         }
-        for (at, thumb) in self.extras.iter().enumerate() {
+        let thumbs = self.shows_thumbs(&cx.style.sizes);
+        for (at, thumb) in self.extras.iter().enumerate().filter(|_| thumbs) {
             let part = LINK.at(at as u64);
             if let Some((linked, _)) = &thumb.link
                 && (cx.part(part).press.phase.is_click() || by_key == Some(part))
@@ -737,7 +743,7 @@ impl Component for ListRow<'_> {
                 self.event = Some(RowEvent::LinkToggled { thumb: at, linked: !linked });
             }
         }
-        for at in 0..=self.extras.len() {
+        for at in (0..=self.extras.len()).filter(|_| thumbs) {
             let target = if at == 0 { ThumbTarget::First } else { ThumbTarget::Extra(at - 1) };
             let phase = cx.part(THUMB.at(at as u64)).press.phase;
             if matches!(phase, PressPhase::DragStart { .. }) && self.thumb_drags && at > 0 {

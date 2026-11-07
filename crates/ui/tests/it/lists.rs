@@ -3,8 +3,8 @@
 use craft_behavior::{DisplayOrder as _, SelectionChange, SelectionModel as _};
 use craft_ui::contract::CollectionEvent;
 use craft_ui::list::{
-    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, LogEvent, OpenSet, Severity, UndoMark, UndoRowEvent, UndoWords,
-    footer_text, summary_text, undo_count,
+    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, LogEvent, OpenSet, Severity, UndoMark, UndoWords, footer_text,
+    summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
 use craft_ui::testing::trial;
@@ -89,5 +89,5 @@ fn the_footer_counts_marked_actions_and_a_pick_undoes_through_its_row() {
     assert_eq!(footer_text(&words, &UndoMark::at(0)).as_deref(), Some("Undo 1 Action"));
     assert_eq!(footer_text(&words, &UndoMark::at(3)).as_deref(), Some("Undo 4 Actions"));
     assert_eq!(undo_count(&[CollectionEvent::LeadMoved(1)]), None);
-    assert_eq!(undo_count(&[CollectionEvent::Item(2, UndoRowEvent::Picked)]), Some(3));
+    assert_eq!(undo_count(&[CollectionEvent::Activate(2)]), Some(3));
 }

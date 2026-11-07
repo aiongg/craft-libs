@@ -99,6 +99,7 @@ pub(crate) fn show_body_layer<R>(ctx: &Context, body_layer: BodyLayer, body: imp
                 super::access::hide(ctx, forward.id);
             }
             ui.set_clip_rect(transform.inverse() * clip);
+            ui.expand_to_include_rect(transform.inverse() * clip);
             body(ui)
         })
         .inner

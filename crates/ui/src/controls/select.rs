@@ -9,7 +9,7 @@ use super::words::ControlWords;
 use crate::contract::{
     ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
     EditResponse, Focus as _, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
-    ShowCollection as _, Trigger, WordSetCx as _,
+    ShowCollection as _, Sizing, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
@@ -236,6 +236,13 @@ impl<'a> OptionList<'a> {
             items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
             selection,
         }
+    }
+
+    /// How the list sizes: by its rows (the default), or to fill the room it is given.
+    #[must_use]
+    pub fn sizing(mut self, sizing: Sizing) -> Self {
+        self.props = self.props.sizing(sizing);
+        self
     }
 }
 
