@@ -31,7 +31,7 @@ fn drag_corner(fixture: &mut Fixture) {
 }
 
 /// Shows `rulers` as the only canvas control of a canvas whose view lies inside the strips.
-fn on_canvas(ui: &mut Ui, rulers: impl FnOnce(&mut Ui, Rect) -> super::RulerOutput) -> StoryOutput {
+fn on_canvas(ui: &mut Ui, mut rulers: impl FnMut(&mut Ui, Rect) -> super::RulerOutput) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
     let content = Rulers::content_rect(&Env::of(ui).tokens, full);
     let view = CanvasView::new(content, CENTRE, 1.0);

@@ -132,7 +132,7 @@ fn moved(view: &CanvasView, doc: DocRect, axis: Axis, range: &Range<f64>) -> Can
     let mut next = *view;
     match axis {
         Axis::X => next.center.x = along_x(view, doc.width(), c) + doc.x0,
-        Axis::Y => next.center.y = c + doc.y0,
+        _ => next.center.y = c + doc.y0,
     }
     next
 }
@@ -203,7 +203,7 @@ impl<'a> CanvasScrollbars<'a> {
             }
             // The displayed document's bounds against the view's: the offset that puts the document inside the view
             // (or the view inside it) is the same clamp, on screen.
-            let level = CanvasView { flip_x: false, ..*view };
+            let level = (*view).flip_x(false);
             let corners = doc_corners(doc).map(|p| level.to_screen(p));
             let image = corners.iter().skip(1).fold(Rect::from_min_max(corners[0], corners[0]), |r, &p| r.union(Rect::from_min_max(p, p)));
             if !image.is_finite() {
@@ -299,7 +299,7 @@ impl Component for CanvasScrollbars<'_> {
             draw.fill(&PaintShape::Rect(track, CornerRadius::ZERO), style.track);
             let (from, to) = match axis {
                 Axis::X => (track.left_top(), track.right_top()),
-                Axis::Y => (track.left_top(), track.left_bottom()),
+                _ => (track.left_top(), track.left_bottom()),
             };
             draw.rule(RuleKind::Edge, from, to);
             let length = if axis == Axis::X { track.width() } else { track.height() };
@@ -307,7 +307,7 @@ impl Component for CanvasScrollbars<'_> {
             let thumb = match axis {
                 Axis::X if cx.flow.is_rtl() => Rect::from_min_size(Pos2::new(track.max.x - at - len, track.min.y), Vec2::new(len, track.height())),
                 Axis::X => Rect::from_min_size(Pos2::new(track.min.x + at, track.min.y), Vec2::new(len, track.height())),
-                Axis::Y => Rect::from_min_size(Pos2::new(track.min.x, track.min.y + at), Vec2::new(track.width(), len)),
+                _ => Rect::from_min_size(Pos2::new(track.min.x, track.min.y + at), Vec2::new(track.width(), len)),
             }
             .shrink(style.inset);
             // Fully round: the radius is half the thumb's thickness.

@@ -42,7 +42,7 @@ fn drag_thumb(fixture: &mut Fixture) {
 }
 
 /// Shows the bars over `view` as the only canvas control of a canvas, and returns their output.
-fn on_canvas(ui: &mut Ui, bars: impl FnOnce(&mut Ui, Rect) -> super::ScrollbarsOutput) -> StoryOutput {
+fn on_canvas(ui: &mut Ui, mut bars: impl FnMut(&mut Ui, Rect) -> super::ScrollbarsOutput) -> StoryOutput {
     let full = ui.available_rect_before_wrap();
     Canvas::new("Document", SCROLLS).view(view_over(full)).show(ui, |ui, body| bars(ui, body.rect)).inner.map(StoryOutput::from).unwrap_or_default()
 }

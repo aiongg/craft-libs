@@ -303,7 +303,7 @@ impl<'a> Rulers<'a> {
             if press.mods.shift {
                 let (text, origin, zoom) = match along {
                     Axis::X => (self.y, zero.y, space.view.zoom),
-                    Axis::Y => (self.x, zero.x, space.view.zoom_x()),
+                    _ => (self.x, zero.x, space.view.zoom_x()),
                 };
                 text.units.snap_to_tick(across, origin, zoom, LABEL_STEP_MIN)
             } else {
