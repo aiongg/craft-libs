@@ -5,6 +5,7 @@ pub(crate) mod body;
 mod callsites;
 mod canvas;
 mod collection;
+mod components_index;
 mod commands;
 mod contract;
 mod controls;

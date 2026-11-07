@@ -1,1 +1,15 @@
 config_version = 1
+
+[[exception]]
+name = "selectable-text-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/text/mod.rs"
+reason = "Read-only text has no mixed or invalid state."
+
+[[exception]]
+name = "selectable-text-values"
+kind = "probe"
+rule = "probe/exempt/values"
+path = "crates/ui/src/text/mod.rs"
+reason = "Read-only text has no value a drive can change."

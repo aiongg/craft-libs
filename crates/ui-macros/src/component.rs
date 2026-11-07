@@ -20,6 +20,8 @@ enum Shape {
 struct Declared {
     overlay: bool,
     exempt: Vec<(LitStr, LitStr)>,
+    /// The first sentence of the type's doc comment; empty for `register_contract!`.
+    purpose: String,
 }
 
 #[derive(Default)]
@@ -149,6 +151,21 @@ fn instantiations(ident: &Ident, generics: &Generics, probe: Vec<Type>) -> syn::
     Ok(probe)
 }
 
+/// The first sentence of the first paragraph of the doc comment on `attrs`, without its final full stop.
+fn purpose_of(attrs: &[Attribute]) -> String {
+    let lines = attrs.iter().filter_map(|attr| match &attr.meta {
+        Meta::NameValue(pair) if pair.path.is_ident("doc") => match &pair.value {
+            syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(text), .. }) => Some(text.value()),
+            _ => None,
+        },
+        _ => None,
+    });
+    let paragraph: Vec<String> = lines.map(|line| line.trim().to_owned()).take_while(|line| !line.is_empty()).collect();
+    let text = paragraph.join(" ");
+    let sentence = text.split_once(". ").map_or(text.as_str(), |(first, _)| first);
+    sentence.trim_end_matches('.').to_owned()
+}
+
 fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStream {
     let overlay = declared.overlay;
     let exempt: Vec<_> = declared.exempt.iter().map(|(case, reason)| quote!((#case, #reason))).collect();
@@ -157,7 +174,8 @@ fn registrations(types: &[Type], declared: &Declared, shape: Shape) -> TokenStre
         Shape::Container => quote!(container),
         Shape::Collection => quote!(collection),
     };
-    let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*]);));
+    let purpose = &declared.purpose;
+    let each = types.iter().map(|ty| quote!(::craft_ui::__register_contract!(#ty, #shape, #overlay, [#(#exempt),*], #purpose);));
     // Inside craft-ui the registration's `link_section` statics meet the crate's `deny(unsafe_code)`; the allow is
     // scoped to this block and written only there, because an `allow` in an app crate that forbids it is an error.
     let allow = crate::util::in_craft_ui().then(|| quote!(#[allow(unsafe_code)]));
@@ -387,7 +405,7 @@ fn marked<'a>(ident: &Ident, fields: &'a [Field], shape: Shape) -> syn::Result<M
 
 pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
     let input: DeriveInput = syn::parse2(input)?;
-    let options = parse_options(&input.attrs)?;
+    let mut options = parse_options(&input.attrs)?;
     let shape = options.shape.unwrap_or(Shape::Leaf);
     if options.canvas_control && shape != Shape::Leaf {
         return Err(syn::Error::new_spanned(&input.ident, "`canvas_control` is for a leaf"));
@@ -447,6 +465,7 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         }
     });
     let types = instantiations(ident, &input.generics, options.probe)?;
+    options.declared.purpose = purpose_of(&input.attrs);
     let registration = registrations(&types, &options.declared, shape);
     Ok(quote! {
         #key_tokens

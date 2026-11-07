@@ -1,1 +1,8 @@
 config_version = 1
+
+[[exception]]
+name = "panel-tab-stories"
+kind = "probe"
+rule = "probe/exempt/stories"
+path = "crates/ui/src/docking/tab.rs"
+reason = "A stand-in for the tabs family's strip item, shown only in a dock group's header."

@@ -41,6 +41,9 @@ pub const EXPIRED: &str = "exception/expired";
 /// An entry that is malformed: no reason, a duplicate name, a bridge or shim without an expiry.
 pub const INVALID: &str = "exception/invalid";
 
+/// The rule family of a probe exemption site (`probe/exempt/<case>`), for the entries of kind `probe`.
+pub const PROBE_EXEMPT: &str = "probe/exempt";
+
 /// The `kind` values an entry may have.
 pub const KINDS: [&str; 11] =
     ["marker", "exempt", "expect", "probe", "bridge", "shim", "pointer-only", "canvas-tool", "menu-entry", "dependency", "feature"];
@@ -214,6 +217,10 @@ impl Exceptions {
         let mut used = vec![0_usize; self.entries.len()];
         let mut findings = Vec::new();
         for site in sites {
+            if site.rule == INVALID {
+                findings.push(invalid_site(site));
+                continue;
+            }
             match self.best_entry(site) {
                 Some(i) if used[i] < self.entries[i].count => used[i] += 1,
                 Some(i) => findings.push(uncovered(site, Some(&self.entries[i]))),
@@ -246,6 +253,15 @@ impl Exceptions {
             .max_by_key(|(_, e)| (e.path.as_ref().map_or(0, |p| p.len() + 1), e.rule == site.rule))
             .map(|(i, _)| i)
     }
+}
+
+/// A site that is itself malformed; no entry can excuse it.
+fn invalid_site(site: &Site) -> Finding {
+    let message = format!("`exempt(..)` needs a `reason` of at least {MIN_REASON} characters; the exemption is counted in `design/exceptions`");
+    let mut f = Finding::new(INVALID, site.line, 1, site.line, message);
+    f.path = PathBuf::from(&site.subject);
+    f.area = "(exceptions)".to_owned();
+    f
 }
 
 fn uncovered(site: &Site, full: Option<&Entry>) -> Finding {
@@ -294,14 +310,80 @@ fn marker_sites(shown: &str, src: &str) -> Vec<Site> {
     sites
 }
 
+/// The `exempt(case = .., reason = ..)` options among `tokens`, as `(case, reason)`; a missing part is empty.
+fn exempt_options(tokens: TokenStream) -> Vec<(String, String)> {
+    let mut found = Vec::new();
+    let mut previous_exempt = false;
+    for tt in tokens {
+        match tt {
+            TokenTree::Ident(i) => previous_exempt = i == "exempt",
+            TokenTree::Group(g) if previous_exempt => {
+                previous_exempt = false;
+                let (mut case, mut reason) = (String::new(), String::new());
+                let mut key = String::new();
+                let mut after_equals = false;
+                for part in g.stream() {
+                    match &part {
+                        TokenTree::Ident(i) if !after_equals => key = i.to_string(),
+                        TokenTree::Punct(p) if p.as_char() == '=' => after_equals = true,
+                        TokenTree::Punct(p) if p.as_char() == ',' => after_equals = false,
+                        TokenTree::Ident(_) | TokenTree::Literal(_) if after_equals => {
+                            let text = match &part {
+                                TokenTree::Literal(l) => syn::parse_str::<syn::LitStr>(&l.to_string()).map(|l| l.value()).unwrap_or_default(),
+                                other => other.to_string(),
+                            };
+                            match key.as_str() {
+                                "case" => case = text,
+                                "reason" => reason = text,
+                                _ => {}
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+                found.push((case, reason));
+            }
+            TokenTree::Group(g) => found.extend(exempt_options(g.stream())),
+            _ => previous_exempt = false,
+        }
+    }
+    found
+}
+
 struct AttrScan<'a> {
     shown: &'a str,
     sites: Vec<Site>,
 }
 
+impl AttrScan<'_> {
+    /// One site per `exempt(..)` among `tokens`; an exemption without a reason is a malformed site.
+    fn exemptions(&mut self, tokens: TokenStream, line: usize) {
+        for (case, reason) in exempt_options(tokens) {
+            let case = if case.is_empty() { "unnamed" } else { case.as_str() };
+            let origin = Origin::Allowance;
+            self.sites.push(Site { rule: format!("{PROBE_EXEMPT}/{case}"), subject: self.shown.to_owned(), line, origin });
+            if reason.trim().chars().count() < MIN_REASON {
+                self.sites.push(Site { rule: INVALID.to_owned(), subject: self.shown.to_owned(), line, origin: Origin::Violation(INVALID) });
+            }
+        }
+    }
+}
+
 impl<'ast> Visit<'ast> for AttrScan<'_> {
+    fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
+        if item.mac.path.segments.last().is_some_and(|s| s.ident == "register_contract") {
+            self.exemptions(item.mac.tokens.clone(), syn::spanned::Spanned::span(item).start().line);
+        }
+        visit::visit_item_macro(self, item);
+    }
+
     fn visit_attribute(&mut self, attr: &'ast syn::Attribute) {
         let name = attr.path();
+        if name.is_ident("component")
+            && let syn::Meta::List(list) = &attr.meta
+        {
+            self.exemptions(list.tokens.clone(), syn::spanned::Spanned::span(attr).start().line);
+        }
         if (name.is_ident("expect") || name.is_ident("allow"))
             && let syn::Meta::List(list) = &attr.meta
         {
