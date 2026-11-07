@@ -4,7 +4,7 @@ use craft_behavior::{DisplayOrder as _, SelectionChange, SelectionModel as _};
 use craft_i18n::Format;
 use craft_ui::contract::CollectionEvent;
 use craft_ui::list::{
-    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, LogEvent, OpenSet, Severity, UndoMark, UndoWords, footer_text,
+    EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, List, LogEvent, OpenSet, Severity, UndoMark, UndoWords, footer_text,
     summary_text, undo_count,
 };
 use craft_ui::runtime::env::WordSet as _;
@@ -100,4 +100,13 @@ fn the_footer_counts_marked_actions_and_a_pick_undoes_through_its_row() {
 fn an_undo_count_shows_locale_digits() {
     let words = UndoWords::english();
     assert_eq!(footer_text(&words, &Format::from_tag("ar-EG"), &UndoMark::at(2)).as_deref(), Some("Undo \u{663} Actions"));
+}
+
+#[trial]
+fn a_list_predicate_closure_needs_no_parameter_types() {
+    let _ = List::<usize>::new("Layers")
+        .can_rename(|key| key % 2 == 0)
+        .can_drag(|key| *key > 0)
+        .accept_from(|from| from == egui::Id::NULL)
+        .accepts(|_, over, insert| *over < insert);
 }

@@ -49,17 +49,17 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop]
     tree: bool,
     /// Which rows may be renamed; a rename request on another row does nothing.
-    #[prop(into)]
+    #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
     /// Which rows may be dragged.
-    #[prop(into)]
+    #[prop(func = "Fn(&K) -> bool")]
     can_drag: Option<RowTest<'a, K>>,
     /// Which collections a drag may come from: the test gets the id of the list the drag started in.
-    #[prop(into)]
+    #[prop(func = "Fn(Id) -> bool")]
     accept_from: Option<SourceTest<'a>>,
     /// Where a drag may land: the test gets the drag, the row under the pointer and the position before which the
     /// dragged rows would go. A refused spot shows no drop mark.
-    #[prop(into)]
+    #[prop(func = "Fn(&ListDrag<K>, &K, usize) -> bool")]
     accepts: Option<DropTest<'a, K>>,
 }
 
