@@ -61,18 +61,17 @@ pub enum WindowLevel {
 /// its own windows does not drop a palette.
 const AWAY_SECONDS: f64 = 0.25;
 
-/// The level an inactive app's palette takes: on Windows, `Normal` puts a window in front of every window that is
-/// not topmost, the activated app's included, so the palette goes to the bottom.
-const INACTIVE_PALETTE: egui::WindowLevel = if cfg!(target_os = "windows") { egui::WindowLevel::AlwaysOnBottom } else { egui::WindowLevel::Normal };
-
 impl WindowLevel {
-    /// The level egui is given while the app is `active` or not.
-    fn for_egui(self, active: bool) -> egui::WindowLevel {
+    /// The level egui is given while the app is `active` or not, on `os`. An inactive app's palette goes behind
+    /// other apps' windows: on Windows `Normal` puts a window in front of every window that is not topmost, the
+    /// activated app's included, so the palette goes to the bottom.
+    fn for_egui(self, active: bool, os: Os) -> egui::WindowLevel {
         match self {
             WindowLevel::Normal => egui::WindowLevel::Normal,
             WindowLevel::AlwaysOnTop => egui::WindowLevel::AlwaysOnTop,
             WindowLevel::Palette if active => egui::WindowLevel::AlwaysOnTop,
-            WindowLevel::Palette => INACTIVE_PALETTE,
+            WindowLevel::Palette if os == Os::Windows => egui::WindowLevel::AlwaysOnBottom,
+            WindowLevel::Palette => egui::WindowLevel::Normal,
         }
     }
 }
