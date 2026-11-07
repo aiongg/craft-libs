@@ -91,9 +91,16 @@ pub(crate) fn unknown_count(ctx: &Context) -> u64 {
 }
 
 /// The size entry under `id` without a placement using it.
+#[cfg(feature = "testing")]
 pub(crate) fn peek(ctx: &Context, id: Id) -> Option<Vec2> {
+    peeking(ctx, |read| read(id))
+}
+
+/// Runs `f` with a reader of the size entries that takes no placement and fixes the pass and clock once, for a
+/// caller that reads many entries.
+pub(crate) fn peeking<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<Vec2>) -> R) -> R {
     let moment = Moment::of(ctx);
-    with(ctx, &moment, |memory| memory.entries.get(&id).and_then(|entry| entry.value).map(|value| value.at(moment.now)))
+    with(ctx, &moment, |memory| f(&|id| memory.entries.get(&id).and_then(|entry| entry.value).map(|value| value.at(moment.now))))
 }
 
 /// Records the size a block measured this pass. A change asks for a discard pass only under the tolerance

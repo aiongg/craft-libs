@@ -317,7 +317,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             layout.set_columns(&self.header.columns(width));
         }
         let ctx = ui.ctx();
-        layout.measured(&|at| rows::measured_height(ctx, rows::measured_id(id, &self.source.key(at))));
+        rows::measured_heights(ctx, |height| layout.measured(&|at| height(rows::measured_id(id, &self.source.key(at)))));
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.layout = Some(Rc::new(layout));

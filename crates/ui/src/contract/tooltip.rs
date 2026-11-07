@@ -223,7 +223,7 @@ fn show_tip(call: TipCall<'_>) {
         state.since = None;
     }
     let due = state.since.map(|since| since + if when_now { 0.0 } else { DELAY });
-    let in_grace = Service::<Grace>::of(ctx).with(|grace| grace.0.is_some_and(|hid| now - hid < GRACE));
+    let in_grace = Service::<Grace>::run(ctx, |grace| grace.0.is_some_and(|hid| now - hid < GRACE));
     let show = wants && !suppressed && due.is_some_and(|due| now >= due || in_grace);
     if let (Some(due), true, false) = (due, wants, show)
         && !suppressed
@@ -232,7 +232,7 @@ fn show_tip(call: TipCall<'_>) {
         repaint::request_after(ctx, pass::current_viewport(ctx), due - now);
     }
     if state.shown && !show {
-        Service::<Grace>::of(ctx).with(|grace| grace.0 = Some(now));
+        Service::<Grace>::run(ctx, |grace| grace.0 = Some(now));
     }
     state.shown = show;
     let tip_id = sub(id, "tip");

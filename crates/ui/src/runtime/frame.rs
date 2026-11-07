@@ -132,9 +132,9 @@ impl<T: Default> PerViewport<T> {
 impl<T: Default + Send + 'static> PerViewport<T> {
     /// Runs `f` on the record of `viewport`, created on first use.
     pub(crate) fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut T) -> R) -> R {
-        let service = Service::<PerViewport<T>>::of(ctx);
         // The prune registration runs outside the service's lock: it reaches the context.
-        let (registered, out) = service.with(|records| (std::mem::replace(&mut records.pruning, true), f(records.record(viewport))));
+        let (registered, out) =
+            store::with::<PerViewport<T>, _>(ctx, |records| (std::mem::replace(&mut records.pruning, true), f(records.record(viewport))));
         if !registered {
             Self::register_prune(ctx);
         }
@@ -281,9 +281,15 @@ struct ViewportRecord {
 
 /// What the begin hook read of the running pass; steps read it, none writes it.
 #[derive(Clone)]
-pub(crate) struct PassFacts {
+struct RunningPass {
     /// The context the pass runs in. Another context on the same thread, and a pass a panic left open, read none of these.
-    pub ctx: Context,
+    ctx: Context,
+    facts: PassFacts,
+}
+
+/// What a pass fixes for every step: its viewport, number and time.
+#[derive(Clone, Copy)]
+pub(crate) struct PassFacts {
     pub viewport: ViewportId,
     pub pass_nr: u64,
     /// The pass's time in seconds.
@@ -292,12 +298,12 @@ pub(crate) struct PassFacts {
 
 thread_local! {
     /// The passes between their begin and end hooks on this thread, innermost last: nested viewport passes stack.
-    static RUNNING: RefCell<Vec<PassFacts>> = const { RefCell::new(Vec::new()) };
+    static RUNNING: RefCell<Vec<RunningPass>> = const { RefCell::new(Vec::new()) };
 }
 
 /// The facts of the innermost running pass of `ctx` on this thread, `None` outside every pass of it.
 pub(crate) fn running(ctx: &Context) -> Option<PassFacts> {
-    RUNNING.with(|running| running.borrow().iter().rev().find(|facts| facts.ctx == *ctx).cloned())
+    RUNNING.with(|running| running.borrow().iter().rev().find(|pass| pass.ctx == *ctx).map(|pass| pass.facts))
 }
 
 /// The running pass's time in seconds, read once by the begin hook.
@@ -356,8 +362,8 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     RUNNING.with(|running| {
         let mut running = running.borrow_mut();
         // A pass of this viewport that never ended (a panic unwound through it) is not still running.
-        running.retain(|facts| !(facts.ctx == ctx && facts.viewport == viewport));
-        running.push(PassFacts { ctx: ctx.clone(), viewport, pass_nr, now });
+        running.retain(|pass| !(pass.ctx == ctx && pass.facts.viewport == viewport));
+        running.push(RunningPass { ctx: ctx.clone(), facts: PassFacts { viewport, pass_nr, now } });
     });
     store::open_handles(&ctx);
     let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
@@ -426,7 +432,7 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     }
     RUNNING.with(|running| {
         let mut running = running.borrow_mut();
-        if let Some(at) = running.iter().rposition(|facts| facts.ctx == ctx) {
+        if let Some(at) = running.iter().rposition(|pass| pass.ctx == ctx) {
             running.remove(at);
         }
     });

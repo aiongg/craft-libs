@@ -147,7 +147,7 @@ struct Seen(u64);
 pub(crate) fn register_owner(ctx: &Context, owner: Id) {
     let viewport = pass::current_viewport(ctx);
     let (pass_nr, at) = (pass::pass_nr(ctx, viewport), frame::clock(ctx));
-    Service::<Registry>::of(ctx).with(|reg| {
+    Service::<Registry>::run(ctx, |reg| {
         reg.owners.insert(owner, OwnerRecord { viewport, pass: pass_nr, at });
     });
 }
@@ -195,7 +195,7 @@ pub(crate) fn forget_saved(ctx: &Context, key: &SaveKey) {
 }
 
 fn forget_tier(ctx: &Context, id: Id, tier: u8) {
-    let moved = Service::<Registry>::of(ctx).with(|reg| {
+    let moved = Service::<Registry>::run(ctx, |reg| {
         let keys: Vec<(Id, u8, TypeId)> = reg.slots.keys().filter(|k| k.0 == id && k.1 == tier).copied().collect();
         let mut moved: Vec<Removed> = Vec::new();
         for key in keys {
@@ -213,26 +213,26 @@ pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: 
     fn remove<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<Removed> {
         take_raw::<T>(data, id)
     }
-    Service::<Registry>::of(ctx).with(|reg| {
+    Service::<Registry>::run(ctx, |reg| {
         reg.slots.insert((id, SHOWN, TypeId::of::<T>()), SlotRecord { owner, remove: remove::<T> });
     });
 }
 
 /// Moves the shown slot of type `T` under `id` out of context data into the graveyard, as eviction does.
 pub(crate) fn dispose_shown<T: Slot>(ctx: &Context, id: Id) {
-    let moved = Service::<Registry>::of(ctx).with(|reg| {
+    let moved = Service::<Registry>::run(ctx, |reg| {
         reg.slots.remove(&(id, SHOWN, TypeId::of::<T>()));
         store::locked(ctx, |data| remove_slot::<SHOWN, T>(data, id))
     });
     if let Some(moved) = moved {
         QUEUED.fetch_add(1, Ordering::Release);
-        Service::<Registry>::of(ctx).with(|reg| reg.graveyard.push(moved));
+        Service::<Registry>::run(ctx, |reg| reg.graveyard.push(moved));
     }
 }
 
 /// The pass of the viewport that last registered `owner` at step 3, `None` once the owner is evicted.
 pub(crate) fn owner_pass(ctx: &Context, owner: Id) -> Option<u64> {
-    Service::<Registry>::of(ctx).with(|reg| reg.owners.get(&owner).map(|record| record.pass))
+    Service::<Registry>::run(ctx, |reg| reg.owners.get(&owner).map(|record| record.pass))
 }
 
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
@@ -240,7 +240,7 @@ pub(crate) fn dispose_evicted(ctx: &Context) {
     if QUEUED.load(Ordering::Acquire) == 0 {
         return;
     }
-    let queue = Service::<Registry>::of(ctx).with(|reg| std::mem::take(&mut reg.graveyard));
+    let queue = Service::<Registry>::run(ctx, |reg| std::mem::take(&mut reg.graveyard));
     QUEUED.fetch_sub(queue.len(), Ordering::AcqRel);
     drop(queue);
 }
@@ -420,7 +420,7 @@ impl MemoryStage {
             return store::peek_clone::<Wrapped<SHOWN, T>>(&self.ctx, id).map(|wrapped| wrapped.0);
         }
         let moved = store::take::<Wrapped<SHOWN, T>>(&self.ctx, id)?;
-        Service::<Registry>::of(&self.ctx).with(|reg| reg.slots.remove(&(id, SHOWN, ty)));
+        Service::<Registry>::run(&self.ctx, |reg| reg.slots.remove(&(id, SHOWN, ty)));
         Some(moved.0)
     }
 
@@ -445,7 +445,7 @@ impl MemoryStage {
         let owner = self.owner;
         let touched = self.touched.into_inner();
         let mut ended = Vec::new();
-        Service::<Registry>::of(&self.ctx).with(|reg| {
+        Service::<Registry>::run(&self.ctx, |reg| {
             for base in &touched {
                 reg.slots.insert((*base, SHOWN, TypeId::of::<Seen>()), SlotRecord { owner, remove: take_raw::<Seen> });
             }

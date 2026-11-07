@@ -71,7 +71,7 @@ struct Board {
 }
 
 fn with<R>(ctx: &Context, f: impl FnOnce(&mut Board) -> R) -> R {
-    Service::<Board>::of(ctx).with(f)
+    Service::<Board>::run(ctx, f)
 }
 
 impl Board {

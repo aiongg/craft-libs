@@ -33,10 +33,10 @@ impl ColumnGroup {
     pub fn scope<R>(ui: &mut Ui, key: impl Hash + Debug, rows: impl FnOnce(&mut Ui, &mut ColumnGroup) -> R) -> R {
         let ctx = ui.ctx().clone();
         let id = sub(ui.scope_id(), key);
-        Service::<Open>::of(&ctx).with(|open| open.0.push(Frame { id, widest: HashMap::new() }));
+        Service::<Open>::run(&ctx, |open| open.0.push(Frame { id, widest: HashMap::new() }));
         let mut group = ColumnGroup { id, ctx: ctx.clone() };
         let result = rows(ui, &mut group);
-        let frame = Service::<Open>::of(&ctx).with(|open| open.0.pop());
+        let frame = Service::<Open>::run(&ctx, |open| open.0.pop());
         if let Some(frame) = frame {
             for (column, width) in &frame.widest {
                 layout_memory::record(&ctx, sub(frame.id, column), Vec2::new(*width, 0.0));
@@ -55,12 +55,12 @@ impl ColumnGroup {
 
 /// The width of `column` in the innermost open group, `None` when no group is open. The row reports `content`.
 pub(crate) fn ambient_width(ctx: &Context, column: &ColumnKey, content: f32) -> Option<f32> {
-    let id = Service::<Open>::of(ctx).with(|open| open.0.last().map(|frame| frame.id))?;
+    let id = Service::<Open>::run(ctx, |open| open.0.last().map(|frame| frame.id))?;
     Some(shared_width(ctx, id, column, content))
 }
 
 fn shared_width(ctx: &Context, group: Id, column: &ColumnKey, content: f32) -> f32 {
-    Service::<Open>::of(ctx).with(|open| {
+    Service::<Open>::run(ctx, |open| {
         if let Some(frame) = open.0.iter_mut().rev().find(|frame| frame.id == group) {
             let widest = frame.widest.entry(column.clone()).or_insert(0.0);
             *widest = widest.max(content);

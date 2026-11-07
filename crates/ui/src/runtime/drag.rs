@@ -155,7 +155,7 @@ struct Targets {
 }
 
 fn board<R>(ctx: &Context, f: impl FnOnce(&mut Board) -> R) -> R {
-    Service::<Board>::of(ctx).with(f)
+    Service::<Board>::run(ctx, f)
 }
 
 /// Starts a session for `source` with `payload`. A running session stays: one per context.
