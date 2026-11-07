@@ -11,7 +11,8 @@ new_module = "craft_ui::menu"
 name = "MenuBar"
 old = "craft_ui::menu::bar::MenuBar"
 new = "craft_ui::menu::MenuBar"
-status = "pending"
+status = "moved"
+note = "A component with a part per title. `MenuBar::new(label, Vec<MenuTitle>)`; each `MenuTitle::new(label, |ui| rows)` is the menu body the caller writes, replacing the `MenuItem::submenu` tree. The command run is no longer returned: command rows run through the command system."
 
 [[type]]
 name = "PressMenu"
@@ -36,16 +37,92 @@ status = "pending"
 name = "EditMenu"
 old = "craft_ui::behavior::edit_menu::EditMenu"
 new = "craft_ui::menu::EditMenu"
-status = "pending"
+status = "replaced"
+note = "A pattern: `EditMenu::show(ui)` shows `MenuItem::command` rows over `EditCommands` in the body of the text control's `Menu::context`. `install`, `labels`, `labels_of`, `before_text_edit` and `after_text_edit` are removed: labels come from the commands, and the text adapter applies the commands. The Delete row has no command."
 
 [[type]]
 name = "PanelMenu"
 old = "craft_ui::docking::panel_menu::PanelMenu"
 new = "craft_ui::menu::PanelMenu"
-status = "pending"
+status = "replaced"
+note = "A pattern over owned rows: `PanelMenu::new(host: Vec<PanelRow>, group: Vec<PanelRow>)`, `show(ui) -> Option<GroupItem>` in the body of a `Menu`; `PanelMenu::group_rows(..)` replaces `group_entries`. Host rows are `PanelRow::Command(CommandRef)`. `show_context` and `menu_under` are removed: the caller opens the `Menu`."
+
+[[type]]
+name = "MenuBarLabels"
+old = "craft_ui::menu::bar::MenuBarLabels"
+new = ""
+status = "removed"
+note = "Replaced by the word set `craft_ui::menu::MenuBarWords`, read from the scope's words read from the scope's words; `more`, `all`, `search` and `no_matches` remain, `clear` and the scroll labels belong to the controls that show them."
+
+[[type]]
+name = "MenuBarResponse"
+old = "craft_ui::menu::bar::MenuBarResponse"
+new = ""
+status = "removed"
+note = "Replaced by `craft_ui::menu::MenuBarOutput`: `response`, `open` and `titles` remain; `chosen` and `focused` are removed (command rows run themselves; `bar::is_focused` reads the focus)."
+
+[[type]]
+name = "is_open"
+old = "craft_ui::menu::bar::is_open"
+new = "craft_ui::menu::bar::is_open"
+status = "same"
+note = "Takes the `egui::Context`; true while a menu of a bar is open."
+
+[[type]]
+name = "is_focused"
+old = "craft_ui::menu::bar::is_focused"
+new = "craft_ui::menu::bar::is_focused"
+status = "same"
+
+[[type]]
+name = "leave_for_shortcut"
+old = "craft_ui::menu::bar::leave_for_shortcut"
+new = ""
+status = "removed"
+note = "The bar's titles hold real focus, so a command shortcut runs while they do, as for every focused component."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "MenuBar"
+old = "MenuBar::new(&[MenuItem<T>])"
+new = "MenuBar::new(label, Vec<MenuTitle>)"
+
+[[setter]]
+type = "MenuBar"
+old = "shrink_to_fit(f32)"
+new = ""
+
+[[setter]]
+type = "MenuBar"
+old = "help_search(usize)"
+new = "help(MenuHelp::new(usize, &[HelpEntry]))"
+
+[[setter]]
+type = "MenuBar"
+old = "keyboard(bool)"
+new = "keyboard(bool)"
+
+[[setter]]
+type = "MenuBar"
+old = "text_editing(bool)"
+new = ""
+
+[[setter]]
+type = "MenuBar"
+old = "labels(&MenuBarLabels)"
+new = ""
+
+[[setter]]
+type = "MenuBar"
+old = "size(ControlSize)"
+new = ""
+
+[[setter]]
+type = "MenuBar"
+old = "id(Id)"
+new = ""
