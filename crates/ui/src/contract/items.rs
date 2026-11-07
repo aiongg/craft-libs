@@ -814,7 +814,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let Placement { rect, offset, rtl } = at;
         let frame = crate::runtime::pointer::frame(&cx.core.ctx);
         let hovered = cx.core.response.hovered() || crate::primitives::sensing::read_outcome(&cx.core.ctx, ArenaId::new(cx.core.id)).hover.is_some();
-        eprintln!("DIAG hover resp={} outcome={} pos={:?} delta={:?} rect={:?}", cx.core.response.hovered(), hovered, frame.pos, frame.delta, rect);
         let Some(pos) = frame.pos.filter(|_| hovered && frame.delta != Vec2::ZERO) else { return };
         let pos = self.xf.map_or(pos, |map| map.to_layer(pos));
         if !rect.contains(pos) {
