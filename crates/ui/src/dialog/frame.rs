@@ -229,6 +229,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer, &[], false, &mut None, &mut None);
+        footer(ui, cx, &mut self.footer, &[], false, FooterHost { picked: &mut None, guard: &mut None, settle: &mut None });
     }
 }
