@@ -191,6 +191,8 @@ struct Pass {
     activated: Vec<Id>,
     /// The layers a primary press landed outside of, this pass, while their dismissal keeps them open.
     pressed_outside: Vec<Id>,
+    /// The popup a press that opened it ended on, and where, this pass.
+    dragged_release: Option<(Id, Pos2)>,
 }
 
 #[derive(Default)]
@@ -230,6 +232,7 @@ fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
             pass.drawing.clear();
             pass.activated.clear();
             pass.pressed_outside.clear();
+            pass.dragged_release = None;
         },
         f,
     )
@@ -370,6 +373,17 @@ pub(crate) fn note_pressed_outside(ctx: &Context, id: Id) {
 /// Whether a primary press landed outside the layer `id` in this pass while its dismissal kept it open.
 pub(crate) fn pressed_outside(ctx: &Context, id: Id) -> bool {
     with_pass(ctx, |pass| pass.pressed_outside.contains(&id))
+}
+
+/// Records that the press which opened the popup `popup` ended at the screen position `at` away from its opener
+/// (press, drag, release): a row of the popup under `at` is activated.
+pub(crate) fn note_dragged_release(ctx: &Context, popup: Id, at: Pos2) {
+    with_pass(ctx, |pass| pass.dragged_release = Some((popup, at)));
+}
+
+/// Whether a press that opened the layer whose body is running ended inside `rect` (screen space) in this pass.
+pub(crate) fn released_inside(ctx: &Context, rect: Rect) -> bool {
+    with_pass(ctx, |pass| pass.dragged_release.is_some_and(|(popup, at)| pass.drawing.contains(&popup) && rect.contains(at)))
 }
 
 /// Ends the body `begin_layer` started.

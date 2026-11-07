@@ -235,6 +235,9 @@ fn blank_core<'a>(
         focus: Default::default(),
         member_of: None,
         activation: None,
+        injected: None,
+        keep_open: false,
+        collection_selection: None,
         activated_member: None,
         press: PressState::IDLE,
         cursor: None,
@@ -522,7 +525,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         .decls
         .iter()
         .filter_map(|(decl, extras)| {
-            extras.toggles.map(|popup| super::cx::Toggle { part: PartRef { key: decl.key, index: decl.index }, popup, open: false })
+            extras.toggles.map(|toggle| super::cx::Toggle { part: PartRef { key: decl.key, index: decl.index }, decl: toggle, open: false })
         })
         .collect();
     cx.core.own_reset_parts = parts.decls.iter().filter(|(_, extras)| extras.own_reset).map(|(decl, _)| (decl.key, decl.index)).collect();
@@ -537,7 +540,10 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     } else if keyed {
         Some(Activation { by_key: true })
     } else {
-        activation.then_some(Activation { by_key: false })
+        // A press that opened a popup ended over this row: the release picks it.
+        let released = root_sense.contains(Sense::CLICK)
+            && crate::runtime::overlay::released_inside(&ctx, crate::runtime::egui::areas::layer_to_screen(&ctx, ui.layer_id()) * rect);
+        (activation || released).then_some(Activation { by_key: false })
     };
     cx.core.activated_member = activated_member.or_else(|| arena.then(|| keys::activated_member(&ctx, id)).flatten());
     cx.core.intents = keys::intents_of(&ctx, Some(id), rtl);
@@ -576,7 +582,13 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.trace.mark(Step::Overlay);
     if C::OVERLAYS {
         let open = overlay::open_map(&mut *cx.core.memory, id);
-        let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open);
+        let parts = cx
+            .core
+            .toggles
+            .iter()
+            .filter_map(|toggle| cx.core.results.get(&(toggle.part.key, toggle.part.index)).map(|result| (toggle.part, result.rect)))
+            .collect();
+        let mut overlays = OverlayUi::new(&ctx, id, rect, &*ui, resolved, env.clone(), open, parts);
         comp.overlay(&mut overlays, cx);
         overlay::apply_closes(&ctx, overlays.closed);
     }
@@ -636,11 +648,18 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     );
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take(), parts: &parts.decls, shows_label: comp.shows_label() });
     // Activations accumulate across the passes of a viewport mount.
-    let activated = comp.activated(cx) && resolved.enabled;
-    if activated {
-        crate::runtime::overlay::note_activated(&ctx, id);
+    let natural = comp.activated(cx) && resolved.enabled;
+    // An injected activation runs the bound command with its own source, so step 17 does not fire it again.
+    let injected = cx.core.injected.take().filter(|_| resolved.enabled);
+    if natural || injected.is_some() {
+        if !cx.core.keep_open {
+            crate::runtime::overlay::note_activated(&ctx, id);
+        }
+        if let (Some(source), Some(command)) = (injected, &cx.core.command) {
+            crate::runtime::commands::fire(&ctx, command.command.clone(), source);
+        }
     }
-    p.activated |= activated;
+    p.activated |= natural && injected.is_none();
 }
 
 fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {

@@ -3,8 +3,9 @@
 //! One host (`host`) creates the egui layer through `runtime::egui::areas` and applies rank, backdrop, fit, scroll,
 //! dismissal and the focus scope. `OverlayUi::show` and the tooltip and toast hosts run it.
 
-use super::{BodyCx, Component, Cx, Resolved};
+use super::{BodyCx, Component, Cx, PartBuilder, Resolved};
 use crate::runtime::access::{self, PopupKind, PopupShown};
+use crate::runtime::commands::FireSource;
 use crate::runtime::egui::areas::{self, LayerSpec};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::env::Env;
@@ -13,8 +14,10 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, layout_memory, pointer};
+use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
-use craft_behavior::{CancelRule, Intent, OwnerClass};
+use craft_behavior::{CancelRule, Intent, OwnerClass, PressPhase};
+use craft_keymap::Mods;
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui, Vec2};
 use std::collections::HashMap;
 
@@ -231,6 +234,9 @@ pub struct Opener {
     pub trigger: Trigger,
     /// Whether the opener was enabled in the pass that recorded it; a disabled opener closes the layer.
     pub enabled: bool,
+    /// Whether the opener's response fired `trigger` in the pass that recorded it. A container with no `open`
+    /// binding applies it to the opener's slot.
+    pub(crate) fired: bool,
 }
 
 /// Data describing an egui layer. Presets fill focus and dismissal; builders change single fields.
@@ -455,7 +461,13 @@ impl Overlay {
     /// Records the opener. An anchored layer hangs from the opener's rect, on the side and alignment its preset
     /// gave; a floating layer keeps its place, and the opener serves focus return and the trigger.
     pub fn opened_by(mut self, anchor: &Response, trigger: Trigger) -> Overlay {
-        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger, enabled: anchor.enabled() });
+        let fired = match trigger {
+            Trigger::Click => anchor.clicked(),
+            Trigger::Press => anchor.is_pointer_button_down_on() && anchor.ctx.input(|input| input.pointer.primary_pressed()),
+            Trigger::Context => anchor.secondary_clicked(),
+            Trigger::Hover | Trigger::Hold | Trigger::Manual => false,
+        };
+        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger, enabled: anchor.enabled(), fired });
         self.anchor(Anchor::Rect(anchor.rect))
     }
 }
@@ -470,6 +482,21 @@ pub struct PopupHandle {
 impl PopupHandle {
     pub(crate) fn new(opener: Id, name: &'static str) -> Self {
         PopupHandle { id: sub(opener, ("popup", name)), name }
+    }
+
+    /// The popup of the repeat `index` of this name: a component with one popup per part or per entry gives each its
+    /// own. Index 0 is the handle `cx.popup(name)` returns. `open`, `close`, `is_open` and `trigger` register the
+    /// popup for the pass, so a handle derived in `update` needs no separate registration.
+    #[must_use]
+    pub fn at(self, index: usize) -> PopupHandle {
+        match index {
+            0 => self,
+            _ => PopupHandle { id: sub(self.id, ("at", index)), name: self.name },
+        }
+    }
+
+    fn registered<C: Component>(self, cx: &Cx<'_, C>) {
+        register(&cx.core.ctx, cx.core.id, self.id);
     }
 
     /// The popup's id: its open state's and its entry in the layer stack.
@@ -608,19 +635,66 @@ impl<C: Component> Overlays for Cx<'_, C> {
     }
 }
 
+/// What a part declared with `PartBuilder::toggles_at`: the popup it opens and whether it acts on press.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ToggleDecl {
+    pub popup: &'static str,
+    pub index: usize,
+    /// The toggle acts on the pass the press began, and a release over the opened popup picks the row under it.
+    pub on_press: bool,
+}
+
+impl ToggleDecl {
+    /// A toggle of the popup `popup` repeat `index`, acting on release.
+    pub(crate) const fn new(popup: &'static str, index: usize) -> Self {
+        ToggleDecl { popup, index, on_press: false }
+    }
+}
+
+impl super::cx::Toggle {
+    fn handle(&self, owner: Id) -> PopupHandle {
+        PopupHandle::new(owner, self.decl.popup).at(self.decl.index)
+    }
+}
+
+impl PartBuilder<'_> {
+    /// The part opens and closes the repeat `index` of the component's popup `popup`: `toggles` for a component with
+    /// one popup per part. Open one popup at a time: opening the second closes the first.
+    pub fn toggles_at(self, popup: &'static str, index: usize) -> Self {
+        self.declared.toggles = Some(ToggleDecl::new(popup, index));
+        self
+    }
+
+    /// The part's toggle acts on the pass the press began, not on release, as a menu bar's titles do: a release over
+    /// a row of the popup it opened picks that row (press, drag, release), and a click on the part leaves the popup
+    /// open. Follows `toggles` or `toggles_at`.
+    pub fn on_press(self) -> Self {
+        let toggle = self.declared.toggles.as_mut();
+        debug_assert!(toggle.is_some(), "`on_press` follows `toggles` or `toggles_at`");
+        if let Some(toggle) = toggle {
+            toggle.on_press = true;
+        }
+        self
+    }
+}
+
 /// Step 9, before `update`: what the component's parts declared with `PartBuilder::toggles`. A click on the part
-/// toggles its popup, AccessKit Expand and Collapse on its sub-node open and close it, Alt+Down opens the popup of
-/// the focused toggling part (else the first one that is closed), and Alt+Up closes the open ones. Each toggle keeps
-/// the popup's open state for the part's `expanded`. A click a toggling part took is not left as the root's activation.
+/// toggles its popup (the pass its press began, for a part that declared `on_press`), AccessKit Expand and Collapse
+/// on its sub-node open and close it, Alt+Down opens the popup of the focused toggling part (else the first one that
+/// is closed), and Alt+Up closes the open ones. Opening one popup of the component closes the others. Each toggle
+/// keeps the popup's open state for the part's `expanded`. A click a toggling part took is not left as the root's
+/// activation.
 pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
     if cx.core.toggles.is_empty() {
         return;
     }
     let mut toggles = std::mem::take(&mut cx.core.toggles);
-    let active = focus::active_part(&cx.core.ctx, cx.core.id);
+    let owner = cx.core.id;
+    let active = focus::active_part(&cx.core.ctx, owner);
     let mut handled = false;
-    for toggle in &toggles {
-        let popup = cx.popup(toggle.popup);
+    let mut opened = None;
+    for (at, toggle) in toggles.iter().enumerate() {
+        let popup = toggle.handle(owner);
         let part = toggle.part;
         let named = |request: &craft_behavior::AccessRequest| {
             request.target == Some(part) && matches!(request.action, craft_behavior::AccessAction::Expand | craft_behavior::AccessAction::Collapse)
@@ -628,29 +702,58 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
         while let Some(request) = cx.core.intents.take_access_where(named) {
             if request.action == craft_behavior::AccessAction::Expand {
                 popup.open(cx);
+                opened = Some(at);
             } else {
                 popup.close(cx);
             }
             handled = true;
         }
-        if cx.core.results.get(&(part.key, part.index)).is_some_and(|result| result.press.phase.is_click()) {
+        let phase = cx.core.results.get(&(part.key, part.index)).map(|result| result.press.phase);
+        let on_press = toggle.decl.on_press;
+        let toggled = match phase {
+            Some(phase) if on_press => cx.core.memory.shown::<super::SeenPress>(sub(popup.id, "press")).began(&phase),
+            Some(phase) => phase.is_click(),
+            None => false,
+        };
+        if toggled {
+            popup.registered(cx);
+            if !popup.is_open(cx) {
+                opened = Some(at);
+            }
             queue(&cx.core.ctx, popup.id, OpenOp::Toggle);
             handled = true;
-            // The toggling part took the click: the root's pointer activation of it is not a second toggle.
-            if cx.core.activation.is_some_and(|activation| !activation.by_key) {
-                cx.core.activation = None;
+        }
+        if on_press
+            && let Some(PressPhase::Release { click: false, .. }) = phase
+            && popup.is_open(cx)
+        {
+            // The press that opened the popup ended away from the part: a row under the pointer is picked.
+            if let Some(at) = pointer::frame(&cx.core.ctx).pos {
+                overlay::note_dragged_release(&cx.core.ctx, popup.id, at);
             }
+        }
+        // The toggling part took the click, or took its press: the root's pointer activation is not a second toggle.
+        if (toggled || (on_press && phase.is_some_and(|phase| phase.is_click()))) && cx.core.activation.is_some_and(|activation| !activation.by_key) {
+            cx.core.activation = None;
         }
     }
     let mut open = Vec::with_capacity(toggles.len());
     for toggle in &toggles {
-        let popup = cx.popup(toggle.popup);
-        open.push(popup.is_open(cx));
+        open.push(toggle.handle(owner).is_open(cx));
+    }
+    if let Some(keeper) = opened {
+        // Opening one popup closes the others.
+        for (at, toggle) in toggles.iter().enumerate() {
+            if at != keeper && open[at] {
+                toggle.handle(owner).close(cx);
+                open[at] = false;
+            }
+        }
     }
     if open.contains(&true) {
         if cx.core.intents.take(Intent::Close) {
             for (toggle, _) in toggles.iter().zip(&open).filter(|(_, open)| **open) {
-                cx.popup(toggle.popup).close(cx);
+                toggle.handle(owner).close(cx);
             }
         }
         // An open popup keeps Alt+Down: nothing opens beside it.
@@ -658,11 +761,11 @@ pub(crate) fn drive_toggles<C: Component>(cx: &mut Cx<'_, C>) {
     } else if cx.core.intents.take(Intent::Open) && !handled {
         let target = active.and_then(|part| toggles.iter().find(|toggle| toggle.part == part)).or(toggles.first());
         if let Some(toggle) = target {
-            cx.popup(toggle.popup).open(cx);
+            toggle.handle(owner).open(cx);
         }
     }
     for toggle in &mut toggles {
-        toggle.open = cx.popup(toggle.popup).is_open(cx);
+        toggle.open = toggle.handle(owner).is_open(cx);
     }
     cx.core.toggles = toggles;
 }
@@ -671,6 +774,7 @@ impl PopupHandle {
     /// Toggles or opens the popup from `trigger` at step 9, as the pass's pending open change.
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
+        self.registered(cx);
         let core = &mut cx.core;
         let ctx = core.ctx.clone();
         let resting = core.response.hovered() || core.focus.visible;
@@ -717,18 +821,21 @@ impl PopupHandle {
     /// Queues an open that step 15 writes. For `Trigger::Manual` this and the binding are the only ways it opens.
     pub fn open<C: Component>(self, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
+        self.registered(cx);
         queue(&cx.core.ctx, self.id, OpenOp::Open);
     }
 
     /// Queues a close; step 15 writes the slot, so this pass still shows the popup open.
     pub fn close<C: Component>(self, cx: &mut Cx<'_, C>) {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
+        self.registered(cx);
         queue(&cx.core.ctx, self.id, OpenOp::Close);
     }
 
     /// Whether the popup is open in this pass: valid from step 8, with the changes queued so far applied.
     pub fn is_open<C: Component>(self, cx: &mut Cx<'_, C>) -> bool {
         debug_assert!(C::OVERLAYS, "`{}` hosts a popup but sets `OVERLAYS = false`", std::any::type_name::<C>());
+        self.registered(cx);
         open_now(cx.core.memory, self.id)
     }
 }
@@ -756,12 +863,32 @@ pub struct OverlayUi<'a> {
     pub(crate) open: HashMap<Id, bool>,
     /// Popups whose dismissal or body request was decided in this pass; step 15 writes their slots.
     pub(crate) closed: Vec<(Id, CloseReason)>,
+    /// The rects of the owner's toggling parts, in the owner's layer space.
+    pub(crate) parts: Vec<(PartRef, Rect)>,
 }
 
 impl<'a> OverlayUi<'a> {
-    pub(crate) fn new(ctx: &'a Context, owner: Id, anchor: Rect, ui: &Ui, resolved: &'a Resolved<'a>, env: Env, open: HashMap<Id, bool>) -> Self {
+    pub(crate) fn new(
+        ctx: &'a Context,
+        owner: Id,
+        anchor: Rect,
+        ui: &Ui,
+        resolved: &'a Resolved<'a>,
+        env: Env,
+        open: HashMap<Id, bool>,
+        parts: Vec<(PartRef, Rect)>,
+    ) -> Self {
         let to_screen = areas::layer_to_screen(ctx, ui.layer_id());
-        OverlayUi { ctx, owner, anchor, to_screen, resolved, env, open, closed: Vec::new() }
+        OverlayUi { ctx, owner, anchor, to_screen, resolved, env, open, closed: Vec::new(), parts }
+    }
+
+    /// The anchor at the rect of the toggling part `part` of the owner. The layer's placement mirrors the side and
+    /// alignment of an anchor in a right-to-left layout, so the same call serves both directions.
+    pub fn anchor_part(&self, part: impl Into<PartRef>) -> Anchor {
+        let part = part.into();
+        let rect = self.parts.iter().find(|(declared, _)| *declared == part).map(|(_, rect)| *rect);
+        debug_assert!(rect.is_some(), "`anchor_part` names a part that declared `toggles`");
+        Anchor::Rect(rect.unwrap_or(self.anchor))
     }
 
     /// Shows the popup while its handle is open; the content is a body closure. `None` while closed.
@@ -1164,4 +1291,94 @@ fn paint_cursor(ctx: &Context) {
         arm: env.tokens.size.icon.sm,
     };
     areas::paint_cursor(ctx, at, &cursor, ink);
+}
+
+/// Open state a container with no `open` binding keeps in its opener's slot, and the readers of a popup's frame.
+#[derive(Clone, Copy, Default)]
+struct OpenerOpen {
+    open: bool,
+    /// The root frame the opener's trigger was last applied in: a frame's passes apply it once.
+    applied: u64,
+}
+
+/// The open state of a container with no binding: the opener's slot, with the opener's trigger applied once for the
+/// frame. A container with no opener keeps its own slot.
+pub(crate) fn opener_open(stage: &mut MemoryStage, opener: &Opener) -> bool {
+    let frame = crate::runtime::egui::pass::root_frame_nr(stage.ctx());
+    let slot = stage.session::<OpenerOpen>(sub(opener.id, "opens"));
+    if opener.fired && slot.applied != frame {
+        slot.open = !slot.open;
+    }
+    if opener.fired {
+        slot.applied = frame;
+    }
+    slot.open
+}
+
+/// Writes the opener's slot: the container closed itself (Escape, a press outside, a row ran).
+pub(crate) fn set_opener_open(stage: &mut MemoryStage, opener: &Opener, open: bool) {
+    stage.session::<OpenerOpen>(sub(opener.id, "opens")).open = open;
+}
+
+/// Whether `part` is one of the `toggles` parts `toggles` lists with a sub-node in `nodes`: the sub-node reports the
+/// popup state and serves Expand and Collapse, and the component's own node does not. A toggling part that is the
+/// whole face of the component has no sub-node and leaves them to the root.
+pub(crate) fn has_toggle_nodes(toggles: &[super::cx::Toggle], nodes: &[crate::runtime::access::SubNode]) -> bool {
+    nodes.iter().any(|node| toggles.iter().any(|toggle| toggle.part == node.part))
+}
+
+/// The open state of a container's layer that has an opener and no binding, driven from the opener's side.
+pub struct Popup;
+
+impl Popup {
+    /// Opens the container hung from `opener` (a [`PopupHandle`] or the id of the opener's response).
+    pub fn open<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>) {
+        Self::write(opener.into(), cx, Some(true));
+    }
+
+    /// Closes the container hung from `opener`.
+    pub fn close<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>) {
+        Self::write(opener.into(), cx, Some(false));
+    }
+
+    /// Opens the container hung from `opener` when it is closed, else closes it.
+    pub fn toggle<C: Component>(opener: impl Into<Id>, cx: &mut Cx<'_, C>) {
+        Self::write(opener.into(), cx, None);
+    }
+
+    fn write<C: Component>(opener: Id, cx: &mut Cx<'_, C>, to: Option<bool>) {
+        let slot = cx.core.memory.session::<OpenerOpen>(sub(opener, "opens"));
+        slot.open = to.unwrap_or(!slot.open);
+        frame::request_repaint(&cx.core.ctx);
+    }
+
+    /// Whether the layer `popup` shows first in this pass: true in the passes of the frame it first shows, false
+    /// in the frames after, so what a body resets on opening resets once.
+    pub fn opening<C: Component>(popup: PopupHandle, cx: &Cx<'_, C>) -> bool {
+        overlay::opening(&cx.core.ctx, popup.id)
+    }
+}
+
+impl From<PopupHandle> for Id {
+    fn from(popup: PopupHandle) -> Id {
+        popup.id
+    }
+}
+
+impl<C: Component> Cx<'_, C> {
+    /// This activation runs but does not close the layer chain it happened in (`Dismiss::on_activate`).
+    pub fn keep_open(&mut self) {
+        self.core.keep_open = true;
+    }
+
+    /// Injects an activation for this component, from `source`: the pipeline runs its bound command with that
+    /// source, reports it to `Component::activated` readers and closes the layer chain as for a click.
+    pub fn activate(&mut self, source: FireSource) {
+        self.core.injected = Some(source);
+    }
+
+    /// The modifiers held this frame, Alt alone included.
+    pub fn modifiers(&self) -> Mods {
+        pointer::frame(&self.core.ctx).mods
+    }
 }
