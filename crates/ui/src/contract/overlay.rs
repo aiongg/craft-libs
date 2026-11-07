@@ -1394,19 +1394,6 @@ fn escape(ctx: &Context, layer: &Layer<'_>, scope: Option<FocusPolicy>, inside: 
 /// service settled on. The end hook calls it once per pass, popup or no popup.
 pub fn paint_frame_layers(ctx: &Context) {
     super::ghost::paint(ctx);
-    paint_cursor(ctx);
-}
-
-fn paint_cursor(ctx: &Context) {
-    let Some(at) = areas::pointer_pos(ctx) else { return };
-    let Some(craft_behavior::Cursor::Painted(cursor)) = crate::runtime::cursor::current(ctx) else { return };
-    let Some(env) = Env::root_of(ctx) else { return };
-    let ink = areas::CursorInk {
-        color: crate::style::ink_color(&env.tokens, crate::style::Ink::OnDark),
-        width: crate::style::rule_look(&env.tokens, crate::style::RuleKind::Edge).width,
-        arm: env.tokens.size.icon.sm,
-    };
-    areas::paint_cursor(ctx, at, &cursor, ink);
 }
 
 /// Open state a container with no `open` binding keeps in its opener's slot, and the readers of a popup's frame.

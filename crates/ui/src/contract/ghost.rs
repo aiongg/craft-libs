@@ -30,8 +30,7 @@ pub(crate) fn painter(ctx: &Context) -> egui::Painter {
     areas::ghost_painter(ctx)
 }
 
-/// The painted pointer. A circle or crosshair is painted by the overlay host (`areas::paint_cursor`); the others are
-/// here, where the primitives that draw icons are reachable.
+/// The painted pointer the cursor service settled on. The hand shows its fist while the primary button is held.
 fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
     use craft_behavior::{Cursor, PaintedCursor};
     let Some(at) = areas::pointer_pos(ctx) else { return };
@@ -44,9 +43,13 @@ fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
         halo: crate::style::rgba_color(overlay.halo),
         thin: env.tokens.stroke.thin,
     };
+    let ink = crate::style::ink_color(&env.tokens, Ink::OnDark);
+    let edge = crate::style::rule_look(&env.tokens, RuleKind::Edge).width;
     match &cursor {
         PaintedCursor::Outline { rings, .. } => pointers::outline(&pen, rings),
-        PaintedCursor::Hand => pointers::hand(&pen),
+        PaintedCursor::Circle { radius, .. } => pointers::circle(&pen, *radius, edge, ink),
+        PaintedCursor::Crosshair => pointers::crosshair(&pen, env.tokens.size.icon.sm, edge, ink),
+        PaintedCursor::Hand => pointers::hand(&pen, pointer::frame(ctx).buttons.contains(craft_behavior::Buttons::PRIMARY)),
         PaintedCursor::Zoom { out, .. } => pointers::zoom(&pen, *out),
         PaintedCursor::Tool { icon, hotspot, badge, .. } => {
             let record = RefCell::new(PaintRecord::default());
@@ -57,7 +60,7 @@ fn paint_pointer(ctx: &Context, env: &Env, painter: &egui::Painter) {
         PaintedCursor::Turn { toward, .. } => pointers::turn(&pen, *toward),
         PaintedCursor::Distort { dir, .. } => pointers::distort(&pen, *dir),
         PaintedCursor::Skew { dir, .. } => pointers::skew(&pen, *dir),
-        // `Hidden` paints nothing; a circle and a crosshair are the overlay host's.
+        // `Hidden` paints nothing.
         _ => {}
     }
 }
