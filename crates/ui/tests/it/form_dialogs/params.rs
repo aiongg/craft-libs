@@ -1,7 +1,7 @@
 //! The parameter model: the spec-string parser, kinds, defaults and fit rules, row conditions, the value store, and
 //! the rows' use of a bound value.
 
-use craft_ui::contract::{Bind, ShowContainer as _};
+use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, NumberUnit, Param, ParamKind, ParamRows, open_fields};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
@@ -23,7 +23,7 @@ fn the_registry_notation_parses_into_params() {
     assert_eq!(params[4].label.as_str(), "Cell Size");
 
     assert_eq!(params[0].kind, ParamKind::range(0.1, 1000.0, 1.0, SliderScale::Log));
-    let ParamKind::Choice { options, default } = &params[1].kind else { panic!("a choice") };
+    let ParamKind::Choice { options, default, .. } = &params[1].kind else { panic!("a choice") };
     assert_eq!(options.iter().map(|(id, label)| (id.as_str(), label.as_str())).collect::<Vec<_>>(), [("spin", "Spin"), ("zoom", "Zoom")]);
     assert_eq!(default.as_deref(), Some("zoom"));
     assert_eq!(params[3].kind, ParamKind::int(None, None, 0));
