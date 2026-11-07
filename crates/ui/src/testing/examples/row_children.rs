@@ -226,6 +226,11 @@ fn band(flow: &Flow, row: Rect, at: f32, length: f32) -> Rect {
     Rect::from_min_max(Pos2::new(span.left(), row.top()), Pos2::new(span.right(), row.bottom()))
 }
 
+/// The name band: at least `NAME_IN_HEIGHTS` control heights, wider when the name's text needs it.
+fn name_width(text: f32, style: &LayerRowStyle) -> f32 {
+    (NAME_IN_HEIGHTS * style.height).max(text + 2.0 * style.pad)
+}
+
 impl Component for LayerRow<'_> {
     const ROLE: Role = Role::TREE_ITEM;
     type Style = LayerRowStyle;
@@ -243,7 +248,8 @@ impl Component for LayerRow<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let height = cx.style.height;
         let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
-        Vec2::new((indent + NAME_IN_HEIGHTS + 1.0 + SELECT_IN_HEIGHTS) * height, height)
+        let name = name_width(cx.layout(&crate::primitives::TextRun::new(self.layer.name.as_str())).size().x, cx.style);
+        Vec2::new((indent + 1.0 + SELECT_IN_HEIGHTS) * height + name, height)
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -252,12 +258,13 @@ impl Component for LayerRow<'_> {
         let row = cx.rect;
         let flow = Flow::new(row, rtl);
         let start = self.layer.depth as f32 * INDENT_IN_HEIGHTS * height;
-        let name = band(&flow, row, start, NAME_IN_HEIGHTS * height);
-        ui.draw()
-            .text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &crate::primitives::TextRun::new(self.layer.name.as_str()).elide());
-        let switch = band(&flow, row, start + NAME_IN_HEIGHTS * height, height);
+        let run = crate::primitives::TextRun::new(self.layer.name.as_str());
+        let name_width = name_width(ui.draw().layout(&run, f32::INFINITY).size().x, cx.style);
+        let name = band(&flow, row, start, name_width);
+        ui.draw().text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &run.elide());
+        let switch = band(&flow, row, start + name_width, height);
         ui.child("visible", switch, Switch::new(Bind::kept()).label("Visible"));
-        let select = band(&flow, row, start + (NAME_IN_HEIGHTS + 1.0) * height, SELECT_IN_HEIGHTS * height);
+        let select = band(&flow, row, start + name_width + height, SELECT_IN_HEIGHTS * height);
         ui.child("blend", select, Select::new("Blend mode", Bind::kept(), self.modes));
     }
 
