@@ -18,7 +18,7 @@ use crate::contract::{
 use crate::list::{List, ListRow};
 use crate::menu::Menu;
 use crate::runtime::env::Label;
-use crate::runtime::focus::FocusPolicy;
+use crate::runtime::focus::{self, FocusTarget};
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
@@ -217,16 +217,18 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let held = self.position(cx.value());
         let (searchable, dress) = (self.searchable, self.decorate.as_ref());
         let mut header_menu = self.header_menu.as_mut();
-        // A filter field needs the key focus, so its popup takes focus in; the others leave it on the field.
-        let overlay = if searchable { Overlay::dropdown().focus(FocusPolicy::POPUP) } else { Overlay::dropdown() };
-        let events = ui.show(popup, overlay, |ui, body| {
+        let events = ui.show(popup, Overlay::dropdown(), |ui, body| {
             let mut query = String::new();
             if searchable || header_menu.is_some() {
                 ui.horizontal(|ui| {
                     if searchable {
                         let typed = body.memory::<Query>();
-                        TextField::search(search_name(&words, &name), Bind::bound(&mut typed.0)).show(ui);
+                        let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.0)).show(ui);
                         query.clone_from(&typed.0);
+                        // The dropdown leaves the key focus on the select; the filter field takes it so typing reaches it.
+                        if Popup::opening(popup, cx) {
+                            focus::request(ui.ctx(), FocusTarget::Id(field.response.id));
+                        }
                     }
                     if let Some(rows) = header_menu.as_mut() {
                         let more = IconButton::new(IconId::new(HEADER_MENU_ICON)).label(words.header_menu.clone()).show(ui);
