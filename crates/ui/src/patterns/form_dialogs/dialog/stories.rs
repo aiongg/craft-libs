@@ -1,7 +1,7 @@
 //! Stories of `ParamDialog`.
 
 use super::{ParamDialog, ParamLayout};
-use crate::contract::{Bind, Props as _, Show as _};
+use crate::contract::Bind;
 use crate::patterns::form_dialogs::Param;
 use crate::primitives::TextureCache;
 use crate::testing::{Drive, StoryData, StoryOutput, story};

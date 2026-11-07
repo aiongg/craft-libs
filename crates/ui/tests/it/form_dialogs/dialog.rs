@@ -9,7 +9,7 @@ use egui::Vec2;
 const PICTURE: Vec2 = Vec2::new(400.0, 300.0);
 const WELL: Vec2 = Vec2::new(200.0, 200.0);
 const START: Vec2 = Vec2::new(10.0, -20.0);
-const STEPPED: Vec2 = STEPPED;
+const STEPPED: Vec2 = Vec2::new(15.0, -30.0);
 const FAR: Vec2 = Vec2::new(5000.0, -5000.0);
 
 /// Zoom moves one level at a time, keeps the picture's centre where it is on the screen and stops at the ends.
