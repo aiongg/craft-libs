@@ -254,3 +254,25 @@ fn a_number_field_scrubs_by_its_label() {
     let scrubbed = value.borrow().unwrap_or_default();
     assert!((scrubbed - SCRUB_START - f64::from(DRAG)).abs() < ROUNDING, "a drag on the label scrubs by its length: {scrubbed}");
 }
+
+/// A value set from outside while a draft is open ends the run: the field shows the new value at once and Enter
+/// commits that value, not the draft.
+#[trial]
+fn a_value_set_outside_ends_the_typing_run() {
+    let value = std::rc::Rc::new(std::cell::RefCell::new(Some(1.0f64)));
+    let shown = value.clone();
+    let mut fixture = craft_ui::testing::Fixture::new(move |ui| {
+        NumberField::new("Size", Bind::bound(&mut *shown.borrow_mut())).show(ui);
+    });
+    fixture.settle();
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("12");
+    fixture.idle(1);
+    *value.borrow_mut() = Some(7.0);
+    fixture.idle(1);
+    assert!(fixture.texts().iter().any(|run| run.text.contains('7')), "the new value shows in the next pass");
+    assert!(fixture.texts().iter().all(|run| !run.text.contains("12")), "the stale draft is gone");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    fixture.idle(3);
+    assert_eq!(*value.borrow(), Some(7.0), "Enter commits the value that was set, not the draft");
+}

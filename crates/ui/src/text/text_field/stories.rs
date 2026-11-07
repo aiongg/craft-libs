@@ -1,11 +1,11 @@
-//! Stories of the text family: `TextField<PlainText>` and `SelectableText`.
+//! Stories of `TextField`.
 
-use super::{SelectableText, TextField};
+use super::TextField;
 use crate::contract::{Bind, Props as _, Show as _, Validity};
-use crate::primitives::{Completer, Completion};
+use crate::primitives::{Completer, Completion, IconSpec};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
-use craft_behavior::{Mixed, PlainText};
+use craft_behavior::{IconId, Mixed, PlainText};
 use egui::{Key, Modifiers, Ui};
 use std::ops::Range;
 
@@ -71,17 +71,16 @@ fn text_field_open(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     TextField::new("Name", Bind::given(String::new())).complete(Prefixes).show(ui).into()
 }
 
-#[story(SelectableText<'static>, covers = [Default], drive = Drive::Never)]
-fn selectable_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SelectableText::new("Path", "/projects/poster.indd").show(ui).into()
-}
-
-#[story(SelectableText<'static>, covers = [LongText], drive = Drive::Never)]
-fn selectable_text_long(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    SelectableText::new("Path", LONG).show(ui).into()
-}
-
 #[story(TextField<'static, PlainText>, covers = [], drive = Drive::Never)]
 fn text_field_search_filled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     TextField::search("Search", Bind::bound(data.value("filled", "poster".to_owned()))).placeholder("Search").show(ui).into()
+}
+
+#[story(TextField<'static, PlainText>, covers = [], drive = Drive::Never)]
+fn text_field_adorned(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    TextField::new("Font", Bind::bound(data.value("font", "Inter".to_owned())))
+        .leading(IconSpec::svg(IconId::new("search")))
+        .trailing_arrow()
+        .show(ui)
+        .into()
 }

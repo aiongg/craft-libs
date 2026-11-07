@@ -46,7 +46,7 @@ pub struct TextOptions {
     pub mask: bool,
     /// A parsable draft applies as typed whatever the codec says.
     pub live: bool,
-    /// Escape clears a non-empty draft before it restores.
+    /// Escape clears the text and commits the empty text while text shows, and goes on to the host once it is empty.
     pub clear_on_escape: bool,
     /// Monospace text.
     pub mono: bool,

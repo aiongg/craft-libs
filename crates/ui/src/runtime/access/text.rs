@@ -41,9 +41,9 @@ pub(crate) struct TextFacts {
     pub widget: Id,
     /// The component's name, which names the widget's node.
     pub name: String,
-    /// The whole text, for the node's value.
+    /// The whole text, for the node's value (not exposed while masked).
     pub text: String,
-    /// A password: the value is dots and no runs are exposed.
+    /// A password: the node carries no value and exposes no runs.
     pub masked: bool,
     pub editable: bool,
     pub lines: Vec<Line>,
@@ -113,8 +113,8 @@ pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
         let (focus_node, focus_at) = end_of(&entries, owner, focus)?;
         Some((anchor_node, anchor_at, focus_node, focus_at))
     });
-    let value = if facts.masked { "\u{2022}".repeat(facts.text.chars().count()) } else { facts.text.clone() };
-    adapter::write_text(ctx, owner, &TextNode { value: &value, editable: facts.editable, selection });
+    let value = (!facts.masked).then_some(facts.text.as_str());
+    adapter::write_text(ctx, owner, &TextNode { value, editable: facts.editable, selection });
     Service::<Tables>::run(ctx, |tables| tables.0.insert(owner, entries));
 }
 

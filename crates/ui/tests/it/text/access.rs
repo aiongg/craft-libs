@@ -6,10 +6,11 @@ use craft_ui::testing::access::{Declared, NodeKey};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;
 use craft_ui::testing::text::{caret, run_end, run_node, set_value_request, text_selection_request};
-use craft_ui::testing::{Frames, trial};
-use craft_ui::text::{NumberField, SelectableText};
+use craft_ui::testing::{Fixture, Frames, trial};
+use craft_ui::text::{NumberField, SelectableText, TextField};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 /// The value a refused commit leaves.
 const KEPT: f64 = 1.0;
@@ -50,6 +51,20 @@ fn a_text_field_reports_value_and_selection_and_serves_set_value_and_set_text_se
     rig.frame(vec![set_value_request(id, "world")]);
     rig.idle(2);
     assert_eq!(rig.text, "world", "SetValue replaces the value");
+}
+
+/// A masked field's node carries no value, where the same field unmasked carries its text.
+#[trial]
+fn a_masked_field_exposes_no_value() {
+    let (open, masked) = (Rc::new(Cell::new(egui::Id::NULL)), Rc::new(Cell::new(egui::Id::NULL)));
+    let (plain, hidden) = (open.clone(), masked.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        plain.set(TextField::new("Name", Bind::given("secret".to_owned())).id_salt("name").show(ui).response.id);
+        hidden.set(TextField::new("Password", Bind::given("secret".to_owned())).id_salt("password").masked().show(ui).response.id);
+    });
+    fixture.settle();
+    assert_eq!(fixture.tree().value(open.get()), Some("secret"));
+    assert_eq!(fixture.tree().value(masked.get()), None, "a masked node has no value to read out");
 }
 
 /// A rejected draft marks the field invalid until the run ends; Escape restores the value and clears the mark.

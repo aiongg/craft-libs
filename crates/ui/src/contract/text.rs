@@ -36,6 +36,40 @@ pub(crate) struct TextDecl {
     pub caret: Caret,
     /// A `Resolve<V>` for the component's value type: the typing run, run once the adapter has recorded the pass.
     pub resolve: Box<dyn Any>,
+    pub values: ValueOps,
+}
+
+/// What the typing run does with the component's value, written once for its type: the run keeps the value it last
+/// showed, and a different one at the next pass was set outside the run.
+#[derive(Clone, Copy)]
+pub(crate) struct ValueOps {
+    /// Ends the run when the value is not the one the run last showed.
+    resync: fn(&mut TextState, Option<&dyn Any>),
+    /// Records the value the run shows from now on.
+    note: fn(&mut TextState, Option<&dyn Any>),
+}
+
+impl ValueOps {
+    fn of<V: Clone + PartialEq + Send + Sync + 'static>() -> ValueOps {
+        ValueOps {
+            resync: |state, value| {
+                let value = value.and_then(|value| value.downcast_ref::<V>());
+                let seen = state.seen.as_ref().and_then(|seen| seen.downcast_ref::<V>());
+                if let (Some(seen), Some(value)) = (seen, value)
+                    && seen != value
+                {
+                    state.draft = None;
+                    state.start = None;
+                    state.normalised = None;
+                    state.dirty = false;
+                    state.invalid = false;
+                }
+            },
+            note: |state, value| {
+                state.seen = value.and_then(|value| value.downcast_ref::<V>()).map(|value| Arc::new(value.clone()) as Arc<dyn Any + Send + Sync>);
+            },
+        }
+    }
 }
 
 enum TextEvent<V> {
@@ -68,7 +102,7 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
             typing = typing.limit(limit);
         }
         if clear_on_escape {
-            typing = typing.escape_rule(EscapeRule::ClearThenRestore);
+            typing = typing.escape_rule(EscapeRule::Clear);
         }
         let started = state.start.as_ref().and_then(|start| start.downcast_ref::<K::Value>()).cloned();
         let mut run = EditRun::new(started.unwrap_or_else(|| value.clone()));
@@ -94,9 +128,16 @@ fn resolver<K: Codec + Clone + 'static>(codec: K, options: &TextOptions, rect: R
         match end {
             Some(End::Escape) => {
                 escaped = true;
+                if clear_on_escape && !run.is_open() {
+                    let start = run.start.clone();
+                    typing.open(&mut run, &start);
+                }
                 match typing.escape(&mut run) {
                     Escaped::Restore(_) => events.push(TextEvent::Cancel(CancelReason::Escape)),
-                    Escaped::Cleared => state.dirty = true,
+                    Escaped::Cleared(cleared) => {
+                        state.normalised = Some(typing.codec().normalise("", &cleared));
+                        events.push(TextEvent::Commit(cleared));
+                    }
                     _ => {}
                 }
             }
@@ -145,6 +186,7 @@ impl<C: Component> PartsCx<'_, C> {
             shown,
             options: options.clone(),
             resolve: Box::new(resolver(codec.clone(), options, rect, value.clone())),
+            values: ValueOps::of::<K::Value>(),
         });
     }
 }
@@ -205,19 +247,21 @@ fn drive_completions<C: Component>(cx: &mut Cx<'_, C>, state: &mut TextState) {
 }
 
 /// Applies the typing run's events to the component's value: a parsed draft reaches the binding in the pass it is
-/// typed, and a commit proposes and commits in one pass.
-fn apply_events<C: Component>(cx: &mut Cx<'_, C>, events: Vec<TextEvent<ValueOf<C>>>) {
+/// typed, and a commit proposes and commits in one pass. Returns whether a commit changed the value, after the
+/// parts of this pass were declared.
+fn apply_events<C: Component>(cx: &mut Cx<'_, C>, events: Vec<TextEvent<ValueOf<C>>>) -> bool {
     let id = cx.core.id;
+    let mut committed = false;
     for event in events {
         let running = cx.core.memory.recall::<Gesture<ValueOf<C>>>(gesture_key(id)).is_running();
         match event {
             TextEvent::Propose(value) => cx.propose(value),
-            TextEvent::Commit(value) if running => {
-                cx.propose(value);
-                cx.commit();
-            }
             TextEvent::Commit(value) => {
-                if cx.value() != Some(&value) {
+                committed |= cx.value() != Some(&value);
+                if running {
+                    cx.propose(value);
+                    cx.commit();
+                } else if cx.value() != Some(&value) {
                     cx.set(value);
                 }
             }
@@ -225,6 +269,7 @@ fn apply_events<C: Component>(cx: &mut Cx<'_, C>, events: Vec<TextEvent<ValueOf<
             TextEvent::Cancel(_) => {}
         }
     }
+    committed
 }
 
 /// Step 8b: runs the text adapter at the part's rect, then the typing run over what it recorded, and applies the
@@ -247,6 +292,7 @@ pub(crate) fn run<C: Component>(
     let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
     let state_id = state_id(id);
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
+    (decl.values.resync)(&mut state, cx.value().map(|value| value as &dyn Any));
     let widget = adapter::text_id(id, decl.key);
     let focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
     let was_focused = state.focused;
@@ -299,7 +345,7 @@ pub(crate) fn run<C: Component>(
     let resolved = resolve(&mut state, cx.value(), commit_now);
     facts(cx, &mut state, widget, &out, decl.rect, decl.options.mask, read_only);
     cx.core.text_invalid = state.invalid;
-    if state.draft.is_some() {
+    if state.draft.is_some() || (decl.options.clear_on_escape && !out.layout.full.is_empty()) {
         keys::hold_escape(&ctx, id);
     }
     let (completions, completion_index) = (state.completions.items.clone(), state.completions.index);
@@ -311,7 +357,12 @@ pub(crate) fn run<C: Component>(
     outcome.completions = completions;
     outcome.completion_index = completion_index;
     cx.core.texts = Some((decl.key, Box::new(outcome)));
-    apply_events(cx, resolved.events);
+    let committed = apply_events(cx, resolved.events);
+    (decl.values.note)(cx.core.memory.shown::<TextState>(state_id), cx.shown.as_deref().map(|value| value as &dyn Any));
+    // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.
+    if committed {
+        crate::runtime::egui::sizing::request_discard(&ctx, "craft_ui: a text commit changed the value");
+    }
     cx.core.submitted |= resolved.submitted;
     cx.core.escaped |= resolved.escaped;
 }
