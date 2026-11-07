@@ -228,17 +228,20 @@ fn a_list_with_one_tab_stop_moves_its_lead_and_selects() {
     frames.frame(vec![Event::Text("c".into())], &mut show);
     assert_eq!(last(&seen), 4, "type-ahead picks the word starting with the letter");
 
-    assert!(selection.borrow().items.is_empty(), "moving the lead selects nothing");
+    assert_eq!(selection.borrow().items, vec![4], "arrows, Home, End, Page and type-ahead move the selection with the lead");
+    press(&mut frames, Key::ArrowUp, Modifiers::COMMAND, &mut show);
+    assert_eq!((selection.borrow().items.clone(), last(&seen)), (vec![4], 3), "Ctrl moves only the lead");
     press(&mut frames, Key::Space, Modifiers::NONE, &mut show);
-    assert_eq!(selection.borrow().items, vec![4], "Space toggles the lead");
+    let mut items = selection.borrow().items.clone();
+    items.sort_unstable();
+    assert_eq!(items, vec![3, 4], "Space toggles the lead");
     press(&mut frames, Key::ArrowUp, Modifiers::SHIFT, &mut show);
     press(&mut frames, Key::ArrowUp, Modifiers::SHIFT, &mut show);
     let mut items = selection.borrow().items.clone();
     items.sort_unstable();
-    assert_eq!(items, vec![2, 3, 4], "Shift extends from the anchor");
-    press(&mut frames, Key::ArrowUp, Modifiers::COMMAND, &mut show);
-    assert_eq!(selection.borrow().items.len(), 3, "Ctrl moves the lead and keeps the selection");
-    assert_eq!(last(&seen), 1);
+    assert_eq!(items, vec![1, 2, 3], "Shift extends from the anchor");
+    press(&mut frames, Key::ArrowDown, Modifiers::NONE, &mut show);
+    assert_eq!((selection.borrow().items.clone(), last(&seen)), (vec![2], 2), "a plain arrow replaces the range");
     assert!(seen.selections().len() >= 3);
 }
 

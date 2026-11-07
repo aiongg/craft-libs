@@ -287,7 +287,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         {
             self.lead.key = None;
             if len > 0 {
-                self.move_lead(self.lead.at.min(len - 1));
+                let to = self.lead.at.min(len - 1);
+                self.move_lead(to);
+                if self.selection.contains(&key) {
+                    self.pick(comp, to, false, false);
+                }
             }
         } else if let Some(at) = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)) {
             self.lead.at = at;
@@ -337,6 +341,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     if mods.extend && matches!(mode, SelectMode::Multi | SelectMode::Cells) {
                         let anchor = state.anchor.unwrap_or(to);
                         self.change(SelectionChange::Set(self.range(anchor, to)));
+                    } else if !mods.lead && !mods.extend {
+                        self.pick(comp, to, false, false);
                     }
                     self.reveal_with(&layout, to, view);
                 }
@@ -398,6 +404,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             let from = lead_at;
             if let Some(to) = TypeAhead::pick(&prefix, from, len, |at| labels[at].as_deref().unwrap_or("")) {
                 self.move_lead(to);
+                self.pick(comp, to, false, false);
                 self.reveal_with(&layout, to, view);
             }
         }
@@ -438,9 +445,16 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         ];
         let extra: Vec<usize> = keep.into_iter().flatten().filter_map(|key| self.source.index_of(key)).filter(|at| !shown.contains(at)).collect();
         let order: Vec<usize> = shown.iter().copied().chain(extra).collect();
+        let command_scope = comp.items().command_scope;
+        if let Some(scope) = command_scope {
+            crate::runtime::commands::register_instance(&ctx, scope, id);
+        }
         let base_env = env.derive(|scoped| {
             scoped.values.extend(values);
             scoped.arena = Some(ArenaId::new(id));
+            if let Some(scope) = command_scope {
+                scoped.commands = scoped.commands.pushed(scope, id);
+            }
         });
         let len = self.source.len();
         let tree = matches!(layout.nav(), craft_behavior::NavShape::Tree);

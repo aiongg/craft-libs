@@ -1,5 +1,6 @@
 //! Chapter 17: collection props, columns, row state and the events and response a collection reports.
 
+use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
 use craft_behavior::{ColumnKey, ColumnWidth, EditEvent, SelectionChange};
 use egui::{Pos2, Response, Vec2};
@@ -145,12 +146,14 @@ pub struct CollectionProps {
     pub columns: Vec<ColumnSpec>,
     /// The text of the empty state.
     pub empty: Option<Label>,
+    /// Commands of this scope reach the collection while focus is in it (11.3).
+    pub command_scope: Option<CommandScope>,
 }
 
 impl CollectionProps {
     /// Collection props with every setting at its default.
     pub const fn new() -> Self {
-        CollectionProps { select: SelectMode::None, reorder: None, rename: false, columns: Vec::new(), empty: None }
+        CollectionProps { select: SelectMode::None, reorder: None, rename: false, columns: Vec::new(), empty: None, command_scope: None }
     }
 
     /// What can be selected.
@@ -178,6 +181,13 @@ impl CollectionProps {
     #[must_use]
     pub fn columns(mut self, columns: Vec<ColumnSpec>) -> Self {
         self.columns = columns;
+        self
+    }
+
+    /// Commands of `scope` route to this collection.
+    #[must_use]
+    pub const fn command_scope(mut self, scope: CommandScope) -> Self {
+        self.command_scope = Some(scope);
         self
     }
 
