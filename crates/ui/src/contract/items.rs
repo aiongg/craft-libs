@@ -328,7 +328,6 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         if self.lead.key.is_none() {
             self.lead.key = self.selection.lead().cloned();
         }
-        eprintln!("DIAG read lead={}", self.lead.key.is_some());
         self.renaming = stage.session::<Renaming<C::Key>>(sub(id, "rename")).clone();
         self.last = stage.recall::<View>(sub(id, "view"));
         let scrolled = stage.session::<Scrolled>(sub(id, "scroll")).clone();
@@ -818,7 +817,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         eprintln!("DIAG hover resp={} outcome={} pos={:?} delta={:?} rect={:?}", cx.core.response.hovered(), hovered, frame.pos, frame.delta, rect);
         let Some(pos) = frame.pos.filter(|_| hovered && frame.delta != Vec2::ZERO) else { return };
         let pos = self.xf.map_or(pos, |map| map.to_layer(pos));
-        eprintln!("DIAG hover pos {:?} in {} hit {:?}", pos, rect.contains(pos), layout.hit(pos - rect.min.to_vec2(), offset));
         if !rect.contains(pos) {
             return;
         }
@@ -978,7 +976,6 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 continue;
             }
             let lead = self.lead.key.as_ref().and_then(|key| self.index_of(key));
-            eprintln!("DIAG nav {:?} lead={:?}", mv, lead);
             if let Some(at) = lead.filter(|&at| self.source.section_stop(at))
                 && self.section_move(at, mv, mods)
             {
