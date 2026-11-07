@@ -103,7 +103,7 @@ pub enum DockSpot<P> {
     },
     /// A new dock along the docked area's start or end edge.
     NewDock(DockSide),
-    /// A rect that takes no drop and hides the spots registered below it, such as a canvas that takes none.
+    /// A rect that takes no drop and hides the spots registered before it, such as a canvas that takes none.
     Blocked,
 }
 
@@ -222,14 +222,15 @@ impl<P: Clone> DockTargets<P> {
     }
 
     /// The spot a drop at `at` lands on: among the spots whose rect holds `at`, the highest priority (see
-    /// [`DockSpot`]), then the one added last. `None` where no spot holds `at` and where the winner is
-    /// [`DockSpot::Blocked`].
+    /// [`DockSpot`]), then the one added last. A [`DockSpot::Blocked`] hides the spots added before it, so a rect
+    /// that takes no drop registers after what lies under it. `None` where no spot holds `at` and where the
+    /// winner is `Blocked`.
     fn at(&self, at: Pos2) -> Option<DockSpot<P>> {
-        let winner = self
-            .targets
-            .iter()
-            .enumerate()
-            .filter(|(_, target)| target.rect.contains(at))
+        let hits: Vec<(usize, &Target<P>)> = self.targets.iter().enumerate().filter(|(_, target)| target.rect.contains(at)).collect();
+        let hidden_below = hits.iter().rev().find(|(_, target)| matches!(target.spot, DockSpot::Blocked)).map(|(order, _)| *order);
+        let winner = hits
+            .into_iter()
+            .filter(|(order, _)| hidden_below.is_none_or(|blocked| *order >= blocked))
             .max_by_key(|(order, target)| (target.spot.priority(), *order))?;
         match &winner.1.spot {
             DockSpot::Blocked => None,
