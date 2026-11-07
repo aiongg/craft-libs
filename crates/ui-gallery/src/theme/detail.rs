@@ -135,11 +135,11 @@ fn color(ui: &mut Ui, explained: &Explained, token: TokenRef, origin: &ColorOrig
         facts.show(ui, "Colour facts");
     });
     Section::fixed("Contrast pairs").show(ui, |ui, _| pairs(ui, explained, token));
-    if let Some((ramp, step, toward)) = explained.ramps.steps_of(origin.source) {
+    if let Some((shared, step, toward)) = explained.ramps.steps_of(origin.source) {
         // An anchored token's steps are the ramp moved to its anchor.
         let (title, steps) = match &origin.anchoring {
             Some(anchor) => (format!("Ramp (neutral, anchored on {})", anchor.on.path()), anchor.steps.0),
-            None => (format!("Ramp ({})", ramp_name(origin.source)), ramp.0),
+            None => (format!("Ramp ({})", ramp_name(origin.source)), shared.0),
         };
         Section::fixed(title).show(ui, |ui, _| ramp(ui, &steps, step, toward));
     }

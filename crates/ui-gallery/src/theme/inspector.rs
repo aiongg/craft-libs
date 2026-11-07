@@ -3,7 +3,7 @@
 
 use craft_behavior::{DisplayOrder, IconId, ItemSource, Selection};
 use craft_theme::variant::Tone;
-use craft_ui::contract::{Bind, CollectionEvent, Pattern, Props as _, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
+use craft_ui::contract::{Bind, CollectionEvent, Pattern, Role, SelectMode, Show as _, ShowCollection as _, ShowContainer as _};
 use craft_ui::display::{Shade, Text};
 use craft_ui::layout_components::Stack;
 use craft_ui::list::{List, ListRow};
