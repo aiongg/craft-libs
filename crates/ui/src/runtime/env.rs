@@ -193,6 +193,8 @@ pub struct RootEnv {
     pub scale: Scale,
     /// Whether Tab reaches every control.
     pub tab_all_controls: bool,
+    /// Whether a bare Tab toggles the window's chrome in place of moving focus where the key stage's gate allows it.
+    pub tab_toggles_chrome: bool,
     /// Root app values.
     pub values: AppValues,
     /// Today's date in the host's time zone; the runtime reads no wall clock.
@@ -211,6 +213,7 @@ impl Default for RootEnv {
             density: Size::default(),
             scale: Scale::default(),
             tab_all_controls: true,
+            tab_toggles_chrome: false,
             values: AppValues::default(),
             today: None,
         }
@@ -311,6 +314,8 @@ pub struct Scoped {
     pub(crate) dates: Arc<DateFormat>,
     /// Today's date as the host supplied it.
     pub(crate) today: Option<CalendarDate>,
+    /// `RootEnv::tab_toggles_chrome`.
+    pub(crate) tab_toggles_chrome: bool,
     /// The key of everything above that the style cache depends on.
     pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
@@ -479,6 +484,7 @@ impl Env {
                 format: host_format(ctx, host.as_ref()),
                 dates: host_dates(ctx, host.as_ref()),
                 today: root.today,
+                tab_toggles_chrome: root.tab_toggles_chrome,
                 host,
                 values: root.values.clone(),
             }),
@@ -587,6 +593,11 @@ impl Env {
     /// The root env of the running viewport, once its begin hook ran.
     pub(crate) fn root_of(ctx: &Context) -> Option<Env> {
         PerViewport::<ViewportEnvs>::with(ctx, ctx.viewport_id(), |envs| envs.root.clone())
+    }
+
+    /// The root env `viewport`'s last begin hook installed, for the input hook, which runs before the pass.
+    pub(crate) fn root_for(ctx: &Context, viewport: ViewportId) -> Option<Env> {
+        PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| envs.root.clone())
     }
 
     /// Records `env` as the root env of `viewport`, which `Env::of` falls back to for a `Ui` with no entry above it.

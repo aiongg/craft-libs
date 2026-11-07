@@ -266,7 +266,6 @@ pub(crate) fn request_repaint(ctx: &Context) {
 }
 
 /// Marks the chrome toggle in the next `FrameOutput`.
-#[expect(dead_code, reason = "used by the pipeline (F3)")]
 pub(crate) fn request_chrome_toggle(ctx: &Context) {
     store::with::<FrameState, _>(ctx, |state| state.output.toggle_chrome = true);
 }

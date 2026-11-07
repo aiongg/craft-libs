@@ -46,6 +46,7 @@ mod presets;
 mod prompts;
 mod rails;
 mod runtime;
+mod shell;
 mod sections;
 mod style;
 mod table;
