@@ -1,6 +1,8 @@
 //! Sections and title rows: `TitleRow`, `FooterBar`, `Section` and `GroupBox`.
 
 mod footer;
+#[cfg(feature = "testing")]
+mod stories;
 mod title_row;
 mod words;
 

@@ -1,5 +1,7 @@
 //! Text and number fields: `TextField<C>` and `NumberField` on the text part (18.3).
 
+#[cfg(feature = "testing")]
+mod stories;
 mod words;
 
 use crate::contract::{
@@ -349,6 +351,8 @@ pub struct SelectableStyle {
 
 /// Read-only text the user can focus, select and copy.
 #[derive(crate::contract::Component)]
+#[component(exempt(case = "stories", reason = "Read-only text has no mixed or invalid state."))]
+#[component(exempt(case = "values", reason = "Read-only text has no value a drive can change."))]
 pub struct SelectableText<'a> {
     #[common]
     common: Common,

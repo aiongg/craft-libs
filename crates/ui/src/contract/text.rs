@@ -178,6 +178,8 @@ fn facts<C: Component>(
     let rows = adapter::Rows::of(&out.layout, &out.layout.full, rect.min);
     let text = out.layout.full.clone();
     let selection = text_edit::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
+    let name = cx.core.resolved.label;
+    cx.core.ctx.accesskit_node_builder(widget, |node| node.set_label(name));
     *cx.core.text_access.borrow_mut() = Some(text_access::TextFacts { text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
     state.rows = Some(rows);
 }
@@ -223,6 +225,7 @@ pub(crate) fn run<C: Component>(
             options: &decl.options,
             keys,
             read_only,
+            enabled,
             rtl,
             focused,
             ink,

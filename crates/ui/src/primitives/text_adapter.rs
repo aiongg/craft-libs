@@ -78,6 +78,7 @@ pub(crate) struct AdapterIn<'a> {
     pub options: &'a TextOptions,
     pub keys: KeyUse,
     pub read_only: bool,
+    pub enabled: bool,
     pub rtl: bool,
     /// The text widget holds key focus.
     pub focused: bool,
@@ -242,6 +243,7 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
             rect: input.rect,
             text: &mut display,
             read_only: input.read_only,
+            enabled: input.enabled,
             multiline: input.options.multiline(),
             password: input.options.mask,
             hint: input.placeholder,

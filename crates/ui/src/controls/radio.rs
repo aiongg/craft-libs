@@ -45,7 +45,6 @@ pub struct GroupStyle {
 /// A group of radio buttons over one value: one Tab stop, arrows move focus, Space, Enter or a click selects.
 #[derive(crate::contract::Component)]
 #[component(container, probe(RadioGroup<'static, u8>))]
-#[component(exempt(case = "stories", reason = "The controls family writes the radio stories."))]
 pub struct RadioGroup<'a, T: Value + 'static> {
     #[common]
     common: Common,
@@ -121,7 +120,6 @@ pub struct RadioStyle {
 /// A member of a `RadioGroup`: selected when the group's pick is its value.
 #[derive(crate::contract::Component)]
 #[component(probe(Radio<u8>))]
-#[component(exempt(case = "stories", reason = "A radio is shown inside its group; the controls family writes the stories."))]
 pub struct Radio<T: Value + 'static> {
     #[common]
     common: Common,
