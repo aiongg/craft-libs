@@ -1,7 +1,7 @@
 //! `ContainerProps` and the types of its fields (16.2).
 
 use super::label::SideLabel;
-use super::overlay::Overlay;
+use super::overlay::{Overlay, Resize};
 use crate::layout::BodyLayout;
 use crate::runtime::access::{Politeness, SetPosition};
 use crate::runtime::commands::CommandScope;
@@ -28,6 +28,14 @@ pub enum Mount {
     Layer(Overlay),
     /// Over the whole window.
     FullWindow,
+    /// The whole content of the window the container is shown in: it fills the viewport's content rect, and when
+    /// `resize` has grips they lie on the window's edges and corners. The body step moves and resizes the window
+    /// through the OS only where the app draws the frame (the body step's `app_moves_window` rule).
+    #[non_exhaustive]
+    Window {
+        /// Whether grips on the window's edges and corners resize it.
+        resize: Resize,
+    },
     /// In an OS viewport; `fallback` is the layer it uses where viewports are unavailable.
     #[non_exhaustive]
     Viewport {
@@ -40,6 +48,11 @@ pub enum Mount {
 }
 
 impl Mount {
+    /// The whole content of the window: its edges resize it where `resize` has grips and the app draws the frame.
+    pub const fn window(resize: Resize) -> Mount {
+        Mount::Window { resize }
+    }
+
     /// An OS viewport that falls back to `fallback`, and opens as a dialog or tool window by the fallback's rank.
     pub const fn viewport(fallback: Overlay) -> Mount {
         Mount::Viewport { fallback, spec: None }

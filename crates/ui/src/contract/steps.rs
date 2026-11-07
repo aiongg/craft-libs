@@ -772,13 +772,12 @@ fn hide_scrub_cursor<C: Component>(cx: &Cx<'_, C>, drag: &ValueDrag) {
 /// A second press of a double click went down on the component's root (`Some(None)`) or one of its value parts
 /// (`Some(Some(part))`) this pass (10.2).
 fn double_click(core: &CxCore<'_>) -> Option<Option<PartRef>> {
-    let second = |phase: &craft_behavior::PressPhase| matches!(phase, craft_behavior::PressPhase::Down { start, .. } if start.clicks >= 2);
-    if second(&core.press.phase) {
+    if core.press.double_pressed() {
         return Some(None);
     }
     core.value_parts
         .iter()
-        .find(|key| core.results.get(key).is_some_and(|result| second(&result.press.phase)))
+        .find(|key| core.results.get(key).is_some_and(|result| result.press.double_pressed()))
         .map(|&(key, index)| Some(PartRef { key, index }))
 }
 

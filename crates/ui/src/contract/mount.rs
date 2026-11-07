@@ -40,6 +40,7 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
     match &props.mount {
         Mount::Inline => Mounted { host: Box::new(InlineHost), exiting: false },
         Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
+        Mount::Window { .. } => Mounted { host: Box::new(WindowContentHost), exiting: false },
         Mount::Layer(overlay) => match layer(overlay) {
             (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), props.save.clone(), exiting, fade)), exiting },
             (None, _) => closed(),
@@ -84,6 +85,16 @@ struct InlineHost;
 impl Host for InlineHost {
     fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
         pass(parent, None, None);
+    }
+}
+
+/// The container fills the content rect of the window whose `Ui` it is shown in.
+struct WindowContentHost;
+
+impl Host for WindowContentHost {
+    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
+        let window = parent.ctx().content_rect();
+        pass(parent, Some(ShowAt::Rect(window)), None);
     }
 }
 

@@ -13,7 +13,7 @@ use craft_ui::contract::{
 };
 use craft_ui::runtime::commands::{self, CommandSet, FireSource, WindowCommand};
 use craft_ui::runtime::focus::{FocusTarget, request};
-use craft_ui::runtime::windows::ResizeEdge;
+use craft_ui::runtime::windows::{ResizeEdge, WindowSpec};
 use craft_ui::style::StyleCx;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::{Block, allocate};
@@ -243,9 +243,9 @@ fn the_keyboard_move_mode_reports_keyboard_changes_and_enter_commits_while_escap
     assert!(near(caller.rect.get(), kept), "and the layer is back at it: {:?}", caller.rect.get());
 }
 
-/// The props of a viewport mount of `overlay` whose header is the move band.
+/// The props of a viewport mount of `overlay`, opened as an undecorated tool window, whose header is the move band.
 fn viewport_props(overlay: Overlay) -> ContainerProps {
-    ContainerProps::new().mount(Mount::viewport(overlay)).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
+    ContainerProps::new().mount(Mount::viewport_with(overlay, WindowSpec::tool())).sizing(Sizing::Content).header(HeaderRegion::new().band(DragBand::Move))
 }
 
 #[trial]

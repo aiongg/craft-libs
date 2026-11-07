@@ -78,12 +78,21 @@ pub struct PressStart {
     pub time: f64,
     /// 1 for a single press, 2 for a double press, and so on.
     pub clicks: u32,
+    /// The button went down in this pass. [`PressMachine`] sets it for the pass of the press and clears it for the
+    /// passes that follow; a start built by [`PressStart::new`] has it false.
+    pub went_down_now: bool,
 }
 
 impl PressStart {
     /// A press of `button` at `origin`.
     pub const fn new(origin: Pos2, button: PointerButton, time: f64, clicks: u32) -> Self {
-        PressStart { origin, button, time, clicks }
+        PressStart { origin, button, time, clicks, went_down_now: false }
+    }
+
+    /// Whether this is the pass in which a second or later primary press went down: true once per double click,
+    /// false while the button is held.
+    pub const fn is_double_press(&self) -> bool {
+        self.went_down_now && self.clicks >= 2 && matches!(self.button, PointerButton::Primary)
     }
 }
 
@@ -281,6 +290,15 @@ impl PressState {
         self.captured = captured;
         self
     }
+
+    /// Whether the second press of a double click went down in this pass: true once, false while the button is held
+    /// and for a first press. Every double-click reader uses this, never `clicks >= 2` on a held phase.
+    pub const fn double_pressed(&self) -> bool {
+        match self.phase.start() {
+            Some(start) => start.is_double_press(),
+            None => false,
+        }
+    }
 }
 
 impl Default for PressState {
@@ -456,6 +474,9 @@ impl<T: Copy> PressMachine<T> {
     /// when no shape of this root takes the press.
     pub fn step(&mut self, input: PassInput<'_>, mut pick: impl FnMut(Pos2) -> Option<(T, Sense)>) -> PressStep<T> {
         let mut pos = input.pos;
+        if let Some(open) = &mut self.open {
+            open.start.went_down_now = false;
+        }
         let mut drag_started = false;
         let mut released: Option<(T, PressStart, Pos2, bool, bool)> = None;
         let mut cancelled: Option<(T, PressStart, PressCancel)> = None;
@@ -500,7 +521,7 @@ impl<T: Copy> PressMachine<T> {
                         .map(|(target, sense)| Open {
                             target,
                             sense,
-                            start: PressStart::new(at, button, time, clicks),
+                            start: PressStart { went_down_now: true, ..PressStart::new(at, button, time, clicks) },
                             dragging: false,
                             abandoned: false,
                         });
@@ -588,6 +609,25 @@ mod tests {
         assert!(matches!(step.phase, Some(PressPhase::Down { .. })), "a click-only target never starts a drag");
         let step = pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
         assert_eq!(step.activated, None, "a press that left the slop circle is no click, even when released at the origin");
+    }
+
+    #[test]
+    fn a_double_press_reads_true_once_while_a_first_press_never_does() {
+        let reading = |step: &PressStep<u8>| PressState::new(step.phase.unwrap()).double_pressed();
+        let mut machine = PressMachine::new();
+        let step = pass(&mut machine, &[PointerEvent::pressed(pos2(0.0, 0.0), 1.0, 1)], Sense::CLICK);
+        assert!(!reading(&step), "a first press");
+        let step = pass(&mut machine, &[], Sense::CLICK);
+        assert!(!reading(&step));
+        pass(&mut machine, &[PointerEvent::released(pos2(0.0, 0.0))], Sense::CLICK);
+
+        let step = pass(&mut machine, &[PointerEvent::pressed(pos2(0.0, 0.0), 1.1, 2)], Sense::CLICK);
+        assert!(reading(&step), "the pass the second press went down");
+        for _ in 0..3 {
+            let step = pass(&mut machine, &[], Sense::CLICK);
+            assert!(matches!(step.phase, Some(PressPhase::Down { .. })));
+            assert!(!reading(&step), "false while the second press is held");
+        }
     }
 
     #[test]

@@ -15,7 +15,7 @@ use crate::runtime::keys;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
 use crate::style::{ComponentStyle, ResetMarkLook, StyleColor, StyleCx};
-use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressPhase, PressState, Sense, ValueDrag};
+use craft_behavior::{ColumnWidth, Flow, LabelColumn, Metrics, PartKey, PressState, Sense, ValueDrag};
 use egui::{Align, Id, Rect, Response, Ui, UiBuilder, Vec2};
 use std::cell::Cell;
 use std::sync::Arc;
@@ -366,7 +366,7 @@ impl Component for LabelLeaf {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         use super::Pointer as _;
-        self.double_click = self.resettable && matches!(cx.press().phase, PressPhase::Down { start, .. } if start.clicks >= 2);
+        self.double_click = self.resettable && cx.press().double_pressed();
         self.dot_click = self.slot > 0.0 && self.differs && cx.part(DOT).press.phase.is_click();
         self.activated = cx.activation().is_some();
     }
