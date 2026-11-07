@@ -255,7 +255,7 @@ fn a_focused_group_header_collapses_opens_and_picks_by_key() {
         seen.borrow()
             .grid
             .iter()
-            .filter_map(|event| if let GridEvent::GroupOpen { group, open } = event { Some((*group, *open)) } else { None })
+            .filter_map(|event| if let GridEvent::GroupOpen { group, open, .. } = event { Some((*group, *open)) } else { None })
             .collect()
     };
     let header = |fixture: &Fixture, label: &str| fixture.by_label(label).unwrap_or_else(|| panic!("{label} is a node"));
