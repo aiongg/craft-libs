@@ -651,7 +651,7 @@ pub(crate) fn gesture_gate<C: Component>(cx: &mut Cx<'_, C>) {
 pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     use super::cx::Edit as _;
     if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) {
-        let reason = if cx.core.intents.take(Intent::Cancel) {
+        let reason = if !cx.core.escape_to_list && cx.core.intents.take(Intent::Cancel) {
             Some(CancelReason::Escape)
         } else {
             cx.core.press_cancelled().map(|reason| match reason {
@@ -1274,7 +1274,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let row = core.env.facts_of(id).map(|facts| facts.position);
     for node in &mut access.nodes {
         // A cell of an item row knows its row and, by its repeat, its column.
-        if let (Some(row), Some(column), Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell)) = (row, node.part.index, node.role) {
+        if let (
+            Some(row),
+            Some(column),
+            Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell),
+        ) = (row, node.part.index, node.role)
+        {
             node.grid = access::GridPlace {
                 row_index: node.grid.row_index.or(Some(row.index)),
                 column_index: node.grid.column_index.or(Some(column as usize)),

@@ -221,6 +221,9 @@ pub struct KeyUse {
     pub edits: EditSet,
     /// The component's key class.
     pub owner: OwnerClass,
+    /// The component's arrows step a value: Alt with an arrow is a fine move. Set per instance by a component that
+    /// keeps Alt+Down for something else when it has a dropdown.
+    pub value: bool,
 }
 
 impl KeyUse {
@@ -229,8 +232,14 @@ impl KeyUse {
     /// A code editor: Tab inserts.
     pub const CODE: KeyUse = KeyUse::of(Input::Editor).with_keep(KeepKeys::Tab);
     /// A canvas: all arrows, no activation.
-    pub const CANVAS: KeyUse =
-        KeyUse { keep: KeepKeys::BlockArrows, activate: ActivateKeys::Neither, claims: &[], edits: EditSet::NONE, owner: OwnerClass::Widget };
+    pub const CANVAS: KeyUse = KeyUse {
+        keep: KeepKeys::BlockArrows,
+        activate: ActivateKeys::Neither,
+        claims: &[],
+        edits: EditSet::NONE,
+        owner: OwnerClass::Widget,
+        value: false,
+    };
     /// A shortcut recorder.
     pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, ..KeyUse::CANVAS };
 
@@ -247,7 +256,7 @@ impl KeyUse {
             OwnerClass::Text => EditSet::ALL,
             _ => EditSet::NONE,
         };
-        KeyUse { keep, activate, claims: &[], edits, owner }
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false }
     }
 
     /// The same use claiming `claims`.
@@ -265,6 +274,12 @@ impl KeyUse {
     /// The same use with `activate` as the keys that activate: a value control that arrow and Page keys step takes none.
     pub const fn with_activate(mut self, activate: ActivateKeys) -> Self {
         self.activate = activate;
+        self
+    }
+
+    /// The same use with `value` as whether its arrows step a value.
+    pub const fn with_value(mut self, value: bool) -> Self {
+        self.value = value;
         self
     }
 

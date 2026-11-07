@@ -119,6 +119,8 @@ pub struct CxCore<'a> {
     pub(crate) editor_inputs: Vec<craft_behavior::EditorInput>,
     /// The text part's draft is not a value of its codec.
     pub(crate) text_invalid: bool,
+    /// The text part's completion list is open: Escape belongs to its popup, not to the component's gesture.
+    pub(crate) escape_to_list: bool,
     /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
     pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
     /// Enter was pressed in the text part.

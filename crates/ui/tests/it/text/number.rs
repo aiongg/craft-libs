@@ -141,7 +141,8 @@ fn a_typed_value_is_held_to_the_range() {
     assert_eq!(rig.value(), Some(10.0), "250 commits as the end of the range");
 }
 
-/// Up steps by the step, Shift by ten steps and Alt by a tenth; a Shift wheel notch moves ten steps.
+/// Up steps by the step, Shift by ten steps and Alt by a tenth; a Shift wheel notch over the focused field moves ten
+/// steps.
 #[trial]
 fn modifiers_scale_the_step_of_keys_and_wheel() {
     for (modifiers, expected) in [(Modifiers::NONE, 11.0), (Modifiers::SHIFT, 20.0), (Modifiers::ALT, 10.1)] {
@@ -152,6 +153,7 @@ fn modifiers_scale_the_step_of_keys_and_wheel() {
         assert!((value - expected).abs() < 1e-6, "Up with {modifiers:?} from {START} gives {expected}: {value}");
     }
     let mut rig = Rig::new(START, None);
+    rig.focus();
     rig.wheel(1.0, Modifiers::SHIFT);
     let value = rig.value().unwrap_or_default();
     assert!((value - 20.0).abs() < 1e-6, "a Shift wheel notch moves ten steps: {value}");
@@ -227,7 +229,8 @@ fn presets_open_over_the_field_and_a_pick_sets_the_value() {
     assert_eq!(fixture.tree().expanded_of(chevron(&fixture).node), Some(false), "the closed list's chevron is expandable");
     fixture.key(Key::ArrowDown, Modifiers::ALT);
     fixture.idle(4);
-    assert_eq!(fixture.focused(), Some(field), "the list opens with focus still in the field");
+    let typing = craft_ui::testing::text::widget_id(field, super::kit::TEXT);
+    assert_eq!(fixture.focused(), Some(typing), "the list opens with focus still in the field's text, where typing goes");
     let target = chevron(&fixture);
     assert_eq!(fixture.tree().name_of(target.node), Some("Presets"), "the chevron is named by its word");
     assert_eq!(fixture.tree().expanded_of(target.node), Some(true), "the chevron reports the list open");

@@ -931,7 +931,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     // The opener of the layer's scope is the stop focused when the layer first appears: egui's modal gate takes focus
     // from the widgets below a modal layer by the first pass that shows the layer.
     let opener = *memory.opener_stop.get_or_insert_with(|| focus::focused_stop(ctx));
-    overlay::begin_layer(ctx, layer.id);
+    overlay::begin_layer(ctx, layer.id, layer.exiting);
     let shown = areas::show_layer(ctx, &spec, |ui| {
         areas::fade(ui, layer.fade);
         let installed = Env::install_for(ui, layer.env.clone());

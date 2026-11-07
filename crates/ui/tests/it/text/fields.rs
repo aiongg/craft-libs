@@ -183,7 +183,7 @@ fn escape_hides_the_completion_list_and_keeps_the_draft() {
     for _ in 0..4 {
         completing(&mut rig, vec![]);
     }
-    assert_eq!(option_names(&mut rig), ["alps"], "a changed draft shows the list again");
+    assert_eq!(option_names(&mut rig), ["alpha", "alps"], "a changed draft shows the list again");
 }
 
 /// A number field parses through its codec, rejects text that is no number and keeps the value.

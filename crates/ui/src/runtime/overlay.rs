@@ -316,12 +316,21 @@ pub(crate) fn drawing_parent(ctx: &Context) -> Option<Id> {
     with_pass(ctx, |pass| pass.drawing.last().copied())
 }
 
-/// Marks the layer `id`'s body as running, so layers opened from inside it become its children.
-pub(crate) fn begin_layer(ctx: &Context, id: Id) {
-    with_pass(ctx, |pass| pass.drawing.push(id));
+/// Marks the layer `id`'s body as running, so layers opened from inside it become its children. A layer shown
+/// again while it fades out opens anew: it appears in this frame.
+pub(crate) fn begin_layer(ctx: &Context, id: Id, exiting: bool) {
+    let faded = with_pass(ctx, |pass| {
+        pass.drawing.push(id);
+        pass.last.iter().any(|entry| entry.id == id && entry.exiting)
+    });
+    let reopened = faded && !exiting;
     let frame = pass::root_frame_nr(ctx);
     with_persist(ctx, pass::current_viewport(ctx), |persist| {
-        persist.appeared.entry(id).or_insert(frame);
+        if reopened {
+            persist.appeared.insert(id, frame);
+        } else {
+            persist.appeared.entry(id).or_insert(frame);
+        }
     });
 }
 

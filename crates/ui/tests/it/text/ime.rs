@@ -38,7 +38,7 @@ fn ime_preedit_shows_commits_once_and_the_pass_writes_the_ime_output() {
 fn middle_click_paste_pastes_once() {
     let mut rig = Rig::new("ab");
     rig.focus();
-    let at = rig.seen.rect.left_center() + egui::vec2(1.0, 0.0);
+    let at = rig.seen.rect.center();
     rig.frame(vec![Event::PointerMoved(at)]);
     rig.frame(vec![middle(at, true), middle(at, false), Event::MiddleClickPaste { pos: at, text: "X".into() }]);
     rig.idle(4);

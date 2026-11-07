@@ -62,6 +62,8 @@ pub struct TextOptions {
     /// Whether the part edits and takes focus. A disabled part shows its text in the disabled text colour while the
     /// rest of the component stays enabled.
     pub enabled: bool,
+    /// The text is a value its arrows step: Alt with Up or Down is a fine move.
+    pub steps_value: bool,
 }
 
 impl Default for TextOptions {
@@ -79,6 +81,7 @@ impl Default for TextOptions {
             replace_selection: None,
             commit_on: &[],
             enabled: true,
+            steps_value: false,
         }
     }
 }

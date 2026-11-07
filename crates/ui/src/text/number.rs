@@ -508,6 +508,7 @@ impl Component for NumberField<'_> {
         let chevrons = self.chevrons(&cx.words::<TextWords>());
         let placed = Self::laid_out(cx.style, rect, rtl, &chevrons);
         let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
+        self.options.steps_value = self.presets.is_none() && self.popup_slider.is_none();
         cx.text(text_part::<Option<f64>>(), text, &self.ruled(&cx.env.units()), cx.value().unwrap_or(&None), &self.options);
         let slider_reason =
             if self.presets.is_some() { "Alt+Down opens the presets list; the slider opens by pointer" } else { "Alt+Down opens the slider" };
