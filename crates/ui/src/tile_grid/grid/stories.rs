@@ -1,0 +1,70 @@
+//! Stories of `TileGrid`.
+
+use super::{TileGrid, TileGroup};
+use crate::contract::{Show as _, ShowCollection as _};
+use crate::tile_grid::Tile;
+use crate::testing::{Drive, StoryData, StoryOutput, story};
+use craft_behavior::{DisplayOrder, ItemSource, SizeHint};
+use egui::Ui;
+
+/// Tiles keyed by position, each with a picture aspect that cycles through the usual photo shapes.
+struct Photos(usize);
+
+/// Width over height of the picture of tile `at`.
+fn aspect(at: usize) -> f32 {
+    [1.5, 1.0, 0.75, 1.78][at % 4]
+}
+
+impl DisplayOrder<usize> for Photos {
+    fn len(&self) -> usize {
+        self.0
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0).then_some(*key)
+    }
+}
+
+impl ItemSource<usize> for Photos {
+    fn size_hint(&self, at: usize) -> SizeHint {
+        SizeHint::Aspect(aspect(at))
+    }
+}
+
+fn grid(ui: &mut Ui, grid: TileGrid<'_, usize>, count: usize) -> StoryOutput {
+    grid.show_items(ui, &Photos(count), &mut |key, _| Tile::new(format!("Photo {}", key + 1))).into()
+}
+
+#[story(TileGrid<'static, usize>, covers = [Default, Many], drive = Drive::Never)]
+fn tile_grid_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    grid(ui, TileGrid::new("Library").empty("No photos"), 60)
+}
+
+#[story(TileGrid<'static, usize>, covers = [One], drive = Drive::Never)]
+fn tile_grid_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    grid(ui, TileGrid::new("Library").empty("No photos"), 1)
+}
+
+#[story(TileGrid<'static, usize>, covers = [Empty], drive = Drive::Never)]
+fn tile_grid_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    grid(ui, TileGrid::new("Library").empty("No photos"), 0)
+}
+
+#[story(TileGrid<'static, usize>, covers = [], drive = Drive::Never)]
+fn tile_grid_justified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    grid(ui, TileGrid::new("Library").justified(), 40)
+}
+
+#[story(TileGrid<'static, usize>, covers = [], drive = Drive::Never)]
+fn tile_grid_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+    let groups = [
+        TileGroup::new(0, 12, "October 2026").detail("12 photos"),
+        TileGroup::new(12, 8, "September 2026").detail("8 photos"),
+        TileGroup::new(20, 10, "August 2026").detail("10 photos").open(false),
+    ];
+    grid(ui, TileGrid::new("Library").groups(&groups).collapsible(), 30)
+}
