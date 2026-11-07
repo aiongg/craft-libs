@@ -43,7 +43,8 @@ pub(crate) struct Shown {
 
 /// Runs the widget at `edit.rect`.
 pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
-    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } = edit;
+    let Edit { id, rect, text, read_only, enabled, multiline, password, hint, mono, ink, filter, char_limit, preedit, rtl, caret_visible, underline } =
+        edit;
     let font = if mono { egui::TextStyle::Monospace } else { egui::TextStyle::Body };
     let font_id = font.resolve(ui.style());
     let had_focus = ui.memory(|memory| memory.has_focus(id));
