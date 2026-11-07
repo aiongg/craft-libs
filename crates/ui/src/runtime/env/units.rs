@@ -19,8 +19,8 @@ craft_ui::words! {
         millimetres: unit "units.millimetres" = "{n} mm";
         picas: unit "units.picas" = "{n} pica";
         seconds: unit "units.seconds" = "{n} s";
-        pixels_per_inch: unit "units.pixels_per_inch" = "{n} ppi";
-        pixels_per_centimetre: unit "units.pixels_per_centimetre" = "{n} ppcm";
+        pixels_per_inch: unit "units.pixelsPerInch" = "{n} ppi";
+        pixels_per_centimetre: unit "units.pixelsPerCentimetre" = "{n} ppcm";
         minutes: unit "units.minutes" = "{n} min";
     }
 }
