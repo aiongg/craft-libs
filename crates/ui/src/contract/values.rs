@@ -266,7 +266,13 @@ impl<T: Value> Outcome for EditResponse<T> {
 }
 
 /// What an item's output may report beyond its response.
-// F3-LATER: items (F6 owns `ItemOutput`)
-pub trait ItemOutput<E>: Outcome {}
+pub trait ItemOutput<E>: Outcome {
+    /// The event the collection reports for this item, `None` when the item reports nothing.
+    fn into_event(self) -> Option<E>;
+}
 
-impl<E> ItemOutput<E> for Response {}
+impl<E> ItemOutput<E> for Response {
+    fn into_event(self) -> Option<E> {
+        None
+    }
+}

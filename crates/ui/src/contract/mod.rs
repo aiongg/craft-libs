@@ -1,6 +1,7 @@
 //! The component traits, context types, `PaintUi`, `Looks`, the pipeline and its step functions, the label, body and item steps, the mount and overlay hosts and `contract::tooltip`.
 
 mod body;
+mod collection;
 mod container;
 mod cx;
 pub mod ghost;
@@ -13,7 +14,7 @@ mod paint_ui;
 mod props;
 mod registry;
 mod run;
-mod shell;
+mod items;
 mod steps;
 pub mod toast;
 pub mod tooltip;
@@ -41,7 +42,7 @@ pub use container::{
     Collapse, ContainerProps, DragBand, FooterRegion, Gap, HeaderRegion, Mount, Notch, Pad, PaneEdge, Scroll, ScrollAnchor, ScrollAxes,
     ShellPane, Sizing, ThemeScope,
 };
-pub use shell::CollectionProps;
+pub use collection::{CollectionEvent, CollectionProps, CollectionResponse, ColumnEvent, ColumnKind, ColumnSpec, ContextMenuRequest, OpenChange, Rename, ReorderMove, ReorderRule, RowState, SelectMode, ToggleColumn, ToggleEdit};
 pub use crate::layout::{BodyLayout, RowAlign};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, Validity, ValueOf};
 

@@ -166,8 +166,8 @@ static ROWS: std::sync::Mutex<Vec<(usize, egui::Rect)>> = std::sync::Mutex::new(
 
 #[trial]
 fn each_shape_has_an_entry_that_shows_an_instance() {
-    use super::kit::{Panel, RowProbe, Rows, Table};
     use craft_behavior::ItemSource;
+    use craft_behavior::{DisplayOrder, ItemSource};
     use craft_ui::contract::{Entry, ItemFn};
     let mut frames = Frames::new();
     let room = egui::Rect::from_min_size(egui::Pos2::new(10.0, 10.0), Vec2::new(100.0, 60.0));

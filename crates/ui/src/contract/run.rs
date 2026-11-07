@@ -5,24 +5,23 @@ use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
 use super::{overlay, tooltip};
 use super::{
-    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
+    Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, Meta, OverlayUi, PaintUi, Resolved, Show,
     TipFn, Validity,
 };
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::access::{Politeness, Role, scope};
-use crate::runtime::egui::{access, alloc, child};
-use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
+use crate::runtime::egui::access;
+use crate::runtime::env::{AppValues, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
-use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, ScrollPos, Sense};
+use craft_behavior::{Flow, Input, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, Sense};
 use craft_theme::ControlSize;
-use egui::{Context, Id, Rect, Response, Ui, UiBuilder, Vec2};
+use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
 /// Where a component is placed.
@@ -40,7 +39,7 @@ pub(crate) trait Host {
 }
 
 /// The parent `Ui` is the host `Ui`.
-struct Inline;
+pub(super) struct Inline;
 
 impl Host for Inline {
     fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
@@ -69,6 +68,11 @@ pub(crate) trait ShapeHooks<C: Component> {
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
         false
+    }
+
+    /// What the focused stop is, as far as the key table's rows differ.
+    fn key_role(&self, _comp: &C) -> KeyRole {
+        KeyRole::new()
     }
 
     /// The roving rules of the body's members, when the shape's body forms one group.
@@ -125,74 +129,6 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
     fn content(&mut self, _: &mut C, _: &mut Ui, _: &Env, _: &mut Cx<'_, C>, _: &AppValues) {}
 }
 
-struct ItemsHooks<'s, 'r, C: Collection> {
-    source: &'s dyn ItemSource<C::Key>,
-    item: &'s mut ItemFn<'r, C>,
-    layout: Option<C::ItemLayout>,
-}
-
-impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
-    fn shape(&self) -> ShapeKind {
-        ShapeKind::Item
-    }
-
-    fn host(&mut self, _: &C) -> Box<dyn Host> {
-        Box::new(Inline)
-    }
-
-    fn arena(&self, _: &C) -> bool {
-        true
-    }
-
-    fn extent(&mut self, comp: &C, ui: &Ui, _: ShowAt, _: Id, scx: &StyleCx<'_>) -> Vec2 {
-        let width = Some(ui.available_width()).filter(|width| width.is_finite()).unwrap_or(0.0);
-        let layout = comp.item_layout(self.source, width, scx);
-        let content = layout.content_size();
-        self.layout = Some(layout);
-        Vec2::new(content.x as f32, content.y as f32)
-    }
-
-    fn content(&mut self, comp: &mut C, ui: &mut Ui, env: &Env, cx: &mut Cx<'_, C>, values: &AppValues) {
-        let Some(layout) = self.layout.as_ref() else { return };
-        let (id, rect) = (cx.core.id, cx.core.content_rect);
-        let rtl = env.direction.is_rtl();
-        let inner = env.derive(|scoped| {
-            scoped.values.extend(values);
-            scoped.arena = Some(ArenaId::new(id));
-        });
-        let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(sub(id, "items"));
-        let builder = if matches!(C::ROLE, Role::Node(_)) { access::with_parent(builder, id) } else { builder };
-        let mut items_ui = alloc::child(ui, builder);
-        items_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-        let installed = Env::install_for(&items_ui, inner);
-        let (offset, flow) = (ScrollPos::default(), Flow::new(rect, rtl));
-        let mut visible = Vec::new();
-        layout.visible(offset, rect.size(), &mut visible);
-        // F3-LATER (F6): every item is a full `Show` with its own Tab stop; the item step makes it an arena member
-        // with one roving stop for the collection.
-        for at in visible {
-            let key = self.source.key(at);
-            let item_id = sub(id, ("item", key_hash(&key)));
-            let local = layout.rect(at, offset).translate(rect.min.to_vec2());
-            let item_rect = if layout.mirrors() { flow.to_physical(local) } else { local };
-            let mut item_cx =
-                ItemCx { key: &key, at, rect: item_rect, env: cx.core.env, id: sub(item_id, "item"), memory: &mut *cx.core.memory, tip: None };
-            item_cx.memory.claim(item_cx.id);
-            let item = (self.item)(&key, &mut item_cx);
-            drop(item_cx);
-            Show::show_at(Props::id(item, item_id), &mut items_ui, item_rect);
-        }
-        Env::restore(&cx.core.ctx, installed);
-        let _ = comp;
-    }
-}
-
-fn key_hash<K: Hash>(key: &K) -> u64 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    key.hash(&mut hasher);
-    hasher.finish()
-}
-
 #[allow(clippy::too_many_arguments, reason = "one argument per field of the context the pipeline builds once per show")]
 fn blank_core<'a>(
     env: EnvView<'a>,
@@ -236,6 +172,8 @@ fn blank_core<'a>(
         scroll_moves: Vec::new(),
         root_sense: Sense::empty(),
         roving_arrival: None,
+        collection_events: None,
+        visible_rows: 0..0,
     }
 }
 
@@ -337,6 +275,8 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     }
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
     let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
+    // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
+    let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
     let resettable = !matches!(C::INPUT, Input::Text | Input::Editor) && comp.bind().is_some_and(|bind| bind.reset_value().is_some());
@@ -344,9 +284,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         ctx: &ctx,
         id,
         holder: member.map_or(id, |arena| arena.0),
-        focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS),
+        focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS) && env.item != Some(id),
         keys: C::KEYS,
-        role: KeyRole::new().resettable(resettable),
+        role: p.hooks.key_role(comp).resettable(resettable),
         rtl,
         parts: &parts,
         group: steps::member_group(&ctx, env.roving, id),
@@ -588,7 +528,7 @@ pub(crate) fn show_container<C: Container, R>(
 }
 
 pub(crate) fn show_items<'r, C: Collection>(comp: C, ui: &mut Ui, source: &dyn ItemSource<C::Key>, item: &mut ItemFn<'r, C>) -> C::Output {
-    run(comp, ui, ShowAt::Flow, None, &mut ItemsHooks::<C> { source, item, layout: None })
+    run(comp, ui, ShowAt::Flow, None, &mut super::items::ItemsHooks::<C>::new(source, item))
 }
 
 /// Measures `comp` as `show` will show it, without allocating: steps 1 to 5 under the id `show` would use next. It

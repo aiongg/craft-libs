@@ -1,6 +1,6 @@
 //! Components for the contract trials, written with the derives: a leaf, a container and a collection.
 
-use craft_behavior::{Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout};
+use craft_behavior::{DisplayOrder, Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout};
 use craft_ui::contract::{
     Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Props as _, Role,
 };
@@ -205,7 +205,7 @@ impl Container for Panel<'_> {}
 #[non_exhaustive]
 pub struct Rows(pub usize);
 
-impl ItemSource<usize> for Rows {
+impl DisplayOrder<usize> for Rows {
     fn len(&self) -> usize {
         self.0
     }
@@ -214,6 +214,8 @@ impl ItemSource<usize> for Rows {
         at
     }
 }
+
+impl ItemSource<usize> for Rows {}
 
 /// A collection of rows of fixed height.
 #[derive(Component)]
@@ -259,7 +261,7 @@ impl Collection for Table {
     }
 
     fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
-        SpanLayout::new(self.row_h, source.len(), width)
+        SpanLayout::new(source, width, self.row_h)
     }
 }
 

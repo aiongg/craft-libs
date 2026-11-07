@@ -844,6 +844,7 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     if cx.core.command.as_deref().is_some_and(|command| command.checked == Some(true)) {
         flags |= Flags::ON;
     }
+    flags |= super::items::row_flags(&cx.core.ctx, cx.core.id);
     if cx.mixed {
         flags |= Flags::MIXED;
     }
@@ -1012,7 +1013,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access.live = input.live;
     }
     if access.position.is_none() {
-        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group));
+        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| crate::runtime::access::item_position(ctx, id));
     }
     let paint = core.paint.borrow();
     if role == Role::Merged {

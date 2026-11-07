@@ -11,7 +11,7 @@ use craft_ui::testing::{Frames, trial};
 use egui::{Rect, Response, Vec2};
 
 mod app {
-    use craft_behavior::{ItemSource, Metrics, PartKey, Proposal, Selection, Sense, SpanLayout};
+    use craft_behavior::{DisplayOrder, ItemSource, Metrics, PartKey, Proposal, Selection, Sense, SpanLayout};
     use craft_theme::{Rgba, States, Tokens, Variant, VariantLook};
     use craft_ui::contract::{
         Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, MeasureCx, PaintUi, PartsCx, Props, Role,
@@ -166,7 +166,7 @@ mod app {
     /// A source of `n` keys.
     pub struct Count(pub usize);
 
-    impl ItemSource<usize> for Count {
+    impl DisplayOrder<usize> for Count {
         fn len(&self) -> usize {
             self.0
         }
@@ -175,6 +175,8 @@ mod app {
             at
         }
     }
+
+    impl ItemSource<usize> for Count {}
 
     /// A collection of badges.
     #[derive(Component)]
@@ -219,7 +221,7 @@ mod app {
         }
 
         fn item_layout(&self, source: &dyn ItemSource<usize>, width: f32, _: &StyleCx<'_>) -> SpanLayout {
-            SpanLayout::new(20.0, source.len(), width)
+            SpanLayout::new(source, width, 20.0)
         }
     }
 }

@@ -350,7 +350,8 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
             *taken = route_press(ctx, os, rec, press, &mut routed, &mut activated);
         }
         for text in &batch.texts {
-            if matches!(rec.stop.keys.owner, OwnerClass::Text) {
+            let typed = rec.stop.role.type_ahead && !text.trim().is_empty();
+            if matches!(rec.stop.keys.owner, OwnerClass::Text) || typed {
                 routed.entry(Some(rec.stop.id)).or_default().items.push(Item { intent: Intent::Text(Arc::from(text.as_str())), horizontal: false });
             }
         }
