@@ -60,7 +60,7 @@ impl CaptionRegions {
     }
 
     /// Adds the button `caption` at `rect`.
-    pub fn button(mut self, caption: Caption, rect: Rect) -> Self {
+    pub fn caption(mut self, caption: Caption, rect: Rect) -> Self {
         self.buttons.push((caption, rect));
         self
     }

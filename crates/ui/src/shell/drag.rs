@@ -6,7 +6,7 @@ use crate::shell::title_bar::set_window_movable;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::target::WindowState;
-use egui::{Rect, Response, Ui, Vec2, ViewportId};
+use egui::{Rect, Response, Vec2, ViewportId};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -54,7 +54,7 @@ impl Outcome for WindowDragOutput {
 /// - No move and no double click in full screen.
 /// - It records whether the operating system may move the window from the title-bar band
 ///   (`shell::title_bar::window_movable`): not while the pointer is on a control or a panel over the strip.
-#[must_use = "show the strip with `show`"]
+#[must_use = "show the strip with `show_at`"]
 #[derive(crate::contract::Component)]
 pub struct WindowDrag {
     #[common]
@@ -69,11 +69,6 @@ impl WindowDrag {
     /// The strip of the window of `viewport`.
     pub fn new(viewport: ViewportId) -> Self {
         WindowDrag { common: Common::new(), viewport, live: false, pressed: false, double_clicked: false }.id_salt(("window_drag", viewport))
-    }
-
-    /// Shows the strip over `rect`.
-    pub fn show(self, ui: &mut Ui, rect: Rect) -> WindowDragOutput {
-        <Self as crate::contract::Show>::show_at(self, ui, rect)
     }
 }
 

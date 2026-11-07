@@ -51,7 +51,7 @@ name = "CaptionRegions"
 old = "craft_ui::title_bar::CaptionRegions"
 new = ""
 status = "replaced"
-note = "A trait with `button`, `drag` and `native_hit_test` methods becomes the record `craft_ui::shell::CaptionRegions`: a bar builds it with `CaptionRegions::new(drag).button(caption, rect)` and calls `publish(ui, viewport)` every pass; `WindowHost::caption_regions(viewport)` reads it."
+note = "A trait with `button`, `drag` and `native_hit_test` methods becomes the record `craft_ui::shell::CaptionRegions`: a bar builds it with `CaptionRegions::new(drag).caption(caption, rect)` and calls `publish(ui, viewport)` every pass; `WindowHost::caption_regions(viewport)` reads it."
 
 [[type]]
 name = "Caption"

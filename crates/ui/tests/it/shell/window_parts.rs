@@ -2,6 +2,7 @@
 
 use crate::windows_kit::Windows;
 use craft_host::target::{ShellInfo, WindowChrome, WindowInfo, WindowKind};
+use craft_ui::contract::Show as _;
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::{ResizeEdge, WindowHost};
 use craft_ui::shell::{Caption, CaptionHit, CaptionRegions, WindowDrag, WindowEdges};
@@ -10,8 +11,6 @@ use craft_ui::testing::trial;
 use craft_ui::testing::windows::FakeSystem;
 use egui::{Pos2, Rect, Ui, Vec2, ViewportCommand, ViewportId, ViewportInfo, pos2, vec2};
 use std::sync::Arc;
-
-const WINDOW: Rect = Rect { min: Pos2::ZERO, max: Pos2::new(800.0, 600.0) };
 
 /// A window whose frame the app draws.
 fn undecorated() -> Windows {
@@ -51,7 +50,7 @@ fn moves(sent: &[ViewportCommand]) -> usize {
 
 /// Shows the zones with `holes` each frame and keeps the edges they report.
 fn zones<'a>(holes: &'a [Rect], started: &'a mut Vec<ResizeEdge>) -> impl FnMut(&mut Ui) + 'a {
-    move |ui| started.extend(WindowEdges::new(ViewportId::ROOT).holes(holes).show(ui))
+    move |ui| started.extend(WindowEdges::new(ViewportId::ROOT).holes(holes).show(ui).started)
 }
 
 #[trial]
@@ -128,7 +127,7 @@ const STRIP: Rect = Rect { min: Pos2::new(0.0, 0.0), max: Pos2::new(800.0, 40.0)
 fn a_press_on_the_strip_that_passes_the_click_distance_starts_one_move() {
     let windows = undecorated();
     let mut show = |ui: &mut Ui| {
-        WindowDrag::new(ViewportId::ROOT).show(ui, STRIP);
+        WindowDrag::new(ViewportId::ROOT).show_at(ui, STRIP);
     };
     settle(&windows, &mut show);
     let sent = drag(&windows, pos2(300.0, 20.0), vec2(60.0, 0.0), &mut show);
@@ -140,7 +139,7 @@ fn a_click_on_the_strip_moves_nothing_and_a_double_click_is_reported() {
     let windows = undecorated();
     let double = std::cell::Cell::new(false);
     let mut show = |ui: &mut Ui| {
-        double.set(double.get() | WindowDrag::new(ViewportId::ROOT).show(ui, STRIP).double_clicked);
+        double.set(double.get() | WindowDrag::new(ViewportId::ROOT).show_at(ui, STRIP).double_clicked);
     };
     settle(&windows, &mut show);
     let at = pos2(300.0, 20.0);
@@ -163,11 +162,10 @@ fn a_click_on_the_strip_moves_nothing_and_a_double_click_is_reported() {
 #[trial]
 fn a_control_inside_the_strip_takes_the_press() {
     use craft_ui::buttons::Button;
-    use craft_ui::contract::Show as _;
     let windows = undecorated();
     let button = Rect::from_min_size(pos2(100.0, 4.0), vec2(120.0, 32.0));
     let mut show = |ui: &mut Ui| {
-        WindowDrag::new(ViewportId::ROOT).show(ui, STRIP);
+        WindowDrag::new(ViewportId::ROOT).show_at(ui, STRIP);
         Button::new("Control").show_at(ui, button);
     };
     settle(&windows, &mut show);
@@ -179,7 +177,7 @@ fn a_control_inside_the_strip_takes_the_press() {
 fn caption_regions_return_what_the_bar_published_and_nothing_for_other_windows() {
     let windows = undecorated();
     let close = Rect::from_min_max(pos2(750.0, 0.0), pos2(800.0, 40.0));
-    let regions = CaptionRegions::new(STRIP).button(Caption::Close, close);
+    let regions = CaptionRegions::new(STRIP).caption(Caption::Close, close);
     let other = ViewportId::from_hash_of("other");
     let host = WindowHost::of(&windows.ctx);
     let mut seen = Vec::new();

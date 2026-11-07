@@ -6,7 +6,7 @@ use crate::runtime::windows::{ResizeEdge, WindowAction, WindowHost};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::target::{Caps, WindowChrome, WindowState};
-use egui::{Pos2, Rect, Response, Ui, Vec2, ViewportId};
+use egui::{Pos2, Rect, Response, Vec2, ViewportId};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -79,12 +79,6 @@ impl WindowEdges {
     pub fn holes(mut self, holes: &[Rect]) -> Self {
         self.holes = holes.to_vec();
         self
-    }
-
-    /// Shows the zones. Returns the edge a resize started from in this pass.
-    pub fn show(self, ui: &mut Ui) -> Option<ResizeEdge> {
-        let at = Rect::from_min_size(ui.ctx().content_rect().min, Vec2::ZERO);
-        <Self as crate::contract::Show>::show_at(self, ui, at).started
     }
 
     /// Whether the window has zones now.
