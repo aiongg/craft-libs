@@ -1,11 +1,14 @@
 //! `Role`, the access facts of a component and the AccessKit emitter (chapter 12).
 //!
-//! This module is the only one that calls egui's AccessKit APIs, through `runtime::egui::access`.
+//! This module decides what every node says (name, description, actions, rule checks, scope registration) and is
+//! the only one that calls `runtime::egui::access`, which writes nodes and makes the parent and focus calls. One
+//! `report` per node kind fills a node; `runtime::access::{item, text}` add theirs beside `report` and `report_sub`.
 
+mod emit;
 mod live;
 pub(crate) mod scope;
 
-use crate::runtime::egui::access::NodeRole;
+use crate::runtime::egui::access::{self as adapter, NodeRole};
 use crate::runtime::env::Label;
 use craft_behavior::PartRef;
 use craft_theme::{Flags, Tone};
@@ -14,7 +17,29 @@ use std::ops::RangeInclusive;
 
 pub use live::announce;
 pub(crate) use live::{begin_pass as begin_live_pass, end_pass as end_live_pass};
+pub(crate) use emit::{FaceFacts, Own, PopupShown, SubDecl, report, report_layer, report_sub, sub_node_id};
 pub use scope::{FieldLabel, FieldLabelRole};
+
+/// Makes `parent` the node `id` attaches to. Call it before the node of `id` is created.
+pub(crate) fn register_parent(ctx: &egui::Context, id: Id, parent: Id) {
+    adapter::register_parent(ctx, id, parent);
+}
+
+/// `builder` with `parent` as the node its `Ui`'s AccessKit nodes attach to.
+pub(crate) fn with_parent(builder: egui::UiBuilder, parent: Id) -> egui::UiBuilder {
+    adapter::with_parent(builder, parent)
+}
+
+/// Creates the node of `id` empty if it has none. False while AccessKit is off or the widget is invisible (a
+/// popup in its first-show sizing pass).
+pub(crate) fn create_node(ctx: &egui::Context, id: Id) -> bool {
+    adapter::create_node(ctx, id)
+}
+
+/// Reports `id` as the focused node of this pass.
+pub(crate) fn set_focus(ctx: &egui::Context, id: Id) {
+    adapter::set_focus(ctx, id);
+}
 
 /// What a component is to assistive technology.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

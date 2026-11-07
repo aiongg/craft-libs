@@ -29,6 +29,7 @@ pub mod one_press;
 pub mod overlay;
 pub mod part;
 pub mod press;
+pub mod role_rule;
 pub mod scroll;
 pub mod selection;
 pub mod sense;
@@ -63,6 +64,7 @@ pub use press::{
     Buttons, MultiTouch, PassInput, PointerButton, PointerEvent, PointerKind, PointerSample, PressCancel, PressMachine, PressPhase, PressStart,
     PressState, PressStep, count_clicks,
 };
+pub use role_rule::{RoleRule, is_checkable, is_selectable, role_violations};
 pub use scroll::{ScrollPos, ScrollSpan};
 pub use selection::{CellSelection, Selection, SelectionChange, SelectionModel};
 pub use sense::Sense;

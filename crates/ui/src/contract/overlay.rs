@@ -6,6 +6,7 @@
 use super::{BodyCx, Component, Cx, Resolved};
 use crate::runtime::egui::areas::{self, LayerSpec};
 use crate::runtime::egui::memory::{self as store, Service};
+use crate::runtime::access::{self, PopupKind, PopupShown};
 use crate::runtime::env::Env;
 use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
@@ -254,6 +255,8 @@ pub struct Overlay {
     pub motion: MotionSpec,
     /// The component that opens it when it is free-standing.
     pub opener: Option<Opener>,
+    /// What the anchor tells assistive technology it opens.
+    pub popup: PopupKind,
 }
 
 /// The share of the viewport a dropdown list may take.
@@ -275,6 +278,7 @@ impl Overlay {
             dismiss: Dismiss::new(),
             motion: spec::OPEN_FADE,
             opener: None,
+            popup: PopupKind::Dialog,
         }
     }
 
@@ -292,6 +296,7 @@ impl Overlay {
         let focus = FocusPolicy::POPUP.trap(false).restore(false).initial(Initial::KeepAnchor);
         let mut overlay = Overlay::base(Rank::Popup, Overlay::below(), OverlayFit::ContentCapped(DROPDOWN_SHARE), OwnerClass::PassivePopup, focus);
         overlay.min_width = MinWidth::Anchor;
+        overlay.popup = PopupKind::Listbox;
         overlay
     }
 
@@ -299,6 +304,7 @@ impl Overlay {
     pub fn menu() -> Overlay {
         let mut overlay = Overlay::base(Rank::Popup, Overlay::below(), OverlayFit::Content, OwnerClass::Menu, FocusPolicy::MENU);
         overlay.dismiss = Dismiss::new().outside(Outside::Absorb);
+        overlay.popup = PopupKind::Menu;
         overlay
     }
 
@@ -465,6 +471,8 @@ struct Popups {
     registered: Vec<(Id, Id)>,
     pending: Vec<(Id, OpenOp)>,
     shown: Vec<(Id, Id)>,
+    /// Every popup an owner showed or kept closed this pass, for the anchor's access node.
+    anchors: Vec<(Id, PopupShown)>,
 }
 
 fn with_popups<R>(ctx: &Context, f: impl FnOnce(&mut Popups) -> R) -> R {
@@ -476,6 +484,7 @@ pub(crate) fn begin_owner(ctx: &Context, owner: Id) {
     with_popups(ctx, |popups| {
         popups.registered.retain(|(registered, _)| *registered != owner);
         popups.shown.retain(|(shown, _)| *shown != owner);
+        popups.anchors.retain(|(anchor, _)| *anchor != owner);
     });
 }
 
@@ -505,6 +514,11 @@ fn folded(ctx: &Context, popup: Id, slot: bool) -> bool {
 fn open_now(stage: &mut MemoryStage, popup: Id) -> bool {
     let slot = stage.shown::<OpenSlot>(popup).0;
     folded(&stage.ctx().clone(), popup, slot)
+}
+
+/// The popups of `owner` in this pass, open or closed, for the anchor's access node.
+pub(crate) fn popups_shown(ctx: &Context, owner: Id) -> Vec<PopupShown> {
+    with_popups(ctx, |popups| popups.anchors.iter().filter(|(anchor, _)| *anchor == owner).map(|(_, popup)| *popup).collect())
 }
 
 /// Whether a popup of `owner` was shown in this pass; step 12 reads it as the `OPEN` flag.
@@ -648,6 +662,7 @@ impl<'a> OverlayUi<'a> {
             return None;
         };
         let ctx = self.ctx.clone();
+        with_popups(&ctx, |popups| popups.anchors.push((self.owner, PopupShown { id: popup.id, kind: overlay.popup, open })));
         let owner = overlay.opener.map_or(self.owner, |opener| opener.id);
         let presence = motion::layer_presence(&ctx, popup.id, owner, self.env.motion, open, overlay.motion);
         if !presence.visible {
@@ -808,6 +823,9 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         areas::fade(ui, layer.fade);
         let installed = Env::install_for(ui, layer.env.clone());
         let real = !ui.is_sizing_pass();
+        if real && matches!(overlay.rank, Rank::Popup | Rank::Modal { .. }) {
+            access::report_layer(ctx, layer.id, ui.unique_id(), ui.max_rect(), overlay.rank.is_modal());
+        }
         if let (Some(policy), true) = (scope, real) {
             focus::push_scope_from(ctx, layer.id, policy, None, noted.and_then(|noted| noted.0));
         }

@@ -79,7 +79,7 @@ impl Rank {
         matches!(self, Rank::Popup | Rank::Modal { .. } | Rank::ModalChrome)
     }
 
-    const fn is_modal(self) -> bool {
+    pub(crate) const fn is_modal(self) -> bool {
         matches!(self, Rank::Modal { .. })
     }
 }

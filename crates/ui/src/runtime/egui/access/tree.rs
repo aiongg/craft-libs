@@ -1,7 +1,7 @@
 //! A finished AccessKit tree update, read by trials without naming AccessKit.
 
 use super::{NodeRole, node_key};
-use crate::runtime::access::{Numeric, Politeness, Role};
+use crate::runtime::access::{Numeric, Politeness, PopupKind, Role};
 use accesskit::{Action, Node, NodeId, TreeUpdate};
 use egui::Id;
 
@@ -133,6 +133,27 @@ impl AccessTree {
     /// The expanded state of the node of `id`.
     pub fn expanded(&self, id: Id) -> Option<bool> {
         self.node(id)?.is_expanded()
+    }
+
+    /// The kind of popup the node of `id` opens.
+    pub fn has_popup(&self, id: Id) -> Option<PopupKind> {
+        match self.node(id)?.has_popup()? {
+            accesskit::HasPopup::Menu => Some(PopupKind::Menu),
+            accesskit::HasPopup::Listbox => Some(PopupKind::Listbox),
+            accesskit::HasPopup::Tree => Some(PopupKind::Tree),
+            accesskit::HasPopup::Grid => Some(PopupKind::Grid),
+            accesskit::HasPopup::Dialog => Some(PopupKind::Dialog),
+        }
+    }
+
+    /// The nodes the node of `id` controls.
+    pub fn controls(&self, id: Id) -> Vec<NodeKey> {
+        self.node(id).map_or_else(Vec::new, |node| node.controls().iter().map(|key| NodeKey(key.0)).collect())
+    }
+
+    /// Whether the node of `key` is modal.
+    pub fn is_modal(&self, key: NodeKey) -> bool {
+        self.lookup(NodeId(key.0)).is_some_and(Node::is_modal)
     }
 
     /// The live politeness of the node of `id`.

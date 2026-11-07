@@ -5,8 +5,8 @@
 use super::{Component, Props};
 use super::{Cx, MeasureCx, PaintUi, PartsCx, Show as _};
 use crate::primitives::TextRun;
-use crate::runtime::access::scope::{self, FieldLabel};
-use crate::runtime::egui::{access, alloc, child};
+use crate::runtime::access::{self, scope::{self, FieldLabel}};
+use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::keys;
 use crate::runtime::memory::sub;

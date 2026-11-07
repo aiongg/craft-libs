@@ -11,8 +11,8 @@ use super::{
 use super::{Inner, ItemFn};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
-use crate::runtime::access::{Politeness, Role, scope};
-use crate::runtime::egui::{access, alloc, child};
+use crate::runtime::access::{self, Politeness, Role, scope};
+use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, focus, inspect, keys, memory};

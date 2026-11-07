@@ -1,11 +1,10 @@
 //! AccessKit node building, `register_accesskit_parent` and `set_accesskit_focus`: the one place that names
-//! AccessKit's node API. `emit` fills nodes, `patch` applies the label scope and the status node, `tree` reads a
-//! finished tree update, `roles` names the role constants.
+//! AccessKit's node API. `node` writes a decided node, `patch` applies the label scope and the status node, `tree`
+//! reads a finished tree update. What a node says is decided in `runtime::access`.
 
-mod emit;
-mod patch;
+mod node;
 mod roles;
-mod rules;
+mod patch;
 #[cfg(feature = "testing")]
 mod tree;
 
@@ -13,7 +12,7 @@ mod tree;
 use egui::FullOutput;
 use egui::{Context, Id};
 
-pub(crate) use emit::{FaceFacts, Own, SubDecl, fill_own, fill_sub, sub_node_id};
+pub(crate) use node::{NodeAction, NodeSpec, Toggle, write_node};
 pub(crate) use patch::{patch_label, patch_merge, write_status};
 #[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};

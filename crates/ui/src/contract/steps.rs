@@ -7,9 +7,8 @@ use super::values::reuse_arc;
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
-use crate::runtime::access::{Access, Politeness, Role, SubNode, scope};
+use crate::runtime::access::{self, Access, FaceFacts, Own, Politeness, Role, SubDecl, SubNode, scope};
 use crate::runtime::commands::{self, CommandKind, ResolvedCommand};
-use crate::runtime::egui::access::{self as adapter, FaceFacts, Own, SubDecl};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
@@ -1051,10 +1050,11 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         clickable: resolved.enabled && input.sense.contains(Sense::CLICK),
         keeps_name: resolved.keeps_name,
         access: &access,
+        popups: &super::overlay::popups_shown(ctx, id),
     };
-    adapter::fill_own(ctx, &own);
+    access::report(ctx, &own);
     if core.member_of.is_some() && flags.contains(Flags::FOCUSED) {
-        adapter::set_focus(ctx, id);
+        access::set_focus(ctx, id);
     }
     let mut seen = Vec::new();
     for node in &access.nodes {
@@ -1083,9 +1083,9 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         active: core.active == Some(node.part),
         face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref() }),
         label: core.resolved.label,
-        parent: node.under.map_or(core.id, |under| adapter::sub_node_id(core.id, under)),
+        parent: node.under.map_or(core.id, |under| access::sub_node_id(core.id, under)),
     };
-    adapter::fill_sub(&core.ctx, &decl);
+    access::report_sub(&core.ctx, &decl);
 }
 
 /// A node of a component whose size failed the guard: the role and the label, nothing else.
@@ -1093,7 +1093,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
     let Role::Node(role) = C::ROLE else { return };
     let core = &cx.core;
     let access = Access::default();
-    adapter::fill_own(
+    access::report(
         &core.ctx,
         &Own {
             id: core.id,
@@ -1115,6 +1115,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             clickable: false,
             keeps_name: false,
             access: &access,
+            popups: &[],
         },
     );
 }
