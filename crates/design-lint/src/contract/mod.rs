@@ -19,6 +19,7 @@ mod pipeline_only;
 mod platform;
 mod pointer;
 mod props;
+mod runtime_egui;
 mod scope;
 mod shape;
 mod sites;
@@ -37,8 +38,9 @@ use crate::report::Finding;
 use sites::Site;
 
 /// Every rule id of this module, for the marker and exemption validation in [`crate::RULES`].
-pub(crate) const IDS: [&str; 37] = [
+pub(crate) const IDS: [&str; 38] = [
     egui_import::ID,
+    runtime_egui::ID,
     allocate::ID,
     egui_widget::ID,
     access::ID,
@@ -80,8 +82,9 @@ pub(crate) const IDS: [&str; 37] = [
 type Check = fn(&Cx<'_>, &mut Vec<Finding>);
 
 /// REGISTRY: add a rule by adding its `check` here and its ids to [`IDS`].
-const REGISTRY: [Check; 19] = [
+const REGISTRY: [Check; 20] = [
     egui_import::check,
+    runtime_egui::check,
     allocate::check,
     egui_widget::check,
     access::check,

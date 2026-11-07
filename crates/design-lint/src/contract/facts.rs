@@ -11,7 +11,7 @@ use syn::Item;
 
 use crate::resolve::{Index, Module};
 
-use super::types::{TypeFacts, Types, add_impl, definition, self_name};
+use super::types::{TypeFacts, Types, add_impl, definition, registered_idents, self_name};
 
 type Key = (String, Vec<String>, String);
 
@@ -38,6 +38,15 @@ pub(crate) fn build(index: &Index, rel: &dyn Fn(&Path) -> PathBuf) -> BTreeMap<P
                     && let Some(facts) = key_of(index, krate, module, &name).and_then(|k| defs.get_mut(&k))
                 {
                     add_impl(facts, imp);
+                }
+            }
+        }
+    }
+    for (krate, tree) in &index.trees {
+        for module in tree.modules.values() {
+            for name in registered_idents(&module.items) {
+                if let Some(facts) = key_of(index, krate, module, &name).and_then(|k| defs.get_mut(&k)) {
+                    facts.registered = true;
                 }
             }
         }

@@ -22,6 +22,9 @@ const SHORTCUTS: [&str; 12] = [
     "image",
 ];
 
+/// `Ui` text shortcuts. Only calls on a receiver named `ui` count: components and builders have their own `label`.
+const UI_TEXT: [&str; 6] = ["label", "heading", "monospace", "colored_label", "code", "small"];
+
 const WIDGETS: [&str; 5] = ["Button", "TextEdit", "DragValue", "Slider", "ComboBox"];
 
 /// An argument that reads a design token: it mentions `tokens`, `Tokens` or `token`.
@@ -31,6 +34,14 @@ fn is_token(idents: &[String]) -> bool {
 
 pub(super) fn check(cx: &Cx<'_>, out: &mut Vec<Finding>) {
     cx.flag_methods(out, ID, ID, "is an egui widget shortcut; the contract's parts draw widgets", |name, _| SHORTCUTS.contains(&name));
+    for site in &cx.sites {
+        if let Kind::Method { name, receiver, .. } = &site.kind
+            && UI_TEXT.contains(&name.as_str())
+            && receiver.last().is_some_and(|r| r == "ui")
+        {
+            cx.flag(out, ID, ID, site, format!("{} is an egui text shortcut; the contract's parts draw text", super::call(name)));
+        }
+    }
     // Literal arguments are `literal-size/add-space`.
     cx.flag_methods(out, ID, ID, "takes a space that is not a token", |name, args| {
         name == "add_space" && !args.has_literal && !is_token(&args.idents)

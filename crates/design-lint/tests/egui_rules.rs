@@ -154,7 +154,11 @@ fn literal_sizes_may_fill_the_testing_module_like_tests() {
     config.include_tests = true;
     let report = check_with_scope(&config, &root, &scope).unwrap();
     let hits: Vec<_> = report.findings.iter().map(|f| (f.path.display().to_string(), f.rule, f.line)).collect();
-    assert_eq!(hits, [("src/other.rs".to_owned(), "literal-size/vec2", 2)]);
+    assert_eq!(
+        hits,
+        [("src/other.rs".to_owned(), "literal-size/vec2", 2), ("src/testing/examples/sheet.rs".to_owned(), "literal-size/vec2", 2)],
+        "the kit may fill literal sizes; the examples may not"
+    );
 }
 
 #[test]
@@ -171,4 +175,21 @@ fn layer_one_names_accesskit_data_types_and_no_other_layer_does() {
     assert!(rules_at(&src, "crates/data/src/intent.rs", &layered).is_empty());
     assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new().layer("crates/data", 2)), ["contract/egui-import"]);
     assert_eq!(rules_at(&src, "crates/data/src/intent.rs", &StaticScope::new()), ["contract/egui-import"]);
+}
+
+#[test]
+fn family_modules_neither_import_runtime_egui_nor_call_ui_text_shortcuts() {
+    let src = fixture("reject", "family-raw-egui.rs");
+    let layered = StaticScope::new().layer("crates/x/src/text", 5).layer("crates/x/src/shell", 7);
+    let findings = analyze_contract(&src, Path::new("crates/x/src/text/mod.rs"), &layered, false);
+    let hits: Vec<_> = findings.iter().map(|f| (f.rule, f.line)).collect();
+    assert_eq!(hits, [("contract/runtime-egui", 1), ("contract/egui-widget", 5), ("contract/runtime-egui", 7)]);
+    let shell = analyze_contract(&src, Path::new("crates/x/src/shell/app.rs"), &layered, false);
+    assert!(shell.iter().all(|f| f.rule != "contract/runtime-egui"), "layer 7 hosts the adapter");
+}
+
+#[test]
+fn text_shortcuts_on_builders_are_not_ui_calls() {
+    let src = "fn f(field: Field) { let _ = field.label(\"x\"); }";
+    assert!(rules_at(src, "src/a.rs", &StaticScope::new()).is_empty());
 }
