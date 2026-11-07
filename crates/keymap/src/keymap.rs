@@ -37,6 +37,32 @@ pub enum Kind {
         /// The group the tool belongs to; `None` joins the group of tools without one.
         group: Option<String>,
     },
+    /// Switches something on or off.
+    Toggle,
+    /// One choice of a group where one holds; the group's other choices clear when it is picked.
+    Radio {
+        /// The group the choice belongs to; `None` joins the group of choices without one.
+        group: Option<String>,
+    },
+    /// Acts while its key is held and ends on the release.
+    Momentary,
+}
+
+/// What a command is, as [`CommandDef`] states it.
+pub type CommandKind = Kind;
+
+/// Whether a command fires while a dialog is open.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[non_exhaustive]
+pub enum ModalRule {
+    /// Does not fire while a dialog is open.
+    #[default]
+    Blocked,
+    /// Fires from within a dialog and while none is open.
+    InDialogs,
+    /// Fires whatever is open.
+    Always,
 }
 
 /// A trigger in a scope. `scope: None` is the command's home scope.
@@ -175,7 +201,16 @@ pub struct Bindable {
     #[serde(default)]
     /// The bindings the command has before the user changes any.
     pub defaults: Vec<Binding>,
+    /// The icon the surfaces show beside the label, by name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<std::borrow::Cow<'static, str>>,
+    /// Whether the command fires while a dialog is open.
+    #[serde(default)]
+    pub modal: ModalRule,
 }
+
+/// A command as the registry describes it: the catalog entry of the keymap and of every command surface.
+pub type CommandDef = Bindable;
 
 impl Bindable {
     /// A command in `scope` without default bindings.
@@ -191,7 +226,21 @@ impl Bindable {
             is_toggle: false,
             has_alt_variant: false,
             defaults: Vec::new(),
+            icon: None,
+            modal: ModalRule::default(),
         }
+    }
+
+    /// Sets the [`icon`](Bindable::icon).
+    pub fn with_icon(mut self, icon: impl Into<std::borrow::Cow<'static, str>>) -> Bindable {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// Sets the [`modal`](Bindable::modal) rule.
+    pub fn with_modal(mut self, modal: ModalRule) -> Bindable {
+        self.modal = modal;
+        self
     }
 
     /// Marks the command as showing and hiding something ([`Bindable::is_toggle`]).

@@ -395,7 +395,7 @@ fn build(keymap: &Keymap, options: &Options, text: &Say, view: &View) -> Built {
             Kind::Tool { group } => list.iter().any(|x| {
                 tool_keys.get(&(group.as_deref().filter(|_| !keymap.shares_tool_keys()), x.trigger.effective(platform))).is_some_and(|n| *n > 1)
             }),
-            Kind::Command => false,
+            _ => false,
         };
         let unparsed = keymap.unparsed_texts(&b.command).into_iter().map(str::to_owned).collect();
         let row = Row { index, command: b.command.clone(), key, label: text.command(b), prefix, chips, unparsed, changed, cycles, conflict };
