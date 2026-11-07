@@ -2,6 +2,9 @@
 
 mod window_parts;
 
+// Start screen.
+mod start;
+
 use crate::contract::kit::Panel;
 use craft_ui::contract::{PaneEdge, ShowContainer as _};
 use craft_ui::runtime::env::{BodyMode, RevealEdge, RootEnv, ShellCx, ShellRegions, WindowKey};

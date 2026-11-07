@@ -26,3 +26,13 @@ pub use canvas_shell::{CanvasPanel, CanvasPanelOutput, CanvasShell, slots};
 pub use reveal::{Aim, PanelsHidden, Reveal, Tracking, chrome_toggles};
 pub use screen_mode::{FullScreenPlan, ScreenMode, ScreenModeCommand};
 pub use words::AppShellWords;
+
+// Start screen and app windows.
+mod recent;
+mod start;
+mod viewport_window;
+
+pub use recent::{RecentFile, RecentSort, RecentView, Template, ThumbKey, sort_recent};
+pub use start::{StartAction, StartOutput, StartPinnedCommands, StartRecentCommands, StartScreen};
+pub use viewport_window::{ViewportWindow, ViewportWindowOutput};
+pub use words::StartWords;
