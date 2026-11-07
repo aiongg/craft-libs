@@ -358,6 +358,8 @@ pub struct ContainerProps {
     pub save: Option<SaveKey>,
     /// One outer gesture over the body's fields.
     pub outer_edit: bool,
+    /// The body holds one collection that owns the scroll: a layer's own body scroll is off.
+    pub collection_body: bool,
 }
 
 impl Default for ContainerProps {
@@ -391,6 +393,7 @@ impl ContainerProps {
             roving: None,
             save: None,
             outer_edit: false,
+            collection_body: false,
         }
     }
 
@@ -433,6 +436,13 @@ impl ContainerProps {
     /// A scroll region.
     pub const fn scroll(mut self, scroll: Scroll) -> Self {
         self.scroll = Some(scroll);
+        self
+    }
+
+    /// The body holds one collection that owns the scroll (a popup list): a layer's own body scroll is off, and the
+    /// collection scrolls inside the layer's capped room.
+    pub const fn collection_body(mut self) -> Self {
+        self.collection_body = true;
         self
     }
 

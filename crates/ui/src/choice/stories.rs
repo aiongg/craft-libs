@@ -28,11 +28,6 @@ fn checkbox_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Checkbox::new(Bind::bound(data.value("invalid", true)).check(refuse_on)).label("Lock aspect").show(ui).into()
 }
 
-#[story(Checkbox<'static>, covers = [], drive = Drive::Never)]
-fn checkbox_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Checkbox::new(Bind::bound(data.value("disabled", true))).label("Show grid").enabled(false).show(ui).into()
-}
-
 #[story(Checkbox<'static>, covers = [], disabled_text = "Turn on the grid first")]
 fn checkbox_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("Snap to the grid");
@@ -98,11 +93,6 @@ fn switch_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     Switch::new(Bind::bound(data.value("invalid", true)).check(refuse_on)).label("Lock aspect").show(ui).into()
 }
 
-#[story(Switch<'static>, covers = [], drive = Drive::Never)]
-fn switch_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Switch::new(Bind::bound(data.value("disabled", true))).label("Show rulers").enabled(false).show(ui).into()
-}
-
 #[story(Switch<'static>, covers = [], disabled_text = "Turn on the grid first")]
 fn switch_with_reason(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let tooltip = data.tooltip("Snap to the grid");
@@ -133,11 +123,6 @@ fn segmented_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn segmented_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_large = |size: &u8| if *size == 3 { Validity::Refuse(Message::new("Too large")) } else { Validity::Ok };
     Segmented::new(Bind::bound(data.value("large", 3u8)).check(refuse_large), &sizes()).label("Size").show(ui).into()
-}
-
-#[story(Segmented<'static, u8>, covers = [], drive = Drive::Never)]
-fn segmented_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Segmented::new(Bind::bound(data.value("size", 2u8)), &sizes()).label("Size").enabled(false).show(ui).into()
 }
 
 #[story(Segmented<'static, u8>, covers = [], disabled_text = "Pick a layer first")]
@@ -176,11 +161,6 @@ fn rating_mixed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 fn rating_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let refuse_top = |stars: &u8| if *stars == 5 { Validity::Refuse(Message::new("Five stars needs a reason")) } else { Validity::Ok };
     Rating::new(Bind::bound(data.value("top", 5u8)).check(refuse_top), 5).label("Rating").show(ui).into()
-}
-
-#[story(Rating<'static>, covers = [], drive = Drive::Never)]
-fn rating_disabled(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Rating::new(Bind::bound(data.value("stars", 3u8)), 5).label("Rating").enabled(false).show(ui).into()
 }
 
 #[story(Rating<'static>, covers = [], disabled_text = "Open the photo first")]

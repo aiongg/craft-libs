@@ -104,7 +104,12 @@ impl Component for Text {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&self.run(cx.resolved.label)).size()
+        let layout = cx.layout(&self.run(cx.resolved.label));
+        // A cut line takes the whole room: its width must not follow where the last glyph happened to fit.
+        match cx.room {
+            Some(room) if layout.elided => Vec2::new(room, layout.size().y),
+            _ => layout.size(),
+        }
     }
 
     fn sense(&self) -> Sense {

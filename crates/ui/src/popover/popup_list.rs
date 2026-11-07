@@ -40,7 +40,7 @@ impl<'a> PopupList<'a> {
     pub fn new(label: impl Into<Label>, open: Bind<'a, bool>) -> Self {
         let mut overlay = Overlay::dropdown();
         overlay.dismiss = overlay.dismiss.on_activate(true);
-        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).mount(Mount::Layer(overlay));
+        let props = ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).collection_body().mount(Mount::Layer(overlay));
         PopupList { common: Common::new(), props, open, closed: None }.label(label)
     }
 
