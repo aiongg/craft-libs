@@ -4,8 +4,8 @@ use super::words::SectionWords;
 use crate::buttons::{Button, IconButton};
 use crate::contract::StopProps as _;
 use crate::contract::{
-    Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, Outcome, Pad, Pointer as _, Props as _,
-    Role, RowAlign, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
+    Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, DropMark, DropOperation, DropTarget, NoValue, Outcome, Pad, Pointer as _,
+    Props as _, Role, RowAlign, Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::primitives::IconSpec;
 use crate::runtime::access::Name;
@@ -89,14 +89,14 @@ impl FooterAction {
     #[must_use]
     pub fn accepts_drops<P: Clone + Send + Sync + 'static>(mut self, accepts: fn(&P) -> bool) -> Self {
         self.drops = Some(Arc::new(move |ui, action| {
-            let shown = DropAction::new(accepts).show(ui, |ui, _| action.button().show(ui));
+            let shown = DropAction::new(accepts).show(ui, |ui, _| action.icon_button().show(ui));
             let response = shown.inner.unwrap_or_else(|| shown.output.response.clone());
             (response, shown.output.dropped.map(|payload| Arc::new(payload) as Dropped))
         }));
         self
     }
 
-    fn button(&self) -> IconButton<'static> {
+    fn icon_button(&self) -> IconButton<'static> {
         IconButton::new(self.icon.clone()).label(self.label.clone()).enabled(self.enabled)
     }
 }
@@ -357,7 +357,7 @@ impl FooterBar {
                             }
                             response
                         }
-                        None => action.button().show(ui),
+                        None => action.icon_button().show(ui),
                     };
                     if crate::contract::clicked(&response) {
                         shown.picked = Some(at);

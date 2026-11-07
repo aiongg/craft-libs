@@ -5,7 +5,7 @@ use crate::contract::Show as _;
 use crate::primitives::IconSpec;
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
 use craft_behavior::ColumnKey;
-use egui::{Pos2, Rect, Ui, Vec2};
+use egui::{Pos2, Rect, Ui};
 
 #[story(ListRow<'static>, covers = [Default], drive = Drive::Activate)]
 fn list_row(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
@@ -32,10 +32,11 @@ fn list_row_clipped_dimmed(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 fn list_row_text_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
     const NAME: ColumnKey = ColumnKey::new("name");
     const SIZE: ColumnKey = ColumnKey::new("size");
-    let (left, width) = (ui.cursor().min.x, ui.available_width());
+    let (left, width, height) = (ui.cursor().min.x, ui.available_width(), ui.spacing().interact_size.y);
+    let split = left + width * 0.6;
     let cells = [
-        (NAME, Rect::from_min_size(Pos2::new(left, 0.0), Vec2::new(width * 0.6, 20.0))),
-        (SIZE, Rect::from_min_size(Pos2::new(left + width * 0.6, 0.0), Vec2::new(width * 0.4, 20.0))),
+        (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),
+        (SIZE, Rect::from_min_max(Pos2::new(split, 0.0), Pos2::new(left + width, height))),
     ];
     ListRow::new("report.pdf").cells(&cells).cell(SIZE, "2.4 MB").show(ui).into()
 }

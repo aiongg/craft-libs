@@ -2,8 +2,8 @@
 
 use super::{TileGrid, TileGroup};
 use crate::contract::ShowCollection as _;
-use crate::tile_grid::Tile;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+use crate::tile_grid::Tile;
 use craft_behavior::{DisplayOrder, ItemSource, SizeHint};
 use egui::Ui;
 

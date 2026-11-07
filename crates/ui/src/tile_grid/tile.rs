@@ -245,7 +245,7 @@ pub struct Tile<'a> {
     #[prop]
     range: Option<(f32, f32)>,
     /// The scrub line's fraction across the picture from the reading start.
-    #[prop]
+    #[prop(quantity = "fraction")]
     scrub: Option<f32>,
     /// When the badge bar shows.
     #[prop]

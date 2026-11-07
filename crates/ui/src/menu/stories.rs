@@ -33,7 +33,7 @@ fn menu_item_marks_and_submenu(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .show(ui, |ui, _| {
             MenuItem::new("Show Rulers").check(true).show(ui);
             MenuItem::new("Snap to Grid").check(false).show(ui);
-            MenuItem::new("Fit in Window").radio(true).show(ui);
+            MenuItem::new("Fit in Window").radio_mark(true).show(ui);
             MenuItem::submenu("Open Recent").show(ui)
         })
         .inner

@@ -32,13 +32,15 @@ pub struct FieldRowStyle {
 /// names the control by the label, runs the label's scrub and reset, and focuses the control when the label is
 /// clicked. The control is the body's one child and returns its own output. `Field::help` adds a help line under
 /// the control.
-#[derive(crate::contract::Component)]
+#[derive(crate::contract::Component, crate::contract::Props)]
 #[component(container)]
 pub struct Field<'a> {
     #[common]
     common: Common,
     #[container]
     props: ContainerProps,
+    /// Shows `help` under the control while the control has no validity message.
+    #[prop]
     help: Option<Help<'a>>,
 }
 
@@ -61,13 +63,6 @@ impl<'a> Field<'a> {
     #[must_use]
     pub fn side(mut self, side: SideLabel) -> Self {
         self.props.label = Some(side);
-        self
-    }
-
-    /// Shows `help` under the control while the control has no validity message.
-    #[must_use]
-    pub fn help(mut self, help: Help<'a>) -> Self {
-        self.help = Some(help);
         self
     }
 }

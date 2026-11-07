@@ -6,11 +6,12 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::layout::{ArrangeSpacing, GridLayout, TileGroup, Tiling, aspects_of, arrange};
+use super::layout::{ArrangeSpacing, GridLayout, TileGroup, Tiling, arrange, aspects_of};
 use super::{CaptionPlace, Tile, TilePartEvent};
 use crate::contract::{
-    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, Focus as _,
-    ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing, Styled as _,
+    Access, ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse,
+    Focus as _, ListDrag, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
+    Styled as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::list::{DropTest, RowTest, SourceTest};
@@ -147,10 +148,10 @@ pub struct TileGrid<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[prop(flag)]
     justified: bool,
     /// The width of a card over its picture's height.
-    #[prop]
+    #[prop(quantity = "aspect ratio")]
     aspect: f32,
     /// The tile size as a multiple of the medium thumbnail side; 1 is the medium thumbnail.
-    #[prop]
+    #[prop(quantity = "zoom factor")]
     zoom: f32,
     /// Where a caption goes; `CaptionPlace::None` keeps no room for one.
     #[prop]
@@ -415,8 +416,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
             while let Some(request) = cx.intents().take_access() {
                 let Some(target) = request.target else { continue };
                 let wanted = match request.action {
-                    accesskit::Action::Expand => true,
-                    accesskit::Action::Collapse => false,
+                    craft_behavior::AccessAction::Expand => true,
+                    craft_behavior::AccessAction::Collapse => false,
                     _ => continue,
                 };
                 if let Some(group) = self.placed.iter().map(|placed| placed.group).find(|group| GROUP.at(*group as u64) == target) {
@@ -458,9 +459,8 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                 ui.face(TOGGLE.at(placed.group as u64), disclosure);
             }
             let draw = ui.draw();
-            let detail = (!group.detail.is_empty()).then(|| {
-                TextRun::new(group.detail.as_str()).role(style.group_detail.role).color(cx.resolve(&style.group_detail.color)).elide()
-            });
+            let detail = (!group.detail.is_empty())
+                .then(|| TextRun::new(group.detail.as_str()).role(style.group_detail.role).color(cx.resolve(&style.group_detail.color)).elide());
             let detail_width = detail.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
             let title = TextRun::new(group.title.as_str()).role(style.group_title.role).color(cx.resolve(&style.group_title.color)).elide();
             let laid = draw.layout(&title, (start.width() - detail_width - style.pad).max(0.0));

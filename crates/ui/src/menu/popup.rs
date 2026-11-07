@@ -3,8 +3,8 @@
 use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside};
 use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Entry, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role, Show as _,
-    ShowContainer as _, Trigger,
+    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Entry, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
+    Show as _, ShowContainer as _, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::Label;
@@ -78,7 +78,7 @@ pub(crate) fn entry_rows<T>(ui: &mut Ui, entries: &[Entry<T>]) -> Option<usize> 
         }
         let mut row = MenuItem::new(entry.label().clone()).enabled(entry.is_enabled());
         if valued {
-            row = row.radio(entry.is_checked());
+            row = row.radio_mark(entry.is_checked());
         }
         if let Some(icon) = entry.icon_spec() {
             row = row.icon(icon.clone());
@@ -136,11 +136,8 @@ pub struct Menu<'a> {
 impl<'a> Menu<'a> {
     /// A menu named `label`, open while `open` is true.
     pub fn new(label: impl Into<Label>, open: Bind<'a, bool>) -> Self {
-        let props = ContainerProps::new()
-            .surface(SurfaceKind::Popup)
-            .pad(Pad::None)
-            .roving(Roving::new(NavShape::Flat))
-            .mount(Mount::Layer(layer(false)));
+        let props =
+            ContainerProps::new().surface(SurfaceKind::Popup).pad(Pad::None).roving(Roving::new(NavShape::Flat)).mount(Mount::Layer(layer(false)));
         Menu { common: Common::new(), props, open: Some(open), closed: None, submenu: false }.label(label)
     }
 

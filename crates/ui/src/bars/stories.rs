@@ -62,10 +62,9 @@ fn open_overflow(fixture: &mut Fixture) {
 
 #[story(BarItems, covers = [Open], drive = Drive::Custom(open_overflow))]
 fn bar_items_overflow(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    ui.scope(|ui| {
+    crate::testing::memory::scoped(ui, |ui| {
         ui.set_max_width(NARROW);
         BarItems::new(items()).show(ui)
     })
-    .inner
     .into()
 }

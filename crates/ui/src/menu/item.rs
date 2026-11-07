@@ -320,7 +320,7 @@ pub struct MenuItem<'a> {
     check: Option<bool>,
     /// A radio mark, shown while the value is true; the row reserves the mark column either way.
     #[prop]
-    radio: Option<bool>,
+    radio_mark: Option<bool>,
     /// The letter that runs the row, in place of the level's own pick.
     #[prop]
     mnemonic: Option<char>,
@@ -343,7 +343,7 @@ impl<'a> MenuItem<'a> {
             submenu: false,
             icon: None,
             check: None,
-            radio: None,
+            radio_mark: None,
             mnemonic: None,
             detail: None,
             shortcut: None,
@@ -380,7 +380,7 @@ impl<'a> MenuItem<'a> {
     }
 
     fn marked_row(&self, command: Option<&ResolvedCommand>) -> bool {
-        self.check.is_some() || self.radio.is_some() || command.is_some_and(|command| command.checked.is_some())
+        self.check.is_some() || self.radio_mark.is_some() || command.is_some_and(|command| command.checked.is_some())
     }
 
     /// The shortcut as the `Kbd` that shows it.
@@ -522,7 +522,9 @@ impl Component for MenuItem<'_> {
             let now = frame::clock(&ctx);
             let waited = {
                 let dwell = cx.memory::<Dwell>();
-                if hovered { now - *dwell.since.get_or_insert(now) } else {
+                if hovered {
+                    now - *dwell.since.get_or_insert(now)
+                } else {
                     dwell.since = None;
                     0.0
                 }
@@ -550,7 +552,7 @@ impl Component for MenuItem<'_> {
 
     fn flags(&self) -> Flags {
         let mut flags = Flags::empty();
-        flags.set(Flags::CHECKED, self.check == Some(true) || self.radio == Some(true));
+        flags.set(Flags::CHECKED, self.check == Some(true) || self.radio_mark == Some(true));
         flags
     }
 
@@ -563,7 +565,8 @@ impl Component for MenuItem<'_> {
         let (text, underline) = shown(cx.resolved.label, level.letter_of(cx.id));
         let draw = ui.draw();
         let detail = self.detail.as_ref().map(|detail| cx.env.resolve(detail));
-        let detail_run = detail.as_ref().map(|detail| TextRun::new(detail.as_str()).role(cx.style.detail.role).color(cx.resolve(&cx.style.detail.color)));
+        let detail_run =
+            detail.as_ref().map(|detail| TextRun::new(detail.as_str()).role(cx.style.detail.role).color(cx.resolve(&cx.style.detail.color)));
         let detail_width = detail_run.as_ref().map_or(0.0, |run| draw.layout(run, f32::INFINITY).size().x);
         let trail = if self.submenu { side } else { cx.part_if_declared(SHORTCUT).map_or(0.0, |part| part.rect.width()) };
         let columns = Columns { mark: if marked { side } else { 0.0 }, icon: if iconed { side } else { 0.0 }, detail: detail_width, trail };
@@ -572,9 +575,9 @@ impl Component for MenuItem<'_> {
         let glyph = |slot: Rect| Rect::from_center_size(slot.center(), Vec2::splat(side));
         if columns.mark > 0.0 {
             let square = Rect::from_center_size(Flow::new(placed.mark, rtl).take_start(side).0.center(), Vec2::splat(side));
-            let checked = self.check.or(self.radio).or_else(|| command.and_then(|command| command.checked)) == Some(true);
+            let checked = self.check.or(self.radio_mark).or_else(|| command.and_then(|command| command.checked)) == Some(true);
             if checked {
-                if self.radio.is_some() {
+                if self.radio_mark.is_some() {
                     draw.fill(&PaintShape::Circle(square.center(), side * DOT_RADIUS), ink);
                 } else {
                     let at = |(x, y): (f32, f32)| -> Pos2 { square.min + Vec2::new(x, y) * side };
@@ -620,7 +623,7 @@ impl Component for MenuItem<'_> {
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
-        if self.radio.is_some() {
+        if self.radio_mark.is_some() {
             access.role(Role::MENU_ITEM_RADIO);
         } else if self.check.is_some() || cx.command.as_deref().is_some_and(|command| command.checked.is_some()) {
             access.role(Role::MENU_ITEM_CHECK_BOX);

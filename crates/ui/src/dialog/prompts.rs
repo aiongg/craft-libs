@@ -22,6 +22,7 @@ use std::fmt;
 pub enum PromptKind {
     /// "Delete layer ‘Background’?" with Delete and Cancel. `names` are up to four display names; `count` the whole
     /// number.
+    #[non_exhaustive]
     ConfirmDelete {
         /// Display names of the first few items.
         names: Vec<String>,
@@ -29,18 +30,21 @@ pub enum PromptKind {
         count: usize,
     },
     /// A file with damaged data: Open Anyway or Cancel.
+    #[non_exhaustive]
     DamagedFile {
         /// The file's name.
         name: String,
     },
     /// The document's own file changed on disk since it was opened or saved: Replace or Cancel (Save As keeps both;
     /// the message says so).
+    #[non_exhaustive]
     ChangedOnDisk {
         /// The document's file name.
         name: String,
     },
     /// A save would overwrite a file the save dialog did not ask about: Replace or Cancel. `answered` is the name
     /// the dialog answered, when it differs.
+    #[non_exhaustive]
     ReplaceFile {
         /// The existing file's name.
         name: String,
@@ -324,11 +328,7 @@ impl StandardPrompt {
             message = own.clone();
         }
         if !self.buttons.is_empty() {
-            answers = self
-                .buttons
-                .iter()
-                .map(|(choice, label, letter)| (*choice, Reply::new(label.clone(), choice.role(), *letter)))
-                .collect();
+            answers = self.buttons.iter().map(|(choice, label, letter)| (*choice, Reply::new(label.clone(), choice.role(), *letter))).collect();
         }
         if title.as_str().is_empty() {
             title = words.custom_title.clone();
@@ -361,12 +361,9 @@ impl StandardPrompt {
                 vec![proceed(&words.open_anyway, DialogRole::Accept, 'O'), cancel],
             ),
             PromptKind::ChangedOnDisk { name } => {
-                let message = format!("{}\n\n{}", words.changed_on_disk_message.fill(&[("name", name.as_str())]), words.changed_on_disk_detail.as_str());
-                (
-                    words.changed_on_disk_title.clone(),
-                    message.into(),
-                    vec![proceed(&words.replace, DialogRole::Destructive, 'R'), cancel],
-                )
+                let message =
+                    format!("{}\n\n{}", words.changed_on_disk_message.fill(&[("name", name.as_str())]), words.changed_on_disk_detail.as_str());
+                (words.changed_on_disk_title.clone(), message.into(), vec![proceed(&words.replace, DialogRole::Destructive, 'R'), cancel])
             }
             PromptKind::ReplaceFile { name, answered } => {
                 let mut message = words.replace_file_message.fill(&[("name", name.as_str())]);
@@ -417,10 +414,7 @@ impl StackDialog for StandardPrompt {
         let choices: Vec<PromptChoice> = answers.iter().map(|(choice, _)| *choice).collect();
         let replies: Vec<Reply> = answers.into_iter().map(|(_, reply)| reply).collect();
         let enter = replies.iter().all(|reply| reply.enabled || reply.role != DialogRole::Accept);
-        let mut prompt = Prompt::new(title, message)
-            .answers(buttons(&replies, os_of(ui.ctx())))
-            .enter(enter)
-            .opened(Bind::bound(&mut self.open));
+        let mut prompt = Prompt::new(title, message).answers(buttons(&replies, os_of(ui.ctx()))).enter(enter).opened(Bind::bound(&mut self.open));
         for paragraph in &self.paragraphs {
             prompt = prompt.paragraph(paragraph.clone());
         }
