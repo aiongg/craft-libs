@@ -504,7 +504,7 @@ fn a_file_drop_on_a_list_reports_the_files_at_the_insert_position() {
     let landed: Vec<_> = dropped(true)
         .into_iter()
         .filter_map(|event| match event {
-            CollectionEvent::FilesDropped { insert, files } => Some((insert, files.into_iter().map(|file| file.name).collect::<Vec<_>>())),
+            CollectionEvent::FilesDropped { insert, files, .. } => Some((insert, files.into_iter().map(|file| file.name).collect::<Vec<_>>())),
             _ => None,
         })
         .collect();
