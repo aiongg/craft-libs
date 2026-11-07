@@ -4,11 +4,11 @@
 mod stories;
 
 use super::{FieldStyle, text_part};
+use crate::choice::Checkbox;
 use crate::contract::{
     Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     WordSetCx as _,
 };
-use crate::choice::Checkbox;
 use crate::primitives::{Span, TextOptions, TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
@@ -164,9 +164,7 @@ impl Component for AltTextField<'_> {
         cx.part(DECORATIVE, check_at).sense(Sense::CLICK | Sense::FOCUS).focusable();
         match cx.value() {
             Some(value) if !value.decorative => {
-                let mut options = TextOptions::default();
-                options.lines = Some(LINES);
-                options.placeholder = Some(words.alt_text.clone().into());
+                let options = TextOptions { lines: Some(LINES), placeholder: Some(words.alt_text.clone()), ..TextOptions::default() };
                 cx.text(text_part::<AltText>(), area, &AltCodec, value, &options);
             }
             _ => {

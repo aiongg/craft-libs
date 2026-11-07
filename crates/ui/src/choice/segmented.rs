@@ -3,8 +3,8 @@
 
 use crate::buttons::ToggleButton;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _,
-    Role, SetPosition,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, SetPosition,
 };
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;

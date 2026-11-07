@@ -6,8 +6,8 @@ mod thumb_row;
 
 use craft_i18n::Direction;
 use craft_ui::contract::{Bind, Props as _, Show as _};
-use craft_ui::value_drag::{RangeSlider, Slider, SliderScale};
 use craft_ui::testing::{Fixture, Story, StoryData, StoryOutput, trial};
+use craft_ui::value_drag::{RangeSlider, Slider, SliderScale};
 use egui::{Key, Modifiers, Ui, Vec2};
 
 const START: f64 = 50.0;

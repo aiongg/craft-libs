@@ -2,11 +2,11 @@
 //! wheel and AccessKit step the value; a double click or the reset intent restores the binding's reset value. The
 //! track maps positions to values through a [`SliderScale`], linear by default.
 
+use super::track::{self, Along, Fill, MarkInk, Marks, TrackFace, TrackLook};
 use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Numeric, PaintUi, PartsCx, Pointer as _,
     Remember as _, Role, Styled as _,
 };
-use super::track::{self, Along, Fill, MarkInk, Marks, TrackFace, TrackLook};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};
@@ -446,11 +446,7 @@ impl Component for Slider<'_> {
             let fill = value.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: 0.0, to: reach });
             track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.groove), fill);
         }
-        let ink = MarkInk {
-            marks: cx.resolve(&style.track.mark_color),
-            labels: cx.resolve(&style.mark_text.color),
-            role: style.mark_text.role,
-        };
+        let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
         let (fill, edge) = (
             if value.is_some() { cx.resolve_part(THUMB, &style.thumb) } else { cx.resolve(&style.track.groove) },

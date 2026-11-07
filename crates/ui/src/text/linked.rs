@@ -7,7 +7,8 @@ mod stories;
 use super::NumberField;
 use crate::buttons::ToggleButton;
 use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, Props as _, Remember as _, Role, SideLabel, WordSetCx as _,
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Outcome, PaintUi, Props as _, Remember as _, Role, SideLabel,
+    WordSetCx as _,
 };
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;
@@ -322,7 +323,13 @@ fn arrange(layout: LinkedLayout, n: usize, size: Vec2, gap: f32) -> (Vec<Rect>, 
             let width = ((size.x - 2.0 * gap - height) / 2.0).max(0.0);
             let second = width + gap + height + gap;
             let cells = (0..n)
-                .map(|i| if i < first { rect(0.0, i as f32 * (height + gap), width, height) } else { rect(second, (i - first) as f32 * (height + gap), width, height) })
+                .map(|i| {
+                    if i < first {
+                        rect(0.0, i as f32 * (height + gap), width, height)
+                    } else {
+                        rect(second, (i - first) as f32 * (height + gap), width, height)
+                    }
+                })
                 .collect();
             (cells, rect(width + gap, (size.y - height) / 2.0, height, height))
         }

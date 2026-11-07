@@ -1,8 +1,8 @@
 //! Stories of `DropVeil`.
 
 use super::DropVeil;
-use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::choice::Checkbox;
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 

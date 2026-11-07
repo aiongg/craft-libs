@@ -8,9 +8,9 @@ mod stories;
 
 use super::{FieldStyle, text_part};
 use crate::contract::{
-    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, LeadOnOpen, MeasureCx, Name, Numeric,
-    Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Scrub, SelectMode, ShowCollection as _,
-    Show as _, Styled as _, ActivateOn, WordSetCx as _,
+    Access, ActivateOn, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, LeadOnOpen, MeasureCx,
+    Name, Numeric, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Scrub, SelectMode,
+    Show as _, ShowCollection as _, Styled as _, WordSetCx as _,
 };
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
@@ -339,7 +339,10 @@ impl<'a> NumberField<'a> {
                 asked = false;
             }
         }
-        if asked && let Some(popup) = presets.or(slider) && !popup.is_open(cx) {
+        if asked
+            && let Some(popup) = presets.or(slider)
+            && !popup.is_open(cx)
+        {
             popup.open(cx);
         }
         if let Some(popup) = presets
@@ -512,8 +515,26 @@ impl Component for NumberField<'_> {
         let rule = self.rule();
         while let Some((mv, mods)) = cx.intents().take_move() {
             let (notches, scale) = match mv {
-                NavMove::Up => (1, if mods.extend { COARSE } else if mods.lead { FINE } else { 1.0 }),
-                NavMove::Down => (-1, if mods.extend { COARSE } else if mods.lead { FINE } else { 1.0 }),
+                NavMove::Up => (
+                    1,
+                    if mods.extend {
+                        COARSE
+                    } else if mods.lead {
+                        FINE
+                    } else {
+                        1.0
+                    },
+                ),
+                NavMove::Down => (
+                    -1,
+                    if mods.extend {
+                        COARSE
+                    } else if mods.lead {
+                        FINE
+                    } else {
+                        1.0
+                    },
+                ),
                 NavMove::PageUp => (1, COARSE),
                 NavMove::PageDown => (-1, COARSE),
                 _ => continue,

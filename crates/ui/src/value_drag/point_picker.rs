@@ -48,7 +48,9 @@ pub struct PointPickerStyle {
 struct DragStart([f64; 2]);
 
 /// Paints the image under the point into the plot rect through the content painter: `PointPicker::backdrop`.
-pub struct Backdrop<'a>(Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>);
+pub struct Backdrop<'a>(BackdropFn<'a>);
+
+type BackdropFn<'a> = Box<dyn FnOnce(&ContentPainterCx, Rect) + 'a>;
 
 impl<'a> Backdrop<'a> {
     /// The backdrop that runs `paint`.

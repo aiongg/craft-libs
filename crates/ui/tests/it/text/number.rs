@@ -30,7 +30,14 @@ struct Rig {
 
 impl Rig {
     fn new(start: f64, range: Option<RangeInclusive<f64>>) -> Rig {
-        let mut rig = Rig { frames: Frames::new(), value: RefCell::new(Some(start)), rect: Cell::new(Rect::NOTHING), picked: Cell::new(None), range, presets: Vec::new() };
+        let mut rig = Rig {
+            frames: Frames::new(),
+            value: RefCell::new(Some(start)),
+            rect: Cell::new(Rect::NOTHING),
+            picked: Cell::new(None),
+            range,
+            presets: Vec::new(),
+        };
         rig.idle(3);
         rig
     }
@@ -179,5 +186,8 @@ fn a_wrapped_scrub_keeps_its_value_continuous() {
     assert!((value.unwrap_or_default() - before).abs() < SAME, "the warp does not move the value: {before} -> {value:?}");
     let on = landed + Vec2::new(DRAG, 0.0);
     step(&mut frames, &mut value, vec![moved(on)], on);
-    assert!((value.unwrap_or_default() - before - f64::from(DRAG)).abs() < SAME, "the drag goes on from the value before the warp: {before} -> {value:?}");
+    assert!(
+        (value.unwrap_or_default() - before - f64::from(DRAG)).abs() < SAME,
+        "the drag goes on from the value before the warp: {before} -> {value:?}"
+    );
 }

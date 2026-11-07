@@ -161,7 +161,14 @@ pub(super) fn paint<C: Component>(ui: &PaintUi<'_>, cx: &Cx<'_, C>, ink: (&TextL
 
 /// Where the busy spinner of a loading face goes: the square of the icon side in the leading icon's slot, or in the
 /// label's slot when there is no leading icon. `None` when the face has neither.
-pub(super) fn spinner_rect<C: Component>(cx: &MeasureCx<'_, C>, spec: &FaceSpec<'_>, look: &FaceLook, side: f32, area: Rect, rtl: bool) -> Option<Rect> {
+pub(super) fn spinner_rect<C: Component>(
+    cx: &MeasureCx<'_, C>,
+    spec: &FaceSpec<'_>,
+    look: &FaceLook,
+    side: f32,
+    area: Rect,
+    rtl: bool,
+) -> Option<Rect> {
     let fixed = side * spec.icons() as f32 + look.gap * spec.gaps() as f32;
     let text_width = if spec.label.is_empty() { 0.0 } else { cx.layout_at(&spec.run(), (area.width() - fixed).max(0.0)).size().x };
     let slots = slots(spec, side, look.gap, text_width, area, rtl);

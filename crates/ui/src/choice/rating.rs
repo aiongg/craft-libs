@@ -3,8 +3,8 @@
 
 use super::words::ChoiceWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, PaintUi, PartsCx, Pointer as _, Role,
-    SetPosition, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, PaintUi, PartsCx,
+    Pointer as _, Role, SetPosition, Styled as _, WordSetCx as _,
 };
 use crate::primitives::IconSpec;
 use crate::runtime::focus::{ActivateKeys, KeepKeys, KeyUse};

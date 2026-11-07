@@ -67,7 +67,9 @@ impl TrackLook {
 
 /// A caller's look for the groove: a component shown as the face of the `GROOVE` part, such as a colour gradient. It
 /// replaces the groove and the fill.
-pub struct TrackFace<'a>(Box<dyn Fn(&mut PaintUi<'_>, PartRef) + 'a>);
+pub struct TrackFace<'a>(FaceFn<'a>);
+
+type FaceFn<'a> = Box<dyn Fn(&mut PaintUi<'_>, PartRef) + 'a>;
 
 impl<'a> TrackFace<'a> {
     /// A track painted by `face`.
@@ -167,7 +169,10 @@ pub(crate) struct MarkInk {
 pub(crate) fn paint_marks(draw: &Draw<'_>, look: &TrackLook, marks: &Marks, scale: &Scale, along: Along, whole: Rect, ink: &MarkInk) {
     let top = look.groove(along.area).bottom() + look.mark_length;
     let ticks = (marks.ticks > 0).then(|| (0..=marks.ticks).map(|at| at as f64 / marks.ticks as f64));
-    let positions = ticks.into_iter().flatten().chain(marks.values.iter().filter(|value| (scale.min..=scale.max).contains(value)).map(|value| scale.position(*value)));
+    let positions = ticks
+        .into_iter()
+        .flatten()
+        .chain(marks.values.iter().filter(|value| (scale.min..=scale.max).contains(value)).map(|value| scale.position(*value)));
     for position in positions {
         let line = Rect::from_min_size(Pos2::new(along.x(position) - look.mark_width / 2.0, top), Vec2::new(look.mark_width, look.mark_length));
         draw.fill(&PaintShape::Rect(line, CornerRadius::ZERO), ink.marks);

@@ -1,8 +1,8 @@
 //! Trials of the dialog shells' layer behaviour: initial focus, Escape and a closed dialog's keys.
 
 use super::{BlockingOverlay, Dialog, FullWindowDialog};
-use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::choice::Checkbox;
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
 use crate::runtime::overlay::{CloseReason, OpenFilter, any_open};
 use crate::sections::{DialogRole, FooterButton};
 use crate::testing::focus::is_focused;

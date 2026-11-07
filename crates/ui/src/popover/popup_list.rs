@@ -1,9 +1,7 @@
 //! `PopupList` (15, 17): a dropdown under a field, holding the caller's `List`.
 
 use super::anchored::PopoverOutput;
-use crate::contract::{
-    Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pad, Props as _, Role, Trigger,
-};
+use crate::contract::{Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Mount, Overlay, Pad, Props as _, Role, Trigger};
 use crate::runtime::env::Label;
 use crate::runtime::overlay::CloseReason;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};

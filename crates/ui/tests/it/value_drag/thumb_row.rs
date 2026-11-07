@@ -13,10 +13,7 @@ fn forward(thumb: usize) -> RowOp {
 /// not push them.
 #[trial]
 fn a_thumb_stops_at_its_neighbours() {
-    let thumbs = [
-        Thumb::new("Black").order(Order::between(None, Some(1), 10.0)),
-        Thumb::new("White").order(Order::between(Some(0), None, 10.0)),
-    ];
+    let thumbs = [Thumb::new("Black").order(Order::between(None, Some(1), 10.0)), Thumb::new("White").order(Order::between(Some(0), None, 10.0))];
     let row = ThumbRow::new(Bind::given([0.0, 100.0]), 0.0..=255.0).step(1.0).thumbs(thumbs);
     let rules = row.rules();
     assert_eq!(rules.apply(&RowOp::new(0, ThumbOp::Move(NavMove::End, MoveMods::PLAIN)), &[0.0, 100.0]), [90.0, 100.0]);

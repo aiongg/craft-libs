@@ -6,8 +6,8 @@ use super::slider::{LENGTH_IN_ICONS, Scale, SliderScale, THUMB_INSET, thumb_rect
 use super::track::{self, Along, Fill, MarkInk, Marks, TrackFace, TrackLook};
 use super::words::ValueDragWords;
 use crate::contract::{
-    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, PaintUi, PartsCx, Pointer as _,
-    Remember as _, Role, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, MeasureCx, Name, Numeric, PaintUi, PartsCx,
+    Pointer as _, Remember as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
@@ -324,7 +324,8 @@ impl Component for RangeSlider<'_> {
                 }
                 PressPhase::Release { start, click, .. } => {
                     if cx.gesture().is_some() {
-                        if let Some(next) = input(running.moving, running.from).map(|input| moved(&scale, &snap, running.moving, running.from, input)) {
+                        if let Some(next) = input(running.moving, running.from).map(|input| moved(&scale, &snap, running.moving, running.from, input))
+                        {
                             cx.propose(next);
                         }
                         cx.commit();
@@ -378,15 +379,18 @@ impl Component for RangeSlider<'_> {
         let label = cx.resolved.label;
         for (key, word, upper) in [(LOWER, &words.lower, false), (UPPER, &words.upper, true)] {
             let node = access.node(key, Role::SLIDER);
-            node.name = if label.is_empty() { Name::Text(word.as_str().to_owned()) } else { Name::Joined(vec![label.to_owned(), word.as_str().to_owned()]) };
-            node.numeric = Some(match pair {
-                Some(pair) => {
-                    let (low, high) = Self::bounds(&scale, pair, upper);
-                    Numeric::new(if upper { pair.1 } else { pair.0 }, low..=high)
+            node.name =
+                if label.is_empty() { Name::Text(word.as_str().to_owned()) } else { Name::Joined(vec![label.to_owned(), word.as_str().to_owned()]) };
+            node.numeric = Some(
+                match pair {
+                    Some(pair) => {
+                        let (low, high) = Self::bounds(&scale, pair, upper);
+                        Numeric::new(if upper { pair.1 } else { pair.0 }, low..=high)
+                    }
+                    None => Numeric::empty(scale.min..=scale.max),
                 }
-                None => Numeric::empty(scale.min..=scale.max),
-            }
-            .step(scale.small()));
+                .step(scale.small()),
+            );
         }
     }
 
@@ -408,14 +412,11 @@ impl Component for RangeSlider<'_> {
         let thumbs = [(LOWER, lower), (UPPER, upper)].map(|(key, value)| (key, thumb_rect(&scale, value, area, flow)));
         if !faced {
             let reach = |thumb: Rect| (thumb.center().x - flow.start_x()).abs();
-            let fill = pair.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: reach(thumbs[0].1), to: reach(thumbs[1].1) });
+            let fill =
+                pair.filter(|_| self.fill).map(|_| Fill { color: cx.resolve(&style.track.filled), from: reach(thumbs[0].1), to: reach(thumbs[1].1) });
             track::paint(&draw, &style.track, area, flow, cx.resolve(&style.track.groove), fill);
         }
-        let ink = MarkInk {
-            marks: cx.resolve(&style.track.mark_color),
-            labels: cx.resolve(&style.mark_text.color),
-            role: style.mark_text.role,
-        };
+        let ink = MarkInk { marks: cx.resolve(&style.track.mark_color), labels: cx.resolve(&style.mark_text.color), role: style.mark_text.role };
         track::paint_marks(&draw, &style.track, &self.marks, &scale, Along { area, flow }, cx.rect, &ink);
         for (key, thumb) in thumbs {
             let drawn = Rect::from_center_size(thumb.center(), Vec2::new(style.thumb_width, style.thumb_height));

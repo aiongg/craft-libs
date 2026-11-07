@@ -118,7 +118,7 @@ impl Component for Row {
         let draw = ui.draw();
         let RowKind::Cells { row, cells } = self.kind;
         for column in 0..cells {
-            draw.text(cell_rect(cx.rect, column), &TextRun::new(&format!("{row}:{column}")));
+            draw.text(cell_rect(cx.rect, column), &TextRun::new(format!("{row}:{column}")));
         }
     }
 

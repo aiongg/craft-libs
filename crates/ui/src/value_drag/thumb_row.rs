@@ -552,7 +552,9 @@ impl<'r, const N: usize> Layout<'r, N> {
     /// spread, unless the press moves it alone.
     fn moved(&self, anchor: &[f64; N], press: Press, state: &PressState) -> [f64; N] {
         let (origin, pos) = match state.phase {
-            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, .. } => (start.origin, pos),
+            PressPhase::DragStart { start, pos, .. } | PressPhase::Drag { start, pos, .. } | PressPhase::Release { start, pos, .. } => {
+                (start.origin, pos)
+            }
             _ => return *anchor,
         };
         let Some(i) = press.thumb(origin.x, pos.x) else { return *anchor };
@@ -688,15 +690,7 @@ pub struct ThumbRow<'a, const N: usize> {
 impl<'a, const N: usize> ThumbRow<'a, N> {
     /// A row editing `value` over `range`.
     pub fn new(value: Bind<'a, [f64; N]>, range: RangeInclusive<f64>) -> Self {
-        ThumbRow {
-            common: Common::new(),
-            value,
-            range,
-            thumbs: std::array::from_fn(|_| Thumb::new("")),
-            step: None,
-            wrap: false,
-            anchor: None,
-        }
+        ThumbRow { common: Common::new(), value, range, thumbs: std::array::from_fn(|_| Thumb::new("")), step: None, wrap: false, anchor: None }
     }
 
     /// What the values of this row may be.

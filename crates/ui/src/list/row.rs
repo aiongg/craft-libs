@@ -9,11 +9,11 @@
 
 use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
+use crate::choice::Checkbox;
 use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     Styled as _, WordSetCx as _,
 };
-use crate::choice::Checkbox;
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
 use crate::runtime::env::Label;

@@ -1,7 +1,9 @@
 //! `Switch`: an on/off setting that applies at once, a track with a thumb that slides to the on end. Its text is the
 //! label step's, as the check box's is.
 
-use crate::contract::{Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec};
+use crate::contract::{
+    Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec,
+};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, Flags, FocusLook, StyleColor, StyleCx};
 use craft_behavior::{Flow, Metrics, Sense};
@@ -61,7 +63,7 @@ impl Component for Switch<'_> {
         let solid = |rest, hover, pressed| States::new(cx.color(rest), cx.color(hover), cx.color(pressed), cx.color(colors.state.disabled_fill));
         let on = solid(accent.strong, accent.strong_hover, accent.strong_pressed);
         let (well, knob, on_knob) = (cx.color(colors.surface.sunken), cx.color(colors.surface.knob), cx.color(colors.text.on_strong));
-        let track = Stateful::new(well).on(on.clone()).when(Flags::INVALID, well);
+        let track = Stateful::new(well).on(on).when(Flags::INVALID, well);
         let edge = Stateful::new(cx.color(colors.line.control_edge)).on(on).when(Flags::INVALID, cx.tone(Tone::Bad));
         let thumb = Stateful::new(knob).on(States::new(on_knob, on_knob, on_knob, knob));
         SwitchStyle {

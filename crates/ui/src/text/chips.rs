@@ -115,8 +115,7 @@ pub struct ChipField<'a> {
 impl<'a> ChipField<'a> {
     /// A chip field named `label` over `value`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Vec<String>>) -> Self {
-        let mut options = TextOptions::default();
-        options.clear_on_escape = true;
+        let options = TextOptions { clear_on_escape: true, ..TextOptions::default() };
         ChipField { common: Common::new(), value, options, placeholder: None }.label(label)
     }
 

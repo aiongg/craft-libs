@@ -16,7 +16,11 @@ impl<const N: usize> From<LinkedOutput<N>> for StoryOutput {
 #[story(LinkedFields<'static, 2>, covers = [Default], drive = Drive::Type("120"))]
 fn linked_fields(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     let linked = *data.value("linked", true);
-    LinkedFields::new("Size", Bind::bound(data.value("size", [Some(100.0), Some(50.0)])), Bind::given(linked)).captions(["W", "H"]).range(1.0..=1000.0).show(ui).into()
+    LinkedFields::new("Size", Bind::bound(data.value("size", [Some(100.0), Some(50.0)])), Bind::given(linked))
+        .captions(["W", "H"])
+        .range(1.0..=1000.0)
+        .show(ui)
+        .into()
 }
 
 #[story(LinkedFields<'static, 4>, covers = [], drive = Drive::Never)]

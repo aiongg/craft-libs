@@ -6,9 +6,8 @@
 use super::predicate::{DropTest, RowTest, SourceTest};
 use super::{ListRow, RowEvent};
 use crate::contract::{
-    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, LeadOnOpen, ListDrag,
-    Props as _,
-    ReorderRule, Role, SelectMode, Show as _, Sizing,
+    ActivateOn, Bind, BindMut, Collection, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, EditResponse, LeadOnOpen,
+    ListDrag, Props as _, ReorderRule, Role, SelectMode, Show as _, Sizing,
 };
 use crate::runtime::commands::CommandScope;
 use crate::runtime::env::Label;
