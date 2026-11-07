@@ -1,9 +1,10 @@
 //! `LayerStack` and `LayerRow`: a layers panel whose rows hold their own controls (17.5).
 //!
 //! One tree collection. Each row shows its name, a visibility `Switch` and a blend-mode `Select` as child
-//! components of the row. Their focus stops are members of the row's roving group: Tab passes the collection
-//! once, Forward on a row enters the switch and then the select, Back returns, and Escape from a child returns to
-//! its row. Groups open and close by Right and Left on the row.
+//! components of the row. The controls sit at the trailing end and the name takes the rest, so a press on the
+//! middle of a row lands on the row itself. The controls' focus stops are members of the row's roving group: Tab
+//! passes the collection once, Forward on a row enters the switch and then the select, Back returns, and Escape
+//! from a child returns to its row. Groups open and close by Right and Left on the row.
 
 use crate::choice::Switch;
 use crate::contract::{
@@ -19,9 +20,9 @@ use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 use std::convert::Infallible;
 
-/// The name band is this many control heights wide.
+/// The name band is at least this many control heights wide.
 const NAME_IN_HEIGHTS: f32 = 5.0;
-/// The blend-mode select takes the rest of the row and is at least this many control heights wide.
+/// The blend-mode select is this many control heights wide.
 const SELECT_IN_HEIGHTS: f32 = 5.0;
 /// Each level of a group indents its rows by this many control heights.
 const INDENT_IN_HEIGHTS: f32 = 1.0;
@@ -249,8 +250,9 @@ impl Component for LayerRow<'_> {
         let height = cx.style.height;
         let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
         let name = name_width(cx.layout(&crate::primitives::TextRun::new(self.layer.name.as_str())).size().x, cx.style);
-        let select = cx.child("blend", &mut Select::new("Blend mode", Bind::kept(), self.modes), Proposal::Ideal).x;
-        Vec2::new((indent + 1.0) * height + name + select.max(SELECT_IN_HEIGHTS * height), height)
+        // The select's field is taller than a control at large text, and the row holds it.
+        let select = cx.child("blend", &mut Select::new("Blend mode", Bind::kept(), self.modes), Proposal::Ideal);
+        Vec2::new((indent + 1.0 + SELECT_IN_HEIGHTS) * height + name, height.max(select.y))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -259,14 +261,13 @@ impl Component for LayerRow<'_> {
         let row = cx.rect;
         let flow = Flow::new(row, rtl);
         let start = self.layer.depth as f32 * INDENT_IN_HEIGHTS * height;
+        let select_at = (row.width() - SELECT_IN_HEIGHTS * height).max(start);
+        let switch_at = (select_at - height).max(start);
         let run = crate::primitives::TextRun::new(self.layer.name.as_str());
-        let name_width = name_width(ui.draw().layout(&run, f32::INFINITY).size().x, cx.style);
-        let name = band(&flow, row, start, name_width);
+        let name = band(&flow, row, start, switch_at - start);
         ui.draw().text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &run.elide());
-        let switch = band(&flow, row, start + name_width, height);
-        ui.child("visible", switch, Switch::new(Bind::kept()).label("Visible"));
-        let select_at = start + name_width + height;
-        let select = band(&flow, row, select_at, (row.width() - select_at).max(0.0));
+        ui.child("visible", band(&flow, row, switch_at, select_at - switch_at), Switch::new(Bind::kept()).label("Visible"));
+        let select = band(&flow, row, select_at, row.width() - select_at);
         ui.child("blend", select, Select::new("Blend mode", Bind::kept(), self.modes));
     }
 

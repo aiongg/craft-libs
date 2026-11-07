@@ -4,7 +4,7 @@
 use super::Table;
 use super::words::MetadataWords;
 use crate::contract::{
-    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, LeadOnOpen, NoValue, Outcome, Pattern, Props, SelectMode, Show as _,
+    Bind, CollectionEvent, CollectionResponse, ColumnKind, ColumnSpec, NoValue, Outcome, Pattern, Props, SelectMode, Show as _,
     ShowCollection as _, ToggleColumn,
 };
 use crate::list::{ListRow, RowEvent, ToggleCell, ToggleState};
@@ -257,7 +257,6 @@ impl<'a> MetadataTable<'a> {
             .select(SelectMode::Single)
             .striped(true)
             .header(false)
-            .lead_on_open(LeadOnOpen::First)
             .rows_stamp(query_stamp(query))
             .empty(empty)
             .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
