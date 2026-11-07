@@ -7,8 +7,20 @@ new_module = ""
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
 
+[[type]]
+name = "Os"
+old = "craft_window::policy::Os"
+new = "craft_host::target::Os"
+status = "replaced"
+note = "craft_window::policy re-exports craft_host's Os; the browser is Runtime::Web, no longer Os::Web."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
+
+[[call]]
+old = "policy::decide(os, backend, &desktop, pref, env)"
+new = "policy::decide(os, runtime, backend, &desktop, kind, pref, env)"
+note = "The decision is per window kind and per runtime; a tool window gets captions with no buttons."

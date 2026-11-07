@@ -11,6 +11,7 @@ use crate::runtime::overlay;
 use craft_host::target::{Caps, EdgeInsets, Os, ShellInfo, WindowChrome, WindowInfo, WindowKind, WindowState};
 #[cfg(feature = "testing")]
 use craft_host::target::{MenuPlacement, Runtime};
+use craft_window::policy::{CaptionFamily, Captions, Decision, Frame, LayoutWatch, MacInset};
 use craft_window::restore::{Placement, Store};
 use craft_window::system::WindowSystem;
 use egui::{Context, Id, Pos2, Rect, Ui, Vec2, ViewportId};
@@ -41,8 +42,189 @@ pub enum ResizeEdge {
     BottomRight,
 }
 
+/// Where a window stands in the stack of windows.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum WindowLevel {
+    /// An ordinary window.
+    #[default]
+    Normal,
+    /// A palette: above the app's other windows while the app is active, and an ordinary window (behind other
+    /// apps' windows on Windows) once none of the app's windows has focus, so it stays shown without covering
+    /// other apps.
+    Palette,
+    /// Above every other window.
+    AlwaysOnTop,
+}
+
+/// How long none of the app's windows has focus before the app counts as inactive, so that focus moving between
+/// its own windows does not drop a palette.
+const AWAY_SECONDS: f64 = 0.25;
+
+impl WindowLevel {
+    /// The level egui is given while the app is `active` or not, on `os`. An inactive app's palette goes behind
+    /// other apps' windows: on Windows `Normal` puts a window in front of every window that is not topmost, the
+    /// activated app's included, so the palette goes to the bottom.
+    fn for_egui(self, active: bool, os: Os) -> egui::WindowLevel {
+        match self {
+            WindowLevel::Normal => egui::WindowLevel::Normal,
+            WindowLevel::AlwaysOnTop => egui::WindowLevel::AlwaysOnTop,
+            WindowLevel::Palette if active => egui::WindowLevel::AlwaysOnTop,
+            WindowLevel::Palette if os == Os::Windows => egui::WindowLevel::AlwaysOnBottom,
+            WindowLevel::Palette => egui::WindowLevel::Normal,
+        }
+    }
+}
+
+/// How an OS window opens (21.2): what it is for, who draws its frame, and its limits.
+#[derive(Clone, Debug)]
+#[non_exhaustive]
+pub struct WindowSpec {
+    /// What the window is for.
+    pub kind: WindowKind,
+    /// Who draws the frame.
+    pub chrome: WindowChrome,
+    /// The caption buttons the app draws when `chrome` is `Integrated`; none draws none.
+    pub captions: Option<Captions>,
+    /// Where the window stands among the windows.
+    pub level: WindowLevel,
+    /// The smallest inner size.
+    pub min_size: Option<Vec2>,
+    /// The largest inner size.
+    pub max_size: Option<Vec2>,
+    /// Whether the user can resize the window.
+    pub resizable: bool,
+    /// The outer position in desktop points when nothing is saved.
+    pub position: Option<Pos2>,
+    /// Whether the window has a taskbar or Dock entry.
+    pub taskbar: bool,
+}
+
+impl WindowSpec {
+    /// A tool window (a native dock window): the app's own bar without caption buttons, a palette level, no
+    /// taskbar entry.
+    pub fn tool() -> Self {
+        WindowSpec { kind: WindowKind::Tool, chrome: WindowChrome::Integrated, level: WindowLevel::Palette, taskbar: false, ..Self::dialog() }
+    }
+
+    /// A document window with the OS's frame; [`WindowSpec::frame`] sets the decided one.
+    pub fn document() -> Self {
+        WindowSpec { kind: WindowKind::Document, ..Self::dialog() }
+    }
+
+    /// A dialog window with the OS's frame.
+    pub fn dialog() -> Self {
+        WindowSpec {
+            kind: WindowKind::Dialog,
+            chrome: WindowChrome::Native,
+            captions: None,
+            level: WindowLevel::Normal,
+            min_size: None,
+            max_size: None,
+            resizable: true,
+            position: None,
+            taskbar: true,
+        }
+    }
+
+    /// Sets what the window is for.
+    #[must_use]
+    pub fn kind(mut self, kind: WindowKind) -> Self {
+        self.kind = kind;
+        self
+    }
+
+    /// Sets who draws the frame.
+    #[must_use]
+    pub fn chrome(mut self, chrome: WindowChrome) -> Self {
+        self.chrome = chrome;
+        self
+    }
+
+    /// Sets the caption buttons.
+    #[must_use]
+    pub fn captions(mut self, captions: Option<Captions>) -> Self {
+        self.captions = captions;
+        self
+    }
+
+    /// Takes the chrome and the captions from a decided `frame`; a frame without buttons has no captions.
+    #[must_use]
+    pub fn frame(mut self, frame: &Frame) -> Self {
+        self.chrome = chrome_of(frame);
+        self.captions = match frame {
+            Frame::Integrated(captions) if !captions.is_empty() => Some(captions.clone()),
+            _ => None,
+        };
+        self
+    }
+
+    /// Sets the level.
+    #[must_use]
+    pub fn level(mut self, level: WindowLevel) -> Self {
+        self.level = level;
+        self
+    }
+
+    /// Sets the smallest inner size.
+    #[must_use]
+    pub fn min_size(mut self, size: Vec2) -> Self {
+        self.min_size = Some(size);
+        self
+    }
+
+    /// Sets the largest inner size.
+    #[must_use]
+    pub fn max_size(mut self, size: Vec2) -> Self {
+        self.max_size = Some(size);
+        self
+    }
+
+    /// Sets whether the user can resize the window.
+    #[must_use]
+    pub fn resizable(mut self, resizable: bool) -> Self {
+        self.resizable = resizable;
+        self
+    }
+
+    /// Sets the outer position the window opens at when no placement is saved.
+    #[must_use]
+    pub fn position(mut self, position: Pos2) -> Self {
+        self.position = Some(position);
+        self
+    }
+
+    /// Sets whether the window has a taskbar or Dock entry.
+    #[must_use]
+    pub fn taskbar(mut self, taskbar: bool) -> Self {
+        self.taskbar = taskbar;
+        self
+    }
+}
+
+/// Who draws the frame `frame` describes.
+fn chrome_of(frame: &Frame) -> WindowChrome {
+    match frame {
+        Frame::Native => WindowChrome::Native,
+        Frame::Inset(_) => WindowChrome::Inset,
+        Frame::Integrated(_) => WindowChrome::Integrated,
+    }
+}
+
+/// The frame of a window drawn as `chrome` with `captions`; an integrated frame without captions has no buttons.
+fn frame_of(chrome: WindowChrome, captions: Option<Captions>) -> Frame {
+    match chrome {
+        WindowChrome::Inset => Frame::Inset(MacInset::default()),
+        WindowChrome::Integrated => Frame::Integrated(
+            captions
+                .unwrap_or_else(|| Captions { family: CaptionFamily::Generic, layout: craft_window::Layout { left: Vec::new(), right: Vec::new() } }),
+        ),
+        _ => Frame::Native,
+    }
+}
+
 /// A window command `act` sends.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 #[non_exhaustive]
 pub enum WindowAction {
     /// Closes the window; the root window's close goes through the close guard.
@@ -59,6 +241,42 @@ pub enum WindowAction {
     StartMove,
     /// The OS starts resizing the window from `edge`.
     StartResize(ResizeEdge),
+    /// Moves the window's outer top-left corner to a desktop position in points.
+    SetOuterPosition(Pos2),
+    /// Sizes the window's inner area in points.
+    SetInnerSize(Vec2),
+    /// Changes the window's level.
+    SetLevel(WindowLevel),
+    /// Changes the window's title.
+    SetTitle(String),
+}
+
+/// What the OS tells about a window, in desktop points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct WindowFacts {
+    /// The inner rect.
+    pub inner: Rect,
+    /// The outer rect, where the platform tells.
+    pub outer: Option<Rect>,
+    /// Physical pixels per point of the monitor the window is on.
+    pub scale: f32,
+    /// Normal, minimized, maximized or full screen.
+    pub state: WindowState,
+    /// Whether the window has OS focus.
+    pub focused: bool,
+}
+
+/// A connected monitor, in desktop points.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct MonitorInfo {
+    /// The name the platform reports.
+    pub name: String,
+    /// The monitor's area.
+    pub rect: Rect,
+    /// Physical pixels per point.
+    pub scale: f32,
 }
 
 /// Install-time inputs and the cross-window records of one context.
@@ -74,6 +292,15 @@ struct Shared {
     /// Containers whose viewport the OS asked to close in this root frame.
     close_requests: Vec<Id>,
     last_flush: f64,
+    /// The root window's frame and its caption layout watch, from `InstallSpec::frame`.
+    root_frame: Option<Frame>,
+    layouts: Option<LayoutWatch>,
+    /// Whether the root window had focus in the last root pass.
+    root_focused: bool,
+    /// The time some window of the app last had focus.
+    last_focused: f64,
+    /// Whether no window of the app has had focus for [`AWAY_SECONDS`].
+    away: bool,
 }
 
 /// One viewport's window record.
@@ -86,6 +313,10 @@ struct Record {
     insets: Option<EdgeInsets>,
     kind: Option<WindowKind>,
     chrome: Option<WindowChrome>,
+    /// The caption buttons the app draws in this window.
+    captions: Option<Captions>,
+    /// The level the window was opened with or last set to; a palette's egui level follows the app's activity.
+    level: Option<WindowLevel>,
     /// H4: whether the primary button is down as the viewport's events left the input hook.
     primary_down: bool,
     /// The geometry last written to the placement store, so an unchanged window writes nothing.
@@ -109,11 +340,14 @@ fn shared<R>(ctx: &Context, f: impl FnOnce(&mut Shared) -> R) -> R {
 }
 
 /// Called by `install`: keeps the shell, the OS services and the placement store.
-pub(crate) fn install(ctx: &Context, shell: ShellInfo, system: Arc<dyn WindowSystem>, store: Option<Arc<Mutex<Store>>>) {
+pub(crate) fn install(ctx: &Context, shell: ShellInfo, system: Arc<dyn WindowSystem>, store: Option<Arc<Mutex<Store>>>, frame: Option<Decision>) {
+    let layouts = frame.as_ref().map(LayoutWatch::new);
     shared(ctx, |shared| {
         shared.shell = Some(shell);
         shared.system = Some(system);
         shared.store = store;
+        shared.root_frame = frame.map(|decision| decision.frame);
+        shared.layouts = layouts;
     });
 }
 
@@ -155,8 +389,11 @@ fn state_of(facts: &viewports::Facts) -> WindowState {
 
 /// `viewport`'s window facts.
 fn window_info(ctx: &Context, viewport: ViewportId, base: &ShellInfo) -> WindowInfo {
-    let (facts, kind, chrome, insets) =
+    let (facts, kind, mut chrome, insets) =
         PerViewport::<Record>::with(ctx, viewport, |record| (record.facts, record.kind, record.chrome, record.insets));
+    if viewport == ViewportId::ROOT {
+        chrome = shared(ctx, |shared| shared.root_frame.as_ref().map(chrome_of)).or(chrome);
+    }
     let mut info = if viewport == ViewportId::ROOT { (*base.window).clone() } else { WindowInfo::new(WindowKind::Tool) };
     if let Some(kind) = kind {
         info.kind = kind;
@@ -256,6 +493,8 @@ pub(crate) fn end(ctx: &Context) {
         return;
     }
     shared(ctx, |shared| shared.close_requests.clear());
+    follow_activity(ctx);
+    follow_layout(ctx, viewports::current(ctx).focused);
     // The root window's placement is the app's `main` entry.
     if shared(ctx, |shared| shared.store.is_some()) {
         record_placement(ctx, ViewportId::ROOT, craft_window::restore::MAIN, &viewports::current(ctx));
@@ -318,7 +557,13 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         WindowAction::Focus => commands || base.caps.contains(Caps::VIEWPORTS),
         WindowAction::Minimize => commands && window.state != WindowState::Minimized,
         WindowAction::ToggleMaximize => commands && window.state != WindowState::Fullscreen,
-        WindowAction::ToggleFullscreen | WindowAction::StartMove | WindowAction::StartResize(_) => commands,
+        WindowAction::ToggleFullscreen
+        | WindowAction::StartMove
+        | WindowAction::StartResize(_)
+        | WindowAction::SetOuterPosition(_)
+        | WindowAction::SetInnerSize(_)
+        | WindowAction::SetLevel(_)
+        | WindowAction::SetTitle(_) => commands,
     };
     if !allowed {
         return false;
@@ -333,8 +578,54 @@ pub fn act(ctx: &Context, viewport: ViewportId, action: WindowAction) -> bool {
         }
         WindowAction::StartMove => viewports::command(ctx, viewport, egui::ViewportCommand::StartDrag),
         WindowAction::StartResize(edge) => viewports::command(ctx, viewport, egui::ViewportCommand::BeginResize(viewports::resize_direction(edge))),
+        WindowAction::SetOuterPosition(pos) => viewports::command(ctx, viewport, egui::ViewportCommand::OuterPosition(pos)),
+        WindowAction::SetInnerSize(size) => viewports::command(ctx, viewport, egui::ViewportCommand::InnerSize(size)),
+        WindowAction::SetLevel(level) => {
+            PerViewport::<Record>::with(ctx, viewport, |record| record.level = Some(level));
+            ctx.request_repaint_of(viewport);
+        }
+        WindowAction::SetTitle(title) => viewports::command(ctx, viewport, egui::ViewportCommand::Title(title)),
     }
     true
+}
+
+/// Keeps the app's activity current from the windows' focus. A palette's window level follows it: the mounts build
+/// their viewports with the level of the moment, and a change asks for the next frame. Runs in the root pass, which
+/// every frame of the app runs.
+fn follow_activity(ctx: &Context) {
+    let windows = viewports::reported(ctx);
+    let now = pass::now(ctx);
+    let focused = windows.iter().any(|(_, facts)| facts.focused);
+    let (changed, waiting) = shared(ctx, |shared| {
+        if focused {
+            shared.last_focused = now;
+        }
+        let away = !focused && now - shared.last_focused >= AWAY_SECONDS;
+        let waiting = !focused && !away;
+        (std::mem::replace(&mut shared.away, away) != away, waiting)
+    });
+    if waiting {
+        crate::runtime::egui::repaint::request_after(ctx, ViewportId::ROOT, AWAY_SECONDS);
+    }
+    if changed {
+        ctx.request_repaint();
+    }
+}
+
+/// On the root window's focus gain, re-reads the desktop's caption layout and gives the root frame the change.
+fn follow_layout(ctx: &Context, focused: bool) {
+    shared(ctx, |shared| {
+        let gained = focused && !std::mem::replace(&mut shared.root_focused, focused);
+        if !gained {
+            return;
+        }
+        if let Some(layouts) = &mut shared.layouts
+            && layouts.on_focus()
+            && let Some(Frame::Integrated(captions)) = &mut shared.root_frame
+        {
+            captions.layout = layouts.layout().clone();
+        }
+    });
 }
 
 /// The multi-window driver of one context.
@@ -395,12 +686,83 @@ impl WindowHost {
         system.is_some_and(|system| system.warp_pointer([to.x, to.y]))
     }
 
+    /// `viewport`'s window facts, once it has reported its inner rect.
+    pub fn facts(&self, viewport: ViewportId) -> Option<WindowFacts> {
+        let facts = PerViewport::<Record>::with(&self.ctx, viewport, |record| record.facts)?;
+        let info = window_info(&self.ctx, viewport, &base_shell(&self.ctx));
+        Some(WindowFacts {
+            inner: facts.inner?,
+            outer: facts.outer,
+            scale: facts.native_scale.unwrap_or(1.0),
+            state: info.state,
+            focused: facts.focused,
+        })
+    }
+
+    /// The connected monitors in desktop points; none where the platform does not list them.
+    pub fn monitors(&self) -> Vec<MonitorInfo> {
+        let system = shared(&self.ctx, |shared| shared.system.clone());
+        system.map(|system| system.monitors()).unwrap_or_default().into_iter().map(monitor_info).collect()
+    }
+
+    /// Places `viewport`'s outer rect at `outer`: its position, and the inner size that leaves the window's
+    /// decoration as it is. False when a command could not go out.
+    pub fn set_outer(&self, viewport: ViewportId, outer: Rect) -> bool {
+        let decoration = self.facts(viewport).and_then(|facts| facts.outer.map(|current| current.size() - facts.inner.size())).unwrap_or(Vec2::ZERO);
+        let moved = act(&self.ctx, viewport, WindowAction::SetOuterPosition(outer.min));
+        let sized = act(&self.ctx, viewport, WindowAction::SetInnerSize((outer.size() - decoration).max(Vec2::ZERO)));
+        moved && sized
+    }
+
+    /// The viewport of the container `id` while its window is open.
+    pub fn viewport_of(&self, id: Id) -> Option<ViewportId> {
+        let viewport = viewports::viewport_id(id);
+        PerViewport::<Record>::with(&self.ctx, viewport, |record| record.kind.is_some()).then_some(viewport)
+    }
+
+    /// The window under the desktop point `at`: the focused one where windows overlap, else the smallest.
+    pub fn viewport_at(&self, at: Pos2) -> Option<ViewportId> {
+        let mut under: Vec<(ViewportId, WindowFacts)> = viewports::reported(&self.ctx)
+            .into_iter()
+            .filter_map(|(viewport, _)| self.facts(viewport).map(|facts| (viewport, facts)))
+            .filter(|(_, facts)| facts.outer.unwrap_or(facts.inner).contains(at))
+            .collect();
+        under.sort_by(|(_, a), (_, b)| {
+            let area = |facts: &WindowFacts| {
+                let rect = facts.outer.unwrap_or(facts.inner);
+                rect.width() * rect.height()
+            };
+            b.focused.cmp(&a.focused).then(area(a).total_cmp(&area(b)))
+        });
+        under.first().map(|(viewport, _)| *viewport)
+    }
+
+    /// Who draws the running viewport's frame, and the caption buttons it shows.
+    pub fn frame(&self) -> Frame {
+        let viewport = pass::current_viewport(&self.ctx);
+        if viewport == ViewportId::ROOT
+            && let Some(frame) = shared(&self.ctx, |shared| shared.root_frame.clone())
+        {
+            return frame;
+        }
+        let captions = PerViewport::<Record>::with(&self.ctx, viewport, |record| record.captions.clone());
+        frame_of(window_info(&self.ctx, viewport, &base_shell(&self.ctx)).chrome, captions)
+    }
+
     /// The desktop pointer in the coordinates of `viewport`, when it lies inside that window.
     pub fn pointer_in(&self, viewport: ViewportId) -> Option<Pos2> {
         let desktop = self.desktop_pointer()?;
         let inner = PerViewport::<Record>::with(&self.ctx, viewport, |record| record.facts.and_then(|facts| facts.inner))?;
         inner.contains(desktop).then(|| Pos2::ZERO + (desktop - inner.min))
     }
+}
+
+/// A monitor of the window system in desktop points.
+fn monitor_info(monitor: craft_window::restore::Monitor) -> MonitorInfo {
+    let scale = monitor.scale.max(f32::EPSILON);
+    let min = Pos2::new(monitor.pos_px[0] as f32 / scale, monitor.pos_px[1] as f32 / scale);
+    let size = Vec2::new(monitor.size_px[0] as f32 / scale, monitor.size_px[1] as f32 / scale);
+    MonitorInfo { name: monitor.key.name, rect: Rect::from_min_size(min, size), scale: monitor.scale }
 }
 
 /// Records the pointer of the viewport a drag runs in, `local` in that viewport's coordinates, as a desktop
@@ -470,8 +832,8 @@ pub(crate) struct ViewportOpen<'a> {
     pub size: Option<Vec2>,
     /// The key the placement is saved under.
     pub save: Option<&'a str>,
-    /// What the window is for.
-    pub kind: WindowKind,
+    /// How the window opens.
+    pub spec: &'a WindowSpec,
 }
 
 /// Opens the OS viewport of a mount and runs `body` once for each pass it gets: with the saved placement, the OS
@@ -483,9 +845,29 @@ pub(crate) fn show_viewport(ctx: &Context, open: &ViewportOpen<'_>, mut body: im
         Some(placement) => (Some(Vec2::from(placement.normal.size)), saved_position(placement)),
         None => (open.size, None),
     };
-    PerViewport::<Record>::with(ctx, viewport, |record| record.kind = Some(open.kind));
-    let spec = viewports::Spec { title: open.title, size, pos, decorated: true };
-    viewports::show_immediate(ctx, viewport, &spec, |ui| {
+    let spec = open.spec;
+    let active = !shared(ctx, |shared| shared.away);
+    let os = os_of(ctx);
+    let level = PerViewport::<Record>::with(ctx, viewport, |record| {
+        record.kind = Some(spec.kind);
+        record.chrome = Some(spec.chrome);
+        record.captions = spec.captions.clone();
+        record.level.get_or_insert(spec.level).for_egui(active, os)
+    });
+    let opens = viewports::Spec {
+        title: open.title,
+        size,
+        pos: pos.or(spec.position),
+        chrome: spec.chrome,
+        // A tool window has no OS caption buttons; its panel's title row carries a close action.
+        os_buttons: !(spec.kind == WindowKind::Tool && spec.captions.is_none() && spec.chrome != WindowChrome::Native),
+        min_size: spec.min_size,
+        max_size: spec.max_size,
+        level,
+        resizable: spec.resizable,
+        taskbar: spec.taskbar,
+    };
+    viewports::show_immediate(ctx, viewport, &opens, |ui| {
         let ctx = ui.ctx().clone();
         refresh(&ctx, viewport, viewports::current(&ctx));
         if viewports::current(&ctx).close_requested {
