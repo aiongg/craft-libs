@@ -59,7 +59,7 @@ pub(crate) fn family(kind: DesktopKind, gtk_theme: Option<&str>) -> CaptionFamil
     match kind {
         DesktopKind::Gnome => CaptionFamily::Adwaita,
         DesktopKind::Kde => CaptionFamily::Breeze,
-        DesktopKind::Tiling | DesktopKind::Other => family_from_gtk_theme(gtk_theme),
+        _ => family_from_gtk_theme(gtk_theme),
     }
 }
 
@@ -101,7 +101,7 @@ pub(crate) fn read_layout(kind: DesktopKind, var: &dyn Fn(&str) -> Option<String
             let rc = read_config(var, "kwinrc").unwrap_or_default();
             parse_or_default(Some(&kwin_layout(&rc)), kind)
         }
-        DesktopKind::Tiling | DesktopKind::Other => {
+        _ => {
             let ini = read_config(var, "gtk-3.0/settings.ini").unwrap_or_default();
             parse_or_default(gtk_settings(&ini).0.as_deref(), kind)
         }

@@ -10,28 +10,7 @@ mod work_area_tests;
 #[cfg(feature = "ui")]
 pub use work_area::{TASKBAR, WindowMode, fit_window, fits, visible_part, visible_rect};
 
-/// The windowing backend the app opens its window on. An app that forces XWayland on a Wayland
-/// session passes [`Backend::X11`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Backend {
-    #[allow(missing_docs)]
-    Wayland,
-    #[allow(missing_docs)]
-    X11,
-}
-
-/// The kind of desktop, as far as the frame decision cares.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum DesktopKind {
-    #[allow(missing_docs)]
-    Gnome,
-    #[allow(missing_docs)]
-    Kde,
-    /// A tiling compositor or window manager (Sway, Hyprland, i3, niri, river, ...).
-    Tiling,
-    /// Any other desktop: COSMIC, Xfce, Cinnamon, MATE, an unknown one. Budgie counts as GNOME.
-    Other,
-}
+pub use craft_host::target::{Backend, DesktopKind};
 
 /// What the running desktop is and offers.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -48,13 +27,11 @@ pub struct Desktop {
     pub icon_theme: Option<String>,
 }
 
-impl Backend {
-    /// The backend winit opens by default: Wayland when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is
-    /// set, else X11. An app that forces X11 (XWayland) passes [`Backend::X11`] instead.
-    pub fn from_env() -> Backend {
-        let set = |k| std::env::var_os(k).is_some_and(|v| !v.is_empty());
-        if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") { Backend::Wayland } else { Backend::X11 }
-    }
+/// The backend winit opens by default: Wayland when `WAYLAND_DISPLAY` or `WAYLAND_SOCKET` is set, else X11. An app
+/// that forces X11 (XWayland) passes [`Backend::X11`] instead.
+pub fn backend_from_env() -> Backend {
+    let set = |k| std::env::var_os(k).is_some_and(|v| !v.is_empty());
+    if set("WAYLAND_DISPLAY") || set("WAYLAND_SOCKET") { Backend::Wayland } else { Backend::X11 }
 }
 
 impl Desktop {

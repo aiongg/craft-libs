@@ -197,8 +197,8 @@ fn integrated_frame(
                 // desktops that draw their own frame. `false` gives `Native` there.
                 _ if !no_ssd && !integrated_on_ssd && !forced => Frame::Native,
                 DesktopKind::Kde => captions(CaptionFamily::Breeze),
-                DesktopKind::Other if no_ssd => captions(CaptionFamily::Generic),
-                DesktopKind::Other => captions(layout::family(DesktopKind::Other, desktop.gtk_theme.as_deref())),
+                _ if no_ssd => captions(CaptionFamily::Generic),
+                _ => captions(layout::family(DesktopKind::Other, desktop.gtk_theme.as_deref())),
             }
         }
     }
@@ -206,7 +206,7 @@ fn integrated_frame(
 
 /// Read the platform once (500 ms at most, as for [`crate::Choice::probe`]) and decide.
 /// `prefix` names the override variable `<PREFIX>_TITLEBAR`; when it is unset, `CRAFT_TITLEBAR`
-/// applies. `backend` is the one the app opens its window on, [`Backend::from_env`]
+/// applies. `backend` is the one the app opens its window on, [`backend_from_env`](crate::desktop::backend_from_env)
 /// unless the app forces X11.
 pub fn decide_for(prefix: Prefix, backend: Backend, pref: TitleBarPref) -> Decision {
     decide_for_kind(prefix, backend, WindowKind::Main, pref)
