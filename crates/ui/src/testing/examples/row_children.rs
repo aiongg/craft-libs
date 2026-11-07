@@ -14,14 +14,14 @@ use crate::pickers::Select;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Ink, Stateful, StyleCx, TextLook, TypeRole};
 use crate::testing::{Drive, StoryData, StoryOutput, show_as_only_item, story};
-use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Selection, SpanLayout};
+use craft_behavior::{DisplayOrder, Flow, Insets, ItemSource, Metrics, Proposal, Selection, SpanLayout};
 use egui::{Pos2, Rect, Response, Vec2};
 use std::borrow::Cow;
 use std::convert::Infallible;
 
 /// The name band is this many control heights wide.
 const NAME_IN_HEIGHTS: f32 = 5.0;
-/// The blend-mode select is this many control heights wide.
+/// The blend-mode select takes the rest of the row and is at least this many control heights wide.
 const SELECT_IN_HEIGHTS: f32 = 5.0;
 /// Each level of a group indents its rows by this many control heights.
 const INDENT_IN_HEIGHTS: f32 = 1.0;
@@ -249,7 +249,8 @@ impl Component for LayerRow<'_> {
         let height = cx.style.height;
         let indent = self.layer.depth as f32 * INDENT_IN_HEIGHTS;
         let name = name_width(cx.layout(&crate::primitives::TextRun::new(self.layer.name.as_str())).size().x, cx.style);
-        Vec2::new((indent + 1.0 + SELECT_IN_HEIGHTS) * height + name, height)
+        let select = cx.child("blend", &mut Select::new("Blend mode", Bind::kept(), self.modes), Proposal::Ideal).x;
+        Vec2::new((indent + 1.0) * height + name + select.max(SELECT_IN_HEIGHTS * height), height)
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
@@ -264,7 +265,8 @@ impl Component for LayerRow<'_> {
         ui.draw().text(Flow::new(name, rtl).inset(Insets::horizontal(cx.style.pad)), &run.elide());
         let switch = band(&flow, row, start + name_width, height);
         ui.child("visible", switch, Switch::new(Bind::kept()).label("Visible"));
-        let select = band(&flow, row, start + name_width + height, SELECT_IN_HEIGHTS * height);
+        let select_at = start + name_width + height;
+        let select = band(&flow, row, select_at, (row.width() - select_at).max(0.0));
         ui.child("blend", select, Select::new("Blend mode", Bind::kept(), self.modes));
     }
 
