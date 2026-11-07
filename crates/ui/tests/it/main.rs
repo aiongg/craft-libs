@@ -50,7 +50,6 @@ mod shell;
 mod sections;
 
 // Window parts (contract-window-parts).
-mod shell;
 mod style;
 mod table;
 mod tabs;
