@@ -96,10 +96,10 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsF
         .iter()
         .filter_map(|(shape, _)| match shape {
             Shape::Text(text) => {
-                let full = super::painted::full_text_of_painted(ctx, &text.galley.job.text);
+                let full = super::painted::full_text_of_painted(ctx, &text.galley);
                 Some(PaintedText {
                     rect: text.galley.rect.translate(text.pos.to_vec2()),
-                    elided: text.galley.elided || full.is_some(),
+                    elided: full.is_some(),
                     text: full.unwrap_or_else(|| text.galley.job.text.clone()),
                 })
             }

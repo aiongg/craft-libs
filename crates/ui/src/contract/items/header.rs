@@ -5,7 +5,7 @@ use super::ItemsHooks;
 use crate::contract::collection::{
     CollectionEvent, CollectionProps, ColumnEvent, ColumnKind, ColumnSort, ColumnSpec, HeaderMenuRequest, ToggleColumn,
 };
-use crate::contract::{Collection, Common, Component, Cx, Focus as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
+use crate::contract::{Collection, Common, Component, Cx, Focus as _, MeasureCx, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
 use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
 use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
@@ -484,6 +484,11 @@ impl HeaderText {
     fn new(text: Label, inset: f32, sort: Option<bool>) -> Self {
         HeaderText { common: Common::new(), inset, sort }.label(text)
     }
+
+    /// The label on one line, cut with an ellipsis when its column is narrower than the text.
+    fn run<'t>(&self, text: &'t str) -> TextRun<'t> {
+        TextRun::new(text).role(HEADER_ROLE).elide()
+    }
 }
 
 impl Component for HeaderText {
@@ -501,6 +506,12 @@ impl Component for HeaderText {
         Sense::empty()
     }
 
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let line = cx.layout(&self.run(cx.resolved.label)).size();
+        let mark = if self.sort.is_some() { cx.style.mark + cx.style.gap } else { 0.0 };
+        Vec2::new(line.x + mark + 2.0 * self.inset, line.y)
+    }
+
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
         let inner = Flow::new(flow.inset(Insets::horizontal(self.inset)), flow.is_rtl());
@@ -514,9 +525,7 @@ impl Component for HeaderText {
             }
             None => inner.rect(),
         };
-        let mut run = TextRun::new(cx.core.resolved.label);
-        run.role = HEADER_ROLE;
-        ui.draw().text(text, &run);
+        ui.draw().text(text, &self.run(cx.core.resolved.label));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

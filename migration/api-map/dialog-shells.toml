@@ -752,25 +752,30 @@ note = "Removed: buttons size from their content."
 
 [[setter]]
 type = "Dialog"
-old = ""
+old = "body(Body::Scroll)"
 new = "collection_body()"
+note = "For a body that is one list, tree or table: the collection scrolls in the layer's capped room and the layer's body scroll is off. Other bodies keep the layer's scroll."
 
 [[setter]]
 type = "FullWindowDialog"
-old = ""
+old = "body(Body::Scroll)"
 new = "collection_body()"
+note = "As `Dialog::collection_body`."
 
 [[setter]]
 type = "Dialog"
-old = ""
+old = "Footer::ok_stays_open(bool)"
 new = "close_guard(FnMut(usize) -> bool)"
+note = "The host refuses a button's close by returning `false` for its index; the dialog stays open and `DialogOutput::picked` still reports the pick. It replaces holding OK open and closing by hand."
 
 [[setter]]
 type = "FullWindowDialog"
-old = ""
+old = "Footer::ok_stays_open(bool)"
 new = "close_guard(FnMut(usize) -> bool)"
+note = "As `Dialog::close_guard`."
 
 [[setter]]
 type = "FooterButton"
-old = ""
-new = "stays_open(bool)"
+old = "FooterButton::new(ButtonRole::Apply, label)"
+new = "FooterButton::new(label, DialogRole::Other).stays_open(true)"
+note = "An Apply button: the pick is reported and the dialog stays open. `Cancel` always closes."

@@ -318,7 +318,7 @@ pub struct LayoutRun {
 /// Records that the galley of `layout` was painted, and its full text when the layout cut text.
 pub(crate) fn note_painted(ctx: &Context, layout: &TextLayout) {
     if layout.elided {
-        crate::runtime::egui::painted::note_elided(ctx, &layout.galley.job.text, &layout.full);
+        crate::runtime::egui::painted::note_elided(ctx, &layout.galley, &layout.full);
     }
 }
 
