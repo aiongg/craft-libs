@@ -43,7 +43,7 @@ fn the_pixel_cap_stops_a_size_above_300000() {
     assert_eq!(f64::from(size.pixels().width), MAX_DOCUMENT_SIDE);
     assert_eq!(*size.width_range().end(), MAX_DOCUMENT_SIDE);
     assert_eq!(resize_from_side(PixelSize::new(1200, 800), 300_001.0, 10.0, false, true), Err(SizeError::Pixels));
-    assert_eq!(resize_from_scale((100_000, 10), 400.0), Err(SizeError::Pixels));
+    assert_eq!(resize_from_scale(PixelSize::new(100_000, 10), 400.0), Err(SizeError::Pixels));
 }
 
 /// The resolution typed in pixels per centimetre reads back in pixels per inch, and the pixel count stays in a pixel
