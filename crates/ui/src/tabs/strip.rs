@@ -421,7 +421,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
     }
 
     /// Every tab takes the strip's kind and size.
-    fn dress<'r>(&self, tab: Tab<'r>, _: &RowState) -> Tab<'r> {
+    fn dress<'r>(&self, tab: Self::Item<'r>, _: &RowState) -> Self::Item<'r> {
         let tab = tab.kind(self.kind);
         if self.large { tab.large() } else { tab }
     }

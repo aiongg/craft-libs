@@ -1,7 +1,7 @@
 //! Stories of `TabStrip`.
 
 use super::{TabKind, TabStrip};
-use crate::contract::{Props as _, ReorderRule, ShowCollection as _};
+use crate::contract::{ReorderRule, ShowCollection as _};
 use crate::tabs::Tab;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource};
