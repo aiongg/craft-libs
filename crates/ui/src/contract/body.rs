@@ -181,6 +181,8 @@ pub(super) struct BodyHooks<'b> {
     unknown_at_read: u64,
     header_last: Vec2,
     footer_last: Vec2,
+    /// How far the widest region wants to exceed the width the room allows, from this pass's measure.
+    overflow: f32,
     /// The room the mount offers, in which a content-sized body runs.
     room: Rect,
     open: bool,
@@ -318,6 +320,7 @@ impl<'b> BodyHooks<'b> {
             unknown_at_read: 0,
             header_last: Vec2::ZERO,
             footer_last: Vec2::ZERO,
+            overflow: 0.0,
             room: Rect::NOTHING,
             open: true,
             open_at_read: true,
@@ -365,13 +368,15 @@ impl<'b> BodyHooks<'b> {
         if self.remembered.is_some() { size } else { Vec2::new(0.0, size.y) }
     }
 
-    /// The width the header, body and footer share in a content-sized container: what the regions took last pass,
-    /// at most the room; the whole room before any pass.
+    /// The width the regions ask for in a content-sized container: the widest of what each took last pass.
+    fn wanted_width(&self) -> Option<f32> {
+        self.remembered.map(|body| body.x.max(self.header_last.x).max(self.footer_last.x))
+    }
+
+    /// The width the header, body and footer share in a content-sized container: the widest region's, at most the
+    /// room; the whole room before any pass.
     fn shared_width(&self, room: f32) -> f32 {
-        match self.remembered {
-            Some(body) => body.x.max(self.header_last.x).max(self.footer_last.x).min(room.max(0.0)),
-            None => room.max(0.0),
-        }
+        self.wanted_width().map_or(room.max(0.0), |wanted| wanted.min(room.max(0.0)))
     }
 
     /// The regions inside `inner` (the rect minus padding and the padding tier), from last pass's sizes.
@@ -636,6 +641,10 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.clamp_offset(scroll, view);
     }
 
+    fn overflow(&self) -> f32 {
+        self.overflow
+    }
+
     fn extent(&mut self, comp: &C, ui: &Ui, at: ShowAt, _id: Id, scx: &StyleCx<'_>) -> Vec2 {
         let props = comp.props(Internal::new());
         self.room = match (overlay_of(props), self.fixed) {
@@ -647,7 +656,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         };
         let remembered = self.remembered.unwrap_or(Vec2::ZERO);
         let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
-        let width = if self.remembered.is_some() { self.shared_width(self.room.width() - 2.0 * pad_of(scx.tokens, props.pad)) } else { 0.0 };
+        let room = self.room.width() - 2.0 * pad_of(scx.tokens, props.pad);
+        let width = if self.remembered.is_some() { self.shared_width(room) } else { 0.0 };
+        self.overflow = match self.wanted_width() {
+            Some(wanted) if self.sizing(props) == Sizing::Content => (wanted - room.max(0.0)).max(0.0),
+            _ => 0.0,
+        };
         let height = body.y + self.header_last.y + self.footer_last.y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
     }

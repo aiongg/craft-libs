@@ -115,7 +115,7 @@ fn event_list(ui: &mut Ui, count: usize) -> StoryOutput {
         .show_items(ui, &log, &mut |_, icx| {
             let Some(event) = log.event(icx.at) else { return ListRow::spacer() };
             let age = format!("{} min ago", event.age_seconds(NOW_MS) / 60);
-            event.row(&age, &icx.words::<EventWords>(), icx.row.striped)
+            event.row(&age, &icx.words::<EventWords>(), icx.format(), icx.row.striped)
         })
         .into()
 }

@@ -269,7 +269,7 @@ impl Collection for List<'_> {
         if self.tree { layout.tree() } else { layout }
     }
 
-    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, _: Rect) -> Option<EditResponse<String>> {
+    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, _: Rect, _: &str) -> Option<EditResponse<String>> {
         if self.text_editor {
             use craft_ui::contract::Show as _;
             return Some(craft_ui::text::TextField::new("Name", draft).show(ui));

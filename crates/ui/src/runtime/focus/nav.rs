@@ -61,6 +61,7 @@ impl State {
         self.last_scope_order = std::mem::take(&mut self.scope_order);
         self.last_groups = std::mem::take(&mut self.groups);
         self.open.clear();
+        self.body_from.clear();
     }
 
     pub(super) fn find_stop(&self, key: StopKey) -> Option<StopRec> {
@@ -302,6 +303,16 @@ fn cycle(entries: &[Entry], current: Option<&StopRec>, forward: bool) -> Option<
     })
 }
 
+/// Puts the stops of the innermost open scope in Tab order: the body's, then the footer's, then the header's.
+/// Inner scopes closed already and lie within one region, so they move with it.
+pub(super) fn order_regions(state: &mut State) {
+    let Some((scope, first)) = state.open.last().copied() else { return };
+    let Some(body) = state.body_from.remove(&scope) else { return };
+    let end = state.stops.len();
+    let first = first.min(end);
+    state.stops[first..end].rotate_left(body.clamp(first, end) - first);
+}
+
 /// Closes the innermost open scope; a scope shown for the first time moves focus to its initial stop.
 pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
     let Some((scope, first)) = state.open.pop() else { return Vec::new() };
@@ -311,10 +322,9 @@ pub(super) fn initial_focus(state: &mut State, frame: u64) -> Vec<Act> {
         return Vec::new();
     }
     let Some(policy) = state.scopes.get(&scope).map(|rec| rec.policy) else { return Vec::new() };
-    let body = state.body_from.remove(&scope).map(|body| body.max(first).min(state.stops.len()));
     let stops = &state.stops[first.min(state.stops.len())..];
     let pick = match policy.initial {
-        Initial::First => body.and_then(|body| state.stops.get(body)).or_else(|| stops.first()),
+        Initial::First => stops.first(),
         Initial::Default => stops.iter().find(|rec| rec.stop.default).or_else(|| stops.first()),
         Initial::Key(name) => stops.iter().find(|rec| rec.stop.name == Some(name)),
         _ => None,

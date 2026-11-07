@@ -11,6 +11,7 @@ use crate::contract::{
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceKind};
 use craft_behavior::{DisplayOrder, Flow, IconId, Insets, ItemSource, Metrics, Selection, Sense, SpanLayout};
+use craft_i18n::Format;
 use craft_theme::variant::Tone;
 use egui::{Rect, Response, Ui, Vec2};
 use std::borrow::Cow;
@@ -95,13 +96,13 @@ impl Finding {
 }
 
 /// The line of counts over a list of findings: "No errors", or "1 error, 2 warnings".
-pub fn summary_text(words: &FindingsWords, findings: &[Finding]) -> String {
+pub fn summary_text(words: &FindingsWords, format: &Format, findings: &[Finding]) -> String {
     if findings.is_empty() {
         return words.no_errors.as_str().to_owned();
     }
     let errors = findings.iter().filter(|finding| finding.severity == Severity::Error).count();
     let warnings = findings.iter().filter(|finding| finding.severity == Severity::Warning).count();
-    let count = |text: &craft_i18n::Count, n: usize| text.text(n as u64, &n.to_string());
+    let count = |text: &craft_i18n::Count, n: usize| text.text(n as u64, &format.integer(n as u64));
     words.counts.fill(&[("errors", &count(&words.errors, errors)), ("warnings", &count(&words.warnings, warnings))])
 }
 
@@ -284,8 +285,8 @@ impl<'a> FindingsSummary<'a> {
         FindingsSummary { common: Common::new(), findings }
     }
 
-    fn text(&self, words: &FindingsWords) -> String {
-        summary_text(words, self.findings)
+    fn text(&self, words: &FindingsWords, format: &Format) -> String {
+        summary_text(words, format, self.findings)
     }
 
     fn has_errors(&self) -> bool {
@@ -315,7 +316,7 @@ impl Component for FindingsSummary<'_> {
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let words = cx.words::<FindingsWords>();
-        let text = cx.layout(&TextRun::new(self.text(&words))).size();
+        let text = cx.layout(&TextRun::new(self.text(&words, cx.format()))).size();
         Vec2::new(text.x + cx.icon() + cx.gap(), text.y.max(cx.icon()))
     }
 
@@ -331,7 +332,7 @@ impl Component for FindingsSummary<'_> {
         let tone = if self.has_errors() { cx.style.bad } else { cx.style.good };
         draw.icon(Rect::from_center_size(glyph.center(), Vec2::splat(cx.style.icon)), &IconSpec::svg(self.icon()).color(tone));
         let words = cx.words::<FindingsWords>();
-        draw.text(rest.rect(), &TextRun::new(self.text(&words)).color(cx.style.text).elide());
+        draw.text(rest.rect(), &TextRun::new(self.text(&words, cx.format())).color(cx.style.text).elide());
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
