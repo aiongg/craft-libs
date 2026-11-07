@@ -18,7 +18,7 @@ mod tool_groups;
 mod tool_host;
 
 pub use crop::{CropOverlay, CropStyle};
-pub use guide::{Guide, GuideAxis, GuideDrag, GuideKey, GuideLine};
+pub use guide::{Guide, GuideDrag, GuideKey, GuideLine, across_axis, guide_motion, guide_position};
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
 pub use readout::readout;

@@ -158,7 +158,7 @@ name = "Guide"
 old = "craft_ui::canvas::guides::Guide"
 new = "craft_ui::canvas::Guide"
 status = "replaced"
-note = "key is a GuideKey, orientation is axis (GuideAxis), span is Option<(f64, f64)> and color an Option<craft_theme::Rgba>."
+note = "key is a GuideKey, the orientation is `along: craft_behavior::Axis` (the axis the guide runs along: `Axis::X` for a horizontal guide), span is Option<(f64, f64)> and color an Option<craft_theme::Rgba>."
 
 [[type]]
 name = "TextureCache"
