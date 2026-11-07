@@ -26,7 +26,8 @@ pub struct GroupBoxStyle {
 
 /// A frame around a body, titled by the container's label. A gate makes the header's check box edit the gate and
 /// disables the body while the gate is off. The frame fills the width offered; `fill(false)` makes it as wide as its
-/// body and title, so boxes in a row sit side by side.
+/// body and title, so boxes in a row sit side by side. `GroupBox::apply` configures it as a bulk-edit row: no frame
+/// or padding, and an inline header holding the gate, so the check and the caller's field share one line.
 #[derive(crate::contract::Component)]
 #[component(container)]
 pub struct GroupBox<'a> {
@@ -35,13 +36,23 @@ pub struct GroupBox<'a> {
     #[container]
     props: ContainerProps,
     gate: Option<Bind<'a, bool>>,
+    strength: HeaderStrength,
+    header_fill: bool,
 }
 
 impl<'a> GroupBox<'a> {
     /// A group box titled `title`, gated by `gate` when it has one.
     pub fn new(title: impl Into<crate::runtime::env::Label>, gate: Option<Bind<'a, bool>>) -> Self {
         let props = ContainerProps::new().surface(SurfaceKind::Frame).pad(Pad::Regular).sizing(Sizing::Fill).header(HeaderRegion::new());
-        GroupBox { common: Common::new(), props, gate }.label(title)
+        GroupBox { common: Common::new(), props, gate, strength: HeaderStrength::Section, header_fill: true }.label(title)
+    }
+
+    /// A bulk-edit row labelled `label`: the check box edits `apply`, and the body, the caller's field bound to a
+    /// `Mixed` value, is enabled only while `apply` is on. Opening a dialog or visiting a tab never turns mixed values
+    /// into the first item's value: the caller starts `apply` off.
+    pub fn apply(label: impl Into<crate::runtime::env::Label>, apply: Bind<'a, bool>) -> Self {
+        let props = ContainerProps::new().pad(Pad::None).header(HeaderRegion::new().inline(true));
+        GroupBox { common: Common::new(), props, gate: Some(apply), strength: HeaderStrength::Normal, header_fill: false }.label(label)
     }
 
     /// Whether the frame fills the width offered (the default) or is as wide as its content.
@@ -77,7 +88,7 @@ impl Component for GroupBox<'_> {
 impl Container for GroupBox<'_> {
     /// The gate's shown copy goes to the check box; the container applies a change at step 15.
     fn header(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        let row = TitleRow::new(cx.label()).strength(HeaderStrength::Section).level(SECTION_LEVEL);
+        let row = TitleRow::new(cx.label()).strength(self.strength).fill(self.header_fill).level(SECTION_LEVEL);
         match cx.gate() {
             Some(gate) => row.gate(Bind::bound(gate)).show(ui),
             None => row.show(ui),

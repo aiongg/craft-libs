@@ -271,9 +271,12 @@ impl Component for TitleRow<'_> {
         let placed = self.place(flow, cx);
         let title = TextRun::new(self.title_text(cx.resolved.label)).role(cx.style.text.role).elide();
         let elided = cx.layout_at(&title, placed.title.width()).elided;
-        let sense = if matches!(self.lead, Lead::Disclosure(_)) { Sense::CLICK } else { Sense::HOVER };
         let tooltip = cx.resolved.label.to_owned();
-        let part = cx.part(TITLE, band).sense(sense);
+        let part = if matches!(self.lead, Lead::Disclosure(_)) {
+            cx.part(TITLE, band).sense(Sense::CLICK).keyboard_via(LEAD)
+        } else {
+            cx.part(TITLE, band).sense(Sense::HOVER)
+        };
         if elided {
             part.tooltip(tooltip);
         }

@@ -5,10 +5,10 @@ use craft_ui::choice::{Checkbox, Segmented};
 use craft_ui::contract::tooltip::DELAY;
 use craft_ui::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
 use craft_ui::runtime::overlay::{OpenFilter, any_open};
-use craft_ui::sections::{ApplyRow, HeaderAction, Section, TitleRow};
+use craft_ui::sections::{GroupBox, HeaderAction, Section, TitleRow};
 use craft_ui::testing::pointer::{click, moved};
 use craft_ui::testing::{Frames, trial};
-use egui::{Pos2, Rect, Ui, UiBuilder};
+use egui::{Pos2, Rect, Ui};
 use std::cell::Cell;
 
 const AREA: Rect = Rect { min: Pos2::new(10.0, 10.0), max: Pos2::new(310.0, 110.0) };
@@ -42,7 +42,7 @@ fn a_control_in_the_trailing_region_takes_its_clicks_without_toggling() {
     let mut frames = Frames::new();
     let (mut open, mut view) = (true, 1u8);
     let entries = [Entry::new(1u8, "List"), Entry::new(2, "Grid")];
-    let mut show = |ui: &mut Ui, open: &mut bool, view: &mut u8| {
+    let show = |ui: &mut Ui, open: &mut bool, view: &mut u8| {
         Section::new("Options")
             .open(Bind::bound(open))
             .controls(|ui, _| {
@@ -71,12 +71,10 @@ fn an_inline_header_and_its_body_share_one_line() {
     let mut frames = Frames::new();
     let (mut apply, row, body) = (true, Cell::new(Rect::NOTHING), Cell::new(Rect::NOTHING));
     let mut show = |ui: &mut Ui| {
-        ui.scope_builder(UiBuilder::new().max_rect(AREA), |ui| {
-            let shown = ApplyRow::new("Opacity", Bind::bound(&mut apply)).id_salt("apply").show(ui, |ui, _| {
-                body.set(Checkbox::new(Bind::given(false)).label("Body").show(ui).response.rect);
-            });
-            row.set(shown.output.response.rect);
+        let shown = GroupBox::apply("Opacity", Bind::bound(&mut apply)).id_salt("apply").show(ui, |ui, _| {
+            body.set(Checkbox::new(Bind::given(false)).label("Body").show(ui).response.rect);
         });
+        row.set(shown.output.response.rect);
     };
     frames.idle(5, &mut show);
     let (row, body) = (row.get(), body.get());
