@@ -130,4 +130,3 @@ pub(crate) fn undo(ctx: &Context, id: Id, current: &str, redo: bool) -> Option<S
     state.store(ctx, id);
     Some(text)
 }
-}
