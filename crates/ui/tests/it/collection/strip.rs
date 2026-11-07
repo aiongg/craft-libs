@@ -16,7 +16,7 @@ use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Frames, pointer, trial};
 use egui::{Pos2, Rect, Ui, Vec2};
 use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 const ORIGIN: Pos2 = Pos2::new(10.0, 10.0);
 const VIEW: Vec2 = Vec2::new(400.0, 60.0);
@@ -26,7 +26,7 @@ const MIN: f32 = 8.0;
 const LABELS: [usize; 3] = [3, 12, 6];
 
 /// The `(ideal, min)` widths the layout received, by item.
-type Received = Rc<RefCell<Vec<Option<(f32, f32)>>>>;
+type Received = Arc<Mutex<Vec<Option<(f32, f32)>>>>;
 
 /// Items side by side in one row, each as wide as it measures its ideal width.
 #[derive(Clone)]
@@ -76,7 +76,7 @@ impl ItemLayout for Strip {
 
     fn set_width(&mut self, at: usize, ideal: f32, min: f32) {
         self.widths[at] = ideal;
-        self.received.borrow_mut()[at] = Some((ideal, min));
+        self.received.lock().unwrap()[at] = Some((ideal, min));
     }
 }
 
@@ -184,10 +184,10 @@ fn show_bar(ui: &mut Ui, received: &Received, rects: &RefCell<Vec<Rect>>) {
 /// labels wider than shorter ones.
 #[trial]
 fn a_layout_that_asks_for_widths_receives_each_items_ideal_and_minimum() {
-    let (received, rects): (Received, _) = (Rc::new(RefCell::new(vec![None; LABELS.len()])), RefCell::new(Vec::new()));
+    let (received, rects): (Received, _) = (Arc::new(Mutex::new(vec![None; LABELS.len()])), RefCell::new(Vec::new()));
     let mut frames = Frames::new();
     frames.idle(4, &mut |ui: &mut Ui| show_bar(ui, &received, &rects));
-    let widths: Vec<(f32, f32)> = received.borrow().iter().map(|pair| pair.expect("every item was measured")).collect();
+    let widths: Vec<(f32, f32)> = received.lock().unwrap().iter().map(|pair| pair.expect("every item was measured")).collect();
     assert!(widths.iter().all(|(ideal, min)| ideal >= min), "{widths:?}");
     assert!(widths[1].0 > widths[2].0 && widths[2].0 > widths[0].0, "ideal widths follow the labels: {widths:?}");
     let rects = rects.borrow();
@@ -199,7 +199,7 @@ fn a_layout_that_asks_for_widths_receives_each_items_ideal_and_minimum() {
 #[trial]
 fn a_drag_over_an_item_of_a_one_row_layout_marks_the_gap_on_the_inline_axis() {
     for direction in [Direction::Ltr, Direction::Rtl] {
-        let (received, rects): (Received, _) = (Rc::new(RefCell::new(vec![None; LABELS.len()])), RefCell::new(Vec::new()));
+        let (received, rects): (Received, _) = (Arc::new(Mutex::new(vec![None; LABELS.len()])), RefCell::new(Vec::new()));
         let mut frames = Frames::new();
         frames.root(RootEnv::default().direction(direction));
         let mut show = |ui: &mut Ui| show_bar(ui, &received, &rects);
