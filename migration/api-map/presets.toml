@@ -406,8 +406,8 @@ new = "can_delete(Fn(&K) -> bool)"
 [[setter]]
 type = "PresetBrowser"
 old = "can_move(Fn(&K) -> bool)"
-new = ""
-note = "Not built: the context menu has no Move to row (no submenu route for a family); drag reorders, and `PresetEvent::MoveTo` stays for a host that moves by its own menu."
+new = "can_move(Fn(&K) -> bool)"
+note = "Which presets the row menu's Move to submenu (`Menu::submenu_row`) may move; it produces `PresetEvent::MoveTo`."
 
 [[setter]]
 type = "PresetBrowser"
@@ -417,7 +417,8 @@ new = "extra_items(impl IntoIterator<Item = Entry<String>>)"
 [[setter]]
 type = "PresetBrowser"
 old = "context_menu(bool)"
-new = "context_menu(bool)"
+new = "row_menu(bool)"
+note = "Renamed: the structure lint `contract/layers` matches `.context_menu(`."
 
 [[setter]]
 type = "PresetBrowser"
@@ -594,8 +595,18 @@ new = "can_rename(Fn(&K) -> bool)"
 [[setter]]
 type = "PresetPicker"
 old = "can_delete(Fn(&K) -> bool)"
-new = ""
-note = "Not built: the browser's context menu is off in the picker until its prop is renamed (the structure lint matches `.context_menu(`)."
+new = "can_delete(Fn(&K) -> bool)"
+
+[[setter]]
+type = "PresetPicker"
+old = ""
+new = "can_move(Fn(&K) -> bool)"
+
+[[setter]]
+type = "PresetPicker"
+old = ""
+new = "row_menu(bool)"
+note = "Whether the browser's row menu (Rename, Move to, Delete) opens in the popover; on by default."
 
 [[setter]]
 type = "PresetPicker"

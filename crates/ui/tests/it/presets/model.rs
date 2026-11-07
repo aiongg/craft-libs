@@ -1,6 +1,6 @@
 //! The preset library's rules, the open-group state and the nesting rule, the panel menu and the file entries.
 
-use craft_ui::contract::OpenChange;
+use craft_ui::contract::{OpenChange, ReorderMove};
 use craft_ui::patterns::presets::{
     DefaultOpen, GroupPath, PresetChange, PresetCommands, PresetError, PresetEvent, PresetFileEvent, PresetFileFailure, PresetFileRequest,
     PresetFiles, PresetId, PresetKey, PresetLibrary, PresetMenuAction, PresetPanelMenu, PresetRow, PresetState, PresetView, children_end,
@@ -91,6 +91,25 @@ fn reordering_a_group_changes_its_parent_and_keeps_its_presets() {
     let end = lib.rows().len();
     lib.reorder(std::slice::from_ref(&a), end).unwrap();
     assert!(lib.group(&GroupPath::new(["B", "A"])).is_some(), "after Cyan, which is in B");
+}
+
+/// A move that names its parent group lands inside it: before its child at `to`, else after its last child, which
+/// the flat position alone cannot say for an empty group or the end of a group.
+#[trial]
+fn a_move_into_a_group_lands_in_that_group() {
+    let (mut lib, [loose, red, _green, _blue, cyan]) = sample();
+    let empty = lib.new_group(&GroupPath::root(), "Empty").unwrap();
+    let b = GroupPath::new(["B"]);
+
+    let end = lib.rows().len();
+    let into_b = ReorderMove::new(PresetKey::Item(loose), vec![PresetKey::Item(loose)], end, false).in_group(Some(PresetKey::Group(b.clone())));
+    lib.reorder_move(&into_b).unwrap();
+    assert_eq!(lib.group_of(loose), Some(b.clone()));
+    assert_eq!(lib.group(&b).unwrap().items.iter().map(|item| item.id).collect::<Vec<_>>(), [cyan, loose], "after the last child");
+
+    let into_empty = ReorderMove::new(PresetKey::Item(red), vec![PresetKey::Item(red)], 0, false).in_group(Some(PresetKey::Group(empty.clone())));
+    lib.reorder_move(&into_empty).unwrap();
+    assert_eq!(lib.group_of(red), Some(empty), "the empty group takes it wherever `to` points");
 }
 
 /// A group moved past the library's nesting, or onto a sibling's name, is refused and the library stays as it was.
