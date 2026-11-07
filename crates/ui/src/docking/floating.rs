@@ -89,7 +89,7 @@ pub struct FloatingGroup {
     #[prop]
     limits: PanelLimits,
     /// The group's opacity, from 0 (invisible) to 1.
-    #[prop]
+    #[prop(quantity = "opacity")]
     opacity: f32,
     /// Whether only the title row shows.
     #[prop]

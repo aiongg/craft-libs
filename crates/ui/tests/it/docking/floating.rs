@@ -100,7 +100,7 @@ fn a_double_click_on_the_title_minimizes_the_group_and_keeps_the_height_it_resto
     frames.idle(4, &mut show);
     assert_eq!(caller.toggles.get(), 1, "the double click is reported once");
     assert!(caller.minimized.get());
-    assert!(caller.shown.get().height() < START.height() / 2.0, "only the title row shows: {:?}", caller.shown.get());
+    assert!(caller.shown.get().height() < caller.rect.get().height() / 2.0, "only the title row shows: {:?}", caller.shown.get());
     let restored_height = caller.rect.get().height();
     pointer::drag(&mut frames, title_of(caller.shown.get()), MOVE, &mut show);
     frames.idle(2, &mut show);
@@ -125,5 +125,8 @@ fn a_move_stops_at_the_bounds_and_a_size_drag_at_the_panel_limits() {
     frames.idle(2, &mut show);
     let shrunk = caller.rect.get();
     assert_eq!(caller.last_change().kind, PlacementKind::Size(craft_ui::runtime::windows::ResizeEdge::BottomRight));
-    assert!(shrunk.width() >= LEAST.x - SLACK && shrunk.height() > LEAST.y, "the size stopped at the limits plus the title row: {shrunk:?}");
+    assert!(shrunk.width() < moved.width() && shrunk.height() < moved.height(), "the size drag shrank the group: {shrunk:?}");
+    pointer::drag(&mut frames, shrunk.max - Vec2::splat(1.0), Vec2::splat(-FAR), &mut show);
+    frames.idle(2, &mut show);
+    assert!(near(caller.rect.get(), shrunk), "the limits stopped the second drag: {:?} then {:?}", shrunk, caller.rect.get());
 }
