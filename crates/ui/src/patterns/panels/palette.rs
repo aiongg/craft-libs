@@ -7,10 +7,9 @@ use crate::list::{List, ListRow};
 use crate::menu::search::{HelpEntry, search_order};
 use crate::popover::Popover;
 use crate::runtime::commands::{self, CommandRef};
-use crate::runtime::egui::pass::root_frame_nr;
 use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::with_session;
-use crate::runtime::overlay::CloseReason;
+use crate::runtime::overlay::{self, CloseReason};
 use crate::runtime::words::common::CommonWords;
 use crate::text::TextField;
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
@@ -28,12 +27,10 @@ pub const RECENT: usize = 8;
 /// The box's widest share of the window; its height is capped at the same share of the window's height.
 const SHARE: ViewportShare = ViewportShare::new(0.6, 0.7);
 
-/// What the palette keeps while it is open: the query, the frame it last ran in (a gap means it was closed in
-/// between) and the number of results last announced.
+/// What the palette keeps while it is open: the query and the number of results last announced.
 #[derive(Clone, Default)]
 struct Session {
     query: String,
-    frame: u64,
     announced: Option<usize>,
 }
 
@@ -110,11 +107,10 @@ impl<'a> CommandPalette<'a> {
             })
             .show(ui, |ui, cx| {
                 let mut session = with_session(&ctx, slot, |held: &mut Session| held.clone());
-                let now = root_frame_nr(&ctx);
-                if session.frame + 1 < now {
+                // What the user typed in an earlier opening does not come back.
+                if overlay::drawing_parent(&ctx).is_some_and(|layer| overlay::opening(&ctx, layer)) {
                     session = Session::default();
                 }
-                session.frame = now;
                 let texts = texts_of(entries, &cx.env);
                 let field = TextField::search(words.palette_search.clone(), Bind::bound(&mut session.query))
                     .placeholder(words.palette_placeholder.clone())
