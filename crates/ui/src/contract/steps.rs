@@ -555,6 +555,7 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     for (decl, extras) in &input.parts.decls {
         if extras.focusable && input.parts_focus {
             let stop = own().part(PartRef { key: decl.key, index: decl.index });
+            let stop = if extras.default_stop { stop.default_stop() } else { stop };
             // A part group that joined the body's roving group has its parts registered there.
             let joined = group.and_then(|parts| focus::registration::part_group(ctx, parts));
             focus::register_stop(ctx, if let Some(group) = joined.or(group).or(input.row) { stop.in_group(group) } else { stop });

@@ -31,11 +31,17 @@ impl Entry {
 }
 
 /// A roving group's members as a flat outline of enabled positions.
-struct Members(usize);
+struct Members {
+    len: usize,
+    first_column: Option<usize>,
+}
 
 impl NavOutline for Members {
     fn len(&self) -> usize {
-        self.0
+        self.len
+    }
+    fn first_column(&self) -> Option<usize> {
+        self.first_column
     }
     fn depth(&self, _: usize) -> usize {
         0
@@ -237,7 +243,7 @@ impl State {
             return Some(self.row_owner(&group).map(|rec| self.focus_stop(rec)).unwrap_or_default());
         }
         let mut state = group.roving.state(at);
-        match step(group.roving.shape, &Members(members.len()), &mut state, mv, mods) {
+        match step(group.roving.shape, &Members { len: members.len(), first_column: group.roving.first_column }, &mut state, mv, mods) {
             NavStep::Moved(to) => Some(self.focus_stop(members[to].clone())),
             _ => Some(Vec::new()),
         }

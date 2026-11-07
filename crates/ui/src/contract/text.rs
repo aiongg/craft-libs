@@ -185,7 +185,7 @@ impl<C: Component> PartsCx<'_, C> {
         self.text.decl = Some(TextDecl {
             key: key.0,
             rect,
-            caret: codec.caret_on_focus(&shown),
+            caret: if options.select_on_focus { Caret::All } else { codec.caret_on_focus(&shown) },
             shown,
             options: options.clone(),
             resolve: Box::new(resolver(codec.clone(), options, rect, value.clone())),

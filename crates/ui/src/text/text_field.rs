@@ -118,6 +118,15 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
         self
     }
 
+    /// The whole text is selected whenever the field takes focus, so typing replaces it. Combine with
+    /// `Props::default_stop` and a layer's `Initial::Default`, or a focus request, for a field that opens ready to
+    /// type over its text.
+    #[must_use]
+    pub fn select_on_focus(mut self) -> Self {
+        self.options.select_on_focus = true;
+        self
+    }
+
     /// Monospace text.
     #[must_use]
     pub fn mono(mut self) -> Self {

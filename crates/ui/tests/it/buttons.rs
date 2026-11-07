@@ -60,7 +60,7 @@ fn expand_and_collapse_on_the_arrow_open_and_close_the_menu() {
     assert_eq!(rig.fixture.tree().expanded_of(arrow(&rig).node), Some(true), "the arrow reports it open");
     let target = arrow(&rig);
     rig.fixture.access(AccessActionKind::Collapse, &target);
-    rig.fixture.idle(30);
+    rig.fixture.idle(4);
     assert!(!rig.menu_shown(), "Collapse closes it");
     assert_eq!(rig.fixture.tree().expanded_of(arrow(&rig).node), Some(false), "the arrow reports it closed");
 }
@@ -85,7 +85,7 @@ fn a_split_button_opens_from_the_keyboard_and_reports_the_pick() {
     assert!(rig.menu_shown(), "Alt+Down opens the menu");
     rig.press(Key::Enter, Modifiers::NONE);
     assert_eq!(rig.chosen.get(), Some(7), "the first row was active");
-    rig.fixture.idle(30);
+    rig.fixture.idle(4);
     assert!(!rig.menu_shown(), "a pick closes the menu");
     assert_eq!(rig.clicks.get(), 0, "a pick is not the action");
 }

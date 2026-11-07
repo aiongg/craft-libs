@@ -2,11 +2,16 @@
 
 use craft_behavior::PartKey;
 use craft_theme::variant::Tone;
+use craft_ui::buttons::Button;
+use craft_ui::contract::Bind;
+use craft_ui::contract::ShowContainer as _;
 use craft_ui::contract::{CommandSet, Props as _, Show as _};
 use craft_ui::notices::{
     Notice, NoticeAction, NoticeCenter, NoticeLayout, PostedNotice, SaveResult, SettingsLoad, SettingsNoticeState, SettingsStatus, ToastStack,
 };
+use craft_ui::popover::Popover;
 use craft_ui::runtime::commands::FireSource;
+use craft_ui::runtime::focus::Initial;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::runtime::toast::{self, Toast, ToastAction, ToastEnd};
@@ -168,4 +173,29 @@ fn a_posted_notice_keeps_its_tone_and_offers_dont_show_again() {
     assert_eq!(cards[0].toast.tone, Tone::Warn);
     assert_eq!(cards[0].toast.actions.len(), 1, "the dismiss key adds the Don't Show Again action");
     assert!(NoticeCenter::new().post(&frames.ctx, &notice, &["warn.ico".to_owned()]).is_none(), "a silenced key is not posted");
+}
+
+/// The action marked default holds the focus when its layer opens with `Initial::Default`, and Enter takes it.
+#[trial]
+fn the_default_action_of_a_notice_takes_the_focus_of_an_opening_layer() {
+    let shown = Rc::new(Cell::new((None, None)));
+    let seen = shown.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let opener = Button::new("Tour").show(ui);
+        Popover::new("Tour", Bind::given(true)).opened_by(&opener).initial_focus(Initial::Default).show(ui, |ui, _| {
+            let notice = Notice::new(Tone::Neutral, "Step one")
+                .layout(NoticeLayout::Inline)
+                .action(NoticeAction::new("Skip"))
+                .action(NoticeAction::new("Next").default_action())
+                .id_salt("tour-notice")
+                .show(ui);
+            seen.set((Some(notice.response.id), notice.action.or(seen.get().1)));
+        });
+    });
+    fixture.settle();
+    let (id, _) = shown.get();
+    let id = id.expect("the notice showed");
+    assert_eq!(craft_ui::testing::focus::active_part(fixture.ctx(), id), Some(PartKey::new("action").at(1)), "the default action holds focus");
+    fixture.key(Key::Enter, Modifiers::NONE);
+    assert_eq!(shown.get().1, Some(1), "Enter takes the default action");
 }

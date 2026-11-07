@@ -4,6 +4,9 @@
 use craft_behavior::{EditEvent, Mixed, PartKey};
 use craft_ui::contract::{Bind, Props as _, Show as _};
 use craft_ui::primitives::{Completer, Completion};
+use craft_ui::runtime::focus::{FocusTarget, request};
+use craft_ui::testing::access::NodeKey;
+use craft_ui::testing::text::run_node;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::TextField;
 use egui::{Id, Key, Modifiers};
@@ -131,4 +134,27 @@ fn typing_into_a_mixed_field_commits_over_the_mixed_value() {
     fixture.idle(3);
     assert_eq!(*value.borrow(), Mixed::Same("abc".to_owned()), "the typed text replaced the mixed value");
     assert_eq!(sets.get(), 1, "the commit reached the app as one edit");
+}
+
+/// A field that asks for selection on focus, shown in response to an action and given the focus by a request, holds
+/// the focus with all its text selected on the next pass.
+#[trial]
+fn a_select_on_focus_field_takes_a_focus_request_with_all_its_text_selected() {
+    let shown = Rc::new(Cell::new(false));
+    let seen = Rc::new(Cell::new(None));
+    let (show, id_seen) = (shown.clone(), seen.clone());
+    let mut fixture = Fixture::new(move |ui| {
+        if show.get() {
+            let mut name = String::from("Preset 1");
+            id_seen.set(Some(TextField::new("Name", Bind::bound(&mut name)).select_on_focus().show(ui).response.id));
+        }
+    });
+    fixture.settle();
+    shown.set(true);
+    fixture.idle(2);
+    let id = seen.get().expect("the field showed");
+    request(fixture.ctx(), FocusTarget::Id(id));
+    fixture.idle(2);
+    let run = NodeKey::of(run_node(id, 0, 0));
+    assert_eq!(fixture.tree().text_selection(id), Some(((run, 0), (run, 8))), "the field's whole text is selected");
 }
