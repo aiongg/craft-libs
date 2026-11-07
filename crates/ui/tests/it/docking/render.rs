@@ -44,12 +44,16 @@ fn a_divider_shrinks_the_groups_beyond_it_in_turn_down_to_their_minimum() {
     let rect = area(WIDTH);
     let rules = FrameRules::new(SIZES, &limits);
     let mut root = three_columns();
-    let first_divider = tree::frames(&root, rect, &rules, false).handles.into_iter().find(|handle| handle.path.is_empty()).expect("the root split has a handle");
+    let first_divider =
+        tree::frames(&root, rect, &rules, false).handles.into_iter().find(|handle| handle.path.is_empty()).expect("the root split has a handle");
     let sizes = tree::drag_sizes(&root, rect, &rules, &first_divider.path, WIDTH);
     tree::apply_sizes(&mut root, &sizes);
 
     let after = widths(&root, rect, &rules);
-    assert!((after[1] - LEAST_WIDTH).abs() < EPS && (after[2] - LEAST_WIDTH).abs() < EPS, "both groups beyond the divider are at their minimum: {after:?}");
+    assert!(
+        (after[1] - LEAST_WIDTH).abs() < EPS && (after[2] - LEAST_WIDTH).abs() < EPS,
+        "both groups beyond the divider are at their minimum: {after:?}"
+    );
     assert!((after.iter().sum::<f32>() - WIDTH).abs() < EPS, "the room they gave went to the group before the divider: {after:?}");
 }
 

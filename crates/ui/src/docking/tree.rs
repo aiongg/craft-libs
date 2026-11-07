@@ -361,10 +361,7 @@ impl<P> Sizer<'_, '_, P> {
                 let (a, b) = (self.bounds(first), self.bounds(second));
                 let gap = if is_dock(first) || is_dock(second) { sizes.dock_gap } else { sizes.gap };
                 let (min, max) = match axis {
-                    Axis::X => (
-                        vec2(a.min.x + b.min.x + gap, a.min.y.max(b.min.y)),
-                        vec2(a.max.x + b.max.x + gap, a.max.y.min(b.max.y)),
-                    ),
+                    Axis::X => (vec2(a.min.x + b.min.x + gap, a.min.y.max(b.min.y)), vec2(a.max.x + b.max.x + gap, a.max.y.min(b.max.y))),
                     _ => (vec2(a.min.x.max(b.min.x), a.min.y + b.min.y + gap), vec2(a.max.x.min(b.max.x), a.max.y + b.max.y + gap)),
                 };
                 Bounds { min: min.min(Vec2::splat(bound)), max: max.max(min).min(Vec2::splat(bound)) }
@@ -420,12 +417,7 @@ impl<P> Sizer<'_, '_, P> {
     fn collect<'n>(&self, node: &'n Node<P>, rect: Rect, path: &mut Vec<bool>, out: &mut Frames<'n, P>) {
         let Some(children) = self.children(node, rect) else {
             let bounds = self.bounds(node);
-            out.groups.push(GroupFrame {
-                node,
-                path: path.clone(),
-                rect,
-                limits: PanelLimits { min: bounds.min, max: Some(bounds.max) },
-            });
+            out.groups.push(GroupFrame { node, path: path.clone(), rect, limits: PanelLimits { min: bounds.min, max: Some(bounds.max) } });
             return;
         };
         if let Node::Split { axis, size, first, second, .. } = node

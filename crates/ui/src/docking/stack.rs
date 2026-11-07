@@ -54,11 +54,8 @@ pub fn section_heights(sections: &[StackSection], total: f32, header: f32) -> Ve
         // A section held by its limit leaves its share to the others: settle the held ones, then share what remains.
         while !pending.is_empty() {
             let share = leftover / pending.len() as f32;
-            let held: Vec<usize> = pending
-                .iter()
-                .copied()
-                .filter(|&at| share < sections[at].min || share > sections[at].max.max(sections[at].min))
-                .collect();
+            let held: Vec<usize> =
+                pending.iter().copied().filter(|&at| share < sections[at].min || share > sections[at].max.max(sections[at].min)).collect();
             if held.is_empty() {
                 pending.iter().for_each(|&at| bodies[at] = share);
                 break;

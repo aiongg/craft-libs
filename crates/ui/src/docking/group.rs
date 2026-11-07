@@ -6,8 +6,8 @@ use super::words::DockWords;
 use super::{PanelDrag, PanelKey, PanelTitle};
 use crate::buttons::IconButton;
 use crate::contract::{
-    Bind, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi,
-    Pointer as _, Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
+    Bind, Common, Component, Container, ContainerProps, ContextMenuRequest, Cx, HeaderRegion, ListDrag, MeasureCx, Outcome, PaintUi, Pointer as _,
+    Props as _, Role, Show as _, ShowCollection as _, ShowContainer as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::layout_components::Row;
@@ -224,10 +224,7 @@ impl<'a, P: Clone + Hash + Send + Sync + 'static> DockGroup<'a, P> {
     /// The group named by `anchor` (one of its panels) with its `panels`, `active` showing. The group is named by the
     /// active panel's title.
     pub fn new(anchor: P, panels: &'a [PanelTitle], active: PanelKey) -> Self {
-        let props = ContainerProps::new()
-            .surface(SurfaceKind::Panel)
-            .sizing(Sizing::Fill)
-            .header(HeaderRegion::new().rule(true).trailing(true));
+        let props = ContainerProps::new().surface(SurfaceKind::Panel).sizing(Sizing::Fill).header(HeaderRegion::new().rule(true).trailing(true));
         let title = panels.iter().find(|panel| panel.key == active).map(|panel| panel.title.clone()).unwrap_or_default();
         DockGroup {
             common: Common::new(),

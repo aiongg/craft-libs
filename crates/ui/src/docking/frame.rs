@@ -54,7 +54,13 @@ pub fn maximize<'a, P: Clone + Eq + Hash>(
     });
     let unchanged = frame.is_none() && matches!(hide, HidePanels::None);
     if unchanged {
-        return FrameView { layout: Cow::Borrowed(layout), maximized: None, hidden: Vec::new(), paths: None, windows: (0..layout.floating.len()).collect() };
+        return FrameView {
+            layout: Cow::Borrowed(layout),
+            maximized: None,
+            hidden: Vec::new(),
+            paths: None,
+            windows: (0..layout.floating.len()).collect(),
+        };
     }
     let left_out = layout.panels().into_iter().filter(|panel| hidden(panel)).cloned().collect();
     let mut paths = HashMap::new();
@@ -187,7 +193,8 @@ pub fn edge_bands<P: Clone + Eq + Hash>(
         .filter_map(|side| {
             let path = layout.edge_path(side, canvas);
             node_at(root, &path)?;
-            let area = frames.groups.iter().filter(|group| group.path.starts_with(&path)).map(|group| group.rect).reduce(|all, rect| all.union(rect))?;
+            let area =
+                frames.groups.iter().filter(|group| group.path.starts_with(&path)).map(|group| group.rect).reduce(|all, rect| all.union(rect))?;
             let depth = if config.side_edge_zones { sizes.side_edge_band } else { sizes.edge_band };
             let depth = depth.min(area.width() / 4.0).min(area.height() / 4.0);
             let left = matches!((side, rtl), (DockSide::Start, false) | (DockSide::End, true));
