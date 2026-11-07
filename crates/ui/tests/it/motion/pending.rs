@@ -5,9 +5,9 @@ use craft_behavior::Sense;
 use craft_host::{AppInfo, Host, Jobs, ManualJobs};
 use craft_ui::contract::{Common, Component, Cx, Job, Pending, Remember as _, Role, Show as _};
 use craft_ui::style::StyleCx;
-use craft_ui::testing::memory::Stage;
+use craft_ui::testing::memory::{Stage, global};
 use craft_ui::testing::{Frames, trial};
-use egui::{Id, Response};
+use egui::Response;
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -80,7 +80,7 @@ fn host_over(jobs: Arc<dyn Jobs>) -> Arc<Host> {
 
 /// The pending result of `"k"` under a stage of `id`, opened as a real pass or as a sizing pass.
 fn poll_stage(ui: &egui::Ui, sizing: bool, attempts: &Arc<AtomicUsize>, panic_first: bool) -> Pending<u32, String> {
-    let id = Id::unique("owner");
+    let id = global("pending.trial", "owner");
     let mut stage = if sizing { Stage::open_peek(ui.ctx(), id) } else { Stage::open(ui.ctx(), id) };
     let attempts = attempts.clone();
     let result = stage
@@ -161,7 +161,7 @@ fn a_refused_job_starts_when_the_host_takes_jobs() {
 }
 
 fn show_preview(ui: &mut egui::Ui, key: u32, ran: &Arc<Mutex<Vec<u32>>>) {
-    let mut stage = Stage::open(ui.ctx(), Id::unique("preview"));
+    let mut stage = Stage::open(ui.ctx(), global("pending.trial", "preview"));
     let ran = ran.clone();
     stage.pending(key, move || {
         Job::new(move |_, _| {

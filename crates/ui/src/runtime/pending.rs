@@ -184,10 +184,13 @@ struct Tracked {
     dispose: fn(&Context, Id),
 }
 
+/// The queue that runs a context's pending jobs, with the `Jobs` it spawns lanes on.
+type Queue = (Arc<dyn Jobs>, Arc<JobQueue<Id, ()>>);
+
 /// The context's queue and the slots it runs for. The queue is rebuilt when the host's `Jobs` changes.
 #[derive(Default)]
 struct PendingState {
-    queue: Option<(Arc<dyn Jobs>, Arc<JobQueue<Id, ()>>)>,
+    queue: Option<Queue>,
     tracked: HashMap<Id, Tracked>,
 }
 
