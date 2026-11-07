@@ -6,12 +6,16 @@ mod emit;
 mod patch;
 mod roles;
 mod rules;
+#[cfg(feature = "testing")]
 mod tree;
 
-use egui::{Context, FullOutput, Id};
+#[cfg(feature = "testing")]
+use egui::FullOutput;
+use egui::{Context, Id};
 
 pub(crate) use emit::{FaceFacts, Own, SubDecl, fill_own, fill_sub, sub_node_id};
 pub(crate) use patch::{patch_label, patch_merge, write_status};
+#[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};
 
 /// The AccessKit role of a node.
@@ -44,6 +48,7 @@ pub(crate) fn register_parent(ctx: &Context, id: Id, parent: Id) {
 }
 
 /// The tree update of a finished frame.
+#[cfg(feature = "testing")]
 pub(crate) fn tree_of(output: &mut FullOutput) -> Option<AccessTree> {
     output.platform_output.accesskit_update.take().map(AccessTree::new)
 }
