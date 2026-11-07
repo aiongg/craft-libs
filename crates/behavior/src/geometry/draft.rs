@@ -32,6 +32,7 @@ pub enum DraftKind {
 /// reach (Select and Mask's Polygonal Lasso closes within 6) passes its own numbers. The draft
 /// divides them by [`DraftPoint::zoom`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DraftReach {
     /// A press this near the first vertex closes an outline of 3 or more points (a grab: the
     /// user aims at the start).
@@ -45,13 +46,14 @@ pub struct DraftReach {
 impl DraftReach {
     /// A reach closing within `close` screen points of the first vertex and treating a press
     /// within `same_point` of the last vertex as the same click.
-    pub fn new(close: f64, same_point: f64) -> Self {
+    pub const fn new(close: f64, same_point: f64) -> Self {
         Self { close, same_point }
     }
 }
 
 /// One pointer sample for an [`OutlineDraft`].
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct DraftPoint {
     /// The pointer in document units .
     pub at: Point,
@@ -76,6 +78,7 @@ pub enum DraftEvent {
     /// A press began an outline. `intent` is the modifiers the tool resolves its operation from
     /// ([`SelectionOperation::resolve`](super::selection_op::SelectionOperation::resolve)): the press's own,
     /// with ⌥ dropped when ⌥ started straight segments because nothing was selected.
+    #[non_exhaustive]
     Started {
         /// The modifiers the tool resolves its operation from.
         intent: Mods,
@@ -87,6 +90,7 @@ pub enum DraftEvent {
     /// outline with fewer gives [`Cancelled`](Self::Cancelled)); `straight` holds the indices of
     /// the points whose incoming segment is straight (an ⌥-click or a polygon vertex), for a path
     /// that keeps them straight (the Freeform Pen).
+    #[non_exhaustive]
     Closed {
         /// The outline's points, at least 3.
         points: Vec<Point>,

@@ -19,6 +19,7 @@ pub const SNAP_PX: f64 = 8.0;
 /// What a target is, so an app can filter (Snap To › Guides only) and the lines can be drawn in
 /// the smart-guide colour or the plain one.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SnapKind {
     /// Guides.
     Guide,
@@ -36,6 +37,31 @@ pub enum SnapKind {
     Selection,
 }
 
+impl SnapGesture {
+    /// A moving rectangle that was `at_press` when the gesture began.
+    pub const fn rect(at_press: Rect) -> Self {
+        SnapGesture::Rect { at_press }
+    }
+
+    /// One axis snaps: x when `vertical`.
+    pub const fn axis(vertical: bool) -> Self {
+        SnapGesture::Axis { vertical }
+    }
+}
+
+impl SnapTarget {
+    /// A full-height line of `kind` at `position`: vertical snaps x, else y.
+    pub const fn new(vertical: bool, position: f64, kind: SnapKind) -> Self {
+        SnapTarget { vertical, position, kind, span: None }
+    }
+
+    /// The target with its extent along its line, for drawing a smart guide.
+    pub const fn with_span(mut self, from: f64, to: f64) -> Self {
+        self.span = Some((from, to));
+        self
+    }
+}
+
 impl SnapKind {
     /// Drawn as a smart guide (magenta) rather than snapped silently.
     pub fn is_smart(self) -> bool {
@@ -45,6 +71,7 @@ impl SnapKind {
 
 /// One snap position on one axis.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SnapTarget {
     /// Vertical line (snaps x) or horizontal line (snaps y).
     pub vertical: bool,
@@ -59,6 +86,7 @@ pub struct SnapTarget {
 
 /// The line the UI draws for a snap that happened.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct SnapLine {
     /// Whether the line is vertical (snaps x) or horizontal (snaps y).
     pub vertical: bool,
@@ -72,6 +100,7 @@ pub struct SnapLine {
 
 /// View › Snap To and View › Show › Smart Guides, as the app stores them.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct SnapOptions {
     /// View › Snap (the master switch).
     pub on: bool,
@@ -98,16 +127,19 @@ impl Default for SnapOptions {
 
 /// How the host snaps a tool's pointer.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub enum SnapGesture {
     /// The pointer itself snaps (marquee corner, pen anchor, crop handle).
     Point,
     /// A rectangle moves with the pointer and its edges and centre snap: `at_press` is the
     /// rectangle when the gesture began; the host snaps `at_press + (pointer - press)`.
+    #[non_exhaustive]
     Rect {
         /// The rectangle when the gesture began.
         at_press: Rect,
     },
     /// Only one axis snaps (a guide being dragged).
+    #[non_exhaustive]
     Axis {
         /// Whether the snapping axis is x (a vertical guide).
         vertical: bool,

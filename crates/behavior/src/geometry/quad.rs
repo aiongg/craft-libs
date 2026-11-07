@@ -20,6 +20,7 @@ pub const SKEW_LIMIT: f64 = 89.0;
 /// A transform box: its four corners clockwise from the top left (as the box was before any
 /// transform) and its reference point, in document space.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BoxState {
     /// The four corners, clockwise from the top left.
     pub quad: [Point; 4],
@@ -30,6 +31,7 @@ pub struct BoxState {
 /// A part of a box under the pointer or picked from the keyboard. Edge `k` joins corners `k` and
 /// `k + 1`: 0 top, 1 right, 2 bottom, 3 left.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum BoxPart {
     /// Corner `k`, clockwise from the top left.
     Corner(u8),
@@ -45,6 +47,7 @@ pub enum BoxPart {
 
 /// Edit › Transform's modes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum TransformMode {
     /// Free Transform: every gesture by its keys.
     #[default]
@@ -61,6 +64,7 @@ pub enum TransformMode {
 
 /// What a plain corner or edge drag does.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ScaleRule {
     /// PhotoCraft (Photoshop CC 2019 and later): corners and edges keep the proportions, ⇧ frees
     /// them.
@@ -75,6 +79,7 @@ pub enum ScaleRule {
 /// (those drags scale, and Skew mode keeps it a parallelogram); Content-Aware Scale only scales
 /// and moves.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub struct BoxAllow {
     /// Rotating is allowed.
     pub rotate: bool,
@@ -82,6 +87,13 @@ pub struct BoxAllow {
     pub skew: bool,
     /// Distorting and perspective are allowed.
     pub distort: bool,
+}
+
+impl BoxAllow {
+    /// What the content allows: turning, skewing and distorting.
+    pub const fn new(rotate: bool, skew: bool, distort: bool) -> Self {
+        BoxAllow { rotate, skew, distort }
+    }
 }
 
 impl Default for BoxAllow {
@@ -92,6 +104,7 @@ impl Default for BoxAllow {
 
 /// What a drag of a box part does ([`BoxRules::drag_kind`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum BoxDrag {
     /// Moves the box (a ⇧ move keeps to eight directions).
     Move,
@@ -134,6 +147,7 @@ fn resolve_kind(mode: TransformMode, part: BoxPart, mods: Mods) -> BoxDrag {
 
 /// How drags change a box.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct BoxRules {
     /// The transform mode the options bar selects.
     pub mode: TransformMode,
@@ -156,6 +170,36 @@ impl Default for BoxRules {
 }
 
 impl BoxRules {
+    /// The rules of `mode` with the default scale rule, a linked aspect, everything allowed and
+    /// a 15 degree rotation step.
+    pub fn in_mode(mode: TransformMode) -> BoxRules {
+        BoxRules { mode, ..BoxRules::default() }
+    }
+
+    /// The rules with `scale` as the plain corner and edge drag rule.
+    pub fn with_scale(mut self, scale: ScaleRule) -> BoxRules {
+        self.scale = scale;
+        self
+    }
+
+    /// The rules with the options bar's aspect link on or off.
+    pub fn with_aspect_linked(mut self, linked: bool) -> BoxRules {
+        self.aspect_linked = linked;
+        self
+    }
+
+    /// The rules with `allow` as what the content permits.
+    pub fn with_allow(mut self, allow: BoxAllow) -> BoxRules {
+        self.allow = allow;
+        self
+    }
+
+    /// The rules with `degrees` as the angle ⇧ snaps a rotation to.
+    pub fn with_rotate_step(mut self, degrees: f64) -> BoxRules {
+        self.rotate_step = degrees;
+        self
+    }
+
     /// The rules of a box that only resizes and moves: a selection frame (CadCraft's and GridCraft's
     /// rectangle selections). `mode` [`TransformMode::Free`],
     /// `scale` [`ScaleRule::Free`] (corners stretch, ⇧ keeps the proportions, edges stretch their
@@ -509,6 +553,7 @@ fn nonzero(v: f64) -> f64 {
 /// `skew_h` and `skew_v` and turned by `angle`, about the reference point. Scales are factors (1
 /// is 100 %; negative for a flipped side); angles are degrees, positive clockwise on screen.
 #[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
 pub struct Parts {
     /// Horizontal scale factor.
     pub w: f64,
@@ -521,6 +566,13 @@ pub struct Parts {
     /// The top and bottom's lean. Any parallelogram can be read with any V skew short of ±90°:
     /// the host keeps the one typed into the V field.
     pub skew_v: f64,
+}
+
+impl Parts {
+    /// The readings: scale factors `w` and `h`, the `angle` in degrees and the two skews in degrees.
+    pub const fn new(w: f64, h: f64, angle: f64, skew_h: f64, skew_v: f64) -> Self {
+        Parts { w, h, angle, skew_h, skew_v }
+    }
 }
 
 /// [`Parts`] in radians with the raw signs: `sy` is negative for a box flipped relative to its
@@ -558,6 +610,11 @@ fn unturn(c: Vec2, angle: f64) -> Vec2 {
 }
 
 impl BoxState {
+    /// A box with the corners `quad`, clockwise from the top left, and the reference point `pivot`.
+    pub const fn new(quad: [Point; 4], pivot: Point) -> Self {
+        BoxState { quad, pivot }
+    }
+
     /// The box of `r`, the reference point at its centre.
     pub fn from_rect(r: Rect) -> Self {
         BoxState { quad: [Point::new(r.x0, r.y0), Point::new(r.x1, r.y0), Point::new(r.x1, r.y1), Point::new(r.x0, r.y1)], pivot: r.center() }

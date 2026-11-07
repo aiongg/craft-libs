@@ -4,7 +4,7 @@ use craft_behavior::geometry::{SnapKind, SnapTarget, SnapTargets};
 use kurbo::{Point, Rect, Vec2};
 
 fn guide(vertical: bool, position: f64) -> SnapTarget {
-    SnapTarget { vertical, position, kind: SnapKind::Guide, span: None }
+    SnapTarget::new(vertical, position, SnapKind::Guide)
 }
 
 #[test]

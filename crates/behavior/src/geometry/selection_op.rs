@@ -13,6 +13,7 @@ use crate::cursor::CursorBadge;
 /// already used them to recognise the gesture.
 ///
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum SelectionOperation {
     /// Replaces the selection.
     #[default]

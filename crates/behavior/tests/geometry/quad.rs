@@ -4,7 +4,7 @@ use craft_behavior::geometry::{BoxRules, BoxState, Parts, SKEW_LIMIT, TransformM
 use craft_keymap::Mods;
 use kurbo::{Point, Rect};
 
-const ALT_SHIFT: Mods = Mods { alt: true, shift: true, cmd: false, ctrl: false };
+const ALT_SHIFT: Mods = Mods { alt: true, shift: true, ..Mods::NONE };
 
 fn p(x: f64, y: f64) -> Point {
     Point::new(x, y)
@@ -54,7 +54,7 @@ fn shift_move_inside_keeps_to_eight_directions() {
 
 #[test]
 fn a_distort_mode_refuses_the_outside_and_the_edges() {
-    let rules = BoxRules { mode: TransformMode::Distort, ..BoxRules::default() };
+    let rules = BoxRules::in_mode(TransformMode::Distort);
     let start = session();
     let outside = dragged(p(130.0, 25.0), p(160.0, 25.0), Mods::NONE, &rules);
     assert_eq!(outside.quad, start.quad);
@@ -67,7 +67,7 @@ fn a_skew_past_the_limit_stops_at_the_limit() {
     let s = session();
     let rect = Rect::new(0.0, 0.0, 100.0, 50.0);
     let now = s.parts(rect, 0.0);
-    let leaned = s.with_parts(rect, 0.0, Parts { skew_h: 120.0, ..now });
+    let leaned = s.with_parts(rect, 0.0, Parts::new(now.w, now.h, now.angle, 120.0, now.skew_v));
     let reading = leaned.parts(rect, 0.0);
     assert!((reading.skew_h - SKEW_LIMIT).abs() < 1e-6, "{reading:?}");
 }

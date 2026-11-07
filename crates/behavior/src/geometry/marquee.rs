@@ -7,6 +7,7 @@ use kurbo::{Point, Rect};
 
 /// The two corners of a marquee in document space, as dragged: not ordered, not rounded.
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
+#[non_exhaustive]
 pub struct MarqueeRect {
     /// The corner where the drag began.
     pub a: Point,
@@ -15,6 +16,11 @@ pub struct MarqueeRect {
 }
 
 impl MarqueeRect {
+    /// The marquee from the corner `a` to the corner `b`.
+    pub const fn new(a: Point, b: Point) -> Self {
+        MarqueeRect { a, b }
+    }
+
     /// The rectangle between the corners, with `x0 <= x1` and `y0 <= y1`.
     pub fn rect(&self) -> Rect {
         Rect::from_points(self.a, self.b)

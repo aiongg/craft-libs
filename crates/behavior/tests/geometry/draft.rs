@@ -4,7 +4,7 @@ use craft_behavior::geometry::{DraftEvent, DraftKind, DraftPoint, DraftReach, Ou
 use craft_keymap::Mods;
 use kurbo::Point;
 
-const REACH: DraftReach = DraftReach { close: 8.0, same_point: 3.0 };
+const REACH: DraftReach = DraftReach::new(8.0, 3.0);
 
 fn at(x: f64, y: f64, zoom: f64) -> DraftPoint {
     DraftPoint::new(Point::new(x, y), Mods::NONE, zoom)
@@ -52,7 +52,7 @@ fn alt_with_nothing_selected_starts_straight_segments_without_the_alt_intent() {
     for kind in [DraftKind::Mixed, DraftKind::Polygonal] {
         let mut draft = OutlineDraft::new(kind, REACH);
         let started = draft.press(DraftPoint::new(Point::ZERO, alt, 1.0), false);
-        assert_eq!(started, Some(DraftEvent::Started { intent: Mods::NONE }));
+        assert!(matches!(started, Some(DraftEvent::Started { intent, .. }) if intent == Mods::NONE));
         draft.release(DraftPoint::new(Point::ZERO, alt, 1.0));
         assert!(draft.is_open(), "{kind:?} waits for the next click");
     }

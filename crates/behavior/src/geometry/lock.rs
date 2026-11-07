@@ -8,6 +8,7 @@ pub const LOCK_HYSTERESIS_DEGREES: f64 = 8.0;
 
 /// The directions ⇧ locks a move to.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum Directions {
     /// Horizontal and vertical: the Move tool dragging layers (Photoshop).
     #[default]
