@@ -10,14 +10,13 @@ use crate::menu::search::{HelpEntry, search_order};
 use crate::popover::Popover;
 use crate::runtime::commands::{self, CommandRef};
 use crate::runtime::env::{Env, Label};
-use crate::runtime::memory::with_session;
-use crate::runtime::overlay::{self, CloseReason};
+use crate::runtime::memory::Remember as _;
+use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::common::CommonWords;
 use crate::style::TypeRole;
 use crate::text::TextField;
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
 use egui::{Response, Ui};
-use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 
@@ -31,10 +30,12 @@ pub const RECENT: usize = 8;
 /// The box's widest share of the window; its height is capped at the same share of the window's height.
 const SHARE: ViewportShare = ViewportShare::new(0.6, 0.7);
 
-/// What the palette keeps while it is open: the query and the number of results last announced.
+/// What the palette keeps in its stack's memory while it is open: the query, the active row and the number of
+/// results last announced.
 #[derive(Clone, Default)]
 struct Session {
     query: String,
+    selection: Selection<usize>,
     announced: Option<usize>,
 }
 
@@ -98,10 +99,7 @@ impl<'a> CommandPalette<'a> {
         let ctx = ui.ctx().clone();
         let env = Env::of(ui);
         let words = env.words::<PanelWords>();
-        let recent: Vec<CommandRef> =
-            recents.as_mut().and_then(|bind| bind.reborrow().get()).and_then(|held| held.same().cloned()).unwrap_or_default();
         let list_id = ui.scope_id().with("palette-rows");
-        let slot = ui.scope_id().with("palette-state");
         let mut picked: Option<CommandRef> = None;
         let shown = Popover::new(label.clone(), open)
             .collection_body()
@@ -111,20 +109,16 @@ impl<'a> CommandPalette<'a> {
                 overlay
             })
             .show(ui, |ui, cx| {
-                let mut held = with_session(&ctx, slot, |held: &mut Session| held.clone());
-                // What the user typed in an earlier opening does not come back.
-                if overlay::drawing_parent(&ctx).is_some_and(|layer| overlay::opening(&ctx, layer)) {
-                    held = Session::default();
-                }
-                let session = RefCell::new(held);
+                let recent: Vec<CommandRef> =
+                    recents.as_mut().and_then(|bind| bind.reborrow().read(cx)).and_then(|held| held.same().cloned()).unwrap_or_default();
                 let texts = texts_of(entries, &cx.env);
                 let folder = cx.env.folder();
                 // The field is the stack's header and the key hint its footer, so the list takes the room left in
-                // the capped box and scrolls inside it.
+                // the capped box and scrolls inside it. The three regions share the stack's memory.
                 Stack::new()
-                    .header(|ui, _| {
-                        let mut session = session.borrow_mut();
-                        TextField::search(words.palette_search.clone(), Bind::bound(&mut session.query))
+                    .header(|ui, stack| {
+                        let state = stack.memory::<Session>();
+                        TextField::search(words.palette_search.clone(), Bind::bound(&mut state.query))
                             .placeholder(words.palette_placeholder.clone())
                             .drives(list_id)
                             .show(ui);
@@ -132,16 +126,16 @@ impl<'a> CommandPalette<'a> {
                     .footer(|ui, _| {
                         Text::new(words.palette_hint.clone()).role(TypeRole::Caption).shade(Shade::Muted).show(ui);
                     })
-                    .show(ui, |ui, _| {
-                        let mut session = session.borrow_mut();
-                        let listed = listing(entries, &session.query, &folder, &texts, &recent);
+                    .show(ui, |ui, stack| {
+                        let state = stack.memory::<Session>();
+                        let listed = listing(entries, &state.query, &folder, &texts, &recent);
                         let rows = row_data(&ctx, entries, &texts, &listed, &cx.env);
                         let source = Listed { keys: &listed, rows: &rows };
-                        let stamp = stamp_of(&session.query);
+                        let stamp = stamp_of(&state.query);
                         let events = List::options(words.palette_list.clone())
                             .id(list_id)
                             .empty(words.palette_empty.clone())
-                            .selection(Bind::given(Selection::<usize>::default()))
+                            .selection(Bind::bound(&mut state.selection))
                             .rows_stamp(stamp)
                             .show_items(ui, &source, &mut |key, _| rows[position(&listed, *key)].row())
                             .events;
@@ -150,27 +144,23 @@ impl<'a> CommandPalette<'a> {
                                 picked = Some(entries[key].command().clone());
                             }
                         }
-                        if session.announced != Some(listed.len()) && !session.query.trim().is_empty() {
+                        if state.announced != Some(listed.len()) && !state.query.trim().is_empty() {
                             let n = listed.len() as u64;
                             announce(&ctx, words.palette_results.text(n, &cx.env.format().integer(n)), Politeness::Polite);
                         }
-                        session.announced = Some(listed.len());
+                        state.announced = Some(listed.len());
                     });
-                if picked.is_some() {
+                if let Some(command) = &picked {
                     cx.request_close();
+                    if let Some(bind) = recents.as_mut() {
+                        let before = recent.clone();
+                        let mut after = recent;
+                        Self::remember(&mut after, command.clone());
+                        let name: Arc<str> = Arc::from(label.as_str());
+                        let _ = bind.reborrow().write(cx, &EditEvent::set(GestureId::default(), Mixed::Same(before), after, name, None));
+                    }
                 }
-                let session = session.into_inner();
-                with_session(&ctx, slot, |held: &mut Session| *held = session);
             });
-        if let Some(command) = &picked
-            && let Some(bind) = recents.as_mut()
-        {
-            let before = recent.clone();
-            let mut after = recent;
-            Self::remember(&mut after, command.clone());
-            let name: Arc<str> = Arc::from(label.as_str());
-            let _ = bind.reborrow().apply(&EditEvent::set(GestureId::default(), Mixed::Same(before), after, name, None));
-        }
         let closed = shown.output.closed;
         PaletteOutput { response: shown.output.response, picked, closed }
     }

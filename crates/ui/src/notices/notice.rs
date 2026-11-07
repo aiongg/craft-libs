@@ -158,6 +158,10 @@ pub struct Notice<'a> {
     /// Shows a dismiss button.
     #[prop(flag)]
     dismiss: bool,
+    /// The actions are separate Tab stops, like the buttons of a dialog footer, instead of one roving group: the
+    /// arrow keys are left to the surrounding scope.
+    #[prop(flag)]
+    footer_actions: bool,
     /// Announces the notice once when it first shows.
     #[prop]
     announce: Option<Politeness>,
@@ -209,6 +213,7 @@ impl<'a> Notice<'a> {
             title: None,
             icon: NoticeIcon::Tone,
             dismiss: false,
+            footer_actions: false,
             announce: None,
             actions: Vec::new(),
             placed: None,
@@ -449,7 +454,7 @@ impl Component for Notice<'_> {
         if let Some(rect) = placed.dismiss {
             cx.part(DISMISS, rect).sense(Sense::CLICK | Sense::FOCUS).focusable();
         }
-        if !placed.actions.is_empty() || placed.dismiss.is_some() {
+        if !self.footer_actions && (!placed.actions.is_empty() || placed.dismiss.is_some()) {
             cx.roving(Roving::new(NavShape::Flat));
         }
         self.placed = Some(placed);

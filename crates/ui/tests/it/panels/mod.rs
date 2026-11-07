@@ -2,6 +2,7 @@
 //! target.
 
 mod palette;
+mod tour;
 
 use craft_ui::choice::Checkbox;
 use craft_ui::contract::{Bind, Props as _, Show as _};
