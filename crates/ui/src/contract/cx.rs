@@ -98,6 +98,22 @@ pub struct CxCore<'a> {
     /// The events and visible range the item step left for `collection_response`.
     pub(crate) collection_events: Option<Box<dyn std::any::Any>>,
     pub(crate) visible_rows: Range<usize>,
+    /// The text part's result of this pass, from step 8b.
+    pub(crate) texts: Option<(PartKey, Box<dyn std::any::Any>)>,
+    /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
+    pub(crate) surface_slot: Option<egui::layers::ShapeIdx>,
+    /// The editor part as step 8b set it up.
+    pub(crate) editor: Option<super::editor::EditorInfo>,
+    /// The editor part's inputs of this pass, until `editor_input` takes them.
+    pub(crate) editor_inputs: Vec<craft_behavior::EditorInput>,
+    /// The text part's draft is not a value of its codec.
+    pub(crate) text_invalid: bool,
+    /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
+    pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
+    /// Enter was pressed in the text part.
+    pub(crate) submitted: bool,
+    /// Escape abandoned the text part's edit.
+    pub(crate) escaped: bool,
 }
 
 impl<C: Component> Cx<'_, C> {
@@ -692,7 +708,8 @@ impl<C: Component> Edit for Cx<'_, C> {
     fn edit_response(&self) -> EditResponse<ValueOf<C>> {
         let event = self.events.iter().cloned().fold(None, EditEvent::fold);
         let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
-        response.escaped = matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
+        response.escaped = self.core.escaped || matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
+        response.submitted = self.core.submitted;
         response
     }
 
@@ -1228,6 +1245,7 @@ pub struct PartsCx<'a, C: Component> {
     pub(crate) decls: &'a mut Decls,
     pub(crate) rovings: &'a mut Vec<Roving>,
     pub(crate) scrolls: &'a mut Vec<ScrollDecl>,
+    pub(crate) text: &'a mut super::text::TextStep,
     pub(crate) last_state: (bool, bool),
     pub(crate) measure: MeasureCx<'a, C>,
 }

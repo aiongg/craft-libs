@@ -87,6 +87,8 @@ struct Scope {
     reset: Option<ResetFact>,
     /// The narrowest width of the first control.
     control_min: Option<f32>,
+    /// A control inside scrubs by the label.
+    scrub: bool,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -104,7 +106,7 @@ struct Stack(Vec<Scope>);
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, owner: Id, kind: Kind) {
     Service::<Stack>::of(ctx).with(|stack| {
-        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, control_min: None })
+        stack.0.push(Scope { container, owner, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, control_min: None, scrub: false })
     });
 }
 
@@ -184,6 +186,25 @@ pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
     });
 }
 
+/// Registers that a control of the innermost label scope scrubs by the label, so the label senses a drag.
+pub(crate) fn register_scrub(ctx: &Context) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.scrub = true;
+        }
+    });
+}
+
+/// Whether a control of the label scope of `container` scrubbed by the label last frame.
+pub(crate) fn last_scrub(ctx: &Context, container: Id) -> bool {
+    store::peek_clone::<bool>(ctx, scrub_slot(container)).unwrap_or(false)
+}
+
+/// The slot of a container's scrub fact; it goes with the scope's owner.
+fn scrub_slot(container: Id) -> Id {
+    sub(container, "scrub")
+}
+
 /// The reset fact the label scope of `container` recorded last frame.
 pub(crate) fn last_reset(ctx: &Context, container: Id) -> Option<ResetFact> {
     store::peek_clone::<ResetFact>(ctx, reset_slot(container))
@@ -222,6 +243,13 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
                     memory::adopt::<ResetFact>(ctx, scope.owner, slot);
                 }
                 None => drop(store::take::<ResetFact>(ctx, slot)),
+            }
+            let scrub_slot = scrub_slot(scope.container);
+            if scope.scrub {
+                store::put(ctx, scrub_slot, true);
+                memory::adopt::<bool>(ctx, scope.owner, scrub_slot);
+            } else {
+                drop(store::take::<bool>(ctx, scrub_slot));
             }
         }
         Kind::Merge => {

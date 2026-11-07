@@ -24,6 +24,7 @@ pub mod story;
 pub mod style;
 pub mod surface;
 pub mod suite;
+pub mod text;
 pub mod wheel;
 pub mod windows;
 

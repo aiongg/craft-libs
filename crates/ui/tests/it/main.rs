@@ -19,6 +19,7 @@ mod parity;
 mod runtime;
 mod sections;
 mod style;
+mod text;
 mod values;
 mod windows_kit;
 

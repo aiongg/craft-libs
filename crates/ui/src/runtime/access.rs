@@ -8,6 +8,7 @@ mod emit;
 pub(crate) mod items;
 mod live;
 pub(crate) mod scope;
+pub(crate) mod text;
 
 use crate::runtime::egui::access::{self as adapter, NodeRole};
 use crate::runtime::env::Label;

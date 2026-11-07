@@ -35,6 +35,8 @@ pub enum Declared {
     Decrement,
     /// Set a value.
     SetValue,
+    /// Set the text selection.
+    SetTextSelection,
     /// Expand.
     Expand,
     /// Collapse.
@@ -53,6 +55,7 @@ impl Declared {
             Declared::Increment => Action::Increment,
             Declared::Decrement => Action::Decrement,
             Declared::SetValue => Action::SetValue,
+            Declared::SetTextSelection => Action::SetTextSelection,
             Declared::Expand => Action::Expand,
             Declared::Collapse => Action::Collapse,
             Declared::Custom => Action::CustomAction,
@@ -171,6 +174,29 @@ impl AccessTree {
             accesskit::Live::Polite => Some(Politeness::Polite),
             accesskit::Live::Off => None,
         }
+    }
+
+    /// Whether the node of `id` is marked invalid.
+    pub fn invalid(&self, id: Id) -> bool {
+        self.node(id).is_some_and(|node| node.invalid().is_some())
+    }
+
+    /// The text of each `TextRun` node below `id`, in order.
+    pub fn run_texts(&self, id: Id) -> Vec<String> {
+        let Some(node) = self.node(id) else { return Vec::new() };
+        node.children()
+            .iter()
+            .filter_map(|child| self.lookup(*child))
+            .filter(|child| child.role() == accesskit::Role::TextRun)
+            .filter_map(|child| child.value().map(str::to_owned))
+            .collect()
+    }
+
+    /// The selection of the text node `id` as the run node and character index of its anchor and focus.
+    pub fn text_selection(&self, id: Id) -> Option<((NodeKey, usize), (NodeKey, usize))> {
+        let selection = self.node(id)?.text_selection()?;
+        let end = |position: accesskit::TextPosition| (NodeKey(position.node.0), position.character_index);
+        Some((end(selection.anchor), end(selection.focus)))
     }
 
     /// The nodes of `role`.

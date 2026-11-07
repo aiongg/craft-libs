@@ -287,3 +287,8 @@ pub fn resolve(ctx: &Context, command: impl Into<CommandRef>) -> ResolvedCommand
 pub(crate) fn set_modal_open(ctx: &Context, open: bool) {
     board::set_modal_open(ctx, open);
 }
+
+/// An undo or redo a text part or editor had nothing to do for goes to the app command of the same id (11.3).
+pub(crate) fn fall_through(ctx: &Context, command: craft_behavior::EditCommand) {
+    board::fall_through(ctx, command);
+}

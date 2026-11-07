@@ -12,6 +12,22 @@ pub(crate) struct FrameResult {
     pub repaint_delay: std::time::Duration,
     /// The AccessKit tree update of the frame.
     pub tree: Option<crate::runtime::egui::access::AccessTree>,
+    /// What the frame's `PlatformOutput.ime` said.
+    pub ime: Option<ImeSeen>,
+    /// The texts the frame put on the clipboard.
+    pub copied: Vec<String>,
+}
+
+/// The IME output of a frame: the owner widget, whether it asks the OS to interrupt a composition, the caret rect.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct ImeSeen {
+    /// The widget that owns the IME.
+    pub owner: egui::Id,
+    /// The OS composition is to be interrupted.
+    pub interrupt: bool,
+    /// Where the candidate window opens.
+    pub caret: Rect,
 }
 
 /// Runs one frame at `time` seconds with `events` and drops its texture changes.
@@ -22,7 +38,24 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     output.textures_delta.clear();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
     let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
-    FrameResult { closed, cursor: output.platform_output.cursor_icon, repaint_delay, tree: crate::runtime::egui::access::tree_of(&mut output) }
+    let copied = output
+        .platform_output
+        .commands
+        .iter()
+        .filter_map(|command| if let egui::OutputCommand::CopyText(text) = command { Some(text.clone()) } else { None })
+        .collect();
+    FrameResult {
+        closed,
+        copied,
+        cursor: output.platform_output.cursor_icon,
+        repaint_delay,
+        tree: crate::runtime::egui::access::tree_of(&mut output),
+        ime: output.platform_output.ime.as_ref().map(|ime| ImeSeen {
+            owner: ime.owner,
+            interrupt: ime.should_interrupt_composition,
+            caret: ime.cursor_rect,
+        }),
+    }
 }
 
 /// Runs a pass of the viewport `viewport` (a child of the root) with no events, while the root stays live.
@@ -230,6 +263,30 @@ pub(crate) fn used_rect(ui: &Ui) -> Rect {
 /// Typed text.
 pub(crate) fn text_event(text: &str) -> Event {
     Event::Text(text.to_owned())
+}
+
+/// An AccessKit `SetValue` request carrying `text` for the node of `target`.
+pub(crate) fn set_value_request(target: egui::Id, text: &str) -> Event {
+    let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
+    Event::AccessKitActionRequest(accesskit::ActionRequest {
+        action: accesskit::Action::SetValue,
+        target_tree: accesskit::TreeId::ROOT,
+        target_node,
+        data: Some(accesskit::ActionData::Value(text.into())),
+    })
+}
+
+/// An AccessKit `SetTextSelection` request for the node of `target`, from character `anchor.1` of the run node
+/// `anchor.0` to character `focus.1` of `focus.0`.
+pub(crate) fn text_selection_request(target: egui::Id, anchor: (egui::Id, usize), focus: (egui::Id, usize)) -> Event {
+    let target_node = accesskit::NodeId(crate::runtime::egui::access::node_key(target));
+    let position = |(node, character_index): (egui::Id, usize)| accesskit::TextPosition { node: node.accesskit_id(), character_index };
+    Event::AccessKitActionRequest(accesskit::ActionRequest {
+        action: accesskit::Action::SetTextSelection,
+        target_tree: accesskit::TreeId::ROOT,
+        target_node,
+        data: Some(accesskit::ActionData::SetTextSelection(accesskit::TextSelection { anchor: position(anchor), focus: position(focus) })),
+    })
 }
 
 /// A globally unique id named by `name`.

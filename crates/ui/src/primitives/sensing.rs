@@ -40,7 +40,7 @@ impl PartResult {
 }
 
 /// A text part's result this pass.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct TextOutcome<V> {
     /// The part's rect.
@@ -49,12 +49,20 @@ pub struct TextOutcome<V> {
     pub draft: Option<String>,
     /// The value the draft parsed to.
     pub value: Option<V>,
+    /// The laid-out text, so an editor draws gutters and line numbers beside it.
+    pub layout: Option<super::TextLayout>,
+    /// Whether the caret stroke shows this pass (the caret blink).
+    pub caret_visible: bool,
+    /// The draft is not a value of the codec.
+    pub invalid: bool,
+    /// An IME composition is under way.
+    pub composing: bool,
 }
 
 impl<V> TextOutcome<V> {
     /// An outcome over `rect` with no draft or value.
     pub const fn new(rect: Rect) -> Self {
-        TextOutcome { rect, draft: None, value: None }
+        TextOutcome { rect, draft: None, value: None, layout: None, caret_visible: true, invalid: false, composing: false }
     }
 }
 

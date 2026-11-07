@@ -5,6 +5,7 @@
 mod node;
 mod patch;
 mod roles;
+mod text;
 #[cfg(feature = "testing")]
 mod tree;
 
@@ -14,6 +15,7 @@ use egui::{Context, Id};
 
 pub(crate) use node::{NodeAction, NodeSpec, Toggle, write_node};
 pub(crate) use patch::{patch_label, patch_merge, write_status};
+pub(crate) use text::{NodeEnd, RunNode, TextNode, is_text_request, requested_selection, requested_value, write_run, write_text};
 #[cfg(feature = "testing")]
 pub use tree::{AccessTree, Declared, NodeKey};
 
@@ -34,6 +36,11 @@ pub(crate) fn with_parent(builder: egui::UiBuilder, parent: Id) -> egui::UiBuild
 /// popup in its first-show sizing pass).
 pub(crate) fn create_node(ctx: &Context, id: Id) -> bool {
     ctx.accesskit_node_builder(id, |_| ()).is_some()
+}
+
+/// Whether AccessKit is running: nodes are built only then.
+pub(crate) fn enabled(ctx: &Context) -> bool {
+    ctx.is_accesskit_enabled()
 }
 
 /// Reports `id` as the focused node of this pass.

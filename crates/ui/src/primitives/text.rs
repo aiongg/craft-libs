@@ -289,13 +289,13 @@ impl TextLayout {
             Some(glyph) => placed.pos.y + glyph.pos.y,
             None => placed.pos.y + placed.row.size.y,
         });
-        let runs = if galley.rows.len() <= 1 { Self::build_runs(&galley) } else { Vec::new() };
+        let runs = if galley.rows.len() <= 1 { Self::build_row_runs(&galley, 0) } else { Vec::new() };
         TextLayout { galley, elided, full, first_baseline, runs }
     }
 
     /// One run per maximal stretch of glyphs with one direction; an empty row is one empty left-to-right run.
-    fn build_runs(galley: &Galley) -> Vec<LayoutRun> {
-        let glyphs = galley.rows.first().map_or(&[][..], |placed| &placed.row.glyphs[..]);
+    fn build_row_runs(galley: &Galley, row: usize) -> Vec<LayoutRun> {
+        let glyphs = galley.rows.get(row).map_or(&[][..], |placed| &placed.row.glyphs[..]);
         let mut runs: Vec<LayoutRun> = Vec::new();
         let mut at = 0;
         for glyph in glyphs {
@@ -316,6 +316,17 @@ impl TextLayout {
             runs.push(LayoutRun { bytes: 0..0, rtl: false, positions: Vec::new(), widths: Vec::new() });
         }
         runs
+    }
+
+    /// Every row as its text, its rect from the galley's origin and its bidi runs, for the AccessKit run nodes.
+    pub(crate) fn row_lines(&self) -> Vec<(String, egui::Rect, Vec<LayoutRun>)> {
+        (0..self.galley.rows.len())
+            .map(|at| {
+                let placed = &self.galley.rows[at];
+                let text = placed.row.glyphs.iter().map(|glyph| glyph.chr).collect();
+                (text, egui::Rect::from_min_size(placed.pos, placed.row.size), Self::build_row_runs(&self.galley, at))
+            })
+            .collect()
     }
 
     /// The galley size.

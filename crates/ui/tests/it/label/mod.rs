@@ -1,6 +1,6 @@
 //! The label step: placement, mirroring, scrub, double-click reset and the reset dot.
 
-mod kit;
+pub mod kit;
 
 use self::kit::{Dial, Field, LabelledDial, RESET, Seen, Wide};
 use craft_i18n::Direction;

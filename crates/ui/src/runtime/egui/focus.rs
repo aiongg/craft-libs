@@ -49,3 +49,14 @@ pub(crate) fn clear_directional_focus(ctx: &Context) {
 pub(crate) fn primary_press_origin(ctx: &Context) -> Option<Pos2> {
     ctx.input(|input| if input.pointer.primary_pressed() { input.pointer.press_origin() } else { None })
 }
+
+/// The egui key filter of a text part that keeps `keep`, as the focus service gives it on a focus move.
+pub(crate) fn event_filter(keep: crate::runtime::focus::KeepKeys, escape: bool) -> EventFilter {
+    use crate::runtime::focus::KeepKeys;
+    EventFilter {
+        tab: keep == KeepKeys::Tab,
+        horizontal_arrows: matches!(keep, KeepKeys::InlineArrows | KeepKeys::BlockArrows),
+        vertical_arrows: keep == KeepKeys::BlockArrows,
+        escape,
+    }
+}
