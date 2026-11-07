@@ -69,3 +69,12 @@ pub use guides::{
     HostedNewGuideDialog, NEW_GUIDE_COLOR_KEY, NewGuideDialog, NewGuideOutput, NewGuideValues,
 };
 pub use properties::{PropertiesDialog, PropertiesOutput, PropertiesTab, PropertyRow};
+
+mod export;
+
+pub use export::{
+    DdsCompression, DdsOptions, ExportAsDialog, ExportAsOutput, ExportAsResult, ExportFormat, ExportFormatDefaults, ExportMetadata, ExportOptions,
+    ExportOptionsKind, ExportPreview, ExportProfile, ExportSize, ExportWords, FormatOptions, FormatOptionsDialog, FormatOptionsOutput,
+    FormatOptionsWords, JpegFormat, JpegOptions, JpegPreset, OutputPathOutput, OutputPathRow, OutputPathWords, SizeEstimate, TargaOptions,
+    TiffOptions, export_file_name, jpeg_quality_percent, jpeg_quality_preset, numbered_paths,
+};
