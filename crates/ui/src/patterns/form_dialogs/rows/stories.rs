@@ -22,7 +22,10 @@ fn params() -> Vec<Param> {
         72.0,
         1.0,
         0,
-        vec![NumberUnit::new("ppi", "pixels/inch", 1.0), NumberUnit::new("ppcm", "pixels/cm", 2.54)],
+        vec![
+            NumberUnit::new("ppi", UnitKind::PixelsPerInch, "pixels/inch", 1.0),
+            NumberUnit::new("ppcm", UnitKind::PixelsPerCentimetre, "pixels/cm", 2.54),
+        ],
     ));
     params.push(Param::new("quality", "Quality", ParamKind::optional_number(1.0, 100.0, None, 75.0, 0)));
     params.push(Param::new("folder", "Folder", ParamKind::text("")).hint("Choose a folder").browse(PathKind::Folder));

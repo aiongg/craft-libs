@@ -3,6 +3,7 @@
 
 use craft_ui::contract::Bind;
 use craft_ui::patterns::form_dialogs::{DialogFields, FieldValue, NumberUnit, Param, ParamKind, ParamRows, open_fields};
+use craft_ui::runtime::env::UnitKind;
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::value_drag::SliderScale;
 use std::cell::RefCell;
@@ -75,7 +76,10 @@ fn a_non_square_kernel_keeps_its_cells() {
 /// accepts its own unit ids under its unit key.
 #[trial]
 fn row_conditions_and_unit_keys_follow_the_values() {
-    let units = vec![NumberUnit::new("ppi", "pixels/inch", 1.0), NumberUnit::new("ppcm", "pixels/cm", 2.54)];
+    let units = vec![
+        NumberUnit::new("ppi", UnitKind::PixelsPerInch, "pixels/inch", 1.0),
+        NumberUnit::new("ppcm", UnitKind::PixelsPerCentimetre, "pixels/cm", 2.54),
+    ];
     let row = Param::number_with_units("output", "Output", 72.0, 1.0, 2, units);
     assert_eq!(row.unit_key(), Some("output.unit"));
     assert!(row.accepts("output.unit", &"ppcm".into()) && !row.accepts("output.unit", &"dpi".into()));
@@ -92,7 +96,10 @@ fn row_conditions_and_unit_keys_follow_the_values() {
 /// Opening fills the keys with defaults, including the unit of a row with units, and keeps a value that is there.
 #[trial]
 fn opening_fills_defaults_and_keeps_given_values() {
-    let units = vec![NumberUnit::new("ppi", "pixels/inch", 1.0), NumberUnit::new("ppcm", "pixels/cm", 2.54)];
+    let units = vec![
+        NumberUnit::new("ppi", UnitKind::PixelsPerInch, "pixels/inch", 1.0),
+        NumberUnit::new("ppcm", UnitKind::PixelsPerCentimetre, "pixels/cm", 2.54),
+    ];
     let params = vec![
         Param::new("method", "Method", ParamKind::choice(vec![("a".into(), "A".into()), ("b".into(), "B".into())], None)),
         Param::number_with_units("output", "Output", 72.0, 1.0, 2, units).default_unit("ppcm"),

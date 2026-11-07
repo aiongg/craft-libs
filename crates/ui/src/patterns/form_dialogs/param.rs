@@ -414,6 +414,8 @@ impl EyedropperRequest {
 pub struct NumberUnit {
     /// What the form result carries as the chosen unit (`"ppi"`).
     pub id: String,
+    /// The kind of unit the number is read and shown in. The units of one row have different kinds.
+    pub kind: UnitKind,
     /// The name in the unit menu (`"pixels/inch"`).
     pub label: Label,
     /// How many base units one of this unit is: the base value is the shown value times `factor` (pixels/cm is `2.54`
@@ -422,9 +424,9 @@ pub struct NumberUnit {
 }
 
 impl NumberUnit {
-    /// A unit `id` named `label` that is `factor` base units.
-    pub fn new(id: impl Into<String>, label: impl Into<Label>, factor: f64) -> Self {
-        Self { id: id.into(), label: label.into(), factor }
+    /// A unit `id` of `kind` named `label` that is `factor` base units.
+    pub fn new(id: impl Into<String>, kind: UnitKind, label: impl Into<Label>, factor: f64) -> Self {
+        Self { id: id.into(), kind, label: label.into(), factor }
     }
 }
 
