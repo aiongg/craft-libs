@@ -1199,7 +1199,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let role = access.role.unwrap_or(C::ROLE);
     access.access_key = access.access_key.or(cx.core.resolved.access_key);
     if access.grid == access::GridPlace::default() {
-        access.grid = access::items::take_grid(ctx, id);
+        access.grid = cx.core.grid;
     }
     debug_assert!(access.role.is_none_or(|alt| C::ALT_ROLES.contains(&alt)), "`Access::role` picks one of `ALT_ROLES`");
     let flags = core.state.flags;
@@ -1274,7 +1274,12 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let row = core.env.facts_of(id).map(|facts| facts.position);
     for node in &mut access.nodes {
         // A cell of an item row knows its row and, by its repeat, its column.
-        if let (Some(row), Some(column), Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell)) = (row, node.part.index, node.role) {
+        if let (
+            Some(row),
+            Some(column),
+            Role::Node(crate::runtime::egui::access::NodeRole::Cell | crate::runtime::egui::access::NodeRole::GridCell),
+        ) = (row, node.part.index, node.role)
+        {
             node.grid = access::GridPlace {
                 row_index: node.grid.row_index.or(Some(row.index)),
                 column_index: node.grid.column_index.or(Some(column as usize)),

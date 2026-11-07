@@ -11,7 +11,7 @@ use writeable::{Part, PartsWrite, Writeable};
 
 use crate::Region;
 use crate::data::{self, PERCENT};
-use crate::number::Marks;
+use crate::number::{Marks, is_bidi_mark};
 
 /// Which digits numbers are written in.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -36,6 +36,8 @@ pub struct Format {
     percent: (&'static str, &'static str),
     /// The marks [`Format::parse`] reads.
     pub(crate) marks: Marks,
+    /// The decimal and group marks of the written form, read once from a number that shows both.
+    separators: (char, Option<char>),
 }
 
 impl Format {
@@ -47,7 +49,7 @@ impl Format {
             locale.extensions.unicode.keywords.set(key!("nu"), value!("latn"));
         }
         let decimal = data::provider().and_then(|p| DecimalFormatter::try_new_with_buffer_provider(p, (&locale).into(), Default::default()).ok());
-        let mut format = Format { decimal, group: None, point: None, percent: ("", "%"), marks: Marks::default() };
+        let mut format = Format { decimal, group: None, point: None, percent: ("", "%"), marks: Marks::default(), separators: ('.', None) };
         // The locale's own separators and digits, read from a number that shows them all.
         let probe = format.parts(&Decimal::try_from_str("-1234567.5").unwrap_or_default());
         let latin = probe.integer.starts_with(|c: char| c.is_ascii_digit());
@@ -77,7 +79,22 @@ impl Format {
             (false, Digits::Latin) => false,
         };
         format.marks = Marks::new(&point, &group, !comma);
+        format.separators = format.written_separators();
         format
+    }
+
+    /// The decimal and group marks numbers are written with, in the digits of the format. The group mark is
+    /// `None` where the format writes none.
+    pub fn separators(&self) -> (char, Option<char>) {
+        self.separators
+    }
+
+    fn written_separators(&self) -> (char, Option<char>) {
+        let sample = self.number(1_234_567.5, 1);
+        let marks: Vec<char> = sample.chars().filter(|c| !c.is_alphanumeric() && !c.is_whitespace() && !is_bidi_mark(*c)).collect();
+        let decimal = marks.last().copied().unwrap_or('.');
+        let group = marks.first().copied().filter(|group| *group != decimal);
+        (decimal, group)
     }
 
     /// The format for a locale tag (`de-CH`, `ar-EG`), with the locale's own digits.

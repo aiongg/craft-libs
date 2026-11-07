@@ -39,24 +39,27 @@ pub(crate) struct TextDecl {
     pub values: ValueOps,
 }
 
+/// The shown copy of a component's value, type-erased.
+pub(crate) type Shown = Arc<dyn Any + Send + Sync>;
+
 /// What the typing run does with the component's value, written once for its type: the run keeps the value it last
 /// showed, and a different one at the next pass was set outside the run.
 #[derive(Clone, Copy)]
 pub(crate) struct ValueOps {
     /// Ends the run when the value is not the one the run last showed.
-    resync: fn(&mut TextState, Option<&dyn Any>),
-    /// Records the value the run shows from now on.
-    note: fn(&mut TextState, Option<&dyn Any>),
+    resync: fn(&mut TextState, Option<&Shown>),
 }
 
 impl ValueOps {
     fn of<V: Clone + PartialEq + Send + Sync + 'static>() -> ValueOps {
         ValueOps {
-            resync: |state, value| {
-                let value = value.and_then(|value| value.downcast_ref::<V>());
-                let seen = state.seen.as_ref().and_then(|seen| seen.downcast_ref::<V>());
-                if let (Some(seen), Some(value)) = (seen, value)
-                    && seen != value
+            resync: |state, shown| {
+                let (Some(seen), Some(shown)) = (state.seen.as_ref(), shown) else { return };
+                if Arc::ptr_eq(seen, shown) {
+                    return;
+                }
+                if let (Some(seen), Some(shown)) = (seen.downcast_ref::<V>(), shown.downcast_ref::<V>())
+                    && seen != shown
                 {
                     state.draft = None;
                     state.start = None;
@@ -64,9 +67,6 @@ impl ValueOps {
                     state.dirty = false;
                     state.invalid = false;
                 }
-            },
-            note: |state, value| {
-                state.seen = value.and_then(|value| value.downcast_ref::<V>()).map(|value| Arc::new(value.clone()) as Arc<dyn Any + Send + Sync>);
             },
         }
     }
@@ -234,6 +234,11 @@ fn facts<C: Component>(
     state.rows = Some(rows);
 }
 
+/// The component's shown copy of its value, shared.
+fn shown_copy<C: Component>(cx: &Cx<'_, C>) -> Option<Shown> {
+    cx.shown.clone().map(|shown| shown as Shown)
+}
+
 /// Opens the completion list's popup while the adapter holds candidates and closes it otherwise. A popup the host
 /// closed (Escape, a press outside) hides the list until the draft changes.
 fn drive_completions<C: Component>(cx: &mut Cx<'_, C>, state: &mut TextState) {
@@ -292,7 +297,7 @@ pub(crate) fn run<C: Component>(
     let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
     let state_id = state_id(id);
     let mut state = std::mem::take(cx.core.memory.shown::<TextState>(state_id));
-    (decl.values.resync)(&mut state, cx.value().map(|value| value as &dyn Any));
+    (decl.values.resync)(&mut state, shown_copy(cx).as_ref());
     let widget = adapter::text_id(id, decl.key);
     let focused = crate::runtime::egui::focus::has_focus(&ctx, widget);
     let was_focused = state.focused;
@@ -357,7 +362,7 @@ pub(crate) fn run<C: Component>(
     outcome.completions = completions;
     cx.core.texts = Some((decl.key, Box::new(outcome)));
     let committed = apply_events(cx, resolved.events);
-    (decl.values.note)(cx.core.memory.shown::<TextState>(state_id), cx.shown.as_deref().map(|value| value as &dyn Any));
+    cx.core.memory.shown::<TextState>(state_id).seen = shown_copy(cx);
     // `parts` ran for the value before the commit; the pass runs again so a part the new value adds is never missing.
     if committed {
         crate::runtime::egui::sizing::request_discard(&ctx, "craft_ui: a text commit changed the value");

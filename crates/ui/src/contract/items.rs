@@ -594,7 +594,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
             None => place_rows(ui),
         }
         focus::register_row_groups(&ctx, id, rtl, row_groups);
-        crate::runtime::access::items::put_grid(&ctx, id, crate::contract::GridPlace::grid(len, columns.len()));
+        cx.core.grid = crate::contract::GridPlace::grid(len, columns.len());
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {

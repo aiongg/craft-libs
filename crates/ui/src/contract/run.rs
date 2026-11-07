@@ -237,6 +237,7 @@ fn blank_core<'a>(
         editor: None,
         editor_inputs: Vec::new(),
         text_invalid: false,
+        grid: crate::runtime::access::GridPlace::default(),
         text_access: std::cell::RefCell::new(None),
         submitted: false,
         escaped: false,

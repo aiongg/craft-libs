@@ -67,11 +67,11 @@ struct GroupCache {
 /// A hash of every colour and flag mask of `ink`.
 fn ink_hash(ink: &Stateful<StyleColor>) -> u64 {
     use std::hash::{Hash as _, Hasher as _};
-    let states = |states: &States<StyleColor>| [states.rest, states.hover, states.pressed, states.disabled];
-    let mut colors: Vec<StyleColor> = states(&ink.off).to_vec();
-    colors.extend(ink.on.iter().flat_map(states));
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    colors.iter().for_each(|color| color.egui().to_array().hash(&mut hasher));
+    let mut put = |color: &StyleColor| color.egui().to_array().hash(&mut hasher);
+    let mut states = |states: &States<StyleColor>| [states.rest, states.hover, states.pressed, states.disabled].iter().for_each(&mut put);
+    states(&ink.off);
+    ink.on.iter().for_each(&mut states);
     for (mask, color) in &ink.when {
         mask.0.hash(&mut hasher);
         color.egui().to_array().hash(&mut hasher);
