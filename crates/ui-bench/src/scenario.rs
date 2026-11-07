@@ -29,6 +29,12 @@ pub const SCENARIOS: &[Scenario] = &[
     Scenario { name: "dialog-20-fields", description: "a modal dialog open over 20 fields", no_discard: false },
     Scenario { name: "tab-strip-60", description: "a tab strip of 60 document tabs with overflow, one selected", no_discard: false },
     Scenario {
+        name: "canvas-view-4k",
+        description: "a rotated canvas view over a 4096 x 4096 raster with rulers, 40 guides and the Hand tool, panning each frame",
+        no_discard: true,
+    },
+    Scenario { name: "param-dialog-export", description: "the Export As dialog open with its format form and a ready preview", no_discard: false },
+    Scenario {
         name: "readout-and-content-column",
         description: "an end-aligned readout and a Content grid column changing every frame",
         no_discard: true,

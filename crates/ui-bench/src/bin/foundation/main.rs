@@ -8,8 +8,13 @@ mod kit;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use craft_behavior::{ColumnKey, ColumnWidth, DisplayOrder, ItemSource, Selection};
+use craft_behavior::kurbo::Point;
+use craft_behavior::{Axis, CanvasView, ColumnKey, ColumnWidth, DisplayOrder, ItemSource, PixelSize, RulerUnits, Selection};
 use craft_host::target::ShellInfo;
+use craft_ui::canvas::{
+    Canvas, Guide, GuideKey, HandTool, NavigationOptions, PixelRect, RasterDisplay, RasterSource, RulerText, Rulers, ToolHost, ToolPath, pan,
+};
+use craft_ui::canvas_controls::Guides;
 use craft_ui::contract::ColumnSpec;
 use craft_ui::contract::{
     Bind, Collapse, ContainerProps, Mount, Overlay, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
@@ -18,7 +23,10 @@ use craft_ui::dialog::Dialog;
 use craft_ui::layout::ColumnGroup;
 use craft_ui::list::{List, ListRow};
 use craft_ui::menu::{Menu, MenuItem};
+use craft_ui::patterns::form_dialogs::{ExportAsDialog, ExportPreview, PreviewState, SizeEstimate};
+use craft_ui::primitives::{Revision, TextureCache};
 use craft_ui::runtime::env::RootEnv;
+use craft_ui::runtime::env::{Env, UnitKind};
 use craft_ui::runtime::frame::{FrameInput, set_input};
 use craft_ui::runtime::{InstallSpec, install};
 use craft_ui::table::Table;
@@ -27,7 +35,8 @@ use craft_ui::text::{NumberField, TextField};
 use craft_ui::tile_grid::{Tile, TileGrid};
 use craft_ui_bench::{CountingAlloc, Library, Scene, SceneBuild, gate_failures, print_table, read_json, run_all, write_json};
 use craft_window::system::NoWindows;
-use egui::{Context, Event, Modifiers, MouseWheelUnit, Pos2, Ui, Vec2, vec2};
+use egui::load::SizedTexture;
+use egui::{Color32, ColorImage, Context, Event, Modifiers, MouseWheelUnit, Pos2, Ui, Vec2, vec2};
 use kit::{BenchCanvas, BenchList, Block, Count, Panel, ROW_H, Row, RowKind};
 
 #[global_allocator]
@@ -81,6 +90,13 @@ impl Library for Foundation {
             "second-viewport" => (Box::new(ViewportScene), "a container with Mount::viewport (the fallback layer, as under an embedded backend)"),
             "dialog-20-fields" => (Box::new(DialogScene::new()), "a modal Dialog open from the first frame over 10 NumberFields and 10 TextFields"),
             "tab-strip-60" => (Box::new(TabStripScene), "a TabStrip of 60 TabKind::Document tabs that overflow, tab 30 shown"),
+            "canvas-view-4k" => (
+                Box::new(CanvasViewScene::new()),
+                "a Canvas with a rotated CanvasView, RasterDisplay over a 4096 x 4096 RasterSource, Rulers, 40 Guides and the Hand tool, panning a step each frame",
+            ),
+            "param-dialog-export" => {
+                (Box::new(ExportDialogScene), "ExportAsDialog open with its format form and a PreviewPane in PreviewState::Ready")
+            }
             "readout-and-content-column" => (
                 Box::new(ReadoutScene),
                 // F8-MERGE: layout: the grid's `Content` column and the status bar's end slot.
@@ -399,6 +415,84 @@ impl Scene for DialogScene {
                 let _ = TextField::new(format!("Text {i}:"), Bind::bound(text)).id_salt(("text", i)).show(ui);
             }
         });
+    }
+}
+
+/// A 4096 x 4096 document whose pixels follow their position.
+struct Wide;
+
+impl RasterSource for Wide {
+    fn size(&self) -> PixelSize {
+        PixelSize::new(4096, 4096)
+    }
+
+    fn revision(&self) -> Revision {
+        Revision::new(1)
+    }
+
+    fn read(&self, region: PixelRect, factor: u32, out: &mut ColorImage) {
+        let [width, height] = out.size;
+        for row in 0..height {
+            for column in 0..width {
+                let x = region.x0 + column as u32 * factor;
+                let y = region.y0 + row as u32 * factor;
+                out.pixels[row * width + column] = Color32::from_rgb((x / 16) as u8, (y / 16) as u8, ((x + y) / 32) as u8);
+            }
+        }
+    }
+}
+
+struct CanvasViewScene {
+    view: Option<CanvasView>,
+    hand: HandTool,
+    guides: Vec<Guide>,
+    zero: Point,
+}
+
+impl CanvasViewScene {
+    fn new() -> Self {
+        let guides = (0..40).map(|i| Guide::new(GuideKey::new(i), if i % 2 == 0 { Axis::Y } else { Axis::X }, 100.0 * i as f64)).collect();
+        Self { view: None, hand: HandTool::new(NavigationOptions::default()), guides, zero: Point::ZERO }
+    }
+}
+
+impl Scene for CanvasViewScene {
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        static SOURCE: Wide = Wide;
+        let Self { view, hand, guides, zero } = self;
+        let content = Rulers::content_rect(&Env::of(ui).tokens, ui.available_rect_before_wrap());
+        let view = view.get_or_insert_with(|| {
+            let mut view = CanvasView::new(content, Point::new(2048.0, 2048.0), 0.5);
+            view.rotation = 30.0;
+            view
+        });
+        view.rect = content;
+        pan(view, vec2(3.0, 2.0));
+        let text = RulerText::new(RulerUnits::pixels(), UnitKind::Pixels);
+        let shown = Canvas::new("Document", ToolPath::Freehand).view(*view).show(ui, |ui, body| {
+            let _ = RasterDisplay::new("Picture", &SOURCE).show_at(ui, body.rect);
+            let _ = Guides::new("Guides", Bind::bound(&mut *guides)).show_at(ui, body.rect);
+            let _ = Rulers::new("Rulers", &text, &text, Bind::bound(&mut *zero)).show_at(ui, body.rect);
+        });
+        let _ = ToolHost::new().run(ui, &shown.output, hand);
+        if let Some(change) = hand.take_change() {
+            *view = change.view;
+        }
+    }
+}
+
+struct ExportDialogScene;
+
+impl Scene for ExportDialogScene {
+    fn size(&self) -> Vec2 {
+        vec2(900.0, 700.0)
+    }
+
+    fn show(&mut self, ui: &mut Ui, _frame: u64) {
+        let id = TextureCache::texture(ui.ctx(), "bench-export-preview", || ColorImage::filled([360, 240], Color32::from_rgb(0x6f, 0x8a, 0x4d)));
+        let preview = ExportPreview::new(1, PreviewState::Ready(SizedTexture::new(id, vec2(360.0, 240.0)))).estimate(SizeEstimate::Proxy(1_258_291));
+        let mut open = true;
+        let _ = ExportAsDialog::new("Poster", PixelSize::new(1200, 800)).opened(Bind::bound(&mut open)).preview(preview).show(ui);
     }
 }
 
