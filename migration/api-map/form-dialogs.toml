@@ -438,3 +438,37 @@ type = "CommandForm"
 old = "width(Width)"
 new = ""
 note = "Removed: the dialog sizes to its rows."
+
+
+# Size model and reference point (contract-sizing).
+[[type]]
+name = "LinkedSizeFields"
+old = "craft_ui::dialog::LinkedSizeFields"
+new = ""
+status = "replaced"
+note = "Replaced by `craft_ui::patterns::form_dialogs::size_model::LinkedSize`, the pure model with no rows: `new(PixelSize)`, `opening_resolution`, `points_per_inch`, `chain`, `lock`, `resampling`, `relative`, `set_unit(UnitKind)`, `set_resolution_unit(UnitKind)`, `width`, `height`, `resolution`, `set_width`, `set_height`, `set_resolution`, `pixels`. The dialogs show each field as a `UnitSelect` row over those values; Save for Web and New Document use the same model instead of their own copies. `SizeUnit` and `ResolutionUnit` are `UnitKind` (`Pixels`, `Percent`, `Points`, `Picas`, `Inches`, `Centimetres`, `Millimetres`; `PixelsPerInch`, `PixelsPerCentimetre`), and `PixelSize` has no `pixels_per_inch` field: the resolution is `LinkedSize::pixels_per_inch()`."
+
+[[type]]
+name = "Anchor"
+old = "craft_ui::dialog::Anchor"
+new = ""
+status = "replaced"
+note = "Replaced by `craft_ui::pickers::Anchor9` (`craft_behavior::Anchor9`), the one nine-point type; `Center` is `Centre`, and `cell()` is the same with `from_cell(column, row)` and `uv()` added. `Default` is gone: name the point."
+
+[[type]]
+name = "AnchorGrid"
+old = "craft_ui::dialog::AnchorGrid"
+new = ""
+status = "replaced"
+note = "Replaced by `craft_ui::pickers::ReferencePoint::new(label, Bind<Anchor9>).growth((width_change, height_change))`; the grid keeps its keys (one Tab stop, arrows move the focus and stop at the edges, Space or Enter picks) and its growth arrows, and `arrows(false)` is leaving out `growth`."
+
+[[setter]]
+type = "AnchorGrid"
+old = "AnchorGrid::new(&mut Anchor, delta)"
+new = "ReferencePoint::new(label, Bind::bound(&mut Anchor9)).growth(delta)"
+
+[[setter]]
+type = "AnchorGrid"
+old = "arrows(bool)"
+new = ""
+note = "Removed: a picker without `growth` shows no arrows."

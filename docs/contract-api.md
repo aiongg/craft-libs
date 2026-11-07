@@ -13,6 +13,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::AccessAction`: re-export of `accesskit::Action` (outside these crates).
 - `craft_behavior::AccessData`: re-export of `accesskit::ActionData` (outside these crates).
 - `craft_behavior::AccessRequest`: re-export of `craft_behavior::intent::AccessRequest`.
+- `craft_behavior::Anchor9`: re-export of `craft_behavior::anchor::Anchor9`.
 - `craft_behavior::Applied`: re-export of `craft_behavior::value::Applied`.
 - `craft_behavior::Arrangement`: re-export of `craft_behavior::arrangement::Arrangement`.
 - `craft_behavior::Arrows`: re-export of `craft_behavior::nav::Arrows`.
@@ -154,6 +155,16 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::resolve_mapped`: re-export of `craft_behavior::hit::resolve_mapped`.
 - `craft_behavior::role_violations`: re-export of `craft_behavior::role_rule::role_violations`.
 - `craft_behavior::wheel_step`: re-export of `craft_behavior::nav::wheel_step`.
+
+## `craft_behavior::anchor`
+
+The nine points of a box, shared by the transform box rules and the reference point picker.
+
+- `craft_behavior::anchor::Anchor9`: `pub enum Anchor9 { TopLeft, Top, TopRight, Left, Centre, Right, BottomLeft, Bottom, BottomRight }`. The nine points of a box: its corners, edge midpoints and centre, row by row from the top left.
+  - `pub const ALL: [Anchor9; 9]`. Every point, row by row from the top left.
+  - `pub fn uv(self) -> (f64, f64)`. Where the point sits in the box: 0 to 1 across from the left edge and down from the top.
+  - `pub fn cell(self) -> (usize, usize)`. The point's column and row in the 3 by 3 grid, counted from the top left.
+  - `pub fn from_cell(column: usize, row: usize) -> Anchor9`. The point in column `column` and row `row`; each is limited to 0 to 2.
 
 ## `craft_behavior::arrangement`
 

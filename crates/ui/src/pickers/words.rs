@@ -37,5 +37,23 @@ craft_ui::words! {
         icon_search: "iconPicker.search" = "Search icons";
         /// Shown in the icon picker when no icon matches the search.
         icon_no_match: "iconPicker.noMatch" = "No icons match your search.";
+        /// The name of the reference point picker's top left point.
+        point_top_left: "referencePoint.topLeft" = "Top left";
+        /// The name of the reference point picker's top point.
+        point_top: "referencePoint.top" = "Top";
+        /// The name of the reference point picker's top right point.
+        point_top_right: "referencePoint.topRight" = "Top right";
+        /// The name of the reference point picker's left point.
+        point_left: "referencePoint.left" = "Left";
+        /// The name of the reference point picker's center point.
+        point_centre: "referencePoint.center" = "Center";
+        /// The name of the reference point picker's right point.
+        point_right: "referencePoint.right" = "Right";
+        /// The name of the reference point picker's bottom left point.
+        point_bottom_left: "referencePoint.bottomLeft" = "Bottom left";
+        /// The name of the reference point picker's bottom point.
+        point_bottom: "referencePoint.bottom" = "Bottom";
+        /// The name of the reference point picker's bottom right point.
+        point_bottom_right: "referencePoint.bottomRight" = "Bottom right";
     }
 }
