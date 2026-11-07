@@ -446,3 +446,33 @@ fn the_shape_record_classifies_presses_by_the_winning_shape() {
     assert_eq!(at(230.0, 150.0), Some(PressFocus::Release), "another control acts without moving it");
     assert_eq!(at(50.0, 50.0), None, "no shape takes a press outside the canvas");
 }
+
+/// A middle press over a part that senses a drag captures the pointer for a pan: it drags, and its release is no click.
+/// A part that senses only a click takes no middle press.
+#[trial]
+fn a_middle_press_pans_a_drag_part_and_never_clicks() {
+    let area = rect(100.0, 100.0, 400.0, 300.0);
+    let from = Pos2::new(200.0, 200.0);
+    let to = from + Vec2::new(30.0, 0.0);
+    let run = |sense: Sense| {
+        let canvas = ProbeRoot::new("canvas", area, Sense::empty()).arena().part(ProbePart::new(BACKGROUND, area, sense));
+        let (mut show_frame, log) = scene(vec![canvas]);
+        let mut frames = Frames::new();
+        settle(&mut frames, &mut show_frame);
+        log.borrow_mut().clear();
+        frames.frame(vec![pointer::moved(from)], &mut show_frame);
+        frames.frame(vec![pointer::middle(from, true)], &mut show_frame);
+        frames.frame(vec![pointer::moved(to)], &mut show_frame);
+        frames.frame(vec![pointer::moved(to + Vec2::new(5.0, 0.0))], &mut show_frame);
+        frames.frame(vec![pointer::middle(to, false)], &mut show_frame);
+        frames.idle(1, &mut show_frame);
+        let phases = log.borrow().root_phases(0, Some(BACKGROUND));
+        phases
+    };
+    let phases = run(Sense::CLICK | Sense::DRAG);
+    let by_middle = |start: &craft_behavior::PressStart| start.button == craft_behavior::PointerButton::Middle;
+    assert!(phases.iter().any(|phase| matches!(phase, PressPhase::DragStart { start, .. } if by_middle(start))), "the pan starts: {phases:?}");
+    assert!(phases.iter().any(|phase| matches!(phase, PressPhase::Drag { start, .. } if by_middle(start))), "the pan drags: {phases:?}");
+    assert!(phases.iter().any(|phase| matches!(phase, PressPhase::Release { click: false, .. })), "the release is no click: {phases:?}");
+    assert_eq!(run(Sense::CLICK), Vec::new(), "a click-only part takes no middle press");
+}

@@ -197,3 +197,26 @@ fn a_composite_adopts_its_childs_gesture_as_its_own() {
     assert_eq!(events.iter().filter(|e| matches!(e, Ev::Commit(_) | Ev::Set(_))).count(), 1, "one commit for one gesture: {events:?}");
     assert!(near(value, HELD), "the child's last value reached the composite's binding: {value}");
 }
+
+/// A component not drawn for a pass loses its press at the end hook; its running gesture ends with one `Cancel(Removed)` the
+/// first pass it is drawn again, and the value goes back to where the gesture began.
+#[trial]
+fn a_gesture_whose_component_was_not_drawn_cancels_removed_once() {
+    let mut frames = Frames::new();
+    let mut value = INITIAL;
+    let seen = RefCell::new(Vec::new());
+    let mut show = |ui: &mut Ui| {
+        let out = Scrub::new(Bind::bound(&mut value)).id_salt("scrub").show_at(ui, AT);
+        seen.borrow_mut().push(ev_of(&out.event));
+    };
+    dragging(&mut frames, &mut show);
+    seen.borrow_mut().clear();
+    frames.frame(vec![], |_| {});
+    frames.frame(vec![moved(start() + Vec2::new(40.0, 0.0))], &mut show);
+    frames.frame(vec![moved(start() + Vec2::new(45.0, 0.0))], &mut show);
+    frames.frame(vec![], &mut show);
+    let events: Vec<Ev> = seen.borrow().iter().flatten().cloned().collect();
+    assert_eq!(events, vec![Ev::Cancel(CancelReason::Removed)], "{events:?}");
+    drop(show);
+    assert!(near(value, INITIAL), "the value is back where the gesture began: {value}");
+}

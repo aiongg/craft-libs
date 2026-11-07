@@ -112,6 +112,16 @@ pub(crate) fn secondary_button(pos: Pos2, pressed: bool) -> Event {
     Event::PointerButton { pos, button: egui::PointerButton::Secondary, pressed, modifiers: Modifiers::NONE }
 }
 
+/// The modifiers held from this event on.
+pub(crate) fn modifiers_changed(modifiers: Modifiers) -> Event {
+    Event::ModifiersChanged(modifiers)
+}
+
+/// The middle button going down or up at `pos`.
+pub(crate) fn middle_button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton { pos, button: egui::PointerButton::Middle, pressed, modifiers: Modifiers::NONE }
+}
+
 /// A wheel event of `dy` points with the zoom modifier held.
 pub(crate) fn zoom_wheel_event(dy: f32) -> Event {
     Event::MouseWheel {

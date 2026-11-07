@@ -539,8 +539,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         style: &style,
         shown,
         mixed,
-        // A cancel step 4 raised is reported, not applied: the app's value stays.
-        applied: cancelled.len(),
+        // A cancel step 4 raised over a document that moved is reported, not applied: the app's value stays. One that
+        // carries the value the gesture began with restores it at step 11.
+        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) { 0 } else { cancelled.len() },
         events: cancelled,
         validity: Validity::Ok,
     };
