@@ -12,6 +12,9 @@ mod words;
 pub use crop::{CropOverlay, CropStyle};
 pub use words::CanvasWords;
 
+mod raster_source;
+pub use raster_source::{PixelRect, RasterSource};
+
 use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
