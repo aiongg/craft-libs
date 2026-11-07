@@ -2,12 +2,11 @@
 //! hands the resize to the operating system.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role};
-use crate::runtime::env::Env;
 use crate::runtime::windows::{ResizeEdge, WindowAction, WindowHost};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{CursorIcon, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, Sense};
 use craft_host::target::{Caps, WindowChrome, WindowState};
-use egui::{Pos2, Rect, Response, Ui, Vec2, ViewportId};
+use egui::{Pos2, Rect, Response, Ui, UiBuilder, Vec2, ViewportId};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -50,14 +49,14 @@ impl Outcome for WindowEdgesOutput {
 
 /// Eight zones along the edges and corners of the window of one viewport: a press that drags on one starts an
 /// operating-system resize from that edge. The zones lie above everything shown before them in the viewport's
-/// root `Ui`, which must cover the window (its clip rect is the window), and cut out `holes`, such as the caption
+/// `Ui`, and cut out `holes`, such as the caption
 /// buttons at a corner.
 ///
 /// - No zones while the window is maximized or full screen, when the operating system or the window manager draws
 ///   the frame, or when the window procedure answers the hit test itself (`CaptionRegions::native_hit_test` on
 ///   Windows).
 /// - A corner wins over the edges it overlaps.
-/// - Show it with [`place`](Self::place), not `show`: the root has no size of its own.
+/// - Show it with [`place`](Self::place): it puts the zones over the whole window wherever the caller stands.
 /// - The zones take no key focus: the operating system provides the keyboard path to size a window.
 #[must_use = "show the zones with `place`"]
 #[derive(crate::contract::Component)]
@@ -83,13 +82,15 @@ impl WindowEdges {
         self
     }
 
-    /// Shows the zones. The root takes the corner square at the window's top left corner, a leaf needs a rect
-    /// with an area and every other zone reaches outside it, so it is its own widget above the viewport's panels.
-    /// Call it after the panels, so the zones are registered last.
+    /// Shows the zones in a child `Ui` at the window's top left corner, clipped to the window, so the caller's
+    /// layout and clip do not matter. The root is the corner square, because a leaf needs a rect with an area, and
+    /// every other zone reaches outside it and is its own widget. Call it after the panels, so the zones are
+    /// registered last.
     pub fn place(self, ui: &mut Ui) -> WindowEdgesOutput {
-        let corner = Env::of(ui).tokens.tokens().size.handle.md;
-        let at = Rect::from_min_size(ui.ctx().content_rect().min, Vec2::splat(corner));
-        <Self as crate::contract::Show>::show_at(self, ui, at)
+        let window = ui.ctx().content_rect();
+        let mut child = ui.new_child(UiBuilder::new().max_rect(Rect::from_min_size(window.min, Vec2::ZERO)));
+        child.set_clip_rect(window);
+        <Self as crate::contract::Show>::show(self, &mut child)
     }
 
     /// Whether the window has zones now.
@@ -159,7 +160,8 @@ impl Component for WindowEdges {
     type Output = WindowEdgesOutput;
 
     fn style(cx: &StyleCx<'_>, _: WindowEdgesStyleKey) -> WindowEdgesStyle {
-        WindowEdgesStyle { metrics: Metrics::new(), edge: cx.tokens.size.handle.sm, corner: cx.tokens.size.handle.md }
+        let corner = cx.tokens.size.handle.md;
+        WindowEdgesStyle { metrics: Metrics::new().min_size(Vec2::splat(corner)), edge: cx.tokens.size.handle.sm, corner }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
