@@ -166,7 +166,7 @@ impl<P: Clone + Send + Sync + 'static> DropTarget<P> for OnSlot<P> {
 }
 
 impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
-    const ROLE: Role = Role::GROUP;
+    const ROLE: Role = Role::None;
     type Style = DropActionStyle;
     type Output = DropActionOutput<P>;
 
