@@ -568,14 +568,47 @@ fn fill_of(cx: &StyleCx<'_>, key: FillKey) -> Stateful<StyleColor> {
     };
     let hover = if key.layer { over(cx.tokens.color.accent.solid.faded(LAYER_TINT), state.hover) } else { state.hover };
     let c = |rgba: Rgba| cx.color(rgba);
-    let selected_hover = if key.layer { state.selected } else { state.selected_hover };
     let tinted = over(hover, rest);
-    Stateful::new(c(rest))
-        .off(States::new(c(rest), c(tinted), c(over(state.pressed, rest)), c(rest)))
-        .on(States::new(c(state.selected), c(selected_hover), c(selected_hover), c(state.selected)))
-        .when(Flags::EMPHASIZED, c(tinted))
-        .when(Flags::LEAD | Flags::SELECTED, c(selected_hover))
-        .when(Flags::LEAD, c(tinted))
+    let selected_hover = if key.layer { state.selected } else { state.selected_hover };
+    let mut fill = Stateful::new(c(rest)).off(States::new(c(rest), c(tinted), c(over(state.pressed, rest)), c(rest))).on(States::new(
+        c(state.selected),
+        c(selected_hover),
+        c(selected_hover),
+        c(state.selected),
+    ));
+    for rule in flag_rules() {
+        let rgba = match rule.fill {
+            RuleFill::Tinted => tinted,
+            RuleFill::SelectedHover => selected_hover,
+        };
+        fill = fill.when(rule.flags, c(rgba));
+    }
+    fill
+}
+
+/// Which fill a flag rule paints.
+#[derive(Clone, Copy)]
+enum RuleFill {
+    Tinted,
+    SelectedHover,
+}
+
+/// A flag rule of a row: the fill it paints and whether its ink is the selection's paired ink.
+struct FlagRule {
+    flags: Flags,
+    fill: RuleFill,
+    on_selected: bool,
+}
+
+/// The flag rules of a row in priority order. Fill and ink both derive from this list, so an ink always pairs with
+/// the fill under it: an emphasized row keeps its hover-like fill and base ink, the lead row on a selected row
+/// paints the selected hover fill with `text.on_selected`, and the lead row alone keeps the hover tint.
+fn flag_rules() -> [FlagRule; 3] {
+    [
+        FlagRule { flags: Flags::EMPHASIZED, fill: RuleFill::Tinted, on_selected: false },
+        FlagRule { flags: Flags::LEAD | Flags::SELECTED, fill: RuleFill::SelectedHover, on_selected: true },
+        FlagRule { flags: Flags::LEAD, fill: RuleFill::Tinted, on_selected: false },
+    ]
 }
 
 /// The fill of a row of a list or a menu: the one surface, the active (lead) row included.
@@ -583,11 +616,19 @@ pub(crate) fn row_surface(cx: &StyleCx<'_>) -> Stateful<StyleColor> {
     fill_of(cx, FillKey { striped: false, layer: false, heading: false })
 }
 
-/// The ink of a row's text or icon: `base`, and the theme's paired `text.on_selected` on the selection fill. An
-/// emphasized row keeps its hover-like fill when selected, so its ink stays `base`.
+/// The ink of a row's text or icon: `base`, and the theme's paired `text.on_selected` on the selection fills.
 pub(crate) fn row_ink(cx: &StyleCx<'_>, base: Rgba) -> Stateful<StyleColor> {
+    row_ink_of(cx, cx.color(base))
+}
+
+/// `row_ink` for a base that is already a style colour (a tone).
+fn row_ink_of(cx: &StyleCx<'_>, base: StyleColor) -> Stateful<StyleColor> {
     let on_selected = cx.color(cx.tokens.color.text.on_selected);
-    Stateful::new(cx.color(base)).on(States::new(on_selected, on_selected, on_selected, on_selected)).when(Flags::EMPHASIZED, cx.color(base))
+    let mut ink = Stateful::new(base).on(States::new(on_selected, on_selected, on_selected, on_selected));
+    for rule in flag_rules() {
+        ink = ink.when(rule.flags, if rule.on_selected { on_selected } else { base });
+    }
+    ink
 }
 
 /// The name a pattern with `{row}` gives for the row labelled `row`.
@@ -843,7 +884,6 @@ impl Component for ListRow<'_> {
         if key.layer {
             surface = surface.border(Stateful::new(c(clear)).when(Flags::SELECTED, c(colors.accent.solid)), tokens.stroke.thin);
         }
-        let on_selected = c(text.on_selected);
         let ink = |base: Rgba| row_ink(cx, base);
         let base = match key.ink {
             RowInk::Normal => text.normal,
@@ -862,9 +902,7 @@ impl Component for ListRow<'_> {
                 sizes.icon,
                 match key.tone {
                     Tone::Neutral => ink(base),
-                    tone => Stateful::new(cx.tone(tone))
-                        .on(States::new(on_selected, on_selected, on_selected, on_selected))
-                        .when(Flags::EMPHASIZED, cx.tone(tone)),
+                    tone => row_ink_of(cx, cx.tone(tone)),
                 },
             ),
             detail: TextLook::new(TypeRole::Caption, ink(text.faint)),

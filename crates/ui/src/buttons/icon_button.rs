@@ -12,9 +12,6 @@ use craft_theme::{
 };
 use egui::{Color32, Pos2, Response, Vec2};
 
-/// The badge dot's diameter in icon sides.
-const BADGE_RATIO: f32 = 0.4;
-
 /// The style of an icon button.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[style(variants = [
@@ -36,10 +33,12 @@ pub struct IconButtonStyle {
     /// The glyph: its side, and its colour per state (the on look takes the accent text).
     #[style(icon)]
     glyph: IconLook,
-    /// The badge dot's diameter.
-    badge: f32,
-    /// The ring around the badge dot.
-    badge_edge: StyleColor,
+    /// The marker dot's diameter.
+    marker: f32,
+    /// The marker dot of a marked command.
+    marker_color: StyleColor,
+    /// The ring around the marker dot.
+    marker_edge: StyleColor,
     /// The popup mark at the end-bottom corner: its side, which is also its inset from the corner.
     mark: f32,
     /// The popup mark's colour.
@@ -58,7 +57,8 @@ pub struct IconButton<'a> {
     #[prop]
     focusable: bool,
     /// A small dot of the colour at the end-bottom corner of the glyph, ringed so it shows on any fill. The colour
-    /// is the user's content, so it has no contrast pair.
+    /// is the user's content, so it has no contrast pair. It takes the place of the dot a marked command shows in the
+    /// accent.
     #[prop(into)]
     badge: Option<Srgba>,
     /// The kind of popup the button opens: AccessKit reports it, and a mark shows at the end-bottom corner.
@@ -100,8 +100,9 @@ impl Component for IconButton<'_> {
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
             glyph: IconLook::new(control.icon, off.text.clone().on(on.text.off)),
-            badge: control.icon * BADGE_RATIO,
-            badge_edge: cx.color(cx.tokens.color.line.mark),
+            marker: cx.tokens.size.handle.sm,
+            marker_color: cx.color(cx.tokens.color.accent.solid),
+            marker_edge: cx.color(cx.tokens.color.line.mark),
             mark: cx.tokens.space.gap.tight,
             mark_color: cx.color(cx.tokens.color.text.faint),
         }
@@ -134,12 +135,16 @@ impl Component for IconButton<'_> {
             let triangle = PaintShape::Polygon(vec![corner, Pos2::new(end, bottom - cx.style.mark), Pos2::new(end + reach, bottom)]);
             draw.fill(&triangle, cx.style.mark_color);
         }
-        if let Some(badge) = self.badge {
-            let radius = cx.style.badge / 2.0;
+        let marked = cx.command().is_some_and(|command| command.marked);
+        if self.badge.is_some() || marked {
+            let radius = cx.style.marker / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };
-            let centre = Pos2::new(x, glyph.bottom() - radius);
-            draw.data_fill(&PaintShape::Circle(centre, radius), DataColor::new(Color32::from(badge)));
-            draw.stroke(&PaintShape::Circle(centre, radius), StrokeWidth::Thin, cx.style.badge_edge);
+            let dot = PaintShape::Circle(Pos2::new(x, glyph.bottom() - radius), radius);
+            match self.badge {
+                Some(badge) => draw.data_fill(&dot, DataColor::new(Color32::from(badge))),
+                None => draw.fill(&dot, cx.style.marker_color),
+            }
+            draw.stroke(&dot, StrokeWidth::Thin, cx.style.marker_edge);
         }
     }
 

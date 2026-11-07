@@ -182,7 +182,7 @@ const GROUNDS: [SurfaceKind; 5] = [SurfaceKind::Background, SurfaceKind::Chrome,
 /// Text and icon colours against what they are painted on at rest, with the `on` axis off and on and under each
 /// reachable `when` mask, for every variant the type lists and every built-in theme at both contrasts, against the
 /// theme's pair table. Hover, pressed and disabled states are not measured. The ink is measured
-/// against the style's surface fill, composited over each of `GROUNDS` when it is not opaque; a style without a surface
+/// against the ink's declared ground, else the style's surface fill, composited over each of `GROUNDS` when it is not opaque; a style without a surface
 /// fill, or a fully transparent one, is measured against each of `GROUNDS`.
 ///
 /// An ink on a ground that the pair table does not list fails the component: it must use a paired ink. A listed pair
@@ -208,11 +208,16 @@ fn measure_contrast(subject: &Subject, source: &Source, reachable: Flags) -> Res
                 let Some(looks) = looks_in(subject, source, &tokens, variant) else {
                     continue;
                 };
-                let fill = looks.surface.as_ref().map(|surface| &surface.fill);
+                let surface_fill = looks.surface.as_ref().map(|surface| &surface.fill);
                 let grounds: Vec<(String, egui::Color32)> =
                     GROUNDS.iter().map(|&kind| (format!("{kind:?}"), crate::style::surface_style(&tokens, kind).fill)).collect();
-                let inks = looks.texts.iter().map(|text| ("text", &text.color)).chain(looks.icons.iter().map(|icon| ("icon", &icon.color)));
-                for (what, ink) in inks {
+                let inks = looks
+                    .texts
+                    .iter()
+                    .map(|text| ("text", &text.color, text.ground.as_ref()))
+                    .chain(looks.icons.iter().map(|icon| ("icon", &icon.color, icon.ground.as_ref())));
+                for (what, ink, ground) in inks {
+                    let fill = ground.or(surface_fill);
                     for flags in flag_sets(fill.into_iter().chain([ink]), reachable) {
                         for (state, t) in MEASURED {
                             let paint = ink.resolve(state, flags, t).egui();

@@ -11,7 +11,7 @@ use craft_behavior::ControlMetrics;
 use craft_host::target::Os;
 use craft_i18n::Direction;
 use craft_theme::Stroke as StrokeStep;
-use craft_theme::{BySize, ControlSize, Flags, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
+use craft_theme::{BySize, Contrast, ControlSize, Flags, RadiusStep, Rgba, Size, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
 use egui::{Color32, Context, CornerRadius};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -87,6 +87,16 @@ fn egui_color(c: Rgba) -> Color32 {
 }
 
 impl<'a> StyleCx<'a> {
+    /// The contrast setting of the scope, for a style that adds a cue at high contrast.
+    pub fn contrast(&self) -> Contrast {
+        self.tokens.contrast()
+    }
+
+    /// The density preset of the scope, for a style whose shape differs between presets.
+    pub fn density(&self) -> Size {
+        self.tokens.density()
+    }
+
     /// A style context for the scope the pipeline or an app colour hook runs in.
     #[expect(clippy::too_many_arguments, reason = "one argument per input the style cache key covers")]
     pub(crate) fn new(

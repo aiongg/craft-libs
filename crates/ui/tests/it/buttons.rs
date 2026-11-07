@@ -1,10 +1,12 @@
 //! `SplitButton`: the main part runs the action and never opens the menu, the arrow and Alt+Down open it, a pick
 //! reports the entry as one choice and closes the menu.
 
-use craft_ui::buttons::SplitButton;
-use craft_ui::contract::{Entry, Role, Show as _};
+use craft_ui::buttons::{IconButton, SplitButton};
+use craft_ui::contract::{CommandSet, Entry, Role, Show as _};
+use craft_ui::primitives::IconSpec;
+use craft_ui::runtime::commands::{CommandInput, CommandState};
 use craft_ui::testing::focus::AccessActionKind;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, Frames, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::Cell;
 use std::rc::Rc;
@@ -113,4 +115,29 @@ fn a_disabled_split_button_entry_cannot_be_picked() {
     rig.fixture.idle(2);
     assert_eq!(rig.chosen.get(), None);
     assert!(rig.menu_shown(), "the menu stays open");
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
+#[command(prefix = "buttons")]
+enum Panel {
+    #[command(label = "Comments")]
+    Comments,
+}
+
+/// How many circles an icon button bound to `Panel::Comments` paints while the command is `marked`.
+fn marker_circles(marked: bool) -> usize {
+    let mut frames = Frames::new();
+    frames.commands(CommandInput::new().state(Panel::Comments, CommandState::new().marked(marked)));
+    let mut show = |ui: &mut egui::Ui| {
+        IconButton::command(IconSpec::svg(craft_behavior::IconId::new("settings")), Panel::Comments).show(ui);
+    };
+    frames.idle(2, &mut show);
+    frames.frame_shapes(&mut show).iter().filter(|shape| matches!(shape, egui::Shape::Circle(_))).count()
+}
+
+/// A marked command shows its marker dot on the button; an unmarked one shows none.
+#[trial]
+fn an_icon_button_paints_its_commands_marker_only_while_marked() {
+    assert_eq!(marker_circles(false), 0, "no dot without the mark");
+    assert!(marker_circles(true) > 0, "the marked command paints its dot");
 }

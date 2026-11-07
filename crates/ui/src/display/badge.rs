@@ -3,10 +3,10 @@
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props as _, Role, Styled as _};
 use crate::primitives::TextRun;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleColor, StyleCx, SurfaceLook, TextLook, TypeRole};
+use crate::style::{ComponentStyle, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Insets, Metrics, Sense};
 use craft_theme::{
-    States, Variant,
+    Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Response, Vec2};
@@ -17,14 +17,6 @@ mod stories;
 
 /// The largest count a count badge shows; more reads `99+`.
 pub const MAX_COUNT: u32 = 99;
-
-/// The ink of `states` on the soft accent fill: `text.normal` where the fill is not an accent-text ground, in every
-/// state but disabled. The theme pairs `accent.text` with the surfaces, and a theme may pin `accent.soft` to a fill
-/// `accent.text` does not read on.
-fn on_soft_accent_ink(cx: &StyleCx<'_>, states: States<StyleColor>) -> States<StyleColor> {
-    let ink = cx.color(cx.tokens.color.text.normal);
-    States { rest: ink, hover: ink, pressed: ink, disabled: states.disabled }
-}
 
 /// The style of a badge.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
@@ -85,10 +77,7 @@ impl Component for Badge {
     type Output = Response;
 
     fn style(cx: &StyleCx<'_>, _: BadgeStyleKey) -> BadgeStyle {
-        let mut parts = cx.variant_look();
-        if matches!(cx.variant, Variant::Look { emphasis: Emphasis::Soft, tone: Tone::Accent, .. }) {
-            parts.text.off = on_soft_accent_ink(cx, parts.text.off);
-        }
+        let parts = cx.variant_look();
         let control = cx.control();
         let pad_y = cx.tokens.space.pad.chip;
         let mut surface = SurfaceLook::new(parts.fill.clone()).radius(crate::style::UiTokens::corner(cx.tokens.shape.radius.pill));

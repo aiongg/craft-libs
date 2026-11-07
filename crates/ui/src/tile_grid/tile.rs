@@ -97,7 +97,7 @@ struct Sizes {
     band: f32,
     dot: f32,
     range_bar: f32,
-    folder: f32,
+    face: f32,
     name_line: f32,
     detail_line: f32,
     start: f32,
@@ -150,7 +150,7 @@ impl Sizes {
             band: tokens.size.icon.md,
             dot: tokens.size.handle.md,
             range_bar: tokens.size.handle.sm,
-            folder: tokens.size.icon.lg,
+            face: tokens.size.icon.lg,
             name_line: line,
             detail_line: line,
             start: control.height,
@@ -202,9 +202,9 @@ pub struct TileStyle {
     /// The pick and reject flags.
     #[style(icon)]
     flag: IconLook,
-    /// The folder glyph of a folder tile.
+    /// The glyph in the picture area of a folder tile or a tile with an icon face.
     #[style(icon)]
-    folder: IconLook,
+    face: IconLook,
     /// The glyph of a glyph badge.
     #[style(icon)]
     pill_icon: IconLook,
@@ -317,6 +317,7 @@ pub struct Tile<'a> {
     check: Option<ToggleState>,
     aspect: ThumbAspect,
     first: Option<ThumbPaint<'a>>,
+    icon: Option<IconSpec<'static>>,
     badges: Vec<TileBadge>,
     marks: Vec<TileMark>,
     pills: Vec<TileBadge>,
@@ -347,6 +348,7 @@ impl<'a> Tile<'a> {
             rejected: false,
             hidden: false,
             folder: false,
+            icon: None,
             renaming: false,
             check: None,
             aspect: ThumbAspect::SQUARE,
@@ -367,6 +369,16 @@ impl<'a> Tile<'a> {
     pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.aspect = aspect;
         self.first = Some(Box::new(paint));
+        self.icon = None;
+        self
+    }
+
+    /// The picture area shows `icon` centred on the placeholder, in the style's face size and ink, in place of a
+    /// picture. The last of `thumb` and `icon` called wins.
+    #[must_use]
+    pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self {
+        self.icon = Some(icon.into());
+        self.first = None;
         self
     }
 
@@ -579,11 +591,15 @@ impl Component for Tile<'_> {
             name: TextLook::new(TypeRole::Caption, ink(c(text.muted))),
             name_failed: TextLook::new(TypeRole::Caption, ink(cx.tone(Tone::Bad))),
             detail: TextLook::new(TypeRole::Caption, ink(c(text.faint))),
-            band_text: TextLook::new(TypeRole::Caption, fixed(text.on_status)),
-            band_icon: IconLook::new(sizes.glyph, fixed(text.on_status)),
+            band_text: TextLook::new(TypeRole::Caption, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
+            band_icon: IconLook::new(sizes.glyph, fixed(text.on_status)).on(fixed(colors.status.bad.solid)),
             mark: IconLook::new(sizes.glyph, ink(c(text.faint))),
             flag: IconLook::new(sizes.glyph, fixed(text.normal)),
-            folder: IconLook::new(sizes.folder, fixed(text.muted)),
+            face: IconLook::new(
+                sizes.face,
+                Stateful::new(c(text.muted)).off(States::new(c(text.muted), c(text.muted), c(text.muted), c(text.disabled))),
+            )
+            .on(fixed(colors.surface.sunken)),
             pill_icon: IconLook::new(sizes.glyph, fixed(colors.surface.panel)),
             placeholder: c(colors.surface.sunken),
             dim: c(colors.surface.scrim.faded(DIM_VEIL)),
@@ -710,9 +726,10 @@ impl Component for Tile<'_> {
         }
         {
             let draw = ui.draw();
-            if self.folder {
-                let icon = Rect::from_center_size(picture.center(), Vec2::splat(style.folder.side));
-                draw.icon(icon, &IconSpec::svg(IconId::new("folder")).color(cx.resolve(&style.folder.color)));
+            let face = self.icon.take().or_else(|| self.folder.then(|| IconSpec::svg(IconId::new("folder"))));
+            if let Some(face) = face {
+                let icon = Rect::from_center_size(picture.center(), Vec2::splat(style.face.side));
+                draw.icon(icon, &face.color(cx.resolve(&style.face.color)));
             }
             if self.dimmed || self.rejected || self.hidden {
                 draw.fill(&PaintShape::Rect(picture, flat), style.dim);

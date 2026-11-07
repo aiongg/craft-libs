@@ -180,12 +180,20 @@ pub struct TextLook {
     pub role: TypeRole,
     /// The text colour per state.
     pub color: Stateful<StyleColor>,
+    /// The fill the text is painted on when that is not the component's surface fill.
+    pub ground: Option<Stateful<StyleColor>>,
 }
 
 impl TextLook {
     /// A text look.
     pub fn new(role: TypeRole, color: Stateful<StyleColor>) -> Self {
-        TextLook { role, color }
+        TextLook { role, color, ground: None }
+    }
+
+    /// Declares the fill the text is painted on, for a text that sits on a part's own fill.
+    pub fn on(mut self, ground: Stateful<StyleColor>) -> Self {
+        self.ground = Some(ground);
+        self
     }
 }
 
@@ -197,12 +205,20 @@ pub struct IconLook {
     pub side: f32,
     /// The icon colour per state.
     pub color: Stateful<StyleColor>,
+    /// The fill the icon is painted on when that is not the component's surface fill.
+    pub ground: Option<Stateful<StyleColor>>,
 }
 
 impl IconLook {
     /// An icon look.
     pub fn new(side: f32, color: Stateful<StyleColor>) -> Self {
-        IconLook { side, color }
+        IconLook { side, color, ground: None }
+    }
+
+    /// Declares the fill the icon is painted on, for an icon that sits on a part's own fill.
+    pub fn on(mut self, ground: Stateful<StyleColor>) -> Self {
+        self.ground = Some(ground);
+        self
     }
 }
 
