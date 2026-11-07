@@ -1,9 +1,9 @@
 //! Stories of the graph family.
 
 use super::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef, Wire};
-use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Props as _, Show as _, ShowCollection as _};
+use crate::contract::{Bind, CollectionEvent, MeasureCx, PaintUi, Props as _, Role, Show as _, ShowCollection as _};
 use crate::controls::disclosure::Disclosure;
-use crate::testing::{StoryData, StoryOutput, story};
+use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
 use craft_behavior::{CanvasTransform, EditEvent, keyed};
 use egui::{Pos2, Rect, Ui, Vec2};
 
@@ -111,22 +111,29 @@ fn graph(ui: &mut Ui, data: &mut StoryData, count: u32, wired: &[(u32, u32)], zo
     response.into()
 }
 
-#[story(NodeGraph<'static, ()>, covers = [Empty])]
+/// Selects the first node by a click on it: a click at the middle of a graph lands on a node, not on the graph.
+fn click_first_node(fixture: &mut Fixture) {
+    if let Some(node) = fixture.by_role(Role::GRAPHICS_OBJECT).first().copied() {
+        fixture.click(&node);
+    }
+}
+
+#[story(NodeGraph<'static, ()>, covers = [Empty], drive = Drive::Custom(click_first_node))]
 fn no_nodes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 0, &[], None)
 }
 
-#[story(NodeGraph<'static, ()>, covers = [One])]
+#[story(NodeGraph<'static, ()>, covers = [One], drive = Drive::Custom(click_first_node))]
 fn one_node(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 1, &[], None)
 }
 
-#[story(NodeGraph<'static, ()>, covers = [Many, Default])]
+#[story(NodeGraph<'static, ()>, covers = [Many, Default], drive = Drive::Custom(click_first_node))]
 fn wired_nodes(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], None)
 }
 
-#[story(NodeGraph<'static, ()>, covers = [Many])]
+#[story(NodeGraph<'static, ()>, covers = [Many], drive = Drive::Custom(click_first_node))]
 fn zoomed(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     graph(ui, data, 4, &[(0, 1), (1, 2), (2, 3)], Some(CanvasTransform::new(ZOOM, Vec2::ZERO)))
 }

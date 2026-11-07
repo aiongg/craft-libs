@@ -3,7 +3,8 @@
 
 use super::drive::{cancels, run, settled, variants};
 use super::{ANY, Case, Subject};
-use crate::runtime::egui::access::Declared;
+use crate::contract::Role;
+use crate::runtime::egui::access::{AccessTree, Declared, NodeKey};
 use crate::runtime::env::Direction;
 use crate::testing::access::{is_interactive, violations};
 use crate::testing::fixture::Fixture;
@@ -101,8 +102,24 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
     Ok(())
 }
 
-/// Under right-to-left the shown area keeps its size and every interactive node lies where the left-to-right
-/// layout reflected across the shown area puts it.
+/// Whether the node lies in document space, whose coordinates are data and do not mirror: a node inside a canvas, or
+/// a graphics object (a graph node) with its ports. A canvas's own chrome and the area around it mirror.
+fn in_document_space(tree: &AccessTree, key: NodeKey) -> bool {
+    let mut at = Some(key);
+    let mut inside = false;
+    while let Some(node) = at {
+        let role = tree.role_of(node);
+        if role == Some(Role::GRAPHICS_OBJECT) || (inside && role == Some(Role::CANVAS)) {
+            return true;
+        }
+        inside = true;
+        at = tree.parent_of_key(node);
+    }
+    false
+}
+
+/// Under right-to-left the shown area keeps its size and every interactive node outside document space lies where
+/// the left-to-right layout reflected across the shown area puts it.
 fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let show = |direction: Direction| {
@@ -117,7 +134,7 @@ fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
             return Err(format!("{}: the width differs between directions", story.name));
         }
         let tree = ltr.tree();
-        for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key)) {
+        for key in tree.keys().into_iter().filter(|key| is_interactive(tree, *key) && !in_document_space(tree, *key)) {
             let (Some(a), Some(b)) = (tree.bounds_of(key), rtl.tree().bounds_of(key)) else { continue };
             if !mirrored(a, b, within) {
                 return Err(format!("{}: a node at {a:?} is at {b:?} under right-to-left, not its reflection", story.name));
