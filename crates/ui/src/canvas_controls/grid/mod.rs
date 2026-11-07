@@ -17,6 +17,9 @@ use egui::{Color32, Pos2, Response, Shape};
 /// Most lines the grid draws along one axis.
 pub const MAX_LINES: usize = 10_000;
 
+/// The major step of a new grid, in document units.
+const DEFAULT_STEP: f64 = 100.0;
+
 /// Most crossing squares the grid draws.
 const MAX_CROSSINGS: usize = 200_000;
 
@@ -133,7 +136,7 @@ impl CanvasGrid {
     pub fn new(label: impl Into<Label>) -> Self {
         CanvasGrid {
             common: Common::new(),
-            spacing: Vec2::new(100.0, 100.0),
+            spacing: Vec2 { x: DEFAULT_STEP, y: DEFAULT_STEP },
             subdivisions: 1,
             origin: Point::ZERO,
             bounds: None,

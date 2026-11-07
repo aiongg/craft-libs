@@ -27,8 +27,13 @@ fn square_space(side: f32, zoom: f64) -> CanvasSpace {
     CanvasSpace::new(CanvasView::new(rect, Point::new(half, half), zoom), PIXELS_PER_POINT)
 }
 
+/// A grid step of `x` and `y` document units.
+fn step(x: f64, y: f64) -> Vec2 {
+    Vec2 { x, y }
+}
+
 fn grid() -> CanvasGrid {
-    CanvasGrid::new("Grid").spacing(Vec2::new(MAJOR, MAJOR))
+    CanvasGrid::new("Grid").spacing(step(MAJOR, MAJOR))
 }
 
 #[trial]
@@ -54,13 +59,13 @@ fn subdivisions_add_minor_lines_between_majors_while_they_stay_apart() {
 #[trial]
 fn an_axis_with_a_step_under_six_points_or_no_step_draws_nothing() {
     assert!(grid().lines(&space(0.05)).x.major.is_empty(), "a 100-unit step at 0.05 is 5 points");
-    let no_x = grid().spacing(Vec2::new(0.0, MAJOR)).lines(&space(1.0));
+    let no_x = grid().spacing(step(0.0, MAJOR)).lines(&space(1.0));
     assert!(no_x.x.major.is_empty() && !no_x.y.major.is_empty(), "a step that is not positive draws nothing on its axis");
 }
 
 #[trial]
 fn lines_per_axis_are_capped() {
-    let many = CanvasGrid::new("Grid").spacing(Vec2::new(1.0, 1.0)).lines(&square_space(HUGE_SIDE, 1.0));
+    let many = CanvasGrid::new("Grid").spacing(step(1.0, 1.0)).lines(&square_space(HUGE_SIDE, 1.0));
     assert_eq!(many.x.major.len(), MAX_LINES);
     assert_eq!(many.y.major.len(), MAX_LINES);
 }
@@ -79,7 +84,7 @@ fn bounds_cut_the_lines_and_a_zoom_floor_hides_the_grid() {
 #[trial]
 fn crossings_need_a_major_step_of_eight_points() {
     assert!(grid().line(GridLine::Crossings).lines(&space(1.0)).crossings);
-    assert!(!grid().spacing(Vec2::new(7.0, MAJOR)).lines(&space(1.0)).crossings);
+    assert!(!grid().spacing(step(7.0, MAJOR)).lines(&space(1.0)).crossings);
 }
 
 #[trial]

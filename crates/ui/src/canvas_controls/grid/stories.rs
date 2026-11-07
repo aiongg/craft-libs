@@ -11,7 +11,7 @@ const MAJOR: f64 = 100.0;
 const SUBDIVISIONS: u32 = 4;
 
 fn grid() -> CanvasGrid {
-    CanvasGrid::new("Grid").spacing(Vec2::new(MAJOR, MAJOR)).subdivisions(SUBDIVISIONS)
+    CanvasGrid::new("Grid").spacing(Vec2 { x: MAJOR, y: MAJOR }).subdivisions(SUBDIVISIONS)
 }
 
 #[story(CanvasGrid, covers = [Default], drive = Drive::Never)]
