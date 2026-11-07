@@ -2,7 +2,7 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "craft-window UI"
-new_module = ""
+new_module = "craft_ui::shell"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
@@ -13,6 +13,48 @@ old = "craft_window::policy::Os"
 new = "craft_host::target::Os"
 status = "replaced"
 note = "craft_window::policy re-exports craft_host's Os; the browser is Runtime::Web, no longer Os::Web."
+
+[[type]]
+name = "DocumentWindow"
+old = ""
+new = "craft_ui::shell::DocumentWindow"
+status = "replaced"
+note = "craft_window::Viewports::show plus a container per document: one DocumentWindow for each entry of the WindowList, on Mount::Viewport with WindowSpec::document()."
+
+[[type]]
+name = "Viewports"
+old = "craft_window::Viewports"
+new = ""
+status = "removed"
+note = "Mount::Viewport; the document window is craft_ui::shell::DocumentWindow."
+
+[[type]]
+name = "WindowEvent"
+old = "craft_window::WindowEvent"
+new = ""
+status = "removed"
+note = "Mount::Viewport: DocumentWindowOutput::close_requested and ::focused."
+
+[[type]]
+name = "WindowList"
+old = "craft_window::WindowList"
+new = "craft_window::WindowList"
+status = "same"
+note = "Stays in craft-window; one DocumentWindow is shown for each entry."
+
+[[type]]
+name = "WindowMenu"
+old = "craft_window::WindowMenu"
+new = "craft_window::WindowMenu"
+status = "same"
+note = "Stays in craft-window."
+
+[[type]]
+name = "empty_area"
+old = "craft_window::title_bar::empty_area"
+new = ""
+status = "removed"
+note = "The body step's Move header band."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]

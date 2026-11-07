@@ -14,3 +14,8 @@ pub use captions::{Caption, CaptionRegions, WindowHit};
 mod regions;
 
 pub use regions::{Slot, SlotSize};
+
+// A document's window: a container in its own OS viewport.
+mod document_window;
+
+pub use document_window::{DocumentWindow, DocumentWindowOutput, DocumentWindowStyle};

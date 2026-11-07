@@ -32,7 +32,7 @@ todo = "warn"
 [features]
 default = []
 # `shell::app`: the eframe entry point.
-app = ["dep:eframe"]
+app = ["dep:eframe", "craft-window/ui"]
 # `craft_ui::testing`: the fixture and suite runner.
 testing = ["dep:libtest-mimic"]
 
