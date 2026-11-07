@@ -113,7 +113,7 @@ impl<P> Default for Seen<P> {
 /// each icon group with the dock `dock`. The flyout shows its group through the `view` of
 /// [`show_flyouts`](IconicColumn::show_flyouts), with the opened panel active.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(container, probe(IconicColumn<'static, u8>))]
+#[component(container, overlay, probe(IconicColumn<'static, u8>))]
 pub struct IconicColumn<'a, P: Value + 'static> {
     #[common]
     common: Common,
@@ -358,16 +358,18 @@ impl<P: Value + 'static> Component for IconicColumn<'_, P> {
     fn overlay(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>) {
         let popup = cx.popup("flyout");
         let sizes = cx.style.sizes;
+        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
+        let plan = self.plan(rect, &sizes);
         let width = sizes.column.expanded_width(self.column, self.spec);
         let (edge, auto_collapse) = (self.edge, self.auto_collapse);
         let groups: Vec<Option<Group<P>>> = (0..self.flat().len()).map(|at| self.flyout_group(at)).collect();
         let Some(view) = self.view.as_mut() else { return };
         for (at, group) in groups.into_iter().enumerate() {
-            let Some(group) = group else { continue };
+            let (Some(group), Some((_, _, cell))) = (group, plan.cells.get(at)) else { continue };
             let height = group.height.filter(|height| height.is_finite() && *height > 0.0).unwrap_or(sizes.flyout_height);
             let height = height.max(sizes.column.strip + sizes.column.least);
-            let anchor = ui.anchor_part(CELL.at(at as u64));
-            Flyout::new(edge, Vec2::new(width, height), auto_collapse).show(ui, popup.at(at), anchor, |ui, body, rect| view(&group, rect, ui, body));
+            Flyout::new(edge, Vec2::new(width, height), auto_collapse)
+                .show(ui, popup.at(at), *cell, rtl, |ui, body, rect| view(&group, rect, ui, body));
         }
     }
 
