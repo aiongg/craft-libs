@@ -430,6 +430,8 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `fn rect(&self, at: usize, offset: ScrollPos) -> Rect`. The rect of item `at`.
   - `fn hit(&self, point: Pos2, offset: ScrollPos) -> Option<usize>`. The item under `point`.
   - `fn nav(&self) -> NavShape`. How arrow keys move through the items.
+  - `fn row_len(&self, _row: usize) -> Option<usize>`. `NavShape::RaggedGrid`: the number of items in `row`, rows holding consecutive items and a run of hidden items
+  - `fn shown(&self, _at: usize) -> bool`. Whether item `at` takes a place in the layout; a hidden item (in a closed group) cannot take the lead.
   - `fn cells(&self, _at: usize, _offset: ScrollPos, _out: &mut Vec<(ColumnKey, Rect)>)`. The cells of item `at`, with their rects.
   - `fn grid(&self) -> Option<&GridView>`. Column virtualisation and sections of a sheet.
   - `fn set_columns(&mut self, _columns: &[(ColumnKey, f32)])`. The column widths the collection resolved, from the start edge; layouts without columns ignore them.
@@ -1294,7 +1296,7 @@ The component traits, context types, `PaintUi`, `Looks`, the pipeline and its st
   - `pub const fn scrub(mut self, on: bool) -> Self`. Lets a drag on the label scrub the control's value.
   - `pub fn icon(mut self, icon: impl Into<IconSpec<'static>>) -> Self`. Shows `icon` before the text.
   - `pub fn detail(mut self, detail: impl Into<Label>) -> Self`. Shows `detail` after the text, in the muted text colour, and adds it to the control's description.
-- `craft_ui::contract::Sizing`: `pub enum Sizing { Fill, Content }`. How a container's size follows its content.
+- `craft_ui::contract::Sizing`: `pub enum Sizing { Fill, FillWidth, Content }`. How a container's size follows its content.
 - `craft_ui::contract::Slot`: re-export of `craft_ui::runtime::memory::Slot`.
 - `craft_ui::contract::Styled`: `pub trait Styled`. The resolved look (chapter 4); every method reads step 12's output.
   - `fn state(&self) -> &StateSet`. The state set.
@@ -1644,7 +1646,8 @@ Per-pass and per-frame services and the one egui adapter.
   - `pub const fn columns(mut self, columns: usize) -> Self`. In a grid of `columns` columns.
   - `pub const fn of(mut self, size: usize) -> Self`. In a set of `size`.
   - `pub const fn level(mut self, level: usize) -> Self`. At depth `level`.
-- `craft_ui::runtime::access::SubNode`: `pub struct SubNode { pub name: Name, pub description: Option<String>, pub numeric: Option<Numeric>, pub expanded: Option<bool>, pub position: Option<SetPosition>, pub grid: GridPlace }`. A node below a component's node, for a part, a cell or a line of a content painter.
+- `craft_ui::runtime::access::SubNode`: `pub struct SubNode { pub name: Name, pub description: Option<String>, pub numeric: Option<Numeric>, pub expanded: Option<bool>, pub position: Option<SetPosition>, pub grid: GridPlace, pub level: Option<usize> }`. A node below a component's node, for a part, a cell or a line of a content painter.
+  - `pub fn level(&mut self, level: usize) -> &mut Self`. The heading level or tree depth.
   - `pub fn under(&mut self, other: impl Into<PartRef>) -> &mut Self`. Nests this sub-node below another sub-node of the same component.
   - `pub fn custom_action(&mut self, id: i32, label: Label) -> &mut Self`. An action the component serves itself, targeted at this sub-node.
 - `craft_ui::runtime::access::FieldLabel`: `pub struct FieldLabel { pub id: Id, pub rect: Rect, pub press: PressState, pub text: String, pub role: FieldLabelRole, pub detail: Option<String>, pub activated: bool }`. The label a container shows beside its body.
