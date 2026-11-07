@@ -157,8 +157,32 @@ pub struct ParamDialog<'a> {
     /// The picture the preview pane shows; without one the dialog has no preview.
     #[prop]
     preview: Option<SizedTexture>,
-    footer_extra: Option<Box<dyn FnMut(&mut Ui) + Send + 'a>>,
-    below: Option<Box<dyn Fn(&mut Ui, &DialogFields) + Send + 'a>>,
+    /// Controls before the buttons in the footer (Color Table's Load and Save).
+    #[prop(func = "FnMut(&mut Ui)")]
+    footer_extra: Option<FooterExtra<'a>>,
+    /// A section under the rows that only reads the values (a monitor note).
+    #[prop(func = "Fn(&mut Ui, &DialogFields)")]
+    below: Option<BelowRows<'a>>,
+}
+
+/// What `ParamDialog::footer_extra` draws before the buttons.
+pub struct FooterExtra<'a>(Box<dyn FnMut(&mut Ui) + 'a>);
+
+impl<'a> FooterExtra<'a> {
+    /// The extra that runs `add`.
+    pub fn new(add: impl FnMut(&mut Ui) + 'a) -> Self {
+        FooterExtra(Box::new(add))
+    }
+}
+
+/// What `ParamDialog::below` draws under the rows.
+pub struct BelowRows<'a>(Box<dyn Fn(&mut Ui, &DialogFields) + 'a>);
+
+impl<'a> BelowRows<'a> {
+    /// The section that runs `draw`.
+    pub fn new(draw: impl Fn(&mut Ui, &DialogFields) + 'a) -> Self {
+        BelowRows(Box::new(draw))
+    }
 }
 
 impl<'a> ParamDialog<'a> {
@@ -181,20 +205,6 @@ impl<'a> ParamDialog<'a> {
             footer_extra: None,
             below: None,
         }
-    }
-
-    /// Controls before the buttons in the footer (Color Table's Load and Save).
-    #[must_use]
-    pub fn footer_extra(mut self, add: impl FnMut(&mut Ui) + Send + 'a) -> Self {
-        self.footer_extra = Some(Box::new(add));
-        self
-    }
-
-    /// A section under the rows that only reads the values (a monitor note).
-    #[must_use]
-    pub fn below(mut self, draw: impl Fn(&mut Ui, &DialogFields) + Send + 'a) -> Self {
-        self.below = Some(Box::new(draw));
-        self
     }
 
     /// The part of `fields` a remembering dialog saves: numbers, angles, choices and check boxes of the remembered
@@ -255,7 +265,7 @@ impl<'a> ParamDialog<'a> {
             dialog = dialog.opened(open);
         }
         let dialog = dialog.footer(|ui, footer| {
-            if let Some(extra) = footer_extra.as_mut() {
+            if let Some(FooterExtra(extra)) = footer_extra.as_mut() {
                 extra(ui);
             }
             let second = if alt {
@@ -328,7 +338,7 @@ impl<'a> ParamDialog<'a> {
                 }
                 (None, _) => show_rows(ui),
             }
-            if let Some(draw) = &below {
+            if let Some(BelowRows(draw)) = &below {
                 draw(ui, &work.borrow());
             }
             *cx.memory::<Live>() = live.clone();

@@ -27,8 +27,11 @@ const ZOOM_STEPS: [f32; 11] = [0.125, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 3.0, 4.0, 
 /// Within this distance two zoom levels are the same level.
 const ZOOM_EPSILON: f32 = 1e-4;
 
-/// The distance an arrow key pans the view, in points.
-const PAN_STEP: f32 = 16.0;
+/// The share of the well an arrow key pans the view by.
+const PAN_SHARE: f32 = 0.1;
+
+/// The tint that shows the picture as it is.
+const UNTINTED: Color32 = Color32::from_gray(u8::MAX);
 
 craft_ui::words! {
     /// The words of the preview pane and its zoom row.
@@ -176,12 +179,13 @@ impl Component for PreviewPane {
         }
         while let Some((mv, _)) = cx.intents().take_move() {
             let by = match mv {
-                NavMove::Forward => Vec2::new(-PAN_STEP, 0.0),
-                NavMove::Back => Vec2::new(PAN_STEP, 0.0),
-                NavMove::Down => Vec2::new(0.0, -PAN_STEP),
-                NavMove::Up => Vec2::new(0.0, PAN_STEP),
+                NavMove::Forward => -Vec2::X,
+                NavMove::Back => Vec2::X,
+                NavMove::Down => -Vec2::Y,
+                NavMove::Up => Vec2::Y,
                 _ => continue,
-            };
+            } * well.size()
+                * PAN_SHARE;
             next.offset += by;
         }
         if let Some(wheel) = cx.take_wheel() {
@@ -212,7 +216,7 @@ impl Component for PreviewPane {
             pos2((visible.min.x - picture.min.x) / size.x, (visible.min.y - picture.min.y) / size.y),
             pos2((visible.max.x - picture.min.x) / size.x, (visible.max.y - picture.min.y) / size.y),
         );
-        painter.painter.image(self.texture.id, visible, uv, Color32::WHITE);
+        crate::runtime::egui::textures::paint(&painter.painter, self.texture.id, visible, uv, UNTINTED);
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> PreviewOutput {

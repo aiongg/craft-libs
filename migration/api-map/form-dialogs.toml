@@ -354,7 +354,7 @@ note = "The close action is named by the dialog title row; `closable(false)` rem
 [[setter]]
 type = "ParamDialog"
 old = "footer_extra(FnMut(&mut Ui) + Send + 'static)"
-new = "footer_extra(FnMut(&mut Ui) + Send + 'a)"
+new = "footer_extra(FnMut(&mut Ui) + 'a)"
 
 [[setter]]
 type = "ParamDialog"
@@ -388,7 +388,7 @@ note = "Removed: the dialog sizes to its rows and pane."
 [[setter]]
 type = "ParamDialog"
 old = "below(Fn(&mut Ui, &DialogFields) + Send + 'static)"
-new = "below(Fn(&mut Ui, &DialogFields) + Send + 'a)"
+new = "below(Fn(&mut Ui, &DialogFields) + 'a)"
 
 [[setter]]
 type = "ParamDialog"
