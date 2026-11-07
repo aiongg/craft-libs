@@ -11,7 +11,8 @@ new_module = "craft_ui::list"
 name = "List"
 old = "craft_ui::list::view::List"
 new = "craft_ui::list::List"
-status = "pending"
+status = "moved"
+note = "A generic `Collection` component `List<K>`: `List::new(label)` then `.show_items(ui, &source, &mut |key, icx| ListRow::new(..))`. The rows are a `DisplayOrder` plus `ItemSource` (`size_hint` gives a row's height, `Auto` rows measure themselves); the output is `CollectionResponse<K, RowEvent>` whose events replace `ListEvent`. `ListOutput::rows` and `drop_target` have no counterpart (the item step draws the drop mark)."
 
 [[type]]
 name = "ListRow"
@@ -135,13 +136,22 @@ note = "`TreeRow::new(row, depth, has_children, open)` is `row.depth(depth)` plu
 name = "FindingsList"
 old = "craft_ui::list::findings::FindingsList"
 new = "craft_ui::list::FindingsList"
-status = "pending"
+status = "moved"
+note = "A `Collection`: `FindingsList::new(label).show_items(ui, &Findings::new(&findings), &mut |key, icx| findings[*key].row(&icx.words::<FindingsWords>()))`. `FindingLevel` is `Severity` (with `Info`), `Finding::message` is `text`, `Finding::page` is `detail` (the app writes the words), `Finding::target` stays in the app (filter `Activate` events by it). The summary line is `FindingsSummary::new(&findings)`; `findings_summary(ctx, findings, labels)` is `summary_text(&FindingsWords, findings)`."
 
 [[type]]
 name = "EventLog"
 old = "craft_ui::list::events::EventLog"
 new = "craft_ui::list::EventLog"
-status = "pending"
+status = "replaced"
+note = "`EventLog` is the item source (events at or above `EventLogState::min_level`, newest first, keyed by event id) shown by `EventList` with `LogEvent::row(age, words, striped)`. The bar (level select, counts, Clear All) and the details box are not ported: they need `Button`, `Select`, `Notice` and a `Pattern` type that this revision lacks. `EventLogState::selected` is the app's `Selection<u64>`; `EventLogOutput::clear_all` goes with the bar. `EventLogLabels` is `EventWords`."
+
+[[type]]
+name = "UndoList"
+old = "craft_ui::edit::history_panel::undo_list::UndoList"
+new = "craft_ui::list::UndoList"
+status = "replaced"
+note = "A `Collection` over `UndoRows::new(&labels)` (labels newest first, built by the app from its history) with a `UndoMark` selection; `undo_count(&events)` is `UndoListEvent::UndoThrough(n)`, `footer_text(&UndoWords, &mark)` is the footer text (`None` is the Cancel row). `UndoList::marked(Some(i))` is `Bind::given(UndoMark::at(i))`. Hover marking and the footer row are not ported."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -283,3 +293,73 @@ new = "removed: column order is the item layout's, `exclusive` is the app ignori
 type = "TreeRow"
 old = "new(row, depth, has_children, open)"
 new = "ListRow::depth(depth).group(open)"
+
+[[setter]]
+type = "List"
+old = "new(id_salt, label, &rows)"
+new = "new(label)` and `.id_salt(salt)"
+
+[[setter]]
+type = "List"
+old = "mode(SelectionMode::Single)"
+new = "select(SelectMode::Single)"
+
+[[setter]]
+type = "List"
+old = "mode(SelectionMode::Multiple)"
+new = "select(SelectMode::Multi)"
+
+[[setter]]
+type = "List"
+old = "selection(&mut selection)"
+new = "selection(Bind::bound(&mut selection))"
+
+[[setter]]
+type = "List"
+old = "reorder(Reorder)"
+new = "reorder(ReorderRule)"
+
+[[setter]]
+type = "List"
+old = "renamable(true)"
+new = "rename(true)"
+
+[[setter]]
+type = "List"
+old = "reveal(key)"
+new = "reveal(key)"
+
+[[setter]]
+type = "List"
+old = "tree(true)"
+new = "tree(true)"
+
+[[setter]]
+type = "List"
+old = "show(ui, |at, key| ListRow)"
+new = "show_items(ui, &source, &mut |key, icx| ListRow)"
+
+[[setter]]
+type = "List"
+old = "allow_empty, thumbnails, detail_lines, row_height, heights, measured"
+new = "removed: a row measures its own height and the source gives `size_hint`"
+
+[[setter]]
+type = "List"
+old = "max_height, scroll_bar_label, type_ahead, tree_text"
+new = "removed: the caller bounds the list; the other words and type-ahead belong to the item step"
+
+[[setter]]
+type = "List"
+old = "can_rename, can_drag, accept_from, rename_draft, start_rename, row_menu"
+new = "removed: no counterpart in the contract (see the report)"
+
+[[setter]]
+type = "FindingsList"
+old = "new(id_salt, &findings).summary(bool)"
+new = "FindingsSummary::new(&findings)` shown above `FindingsList::new(label)"
+
+[[setter]]
+type = "EventLog"
+old = "new(id_salt, &events, &mut state, now_ms).show(ui)"
+new = "EventLog::new(&events, &state)` with `EventList::new(label).show_items(..)"
