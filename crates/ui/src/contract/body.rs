@@ -833,7 +833,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let builder = UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(sub(id, name));
             if node { access::with_parent(builder, id) } else { builder }
         };
-        let (resolved, env_view) = (cx.core.resolved, cx.core.env);
+        let (resolved, env_view) = (cx.core.resolved, region_env.view());
         let mut open = self.open;
         let mut gate = self.gate;
         let mut close: Option<CloseReason> = None;
