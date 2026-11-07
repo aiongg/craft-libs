@@ -3,7 +3,7 @@
 
 use crate::color::Rgba;
 use crate::parts::States;
-use crate::tokens::{StatusColors, Tokens};
+use crate::tokens::{ColorToken, Tokens};
 use std::any::TypeId;
 use std::hash::{Hash, Hasher};
 
@@ -68,6 +68,75 @@ pub struct VariantLook {
     pub radius: RadiusStep,
 }
 
+/// The colour tokens a tone's variants take their fills and inks from: the one place the variant table reads.
+#[derive(Clone, Copy, Debug)]
+struct ToneTokens {
+    soft_fill: ColorToken,
+    fg: ColorToken,
+    edge: ColorToken,
+    solid: ColorToken,
+    solid_hover: ColorToken,
+    solid_pressed: ColorToken,
+    on_solid: ColorToken,
+}
+
+impl ToneTokens {
+    fn of(tone: Tone) -> Self {
+        use ColorToken as T;
+        let status = |fg, bg, edge, solid, solid_hover, solid_pressed| ToneTokens {
+            soft_fill: bg,
+            fg,
+            edge,
+            solid,
+            solid_hover,
+            solid_pressed,
+            on_solid: T::TextOnStatus,
+        };
+        match tone {
+            Tone::Neutral => ToneTokens {
+                soft_fill: T::SurfaceSunken,
+                fg: T::TextNormal,
+                edge: T::TextMuted,
+                solid: T::TextMuted,
+                solid_hover: T::TextMuted,
+                solid_pressed: T::TextNormal,
+                on_solid: T::SurfacePanel,
+            },
+            Tone::Accent => ToneTokens {
+                soft_fill: T::AccentSoft,
+                fg: T::AccentText,
+                edge: T::AccentBorder,
+                solid: T::AccentStrong,
+                solid_hover: T::AccentStrongHover,
+                solid_pressed: T::AccentStrongPressed,
+                on_solid: T::TextOnStrong,
+            },
+            Tone::Info => {
+                status(T::StatusInfoFg, T::StatusInfoBg, T::StatusInfoBorder, T::StatusInfoSolid, T::StatusInfoSolidHover, T::StatusInfoSolidPressed)
+            }
+            Tone::Good => {
+                status(T::StatusGoodFg, T::StatusGoodBg, T::StatusGoodBorder, T::StatusGoodSolid, T::StatusGoodSolidHover, T::StatusGoodSolidPressed)
+            }
+            Tone::Warn => {
+                status(T::StatusWarnFg, T::StatusWarnBg, T::StatusWarnBorder, T::StatusWarnSolid, T::StatusWarnSolidHover, T::StatusWarnSolidPressed)
+            }
+            Tone::Bad => {
+                status(T::StatusBadFg, T::StatusBadBg, T::StatusBadBorder, T::StatusBadSolid, T::StatusBadSolidHover, T::StatusBadSolidPressed)
+            }
+        }
+    }
+}
+
+/// The (ink, fill) token pairs of every soft and solid variant, in the variant table's own terms.
+pub(crate) fn variant_pairs() -> Vec<(ColorToken, ColorToken)> {
+    let mut pairs = Vec::new();
+    for tone in [Tone::Neutral, Tone::Accent, Tone::Info, Tone::Good, Tone::Warn, Tone::Bad] {
+        let t = ToneTokens::of(tone);
+        pairs.extend([(t.fg, t.soft_fill), (t.on_solid, t.solid), (t.on_solid, t.solid_hover), (t.on_solid, t.solid_pressed)]);
+    }
+    pairs
+}
+
 impl VariantLook {
     /// A look with no edge and control corners.
     pub const fn new(fill: States<Rgba>, text: States<Rgba>) -> Self {
@@ -93,17 +162,9 @@ impl VariantLook {
         let flat = |color: Rgba| States::new(clear, clear, clear, color);
         let text = |color: Rgba| States::new(color, color, color, c.text.disabled);
         let state_fill = States::new(clear, c.state.hover, c.state.pressed, clear);
-        let status = |s: &StatusColors| (s.bg, s.fg, s.border, s.solid, s.solid_hover, s.solid_pressed, c.text.on_status);
-        let (soft_fill, fg, edge, solid, solid_hover, solid_pressed, on_solid) = match tone {
-            Tone::Neutral => (c.surface.sunken, c.text.normal, c.text.muted, c.text.muted, c.text.muted, c.text.normal, c.surface.panel),
-            Tone::Accent => {
-                (c.accent.soft, c.accent.text, c.accent.border, c.accent.strong, c.accent.strong_hover, c.accent.strong_pressed, c.text.on_strong)
-            }
-            Tone::Info => status(&c.status.info),
-            Tone::Good => status(&c.status.good),
-            Tone::Warn => status(&c.status.warn),
-            Tone::Bad => status(&c.status.bad),
-        };
+        let t = ToneTokens::of(tone);
+        let (soft_fill, fg, edge, solid, solid_hover, solid_pressed, on_solid) =
+            (c.get(t.soft_fill), c.get(t.fg), c.get(t.edge), c.get(t.solid), c.get(t.solid_hover), c.get(t.solid_pressed), c.get(t.on_solid));
         let button = RadiusStep::Button;
         match emphasis {
             Emphasis::Solid => VariantLook::new(States::new(solid, solid_hover, solid_pressed, c.state.disabled_fill), text(on_solid)).radius(button),

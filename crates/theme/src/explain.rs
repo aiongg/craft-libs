@@ -217,7 +217,22 @@ pub fn explain_sized(theme: &ThemeDef, appearance: Appearance, app: Option<&AppI
             fixed_by_pass: ratio_before < pair.minimum && pair.passes(),
         }
     };
-    let pairs = steps.color.pairs.iter().map(report).collect();
+    let mut pairs: Vec<PairReport> = steps.color.pairs.iter().map(report).collect();
+    // The variant table's own fill and ink pairs are measured, not derived: no colour moves for them, and a
+    // shortfall is a finding about the theme.
+    for (fg, bg) in crate::variant::variant_pairs() {
+        let (fg, bg) = (TokenRef::Color(fg), TokenRef::Color(bg));
+        if pairs.iter().any(|p| p.pair.fg == fg && p.pair.bg == bg) {
+            continue;
+        }
+        let (TokenRef::Color(f), TokenRef::Color(b)) = (fg, bg) else { continue };
+        let ratio = crate::contrast::contrast_ratio(final_colors.get(f), final_colors.get(b));
+        let minimum = match appearance.contrast {
+            crate::Contrast::Standard => values::TEXT_MIN.0,
+            crate::Contrast::High => values::TEXT_MIN.1,
+        };
+        pairs.push(PairReport { pair: ContrastCheck { fg, bg, ratio, minimum }, ratio_before: ratio, moved_by_pass: false, fixed_by_pass: false });
+    }
 
     let sizes = size_origins(&resolved, appearance.size, sizes);
     Explained { resolved, ramps: steps.color.ramps, colors, pairs, sizes }
