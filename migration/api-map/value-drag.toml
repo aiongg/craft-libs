@@ -130,13 +130,8 @@ note = "A leaf `Component` over `Bind<[f64; 2]>`; the output is `EditResponse<[f
 name = "ThumbRow"
 old = "craft_ui::controls::thumb_row::ThumbRow"
 new = "craft_ui::value_drag::ThumbRow"
-status = "pending"
-
-# One entry per renamed, removed or reshaped setter or constructor.
-# [[setter]]
-# type = ""
-# old = ""
-# new = ""
+status = "moved"
+note = "A `Component` over `Bind<[f64; N]>` returning `EditResponse<[f64; N]>`; thumbs, step, wrap and anchor are props."
 
 [[type]]
 name = "AngleOrientation"
@@ -151,6 +146,70 @@ old = "craft_ui::controls::angle_dial::Pointing"
 new = ""
 status = "removed"
 note = "Private pointer-to-angle maths of the dial; no public type."
+
+# One entry per renamed, removed or reshaped setter or constructor.
+
+[[type]]
+name = "ThumbRowStyle"
+old = "craft_ui::controls::thumb_row::ThumbRowStyle"
+new = "craft_ui::value_drag::ThumbRowStyle"
+status = "replaced"
+note = "A `ComponentStyle` built from tokens; apps no longer build one and pass it to `show`."
+
+[[type]]
+name = "ThumbRowLabels"
+old = "craft_ui::controls::thumb_row::ThumbRowLabels"
+new = ""
+status = "removed"
+note = "The half names are `ValueDragWords::thumb_low` and `thumb_high` of the words system."
+
+[[type]]
+name = "ThumbRowOutput"
+old = "craft_ui::controls::thumb_row::ThumbRowOutput"
+new = ""
+status = "removed"
+note = "`show` returns `EditResponse<[f64; N]>`. `shown` is the bound value, `edit` is the response; `dragged` and `ops` have no counterpart (the row applies its operations itself)."
+
+[[type]]
+name = "Thumb"
+old = "craft_ui::controls::thumb_row::Thumb"
+new = "craft_ui::value_drag::Thumb"
+status = "moved"
+note = "Built with `Thumb::new(label)` and `.face(DataColor)`; passed through `ThumbRow::thumbs`."
+
+[[type]]
+name = "Order"
+old = "craft_ui::controls::thumb_row::Order"
+new = "craft_ui::value_drag::Order"
+status = "moved"
+note = "`Order::between(below, above, gap)` replaces the struct-like variant constructor."
+
+[[type]]
+name = "Follow"
+old = "craft_ui::controls::thumb_row::Follow"
+new = "craft_ui::value_drag::Follow"
+status = "moved"
+note = "`Follow::new(at, value_at)`."
+
+[[type]]
+name = "RowRules"
+old = "craft_ui::controls::thumb_row::RowRules"
+new = "craft_ui::value_drag::RowRules"
+status = "moved"
+note = "Borrows the row's thumbs; get it from `ThumbRow::rules()`. `placed` and `apply` stay."
+
+[[type]]
+name = "RowOp"
+old = "craft_ui::controls::thumb_row::RowOp"
+new = "craft_ui::value_drag::RowOp"
+status = "moved"
+note = "`RowOp::new(thumb, ThumbOp)`; `ThumbOp` is `Move(NavMove, MoveMods)` or `Set(f64)` and replaces `ScalarOp`."
+
+# One entry per renamed, removed or reshaped setter or constructor.
+# [[setter]]
+# type = ""
+# old = ""
+# new = ""
 
 # One entry per renamed, removed or reshaped setter or constructor.
 
@@ -381,4 +440,68 @@ type = "PointPicker"
 old = "enabled(bool)"
 new = "enabled(bool)"
 note = "A common setter."
+
+[[setter]]
+type = "ThumbRow"
+old = "new(id_salt, [f64; N], &RangeInclusive<f64>, Option<f64>, [Thumb; N])"
+new = "new(Bind<[f64; N]>, RangeInclusive<f64>).step(f64).thumbs([Thumb; N])"
+note = "The id comes from `id_salt` of `Props`; the value is a binding."
+
+[[setter]]
+type = "ThumbRow"
+old = "wrap(f64)"
+new = "wrap(bool)"
+note = "The period is the length of the range."
+
+[[setter]]
+type = "ThumbRow"
+old = "wrap_from(f64, usize, f64)"
+new = "anchor(Anchor::new(usize, f64))"
+note = "Implies `wrap(true)`."
+
+[[setter]]
+type = "ThumbRow"
+old = "width(f32)"
+new = ""
+note = "The row takes the width its parent gives it."
+
+[[setter]]
+type = "ThumbRow"
+old = "policy(EditPolicy)"
+new = ""
+note = "The edit policy belongs to the binding."
+
+[[setter]]
+type = "ThumbRow"
+old = "enabled(bool)"
+new = "enabled(bool)"
+note = "From `Props`."
+
+[[setter]]
+type = "ThumbRow"
+old = "part(bool)"
+new = ""
+note = "A composite binds the same array; there is no edit order to take turns in."
+
+[[setter]]
+type = "ThumbRow"
+old = "row_rules()"
+new = "rules()"
+
+[[setter]]
+type = "ThumbRow"
+old = "ThumbRow::rules(&RangeInclusive<f64>, Option<f64>, &[Thumb; N])"
+new = "ThumbRow::rules(&self)"
+note = "Built from a row value."
+
+[[setter]]
+type = "Thumb"
+old = "Thumb::new(label, Color32)"
+new = "Thumb::new(label).face(DataColor)"
+
+[[setter]]
+type = "Thumb"
+old = "default_value(f64)"
+new = ""
+note = "A reset restores the binding's reset value (`Bind::reset`) for the whole row; a thumb has no default of its own."
 
