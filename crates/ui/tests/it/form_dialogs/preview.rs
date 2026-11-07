@@ -8,7 +8,7 @@ use craft_ui::testing::access::Declared;
 use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::load::SizedTexture;
-use egui::{Color32, ColorImage, Key, Modifiers, TextureHandle, TextureOptions, Vec2};
+use egui::{ColorImage, Key, Modifiers, TextureHandle, TextureOptions, Vec2};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
@@ -27,7 +27,7 @@ fn rig() -> Rig {
     let mut fixture = Fixture::new(move |ui| {
         let mut handle = handle.borrow_mut();
         let texture =
-            handle.get_or_insert_with(|| ui.ctx().load_texture("preview-pan", ColorImage::filled(WIDE, Color32::WHITE), TextureOptions::LINEAR));
+            handle.get_or_insert_with(|| ui.ctx().load_texture("preview-pan", ColorImage::filled(WIDE, Default::default()), TextureOptions::LINEAR));
         let sized = SizedTexture::new(texture.id(), Vec2::new(WIDE[0] as f32, WIDE[1] as f32));
         if let Some(next) = PreviewPane::new("Preview", sized, held.get()).show(ui).view {
             held.set(next);
