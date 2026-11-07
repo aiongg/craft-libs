@@ -2,10 +2,73 @@
 # Filled in by the family track; the codemods and the app scan read it.
 
 family = "Gallery chrome and preview mocks"
-new_module = ""
+new_module = "craft_ui_gallery"
 
 # One entry per public type: `old` is the path an app calls today, `new` the path after migration.
 # `status` is "pending", "same" (path unchanged), "moved", "replaced" (use `note`) or "removed".
+
+[[type]]
+name = "Browser"
+old = "craft_ui_gallery_legacy::browser::Browser"
+new = ""
+status = "removed"
+note = "Split into `TokenBrowser` (filters and the grouped token list) and `TokenDetail` (facts, contrast pairs, ramp). The \"Used by\" column and the hand-painted divider are not ported; the host places the two panels in its split."
+
+[[type]]
+name = "TokenBrowser"
+old = ""
+new = "craft_ui_gallery::theme::TokenBrowser"
+status = "replaced"
+note = "A pattern over `&Explained`: a `List` tree of groups with `RowThumb` chips, `.pick(&Pick)` selects a row, the output's `picked` is the row the user selected or activated."
+
+[[type]]
+name = "TokenDetail"
+old = ""
+new = "craft_ui_gallery::theme::TokenDetail"
+status = "replaced"
+note = "A pattern over `&Explained` and `.pick(&Pick)`: facts, contrast pairs and ramp as read-only `List`s in `Section`s."
+
+[[type]]
+name = "Problems"
+old = "craft_ui_gallery_legacy::problems::Problems"
+new = "craft_ui_gallery::theme::Problems"
+status = "moved"
+note = "A pattern over `&ContrastReport`, `&Explained` and the `ThemeSubject`; a `FindingsList` and `FindingsSummary`. Standard contrast lists warnings, High contrast errors. The report cache moved to `ThemeWorkspace`."
+
+[[type]]
+name = "AppLayer"
+old = "craft_ui_gallery_legacy::app_layer::AppLayer"
+new = ""
+status = "removed"
+note = "Replaced by `AppLayerEditor` over `&AppSizes`; the layer itself lives in `ThemeWorkspace`. Dropped files are not read here: the host passes a dropped file's bytes through `parse_sizes`."
+
+[[type]]
+name = "AppLayerEditor"
+old = ""
+new = "craft_ui_gallery::theme::AppLayerEditor"
+status = "replaced"
+note = "A pattern: the override editor of a picked size and the sizes.json text with Load, Export and Clear. Export writes the text to the field instead of the clipboard."
+
+[[type]]
+name = "Inspector"
+old = "craft_ui_gallery_legacy::inspector::Inspector"
+new = ""
+status = "removed"
+note = "Not ported: layer 8 cannot reach `AccessTree`, the library keeps no padding or hit-area records and offers no previous-frame tree to an app."
+
+[[type]]
+name = "Picker"
+old = "craft_ui_gallery_legacy::gallery::pick::Picker"
+new = ""
+status = "removed"
+note = "Not ported: it needs the \"which token painted this shape\" source that `usage` recorded, which the new library has not."
+
+[[type]]
+name = "ThemeWorkspace"
+old = ""
+new = "craft_ui_gallery::theme::ThemeWorkspace"
+status = "replaced"
+note = "The shared state of the panels: the app layer, the picked row and the cached explanation and contrast report (the caches `Browser` and `Problems` kept)."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
