@@ -83,6 +83,8 @@ const EDGE: f32 = 1e-3;
 const WIDE_RANGE: std::ops::RangeInclusive<f32> = 0.0001..=32.0;
 /// The scroll region around the panes below.
 const BODY: Vec2 = Vec2::new(600.0, 400.0);
+/// More frames than a wheel gesture takes to settle.
+const STILL_LIMIT: usize = 120;
 
 /// What one pane under test reports, kept between passes the way a dialog keeps it.
 #[derive(Clone)]
@@ -168,6 +170,20 @@ fn zoom_at(fixture: &mut Fixture, at: Pos2, dy: f32) {
     fixture.idle(2);
 }
 
+/// Frames until the pane reports nothing new: egui spreads a wheel zoom over several frames, and the rest of it is
+/// still a wheel zoom when it arrives.
+fn until_still(fixture: &mut Fixture, held: &Held) {
+    let mut seen = u32::MAX;
+    for _ in 0..STILL_LIMIT {
+        fixture.idle(1);
+        if held.reported.get() == seen {
+            return;
+        }
+        seen = held.reported.get();
+    }
+    panic!("the pane keeps reporting a new view");
+}
+
 fn double_click(fixture: &mut Fixture, at: Pos2) {
     fixture.frame(vec![pointer::moved(at)]);
     for _ in 0..2 {
@@ -223,6 +239,7 @@ fn a_fitting_pane_follows_its_well_until_the_user_zooms_and_a_double_click_retur
     zoom_at(&mut fixture, centre_of(&held) + Vec2::new(30.0, 10.0), 40.0);
     assert!(!held.fit(), "a wheel zoom leaves fit");
     assert!((held.shown.get().scale - expected(bigger)).abs() > EDGE, "the zoom changed");
+    until_still(&mut fixture, &held);
 
     double_click(&mut fixture, centre_of(&held));
     assert!(
