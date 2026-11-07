@@ -191,7 +191,6 @@ impl<T: CanvasTool + 'static> ToolFixture<T> {
                     eprintln!("{}: freehand; design/exceptions was not readable, so its exception entry was not checked", self.label)
                 }
             },
-            _ => panic!("{}: the command form is neither a command nor freehand", self.label),
         }
     }
 }

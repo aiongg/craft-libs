@@ -413,6 +413,7 @@ impl Run<'_> {
                 self.cancel(cancel_reason(reason));
                 self.state.spent = false;
             }
+            _ => {}
         }
     }
 
@@ -460,7 +461,7 @@ impl Run<'_> {
         let mut taken = self.offer(&mut intents, |intents| intents.take_nudge().map(|(direction, mods)| ToolKey::Nudge { direction, mods }));
         for forward in [true, false] {
             taken |= self.offer(&mut intents, |intents| {
-                intents.take_exact(&Intent::delete(forward, Granularity::Grapheme)).then_some(ToolKey::Delete { forward })
+                intents.take_exact(&Intent::delete(forward, Granularity::Unit)).then_some(ToolKey::Delete { forward })
             });
         }
         taken |= self.offer(&mut intents, |intents| intents.take(Intent::Submit).then_some(ToolKey::Submit));
