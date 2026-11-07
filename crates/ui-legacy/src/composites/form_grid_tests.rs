@@ -185,6 +185,7 @@ fn the_image_size_story_is_labelled_and_mirrors() {
         match dir {
             Direction::Ltr => assert!(field.left() > width.right(), "{width:?} {field:?}"),
             Direction::Rtl => assert!(field.right() < width.left(), "{width:?} {field:?}"),
+            _ => unreachable!("the tests cover two directions"),
         }
     }
 }

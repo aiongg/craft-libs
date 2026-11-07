@@ -835,6 +835,7 @@ fn start_captions_widen_the_card_and_name_their_marks() {
         match direction {
             Direction::Ltr => assert!(cell.left() - panel.left() < 2.0 * style.inset, "{cell:?}"),
             Direction::Rtl => assert!(panel.right() - bar - cell.right() < 2.0 * style.inset, "{cell:?}"),
+            _ => unreachable!("the tests cover two directions"),
         }
         assert_eq!(tile(&harness, 2).accesskit_node().label().as_deref(), Some("Tile 2, Has animations"));
     }

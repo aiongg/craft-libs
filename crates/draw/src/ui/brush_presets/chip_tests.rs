@@ -77,6 +77,7 @@ fn chip_mirrors_in_right_to_left() {
         match dir {
             Direction::Ltr => tip.center().x - chip.left(),
             Direction::Rtl => chip.right() - tip.center().x,
+            _ => unreachable!("the tests cover two directions"),
         }
     };
     let (ltr, rtl) = (lead(Direction::Ltr), lead(Direction::Rtl));
