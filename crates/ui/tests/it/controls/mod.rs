@@ -2,4 +2,3 @@
 
 mod disclosure;
 mod select;
-mod slider;

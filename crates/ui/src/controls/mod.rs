@@ -1,8 +1,7 @@
-//! Value controls: `Slider`, `Disclosure` and `Select`.
+//! Value controls: `Disclosure` and `Select`.
 
 pub mod disclosure;
 pub mod select;
-pub mod slider;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
