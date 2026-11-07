@@ -40,3 +40,19 @@ fn a_press_on_a_crop_corner_stays_with_the_crop_and_one_elsewhere_reaches_the_to
     assert!(canvas.rect.contains(at), "the tool gets the point inside the canvas");
     assert_eq!(*shared.borrow(), crop(), "clicks move no corner");
 }
+
+#[trial]
+fn an_arrow_on_a_focused_crop_corner_nudges_it_by_one() {
+    let shared = Rc::new(RefCell::new(crop()));
+    let shown = Rc::clone(&shared);
+    let mut fixture = Fixture::new(move |ui| {
+        let _ = Canvas::new("Document", ToolPath::Command("the Crop To... command"))
+            .show(ui, |ui, body| CropOverlay::new("Crop", Bind::bound(&mut *shown.borrow_mut())).show_at(ui, body.rect));
+    });
+    fixture.settle();
+    let corner = fixture.by_label("Crop corner, top left").expect("the crop shows its corners");
+    fixture.click(&corner);
+    let before = *shared.borrow();
+    fixture.key(egui::Key::ArrowRight, egui::Modifiers::NONE);
+    assert_eq!(shared.borrow().min.x, before.min.x + 1.0, "the focused corner moved one unit: {:?}", *shared.borrow());
+}

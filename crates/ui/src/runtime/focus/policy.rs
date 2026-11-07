@@ -227,6 +227,9 @@ pub struct KeyUse {
     /// The component acts on the arrow moves routed to it (`Intent::Move`: it takes them with `take_move`), so a
     /// shortcut never shares them. A control that does not (a button) leaves them to the commands around the focus.
     pub moves: bool,
+    /// The arrows are nudges for the component's content (a canvas tool or control), not moves: they arrive as
+    /// `Intents::take_nudge`.
+    pub nudge: bool,
 }
 
 impl KeyUse {
@@ -243,9 +246,10 @@ impl KeyUse {
         owner: OwnerClass::Widget,
         value: false,
         moves: false,
+        nudge: true,
     };
     /// A shortcut recorder.
-    pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, ..KeyUse::CANVAS };
+    pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, nudge: false, ..KeyUse::CANVAS };
 
     /// The default key use of a component that takes `input`. The only place egui key filters start from.
     pub const fn of(input: Input) -> KeyUse {
@@ -260,7 +264,7 @@ impl KeyUse {
             OwnerClass::Text => EditSet::ALL,
             _ => EditSet::NONE,
         };
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false }
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, nudge: false }
     }
 
     /// The same use claiming `claims`.
