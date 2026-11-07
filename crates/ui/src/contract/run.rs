@@ -359,7 +359,13 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         (None, _, Some((widget, keys))) => (Some(widget), Some(keys)),
         (None, keys, None) => (None, keys),
     };
-    let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
+    let own = match (inert, resolved.enabled) {
+        (true, _) => Sense::HOVER,
+        (false, true) => comp.sense(),
+        // A disabled component that shows a reason on focus stays a Tab stop and senses nothing else.
+        (false, false) if steps::takes_focus(resolved) => Sense::HOVER | comp.sense().intersection(Sense::FOCUS),
+        (false, false) => Sense::HOVER,
+    };
     // An item never senses the whole row: the collection's root takes the click and the focus (17.2).
     let own = if env.item == Some(id) { own.difference(Sense::CLICK | Sense::FOCUS) } else { own };
     let arena = p.hooks.arena(comp);
@@ -369,7 +375,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
         ctx: &ctx,
         id,
         holder: holder_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
-        focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS) && env.item != Some(id),
+        focusable: !inert && steps::takes_focus(resolved) && own.contains(Sense::FOCUS) && env.item != Some(id),
         text: holder_widget.is_some(),
         keys: text_keys.unwrap_or(C::KEYS),
         role: p.hooks.key_role(comp).resettable(resettable),

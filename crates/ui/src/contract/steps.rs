@@ -606,6 +606,12 @@ pub(crate) fn takes_activation(resolved: &Resolved<'_>) -> bool {
     resolved.enabled && !resolved.read_only
 }
 
+/// Whether the component is a focus stop: an enabled one, or a disabled one whose tooltip has a `disabled_text`, which
+/// shows its reason on keyboard focus (testing 22.4). Step 9 still drops its activations and edits.
+pub(crate) fn takes_focus(resolved: &Resolved<'_>) -> bool {
+    resolved.enabled || resolved.tooltip.is_some_and(|tooltip| tooltip.spec().disabled_text.is_some())
+}
+
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
     if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
@@ -1205,7 +1211,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     if !input.node {
         return;
     }
-    let focusable = resolved.enabled && input.sense.contains(Sense::FOCUS);
+    let focusable = takes_focus(resolved) && input.sense.contains(Sense::FOCUS);
     let own = Own {
         id,
         component: std::any::type_name::<C>(),
@@ -1258,7 +1264,7 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
         node: &node,
         rect: result.map_or(core.rect, |result| result.rect),
         enabled: core.resolved.enabled,
-        focusable: core.resolved.enabled && declared.is_some_and(|(_, extras)| extras.focusable),
+        focusable: takes_focus(core.resolved) && declared.is_some_and(|(_, extras)| extras.focusable),
         clickable: core.resolved.enabled && declared.is_some_and(|(decl, _)| decl.sense.contains(Sense::CLICK)),
         active: core.active == Some(node.part),
         face: face.map(|face| FaceFacts { name: &face.name, flags: face.flags, numeric: face.numeric.as_ref(), expanded: face.expanded }),

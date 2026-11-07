@@ -196,6 +196,38 @@ fn the_window_move_mode_moves_the_layer_by_arrows_and_escape_restores_it() {
     assert!((rect.get().min - start).abs().max_elem() < SAME, "the mode ended with Escape: arrows no longer move the layer");
 }
 
+#[trial]
+fn a_click_ends_keyboard_move_mode_and_keeps_the_placement() {
+    let (rect, probes) = (Cell::new(Rect::NOTHING), RefCell::new(Seen::default()));
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        let close = Cell::new(false);
+        let out = Holder::new(layer_props(), &close).id_salt("window").show(ui, |ui, _| {
+            Probe::new(&probes).size(LINE).show(ui);
+        });
+        rect.set(out.output.rect);
+    };
+    frames.idle(4, &mut show);
+    let start = rect.get().min;
+    request(&frames.ctx, FocusTarget::Id(probes.borrow().id.expect("the probe ran")));
+    frames.idle(2, &mut show);
+    assert!(commands::fire(&frames.ctx, WindowCommand::Move, FireSource::Palette), "the command has a live instance");
+    frames.idle(2, &mut show);
+    frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    let moved = rect.get().min;
+    assert!(moved.x > start.x, "an arrow moved the layer: {moved:?} from {start:?}");
+    let at = rect.get().center();
+    frames.frame(vec![pointer::moved(at)], &mut show);
+    frames.frame(vec![pointer::press(at)], &mut show);
+    frames.frame(vec![pointer::release(at)], &mut show);
+    frames.idle(2, &mut show);
+    assert!((rect.get().min - moved).abs().max_elem() < SAME, "the click kept the placement: {:?} {moved:?}", rect.get().min);
+    frames.frame(vec![key_press(Key::ArrowRight, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    assert!((rect.get().min - moved).abs().max_elem() < SAME, "the click ended the mode: arrows no longer move the layer");
+}
+
 /// A floating container with commands of its own still takes the `window` commands.
 #[trial]
 fn a_layer_with_its_own_command_scope_still_takes_the_window_commands() {

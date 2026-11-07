@@ -180,3 +180,28 @@ fn a_hover_popup_closes_after_a_grace_period_with_the_pointer_on_neither() {
     frames.idle(3, &mut show);
     assert!(!opened.shown.get(), "it closes once the grace period passed");
 }
+
+/// Keyboard focus on a hover opener counts as resting on it: the popup opens after the dwell, and closes after the
+/// grace once the focus has moved on.
+#[trial]
+fn a_hover_popup_opens_when_its_opener_gets_keyboard_focus() {
+    use craft_ui::contract::tooltip::{DELAY, GRACE};
+    let mut frames = Frames::new();
+    let (hover, other) = (Opened::default(), Opened::default());
+    let (content, unused) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
+    let mut show = |ui: &mut Ui| {
+        hover.shown.set(false);
+        Opener::new(&hover, &content, Trigger::Hover, Overlay::popover).id_salt("opener").show_at(ui, OPENER);
+        Opener::new(&other, &unused, Trigger::Manual, Overlay::popover).id_salt("next").show_at(ui, BELOW);
+    };
+    frames.idle(3, &mut show);
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    frames.advance(DELAY);
+    frames.idle(3, &mut show);
+    assert!(hover.shown.get(), "keyboard focus on the opener opens its hover popup after the dwell");
+    frames.frame(vec![key_press(Key::Tab, Modifiers::NONE)], &mut show);
+    frames.idle(2, &mut show);
+    frames.advance(GRACE);
+    frames.idle(3, &mut show);
+    assert!(!hover.shown.get(), "the popup closes after the grace once focus left the opener");
+}

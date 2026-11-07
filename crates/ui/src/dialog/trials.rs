@@ -174,7 +174,7 @@ fn a_blocking_overlays_cancel_button_closes_it() {
             sink.set(shown.output.closed);
         }
     });
-    fixture.settle();
+    fixture.idle(30);
     let button = fixture.by_label("Stop");
     assert!(button.is_some(), "the cancel button is shown");
     if let Some(button) = button {

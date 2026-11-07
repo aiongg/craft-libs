@@ -281,3 +281,51 @@ fn escape_closes_a_dialog_mounted_in_an_os_window() {
     }
     assert_eq!(ran.get(), after_close, "Escape closed the dialog in its window: the body no longer runs");
 }
+
+/// A modal fallback mounted in an OS window is a dialog window, where the same mount with a floating overlay is a tool
+/// window.
+#[trial]
+fn a_modal_viewport_mount_opens_a_dialog_window() {
+    let windows = Windows::new();
+    let seen = Cell::new(None);
+    for _ in 0..3 {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::dialog())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, cx| {
+                if ui.ctx().viewport_id() != ViewportId::ROOT {
+                    seen.set(Some(cx.env.shell().window.kind));
+                }
+                Block::new(BODY).show(ui);
+            });
+        });
+    }
+    assert_eq!(seen.get(), Some(craft_host::target::WindowKind::Dialog), "the modal mount's window is a dialog window");
+}
+
+/// A close request the container did not take in its frame (the window's first pass only measures) is dropped: showing
+/// the container in later frames does not close it.
+#[trial]
+fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
+    let windows = Windows::new();
+    let ran = Cell::new(0);
+    let frame = || {
+        windows.frame(vec![], vec![], |ui| {
+            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+                ran.set(ran.get() + 1);
+                Block::new(BODY).show(ui);
+            });
+        });
+    };
+    windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
+    frame();
+    windows.child_info(ViewportInfo::default());
+    for _ in 0..3 {
+        frame();
+    }
+    let before = ran.get();
+    for _ in 0..3 {
+        frame();
+    }
+    assert!(ran.get() > before, "the container stayed open: the stale request did not close it");
+}
