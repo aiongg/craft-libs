@@ -126,9 +126,10 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
         self
     }
 
-    /// A row drag also carries `map` of it, for the drop targets of type `P`. The drag stays one session with one ghost.
+    /// A row drag carries `map` of it, for the drop targets of type `P`; a row the map gives `None` for does not drag
+    /// unless a reorder rule is set. The drag stays one session with one ghost.
     #[must_use]
-    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
         self.items = self.items.drag_payload(map);
         self
     }

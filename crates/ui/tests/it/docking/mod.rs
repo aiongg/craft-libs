@@ -8,6 +8,9 @@ use egui::Pos2;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+mod spec;
+mod targets;
+
 const NEW_GROUP: GroupId = GroupId::new(2);
 
 fn two_columns() -> DockTree {

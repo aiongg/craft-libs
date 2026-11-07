@@ -222,7 +222,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let drag = ListDrag::new(id, keys, key.clone());
         match props.drag_payload.as_ref().and_then(|map| map.of(&drag)) {
             Some(also) => cx.start_drag_also(drag, also, preview),
-            None => cx.start_drag(drag, preview),
+            None if props.reorder.is_some() => cx.start_drag(drag, preview),
+            None => return,
         }
         self.drags.grabbed = Some(key);
     }
@@ -326,7 +327,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 } else if let Some(at) = hit {
                     if free {
                         self.free_move(cx, origin, layer(pos));
-                    } else if props.reorder.is_some() && self.drags.grabbed.is_none() {
+                    } else if (props.reorder.is_some() || props.drag_payload.is_some()) && self.drags.grabbed.is_none() {
                         self.begin_row_drag(cx, props, at);
                     }
                 }

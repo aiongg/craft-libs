@@ -319,23 +319,25 @@ pub struct CollectionProps {
     pub digit_keys: bool,
     /// A drag from empty space draws a marquee that selects the items it sweeps.
     pub marquee: bool,
-    /// Maps a row drag to a second payload that other drop targets take (8.4).
+    /// Maps a row drag to the payload that other drop targets take (8.4). A map starts row drags by itself, with or
+    /// without a reorder rule.
     pub drag_payload: Option<DragPayload>,
 }
 
 /// A mapping from a row drag to the payload of type `P` that other drop targets take; the drag session carries it
-/// beside the `ListDrag`, so one drag and one ghost serve the collection's own reorder and the targets of `P`.
+/// beside the `ListDrag`, so one drag and one ghost serve the collection's own reorder and the targets of `P`. A row
+/// the map gives `None` for carries no payload: without a reorder rule it does not drag at all.
 #[derive(Clone)]
 pub struct DragPayload {
     map: Arc<dyn Fn(&dyn Any) -> Option<Arc<dyn Any + Send + Sync>> + Send + Sync>,
 }
 
 impl DragPayload {
-    /// The payload `map` makes of a drag of the collection whose keys are `K`.
-    pub fn new<K: 'static, P: Send + Sync + 'static>(map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+    /// The payload `map` makes of a drag of the collection whose keys are `K`; `None` for a row that carries none.
+    pub fn new<K: 'static, P: Send + Sync + 'static>(map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
         DragPayload {
             map: Arc::new(move |drag| {
-                let payload: Arc<dyn Any + Send + Sync> = Arc::new(map(drag.downcast_ref::<ListDrag<K>>()?));
+                let payload: Arc<dyn Any + Send + Sync> = Arc::new(map(drag.downcast_ref::<ListDrag<K>>()?)?);
                 Some(payload)
             }),
         }
@@ -397,9 +399,10 @@ impl CollectionProps {
         self
     }
 
-    /// A row drag also carries `map` of it, for the drop targets of type `P`. The drag stays one session with one ghost.
+    /// A row drag carries `map` of it, for the drop targets of type `P`; a row the map gives `None` for does not drag
+    /// unless a reorder rule is set. The drag stays one session with one ghost.
     #[must_use]
-    pub fn drag_payload<K: 'static, P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> P + Send + Sync + 'static) -> Self {
+    pub fn drag_payload<K: 'static, P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
         self.drag_payload = Some(DragPayload::new(map));
         self
     }

@@ -1,0 +1,298 @@
+//! The drop-zone registry of a dock and the payload of a whole-group drag.
+//!
+//! Group and column rendering write `DockSpot`s with their hit rects while a pass runs; drop resolution reads the
+//! previous pass's registry, because a drop is decided against what was on screen when the pointer moved. Every
+//! zone is a rect: previews are rects and lines, never polygons.
+
+use super::PanelKey;
+use crate::runtime::frame::{self, PassStep, PerViewport, Stamped};
+use craft_behavior::{DockSide, GroupId};
+use craft_theme::Tokens;
+use egui::{Context, Pos2, Rect};
+
+/// Share of a group's body, from each edge, that means "beside" without `DockConfig::side_edge_zones`: of its width
+/// from the start and end edges, of its height from the top and bottom edges.
+pub const SIDE_ZONE_FRACTION: f32 = 1.0 / 3.0;
+
+/// The most of a body's smaller side that a side zone with `DockSizes::zone_depth` reaches, so a body always keeps a
+/// middle.
+pub const SIDE_ZONE_DEPTH_SHARE: f32 = 0.25;
+
+/// The most of the layout's width and height the outer edge band takes.
+pub const EDGE_BAND_SHARE: f32 = 0.25;
+
+/// The sizes of a dock's drop bands, zones and preview line, read from the theme's tokens.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct DockSizes {
+    /// Depth of a group's side zones with `DockConfig::side_edge_zones` (the rail width).
+    pub zone_depth: f32,
+    /// Width of the band along the layout's outer edge that splits at the root (the standard control height).
+    pub edge_band: f32,
+    /// Width of the outer edge band with `DockConfig::side_edge_zones` (the least hit size).
+    pub side_edge_band: f32,
+    /// Height of the band centred on the seam between two stacked groups in a dock column (the standard control
+    /// height).
+    pub seam_band: f32,
+    /// Width of the band centred on each edge of a dock column, where a drop makes a new column (the standard
+    /// control height).
+    pub column_edge_band: f32,
+    /// Width of the band along the docked area's start and end edges, and inside an empty dock, that makes a new
+    /// dock (the standard control height).
+    pub new_dock_band: f32,
+    /// Thickness of the line that previews a drop on an edge band, a seam or a tab insertion (the heavy stroke).
+    pub line: f32,
+}
+
+impl DockSizes {
+    /// The sizes the theme's `tokens` give.
+    pub fn from_tokens(tokens: &Tokens) -> Self {
+        let size = &tokens.size;
+        DockSizes {
+            zone_depth: size.rail.width,
+            edge_band: size.control.md,
+            side_edge_band: size.hit.target,
+            seam_band: size.control.md,
+            column_edge_band: size.control.md,
+            new_dock_band: size.control.md,
+            line: tokens.stroke.thick,
+        }
+    }
+}
+
+/// Where a drop would land.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum DockSpot {
+    /// A tab insertion in `group` before the tab at `index` (the tab count for the end), previewed by `line`.
+    #[non_exhaustive]
+    Tab {
+        /// The group whose strip takes the tab.
+        group: GroupId,
+        /// The position the tab takes among the group's tabs.
+        index: usize,
+        /// The insertion marker.
+        line: Rect,
+    },
+    /// A side of `group`: beside it, or into its tabs for `DockSide::Center`.
+    #[non_exhaustive]
+    Group {
+        /// The group.
+        group: GroupId,
+        /// The side.
+        side: DockSide,
+    },
+    /// The layout's outer edge on `side`: a new root split.
+    Edge(DockSide),
+    /// The seam between two stacked groups of a dock column: a new group between them.
+    #[non_exhaustive]
+    Seam {
+        /// The group above the seam.
+        before: GroupId,
+        /// The group below it.
+        after: GroupId,
+    },
+    /// An edge of the dock column that holds `group`: a new column beside it.
+    #[non_exhaustive]
+    Column {
+        /// A group of the column.
+        group: GroupId,
+        /// The column's side.
+        side: DockSide,
+    },
+    /// A new dock along the docked area's start or end edge.
+    NewDock(DockSide),
+    /// A rect that takes no drop and hides the spots registered below it, such as a canvas that takes none.
+    Blocked,
+}
+
+impl DockSpot {
+    /// A tab insertion in `group` before the tab at `index`, previewed by `line`.
+    pub const fn tab(group: GroupId, index: usize, line: Rect) -> Self {
+        DockSpot::Tab { group, index, line }
+    }
+
+    /// The `side` of `group`.
+    pub const fn group(group: GroupId, side: DockSide) -> Self {
+        DockSpot::Group { group, side }
+    }
+
+    /// The seam between the stacked groups `before` and `after`.
+    pub const fn seam(before: GroupId, after: GroupId) -> Self {
+        DockSpot::Seam { before, after }
+    }
+
+    /// The `side` edge of the dock column that holds `group`.
+    pub const fn column(group: GroupId, side: DockSide) -> Self {
+        DockSpot::Column { group, side }
+    }
+
+    /// Which spot wins where rects of one layer overlap: the outer bands, then seams and columns, then a tab
+    /// strip, then the sides of a group, then its middle. A border band reaches only `DockSizes::line` into a
+    /// tab strip, so the strip keeps the rest of its height.
+    const fn priority(&self) -> u8 {
+        match self {
+            DockSpot::Blocked => 0,
+            DockSpot::Group { side: DockSide::Center, .. } => 1,
+            DockSpot::Group { .. } => 2,
+            DockSpot::Tab { .. } => 3,
+            DockSpot::Seam { .. } | DockSpot::Column { .. } => 4,
+            DockSpot::Edge(_) | DockSpot::NewDock(_) => 5,
+        }
+    }
+}
+
+/// How a group's body divides into side zones.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ZoneRule {
+    /// Zones `DockSizes::zone_depth` deep, at most `SIDE_ZONE_DEPTH_SHARE` of the body's smaller side.
+    Depth,
+    /// Zones `SIDE_ZONE_FRACTION` of the body's width (start, end) and height (top, bottom).
+    Fraction,
+}
+
+impl ZoneRule {
+    /// The zones of `body`, the part of a group below its tab strip: the start and end zones along its full height,
+    /// the top and bottom zones between them, and the middle. The rects do not overlap. A body too small for the
+    /// zones gives them an empty rect.
+    pub fn zones(self, body: Rect, sizes: &DockSizes) -> [(DockSide, Rect); 5] {
+        let (across, down) = match self {
+            ZoneRule::Depth => {
+                let depth = sizes.zone_depth.min(body.width().min(body.height()) * SIDE_ZONE_DEPTH_SHARE).max(0.0);
+                (depth, depth)
+            }
+            ZoneRule::Fraction => (body.width() * SIDE_ZONE_FRACTION, body.height() * SIDE_ZONE_FRACTION),
+        };
+        let start = Rect::from_min_max(body.min, Pos2::new(body.left() + across, body.bottom()));
+        let end = Rect::from_min_max(Pos2::new(body.right() - across, body.top()), body.max);
+        let (left, right) = (start.right(), end.left());
+        let top = Rect::from_min_max(Pos2::new(left, body.top()), Pos2::new(right, body.top() + down));
+        let bottom = Rect::from_min_max(Pos2::new(left, body.bottom() - down), Pos2::new(right, body.bottom()));
+        let middle = Rect::from_min_max(Pos2::new(left, top.bottom()), Pos2::new(right, bottom.top()));
+        [(DockSide::Start, start), (DockSide::End, end), (DockSide::Top, top), (DockSide::Bottom, bottom), (DockSide::Center, middle)]
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Target {
+    spot: DockSpot,
+    rect: Rect,
+    layer: u32,
+}
+
+/// The spots of one pass with their hit rects. Spots are added back to front; a layer started with
+/// [`Self::raise`] (a floating window) beats every earlier one wherever it covers the pointer.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct DockTargets {
+    targets: Vec<Target>,
+    layer: u32,
+}
+
+impl DockTargets {
+    /// An empty registry.
+    pub fn new() -> Self {
+        DockTargets::default()
+    }
+
+    /// Adds `spot`, taking drops over `rect`, to the current layer. An empty or non-finite rect takes none.
+    pub fn add(&mut self, spot: DockSpot, rect: Rect) {
+        if rect.is_finite() && rect.is_positive() {
+            self.targets.push(Target { spot, rect, layer: self.layer });
+        }
+    }
+
+    /// Starts a layer above every spot added so far.
+    pub fn raise(&mut self) {
+        self.layer += 1;
+    }
+
+    /// The spot a drop at `at` lands on: among the spots whose rect holds `at`, those of the highest layer, then
+    /// the highest priority (see [`DockSpot`]), then the one added last. `None` where no spot holds `at` and where
+    /// the winner is [`DockSpot::Blocked`].
+    pub fn at(&self, at: Pos2) -> Option<DockSpot> {
+        let winner = self
+            .targets
+            .iter()
+            .enumerate()
+            .filter(|(_, target)| target.rect.contains(at))
+            .max_by_key(|(order, target)| (target.layer, target.spot.priority(), *order))?;
+        match winner.1.spot {
+            DockSpot::Blocked => None,
+            spot => Some(spot),
+        }
+    }
+
+    /// Empties the registry.
+    pub fn clear(&mut self) {
+        self.targets.clear();
+        self.layer = 0;
+    }
+
+    /// Whether no spot is registered.
+    pub fn is_empty(&self) -> bool {
+        self.targets.is_empty()
+    }
+}
+
+/// The registry of the running pass and the one of the pass before.
+#[derive(Default)]
+struct Pass {
+    now: DockTargets,
+    before: DockTargets,
+}
+
+impl DockTargets {
+    /// Runs `f` on the registries of the running pass; `None` outside a pass.
+    fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> Option<R> {
+        let facts = frame::running(ctx)?;
+        Some(PerViewport::<Stamped<Pass>>::with_pass(
+            ctx,
+            facts.viewport,
+            facts.pass_nr,
+            |pass, step| {
+                pass.before = match step {
+                    PassStep::Next => std::mem::take(&mut pass.now),
+                    PassStep::Skipped => DockTargets::new(),
+                };
+                pass.now.clear();
+            },
+            f,
+        ))
+    }
+
+    /// Registers `spot` over `rect` in the running pass of this viewport. Group and column rendering call it; it
+    /// does nothing outside a pass.
+    pub fn register(ctx: &Context, spot: DockSpot, rect: Rect) {
+        Self::with_pass(ctx, |pass| pass.now.add(spot, rect));
+    }
+
+    /// Starts a layer above the spots registered so far in the running pass: a floating window calls it before it
+    /// registers its own.
+    pub fn raise_layer(ctx: &Context) {
+        Self::with_pass(ctx, |pass| pass.now.raise());
+    }
+
+    /// The spot a drop at `at` lands on, by the spots of the previous pass. Drop resolution calls it; `None`
+    /// outside a pass.
+    pub fn resolve(ctx: &Context, at: Pos2) -> Option<DockSpot> {
+        Self::with_pass(ctx, |pass| pass.before.at(at)).flatten()
+    }
+}
+
+/// What a dragged group (the bar or top border of a group) carries, beside `PanelDrag` for one tab.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct GroupDrag {
+    /// The dragged group.
+    pub group: GroupId,
+    /// The panel the group shows, for the drag's preview.
+    pub active: PanelKey,
+}
+
+impl GroupDrag {
+    /// A drag of `group` showing `active`. Only a group's drag bar starts one.
+    pub const fn new(group: GroupId, active: PanelKey) -> Self {
+        GroupDrag { group, active }
+    }
+}

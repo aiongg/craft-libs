@@ -4,13 +4,23 @@
 //! the rects `group_rects` gives, and its handles resize the splits. A panel dragged from a group's tab carries a
 //! `PanelDrag`; `SplitArea` is the drop target that says which group and side it lands on.
 
+mod config;
+mod event;
+mod panels;
+mod spec;
 mod splitter;
 #[cfg(feature = "testing")]
 mod stories;
 mod tab;
+pub mod targets;
 mod words;
 
+pub use config::{DockConfig, DockSides};
+pub use event::{DockEvent, FloatSpace, HidePanels};
+pub use panels::DockPanels;
+pub use spec::{DockHeights, PanelLimits, PanelSpec};
 pub use splitter::{Splitter, SplitterStyle};
+pub use targets::{DockSizes, DockSpot, DockTargets, GroupDrag, ZoneRule};
 pub use words::DockWords;
 
 use crate::contract::{

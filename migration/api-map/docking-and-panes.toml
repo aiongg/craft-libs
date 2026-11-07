@@ -52,6 +52,82 @@ new = ""
 status = "replaced"
 note = "Internal; the eight zones are `WindowEdges`."
 
+[[type]]
+name = "PanelLimits"
+old = "craft_ui::docking::PanelLimits"
+new = "craft_ui::docking::PanelLimits"
+status = "same"
+note = "Built with `PanelLimits::new(min, max)`, `at_least` or `at_most`; the fields stay public; `valid` is public and the 1,000,000 bound is `PanelLimits::BOUND`."
+
+[[type]]
+name = "DockHeights"
+old = "craft_ui::docking::DockHeights"
+new = "craft_ui::docking::DockHeights"
+status = "same"
+note = "`valid` is public; the builders are `const`."
+
+[[type]]
+name = "DockConfig"
+old = "craft_ui::docking::DockConfig"
+new = "craft_ui::docking::DockConfig"
+status = "same"
+note = "Behaviour fields only, with a builder per field. The label fields are `DockWords`; the band, zone and line sizes are the constants of `craft_ui::docking::targets`; `right_to_left` is the env's direction; `panel_menu` and `min_tab_width` are gone (panel rows come from `DockPanels::panel_rows`, tabs fit by the strip's kind). `Sides` is `DockSides`."
+
+[[type]]
+name = "Sides"
+old = "craft_ui::docking::Sides"
+new = ""
+status = "replaced"
+note = "`DockSides { start, end, top, bottom }`: the horizontal pair follows the reading direction."
+
+[[type]]
+name = "DockEvent"
+old = "craft_ui::docking::DockEvent"
+new = "craft_ui::docking::DockEvent"
+status = "same"
+note = "`PanelCommand { panel, command }` carries a `menu::GroupItem` (the dock's own rows); the host's rows are commands and run by themselves. Adds `ColumnPlaced { group, rect }` and `FloatPlaced { panel, rect }`."
+
+[[type]]
+name = "FloatSpace"
+old = "craft_ui::docking::FloatSpace"
+new = "craft_ui::docking::FloatSpace"
+status = "same"
+note = "The default size and inset are the named `FLOAT_WIDTH`, `FLOAT_HEIGHT` and `FLOAT_INSET`; the lookups `panel`, `group`, `column` and `place` are public."
+
+[[type]]
+name = "HidePanels"
+old = "craft_ui::docking::HidePanels"
+new = "craft_ui::docking::HidePanels"
+status = "same"
+
+[[type]]
+name = "WindowKind"
+old = "craft_ui::docking::WindowKind"
+new = ""
+status = "replaced"
+note = "`craft_host::target::WindowKind`: `Palette` is `Tool` and `Normal` is `Document`. `PanelSpec::window_kind` holds it."
+
+[[type]]
+name = "DockContent"
+old = "craft_ui::docking::DockContent"
+new = ""
+status = "replaced"
+note = "`DockPanels<P>`: `spec(&P) -> PanelSpec` carries the label, icon, limits, heights, float size, native and window-kind policy; `body`, `group_view` (was `custom_group`), `group_header` and `panel_rows` stay hooks. Permissions are the dock model's."
+
+[[type]]
+name = "ZoneRule"
+old = "craft_ui::docking::ZoneRule"
+new = "craft_ui::docking::ZoneRule"
+status = "same"
+note = "`Depth` or `Fraction`, with the sizes as named constants; `zones(body)` gives non-overlapping rects."
+
+[[type]]
+name = "DropTarget"
+old = "craft_ui::docking::DropTarget"
+new = ""
+status = "replaced"
+note = "`DockTargets` registers `DockSpot`s with hit rects; resolution against a pointer is `DockTargets::at` (dock-drop-a adds the model step)."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""

@@ -300,6 +300,14 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
         .label(label)
     }
 
+    /// A tab drag carries `map` of it, for the drop targets of type `P`; a tab the map gives `None` for does not drag
+    /// unless a reorder rule is set. The drag stays one session with one ghost.
+    #[must_use]
+    pub fn drag_payload<P: Send + Sync + 'static>(mut self, map: impl Fn(&ListDrag<K>) -> Option<P> + Send + Sync + 'static) -> Self {
+        self.items = self.items.drag_payload(map);
+        self
+    }
+
     fn report(&self) -> Report {
         self.report.lock().unwrap_or_else(PoisonError::into_inner).clone()
     }
