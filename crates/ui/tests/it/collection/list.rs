@@ -402,6 +402,7 @@ fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
     frames.frame(vec![pointer::moved(over(2))], &mut show);
     assert_eq!(seen.leads(), [2], "the pointer moves the lead to the row under it");
     frames.idle(2, &mut show);
+    assert_eq!(seen.selections().len(), 1, "the selection follows the lead as it does for the arrow keys");
     assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
 }
 

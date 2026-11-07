@@ -400,7 +400,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let seen = Placement { offset: ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ..at };
         self.press_step(comp, cx, &props, &layout, seen);
         if props.lead_follows_hover {
-            self.hover_lead(cx, &layout, seen);
+            self.hover_lead(comp, cx, &layout, seen);
         }
         self.drag_step(comp, cx, &layout, (rect, offset, rtl), &props);
         self.navigate(comp, cx, &layout, view, header_held);
@@ -690,8 +690,9 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         }
     }
 
-    /// The lead follows a moving pointer over the rows.
-    fn hover_lead(&mut self, cx: &Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {
+    /// The lead follows a moving pointer over the rows, and the selection follows the lead the way it does for the
+    /// arrow keys.
+    fn hover_lead(&mut self, comp: &C, cx: &Cx<'_, C>, layout: &C::ItemLayout, at: Placement) {
         let Placement { rect, offset, rtl } = at;
         let frame = crate::runtime::pointer::frame(&cx.core.ctx);
         let hovered = cx.core.response.hovered() || crate::primitives::sensing::read_outcome(&cx.core.ctx, ArenaId::new(cx.core.id)).hover.is_some();
@@ -710,6 +711,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             && self.lead.key.as_ref() != Some(&self.source.key(row))
         {
             self.move_lead(row);
+            self.pick(comp, row, false, false);
         }
     }
 

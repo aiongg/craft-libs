@@ -134,7 +134,7 @@ impl<'a> UndoList<'a> {
         UndoList {
             common: Common::new(),
             props: ContainerProps::new().sizing(Sizing::Fill),
-            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click),
+            items: CollectionProps::new().select(SelectMode::Single).activate(ActivateOn::Click).lead_follows_hover(true),
             selection: None,
         }
         .label(label)

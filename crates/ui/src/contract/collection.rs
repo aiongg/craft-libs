@@ -184,7 +184,8 @@ pub struct CollectionProps {
     pub allow_empty: bool,
     /// Where the lead starts.
     pub lead_on_open: LeadOnOpen,
-    /// The lead moves to the row under the pointer when the pointer moves: menus and popup lists.
+    /// The lead, and the selection with it as for the arrow keys, moves to the row under the pointer when the pointer
+    /// moves: menus, popup lists and the undo list.
     pub lead_follows_hover: bool,
 }
 
