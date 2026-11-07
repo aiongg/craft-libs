@@ -3,3 +3,5 @@
 mod params;
 
 mod dialog;
+
+mod preview;
