@@ -323,7 +323,7 @@ name = "ThumbnailOptions"
 old = "craft_ui::canvas::textures::thumb::ThumbnailOptions"
 new = "craft_ui::primitives::textures::ThumbnailOptions"
 status = "moved"
-note = "`ThumbnailOptions::new().max_side(..).store(..).lanes(..).jobs(..).renders_per_pass(..).render_time_per_pass(..)` replaces the struct literal; `cache` is `store: TextureStoreOptions`."
+note = "`ThumbnailOptions::new().max_side(..).store(..).lanes(..).jobs(..).renders_per_pass(..)` replaces the struct literal; `cache` is `store: TextureStoreOptions`."
 
 [[type]]
 name = "ThumbnailStyle"

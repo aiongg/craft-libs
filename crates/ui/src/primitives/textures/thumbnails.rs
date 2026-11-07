@@ -15,8 +15,6 @@ use egui::{Color32, ColorImage, Context, Rect, Vec2, pos2, vec2};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
-#[cfg(not(target_arch = "wasm32"))]
-use std::time::Instant;
 
 /// What a thumbnail is asked at: the side in pixels, the screen's density and the part of the frame wanted.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -106,22 +104,12 @@ pub struct ThumbnailOptions {
     pub jobs: Option<Arc<dyn Jobs>>,
     /// Renders on the UI thread per pass: 16.
     pub renders_per_pass: usize,
-    /// Time for renders on the UI thread per pass: 8 ms. Desktop only; on wasm32 only the count applies (no clock
-    /// there).
-    pub render_time_per_pass: Duration,
 }
 
 impl ThumbnailOptions {
-    /// Sides up to 512, thumbnail budgets, the machine's lanes, the host's jobs, 16 renders or 8 ms per pass.
+    /// Sides up to 512, thumbnail budgets, the machine's lanes, the host's jobs, 16 renders per pass.
     pub fn new() -> Self {
-        Self {
-            max_side: 512,
-            store: TextureStoreOptions::thumbnails(),
-            lanes: QueueOptions::default_lanes(),
-            jobs: None,
-            renders_per_pass: 16,
-            render_time_per_pass: Duration::from_millis(8),
-        }
+        Self { max_side: 512, store: TextureStoreOptions::thumbnails(), lanes: QueueOptions::default_lanes(), jobs: None, renders_per_pass: 16 }
     }
 
     /// The longest side any request is lowered to.
@@ -156,13 +144,6 @@ impl ThumbnailOptions {
     #[must_use]
     pub fn renders_per_pass(mut self, renders: usize) -> Self {
         self.renders_per_pass = renders;
-        self
-    }
-
-    /// Time for renders on the UI thread per pass.
-    #[must_use]
-    pub fn render_time_per_pass(mut self, time: Duration) -> Self {
-        self.render_time_per_pass = time;
         self
     }
 }
@@ -234,17 +215,11 @@ struct Inner {
     /// The frame the render counters are for, and the counters.
     frame: Option<u64>,
     renders: usize,
-    #[cfg(not(target_arch = "wasm32"))]
-    render_time: Duration,
 }
 
 impl Inner {
-    /// Whether this pass has used its count or time for renders on the UI thread.
+    /// Whether this pass has used its count of renders on the UI thread.
     fn over_budget(&self) -> bool {
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.render_time >= self.options.render_time_per_pass {
-            return true;
-        }
         self.renders >= self.options.renders_per_pass
     }
 }
@@ -269,8 +244,7 @@ impl<K> Default for Hubs<K> {
 ///   only gets a painter and a rect). Rows asked for in neither this pass nor the previous one have their jobs
 ///   dropped.
 /// - **Making.** A revision without a picture is rendered by the source: on the UI thread within
-///   [`renders_per_pass`](ThumbnailOptions::renders_per_pass) and
-///   [`render_time_per_pass`](ThumbnailOptions::render_time_per_pass) (the rest wait with their stand-ins and the
+///   [`renders_per_pass`](ThumbnailOptions::renders_per_pass) (the rest wait with their stand-ins and the
 ///   pass asks for an immediate repaint), or as a `Later` job on the loader's queue. A new revision keeps the old
 ///   picture as the stand-in until the new one lands. A failure is remembered for its revision, so nothing retries
 ///   every pass.
@@ -308,16 +282,7 @@ impl<K: TextureKey> Thumbnails<K> {
         let loader = TextureLoader::in_context(ctx, &salt, loader_options);
         let id = loader.cache().salt();
         let inner = memory::with(ctx, |hubs: &mut Hubs<K>| {
-            Arc::clone(hubs.by_salt.entry(id).or_insert_with(|| {
-                Arc::new(Mutex::new(Inner {
-                    options,
-                    hold: false,
-                    frame: None,
-                    renders: 0,
-                    #[cfg(not(target_arch = "wasm32"))]
-                    render_time: Duration::ZERO,
-                }))
-            }))
+            Arc::clone(hubs.by_salt.entry(id).or_insert_with(|| Arc::new(Mutex::new(Inner { options, hold: false, frame: None, renders: 0 }))))
         });
         Self { loader, inner }
     }
@@ -345,10 +310,6 @@ impl<K: TextureKey> Thumbnails<K> {
             if inner.frame != Some(frame) {
                 inner.frame = Some(frame);
                 inner.renders = 0;
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    inner.render_time = Duration::ZERO;
-                }
             }
             if inner.hold {
                 return stand_in();
@@ -360,15 +321,9 @@ impl<K: TextureKey> Thumbnails<K> {
         }
         match source.render(key, &request) {
             ThumbRender::Ready(image) => {
-                #[cfg(not(target_arch = "wasm32"))]
-                let started = Instant::now();
                 let texture = self.loader.cache().put(ctx, key.clone(), revision, image);
                 let mut inner = self.lock();
                 inner.renders += 1;
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    inner.render_time += started.elapsed();
-                }
                 TextureState::Ready(texture)
             }
             ThumbRender::Blank => {
