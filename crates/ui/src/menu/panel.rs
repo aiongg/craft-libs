@@ -2,8 +2,9 @@
 //! menu): the host's rows, then the dock's group rows.
 
 use super::MenuItem;
-use super::words::PanelMenuWords;
-use crate::contract::{BodyCx, Remember as _, Show as _};
+use super::popup::{entry_rows, submenu_rows};
+use super::words::MenuWords;
+use crate::contract::{Entry, Show as _};
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
@@ -45,15 +46,24 @@ pub enum GroupItem {
 pub enum PanelRow {
     /// A command row: its label, chord, check and enabled state come from the command, and it runs by itself.
     Command(CommandRef),
-    /// A row of the dock, reported through `PanelMenu::show`.
-    Item(GroupItem, Label),
+    /// A row of the dock, reported through `PanelMenuOutput::picked`. The entry can be disabled or checked.
+    Item(Entry<GroupItem>),
     /// A row that opens a submenu.
     Submenu(Label, Vec<PanelRow>),
     /// A separator.
     Separator,
 }
 
-/// The rows of one panel's menu: the host's rows, a separator, then the dock's rows.
+/// What a [`PanelMenu`] reports.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PanelMenuOutput {
+    /// The dock row that ran in this pass.
+    pub picked: Option<GroupItem>,
+}
+
+/// The rows of one panel's menu: the host's rows, a separator, then the dock's rows. Menu-body content: show it in
+/// the body of a `Menu`.
 #[derive(crate::contract::Pattern)]
 pub struct PanelMenu {
     host: Vec<PanelRow>,
@@ -66,33 +76,29 @@ impl PanelMenu {
         PanelMenu { host, group }
     }
 
-    /// Shows the rows in the menu body `ui` and returns the dock row picked this pass.
-    pub fn show(&self, ui: &mut Ui, cx: &mut BodyCx<'_>) -> Option<GroupItem> {
+    /// Shows the rows in the menu body `ui` and reports the dock row that ran.
+    pub fn show(self, ui: &mut Ui) -> PanelMenuOutput {
         let mut picked = None;
-        Self::rows(ui, cx, &self.host, &mut picked);
+        Self::rows(ui, &self.host, &mut picked);
         if !self.host.is_empty() && !self.group.is_empty() {
             Divider::horizontal().show(ui);
         }
-        Self::rows(ui, cx, &self.group, &mut picked);
-        picked
+        Self::rows(ui, &self.group, &mut picked);
+        PanelMenuOutput { picked }
     }
 
-    fn rows(ui: &mut Ui, cx: &mut BodyCx<'_>, rows: &[PanelRow], picked: &mut Option<GroupItem>) {
-        for (at, row) in rows.iter().enumerate() {
+    fn rows(ui: &mut Ui, rows: &[PanelRow], picked: &mut Option<GroupItem>) {
+        for row in rows {
             match row {
                 PanelRow::Command(command) => {
                     MenuItem::command(command.clone()).show(ui);
                 }
-                PanelRow::Item(item, label) => {
-                    if MenuItem::new(label.clone()).show(ui).ran {
-                        *picked = Some(*item);
+                PanelRow::Item(entry) => {
+                    if entry_rows(ui, std::slice::from_ref(entry)).is_some() {
+                        *picked = entry.value().copied();
                     }
                 }
-                PanelRow::Submenu(label, rows) => {
-                    let mut open = *cx.memory_at::<bool>(("submenu", at));
-                    super::popup::submenu_rows(ui, label.clone(), &mut open, |ui, cx| Self::rows(ui, cx, rows, picked));
-                    *cx.memory_at::<bool>(("submenu", at)) = open;
-                }
+                PanelRow::Submenu(label, rows) => submenu_rows(ui, label.clone(), |ui, _| Self::rows(ui, rows, picked)),
                 PanelRow::Separator => {
                     Divider::horizontal().show(ui);
                 }
@@ -102,17 +108,18 @@ impl PanelMenu {
 
     /// The dock's rows for a panel: Float when it can move and float, Move Panel To with one submenu row per target
     /// label, Close when it can close and the dock shows close rows.
-    pub fn group_rows(movable: bool, floatable: bool, closable: bool, close_row: bool, targets: &[Label], words: &PanelMenuWords) -> Vec<PanelRow> {
+    pub fn group_rows(movable: bool, floatable: bool, closable: bool, close_row: bool, targets: &[Label], words: &MenuWords) -> Vec<PanelRow> {
+        let item = |item: GroupItem, label: &str| PanelRow::Item(Entry::new(item, Label::from(label.to_owned())));
         let mut rows = Vec::new();
         if movable && floatable {
-            rows.push(PanelRow::Item(GroupItem::Float, Label::from(words.float.as_str().to_owned())));
+            rows.push(item(GroupItem::Float, words.panel_float.as_str()));
         }
         if movable && !targets.is_empty() {
-            let targets = targets.iter().enumerate().map(|(at, label)| PanelRow::Item(GroupItem::MoveTo(at), label.clone())).collect();
-            rows.push(PanelRow::Submenu(Label::from(words.move_to.as_str().to_owned()), targets));
+            let targets = targets.iter().enumerate().map(|(at, label)| PanelRow::Item(Entry::new(GroupItem::MoveTo(at), label.clone()))).collect();
+            rows.push(PanelRow::Submenu(Label::from(words.panel_move_to.as_str().to_owned()), targets));
         }
         if closable && close_row {
-            rows.push(PanelRow::Item(GroupItem::Close, Label::from(words.close.as_str().to_owned())));
+            rows.push(item(GroupItem::Close, words.panel_close.as_str()));
         }
         rows
     }

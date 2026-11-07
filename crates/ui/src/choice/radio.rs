@@ -6,7 +6,7 @@ use crate::contract::{
     Bind, BindMut, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, GroupHandle, GroupKind, GroupState, MeasureCx, PaintUi,
     Pointer as _, Props as _, Remember as _, Role, Styled as _, Validity,
 };
-use crate::primitives::{PaintShape, StrokeWidth};
+use crate::primitives::{PaintShape, StrokeWidth, glyph};
 use crate::runtime::env::EnvValue;
 use crate::style::{ComponentStyle, Flags, FocusLook, Ink, StyleColor, StyleCx};
 use craft_behavior::{Metrics, NavShape, Roving, Value};
@@ -205,7 +205,7 @@ impl<T: Value + 'static> Component for Radio<T> {
         let draw = ui.draw();
         draw.stroke(&PaintShape::Circle(center, cx.style.icon / 2.0), StrokeWidth::Thin, cx.resolve(&cx.style.ring));
         if self.checked {
-            draw.fill(&PaintShape::Circle(center, cx.style.icon / 4.0), cx.resolve(&cx.style.dot));
+            draw.fill(&glyph::dot(center, cx.style.icon), cx.resolve(&cx.style.dot));
         }
     }
 

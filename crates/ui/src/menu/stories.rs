@@ -2,7 +2,7 @@
 
 use super::{Menu, MenuItem};
 use crate::buttons::Button;
-use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Entry, Props as _, Show as _, ShowContainer as _, Trigger};
 use crate::display::Divider;
 use crate::layout_components::Stack;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
@@ -56,7 +56,7 @@ fn menu(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     in_row(ui, |ui| {
         let opener = Button::new("File").show(ui);
         let mut ran = false;
-        let shown = Menu::new("File", Bind::bound(data.value("open", true))).opened_by(&opener).show(ui, |ui, _| {
+        let shown = Menu::new("File").open(Bind::bound(data.value("open", true))).opened_by(&opener, Trigger::Click).show(ui, |ui, _| {
             ran |= MenuItem::new("&New").shortcut("Ctrl+N").show(ui).ran;
             ran |= MenuItem::new("Open").shortcut("Ctrl+O").show(ui).ran;
             MenuItem::submenu("Open Recent").show(ui);
@@ -75,7 +75,7 @@ fn menu_of_values(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     in_row(ui, |ui| {
         let opener = Button::new("Zoom").show(ui);
         let entries = [Entry::new(0u8, "Fit in Window").checked(true), Entry::new(1, "Fill Screen"), Entry::separator(), Entry::new(2, "100%")];
-        let picked = Menu::new("Zoom", Bind::bound(data.value("open", true))).opened_by(&opener).pick(ui, &entries);
+        let picked = Menu::new("Zoom").values().open(Bind::bound(data.value("open", true))).opened_by(&opener, Trigger::Click).pick(ui, &entries);
         let ran = picked.picked.is_some();
         let mut output = StoryOutput::from(picked);
         output.clicked |= ran;
