@@ -126,20 +126,158 @@ pub fn outline(tokens: &UiTokens, shape: &PaintShape) -> Vec<Shape> {
     shapes
 }
 
-/// Marching ants along `points` (closed when `closed`): dashes of the marquee colour with the gaps filled in the
-/// halo colour, shifted by `phase` points along the path.
-pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32) -> Vec<Shape> {
-    let (light, dark) = (rgba_color(tokens.color.overlay.marquee), rgba_color(tokens.color.overlay.halo));
-    let (dash, gap) = (tokens.stroke.dash, tokens.stroke.dash_gap);
-    let mut path = points.to_vec();
-    if closed && let Some(first) = path.first().copied() {
-        path.push(first);
+/// A dashed line along `points`: dashes `dash` long with gaps `gap` long, in `color`, the pattern shifted by `phase`
+/// points along the path. The pattern continues across the segments; the corners are not closed.
+pub fn dashed(points: &[Pos2], width: f32, dash: f32, gap: f32, phase: f32, color: Color32) -> Vec<Shape> {
+    Shape::dashed_line_with_offset(points, Stroke::new(width, color), &[dash], &[gap], phase)
+}
+
+/// Longer than any line that fits the view: only its part in view is dashed.
+const LONG_EDGE: f32 = 8192.0;
+
+/// The ants' geometry on a display of some device pixels per point, at one moment of the march.
+#[derive(Clone, Copy)]
+struct Ants {
+    ppp: f32,
+    /// Line thickness, in device pixels.
+    width: i64,
+    /// Dash length, in device pixels.
+    dash: i64,
+    /// How far the pattern has marched, in device pixels.
+    phase: i64,
+}
+
+impl Ants {
+    /// Ants of `stroke.dash` line widths, a line width being a whole number of device pixels (one at 100 percent,
+    /// two up to 200 percent), marched `phase` points.
+    fn new(tokens: &UiTokens, ppp: f32, phase: f32) -> Self {
+        let ppp = if ppp.is_finite() && ppp > 0.0 { ppp } else { 1.0 };
+        // A hair over a whole scale (a windowing system's rounding) is still that scale.
+        let width = ((ppp - 0.01).ceil() as i64).clamp(1, 8);
+        let dash = (tokens.stroke.dash.round().max(1.0) as i64) * width;
+        let phase = if phase.is_finite() { (f64::from(phase) * f64::from(ppp)).round().rem_euclid((2 * dash) as f64) as i64 } else { 0 };
+        Ants { ppp, width, dash, phase }
     }
-    let width = tokens.stroke.medium;
-    // The dark pass swaps dash and gap lengths and starts one dash later, so its dashes are the light pass's gaps.
-    let mut shapes = Shape::dashed_line_with_offset(&path, Stroke::new(width, dark), &[gap], &[dash], phase + gap);
-    shapes.extend(Shape::dashed_line_with_offset(&path, Stroke::new(width, light), &[dash], &[gap], phase));
-    shapes
+
+    /// The dark runs of `[lo, hi)` along one pixel row (or column) of a band. A pixel is dark where
+    /// `(s + phase) mod 2 * dash < dash`, `s` being its position along the edge plus `off`, `width` times its position
+    /// across it: a dash ends on a slant in a band thicker than a pixel.
+    fn runs(&self, lo: i64, hi: i64, off: i64) -> impl Iterator<Item = (i64, i64)> + '_ {
+        let period = 2 * self.dash;
+        let first = lo - (lo + off + self.phase).rem_euclid(period);
+        std::iter::successors(Some(first), move |s| Some(s + period))
+            .take_while(move |&s| s < hi)
+            .map(move |s| (s.max(lo), (s + self.dash).min(hi)))
+            .filter(|(s, e)| e > s)
+    }
+}
+
+/// Marching ants along `points` (closed when `closed`) inside `clip`: bands of the marquee colour with dark dashes in
+/// the halo colour, shifted by `phase` points along the path. The pattern is fixed to the screen's device pixels, so
+/// each horizontal or vertical edge is a band of whole pixels (one at 100 percent, two up to 200 percent) at any
+/// fractional scale and one mesh of pixel-aligned quads; a slanted edge stays a line shape.
+pub fn marching_ants(tokens: &UiTokens, points: &[Pos2], closed: bool, phase: f32, clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
+    let (light, dark) = (rgba_color(tokens.color.overlay.marquee), rgba_color(tokens.color.overlay.halo));
+    let ants = Ants::new(tokens, pixels_per_point, phase);
+    let Ants { ppp, width: w, dash, .. } = ants;
+    let mut mesh = egui::Mesh::default();
+    let mut slanted = Vec::new();
+    // Device pixels to a rectangle in points.
+    let mut quad = |x0: i64, y0: i64, x1: i64, y1: i64, color: Color32| {
+        let rect = Rect::from_min_max(pos2(x0 as f32 / ppp, y0 as f32 / ppp), pos2(x1 as f32 / ppp, y1 as f32 / ppp));
+        mesh.add_colored_rect(rect, color);
+    };
+    // The view in device pixels, a dash period wider: a band is cut to it so a long edge costs what its visible part
+    // does, and the pattern is fixed to the screen so the cut does not move it.
+    let view = clip.expand(2.0 * dash as f32 / ppp);
+    let (vx0, vy0) = ((view.min.x * ppp).floor() as i64, (view.min.y * ppp).floor() as i64);
+    let (vx1, vy1) = ((view.max.x * ppp).ceil() as i64, (view.max.y * ppp).ceil() as i64);
+    // The first pixel of a band across its boundary: centred on it, the odd one after it.
+    let half = w / 2;
+    let back = points.first().zip(points.last()).filter(|_| closed && points.len() > 2).map(|(first, last)| (*last, *first));
+    let lines = points.windows(2).map(|pair| (pair[0], pair[1])).chain(back);
+    for (pa, pb) in lines {
+        if !(pa.is_finite() && pb.is_finite() && clip.intersects(Rect::from_two_pos(pa, pb).expand(1.0))) {
+            continue;
+        }
+        let (pa, pb) = if pa.distance(pb) > LONG_EDGE {
+            let Some(inside) = clip_line(view, pa, pb) else { continue };
+            inside
+        } else {
+            (pa, pb)
+        };
+        let (da, db) = (pa * ppp, pb * ppp);
+        let (ax, ay, bx, by) = (da.x.round() as i64, da.y.round() as i64, db.x.round() as i64, db.y.round() as i64);
+        if (ax, ay) == (bx, by) {
+            continue;
+        }
+        if ay == by {
+            // Rows `y0..y0 + w`, from one end's band to the other's, so edges meet at corners.
+            let (x0, x1) = ((ax.min(bx) - half).max(vx0), (ax.max(bx) - half + w).min(vx1));
+            let y0 = ay - half;
+            if x1 <= x0 {
+                continue;
+            }
+            quad(x0, y0, x1, y0 + w, light);
+            for y in y0..y0 + w {
+                for (s, e) in ants.runs(x0, x1, w * y) {
+                    quad(s, y, e, y + 1, dark);
+                }
+            }
+        } else if ax == bx {
+            let (y0, y1) = ((ay.min(by) - half).max(vy0), (ay.max(by) - half + w).min(vy1));
+            let x0 = ax - half;
+            if y1 <= y0 {
+                continue;
+            }
+            quad(x0, y0, x0 + w, y1, light);
+            for x in x0..x0 + w {
+                for (s, e) in ants.runs(y0, y1, w * x) {
+                    quad(x, s, x + 1, e, dark);
+                }
+            }
+        } else {
+            let len = da.distance(db);
+            let dir = (db - da) / len;
+            let stroke = |color| Stroke::new(w as f32 / ppp, color);
+            slanted.push(Shape::line_segment([da / ppp, db / ppp], stroke(light)));
+            // Phased by screen position, like the straight edges, so dashes line up across joins.
+            let period = (2 * dash) as f32;
+            let mut t = -(da.x.floor() + da.y.floor() + ants.phase as f32).rem_euclid(period);
+            while t < len {
+                let (s0, s1) = (t.max(0.0), (t + dash as f32).min(len));
+                if s1 > s0 {
+                    slanted.push(Shape::line_segment([(da + dir * s0) / ppp, (da + dir * s1) / ppp], stroke(dark)));
+                }
+                t += period;
+            }
+        }
+    }
+    if !mesh.is_empty() {
+        slanted.push(Shape::mesh(mesh));
+    }
+    slanted
+}
+
+/// The part of the segment `a`-`b` inside `r`, clipped in f64: a zoomed view can put endpoints far away, where f32
+/// interpolation loses viewport-sized differences.
+fn clip_line(r: Rect, a: Pos2, b: Pos2) -> Option<(Pos2, Pos2)> {
+    let (ax, ay) = (f64::from(a.x), f64::from(a.y));
+    let (dx, dy) = (f64::from(b.x) - ax, f64::from(b.y) - ay);
+    let (mut t0, mut t1) = (0.0f64, 1.0f64);
+    for (p, q) in [(-dx, ax - f64::from(r.min.x)), (dx, f64::from(r.max.x) - ax), (-dy, ay - f64::from(r.min.y)), (dy, f64::from(r.max.y) - ay)] {
+        if p == 0.0 {
+            if q < 0.0 {
+                return None;
+            }
+        } else if p < 0.0 {
+            t0 = t0.max(q / p);
+        } else {
+            t1 = t1.min(q / p);
+        }
+    }
+    let at = |t: f64| pos2((ax + dx * t) as f32, (ay + dy * t) as f32);
+    (t0 <= t1).then(|| (at(t0), at(t1)))
 }
 
 /// The insertion mark of a drop from `from` to `to`.
@@ -215,9 +353,19 @@ impl ContentPainterCx<'_> {
         self.painter.extend(outline(self.tokens, shape));
     }
 
-    /// Paints marching ants along `points`.
+    /// Paints a dashed line along `points`; see [`dashed`].
+    pub fn dashed(&self, points: &[Pos2], width: f32, dash: f32, gap: f32, phase: f32, color: Color32) {
+        self.painter.extend(dashed(points, width, dash, gap, phase, color));
+    }
+
+    /// Paints marching ants along `points`, shifted `phase` points; see [`marching_ants`].
     pub fn marching_ants(&self, points: &[Pos2], closed: bool, phase: f32) {
-        self.painter.extend(marching_ants(self.tokens, points, closed, phase));
+        self.painter.extend(marching_ants(self.tokens, points, closed, phase, self.painter.clip_rect(), self.ppp()));
+    }
+
+    /// The device pixels per point of the surface being painted.
+    pub fn pixels_per_point(&self) -> f32 {
+        self.ppp()
     }
 
     /// Paints the insertion mark of a drop.

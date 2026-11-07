@@ -8,6 +8,7 @@
 mod crop;
 mod guide;
 mod space;
+mod readout;
 #[cfg(feature = "testing")]
 mod stories;
 mod words;
@@ -20,6 +21,7 @@ pub use crop::{CropOverlay, CropStyle};
 pub use guide::{Guide, GuideAxis, GuideDrag, GuideKey, GuideLine};
 pub use space::{CanvasSpace, RulerText, canvas_space};
 pub use words::CanvasWords;
+pub use readout::readout;
 
 pub use tool::{CanvasTool, ToolAction, ToolContext, ToolKey, ToolPointer};
 pub use tool_groups::{PickStep, tool_pick};

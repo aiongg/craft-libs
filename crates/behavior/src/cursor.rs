@@ -114,7 +114,7 @@ pub enum PaintedCursor {
     Tool {
         /// The icon.
         icon: IconId,
-        /// The icon point that sits on the pointer.
+        /// The icon point that sits on the pointer, in the icon's own 24-unit box.
         hotspot: Vec2,
         /// A mark beside it.
         badge: Option<CursorBadge>,
@@ -126,6 +126,25 @@ pub enum PaintedCursor {
         base: CursorIcon,
         /// The mark.
         badge: CursorBadge,
+    },
+    /// The rotate pointer: a short arc with an arrowhead at each end, bent round the corner that lies in screen
+    /// direction `toward` from the pointer.
+    #[non_exhaustive]
+    Turn {
+        /// The screen direction from the pointer to the corner's centre; the bisector into the box.
+        toward: Vec2,
+    },
+    /// The free-distort pointer: an arrowhead with its tip on the pointer, pointing along `dir`.
+    #[non_exhaustive]
+    Distort {
+        /// The screen direction the arrowhead points in.
+        dir: Vec2,
+    },
+    /// The skew pointer: two opposed arrows beside each other along `dir`.
+    #[non_exhaustive]
+    Skew {
+        /// The screen direction of the edge the arrows run along.
+        dir: Vec2,
     },
     /// No cursor at all.
     Hidden,
@@ -150,6 +169,21 @@ impl PaintedCursor {
     /// A tool's icon with its hotspot and an optional badge.
     pub const fn tool(icon: IconId, hotspot: Vec2, badge: Option<CursorBadge>) -> Self {
         PaintedCursor::Tool { icon, hotspot, badge }
+    }
+
+    /// The rotate pointer bent toward screen direction `toward`.
+    pub const fn turn(toward: Vec2) -> Self {
+        PaintedCursor::Turn { toward }
+    }
+
+    /// The free-distort pointer along screen direction `dir`.
+    pub const fn distort(dir: Vec2) -> Self {
+        PaintedCursor::Distort { dir }
+    }
+
+    /// The skew pointer along screen direction `dir`.
+    pub const fn skew(dir: Vec2) -> Self {
+        PaintedCursor::Skew { dir }
     }
 
     /// A system cursor with a mark.

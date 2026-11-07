@@ -243,35 +243,9 @@ pub(crate) fn fade(ui: &mut egui::Ui, opacity: f32) {
     ui.set_opacity(opacity);
 }
 
-/// How a painted cursor is drawn: from the theme's tokens, so the ring reads on any canvas.
-#[derive(Clone, Copy, Debug)]
-pub(crate) struct CursorInk {
-    pub color: Color32,
-    pub width: f32,
-    /// The half-length of a crosshair's arms.
-    pub arm: f32,
-}
-
 /// The painter of the ghost layer, over the whole screen and above every popup. The layer takes no input.
 pub(crate) fn ghost_painter(ctx: &Context) -> Painter {
     ctx.layer_painter(layer_of(Tier::Tooltip, crate::runtime::egui::memory::unique("craft_ui.ghost")))
-}
-
-/// Paints a cursor shape at `at` on the ghost layer, above every other layer.
-pub(crate) fn paint_cursor(ctx: &Context, at: Pos2, cursor: &craft_behavior::PaintedCursor, ink: CursorInk) {
-    use craft_behavior::PaintedCursor;
-    let painter = ghost_painter(ctx);
-    let stroke = egui::Stroke::new(ink.width, ink.color);
-    match cursor {
-        PaintedCursor::Circle { radius, .. } => {
-            painter.circle_stroke(at, *radius, stroke);
-        }
-        PaintedCursor::Crosshair => {
-            painter.line_segment([at - Vec2::new(ink.arm, 0.0), at + Vec2::new(ink.arm, 0.0)], stroke);
-            painter.line_segment([at - Vec2::new(0.0, ink.arm), at + Vec2::new(0.0, ink.arm)], stroke);
-        }
-        _ => {}
-    }
 }
 
 /// The pointer position of the running pass, in screen space.

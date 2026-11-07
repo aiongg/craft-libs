@@ -195,6 +195,27 @@ new = "craft_ui::canvas::PixelRect"
 status = "moved"
 note = "See `RasterSource`."
 
+[[type]]
+name = "PaintedCursor"
+old = "craft_ui::canvas::cursor::ToolCursor"
+new = "craft_behavior::PaintedCursor"
+status = "replaced"
+note = "A cursor request is data: `cx.cursor(PaintedCursor::..)` through the cursor service, painted by the overlay host on the ghost layer. `ToolCursor::Circle/Crosshair/Outline/Hand/Zoom/Tool/Badged` are `PaintedCursor::circle/Crosshair/outline/Hand/zoom/tool/badged`; `turn_cursor`, `distort_cursor` and `skew_cursor` are `PaintedCursor::turn(toward)`, `distort(dir)` and `skew(dir)` with screen directions (no `CanvasView` or `PointerInk`). The crosshair and the brush outline are painted, not uploaded as OS bitmaps. `CursorOptions` and `CursorHost` are gone; an app decides which cursor to request."
+
+[[type]]
+name = "readout"
+old = "craft_ui::canvas::readout::Readout"
+new = "craft_ui::canvas::readout"
+status = "replaced"
+note = "A function called each pass of a gesture: `canvas::readout(cx, pointer, &[(Label, String)])` paints the rows beside the pointer on the ghost layer. `Readout::new`, `ReadoutStyle` and `ReadoutLayout` are gone; the look comes from the tokens."
+
+[[type]]
+name = "marching_ants"
+old = "craft_ui::canvas::marquee::ants::Ants"
+new = "craft_ui::primitives::marching_ants"
+status = "replaced"
+note = "The one pixel-aligned painter: `marching_ants(tokens, points, closed, phase, clip, pixels_per_point)`, or `ContentPainterCx::marching_ants`. `phase` is in points along the path; `Ants::new(ppp, time, ..)` and `draw` are gone."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
