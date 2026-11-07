@@ -209,8 +209,17 @@ pub(crate) fn pointer_read(ctx: &Context) -> PointerRead {
             match event {
                 Event::PointerButton { pos, button, pressed, .. } if *button != egui::PointerButton::Primary => {
                     let button = button_of(*button);
+                    if button == PointerButton::Middle {
+                        events.push(if *pressed {
+                            PointerEvent::pressed_by(button, *pos, input.time, 1)
+                        } else {
+                            PointerEvent::released_by(button, *pos)
+                        });
+                    }
                     if *pressed {
-                        other_press = Some((button, *pos));
+                        if button != PointerButton::Middle {
+                            other_press = Some((button, *pos));
+                        }
                     } else {
                         release = Some(button);
                     }

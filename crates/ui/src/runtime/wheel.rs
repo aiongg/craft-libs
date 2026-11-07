@@ -6,7 +6,7 @@ use crate::runtime::focus;
 use crate::runtime::frame::PerViewport;
 use crate::runtime::pointer;
 use craft_behavior::wheel::split;
-use craft_behavior::{PointerEvent, Wheel, WheelPhase, WheelTaker, WheelUnit};
+use craft_behavior::{PointerButton, PointerEvent, Wheel, WheelPhase, WheelTaker, WheelUnit};
 use egui::{Context, Id, Pos2, Rect, Vec2};
 
 #[derive(Default)]
@@ -48,7 +48,7 @@ pub(crate) fn begin(ctx: &Context) {
         .iter()
         .rev()
         .find_map(|event| match event {
-            PointerEvent::Pressed { pos, .. } => Some(*pos),
+            PointerEvent::Pressed { button: PointerButton::Primary, pos, .. } => Some(*pos),
             _ => None,
         })
         .map(|at| pointer::press_winner(ctx, at, pass_pointer.press_targets).map(|(winner, _)| winner.owner));
