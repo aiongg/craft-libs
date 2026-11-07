@@ -87,13 +87,18 @@ size.checker
 size.control.md
 size.control.sm
 size.dial
+size.groove
 size.handle.md
 size.handle.sm
+size.hit.dead_zone
 size.hit.slop
 size.hit.target
 size.icon.lg
 size.icon.md
 size.icon.sm
+size.length.field
+size.length.short
+size.length.track
 size.panel_header
 size.plot.height
 size.plot.width
@@ -102,6 +107,7 @@ size.rail.width
 size.thumb.lg
 size.thumb.md
 size.thumb.sm
+size.toggle
 slider.thumb_height.md
 slider.thumb_height.sm
 slider.thumb_width.md
@@ -111,6 +117,7 @@ space.gap.row
 space.gap.section
 space.gap.stack
 space.gap.tight
+space.pad.chip
 space.pad.control
 space.pad.dialog
 space.pad.panel

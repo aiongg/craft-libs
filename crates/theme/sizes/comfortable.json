@@ -27,11 +27,13 @@
         "sm": 24.0
       },
       "dial": 52.0,
+      "groove": 2.0,
       "handle": {
         "md": 8.0,
         "sm": 6.0
       },
       "hit": {
+        "dead_zone": 3.0,
         "slop": 3.0,
         "target": 8.0
       },
@@ -39,6 +41,11 @@
         "lg": 22.0,
         "md": 18.0,
         "sm": 14.0
+      },
+      "length": {
+        "field": 240.0,
+        "short": 120.0,
+        "track": 144.0
       },
       "panel_header": 34.0,
       "plot": {
@@ -53,7 +60,8 @@
         "lg": 48.0,
         "md": 34.0,
         "sm": 18.0
-      }
+      },
+      "toggle": 32.4
     },
     "space": {
       "gap": {
@@ -64,6 +72,7 @@
         "tight": 3.0
       },
       "pad": {
+        "chip": 6.0,
         "control": 8.0,
         "dialog": 20.0,
         "panel": 12.0
