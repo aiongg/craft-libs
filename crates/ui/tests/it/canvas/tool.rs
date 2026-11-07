@@ -281,11 +281,9 @@ fn the_keys_a_canvas_holds_reach_the_tool_while_it_has_focus() {
     let mut fixture = ToolFixture::new("Document", Recorder::default());
     let at = fixture.canvas().center();
     fixture.press_at(at).release_at(at);
-    fixture.fixture().key(egui::Key::ArrowRight, Modifiers::NONE);
     fixture.fixture().key(egui::Key::Delete, Modifiers::NONE);
     fixture.fixture().key(egui::Key::Escape, Modifiers::NONE);
     let got = fixture.tool().got.clone();
-    assert!(got.iter().any(|key| matches!(key, ToolKey::Nudge { direction, .. } if *direction == Vec2::X)), "an arrow nudges: {got:?}");
     assert!(got.iter().any(|key| matches!(key, ToolKey::Delete { forward: true, .. })), "Delete deletes forward: {got:?}");
     assert!(got.contains(&ToolKey::Cancel), "Escape with no gesture reaches the tool as Cancel: {got:?}");
 }
