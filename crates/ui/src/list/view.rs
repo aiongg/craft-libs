@@ -214,7 +214,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Collection for List<'_, K> {
         self.accepts.as_ref().is_none_or(|test| test(drag, over, insert))
     }
 
-    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect) -> Option<EditResponse<String>> {
-        Some(TextField::new(self.common.label.clone(), draft).show_at(ui, label))
+    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, label: Rect, name: &str) -> Option<EditResponse<String>> {
+        Some(TextField::new(name.to_owned(), draft).show_at(ui, label))
     }
 }

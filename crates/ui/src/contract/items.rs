@@ -547,7 +547,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 }
                 if state.renaming {
                     let mut draft = std::mem::take(&mut self.renaming.draft);
-                    let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft), label);
+                    let name = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
+                    let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft), label, &name);
                     self.renaming.draft = draft;
                     if let Some(editor) = editor {
                         if !self.renaming.focused {
@@ -556,7 +557,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                         }
                         let gesture = self.renaming.gesture;
                         let before =
-                            Mixed::Same(Rename { key: key.clone(), name: self.source.text(at).map(|text| text.into_owned()).unwrap_or_default() });
+                            Mixed::Same(Rename { key: key.clone(), name });
                         if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
                             self.refocus = focus::is_focused(&ctx, editor.response.id);
                         }

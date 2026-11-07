@@ -346,7 +346,8 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     fn item_layout(&self, source: &dyn ItemSource<Self::Key>, width: f32, cx: &StyleCx<'_>) -> Self::ItemLayout;
 
     /// The rename editor at `label`: the label rect the renaming item reports (`ItemOutput::label_rect`), else its row.
-    fn rename_editor(&mut self, _ui: &mut Ui, _draft: Bind<'_, String>, _label: Rect) -> Option<EditResponse<String>> {
+    /// `name` is the item's name before the rename; the editor is named after it.
+    fn rename_editor(&mut self, _ui: &mut Ui, _draft: Bind<'_, String>, _label: Rect, _name: &str) -> Option<EditResponse<String>> {
         None
     }
 
