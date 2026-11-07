@@ -62,7 +62,7 @@ pub struct Slider<'a> {
     value: Bind<'a, f64>,
     range: RangeInclusive<f64>,
     /// The change of one arrow press; the default is a hundredth of the range.
-    #[prop]
+    #[prop(quantity = "step")]
     step: Option<f64>,
 }
 
