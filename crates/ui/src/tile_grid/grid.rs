@@ -27,6 +27,8 @@ use std::cell::RefCell;
 use std::hash::Hash;
 
 const GROUP: PartKey = PartKey::new("group");
+/// The heading level of a group header: the grid's groups are its top-level sections.
+const GROUP_LEVEL: usize = 1;
 const TOGGLE: PartKey = PartKey::new("group_toggle");
 
 /// Which keys rate the selected tiles.
@@ -420,7 +422,12 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
                     craft_behavior::AccessAction::Collapse => false,
                     _ => continue,
                 };
-                if let Some(group) = self.placed.iter().map(|placed| placed.group).find(|group| GROUP.at(*group as u64) == target) {
+                let owner = self
+                    .placed
+                    .iter()
+                    .map(|placed| placed.group)
+                    .find(|group| GROUP.at(*group as u64) == target || TOGGLE.at(*group as u64) == target);
+                if let Some(group) = owner {
                     self.events.push(GridEvent::GroupOpen { group, open: wanted });
                 }
             }
@@ -431,6 +438,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> Component for TileGrid<'_, K>
         for placed in &self.placed {
             let Some(group) = self.groups.get(placed.group) else { continue };
             let node = access.node(GROUP.at(placed.group as u64), Role::HEADING);
+            node.level(GROUP_LEVEL);
             node.name = Name::Text(if group.detail.is_empty() { group.title.clone() } else { format!("{}, {}", group.title, group.detail) });
             if self.collapsible {
                 node.expanded = Some(group.open);

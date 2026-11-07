@@ -289,7 +289,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     if let Some(expanded) = expanded {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }
-    write_position(&mut spec, node.position, None);
+    write_position(&mut spec, node.position, node.level);
     spec.grid = node.grid;
     spec.sort = node.sort;
     write_states(&mut spec, flags, decl.enabled, false);
@@ -304,6 +304,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
             .named(name.text.is_some() || !name.labelled_by.is_empty())
             .range(numeric.map(|numeric| &numeric.range))
             .positioned(node.position.is_some())
+            .leveled(spec.level.is_some())
             .grid(spec.grid.facts())
             .expanded(expanded),
         false,

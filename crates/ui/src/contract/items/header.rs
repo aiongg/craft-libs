@@ -177,7 +177,10 @@ impl Header {
             }
             self.cells.push(Cell { spec: at, rect, hash });
         }
-        pcx.roving(Roving::new(NavShape::Flat));
+        // A keyboard resize reads Forward and Back itself, so the cells do not rove while it lasts.
+        if self.memory.resizing.is_none() {
+            pcx.roving(Roving::new(NavShape::Flat));
+        }
     }
 
     /// Whether `key` is the sorted column, and if so whether it sorts descending.
