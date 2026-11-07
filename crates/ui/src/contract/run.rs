@@ -118,6 +118,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         Vec2::ZERO
     }
 
+    /// The rows this pass places, for `PartsCx::rect_of`; computed before the component's `parts` runs.
+    fn geometry(&mut self, _comp: &C, _content: Rect, _rtl: bool) -> Option<std::rc::Rc<dyn std::any::Any>> {
+        None
+    }
+
     /// Step 4: the shape's part of the value step (selection snapshot, scroll offset).
     fn read(&mut self, _comp: &mut C, _stage: &mut MemoryStage, _id: Id, _env: &Env) {}
 
@@ -208,6 +213,7 @@ fn blank_core<'a>(
         roving_arrival: None,
         collection_events: None,
         visible_rows: 0..0,
+        gestures: Default::default(),
         texts: None,
         surface_slot: None,
         editor: None,
@@ -312,6 +318,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
             text: &mut parts.text,
             last_state: (last.0, last.1),
             measure,
+            items: p.hooks.geometry(comp, flow.inset(metrics.padding), rtl),
         };
         comp.parts(rect, &mut pcx);
         p.hooks.parts(comp, rect, &mut pcx);

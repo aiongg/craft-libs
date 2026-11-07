@@ -468,7 +468,7 @@ impl TypeAhead {
 
     /// The entry a prefix picks: the first match from the position after `from` (from `from` itself when the
     /// prefix is one repeated letter, so repeating a letter cycles), wrapping at the end.
-    pub fn pick<'a>(prefix: &str, from: Option<usize>, len: usize, label: impl Fn(usize) -> &'a str) -> Option<usize> {
+    pub fn pick<'a>(prefix: &str, from: Option<usize>, len: usize, label: impl Fn(usize) -> std::borrow::Cow<'a, str>) -> Option<usize> {
         if len == 0 || prefix.is_empty() {
             return None;
         }
@@ -720,7 +720,7 @@ mod tests {
     #[test]
     fn type_ahead_builds_a_prefix_for_one_second_and_repeated_letters_cycle() {
         let labels = ["apple", "apricot", "banana", "avocado"];
-        let label = |at: usize| labels[at];
+        let label = |at: usize| std::borrow::Cow::Borrowed(labels[at]);
         let mut buffer = TypeAhead::new();
         assert_eq!(buffer.push('a', 0.0), "a");
         assert_eq!(buffer.push('p', 0.5), "ap");

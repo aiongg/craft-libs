@@ -60,8 +60,9 @@ pub(super) struct HeaderMemory {
     /// User widths of `Content` and `Fill` columns.
     widths: Vec<(ColumnKey, f32)>,
     sorted: Option<(ColumnKey, bool)>,
-    /// The column a context menu or command acts on when no header part holds focus.
-    menu: Option<ColumnKey>,
+    /// The column a context menu or command acts on when no header part holds focus, and the frame the menu was
+    /// requested in. The menu is gone once no layer that takes keys is open a frame after its request.
+    menu: Option<(ColumnKey, u64)>,
     /// The column the keyboard resize command works on.
     resizing: Option<ColumnKey>,
     grab: Option<Grab>,
@@ -256,7 +257,7 @@ impl Header {
                 self.sort(&key);
             }
             if cx.part(HEADER.at(hash)).hovered && crate::runtime::pointer::frame(&ctx).release == Some(PointerButton::Secondary) {
-                self.memory.menu = Some(key.clone());
+                self.memory.menu = Some((key.clone(), crate::runtime::egui::pass::root_frame_nr(&ctx)));
                 self.menus.push(HeaderMenuRequest { column: key.clone(), at: rect.left_bottom() });
             }
             if movable {
@@ -305,7 +306,7 @@ impl Header {
                 }
             }
             if active == Some(at) && cx.core.intents.take(Intent::ContextMenu) {
-                self.memory.menu = Some(key.clone());
+                self.memory.menu = Some((key.clone(), crate::runtime::egui::pass::root_frame_nr(&ctx)));
                 self.menus.push(HeaderMenuRequest { column: key, at: rect.left_bottom() });
             }
         }
@@ -336,7 +337,13 @@ impl Header {
 
     fn commands<C: Collection>(&mut self, cx: &mut Cx<'_, C>, id: Id, active: Option<usize>, rtl: bool) {
         let ctx = cx.core.ctx.clone();
-        let target = active.or_else(|| self.memory.menu.as_ref().and_then(|key| self.cell_at(key)));
+        if let Some((_, asked)) = &self.memory.menu
+            && crate::runtime::egui::pass::root_frame_nr(&ctx) > *asked + 1
+            && !crate::runtime::overlay::any_open(&ctx, crate::runtime::overlay::OpenFilter::Keys)
+        {
+            self.memory.menu = None;
+        }
+        let target = active.or_else(|| self.memory.menu.as_ref().and_then(|(key, _)| self.cell_at(key)));
         let chain = cx.core.env.command_chain().pushed(ColumnCommands::SCOPE, id);
         for command in ColumnCommands::ALL {
             let enabled = target.is_some_and(|at| self.allowed(command, at, rtl));
@@ -344,6 +351,7 @@ impl Header {
         }
         while let Some((command, _)) = commands::take_for_instance(&ctx, Some(id), ColumnCommands::from_ref) {
             let Some(at) = target.filter(|&at| self.allowed(command, at, rtl)) else { continue };
+            self.memory.menu = None;
             let key = self.specs[self.cells[at].spec].key.clone();
             match command {
                 ColumnCommands::Resize => self.memory.resizing = Some(key),

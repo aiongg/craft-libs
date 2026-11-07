@@ -236,6 +236,43 @@ fn a_toggle_sweep_sets_every_row_it_crosses_once() {
     assert_eq!(scene.toggles(), (0..=LAST).map(|key| (key, true)).collect::<Vec<_>>());
 }
 
+/// Turning on a cell of an exclusive toggle column turns the column's other cells off.
+#[trial]
+fn turning_on_an_exclusive_toggle_turns_the_others_off() {
+    let (scene, source) = (Scene::default(), Switches { on: RefCell::new(vec![true, false, false]) });
+    let props = || {
+        CollectionProps::new().columns(vec![
+            ColumnSpec::new(NAME, "Name", ColumnWidth::Fixed(COL)),
+            ColumnSpec::new(MUTE, "Solo", ColumnWidth::Fixed(COL)).kind(ColumnKind::Toggle(ToggleColumn::exclusive())),
+        ])
+    };
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_table(ui, props(), &source, &scene);
+    frames.idle(3, &mut show);
+    pointer::click(&mut frames, Pos2::new(ORIGIN.x + COL * 1.5, scene.row(2).center().y), &mut show);
+    let mut toggles = scene.toggles();
+    toggles.sort_unstable();
+    assert_eq!(toggles, vec![(0, false), (2, true)]);
+}
+
+/// A press on the empty space below the rows empties the selection only when the collection allows it.
+#[trial]
+fn a_press_below_the_rows_empties_the_selection_only_when_allowed() {
+    let source = Count(3);
+    for allow in [false, true] {
+        let scene = Scene::default();
+        let props = || CollectionProps::new().select(SelectMode::Single).allow_empty(allow);
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| show_table(ui, props(), &source, &scene);
+        frames.idle(3, &mut show);
+        pointer::click(&mut frames, scene.row(1).center(), &mut show);
+        let below = Pos2::new(scene.row(1).center().x, scene.row(2).max.y + 40.0);
+        pointer::click(&mut frames, below, &mut show);
+        let cleared = scene.events.borrow().iter().any(|event| matches!(event, CollectionEvent::Selection(craft_behavior::SelectionChange::Clear)));
+        assert_eq!(cleared, allow, "allow_empty = {allow}");
+    }
+}
+
 /// A row dragged to another position shows the insertion mark while it is held and reports one `Reorder` at the drop.
 #[trial]
 fn a_dragged_row_shows_the_mark_and_reports_one_reorder() {

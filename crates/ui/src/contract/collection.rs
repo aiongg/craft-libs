@@ -1,7 +1,7 @@
 //! Chapter 17: collection props, columns, row state and the events and response a collection reports.
 
 use crate::runtime::env::Label;
-use craft_behavior::{ColumnKey, ColumnWidth, EditEvent, SelectionChange};
+use craft_behavior::{ColumnKey, ColumnWidth, DropOperation, EditEvent, SelectionChange};
 use egui::{Id, Pos2, Response, Vec2};
 use std::ops::Range;
 
@@ -48,12 +48,19 @@ impl ReorderRule {
 pub struct ToggleColumn {
     /// A drag across the cells sets them all to the first cell's new value.
     pub sweepable: bool,
+    /// Turning a cell on turns every other cell of the column off (solo).
+    pub exclusive: bool,
 }
 
 impl ToggleColumn {
     /// A sweepable toggle column (eye, lock, mute).
     pub const fn sweepable() -> Self {
-        ToggleColumn { sweepable: true }
+        ToggleColumn { sweepable: true, exclusive: false }
+    }
+
+    /// An exclusive toggle column: one cell is on at a time, and a drag does not sweep.
+    pub const fn exclusive() -> Self {
+        ToggleColumn { sweepable: false, exclusive: true }
     }
 }
 
@@ -158,6 +165,11 @@ pub struct CollectionProps {
     pub empty: Option<Label>,
     /// What activates an item with the pointer; Enter always activates the lead.
     pub activate: ActivateOn,
+    /// Odd rows carry `RowState.striped`.
+    pub striped: bool,
+    /// A press on the empty space below the rows empties the selection. Off: only a key or a press on an item
+    /// changes it, so a history list keeps its mark.
+    pub allow_empty: bool,
 }
 
 impl CollectionProps {
@@ -170,6 +182,8 @@ impl CollectionProps {
             columns: Vec::new(),
             empty: None,
             activate: ActivateOn::DoubleClick,
+            striped: false,
+            allow_empty: false,
         }
     }
 
@@ -205,6 +219,20 @@ impl CollectionProps {
     #[must_use]
     pub const fn activate(mut self, on: ActivateOn) -> Self {
         self.activate = on;
+        self
+    }
+
+    /// Odd rows carry `RowState.striped`.
+    #[must_use]
+    pub const fn striped(mut self, on: bool) -> Self {
+        self.striped = on;
+        self
+    }
+
+    /// A press on the empty space below the rows empties the selection.
+    #[must_use]
+    pub const fn allow_empty(mut self, on: bool) -> Self {
+        self.allow_empty = on;
         self
     }
 
@@ -248,13 +276,15 @@ pub struct Rename<K> {
     pub name: String,
 }
 
-/// A reorder: `key` moves to position `to`.
+/// A reorder: the items `keys` move together, and the first of them lands at position `to`.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ReorderMove<K> {
-    /// The moved item.
+    /// The item the pointer or the key grabbed.
     pub key: K,
-    /// Its new position.
+    /// Every moved item in display order, `key` among them. They end up next to each other.
+    pub keys: Vec<K>,
+    /// The new position of the first of `keys`, counted in the order that remains once all of them are taken out.
     pub to: usize,
     /// The drag was a copy (Alt held, `ReorderRule::copy_with_alt`): the item stays and a copy goes to `to`.
     pub copy: bool,
@@ -309,6 +339,22 @@ pub struct OpenChange<K> {
     pub key: K,
     /// Whether its children show now.
     pub open: bool,
+    /// The change reaches every descendant too (Alt on the disclosure).
+    pub all: bool,
+}
+
+impl<K> OpenChange<K> {
+    /// `key` opens or closes.
+    pub const fn new(key: K, open: bool) -> Self {
+        OpenChange { key, open, all: false }
+    }
+
+    /// The change reaches every descendant.
+    #[must_use]
+    pub const fn all(mut self) -> Self {
+        self.all = true;
+        self
+    }
 }
 
 /// A request for the context menu of an item. Collections never open menus: the app does.
@@ -374,6 +420,10 @@ pub enum CollectionEvent<K, E> {
     Dropped {
         /// The item dropped on.
         key: K,
+        /// What the drop does: move or copy.
+        op: DropOperation,
+        /// The dragged items in display order, from the drag session's payload.
+        keys: Vec<K>,
     },
     /// A rename started, committed or was cancelled.
     Rename(EditEvent<Rename<K>>),
@@ -397,11 +447,31 @@ pub struct CollectionResponse<K, E> {
     pub events: Vec<CollectionEvent<K, E>>,
     /// The positions the collection showed.
     pub visible: Range<usize>,
+    /// What the collection lets the user select.
+    pub select: SelectMode,
+    /// The collection renames items.
+    pub rename: bool,
+    /// The collection reorders items.
+    pub reorder: bool,
 }
 
 impl<K, E> CollectionResponse<K, E> {
-    pub(crate) fn new(response: Response, events: Vec<CollectionEvent<K, E>>, visible: Range<usize>) -> Self {
-        CollectionResponse { response, events, visible }
+    pub(crate) fn new(response: Response, events: Vec<CollectionEvent<K, E>>, visible: Range<usize>, gestures: Gestures) -> Self {
+        CollectionResponse { response, events, visible, select: gestures.select, rename: gestures.rename, reorder: gestures.reorder }
+    }
+}
+
+/// The gestures a collection's props allow, as its response reports them.
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct Gestures {
+    pub(crate) select: SelectMode,
+    pub(crate) rename: bool,
+    pub(crate) reorder: bool,
+}
+
+impl Gestures {
+    pub(crate) fn of(props: &CollectionProps) -> Self {
+        Gestures { select: props.select, rename: props.rename, reorder: props.reorder.is_some() }
     }
 }
 

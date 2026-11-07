@@ -274,6 +274,11 @@ impl<T: Value> Outcome for EditResponse<T> {
 pub trait ItemOutput<E>: Outcome {
     /// The event the collection reports for this item, `None` when the item reports nothing.
     fn into_event(self) -> Option<E>;
+
+    /// The rect of the item's label, where a rename editor goes; `None` puts it over the whole row.
+    fn label_rect(&self) -> Option<egui::Rect> {
+        None
+    }
 }
 
 impl<E> ItemOutput<E> for Response {

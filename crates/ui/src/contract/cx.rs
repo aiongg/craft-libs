@@ -99,6 +99,8 @@ pub struct CxCore<'a> {
     /// The events and visible range the item step left for `collection_response`.
     pub(crate) collection_events: Option<Box<dyn std::any::Any>>,
     pub(crate) visible_rows: Range<usize>,
+    /// What the collection's props allow, for `collection_response`.
+    pub(crate) gestures: super::collection::Gestures,
     /// The text part's result of this pass, from step 8b.
     pub(crate) texts: Option<(PartKey, Box<dyn std::any::Any>)>,
     /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
@@ -1129,8 +1131,13 @@ impl<C: Component> MeasureCx<'_, C> {
 
     /// Lays `run` out in the room the parent offers, as `Draw::text` will paint it.
     pub fn layout(&self, run: &TextRun<'_>) -> TextLayout {
+        self.layout_at(run, self.room.unwrap_or(f32::INFINITY))
+    }
+
+    /// Lays `run` out `width` wide, for a text that paints in a band narrower than the room.
+    pub fn layout_at(&self, run: &TextRun<'_>, width: f32) -> TextLayout {
         let env = TextEnv { tokens: self.tokens, direction: self.env.direction(), ink: crate::style::ink_color(self.tokens, self.ink) };
-        run.layout(self.ui.ctx(), &env, self.room.unwrap_or(f32::INFINITY))
+        run.layout(self.ui.ctx(), &env, width)
     }
 
     /// Measures a child under the composite's resolved `enabled` and `size`, as `PaintUi::child` will show it.
@@ -1260,6 +1267,22 @@ pub struct PartsCx<'a, C: Component> {
     pub(crate) text: &'a mut super::text::TextStep,
     pub(crate) last_state: (bool, bool),
     pub(crate) measure: MeasureCx<'a, C>,
+    /// A collection's rows as the item step places them this pass.
+    pub(crate) items: Option<std::rc::Rc<dyn std::any::Any>>,
+}
+
+impl<C: super::Collection> PartsCx<'_, C> {
+    /// The rect of the item `key` this pass, in the coordinates the item step lays rows out in (a transformed
+    /// collection's, before the transform). `None` for an item the step does not build: neither in view nor kept.
+    pub fn rect_of(&self, key: &C::Key) -> Option<Rect> {
+        let rows = self.items.as_ref()?.downcast_ref::<super::items::Rows<C::Key>>()?;
+        rows.rects.iter().find(|(held, _)| held == key).map(|(_, rect)| *rect)
+    }
+
+    /// How far the rows are scrolled this pass.
+    pub fn offset(&self) -> craft_behavior::ScrollPos {
+        self.items.as_ref().and_then(|rows| rows.downcast_ref::<super::items::Rows<C::Key>>()).map_or_else(Default::default, |rows| rows.offset)
+    }
 }
 
 impl<'a, C: Component> Deref for PartsCx<'a, C> {

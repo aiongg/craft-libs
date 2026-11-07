@@ -173,24 +173,38 @@ pub struct List<'a> {
     tree: bool,
     on_empty: Option<&'a Cell<Rect>>,
     text_editor: bool,
+    /// Where `parts` records the rect `PartsCx::rect_of` gives for the key.
+    parts_probe: Option<(usize, &'a Cell<Option<Rect>>)>,
 }
 
 impl<'a> List<'a> {
     pub fn new(select: SelectMode) -> Self {
         List {
             common: Common::new(),
-            props: ContainerProps::new(),
+            props: ContainerProps::new().sizing(craft_ui::contract::Sizing::Fill),
             items: CollectionProps::new().select(select),
             selection: None,
             tree: false,
             on_empty: None,
             text_editor: false,
+            parts_probe: None,
         }
     }
 
     /// Renames in a library text field, whose open draft owns Escape.
     pub fn text_editor(mut self) -> Self {
         self.text_editor = true;
+        self
+    }
+
+    pub fn reorder(mut self) -> Self {
+        self.items = self.items.reorder(craft_ui::contract::ReorderRule::new());
+        self
+    }
+
+    /// `parts` records `rect_of(key)` into `seen`.
+    pub fn probe_parts(mut self, key: usize, seen: &'a Cell<Option<Rect>>) -> Self {
+        self.parts_probe = Some((key, seen));
         self
     }
 
@@ -224,6 +238,12 @@ impl Component for List<'_> {
         PlainStyle::default()
     }
 
+    fn parts(&mut self, _: Rect, cx: &mut craft_ui::contract::PartsCx<'_, Self>) {
+        if let Some((key, seen)) = self.parts_probe {
+            seen.set(cx.rect_of(&key));
+        }
+    }
+
     fn finish(self, mut cx: Cx<'_, Self>) -> Self::Output {
         cx.collection_response()
     }
@@ -249,7 +269,7 @@ impl Collection for List<'_> {
         if self.tree { layout.tree() } else { layout }
     }
 
-    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>) -> Option<EditResponse<String>> {
+    fn rename_editor(&mut self, ui: &mut Ui, draft: Bind<'_, String>, _: Rect) -> Option<EditResponse<String>> {
         if self.text_editor {
             use craft_ui::contract::Show as _;
             return Some(craft_ui::text::TextField::new("Name", draft).show(ui));

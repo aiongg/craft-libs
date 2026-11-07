@@ -326,9 +326,30 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
     /// The layout of `source` at `width`.
     fn item_layout(&self, source: &dyn ItemSource<Self::Key>, width: f32, cx: &StyleCx<'_>) -> Self::ItemLayout;
 
-    /// The rename editor at the renaming row's label rect.
-    fn rename_editor(&mut self, _ui: &mut Ui, _draft: Bind<'_, String>) -> Option<EditResponse<String>> {
+    /// The rename editor at `label`: the label rect the renaming item reports (`ItemOutput::label_rect`), else its row.
+    fn rename_editor(&mut self, _ui: &mut Ui, _draft: Bind<'_, String>, _label: Rect) -> Option<EditResponse<String>> {
         None
+    }
+
+    /// Whether the item `key` may be renamed; a rename request on another item does nothing.
+    fn can_rename(&self, _key: &Self::Key) -> bool {
+        true
+    }
+
+    /// Whether the item `key` may be dragged (reordered, moved in a free layout, or dragged to another collection).
+    fn can_drag(&self, _key: &Self::Key) -> bool {
+        true
+    }
+
+    /// Whether a drag from the collection `from` may drop here.
+    fn accept_from(&self, _from: Id) -> bool {
+        true
+    }
+
+    /// Whether the dragged items may land before `insert` (a position of the display order, `over` is the item the
+    /// pointer is on). A refused spot shows no drop mark.
+    fn accepts(&self, _drag: &ListDrag<Self::Key>, _over: &Self::Key, _insert: usize) -> bool {
+        true
     }
 
     /// The empty state at the rect the item step placed.

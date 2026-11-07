@@ -8,9 +8,9 @@
 //! which claims all four arrows and moves a reference cursor from `cx.take_claimed`.
 //!
 //! The grid does not hold the data: it reports the committed draft as a [`CellEdit`] and the app writes the cell.
-//! The editor part sits over the lead cell at the position the grid computes from its own geometry, so the example
-//! does not scroll horizontally and its vertical scroll would misplace the part: a collection's `parts` has no
-//! access to the layout's offset.
+//! The editor part sits over the lead cell: its column from the grid's own geometry, its row from the rect the item
+//! step gives the row this pass (`PartsCx::rect_of`), so it follows the vertical scroll. The example does not scroll
+//! horizontally.
 
 use super::code_editor::{CodeDocument, caret_x};
 use crate::contract::{
@@ -166,7 +166,7 @@ impl<'a> SheetGrid<'a> {
     pub fn new(selection: Bind<'a, CellSelection<usize>>, rows: &'a [Vec<String>]) -> Self {
         SheetGrid {
             common: Common::new(),
-            props: ContainerProps::new(),
+            props: ContainerProps::new().sizing(crate::contract::Sizing::Fill),
             items: CollectionProps::new().select(SelectMode::Cells),
             selection,
             rows,
@@ -227,7 +227,11 @@ impl Component for SheetGrid<'_> {
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         let cell = self.lead_cell().unwrap_or((0, 0));
-        cx.editor(EDITOR, cell_rect(rect, cx.style, cx.flow.is_rtl(), cell), EditorPurpose::Text);
+        let mut at = cell_rect(rect, cx.style, cx.flow.is_rtl(), cell);
+        if let Some(row) = cx.rect_of(&cell.0) {
+            at = Rect::from_x_y_ranges(at.x_range(), row.y_range());
+        }
+        cx.editor(EDITOR, at, EditorPurpose::Text);
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {

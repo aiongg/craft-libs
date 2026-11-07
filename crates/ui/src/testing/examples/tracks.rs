@@ -146,8 +146,12 @@ impl TrackStack {
             ColumnSpec::new(LOCK, "Lock", ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())),
             ColumnSpec::new(LANE, "Clips", ColumnWidth::fill(1.0)),
         ];
-        TrackStack { common: Common::new(), props: ContainerProps::new(), items: CollectionProps::new().select(SelectMode::Single).columns(columns) }
-            .label(label)
+        TrackStack {
+            common: Common::new(),
+            props: ContainerProps::new().sizing(crate::contract::Sizing::Fill),
+            items: CollectionProps::new().select(SelectMode::Single).columns(columns),
+        }
+        .label(label)
     }
 }
 

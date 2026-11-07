@@ -3,15 +3,16 @@
 pub(super) mod rows;
 
 use super::collection::{
-    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, OpenChange, Rename, ReorderMove, RowState, SelectMode,
+    ActivateOn, CollectionEvent, CollectionProps, CollectionResponse, ContextMenuRequest, Gestures, OpenChange, Rename, ReorderMove, RowState,
+    SelectMode,
 };
 use super::cx::BodyCx;
 use super::run::{ShapeHooks, ShowAt};
 use super::steps::ShapeKind;
-use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, PartsCx, Props, Show as _};
+use super::{Bind, Collection, Cx, Internal, ItemCx, ItemFn, ItemOutput as _, PartsCx, Props, Show as _, Sizing};
 use crate::primitives::ScrollBar;
 use crate::runtime::access::{self, Role, SetPosition};
-use crate::runtime::egui::{alloc, child, memory as store};
+use crate::runtime::egui::{alloc, areas, child, memory as store, response};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{focus, frame, wheel};
@@ -22,6 +23,7 @@ use craft_behavior::{
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
+use std::rc::Rc;
 
 mod drag;
 mod header;
@@ -30,6 +32,12 @@ pub use header::ColumnCommands;
 
 use drag::Drags;
 use header::{Header, HeaderMemory};
+
+/// The rows the item step builds in a pass and where it puts them: what `PartsCx::rect_of` and `offset` read.
+pub(super) struct Rows<K> {
+    pub(super) rects: Vec<(K, Rect)>,
+    pub(super) offset: ScrollPos,
+}
 
 const SCROLL: craft_behavior::PartKey = craft_behavior::PartKey::new("items_scroll");
 
@@ -97,7 +105,7 @@ impl<S: Default> Default for Held<S> {
 pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     source: &'s dyn ItemSource<C::Key>,
     item: &'s mut ItemFn<'r, C>,
-    layout: Option<C::ItemLayout>,
+    layout: Option<Rc<C::ItemLayout>>,
     content: Vec2,
     room: Vec2,
     scrolls: bool,
@@ -113,6 +121,10 @@ pub(super) struct ItemsHooks<'s, 'r, C: Collection> {
     lead: Lead<C::Key>,
     renaming: Renaming<C::Key>,
     ended_rename: bool,
+    /// The editor of the rename that ended still held focus, so focus goes back to the collection.
+    refocus: bool,
+    /// The mapping between the screen and the rows when `ContainerProps.transform` zooms them.
+    xf: Option<areas::LayerMap>,
     header: Header,
     drags: Drags<C::Key>,
 }
@@ -146,6 +158,8 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
             lead: Lead::default(),
             renaming: Renaming::default(),
             ended_rename: false,
+            refocus: false,
+            xf: None,
             header: Header::default(),
             drags: Drags::default(),
         }
@@ -191,8 +205,24 @@ impl<'s, 'r, C: Collection> ItemsHooks<'s, 'r, C> {
         self.events.push(CollectionEvent::LeadMoved(key));
     }
 
+    /// The position of `key`: the lead's last position is tried first, so the common lookups of a pass do not scan.
+    fn index_of(&self, key: &C::Key) -> Option<usize> {
+        let hint = self.lead.at;
+        if hint < self.source.len() && self.source.key(hint) == *key { Some(hint) } else { self.source.index_of(key) }
+    }
+
+    /// `point` of the screen in the coordinates the rows are laid out in.
+    fn layer(&self, point: Pos2) -> Pos2 {
+        self.xf.map_or(point, |map| map.to_layer(point))
+    }
+
+    /// `point` of the rows' coordinates on the screen.
+    fn on_screen(&self, point: Pos2) -> Pos2 {
+        self.xf.map_or(point, |map| map.to_screen(point))
+    }
+
     fn anchor_at(&self, lead: usize) -> usize {
-        self.selection.anchor().and_then(|key| self.source.index_of(key)).unwrap_or(lead)
+        self.selection.anchor().and_then(|key| self.index_of(key)).unwrap_or(lead)
     }
 
     /// A press or key that selects row `at` the way the modifiers say.
@@ -298,14 +328,37 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         layout.measured(&|at| rows::measured_height(ctx, rows::measured_id(id, &self.source.key(at))));
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
-        self.layout = Some(layout);
-        if self.scrolls && room.y.is_finite() { Vec2::ZERO } else { self.content + Vec2::new(0.0, self.header.height) }
+        self.layout = Some(Rc::new(layout));
+        let height = self.content.y + self.header.height;
+        if !(self.scrolls && room.y.is_finite()) {
+            return Vec2::new(self.content.x, height);
+        }
+        // A scrolling collection in a bounded room: `Content` takes its rows up to the room, `Fill` the room.
+        match comp.props(Internal::new()).sizing {
+            Sizing::Fill => Vec2::ZERO,
+            Sizing::Content => Vec2::new(0.0, height.min(room.y)),
+        }
     }
 
-    fn sized(&self, _: &C, _: &Ui, size: Vec2) -> Vec2 {
+    fn sized(&self, comp: &C, _: &Ui, size: Vec2) -> Vec2 {
         let width = if self.room.x.is_finite() { self.room.x.max(size.x) } else { size.x };
-        let height = if self.scrolls && self.room.y.is_finite() { self.room.y } else { size.y };
+        let height = match (self.scrolls && self.room.y.is_finite(), comp.props(Internal::new()).sizing) {
+            (true, Sizing::Fill) => self.room.y,
+            (true, Sizing::Content) => size.y.min(self.room.y),
+            (false, _) => size.y,
+        };
         Vec2::new(width, height)
+    }
+
+    fn geometry(&mut self, _: &C, content: Rect, rtl: bool) -> Option<Rc<dyn std::any::Any>> {
+        let view = self.below_header(content);
+        let offset = ScrollPos { x: self.offset_x, y: self.offset.clamp(0.0, self.max_offset(view.height())) };
+        let mut layout = self.layout.take()?;
+        Rc::make_mut(&mut layout).set_view(view.size(), offset);
+        let (_, order) = self.built(&layout, view, offset);
+        let rects = order.into_iter().map(|at| (self.source.key(at), self.screen(&layout, view, at, offset, rtl))).collect();
+        self.layout = Some(layout);
+        Some(Rc::new(Rows { rects, offset }))
     }
 
     fn parts(&mut self, _: &mut C, _: Rect, pcx: &mut PartsCx<'_, C>) {
@@ -333,6 +386,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let rect = self.rows_rect(cx);
         let view = rect.height();
         let rtl = cx.core.flow.is_rtl();
+        self.xf = comp.props(Internal::new()).transform.map(|zoom| areas::body_map(rect.min, zoom.scale, zoom.offset));
         if let Some(range) = cx.scroll_moved(SCROLL) {
             self.offset = range.start;
         }
@@ -340,17 +394,19 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let header_held = self.header_step(cx);
         self.offset_x = self.offset_x.clamp(0.0, f64::from((self.content.x - rect.width()).max(0.0)));
         self.follow_lead_source(comp);
-        let lead_at = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
+        let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key));
         let props = comp.items().clone();
         let Some(layout) = self.layout.take() else { return };
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
         let at = Placement { rect, offset, rtl };
-        self.press_step(comp, cx, &props, &layout, at);
-        self.drag_step(cx, &layout, rect, offset, rtl, &props);
+        // A press lands on the rows the user saw: the offset of the last pass, before this pass's wheel share (8.3).
+        let seen = Placement { offset: ScrollPos { x: self.offset_x_at_read, y: self.offset_at_read }, ..at };
+        self.press_step(comp, cx, &props, &layout, seen);
+        self.drag_step(comp, cx, &layout, rect, offset, rtl, &props);
         self.navigate(comp, cx, &layout, view, header_held);
-        let lead_at = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)).or(lead_at);
+        let lead_at = self.lead.key.as_ref().and_then(|key| self.index_of(key)).or(lead_at);
         self.intent_actions(comp, cx, &layout, at, lead_at, header_held);
-        self.reorder_and_rename(cx, &props, lead_at);
+        self.reorder_and_rename(comp, cx, &props, lead_at);
         self.type_ahead(comp, cx, &layout, view, lead_at);
         self.layout = Some(layout);
     }
@@ -378,20 +434,15 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let rtl = env.direction.is_rtl();
         let node = matches!(C::ROLE, Role::Node(_));
         let offset = ScrollPos { x: self.offset_x, y: self.offset };
-        layout.set_view(rect.size(), offset);
+        Rc::make_mut(&mut layout).set_view(rect.size(), offset);
         let sheet = Self::selects_cells(comp);
         let columns: Vec<u64> = match layout.grid() {
             Some(grid) => grid.sections.iter().flat_map(|section| section.columns.clone().map(u64::from)).collect(),
             None => (0..layout.column_count() as u64).collect(),
         };
         let grid = layout.grid().map(|grid| self.grid_screen(&layout, grid, rect, rtl));
-        let mut shown = Vec::new();
-        layout.visible(offset, rect.size(), &mut shown);
+        let (shown, order) = self.built(&layout, rect, offset);
         self.visible = shown.first().copied().unwrap_or(0)..shown.last().map_or(0, |last| last + 1);
-        // Keep-alive: the lead, the anchor and the renaming row stay built while scrolled out of view.
-        let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
-        let extra: Vec<usize> = keep.into_iter().flatten().filter_map(|key| self.source.index_of(key)).filter(|at| !shown.contains(at)).collect();
-        let order: Vec<usize> = shown.iter().copied().chain(extra).collect();
         let command_scope = comp.props(Internal::new()).command_scope;
         if let Some(scope) = command_scope {
             crate::runtime::commands::register_instance(&ctx, scope, id);
@@ -406,124 +457,152 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let focused = focus::is_focused(&ctx, id);
         let lead = self.lead.key.clone();
         let mut lead_child = None;
-        for at in order {
-            let key = self.source.key(at);
-            let item_id = sub(id, ("key", key_hash(&key)));
-            let row_group = rows::row_group(item_id);
-            focus::register_group(&ctx, focus::Group::new(row_group, craft_behavior::Roving::new(craft_behavior::NavShape::Flat)).row(id).rtl(rtl));
-            let mut row = self.screen(&layout, rect, at, offset, rtl);
-            let state = RowState {
-                selected: self.selection.contains(&key),
-                lead: lead.as_ref() == Some(&key),
-                renaming: self.renaming.key.as_ref() == Some(&key),
-                dragging: self.drags.grabbed.as_ref() == Some(&key),
-                drop_target: self.drags.over.as_ref() == Some(&key),
-                open: self.source.has_children(at) && self.source.open(at),
-                ..RowState::default()
-            };
-            let mut flags = crate::style::Flags::empty();
-            flags.set(crate::style::Flags::SELECTED, state.selected);
-            let child = if state.lead { rows::child_focus(&ctx, row_group) } else { None };
-            lead_child = lead_child.or(child);
-            flags.set(crate::style::Flags::LEAD, state.lead && (focused || child.is_some()));
-            flags.set(crate::style::Flags::OPEN, state.open);
-            flags.set(crate::style::Flags::DRAGGING, state.dragging);
-            flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
-            store::put(&ctx, sub(item_id, "row_flags"), RowFlags(flags));
-            let mut position = SetPosition::new(at).of(len);
-            if tree {
-                position = position.level(self.source.depth(at) + 1);
-            }
-            crate::runtime::access::put_item_position(&ctx, item_id, position);
-            let mut cells = Vec::new();
-            layout.cells(at, offset, &mut cells);
-            for (_, cell) in &mut cells {
-                *cell = self.to_screen(&layout, rect, *cell, rtl);
-            }
-            if sheet {
-                rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(at, &columns, focused));
-            }
-            let mut icx = ItemCx {
-                key: &key,
-                at,
-                rect: row,
-                row: state,
-                depth: self.source.depth(at),
-                set: position,
-                env: cx.core.env,
-                id: sub(item_id, "item"),
-                cells,
-                grid: grid.as_ref(),
-                tip: None,
-                memory: &mut *cx.core.memory,
-            };
-            icx.memory.claim(icx.id);
-            let mut item = (self.item)(&key, &mut icx);
-            let tip = icx.tip.take();
-            drop(icx);
-            let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
-            let builder = if node { access::with_parent(builder, id) } else { builder };
-            let mut row_ui = alloc::child(ui, builder);
-            row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
-            let installed = Env::install_for(
-                &row_ui,
-                base_env.derive(|scoped| {
-                    scoped.item = Some(item_id);
-                    scoped.row = Some(row_group);
-                }),
-            );
-            item = Props::id(item, item_id);
-            if layout.is_auto(at) {
-                let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
-                rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
-                if measured != row.height() {
-                    layout.set_height(at, measured);
-                    row = self.screen(&layout, rect, at, offset, rtl);
+        let striped = comp.items().striped;
+        let transform = comp.props(Internal::new()).transform;
+        let (parent, clip) = (ui.layer_id(), rect.intersect(ui.clip_rect()));
+        let forward =
+            areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: cx.core.rect.intersect(ui.clip_rect()) };
+        let mut place_rows = |ui: &mut Ui| {
+            for at in order {
+                let key = self.source.key(at);
+                let item_id = sub(id, ("key", key_hash(&key)));
+                let row_group = rows::row_group(item_id);
+                focus::register_group(
+                    &ctx,
+                    focus::Group::new(row_group, craft_behavior::Roving::new(craft_behavior::NavShape::Flat)).row(id).rtl(rtl),
+                );
+                let mut row = self.screen(&layout, rect, at, offset, rtl);
+                let state = RowState {
+                    selected: self.selection.contains(&key),
+                    lead: lead.as_ref() == Some(&key),
+                    renaming: self.renaming.key.as_ref() == Some(&key),
+                    striped: striped && at % 2 == 1,
+                    dragging: self.drags.grabbed.as_ref() == Some(&key),
+                    drop_target: self.drags.over.as_ref() == Some(&key),
+                    open: self.source.has_children(at) && self.source.open(at),
+                    ..RowState::default()
+                };
+                let mut flags = crate::style::Flags::empty();
+                flags.set(crate::style::Flags::SELECTED, state.selected);
+                let child = if state.lead { rows::child_focus(&ctx, row_group) } else { None };
+                lead_child = lead_child.or(child);
+                flags.set(crate::style::Flags::LEAD, state.lead && (focused || child.is_some()));
+                flags.set(crate::style::Flags::OPEN, state.open);
+                flags.set(crate::style::Flags::DRAGGING, state.dragging);
+                flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
+                store::put(&ctx, sub(item_id, "row_flags"), RowFlags(flags));
+                let mut position = SetPosition::new(at).of(len);
+                if tree {
+                    position = position.level(self.source.depth(at) + 1);
                 }
-            }
-            let out = match tip {
-                Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
-                None => item.show_at(&mut row_ui, row),
-            };
-            if let Some(event) = super::ItemOutput::into_event(out) {
-                self.events.push(CollectionEvent::Item(key.clone(), event));
-            }
-            if state.renaming {
-                let mut draft = std::mem::take(&mut self.renaming.draft);
-                let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft));
-                self.renaming.draft = draft;
-                if let Some(editor) = editor {
-                    if !self.renaming.focused {
-                        focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
-                        self.renaming.focused = true;
-                    }
-                    let gesture = self.renaming.gesture;
-                    let before =
-                        Mixed::Same(Rename { key: key.clone(), name: self.source.text(at).map(|text| text.into_owned()).unwrap_or_default() });
-                    match editor.event {
-                        Some(EditEvent::Commit { after, .. }) => {
-                            let after = Rename { key: key.clone(), name: after };
-                            self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
-                            self.ended_rename = true;
-                        }
-                        Some(EditEvent::Cancel { reason, .. }) => {
-                            self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, reason, Some(before))));
-                            self.ended_rename = true;
-                        }
-                        _ => {}
+                crate::runtime::access::put_item_position(&ctx, item_id, position);
+                let mut cells = Vec::new();
+                layout.cells(at, offset, &mut cells);
+                for (_, cell) in &mut cells {
+                    *cell = self.to_screen(&layout, rect, *cell, rtl);
+                }
+                if sheet {
+                    rows::put_cell_flags(&ctx, item_id, self.cell_flag_list(at, &columns, focused));
+                }
+                let mut icx = ItemCx {
+                    key: &key,
+                    at,
+                    rect: row,
+                    row: state,
+                    depth: self.source.depth(at),
+                    set: position,
+                    env: cx.core.env,
+                    id: sub(item_id, "item"),
+                    cells,
+                    grid: grid.as_ref(),
+                    tip: None,
+                    memory: &mut *cx.core.memory,
+                };
+                icx.memory.claim(icx.id);
+                let mut item = (self.item)(&key, &mut icx);
+                let tip = icx.tip.take();
+                drop(icx);
+                let builder = UiBuilder::new().max_rect(row).layout(child::column_layout(rtl)).scope_id(sub(item_id, "row"));
+                let builder = if node { access::with_parent(builder, id) } else { builder };
+                let mut row_ui = alloc::child(ui, builder);
+                row_ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+                let installed = Env::install_for(
+                    &row_ui,
+                    base_env.derive(|scoped| {
+                        scoped.item = Some(item_id);
+                        scoped.row = Some(row_group);
+                    }),
+                );
+                item = Props::id(item, item_id);
+                if layout.is_auto(at) {
+                    let measured = item.measure_in(&row_ui, Proposal::Width(row.width())).y;
+                    rows::record_measure(&ctx, rows::measured_id(id, &key), Vec2::new(row.width(), measured));
+                    if measured != row.height() {
+                        Rc::make_mut(&mut layout).set_height(at, measured);
+                        row = self.screen(&layout, rect, at, offset, rtl);
                     }
                 }
+                let out = match tip {
+                    Some(tip) => item.show_at_with_tip(&mut row_ui, row, tip),
+                    None => item.show_at(&mut row_ui, row),
+                };
+                let label = out.label_rect().unwrap_or(row);
+                if let Some(event) = out.into_event() {
+                    self.events.push(CollectionEvent::Item(key.clone(), event));
+                }
+                if state.renaming {
+                    let mut draft = std::mem::take(&mut self.renaming.draft);
+                    let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft), label);
+                    self.renaming.draft = draft;
+                    if let Some(editor) = editor {
+                        if !self.renaming.focused {
+                            focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
+                            self.renaming.focused = true;
+                        }
+                        let gesture = self.renaming.gesture;
+                        let before =
+                            Mixed::Same(Rename { key: key.clone(), name: self.source.text(at).map(|text| text.into_owned()).unwrap_or_default() });
+                        if matches!(editor.event, Some(EditEvent::Commit { .. } | EditEvent::Cancel { .. })) {
+                            self.refocus = focus::is_focused(&ctx, editor.response.id);
+                        }
+                        match editor.event {
+                            Some(EditEvent::Commit { after, .. }) => {
+                                let after = Rename { key: key.clone(), name: after };
+                                self.events.push(CollectionEvent::Rename(EditEvent::commit(gesture, before, after)));
+                                self.ended_rename = true;
+                            }
+                            Some(EditEvent::Cancel { reason, .. }) => {
+                                self.events.push(CollectionEvent::Rename(EditEvent::cancel(gesture, reason, Some(before))));
+                                self.ended_rename = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+                Env::restore(&ctx, installed);
             }
-            Env::restore(&ctx, installed);
+        };
+        match transform {
+            Some(transform) => {
+                let layer = areas::body_layer(parent, id);
+                let tf = areas::body_transform(rect.min, transform.scale, transform.offset);
+                crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
+                let body_layer = areas::BodyLayer { parent, layer, transform: tf, at: rect.min, clip, forward: Some(forward) };
+                areas::show_body_layer(&ctx, body_layer, |area_ui| place_rows(area_ui));
+            }
+            None => place_rows(ui),
         }
         let size = layout.content_size();
         self.content = Vec2::new(size.x as f32, size.y as f32);
         if self.ended_rename {
             self.renaming = Renaming::default();
-            focus::request_now(&ctx, focus::FocusTarget::Id(id));
+            if self.refocus {
+                focus::request_now(&ctx, focus::FocusTarget::Id(id));
+            }
+            self.refocus = false;
         }
         if (focused || lead_child.is_some())
-            && let Some(at) = lead.as_ref().and_then(|key| self.source.index_of(key))
+            && let Some(at) = lead.as_ref().and_then(|key| self.index_of(key))
         {
             let item_id = sub(id, ("key", key_hash(&self.source.key(at))));
             let cell = (sheet && self.selection.lead_column().is_some()).then_some(self.lead.column);
@@ -560,7 +639,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         self.layout = Some(layout);
     }
 
-    fn settle(&mut self, _: &mut C, cx: &mut Cx<'_, C>) {
+    fn settle(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
         let id = cx.core.id;
         if self.scrolls && (self.offset != self.offset_at_read || self.offset_x != self.offset_x_at_read) {
             let scrolled = cx.core.memory.session::<Scrolled>(sub(id, "scroll"));
@@ -573,6 +652,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         *cx.core.memory.session::<Renaming<C::Key>>(sub(id, "rename")) = self.renaming.clone();
         cx.core.collection_events = Some(Box::new(std::mem::take(&mut self.events)));
         cx.core.visible_rows = self.visible.clone();
+        cx.core.gestures = Gestures::of(comp.items());
     }
 
     fn record(&mut self, stage: &mut MemoryStage, _: &Context, id: Id) {
@@ -582,11 +662,22 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 }
 
 impl<C: Collection> ItemsHooks<'_, '_, C> {
+    /// The positions the pass builds: the rows in view, and all of them followed by the rows kept alive while
+    /// scrolled out of view (the lead, the anchor, the renaming row and the grabbed row).
+    fn built(&self, layout: &C::ItemLayout, view: Rect, offset: ScrollPos) -> (Vec<usize>, Vec<usize>) {
+        let mut shown = Vec::new();
+        layout.visible(offset, view.size(), &mut shown);
+        let keep = [self.lead.key.as_ref(), self.selection.anchor(), self.renaming.key.as_ref(), self.drags.grabbed.as_ref()];
+        let extra: Vec<usize> = keep.into_iter().flatten().filter_map(|key| self.index_of(key)).filter(|at| !shown.contains(at)).collect();
+        let order = shown.iter().copied().chain(extra).collect();
+        (shown, order)
+    }
+
     /// A lead whose key left the source moves to the key now in its place, else the one before it.
     fn follow_lead_source(&mut self, comp: &C) {
         let len = self.source.len();
         if let Some(key) = self.lead.key.clone()
-            && self.source.index_of(&key).is_none()
+            && self.index_of(&key).is_none()
         {
             self.lead.key = None;
             if len > 0 {
@@ -596,7 +687,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     self.pick(comp, to, false, false);
                 }
             }
-        } else if let Some(at) = self.lead.key.as_ref().and_then(|key| self.source.index_of(key)) {
+        } else if let Some(at) = self.lead.key.as_ref().and_then(|key| self.index_of(key)) {
             self.lead.at = at;
         }
     }
@@ -606,41 +697,69 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let Placement { rect, offset, rtl } = at;
         let ctx = cx.core.ctx.clone();
         let flow = Flow::new(Rect::from_min_size(Pos2::ZERO, rect.size()), rtl);
+        let xf = self.xf;
+        // A screen point in the layout's logical coordinates, relative to the rows' rect.
         let local = |at: Pos2| {
-            let at = at - rect.min.to_vec2();
+            let at = xf.map_or(at, |map| map.to_layer(at)) - rect.min.to_vec2();
             if layout.mirrors() && rtl { flow.to_physical(Rect::from_min_size(at, Vec2::ZERO)).min } else { at }
         };
         if let PressPhase::Down { start, .. } = cx.core.press.phase
-            && start.origin.y >= rect.min.y
-            && let Some(at) = layout.hit(local(start.origin), offset)
-            && self.source.enabled(at)
+            && local(start.origin).y >= 0.0
         {
             let primary = start.button == craft_behavior::PointerButton::Primary;
-            let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
-            if let Some((column, sweepable)) = toggle {
-                self.begin_toggle(cx, at, column, sweepable);
-            } else {
-                let mods = crate::runtime::pointer::frame(&ctx).mods;
-                let key = self.source.key(at);
-                let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
-                match column {
-                    Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
-                    None => self.pick(comp, at, mods.shift, mods.cmd),
+            if let Some(at) = layout.hit(local(start.origin), offset).filter(|&at| self.source.enabled(at)) {
+                let toggle = self.toggle_cell(props, layout, at, offset, local(start.origin)).filter(|_| primary);
+                if let Some((column, toggle)) = toggle {
+                    self.begin_toggle(cx, at, column, toggle);
+                } else {
+                    let mods = crate::runtime::pointer::frame(&ctx).mods;
+                    let key = self.source.key(at);
+                    let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
+                    // A plain press on a selected row of a multiple selection leaves the selection whole, so a drag
+                    // carries all of it; the release as a click narrows it to the row.
+                    let hold = primary && !mods.shift && !mods.cmd && Self::select_mode(comp) == SelectMode::Multi && self.selection.contains(&key);
+                    match column {
+                        Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
+                        None if hold => self.drags.collapse = Some(key.clone()),
+                        None => self.pick(comp, at, mods.shift, mods.cmd),
+                    }
+                    self.move_lead(at);
+                    let activates = match props.activate {
+                        ActivateOn::DoubleClick => start.clicks == 2,
+                        ActivateOn::Click => primary && start.clicks == 1,
+                    };
+                    if activates {
+                        self.events.push(CollectionEvent::Activate(key));
+                    }
                 }
-                self.move_lead(at);
-                let activates = match props.activate {
-                    ActivateOn::DoubleClick => start.clicks == 2,
-                    ActivateOn::Click => primary && start.clicks == 1,
-                };
-                if activates {
-                    self.events.push(CollectionEvent::Activate(key));
-                }
+            } else if primary
+                && props.allow_empty
+                && !matches!(Self::select_mode(comp), SelectMode::None)
+                && self.selection != C::Selection::default()
+            {
+                self.change(SelectionChange::Clear);
             }
         }
+        match cx.core.press.phase {
+            PressPhase::Release { click, .. } => {
+                if let Some(key) = self.drags.collapse.take()
+                    && click
+                    && let Some(at) = self.index_of(&key)
+                {
+                    self.pick(comp, at, false, false);
+                }
+            }
+            PressPhase::Cancel { .. } => self.drags.collapse = None,
+            _ => {}
+        }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
+        // Something over the collection, or a part of a row or of the collection that is under the pointer, keeps the
+        // request away.
         let released = crate::runtime::pointer::frame(&ctx);
         if released.release == Some(craft_behavior::PointerButton::Secondary)
-            && let Some(pos) = released.pos.filter(|pos| rect.contains(*pos))
+            && cx.core.response.hovered()
+            && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.is_none_or(|hit| hit.part.is_none())
+            && let Some(pos) = released.pos.filter(|pos| rect.contains(xf.map_or(*pos, |map| map.to_layer(*pos))))
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)
         {
@@ -653,7 +772,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 }
             }
             self.move_lead(at);
-            let place = self.screen(layout, rect, at, offset, rtl).left_bottom();
+            let place = self.on_screen(self.screen(layout, rect, at, offset, rtl).left_bottom());
             self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key, at: place }));
         }
     }
@@ -670,7 +789,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             if len == 0 {
                 break;
             }
-            let lead = self.lead.key.as_ref().and_then(|key| self.source.index_of(key));
+            let lead = self.lead.key.as_ref().and_then(|key| self.index_of(key));
             if rows::is_forward(mv, mods)
                 && let Some(at) = lead
                 && !matches!(layout.nav(), craft_behavior::NavShape::Cell)
@@ -702,8 +821,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     }
                     self.reveal_with(layout, to, view);
                 }
-                NavStep::Expand(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: true })),
-                NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange { key: self.source.key(at), open: false })),
+                NavStep::Expand(at) => self.events.push(CollectionEvent::Open(OpenChange::new(self.source.key(at), true))),
+                NavStep::Collapse(at) => self.events.push(CollectionEvent::Open(OpenChange::new(self.source.key(at), false))),
                 _ => {}
             }
         }
@@ -729,36 +848,33 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         if cx.core.intents.take(Intent::ContextMenu)
             && let Some(row) = lead_at
         {
-            let place = self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom();
+            let place = self.on_screen(self.screen(layout, at.rect, row, at.offset, at.rtl).left_bottom());
             self.events.push(CollectionEvent::ContextMenu(ContextMenuRequest { key: self.source.key(row), at: place }));
         }
     }
 
     /// Alt+arrow moves the lead's row; the rename command starts an edit of its name.
-    fn reorder_and_rename(&mut self, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
+    fn reorder_and_rename(&mut self, comp: &C, cx: &mut Cx<'_, C>, props: &CollectionProps, lead_at: Option<usize>) {
         let (ctx, len) = (cx.core.ctx.clone(), self.source.len());
         if let Some(forward) = take_move_item(&mut cx.core.intents)
             && props.reorder.is_some()
             && let Some(at) = lead_at
+            && comp.can_drag(&self.source.key(at))
         {
             let to = if forward { (at + 1).min(len - 1) } else { at.saturating_sub(1) };
             if to != at {
                 let key = self.source.key(at);
                 let id = crate::runtime::edit::next_gesture_id(&ctx);
                 let label = cx.core.label_arc();
-                let before = ReorderMove { key: key.clone(), to: at, copy: false };
-                self.events.push(CollectionEvent::Reorder(EditEvent::set(
-                    id,
-                    Mixed::Same(before),
-                    ReorderMove { key, to, copy: false },
-                    label,
-                    None,
-                )));
+                let before = ReorderMove { key: key.clone(), keys: vec![key.clone()], to: at, copy: false };
+                let after = ReorderMove { key: key.clone(), keys: vec![key], to, copy: false };
+                self.events.push(CollectionEvent::Reorder(EditEvent::set(id, Mixed::Same(before), after, label, None)));
             }
         }
         if props.rename
             && cx.core.intents.take(Intent::Rename)
             && let Some(at) = lead_at
+            && comp.can_rename(&self.source.key(at))
         {
             let key = self.source.key(at);
             let draft = self.source.text(at).map(|text| text.into_owned()).unwrap_or_default();
@@ -780,9 +896,8 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                 prefix = typing.push(letter, now).to_owned();
             }
             cx.core.memory.session::<Typing>(sub(id, "typing")).0 = typing;
-            let labels: Vec<_> = (0..len).map(|at| self.source.text(at)).collect();
-            let from = lead_at;
-            if let Some(to) = TypeAhead::pick(&prefix, from, len, |at| labels[at].as_deref().unwrap_or("")) {
+            let source = self.source;
+            if let Some(to) = TypeAhead::pick(&prefix, lead_at, len, |at| source.text(at).unwrap_or_default()) {
                 self.move_lead(to);
                 self.pick(comp, to, false, false);
                 self.reveal_with(layout, to, view);
@@ -849,6 +964,6 @@ impl<C: Collection> Cx<'_, C> {
             .and_then(|events| events.downcast::<Vec<CollectionEvent<C::Key, C::ItemEvent>>>().ok())
             .map(|events| *events)
             .unwrap_or_default();
-        CollectionResponse::new(self.core.response.clone(), events, self.core.visible_rows.clone())
+        CollectionResponse::new(self.core.response.clone(), events, self.core.visible_rows.clone(), self.core.gestures)
     }
 }
