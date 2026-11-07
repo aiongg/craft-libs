@@ -75,6 +75,11 @@ pub fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<
     focus::push_scope(ctx, id, policy, label);
 }
 
+/// Marks the stops registered from here on in the innermost open scope as its body's.
+pub fn begin_body(ctx: &Context) {
+    focus::begin_body(ctx);
+}
+
 /// Closes the innermost open scope.
 pub fn pop_scope(ctx: &Context) {
     focus::pop_scope(ctx);

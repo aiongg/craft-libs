@@ -88,7 +88,7 @@ pub(crate) struct State {
     pub(crate) scope_order: Vec<Id>,
     pub(crate) last_scope_order: Vec<Id>,
     pub(super) open: Vec<(Id, usize)>,
-    /// Where a scope's body begins in `stops`: `Initial::First` skips the header's stops before it.
+    /// Where a scope's body begins in `stops`; the header's stops come before it, the footer's after the body's.
     pub(super) body_from: HashMap<Id, usize>,
     pub(crate) groups: HashMap<Id, Group>,
     pub(crate) last_groups: HashMap<Id, Group>,
@@ -133,8 +133,9 @@ pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
     });
 }
 
-/// Marks the stops registered from here on in the innermost open scope as its body's: initial focus goes to the
-/// first of them, not to the title row's close action. The first mark of a pass stands.
+/// Marks the stops registered from here on in the innermost open scope as its body's: they come first in Tab
+/// order, then the footer's, then the header's, and initial focus goes to the first of them, not to the title
+/// row's close action. The first mark of a pass stands.
 pub(crate) fn begin_body(ctx: &Context) {
     with(ctx, |state| {
         if let Some((scope, _)) = state.open.last().copied() {
@@ -183,7 +184,10 @@ pub(crate) fn push_scope_from(ctx: &Context, id: Id, policy: FocusPolicy, label:
 /// moves focus to its initial stop, in this pass.
 pub(crate) fn pop_scope(ctx: &Context) {
     let frame = crate::runtime::egui::pass::frame_nr(ctx, viewport(ctx));
-    let acts = with(ctx, |state| nav::initial_focus(state, frame));
+    let acts = with(ctx, |state| {
+        nav::order_regions(state);
+        nav::initial_focus(state, frame)
+    });
     apply(ctx, acts);
 }
 

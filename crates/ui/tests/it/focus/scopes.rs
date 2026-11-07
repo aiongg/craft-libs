@@ -5,7 +5,7 @@ use craft_behavior::focus::EscapeStep;
 use craft_behavior::{CancelRule, DocKey, Input, PartKey};
 use craft_ui::runtime::focus::{FocusPolicy, FocusTarget, KeyUse, request};
 use craft_ui::runtime::frame::take_output;
-use craft_ui::testing::focus::{Stop, pop_scope, push_scope, register_doc, register_stop, scope_escape, take_reveal, widget};
+use craft_ui::testing::focus::{Stop, begin_body, pop_scope, push_scope, register_doc, register_stop, scope_escape, take_reveal, widget};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Ui};
 use std::cell::Cell;
@@ -17,6 +17,28 @@ fn dialog(ui: &mut Ui, fields: &[&str]) {
         control(ui, field);
     }
     pop_scope(ui.ctx());
+}
+
+/// Tab visits a container's body stops, then its footer's, then its header's; initial focus takes the first body stop.
+#[trial]
+fn tab_visits_the_body_then_the_footer_then_the_header() {
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        push_scope(ui.ctx(), id("dialog"), FocusPolicy::DIALOG, None);
+        control(ui, "close");
+        begin_body(ui.ctx());
+        control(ui, "first");
+        control(ui, "last");
+        control(ui, "ok");
+        pop_scope(ui.ctx());
+    };
+    frames.idle(2, &mut show);
+    frames.frame(Vec::new(), &mut show);
+    assert_eq!(focused(&frames.ctx), Some(id("first")), "initial focus takes the first body stop");
+    for next in ["last", "ok", "close", "first"] {
+        tap(&mut frames, Key::Tab, Modifiers::NONE, &mut show);
+        assert_eq!(focused(&frames.ctx), Some(id(next)));
+    }
 }
 
 /// Spec test row "a dialog opened by a key gets initial focus on its first visible frame", and the restore
