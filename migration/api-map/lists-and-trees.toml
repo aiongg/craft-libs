@@ -389,13 +389,13 @@ new = "reorder(ReorderRule)"
 
 [[setter]]
 type = "ReorderRule"
-old = ""
-new = "into_groups()"
+old = "ReorderRule::Within"
+new = "ReorderRule::Within.into_groups()"
 note = "In a tree, a drop or an Alt+arrow move may land inside a group: `ReorderMove::parent` names it (`None` at the top level). A row that `has_children` is a group; an open group with no visible rows takes items through the middle of its row."
 
 [[setter]]
 type = "CollectionProps"
-old = ""
+old = "reorder(ReorderRule)"
 new = "drag_payload(Fn(&ListDrag<K>) -> P)"
 note = "A row drag also carries the mapped payload, so a `DropTarget<P>` takes a row of the collection; one session, one ghost. A family component that embeds the props writes its own forwarding setter, because the macro forwarder takes no type parameters."
 

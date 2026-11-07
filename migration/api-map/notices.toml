@@ -166,5 +166,5 @@ new = "timeout(f32)"
 
 [[setter]]
 type = "NoticeAction"
-old = ""
-new = "default_action()"
+old = "NoticeAction::new(label)"
+new = "NoticeAction::new(label).default_action()"
