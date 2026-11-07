@@ -6,6 +6,7 @@ use craft_keymap::{Chord, Mods};
 use craft_ui::runtime::focus::{EditSet, KeyUse};
 use craft_ui::testing::focus::Stop;
 use craft_ui::testing::focus::{MenuKey, claim, intents_of, register_menu_bar, register_stop, take_claimed, take_menu_keys, widget};
+use craft_ui::testing::input::key_press;
 use craft_ui::testing::{Frames, trial};
 use egui::{Event, Key, Modifiers};
 use std::cell::{Cell, RefCell};
@@ -143,6 +144,29 @@ fn listed_edit_commands_arrive_as_intents_once() {
     frames.frame(vec![Event::Copy], &mut show);
     assert_eq!(reads.borrow().0, 1, "Copy is not listed");
     assert!(reads.borrow().1, "an unlisted command stays in the raw input");
+}
+
+/// 11.3: the raw chord of a listed edit command is removed with the clipboard events, so a field's own undo keys
+/// never reach egui, and a rebound chord works the same way.
+#[trial]
+fn the_raw_chord_of_a_listed_edit_command_does_not_reach_egui() {
+    let mut frames = Frames::new();
+    let reads = RefCell::new((0, 0));
+    let mut show = |ui: &mut egui::Ui| {
+        stop_with(ui, "field", KeyUse::of(Input::Text).with_edits(EditSet::NONE.with(EditCommand::Undo)));
+        let mut reads = reads.borrow_mut();
+        reads.0 += usize::from(intents_of(ui.ctx(), Some(id("field")), false).take(Intent::Edit(EditCommand::Undo)));
+        reads.1 += ui.input(|i| i.events.iter().filter(|e| matches!(e, Event::Key { key: egui::Key::Z, pressed: true, .. })).count());
+    };
+    frames.idle(2, &mut show);
+    focus(&mut frames, "field", &mut show);
+    frames.idle(1, &mut show);
+    *reads.borrow_mut() = (0, 0);
+    frames.frame(vec![key_press(egui::Key::Z, egui::Modifiers::COMMAND)], &mut show);
+    assert_eq!(*reads.borrow(), (1, 0), "the component takes the undo once and egui sees no Cmd+Z");
+    *reads.borrow_mut() = (0, 0);
+    frames.frame(vec![key_press(egui::Key::Z, egui::Modifiers::NONE)], &mut show);
+    assert_eq!(*reads.borrow(), (0, 1), "a plain Z is no edit chord");
 }
 
 /// 9.2 rule 2: AccessKit requests go to the owner of their node whatever the focus; `Click` is `Activate`,

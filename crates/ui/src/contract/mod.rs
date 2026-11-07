@@ -12,9 +12,10 @@ mod values;
 
 pub use crate::runtime::access::{Access, Role};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
+pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
-pub use craft_ui_macros::{Component, Props, register_contract};
+pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
 pub use cx::{Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use looks::Looks;
 pub use paint_ui::PaintUi;

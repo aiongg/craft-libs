@@ -294,3 +294,18 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
         read
     })
 }
+
+/// Whether this pass carries a key press or a clipboard event, which the shortcut dispatcher reads.
+pub(crate) fn has_shortcut_events(ctx: &Context) -> bool {
+    ctx.input(|input| input.events.iter().any(|event| matches!(event, Event::Key { pressed: true, .. } | Event::Copy | Event::Cut | Event::Paste(_))))
+}
+
+/// A copy of the pass's input state, for a reader that must not run under the context's input lock.
+pub(crate) fn snapshot(ctx: &Context) -> egui::InputState {
+    ctx.input(Clone::clone)
+}
+
+/// Replaces the pass's input events.
+pub(crate) fn replace_events(ctx: &Context, events: Vec<Event>) {
+    ctx.input_mut(|input| input.events = events);
+}

@@ -2,6 +2,7 @@
 //! every key event of the pass, the begin hook turns them into the `Intents` of the focused component,
 //! and claims, menu-bar keys and AccessKit action requests are routed from the same record.
 
+use crate::runtime::commands::{self, EditCommands};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::focus::{self, StopRec};
@@ -107,6 +108,8 @@ struct Strip<'a> {
     pages: bool,
     claims: &'a [Chord],
     edits: &'a dyn Fn(EditCommand) -> bool,
+    /// The chords bound to the edit commands.
+    edit_chords: &'a [(EditCommand, Chord)],
     menu_bar: bool,
 }
 
@@ -161,8 +164,12 @@ impl Strip<'_> {
         let ctrl_tab = ctrl_tab && self.pages && !self.keeps_tab;
         let bare_tab = key == Key::Tab && !mods.cmd && !mods.ctrl && !mods.alt;
         let mnemonic = self.menu_bar && self.os != Os::Mac && mods == Mods::ALT && key.is_letter();
+        let edit = self.edit_chords.iter().find(|(command, chord)| (self.edits)(*command) && self.layout.matches(chord, input, self.os));
         if let Some(chord) = claimed {
             batch.claimed.push(*chord);
+            false
+        } else if let Some((command, _)) = edit {
+            batch.clips.push(*command);
             false
         } else if bare_tab && !self.keeps_tab {
             batch.nav.tabs.push(!mods.shift);
@@ -198,6 +205,11 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let keys = record.keys;
     let menu_bar = record.menu_bar && keys.is_none_or(|keys| !matches!(keys.owner, OwnerClass::Text | OwnerClass::Recorder));
     let before = input.events.len();
+    let edit_chords = if keys.is_some_and(|keys| EditCommands::ALL.iter().any(|command| keys.edits.contains(command.edit()))) {
+        commands::edit_chords(ctx)
+    } else {
+        Vec::new()
+    };
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
@@ -210,6 +222,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             pages: record.pages,
             claims: &claims,
             edits: &edits,
+            edit_chords: &edit_chords,
             menu_bar,
         };
         let mut batch = Batch::default();
@@ -265,7 +278,10 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         }
     }
     let focused = target.as_ref().map(|rec| rec.stop.id);
-    for command in &batch.clips {
+    // The web sends a chord's key press and its clipboard event: the command reaches the component once.
+    let mut clips = batch.clips.clone();
+    clips.dedup();
+    for command in &clips {
         push(&mut routed, focused, Intent::Edit(*command), false);
     }
     let escapes = craft_behavior::focus::route_escapes(batch.escapes, press_captured);

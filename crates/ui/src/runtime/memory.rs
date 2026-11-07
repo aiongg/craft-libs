@@ -255,6 +255,11 @@ pub struct MemoryStage {
 }
 
 impl MemoryStage {
+    /// The egui context the stage belongs to.
+    pub(crate) fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     /// A stage whose entries belong to `base`.
     pub(crate) fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
@@ -311,10 +316,6 @@ impl MemoryStage {
     /// A sizing pass's stage, which keeps nothing.
     pub(crate) fn is_peek(&self) -> bool {
         self.peek_only
-    }
-
-    pub(crate) fn ctx(&self) -> &Context {
-        &self.ctx
     }
 
     pub(crate) fn owner(&self) -> Id {

@@ -214,3 +214,11 @@ fn a_widget_impl_keeps_the_types_bounds_and_requires_a_response_output() {
     let text = tokens.map(|tokens| tokens.to_string()).unwrap_or_default();
     assert!(text.contains("Output = :: craft_ui :: __private :: egui :: Response"), "{text}");
 }
+
+#[test]
+fn command_set_derive_needs_a_prefix_and_labels() {
+    assert!(error(crate::command_set::derive(quote!(enum Set { #[command(label = "A")] A }))).contains("prefix"));
+    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { A }))).contains("label"));
+    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A", kind = "x")] A }))).contains("kind"));
+    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A")] A(u8) }))).contains("unit"));
+}

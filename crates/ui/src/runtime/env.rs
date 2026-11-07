@@ -4,6 +4,7 @@ mod label;
 
 pub use label::{Label, Message, Word};
 
+use crate::runtime::commands::CommandChain;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::{child, input as raw_input, pass, repaint, scale, stack, style};
 use crate::runtime::frame::PerViewport;
@@ -282,6 +283,8 @@ pub struct Scoped {
     pub arena: Option<ArenaId>,
     /// From `ContainerProps.transform`.
     pub transform: Option<CanvasTransform>,
+    /// The container instances above that receive scoped commands.
+    pub(crate) commands: CommandChain,
     pub(crate) host: Option<Arc<Host>>,
     pub(crate) values: AppValues,
 }
@@ -323,6 +326,7 @@ impl Env {
                 scale,
                 arena: None,
                 transform: None,
+                commands: CommandChain::default(),
                 host,
                 values: root.values.clone(),
             }),
@@ -502,6 +506,10 @@ impl<'a> EnvView<'a> {
     /// The pixels per point.
     pub fn scale(&self) -> Scale {
         self.scoped.scale
+    }
+
+    pub(crate) fn command_chain(&self) -> &CommandChain {
+        &self.scoped.commands
     }
 
     /// The app's `Host`, from `FrameInput.host`.

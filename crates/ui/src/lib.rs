@@ -44,6 +44,5 @@ pub mod value_drag;
 #[doc(hidden)]
 pub mod __private {
     pub use egui;
-    #[cfg(feature = "testing")]
     pub use linkme;
 }

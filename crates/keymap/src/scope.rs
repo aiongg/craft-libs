@@ -53,6 +53,36 @@ impl<'de> Deserialize<'de> for Scope {
     }
 }
 
+/// A scope named at compile time: the scope of a command set and of a container instance that receives its
+/// commands. [`CommandScope::APP`] is the application scope.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CommandScope(&'static str);
+
+impl CommandScope {
+    /// The application scope.
+    pub const APP: CommandScope = CommandScope(APP);
+
+    /// The scope named `name`; [`CommandScope::scope`] is `None` for a name [`Scope::new`] refuses.
+    pub const fn new(name: &'static str) -> CommandScope {
+        CommandScope(name)
+    }
+
+    /// The scope name.
+    pub const fn name(self) -> &'static str {
+        self.0
+    }
+
+    /// Whether this is the application scope.
+    pub fn is_app(self) -> bool {
+        self.0 == APP
+    }
+
+    /// The matching [`Scope`], `None` when the name is not a valid scope name.
+    pub fn scope(self) -> Option<Scope> {
+        Scope::new(self.0)
+    }
+}
+
 /// What kind of scope a name is.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -6,6 +6,7 @@
 pub mod arrangement;
 pub mod canvas;
 pub mod columns;
+pub mod command;
 pub mod cursor;
 pub mod doc_key;
 pub mod edit_history;
@@ -38,6 +39,7 @@ pub mod wheel;
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
 pub use columns::{ColumnKey, ColumnWidth, GridSection, GridView};
+pub use command::{CommandFlags, pick_instance, resolve_flags};
 pub use cursor::{Cursor, CursorBadge, CursorIcon, CursorPriority, IconId, PaintedCursor};
 pub use doc_key::DocKey;
 pub use edit_history::EditHistory;

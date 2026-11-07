@@ -1,6 +1,7 @@
 //! A fixed-rate frame driver over a context.
 
 use crate::runtime::egui::{areas, fixture};
+use crate::runtime::commands::CommandInput;
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use crate::runtime::{InstallSpec, install};
@@ -21,6 +22,7 @@ pub struct Frames {
     cursor: egui::CursorIcon,
     repaint_delay: Duration,
     host: Option<Arc<Host>>,
+    commands: CommandInput,
 }
 
 impl Default for Frames {
@@ -46,6 +48,7 @@ impl Frames {
             cursor: egui::CursorIcon::Default,
             repaint_delay: Duration::MAX,
             host: None,
+            commands: CommandInput::new(),
         }
     }
 
@@ -61,7 +64,7 @@ impl Frames {
     }
 
     fn input(&self) -> FrameInput {
-        let input = FrameInput::new(self.root.clone());
+        let input = FrameInput::new(self.root.clone()).commands(self.commands.clone());
         match &self.host {
             Some(host) => input.host(host.clone()),
             None => input,
@@ -71,6 +74,11 @@ impl Frames {
     /// The root values every following frame is given.
     pub fn root(&mut self, root: RootEnv) {
         self.root = root;
+    }
+
+    /// The command input every following frame is given.
+    pub fn commands(&mut self, commands: CommandInput) {
+        self.commands = commands;
     }
 
     /// One frame with `events`; `ui` runs once per pass. Returns the number of passes.

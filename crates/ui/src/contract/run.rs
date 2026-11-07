@@ -13,7 +13,7 @@ use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::egui::{alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{focus, inspect, keys, layout_memory, memory};
+use crate::runtime::{commands, focus, inspect, keys, layout_memory, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, ScrollPos, Sense};
 use craft_theme::ControlSize;
@@ -142,18 +142,25 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             None => Flow::new(self.room, rtl).inset(cx.style.metrics().padding),
         };
         let body_id = sub(id, "body");
-        let arena = comp.props(Internal::new()).arena;
+        let props = comp.props(Internal::new());
+        let (arena, command_scope) = (props.arena, props.command_scope);
+        if let Some(scope) = command_scope {
+            commands::register_instance(&cx.core.ctx, scope, id);
+        }
         let inner = env.derive(|scoped| {
             scoped.values.extend(values);
             scoped.ink = cx.core.ink;
             if arena {
                 scoped.arena = Some(ArenaId::new(id));
             }
+            if let Some(scope) = command_scope {
+                scoped.commands = scoped.commands.pushed(scope, id);
+            }
         });
         let mut body_ui = alloc::child(ui, UiBuilder::new().max_rect(rect).layout(child::column_layout(rtl)).scope_id(body_id));
-        let installed = Env::install_for(&body_ui, inner);
+        let installed = Env::install_for(&body_ui, inner.clone());
         {
-            let mut body_cx = BodyCx::new(body_id, cx.core.env, cx.core.resolved, rect, &mut *cx.core.memory);
+            let mut body_cx = BodyCx::new(body_id, inner.view(), cx.core.resolved, rect, &mut *cx.core.memory);
             (self.body)(&mut body_ui, &mut body_cx);
         }
         Env::restore(&cx.core.ctx, installed);
@@ -429,6 +436,9 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     // 12 state
     p.trace.mark(Step::State);
     steps::state(comp, cx, false, env.ink);
+    if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
+        commands::note_focus(&ctx, &env.commands);
+    }
     // 13 paint
     p.trace.mark(Step::Paint);
     let mut values = AppValues::default();
@@ -464,7 +474,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     // 1 env: `Common` moves out of the component; `Resolved` borrows these locals.
     let env = Env::of(ui);
     let common: Common = std::mem::take(comp.common_mut(Internal::new()));
-    let step1 = steps::env::<C>(&env, &common);
+    let step1 = steps::env::<C>(&ctx, &env, &common);
     // 2 style
     let scx = steps::style_cx(&ctx, &env, &step1);
     let style = steps::style::<C>(&ctx, &scx, comp.style_key());
@@ -585,7 +595,7 @@ pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &Ui, id: Option<Id>,
     let id = id.unwrap_or_else(|| steps::id::<C>(ui, &comp.common(Internal::new()).id, false, false));
     let shown = steps::peek_value(comp, ui.ctx(), id);
     let common = comp.common(Internal::new()).clone();
-    let step1 = steps::env::<C>(&env, &common);
+    let step1 = steps::env::<C>(ui.ctx(), &env, &common);
     let scx = steps::style_cx(ui.ctx(), &env, &step1);
     let style = steps::style::<C>(ui.ctx(), &scx, comp.style_key());
     let resolved = steps::resolved(id, &step1, &common);
@@ -609,7 +619,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let env = Env::of(ui);
     let common = std::mem::take(face.common_mut(Internal::new()));
     debug_assert!(common.tooltip.is_none(), "a face instance carries no tooltip; use `PartBuilder::tooltip`");
-    let step1 = steps::env::<C>(&env, &common);
+    let step1 = steps::env::<C>(&ctx, &env, &common);
     let scx = steps::style_cx(&ctx, &env, &step1);
     let style = steps::style::<C>(&ctx, &scx, face.style_key());
     let id = face_id(source.id, part);
