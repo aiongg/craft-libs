@@ -156,7 +156,7 @@ name = "CaptionButton"
 old = ""
 new = "craft_ui::shell::CaptionButton"
 status = "replaced"
-note = "`CaptionButton::new(Caption, CaptionFamily)` with `maximized(bool)`, `outermost(Option<CaptionEnd>)` and `icons(Option<&CaptionIcons>)`; the window's active state comes from the environment, and the labels are the `CaptionLabels` words."
+note = "`CaptionButton::new(Caption, CaptionFamily)` with `maximized(bool)`, `outermost(CaptionEnd)` and `icons(&CaptionIcons)`; the window's active state comes from the environment, and the labels are the `CaptionLabels` words."
 
 [[type]]
 name = "caption_buttons"
@@ -267,7 +267,8 @@ note = "removed: the labels are the `CaptionLabels` words of the scope, translat
 [[setter]]
 type = "CaptionButton"
 old = "icons(Option<&CaptionIcons>)"
-new = "icons(Option<&CaptionIcons>)"
+new = "icons(&CaptionIcons)"
+note = "`None` is the call left out."
 
 [[setter]]
 type = "CaptionButton"

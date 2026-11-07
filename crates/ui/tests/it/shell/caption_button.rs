@@ -36,10 +36,11 @@ fn shown_buttons_are_the_windows_caption_record() {
     for _ in 0..3 {
         windows.frame(vec![], vec![], |ui| {
             for slot in &slots {
-                CaptionButton::new(slot.caption, CaptionFamily::Windows)
-                    .outermost(slot.end)
-                    .id_salt(format!("{:?}", slot.caption))
-                    .show_at(ui, slot.rect);
+                let button = CaptionButton::new(slot.caption, CaptionFamily::Windows).id_salt(format!("{:?}", slot.caption));
+                match slot.end {
+                    Some(end) => button.outermost(end).show_at(ui, slot.rect),
+                    None => button.show_at(ui, slot.rect),
+                };
             }
         });
     }
