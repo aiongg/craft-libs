@@ -216,6 +216,23 @@ pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: 
     });
 }
 
+/// Moves the shown slot of type `T` under `id` out of context data into the graveyard, as eviction does.
+pub(crate) fn dispose_shown<T: Slot>(ctx: &Context, id: Id) {
+    let moved = Service::<Registry>::of(ctx).with(|reg| {
+        reg.slots.remove(&(id, SHOWN, TypeId::of::<T>()));
+        store::locked(ctx, |data| remove_slot::<SHOWN, T>(data, id))
+    });
+    if let Some(moved) = moved {
+        QUEUED.fetch_add(1, Ordering::Release);
+        Service::<Registry>::of(ctx).with(|reg| reg.graveyard.push(moved));
+    }
+}
+
+/// The pass of the viewport that last registered `owner` at step 3, `None` once the owner is evicted.
+pub(crate) fn owner_pass(ctx: &Context, owner: Id) -> Option<u64> {
+    Service::<Registry>::of(ctx).with(|reg| reg.owners.get(&owner).map(|record| record.pass))
+}
+
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
 pub(crate) fn dispose_evicted(ctx: &Context) {
     if QUEUED.load(Ordering::Acquire) == 0 {
@@ -502,7 +519,7 @@ impl<X: StageAccess> Remember for X {
         face_guard(self.stage());
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         key.hash(&mut hasher);
-        let id = self.base().with(("pending", hasher.finish()));
+        let id = sub(self.base(), ("pending", hasher.finish()));
         pending::poll(self.stage_mut(), id, start)
     }
 

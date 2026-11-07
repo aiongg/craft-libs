@@ -410,7 +410,11 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
         if member.is_some() {
             access::register_parent(&ctx, id, ui.unique_id());
         }
-        access::create_node(&ctx, id)
+        let created = access::create_node(&ctx, id);
+        if created {
+            scope::enter(&ctx, id);
+        }
+        created
     };
     cx.core.part_cursors = sensing::hovered_cursor(&decls, &results).into_iter().collect();
     cx.core.rect = rect;

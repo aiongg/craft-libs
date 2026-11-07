@@ -22,6 +22,9 @@ pub(crate) struct Own<'a> {
     /// The full text of the first elided run, the name when nothing else names the node.
     pub elided: Option<&'a str>,
     pub description: Option<&'a str>,
+    /// What the control's check says while it warns or refuses: the description after `Common.description`,
+    /// until a field container's label scope shows it as the field's error text.
+    pub validity: Option<&'a str>,
     /// The bound command's hint.
     pub hint: Option<&'a str>,
     /// The bound command's shortcut.
@@ -113,11 +116,12 @@ const SELECTABLE: &[accesskit::Role] = &[
     accesskit::Role::Row,
     accesskit::Role::Cell,
 ];
-const EXPANDABLE: &[accesskit::Role] = &[accesskit::Role::ComboBox, accesskit::Role::TreeItem];
 
-/// The expanded state of a node: an explicit value, else `OPEN` or `EXPANDED` as shown this pass.
-fn expanded_of(role: accesskit::Role, flags: Flags, explicit: Option<bool>) -> Option<bool> {
-    explicit.or_else(|| if flags.intersects(Flags::OPEN | Flags::EXPANDED) { Some(true) } else { EXPANDABLE.contains(&role).then_some(false) })
+/// The expanded state of a node: an explicit value, else open when `OPEN` or `EXPANDED` is shown this pass. A
+/// component that can be open and is closed says so with `Access::expanded`; a node with no state is not
+/// expandable, so `Expand` and `Collapse` are declared only where the state exists.
+fn expanded_of(flags: Flags, explicit: Option<bool>) -> Option<bool> {
+    explicit.or_else(|| flags.intersects(Flags::OPEN | Flags::EXPANDED).then_some(true))
 }
 
 /// The state flags of a node.
@@ -197,14 +201,14 @@ pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
         .description
         .as_deref()
         .or(own.description)
+        .or(own.validity)
         .or(own.hint)
         .or_else(|| own.tooltip.filter(|tip| own.display || name.text.as_deref() != Some(*tip)));
     let shortcut = access.shortcut.as_deref().or(own.shortcut);
-    let expanded = expanded_of(own.role, own.flags, access.expanded);
+    let expanded = expanded_of(own.flags, access.expanded);
     let mut relations = access.relations.clone();
     relations.labelled_by.extend(name.labelled_by.iter().copied());
     let numeric = access.numeric.as_ref();
-    let declared_value = numeric.is_some() || matches!(own.role, accesskit::Role::TextInput | accesskit::Role::MultilineTextInput);
     ctx.accesskit_node_builder(own.id, |node| {
         node.set_role(own.role);
         node.set_bounds(bounds(own.rect));
@@ -284,7 +288,7 @@ pub(crate) fn fill_own(ctx: &Context, own: &Own<'_>) {
             node.add_action(Action::Increment);
             node.add_action(Action::Decrement);
         }
-        if declared_value {
+        if numeric.is_some() {
             node.add_action(Action::SetValue);
         }
         custom_actions(node, &access.custom_actions);
@@ -318,7 +322,7 @@ pub(crate) fn fill_sub(ctx: &Context, decl: &SubDecl<'_>) {
     }
     let flags = node.flags | decl.face.as_ref().map_or(Flags::empty(), |face| face.flags);
     let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
-    let expanded = expanded_of(role, flags, None);
+    let expanded = expanded_of(flags, None);
     super::register_parent(ctx, id, decl.parent);
     ctx.accesskit_node_builder(id, |out| {
         out.set_role(role);
@@ -349,6 +353,9 @@ pub(crate) fn fill_sub(ctx: &Context, decl: &SubDecl<'_>) {
         if numeric.is_some_and(|numeric| numeric.step.is_some()) {
             out.add_action(Action::Increment);
             out.add_action(Action::Decrement);
+        }
+        if numeric.is_some() {
+            out.add_action(Action::SetValue);
         }
         custom_actions(out, &node.custom_actions);
     });

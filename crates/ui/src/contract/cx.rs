@@ -845,6 +845,17 @@ impl WordSetCx for BodyCx<'_> {
     }
 }
 
+impl<K> WordSetCx for ItemCx<'_, '_, K> {
+    /// An item has no label of its own: the empty label.
+    fn label(&self) -> Label {
+        Label::default()
+    }
+
+    fn words<L: WordSet + Send + Sync + 'static>(&self) -> Arc<L> {
+        self.env.words()
+    }
+}
+
 /// Rich tooltip content an item stored.
 pub(crate) type ItemTip<'r> = Box<dyn FnOnce(&mut Ui) + 'r>;
 

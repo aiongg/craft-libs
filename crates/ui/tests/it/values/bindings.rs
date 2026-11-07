@@ -157,3 +157,23 @@ fn a_check_fixes_values_and_a_refusing_check_blocks_the_commit() {
     assert_eq!(value, INITIAL, "the cancel restored the value from before the drag");
     assert!(!flags.contains(Flags::INVALID), "the restored value is valid");
 }
+
+/// A warning check describes the node, after the description the app gave it.
+#[trial]
+fn a_warning_describes_the_node_after_the_apps_description() {
+    let describe = |description: Option<&str>| {
+        let mut frames = Frames::new();
+        let mut value = INITIAL;
+        let mut id = None;
+        frames.idle(2, |ui: &mut Ui| {
+            let mut scrub = Scrub::new(Bind::bound(&mut value).check(|_| Validity::Warn(Message::new("too far")))).id_salt("scrub");
+            if let Some(text) = description {
+                scrub = scrub.description(text);
+            }
+            id = Some(scrub.show_at(ui, AT).response.id);
+        });
+        frames.tree().description(id.expect("shown")).map(str::to_owned)
+    };
+    assert_eq!(describe(None).as_deref(), Some("too far"));
+    assert_eq!(describe(Some("Nudge amount")).as_deref(), Some("Nudge amount"));
+}

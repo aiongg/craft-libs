@@ -75,12 +75,14 @@ pub(crate) fn patch_merge(ctx: &Context, child: Id, merged: &Merged) {
     });
 }
 
-/// The status node `id`: one live node holding `text`.
+/// The status node `id`: one live node holding `text`, none while there is nothing to say.
 pub(crate) fn write_status(ctx: &Context, id: Id, text: &str, assertive: bool) {
     ctx.accesskit_node_builder(id, |node| {
         node.set_role(accesskit::Role::Status);
         node.set_live(if assertive { accesskit::Live::Assertive } else { accesskit::Live::Polite });
         node.set_live_atomic();
-        node.set_label(text);
+        if !text.is_empty() {
+            node.set_label(text);
+        }
     });
 }

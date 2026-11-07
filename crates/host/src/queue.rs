@@ -433,6 +433,23 @@ impl<K: Clone + Eq + Hash + Send + 'static, R: Send + 'static> JobQueue<K, R> {
         ran
     }
 
+    /// Gives waiting work a lane when none is alive: a lane the host dropped unrun (a refused spawn) left jobs
+    /// waiting that no later [`submit`](Self::submit) may come to start. An owner that keeps polling a
+    /// waiting job calls it each pass; it does nothing while a lane is alive or nothing waits.
+    pub fn resume(&self) {
+        let spawn = {
+            let mut state = self.shared.lock();
+            let spawn = !state.stopped && state.lanes_alive == 0 && self.shared.options.lanes > 0 && state.best().is_some();
+            if spawn {
+                state.lanes_alive += 1;
+            }
+            spawn
+        };
+        if spawn {
+            self.shared.spawn_lane();
+        }
+    }
+
     /// Whether a job for `key` is waiting or running.
     pub fn contains(&self, key: &K) -> bool {
         let state = self.shared.lock();

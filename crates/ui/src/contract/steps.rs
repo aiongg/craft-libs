@@ -15,7 +15,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
 use crate::runtime::frame::{PerViewport, Stamped};
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::motion::{Animate as _, spec};
+use crate::runtime::motion::{Drives as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value};
@@ -757,7 +757,8 @@ fn ease(core: &CxCore<'_>, targets: [bool; 3]) -> StateMix {
     if core.face_mode {
         return StateMix::new(f32::from(u8::from(hover)), f32::from(u8::from(press)), f32::from(u8::from(on)));
     }
-    StateMix::new(core.anim_bool("hover", hover, spec::HOVER), core.anim_bool("press", press, spec::HOVER), core.anim_bool("on", on, spec::CHECK))
+    let driver = core.driver();
+    StateMix::new(driver.state_anim("hover", hover, spec::HOVER), driver.state_anim("press", press, spec::HOVER), driver.state_anim("on", on, spec::CHECK))
 }
 
 /// Step 12, state: flags first, then `state`; animates hover, press and on; the ink of the surface, else `inherited`.
@@ -927,15 +928,17 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     let platform = craft_keymap::egui::platform(ctx);
     let (hint, shortcut) = core.command.as_deref().map_or((None, None), |command| command_facts(command, platform));
     let shortcut = shortcut.as_deref();
-    if access.description.is_none() {
-        access.description = validity_message(cx);
+    for (_, label) in &mut access.custom_actions {
+        *label = core.env.resolve(label);
     }
-    let tooltip = resolved.tooltip.map(|tooltip| tooltip.spec().text.as_str());
+    let validity = validity_message(cx);
+    let tooltip_text = resolved.tooltip.map(|tooltip| core.env.resolve(&tooltip.spec().text));
+    let tooltip = tooltip_text.as_ref().map(Label::as_str);
     let paint = core.paint.borrow();
     if role == Role::Merged {
         let facts = scope::Merged {
             name: resolved.label.to_owned(),
-            description: access.description.clone().or_else(|| resolved.description.map(str::to_owned)),
+            description: access.description.clone().or_else(|| resolved.description.map(str::to_owned)).or_else(|| validity.clone()),
             flags,
             enabled: resolved.enabled,
         };
@@ -957,6 +960,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         tooltip,
         elided: paint.elided.as_deref(),
         description: resolved.description,
+        validity: validity.as_deref(),
         hint,
         shortcut,
         display: C::INPUT == craft_behavior::Input::Display,
@@ -1020,6 +1024,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             tooltip: None,
             elided: None,
             description: None,
+            validity: None,
             hint: None,
             shortcut: None,
             display: false,

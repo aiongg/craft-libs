@@ -141,7 +141,30 @@ fn announcements_reach_the_frame_output_and_one_status_node() {
     assert_eq!(tree.name_of(status[0]), Some("Saved"));
     assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, ["Saved"]);
     frames.frame(vec![], |_| {});
-    assert!(frames.tree().with_role(UiRole::STATUS).is_empty(), "the next frame has no announcement");
+    let tree = frames.tree();
+    let status = tree.with_role(UiRole::STATUS);
+    assert_eq!(status.len(), 1, "the status node stays, so the next announcement is a change of a live node");
+    assert_eq!(tree.name_of(status[0]), None, "and it says nothing");
+}
+
+// The same text announced in two frames in a row reads as a change both times, and a discarded pass that
+// announces again adds nothing.
+#[trial]
+fn a_repeated_announcement_changes_the_status_text_and_a_discarded_pass_adds_nothing() {
+    let mut frames = Frames::new();
+    let mut said = Vec::new();
+    for _ in 0..3 {
+        frames.frame(vec![], |ui| {
+            announce(ui.ctx(), "Saved", Politeness::Polite);
+            announce(ui.ctx(), "Saved", Politeness::Polite);
+        });
+        let tree = frames.tree();
+        let status = tree.with_role(UiRole::STATUS);
+        said.push(tree.name_of(status[0]).map(str::to_owned));
+        assert_eq!(craft_ui::runtime::frame::take_output(&frames.ctx).announcements, ["Saved"]);
+    }
+    assert!(said.windows(2).all(|pair| pair[0] != pair[1]), "{said:?}");
+    assert!(said.iter().all(|text| text.as_deref().is_some_and(|text| text.starts_with("Saved") && !text.contains(". "))));
 }
 
 #[trial]
@@ -157,4 +180,73 @@ fn an_unnamed_button_is_a_role_rule_finding() {
     });
     let id = seen.borrow().id.expect("updated");
     assert_eq!(frames.tree().name(id), Some("Save the file"), "an icon-only control takes its tooltip as its name");
+}
+
+// A word tooltip that names an icon-only control is read in the scope's language.
+#[trial]
+fn a_word_tooltip_is_resolved_in_the_scopes_language() {
+    use craft_ui::runtime::env::{Overrides, Word, WordRows, WordsOverride, with_env};
+    const SAVE: Word = Word::keyed("trial.save", "Save");
+    let mut frames = Frames::new();
+    let seen = RefCell::new(Seen::default());
+    frames.frame(vec![], |ui| {
+        with_env(
+            ui,
+            |o: &mut Overrides| o.words = Some(WordsOverride::Overlay(WordRows::new().row(SAVE, "Sichern"))),
+            |ui| {
+                Probe::new(&seen).label("").tooltip(SAVE).show(ui);
+            },
+        );
+    });
+    let id = seen.borrow().id.expect("updated");
+    assert_eq!(frames.tree().name(id), Some("Sichern"));
+}
+
+/// A combo box that reports an open state only when it has one.
+#[derive(craft_ui::contract::Component)]
+struct Dropdown {
+    #[common]
+    common: Common,
+    open: Option<bool>,
+}
+
+impl Component for Dropdown {
+    const ROLE: UiRole = UiRole::COMBO_BOX;
+    type Style = MeterLook;
+    type Output = Response;
+
+    fn style(_: &StyleCx<'_>, _: DropdownStyleKey) -> MeterLook {
+        MeterLook { metrics: craft_behavior::Metrics::new().min_size(Vec2::new(60.0, 20.0)) }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        if let Some(open) = self.open {
+            access.expanded(open);
+        }
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> Response {
+        cx.response.clone()
+    }
+}
+
+// Expand and Collapse are declared only where the node has an open state; a combo box without one is a finding.
+#[trial]
+fn expand_is_declared_only_where_the_node_has_an_open_state() {
+    let shown = |open: Option<bool>| {
+        let mut frames = Frames::new();
+        let mut id = None;
+        frames.frame(vec![], |ui| id = Some(Dropdown { common: Common::new(), open }.label("Size").show(ui).id));
+        let id = id.expect("shown");
+        let tree = frames.tree();
+        let finding = findings(&frames.ctx).iter().any(|finding| finding.rule == "RoleRule" && finding.subject.contains("expanded"));
+        (tree.declares(id, Declared::Expand), tree.declares(id, Declared::Collapse), finding)
+    };
+    assert_eq!(shown(None), (false, false, true));
+    assert_eq!(shown(Some(false)), (true, false, false));
+    assert_eq!(shown(Some(true)), (false, true, false));
 }
