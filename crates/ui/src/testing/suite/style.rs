@@ -266,7 +266,7 @@ impl PairTable {
                 _ => None,
             })
             .collect();
-        let colors = ColorToken::ALL.iter().map(|&token| (token.path(), colors.get(token))).collect();
+        let colors = ColorToken::ALL.iter().map(|&token| (token.path().to_owned(), colors.get(token))).collect();
         PairTable { pairs, colors }
     }
 
