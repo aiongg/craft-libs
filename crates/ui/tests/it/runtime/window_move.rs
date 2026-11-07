@@ -7,7 +7,8 @@ use crate::windows_kit::Windows;
 use craft_host::target::{ShellInfo, WindowChrome, WindowInfo, WindowKind};
 use craft_ui::contract::overlay::Resize;
 use craft_ui::contract::{
-    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, ShowContainer as _, Sizing,
+    BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, Show as _,
+    ShowContainer as _, Sizing,
 };
 use craft_ui::runtime::InstallSpec;
 use craft_ui::runtime::windows::WindowSpec;
