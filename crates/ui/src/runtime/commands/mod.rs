@@ -14,7 +14,7 @@ pub use library::{EditCommands, WindowCommand};
 pub use registry::{COMMAND_SETS, SetEntry};
 pub use registry::CommandDefError;
 
-pub(crate) use board::{begin, end, install, note_focus, register_instance, set_input, take_fired};
+pub(crate) use board::{begin, edit_chords, end, install, note_focus, register_instance, set_input, take_fired};
 pub(crate) use board::{fire_bound, resolve_bound};
 
 use craft_behavior::CommandFlags;

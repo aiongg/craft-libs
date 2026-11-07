@@ -165,3 +165,17 @@ fn a_surface_fires_a_scoped_command_to_a_live_instance_only() {
     assert!(!fire(&frames.ctx, PaneCommand::ZoomIn, FireSource::Palette), "no live instance, nothing to deliver");
     assert_eq!(PANE.name(), "trial.pane");
 }
+
+/// Step 17: a command-bound component reports no click and fires its command instead.
+#[trial]
+fn a_command_bound_click_fires_instead_of_reporting_a_click() {
+    let mut frames = Frames::new();
+    let at = tap_center(&mut frames, AppCommand::Go);
+    let mut clicked = false;
+    let mut show = |ui: &mut Ui| {
+        clicked |= craft_ui::testing::contract::clicked(&Tap::new().id_salt("go").command(AppCommand::Go).show(ui));
+    };
+    click_at(&mut frames, at, &mut show, false);
+    assert!(!clicked, "no click query reports true");
+    assert_eq!(ids(&take_output(&frames.ctx).fired), ["trial.go"], "and the command fired once");
+}

@@ -3,6 +3,7 @@
 
 /// A command's enabled and checked state.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct CommandFlags {
     /// Whether the command can fire.
     pub enabled: bool,
@@ -11,6 +12,11 @@ pub struct CommandFlags {
 }
 
 impl CommandFlags {
+    /// Flags with the given enabled and checked state.
+    pub const fn new(enabled: bool, checked: Option<bool>) -> Self {
+        CommandFlags { enabled, checked }
+    }
+
     /// A command nobody published a state for: enabled, with no checked state.
     pub const DEFAULT: CommandFlags = CommandFlags { enabled: true, checked: None };
 }
@@ -42,8 +48,8 @@ mod tests {
 
     #[test]
     fn state_resolves_this_frame_then_last_then_default() {
-        let off = CommandFlags { enabled: false, checked: Some(true) };
-        let on = CommandFlags { enabled: true, checked: None };
+        let off = CommandFlags::new(false, Some(true));
+        let on = CommandFlags::new(true, None);
         assert_eq!(resolve_flags(Some(off), Some(on)), off);
         assert_eq!(resolve_flags(None, Some(off)), off);
         assert_eq!(resolve_flags(None, None), CommandFlags::DEFAULT);

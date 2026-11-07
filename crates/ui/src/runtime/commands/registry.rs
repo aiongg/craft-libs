@@ -45,6 +45,7 @@ macro_rules! __register_command_set {
 #[non_exhaustive]
 pub enum CommandDefError {
     /// A default binding's text does not parse.
+    #[non_exhaustive]
     Binding {
         /// The command's id.
         command: &'static str,
@@ -52,11 +53,13 @@ pub enum CommandDefError {
         error: BindingError,
     },
     /// The set's scope name is not a valid scope name.
+    #[non_exhaustive]
     Scope {
         /// The command's id.
         command: &'static str,
     },
     /// Two commands have one id.
+    #[non_exhaustive]
     Duplicate {
         /// The id.
         command: String,

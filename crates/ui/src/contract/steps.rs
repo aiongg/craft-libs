@@ -621,10 +621,8 @@ pub(crate) fn report<C: Component>(cx: &Cx<'_, C>) {
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
     response::rewrite_clicks(&mut cx.core.response, by_key, cx.core.command.is_some());
-    if activated {
-        if let Some(command) = &cx.core.command {
-            commands::fire_bound(&cx.core.ctx, command, by_key);
-        }
+    if activated && let Some(command) = &cx.core.command {
+        commands::fire_bound(&cx.core.ctx, command, by_key);
     }
     // F4-LATER: gesture finish and `EditEvent::fold`.
 }

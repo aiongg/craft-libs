@@ -6,10 +6,11 @@ use crate::runtime::egui::input as raw_input;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
 use crate::runtime::focus;
-use craft_behavior::{OwnerClass, pick_instance, resolve_flags};
+use super::EditCommands;
+use craft_behavior::{EditCommand, OwnerClass, pick_instance, resolve_flags};
 use craft_keymap::egui::Dispatcher;
-use craft_keymap::{Active, CommandRef, Keymap, Overrides, Platform, Scopes};
-use egui::{Context, Event, Id, ViewportId};
+use craft_keymap::{Active, Chord, CommandRef, Keymap, Overrides, Platform, Scopes};
+use egui::{Context, Id, ViewportId};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -123,6 +124,21 @@ pub(crate) fn set_input(ctx: &Context, input: &CommandInput) {
             board.keymap = Some(KeymapCache { keymap: Arc::new(keymap), platform, overrides: input.overrides.clone() });
         }
     });
+}
+
+/// The chords the keymap binds to the edit commands, which the input hook removes from the raw input when the
+/// focused component lists the command.
+pub(crate) fn edit_chords(ctx: &Context) -> Vec<(EditCommand, Chord)> {
+    with(ctx, |board| {
+        let Some(cache) = &board.keymap else { return Vec::new() };
+        EditCommands::ALL
+            .iter()
+            .flat_map(|command| {
+                let bindings = cache.keymap.bindings(&CommandRef::from(*command));
+                bindings.into_iter().filter(|binding| !binding.trigger.double).map(move |binding| (command.edit(), binding.trigger.chord))
+            })
+            .collect()
+    })
 }
 
 /// The app-scope commands fired since the last call.
@@ -249,7 +265,7 @@ pub(crate) fn begin(ctx: &Context) {
         (board.keymap.as_ref().map(|cache| cache.keymap.clone()), board.dispatcher.take(), panel)
     });
     let owner = focus::record(ctx, viewport).keys.map(|keys| keys.owner);
-    let presses = ctx.input(|input| input.events.iter().any(|e| matches!(e, Event::Key { pressed: true, .. } | Event::Copy | Event::Cut | Event::Paste(_))));
+    let presses = raw_input::has_shortcut_events(ctx);
     let dispatcher = dispatcher.unwrap_or_else(|| Dispatcher::new().with_clipboard_events(true));
     let (Some(keymap), true) = (keymap, presses && owner != Some(OwnerClass::Recorder)) else {
         with(ctx, |board| board.dispatcher = Some(dispatcher));
@@ -257,7 +273,7 @@ pub(crate) fn begin(ctx: &Context) {
     };
     let active = Active { panel, contexts: &[], typing: owner == Some(OwnerClass::Text) };
     // The dispatcher edits a copy: the gate reads the board, which must not run under the context's input lock.
-    let mut snapshot = ctx.input(|input| input.clone());
+    let mut snapshot = raw_input::snapshot(ctx);
     let mut dispatcher = dispatcher;
     let hits = dispatcher.dispatch_filtered(&mut snapshot, &keymap, &active, |hit| {
         let instance = with(ctx, |board| {
@@ -266,7 +282,7 @@ pub(crate) fn begin(ctx: &Context) {
         });
         resolve(ctx, &hit.command, instance).enabled
     });
-    ctx.input_mut(|input| input.events = snapshot.events);
+    raw_input::replace_events(ctx, snapshot.events);
     with(ctx, |board| board.dispatcher = Some(dispatcher));
     for hit in hits {
         let (scope, instance) = with(ctx, |board| {

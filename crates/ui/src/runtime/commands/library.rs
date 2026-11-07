@@ -6,6 +6,7 @@ use craft_behavior::EditCommand;
 /// `Intent::Edit`; otherwise it is an app command.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "edit")]
+#[non_exhaustive]
 pub enum EditCommands {
     /// Cut the selection.
     #[command(label = "Cut", icon = "scissors", default = "Cmd+X")]
@@ -28,6 +29,10 @@ pub enum EditCommands {
 }
 
 impl EditCommands {
+    /// Every edit command.
+    pub const ALL: [EditCommands; 6] =
+        [EditCommands::Cut, EditCommands::Copy, EditCommands::Paste, EditCommands::SelectAll, EditCommands::Undo, EditCommands::Redo];
+
     /// The intent a component takes this command as.
     pub const fn edit(self) -> EditCommand {
         match self {
@@ -57,6 +62,7 @@ impl EditCommands {
 /// The `window` commands (16.3): a floating container moves and resizes from the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
 #[command(prefix = "window")]
+#[non_exhaustive]
 pub enum WindowCommand {
     /// Move the focused window with the arrow keys.
     #[command(label = "Move", default = "Alt+F7")]

@@ -18,6 +18,7 @@ pub struct FixedStyle {
 /// App-scope commands.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
 #[command(prefix = "trial")]
+#[non_exhaustive]
 pub enum AppCommand {
     #[command(label = "Go")]
     Go,
@@ -28,6 +29,7 @@ pub enum AppCommand {
 /// Commands of the `trial.pane` scope.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, CommandSet)]
 #[command(prefix = "pane", scope = "trial.pane")]
+#[non_exhaustive]
 pub enum PaneCommand {
     #[command(label = "Zoom In", default = "Cmd+Alt+K")]
     ZoomIn,
