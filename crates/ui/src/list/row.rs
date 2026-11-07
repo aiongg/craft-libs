@@ -10,8 +10,8 @@
 use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _, Tooltip,
-    WordSetCx as _,
+    Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _, Role, Styled as _,
+    WordSetCx as _, ItemOutput, NoValue, Outcome,
 };
 use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
@@ -108,6 +108,20 @@ pub struct RowOutput {
     pub event: Option<RowEvent>,
     /// Where the label and detail are drawn, the full height of the row.
     pub label: Rect,
+}
+
+impl Outcome for RowOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
+impl ItemOutput<RowEvent> for RowOutput {
+    fn into_event(self) -> Option<RowEvent> {
+        self.event
+    }
 }
 
 /// Paints into a thumbnail's rect through the content painter, which is clipped to it.
@@ -689,7 +703,7 @@ impl Component for ListRow<'_> {
             };
             let part = cx.part(TOGGLE.at(*at as u64), shape).flags(flags);
             let _ = match &toggle.tooltip {
-                Some(tip) => part.tooltip(Tooltip::new(tip.clone())),
+                Some(tip) => part.tooltip(tip.clone()),
                 None => part,
             };
         }

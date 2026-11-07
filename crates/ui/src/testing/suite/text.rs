@@ -73,8 +73,7 @@ fn ime_composition_is_guarded(subject: &Subject) -> Result<(), String> {
         return Ok(());
     }
     for (name, mut fixture) in typing_fixtures(subject) {
-        fixture.frame(vec![Event::Ime(ImeEvent::Enabled)]);
-        fixture.frame(vec![Event::Ime(ImeEvent::Preedit("kzk".to_owned()))]);
+        fixture.frame(vec![Event::Ime(ImeEvent::Preedit { text: "kzk".to_owned(), active_range_chars: None })]);
         match fixture.ime() {
             Some(ime) if ime.caret.min.is_finite() && ime.caret.max.is_finite() => {}
             _ => return Err(format!("{name}: no caret rect was reported while composing")),
@@ -86,7 +85,7 @@ fn ime_composition_is_guarded(subject: &Subject) -> Result<(), String> {
         if kinds.iter().any(|kind| matches!(kind, EditKind::Commit | EditKind::Set | EditKind::Cancel)) {
             return Err(format!("{name}: Enter or Escape while composing gave {kinds:?}"));
         }
-        fixture.frame(vec![Event::Ime(ImeEvent::Commit("kzk".to_owned())), Event::Ime(ImeEvent::Disabled)]);
+        fixture.frame(vec![Event::Ime(ImeEvent::Commit("kzk".to_owned()))]);
         fixture.idle(2);
         let count = shown_text(&fixture).matches("kzk").count();
         if count != 1 {

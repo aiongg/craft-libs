@@ -520,7 +520,7 @@ mod tests {
         }
 
         fn show(&mut self, _: &mut Ui, stack: &DialogStack) -> Option<DialogResult<u32>> {
-            self.top = stack.is_top(self.id());
+            self.top = stack.is_top(StackDialog::id(self));
             self.finish.take()
         }
     }

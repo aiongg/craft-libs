@@ -1,7 +1,7 @@
 //! `IconButton`: a square ghost button that shows only an icon.
 
 use super::face;
-use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role};
+use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role, Styled as _};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
 use crate::style::{ComponentStyle, DataColor, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};

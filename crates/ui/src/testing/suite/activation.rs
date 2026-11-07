@@ -61,14 +61,12 @@ fn declared_actions_are_handled(subject: &Subject) -> Result<(), String> {
             (Declared::Increment, AccessActionKind::Increment),
             (Declared::Expand, AccessActionKind::Expand),
         ];
-        let nodes: Vec<_> = fixture
-            .tree()
+        let tree = fixture.tree();
+        let nodes: Vec<_> = tree
             .keys()
             .into_iter()
-            .filter(|key| fixture.tree().data_of(*key).is_some_and(|node| !node.is_disabled()))
-            .flat_map(|key| {
-                actions.iter().filter(move |(declared, _)| fixture.tree().declares_key(key, *declared)).map(move |(_, kind)| (key, *kind))
-            })
+            .filter(|key| tree.data_of(*key).is_some_and(|node| !node.is_disabled()))
+            .flat_map(|key| actions.iter().filter(move |(declared, _)| tree.declares_key(key, *declared)).map(move |(_, kind)| (key, *kind)))
             .collect();
         for (key, kind) in nodes {
             let (mut fixture, _) = settled(story, subject.probe);

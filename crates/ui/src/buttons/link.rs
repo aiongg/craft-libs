@@ -4,7 +4,7 @@ use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, Stateful, TypeRole};
 use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
-use craft_theme::{Contrast, States};
+use craft_theme::States;
 use egui::{Pos2, Response, Vec2};
 
 /// The style of a link.
@@ -15,8 +15,7 @@ pub struct LinkStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
-    /// The text and underline colour: `accent.solid`, and `accent.text` in high contrast, which meets the text contrast
-    /// that `accent.solid` does not.
+    /// The text and underline colour: `accent.text`, the accent token for text and links, which meets the text contrast.
     color: Stateful<StyleColor>,
     /// How far the underline sits above the bottom of the text line.
     underline: f32,
@@ -52,8 +51,7 @@ impl Component for Link {
 
     fn style(cx: &StyleCx<'_>, _: LinkStyleKey) -> LinkStyle {
         let colors = &cx.tokens.color;
-        let ink = if cx.tokens.appearance.contrast == Contrast::High { colors.accent.text } else { colors.accent.solid };
-        let color = cx.color(ink);
+        let color = cx.color(colors.accent.text);
         LinkStyle {
             metrics: Metrics::new(),
             focus: crate::controls::focus_look(cx),

@@ -83,7 +83,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     /// Commands of `scope` reach the list while focus is in it.
     #[must_use]
     pub fn command_scope(mut self, scope: CommandScope) -> Self {
-        self.items = self.items.command_scope(scope);
+        self.props = self.props.command_scope(scope);
         self
     }
 

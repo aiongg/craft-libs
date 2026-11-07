@@ -2,7 +2,7 @@
 //! on a row hands the pick back to the adapter, which accepts it in its next run.
 
 use crate::contract::{Bind, CollectionEvent, Component, Cx, Overlay, OverlayUi, Overlays as _, Props as _, ShowCollection as _};
-use crate::controls::select::{OptionEvent, OptionList, OptionRow};
+use crate::controls::select::{OptionList, OptionRow};
 use crate::primitives::TextKey;
 use crate::runtime::env::Label;
 use craft_behavior::{DisplayOrder, ItemSource, Selection};
@@ -46,7 +46,7 @@ pub(crate) fn show<C: Component, V: 'static>(ui: &mut OverlayUi<'_>, cx: &mut Cx
             .events
     });
     let picked = events.into_iter().flatten().find_map(|event| match event {
-        CollectionEvent::Activate(at) | CollectionEvent::Item(at, OptionEvent::Picked) => Some(at),
+        CollectionEvent::Activate(at) => Some(at),
         _ => None,
     });
     if let Some(at) = picked {

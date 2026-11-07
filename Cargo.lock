@@ -1723,9 +1723,11 @@ dependencies = [
  "libtest-mimic",
  "linkme",
  "log",
+ "proc-macro2",
  "resvg",
  "serde",
  "smallvec",
+ "syn 2.0.119",
  "toml",
 ]
 

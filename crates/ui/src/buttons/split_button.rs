@@ -5,7 +5,7 @@ use crate::contract::{
     Access, Bind, CollectionEvent, Common, Component, Cx, Focus as _, MeasureCx, Name, Outcome, Overlay, OverlayUi,
     Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, ShowCollection as _, Styled as _,
 };
-use crate::controls::select::{OptionEvent, OptionList, OptionRow, SelectOption};
+use crate::controls::select::{OptionList, OptionRow, SelectOption};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, FocusLook, StateSet, Stateful, StyleColor, StyleCx, SurfaceLook};
@@ -175,7 +175,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         });
         let mut picked = None;
         for event in events.into_iter().flatten() {
-            if let CollectionEvent::Activate(at) | CollectionEvent::Item(at, OptionEvent::Picked) = event {
+            if let CollectionEvent::Activate(at) = event {
                 picked = Some(at);
             }
         }

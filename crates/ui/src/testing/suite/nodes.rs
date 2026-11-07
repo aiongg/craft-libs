@@ -9,8 +9,8 @@ pub(super) fn subtree(tree: &AccessTree, node: NodeKey) -> Vec<NodeKey> {
     let mut found = vec![node];
     let mut at = 0;
     while at < found.len() {
-        let children = tree.children_of(found[at]);
-        found.extend(children.into_iter().filter(|child| !found.contains(child)));
+        let new: Vec<NodeKey> = tree.children_of(found[at]).into_iter().filter(|child| !found.contains(child)).collect();
+        found.extend(new);
         at += 1;
     }
     found
