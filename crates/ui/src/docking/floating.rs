@@ -10,7 +10,7 @@ use crate::contract::BodyCx;
 use crate::contract::overlay::{PlacementChange, PlacementKind};
 use crate::contract::{
     Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Inner, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Role,
-    Show as _, ShowContainer as _, Sizing,
+    Show as _, ShowContainer as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::env::{Env, Label};
 use crate::runtime::windows::WindowSpec;
@@ -142,7 +142,8 @@ impl FloatingGroup {
     /// Shows the group; `body` fills the area under the title row unless the group is minimized.
     pub fn show_group<R>(mut self, ui: &mut Ui, mut body: impl FnMut(&mut Ui, &mut BodyCx<'_>) -> R) -> Inner<FloatingGroupOutput, R> {
         let header = Env::of(ui).tokens.size.panel_header;
-        self.props = self.props.mount(self.mount(header));
+        let mount = self.mount(header);
+        self.props = self.props.mount(mount);
         let minimized = self.minimized;
         let shown = self.show(ui, |ui, cx| (!minimized).then(|| body(ui, cx)));
         Inner { output: shown.output, inner: shown.inner.flatten() }
