@@ -11,17 +11,17 @@ use egui::{Align, Painter};
 
 /// The raw painter of an allowlisted content painter, clipped to its rect.
 #[non_exhaustive]
-pub struct ContentPainterCx {
+pub struct ContentPainterCx<'a> {
     /// The painter.
     pub painter: Painter,
-    pub(super) tokens: UiTokens,
+    pub(super) tokens: &'a UiTokens,
     pub(super) direction: Direction,
 }
 
-impl ContentPainterCx {
+impl<'a> ContentPainterCx<'a> {
     /// A raw painter for a content painter, with the tokens and direction the content-paint kit reads.
-    pub(crate) fn new(painter: Painter, tokens: &UiTokens, direction: Direction) -> Self {
-        ContentPainterCx { painter, tokens: tokens.clone(), direction }
+    pub(crate) fn new(painter: Painter, tokens: &'a UiTokens, direction: Direction) -> Self {
+        ContentPainterCx { painter, tokens, direction }
     }
 
     /// The one sanctioned text layout for content painters: document runs with their own font, size and colour,

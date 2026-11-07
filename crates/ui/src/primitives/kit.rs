@@ -41,52 +41,69 @@ impl Tick {
     }
 }
 
-/// The transparency checkerboard over `rect`: the light colour fills it and the dark cells sit on top, from the
-/// rect's top-left corner, with cells of `size.checker`.
-pub fn checker(tokens: &UiTokens, rect: Rect) -> Vec<Shape> {
+/// The transparency checkerboard over `rect`, drawn where `clip` shows it: the light colour fills it and the dark
+/// cells sit on top, from the rect's top-left corner, with cells of `size.checker`.
+pub fn checker(tokens: &UiTokens, rect: Rect, clip: Rect) -> Vec<Shape> {
+    let visible = rect.intersect(clip);
+    if visible.width() <= 0.0 || visible.height() <= 0.0 {
+        return Vec::new();
+    }
     let side = tokens.size.checker.max(f32::EPSILON);
     let (light, dark) = (rgba_color(tokens.color.overlay.checker_light), rgba_color(tokens.color.overlay.checker_dark));
-    let mut shapes = vec![Shape::rect_filled(rect, 0.0, light)];
-    let columns = (rect.width() / side).ceil() as usize;
-    let rows = (rect.height() / side).ceil() as usize;
-    for row in 0..rows {
-        for column in (row % 2..columns).step_by(2) {
+    let mut shapes = vec![Shape::rect_filled(visible, 0.0, light)];
+    let cells = |from: f32, to: f32, origin: f32| {
+        let at = |edge: f32, round: fn(f32) -> f32| round((edge - origin) / side).max(0.0) as usize;
+        at(from, f32::floor)..at(to, f32::ceil)
+    };
+    for row in cells(visible.top(), visible.bottom(), rect.top()) {
+        for column in cells(visible.left(), visible.right(), rect.left()).filter(|column| (column + row) % 2 == 0) {
             let min = rect.min + vec2(column as f32 * side, row as f32 * side);
-            let cell = Rect::from_min_size(min, Vec2::splat(side)).intersect(rect);
+            let cell = Rect::from_min_size(min, Vec2::splat(side)).intersect(visible);
             shapes.push(Shape::rect_filled(cell, 0.0, dark));
         }
     }
     shapes
 }
 
-/// The grid lines over `rect`, every `spacing` points from the rect's top-left corner, as grid rules.
-pub fn grid_lines(tokens: &UiTokens, rect: Rect, spacing: Vec2, pixels_per_point: f32) -> Vec<Shape> {
+/// The grid lines over `rect` that `clip` shows, every `spacing` points from the rect's top-left corner, as grid
+/// rules. Lines closer than a device pixel are drawn a pixel apart.
+pub fn grid_lines(tokens: &UiTokens, rect: Rect, spacing: Vec2, clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
+    let visible = rect.intersect(clip);
     let look = rule_look(tokens, RuleKind::Grid);
     let mut shapes = Vec::new();
+    if visible.width() < 0.0 || visible.height() < 0.0 {
+        return shapes;
+    }
+    let pixel = 1.0 / pixels_per_point.max(f32::EPSILON);
     if spacing.x > 0.0 {
-        let mut x = rect.left();
-        while x <= rect.right() {
-            shapes.extend(Rule::shapes(&look, pos2(x, rect.top()), pos2(x, rect.bottom()), pixels_per_point));
-            x += spacing.x;
+        let step = spacing.x.max(pixel);
+        let mut n = ((visible.left() - rect.left()) / step).ceil().max(0.0);
+        while rect.left() + n * step <= visible.right() {
+            let x = rect.left() + n * step;
+            shapes.extend(Rule::shapes(&look, pos2(x, visible.top()), pos2(x, visible.bottom()), pixels_per_point));
+            n += 1.0;
         }
     }
     if spacing.y > 0.0 {
-        let mut y = rect.top();
-        while y <= rect.bottom() {
-            shapes.extend(Rule::shapes(&look, pos2(rect.left(), y), pos2(rect.right(), y), pixels_per_point));
-            y += spacing.y;
+        let step = spacing.y.max(pixel);
+        let mut n = ((visible.top() - rect.top()) / step).ceil().max(0.0);
+        while rect.top() + n * step <= visible.bottom() {
+            let y = rect.top() + n * step;
+            shapes.extend(Rule::shapes(&look, pos2(visible.left(), y), pos2(visible.right(), y), pixels_per_point));
+            n += 1.0;
         }
     }
     shapes
 }
 
-/// The tick marks of `ticks` on one edge of `rect`: minor ones `gap.tight` long, major ones `gap.inline`.
-pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], pixels_per_point: f32) -> Vec<Shape> {
+/// The tick marks of `ticks` on one edge of `rect` that `clip` shows: minor ones `gap.tight` long, major ones
+/// `gap.inline`.
+pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], clip: Rect, pixels_per_point: f32) -> Vec<Shape> {
     let look = rule_look(tokens, RuleKind::Edge);
     let (minor, major) = (tokens.space.gap.tight, tokens.space.gap.inline);
     ticks
         .iter()
-        .flat_map(|tick| {
+        .filter_map(|tick| {
             let length = if tick.major { major } else { minor };
             let (from, to) = match edge {
                 TickEdge::Bottom => (pos2(rect.left() + tick.at, rect.bottom()), pos2(rect.left() + tick.at, rect.bottom() - length)),
@@ -94,8 +111,9 @@ pub fn ticks(tokens: &UiTokens, rect: Rect, edge: TickEdge, ticks: &[Tick], pixe
                 TickEdge::Left => (pos2(rect.left(), rect.top() + tick.at), pos2(rect.left() + length, rect.top() + tick.at)),
                 TickEdge::Right => (pos2(rect.right(), rect.top() + tick.at), pos2(rect.right() - length, rect.top() + tick.at)),
             };
-            Rule::shapes(&look, from, to, pixels_per_point)
+            clip.intersects(Rect::from_two_pos(from, to)).then(|| Rule::shapes(&look, from, to, pixels_per_point))
         })
+        .flatten()
         .collect()
 }
 
@@ -160,46 +178,46 @@ fn stroked(shape: &PaintShape, stroke: Stroke) -> Vec<Shape> {
     }
 }
 
-impl ContentPainterCx {
+impl ContentPainterCx<'_> {
     fn ppp(&self) -> f32 {
         self.painter.pixels_per_point()
     }
 
     /// Paints the transparency checkerboard over `rect`.
     pub fn checker(&self, rect: Rect) {
-        self.painter.extend(checker(&self.tokens, rect));
+        self.painter.extend(checker(self.tokens, rect, self.painter.clip_rect()));
     }
 
     /// Paints the well of a plot over `rect` and returns the rect inside its edge, where the plot draws.
     pub fn plot_frame(&self, rect: Rect) -> Rect {
-        let style = surface_style(&self.tokens, SurfaceKind::Well);
+        let style = surface_style(self.tokens, SurfaceKind::Well);
         self.painter.extend(Surface::shapes(&style, None, rect, Corners::None, self.direction, self.ppp()));
         rect.shrink(self.tokens.stroke.thin)
     }
 
     /// Paints grid lines every `spacing` points over `rect`.
     pub fn grid_lines(&self, rect: Rect, spacing: Vec2) {
-        self.painter.extend(grid_lines(&self.tokens, rect, spacing, self.ppp()));
+        self.painter.extend(grid_lines(self.tokens, rect, spacing, self.painter.clip_rect(), self.ppp()));
     }
 
     /// Paints tick marks on one edge of `rect`.
     pub fn ticks(&self, rect: Rect, edge: TickEdge, marks: &[Tick]) {
-        self.painter.extend(ticks(&self.tokens, rect, edge, marks, self.ppp()));
+        self.painter.extend(ticks(self.tokens, rect, edge, marks, self.painter.clip_rect(), self.ppp()));
     }
 
     /// Paints a halo-and-line outline of `shape`.
     pub fn outline(&self, shape: &PaintShape) {
-        self.painter.extend(outline(&self.tokens, shape));
+        self.painter.extend(outline(self.tokens, shape));
     }
 
     /// Paints marching ants along `points`.
     pub fn marching_ants(&self, points: &[Pos2], closed: bool, phase: f32) {
-        self.painter.extend(marching_ants(&self.tokens, points, closed, phase));
+        self.painter.extend(marching_ants(self.tokens, points, closed, phase));
     }
 
     /// Paints the insertion mark of a drop.
     pub fn drop_mark(&self, from: Pos2, to: Pos2) {
-        self.painter.extend(drop_mark(&self.tokens, from, to, self.ppp()));
+        self.painter.extend(drop_mark(self.tokens, from, to, self.ppp()));
     }
 
     /// The colour a plot reads grid and tick ink in.

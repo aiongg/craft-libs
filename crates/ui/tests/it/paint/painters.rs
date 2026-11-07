@@ -98,9 +98,23 @@ fn the_checker_puts_dark_cells_on_alternate_squares_from_the_corner() {
     let tokens = tokens(Mode::Light, Contrast::Standard);
     let side = tokens.size.checker;
     let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(side * 3.0, side * 2.0));
-    let shapes = craft_ui::primitives::checker(&tokens, rect);
+    let shapes = craft_ui::primitives::checker(&tokens, rect, rect);
     // The light base, then the dark squares (0,0), (2,0) and (1,1).
     assert_eq!(shapes.len(), 1 + 3);
     let Shape::Rect(first) = &shapes[1] else { panic!("a dark cell is a rect") };
     assert_eq!(first.rect.min, rect.min, "the first dark cell sits in the corner");
+}
+
+#[trial]
+fn checker_and_grid_shapes_stay_within_the_clip_of_a_huge_rect() {
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let huge = Rect::from_min_size(pos2(-1.0e6, -1.0e6), vec2(2.0e6, 2.0e6));
+    let clip = Rect::from_min_size(pos2(0.0, 0.0), vec2(100.0, 100.0));
+    let checker = craft_ui::primitives::checker(&tokens, huge, clip);
+    assert!(checker.len() < 10_000, "{} checker shapes for a 100 point clip", checker.len());
+    let grid = craft_ui::primitives::grid_lines(&tokens, huge, vec2(0.001, 10.0), clip, 2.0);
+    assert!(grid.len() < 10_000, "{} grid shapes for a 100 point clip", grid.len());
+    for shape in checker.iter().chain(&grid) {
+        assert!(clip.expand(2.0).contains_rect(shape.visual_bounding_rect()), "{:?} reaches outside the clip", shape.visual_bounding_rect());
+    }
 }
