@@ -795,16 +795,17 @@ impl Component for ListRow<'_> {
         let rect = cx.rect;
         let placed = self.place(sizes, rect, rtl);
         self.label_rect = placed.label;
-        let draw = ui.draw();
-        if self.rule || (self.layer && style.dividers) {
-            draw.rule(RuleKind::Divider, Pos2::new(rect.left(), rect.bottom()), Pos2::new(rect.right(), rect.bottom()));
-        }
-        if self.layer && style.dividers {
-            for x in &placed.dividers {
-                draw.rule(RuleKind::Divider, Pos2::new(*x, rect.top()), Pos2::new(*x, rect.bottom()));
+        {
+            let draw = ui.draw();
+            if self.rule || (self.layer && style.dividers) {
+                draw.rule(RuleKind::Divider, Pos2::new(rect.left(), rect.bottom()), Pos2::new(rect.right(), rect.bottom()));
+            }
+            if self.layer && style.dividers {
+                for x in &placed.dividers {
+                    draw.rule(RuleKind::Divider, Pos2::new(*x, rect.top()), Pos2::new(*x, rect.bottom()));
+                }
             }
         }
-        drop(draw);
         self.paint_toggles(ui, cx, &placed);
         let ink = cx.resolve(&style.text);
         if let Some(open) = self.group
@@ -812,22 +813,20 @@ impl Component for ListRow<'_> {
         {
             ui.face(DISCLOSURE, Disclosure::new(Bind::given(open)).node(false).label(cx.resolved.label.to_owned()));
         }
-        let draw = ui.draw();
-        if let Some(slot) = placed.marker {
-            draw_clip_arrow(&draw, slot, rtl, ink);
-        }
-        if let Some(slot) = placed.icon
-            && let Some(icon) = &self.icon
         {
-            draw.icon(Rect::from_center_size(slot.center(), Vec2::splat(sizes.icon)), icon);
+            let draw = ui.draw();
+            if let Some(slot) = placed.marker {
+                draw_clip_arrow(&draw, slot, rtl, ink);
+            }
+            if let Some(slot) = placed.icon
+                && let Some(icon) = &self.icon
+            {
+                draw.icon(Rect::from_center_size(slot.center(), Vec2::splat(sizes.icon)), icon);
+            }
         }
-        drop(draw);
         self.paint_thumbs(ui, cx, &placed, ink);
-        let draw = ui.draw();
-        self.paint_text(&draw, cx, placed.label);
-        drop(draw);
-        let items = placed.items;
-        for (item, slot) in self.trailing.iter_mut().zip(items) {
+        self.paint_text(&ui.draw(), cx, placed.label);
+        for (item, slot) in self.trailing.iter_mut().zip(placed.items) {
             if let (Some(slot), Some(show)) = (slot, item.paint.take()) {
                 show(ui, slot);
             }
@@ -987,5 +986,72 @@ impl Component for RowThumb<'_> {
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {
         cx.response.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SIZES: Sizes = Sizes {
+        row: 20.0,
+        icon: 16.0,
+        pad: 6.0,
+        gap: 4.0,
+        trailing_pad: 8.0,
+        min_label: 60.0,
+        thumbs: [24.0, 32.0, 48.0],
+        thumb_pad: 4.0,
+        tight: 2.0,
+        label_line: 16.0,
+        detail_line: 12.0,
+    };
+
+    fn row_in(row: &ListRow<'_>, width: f32, rtl: bool) -> Placed {
+        row.place(&SIZES, Rect::from_min_size(Pos2::ZERO, Vec2::new(width, SIZES.row)), rtl)
+    }
+
+    #[test]
+    fn optional_items_drop_out_before_the_label_gets_too_narrow() {
+        let row = ListRow::new("Layer").trailing(1.0, |_, _| {}).optional(2.0, |_, _| {});
+        assert!(row_in(&row, 150.0, false).items.iter().all(Option::is_some));
+        let narrow = row_in(&row, 120.0, false);
+        assert!(narrow.items[0].is_some() && narrow.items[1].is_none());
+        assert!(narrow.label.width() >= SIZES.min_label);
+    }
+
+    #[test]
+    fn a_row_too_narrow_for_its_required_parts_keeps_the_label_at_its_least_width() {
+        let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
+        let placed = row_in(&row, 60.0, false);
+        assert_eq!(placed.label.width(), SIZES.min_label);
+        assert!(placed.items[0].is_some_and(|item| item.right() > 60.0), "the item moves out with the label and the row's edge cuts it");
+    }
+
+    #[test]
+    fn the_indent_shrinks_before_the_label_does_and_the_disclosure_column_keeps_its_room() {
+        let row = ListRow::new("Group").depth(5).group(true);
+        let placed = row_in(&row, 120.0, false);
+        assert_eq!(placed.label.width(), SIZES.min_label);
+        let disclosure = placed.disclosure.expect("a group row has a disclosure column");
+        assert!(disclosure.right() <= placed.label.left());
+        assert_eq!(placed.label.left() - disclosure.right(), 0.0);
+    }
+
+    #[test]
+    fn the_row_mirrors_under_right_to_left() {
+        let row = ListRow::new("Layer").trailing(1.0, |_, _| {});
+        let (ltr, rtl) = (row_in(&row, 200.0, false), row_in(&row, 200.0, true));
+        assert_eq!(ltr.label.left(), 200.0 - rtl.label.right());
+        assert_eq!(ltr.items[0].map(|item| item.left()), rtl.items[0].map(|item| 200.0 - item.right()));
+    }
+
+    #[test]
+    fn a_leaf_inside_a_group_indents_one_level_more_than_its_depth() {
+        let leaf = ListRow::new("Leaf").depth(1);
+        let top = ListRow::new("Leaf").depth(0);
+        assert_eq!(leaf.steps(), 2);
+        assert_eq!(top.steps(), 0);
+        assert_eq!(ListRow::new("Group").depth(1).group(false).steps(), 1);
     }
 }
