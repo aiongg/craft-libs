@@ -4,7 +4,7 @@ use super::check::Checkbox;
 use super::disclosure::Disclosure;
 use super::radio::{Radio, RadioGroup};
 use super::slider::{Slider, THUMB};
-use crate::contract::{Bind, Props as _, Role, Show as _, ShowContainer as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::layout_components::{Row, Stack};
 use crate::runtime::env::Message;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};
@@ -66,10 +66,10 @@ fn spread(ui: &mut Ui, group: RadioGroup<'_, u8>) -> (StoryOutput, Option<Respon
     let mut second = None;
     let shown = group.show(ui, |ui, _| {
         Stack::new().show(ui, |ui, _| {
-            Radio::new(1).label("Small").show(ui);
+            Radio::new(1u8).label("Small").show(ui);
             Row::new().show(ui, |ui, _| {
-                second = Some(Radio::new(2).label("Medium").show(ui));
-                Radio::new(3).label("Large").show(ui);
+                second = Some(Radio::new(2u8).label("Medium").show(ui));
+                Radio::new(3u8).label("Large").show(ui);
             });
         });
     });
@@ -77,9 +77,8 @@ fn spread(ui: &mut Ui, group: RadioGroup<'_, u8>) -> (StoryOutput, Option<Respon
 }
 
 fn pick_second(fixture: &mut Fixture) {
-    let radios = fixture.by_role(Role::RADIO_BUTTON);
-    if let Some(second) = radios.get(1) {
-        fixture.click(second);
+    if let Some(medium) = fixture.by_label("Medium") {
+        fixture.click(&medium);
     }
 }
 
