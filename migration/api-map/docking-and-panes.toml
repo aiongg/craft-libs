@@ -43,14 +43,14 @@ name = "resize_edges"
 old = "craft_ui::docking::render::native::resize_edges"
 new = ""
 status = "replaced"
-note = "Internal band of a native dock window; the window's root `Ui` shows `WindowEdges::new(viewport).holes(&buttons).show(ui)` instead."
+note = "Internal band of a native dock window; the float frame on `Mount::Viewport` resizes the window through its body-step grips."
 
 [[type]]
 name = "resize_bands"
 old = "craft_ui::docking::render::native::resize_bands"
 new = ""
 status = "replaced"
-note = "Internal; the eight zones are `WindowEdges`."
+note = "Internal; the eight zones are the float frame's body-step grips."
 
 [[type]]
 name = "PanelLimits"
@@ -185,7 +185,7 @@ new = "craft_behavior::dock::StackEntry"
 status = "moved"
 
 [[type]]
-name = "Zone"
+name = "DockSide"
 old = "craft_ui::docking::model::Zone"
 new = "craft_behavior::DockSide"
 status = "replaced"
@@ -211,14 +211,14 @@ new = "craft_behavior::dock::Column"
 status = "moved"
 
 [[type]]
-name = "Side"
+name = "DockEdge"
 old = "craft_ui::docking::dock_model::Side"
 new = "craft_behavior::dock::DockEdge"
 status = "replaced"
 note = "Renamed: `overlay::Side` is another type. A dock's window edge, `Start` or `End`."
 
 [[type]]
-name = "Place"
+name = "PanelPlace"
 old = "craft_ui::docking::dock_model::Place"
 new = "craft_behavior::dock::PanelPlace"
 status = "replaced"
@@ -263,7 +263,7 @@ status = "moved"
 note = "A constant."
 
 [[type]]
-name = "SplitAxis"
+name = "Axis"
 old = "craft_ui::layout::SplitAxis"
 new = "craft_behavior::Axis"
 status = "replaced"
