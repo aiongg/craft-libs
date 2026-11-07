@@ -109,3 +109,21 @@ fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
     let events = events_after_menu_delete("Coral");
     assert!(!events.iter().any(|event| matches!(event, PresetEvent::Delete(_))), "no delete was reported: {events:?}");
 }
+
+#[trial]
+fn debug_amber_frames() {
+    let (mut fixture, _seen) = deleting_picker();
+    open(&mut fixture);
+    let at = fixture.by_label("Amber").expect("tile").rect.center();
+    let mut log = Vec::new();
+    let names = |f: &Fixture| -> Vec<String> { f.tree().keys().into_iter().filter_map(|k| f.tree().name_of(k).map(str::to_owned)).collect() };
+    fixture.frame(vec![pointer::moved(at)]);
+    log.push(names(&fixture));
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    log.push(names(&fixture));
+    fixture.frame(vec![pointer::secondary(at, false)]);
+    log.push(names(&fixture));
+    fixture.idle(2);
+    log.push(names(&fixture));
+    panic!("DEBUGF {log:?}");
+}
