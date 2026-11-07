@@ -60,3 +60,8 @@ fn an_arrow_on_a_focused_crop_corner_nudges_it() {
     let after = *shared.borrow();
     assert!(after.min.x > before.min.x && after.min.y == before.min.y, "the focused corner moved right: {before:?} -> {after:?}");
 }
+
+mod readout;
+mod tool;
+
+mod raster;

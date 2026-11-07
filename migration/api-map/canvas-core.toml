@@ -404,3 +404,190 @@ type = "SplitViews"
 old = "show(ui, rect, |ui, pane, rect| ..)"
 new = "show(ui, |ui, body| ..)"
 note = "The pane rects are `layout.rects(split_at, body.rect)`."
+
+[[type]]
+name = "Pasteboard"
+old = "craft_ui::canvas::pasteboard::Pasteboard"
+new = "craft_ui::canvas::Pasteboard"
+status = "pending"
+
+[[type]]
+name = "SplitViews"
+old = "craft_ui::canvas::split::SplitViews"
+new = "craft_ui::canvas::SplitViews"
+status = "pending"
+
+# Raster display and thumbnails.
+[[type]]
+name = "RasterDisplay"
+old = "craft_ui::canvas::raster::RasterDisplay"
+new = "craft_ui::canvas::RasterDisplay"
+status = "moved"
+note = "A canvas control: `RasterDisplay::new(label, &source).checkerboard().damaged(rect).show_at(ui, body.rect)` inside a `Canvas` given a view; the view and the interface scale come from the canvas (`canvas_space`), so `show(ui, &view, &source)` is gone. Outside a canvas, or in one without a view, it draws nothing."
+
+[[type]]
+name = "RasterResponse"
+old = "craft_ui::canvas::raster::RasterResponse"
+new = ""
+status = "removed"
+note = "Replaced by `RasterOutput`: `read` and `detail` stay; `id` is gone with the egui-memory calls that took it, and `response` is the display's response."
+
+[[type]]
+name = "RasterOutput"
+old = ""
+new = "craft_ui::canvas::RasterOutput"
+status = "replaced"
+note = "The output of `RasterDisplay`: `response`, `read: Option<PixelRect>`, `detail: Option<DetailPlan>`."
+
+[[type]]
+name = "DetailPlan"
+old = "craft_ui::canvas::textures::limits::DetailPlan"
+new = "craft_ui::canvas::DetailPlan"
+status = "moved"
+note = "`DetailPlan::of(size: PixelSize, side, device_zoom, visible)` is pure as before; `DetailPlan::in_view(&view, size, side, pixels_per_point)` reads the visible pixels and the device zoom of a `CanvasView`, as `PixelRect::visible` did."
+
+[[type]]
+name = "Checkerboard"
+old = "craft_ui::canvas::raster::Checkerboard"
+new = ""
+status = "removed"
+note = "The transparency grid is `kit::checker` (cells of the `size.checker` token, colours of the `overlay.checker_*` tokens), which `RasterDisplay::checkerboard()` and `ThumbPaint::checker(true)` draw. The size and colour preferences have no home yet."
+
+[[type]]
+name = "CheckerSize"
+old = "craft_ui::canvas::raster::CheckerSize"
+new = ""
+status = "removed"
+note = "See `Checkerboard`."
+
+[[type]]
+name = "CheckerColors"
+old = "craft_ui::canvas::raster::CheckerColors"
+new = ""
+status = "removed"
+note = "See `Checkerboard`."
+
+[[type]]
+name = "Thumbnails"
+old = "craft_ui::canvas::textures::thumb::Thumbnails"
+new = "craft_ui::primitives::textures::Thumbnails"
+status = "moved"
+note = "`Thumbnails::in_context(ctx, salt, options)` takes any `Hash + Debug` salt. `paint` takes the `&ContentPainterCx` a `ListRow::thumb` or `Tile::thumb` painter receives. `retain` takes the `Context`. `paint_placeholder` and `style` are gone: `paint` with `TextureState::Missing` draws the placeholder from tokens."
+
+[[type]]
+name = "ThumbSource"
+old = "craft_ui::canvas::textures::thumb::ThumbSource"
+new = "craft_ui::primitives::textures::ThumbSource"
+status = "moved"
+note = "Same methods; `revision` returns `craft_ui::primitives::Revision`."
+
+[[type]]
+name = "ThumbRequest"
+old = "craft_ui::canvas::textures::thumb::ThumbRequest"
+new = "craft_ui::primitives::textures::ThumbRequest"
+status = "moved"
+note = "`for_cell` and `region` keep their meaning; the struct is `#[non_exhaustive]`."
+
+[[type]]
+name = "ThumbRender"
+old = "craft_ui::canvas::textures::thumb::ThumbRender"
+new = "craft_ui::primitives::textures::ThumbRender"
+status = "moved"
+
+[[type]]
+name = "ThumbJob"
+old = "craft_ui::canvas::textures::thumb::ThumbJob"
+new = "craft_ui::primitives::textures::ThumbJob"
+status = "moved"
+
+[[type]]
+name = "ThumbPaint"
+old = "craft_ui::canvas::textures::thumb::ThumbPaint"
+new = "craft_ui::primitives::textures::ThumbPaint"
+status = "moved"
+note = "`tint` is a `DataColor` (`DataColor::new(Color32::from_gray(200))`), not a `Color32`."
+
+[[type]]
+name = "ThumbFit"
+old = "craft_ui::canvas::textures::thumb::ThumbFit"
+new = "craft_ui::primitives::textures::ThumbFit"
+status = "moved"
+
+[[type]]
+name = "ThumbnailOptions"
+old = "craft_ui::canvas::textures::thumb::ThumbnailOptions"
+new = "craft_ui::primitives::textures::ThumbnailOptions"
+status = "moved"
+note = "`ThumbnailOptions::new().max_side(..).store(..).lanes(..).jobs(..).renders_per_pass(..)` replaces the struct literal; `cache` is `store: TextureStoreOptions`."
+
+[[type]]
+name = "ThumbnailStyle"
+old = "craft_ui::canvas::textures::style::ThumbnailStyle"
+new = ""
+status = "removed"
+note = "`Thumbnails::paint` reads the sunken surface, the transparency grid and the warning icon from tokens."
+
+[[type]]
+name = "FakeThumbSource"
+old = "craft_ui::canvas::textures::thumb::FakeThumbSource"
+new = "craft_ui::primitives::textures::FakeThumbSource"
+status = "moved"
+note = "Behind the `testing` feature."
+
+[[type]]
+name = "thumb_image"
+old = "craft_ui::canvas::textures::thumb::thumb_image"
+new = "craft_ui::primitives::textures::thumb_image"
+status = "moved"
+note = "`frame_size` is a `craft_behavior::PixelSize`."
+
+[[type]]
+name = "fit_rect"
+old = "craft_ui::canvas::textures::thumb::fit_rect"
+new = "craft_ui::primitives::textures::fit_rect"
+status = "moved"
+
+[[setter]]
+type = "RasterDisplay"
+old = "new(id_salt)"
+new = "new(label, &source)"
+note = "The id comes from the label and the place in the tree; the source is a prop of construction."
+
+[[setter]]
+type = "RasterDisplay"
+old = "checkerboard(Checkerboard)"
+new = "checkerboard()"
+note = "A flag; the grid's size and colours are tokens."
+
+[[setter]]
+type = "RasterDisplay"
+old = "show(ui, &view, &source)"
+new = "show_at(ui, body.rect)"
+note = "Inside a `Canvas` given a view."
+
+[[setter]]
+type = "RasterDisplay"
+old = "damage(ctx, id, region)"
+new = "damaged(PixelRect)"
+note = "A prop for the pass that shows the change: the region changed since the display last showed, unioned by the app."
+
+[[setter]]
+type = "RasterDisplay"
+old = "forget(ctx, id)"
+new = ""
+note = "Gone: the textures are in `TextureStore`s under the display's id and leave by budget; a document of size zero drops them."
+
+[[setter]]
+type = "Thumbnails"
+old = "paint(painter, rect, &state, &paint)"
+new = "paint(&content_painter, rect, &state, &paint)"
+
+[[setter]]
+type = "Thumbnails"
+old = "paint_placeholder(painter, rect)"
+new = "paint(&content_painter, rect, &TextureState::Missing, &paint)"
+
+[[setter]]
+type = "Thumbnails"
+old = "retain(keep)"
+new = "retain(ctx, keep)"

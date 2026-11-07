@@ -198,3 +198,27 @@ impl Component for Canvas {
 }
 
 impl Container for Canvas {}
+
+mod crop;
+mod guide;
+mod readout;
+mod space;
+#[cfg(feature = "testing")]
+mod stories;
+mod words;
+
+pub use crop::{CropOverlay, CropStyle};
+pub use guide::{Guide, GuideDrag, GuideKey, GuideLine};
+pub use readout::readout;
+pub use space::{CanvasSpace, RulerText, canvas_space};
+pub use words::CanvasWords;
+
+mod raster;
+pub use raster::{DetailPlan, RasterDisplay, RasterOutput, RasterStyle, snap_to_texels};
+
+use crate::contract::{Common, Component, Container, ContainerProps, Cx, NoValue, Outcome, PartsCx, Pointer as _, Props as _, Role, Sizing};
+use crate::runtime::env::Label;
+use crate::runtime::focus::KeyUse;
+use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use craft_behavior::{CanvasTransform, CanvasView, HitLevel, HitPriority, Metrics, PartKey, PointerButton, PressPhase, PressState, Sense, Wheel};
+use egui::{Pos2, Rect, Response, Vec2};

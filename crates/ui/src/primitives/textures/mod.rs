@@ -11,6 +11,11 @@ pub use loader::{LoadFailure, LoadResult, LoadedPicture, LoaderOptions, Priority
 pub use store::{CachedTexture, Revision, TextureBudget, TextureKey, TextureState, TextureStatistics, TextureStore, TextureStoreOptions};
 pub use words::TextureWords;
 
+mod thumbnails;
+#[cfg(feature = "testing")]
+pub use thumbnails::FakeThumbSource;
+pub use thumbnails::{ThumbFit, ThumbJob, ThumbPaint, ThumbRender, ThumbRequest, ThumbSource, ThumbnailOptions, Thumbnails, fit_rect, thumb_image};
+
 use crate::runtime::egui::{memory, pass, textures};
 use egui::{ColorImage, Context, TextureHandle, TextureId, TextureOptions};
 use std::any::TypeId;
