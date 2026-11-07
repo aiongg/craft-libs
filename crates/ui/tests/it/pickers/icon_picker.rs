@@ -2,6 +2,7 @@
 
 use craft_ui::contract::Bind;
 use craft_ui::pickers::{IconPicker, IconPickerGroup, IconPickerItem};
+use craft_ui::testing::focus::AccessActionKind;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers};
 use std::cell::Cell;
@@ -38,4 +39,30 @@ fn the_search_filters_the_cells_and_enter_picks_the_first_match() {
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(2);
     assert_eq!(picked.get(), Some(PEN));
+}
+
+/// A group the user closed stays closed over later frames and after a search is typed and cleared.
+#[trial]
+fn a_closed_group_stays_closed_over_frames_and_a_cleared_search() {
+    let mut fixture = Fixture::new(|ui| {
+        let mut value = None::<u8>;
+        let groups = groups();
+        IconPicker::new("Tool", Bind::bound(&mut value), &groups).show(ui);
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Brush").is_some(), "groups start open");
+    let header = fixture.by_label("Drawing").expect("the group's header");
+    fixture.access(AccessActionKind::Collapse, &header);
+    fixture.idle(2);
+    assert!(fixture.by_label("Brush").is_none(), "the closed group shows its header only");
+    fixture.idle(3);
+    assert!(fixture.by_label("Brush").is_none(), "it stays closed over later frames");
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.type_text("br");
+    fixture.idle(2);
+    fixture.key(Key::Backspace, Modifiers::NONE);
+    fixture.key(Key::Backspace, Modifiers::NONE);
+    fixture.idle(2);
+    assert!(fixture.by_label("Brush").is_none(), "it stays closed after the search is cleared");
+    assert!(fixture.by_label("Move").is_some(), "the other group is still open");
 }

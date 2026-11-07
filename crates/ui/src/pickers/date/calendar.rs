@@ -30,6 +30,9 @@ const YEARS_PER_PAGE: i32 = 12;
 /// Columns of a Day page, a Month page and a Year page.
 const DAY_COLUMNS: usize = 7;
 const PICK_COLUMNS: usize = 4;
+/// The cells a step Up or Down moves over, as page keys.
+const DAY_STRIDE: i32 = DAY_COLUMNS as i32;
+const PICK_STRIDE: i32 = PICK_COLUMNS as i32;
 /// Rows a page is sized for: the most weeks a month spans.
 const ROWS: usize = 6;
 /// The chord that goes up a level on a navigation page, the keyboard path of the title.
@@ -259,32 +262,59 @@ impl CalendarView {
     }
 
     /// The view after `mv` pressed on the cell `from`, when the grid of cells could not take it: Page Up and Page Down
-    /// page; on a Day page a step past the month's first or last row (Up, Down, or Back and Forward at the month's
-    /// ends) goes on into the previous or next month, a week or a day from `from`. The active cell lands there and
-    /// focus follows. Else the view is unchanged.
+    /// page; a step past the page's first or last row (Up, Down, or Back and Forward at its ends) goes on into the
+    /// previous or next page of the same kind: on a Day page the neighbour month, a week or a day from `from`; on a
+    /// Month page the neighbour year, at the mirrored cell; on a Year page the neighbour twelve years. The active
+    /// cell lands there and focus follows. Else the view is unchanged.
     #[must_use]
     pub fn crossed(self, mv: NavMove, from: i32, dates: &DateFormat) -> CalendarView {
         let here = CalendarView { active: from, ..self };
+        let row = if self.precision == DatePrecision::Day { DAY_STRIDE } else { PICK_STRIDE };
         let (forward, by) = match mv {
             NavMove::PageUp | NavMove::PageDown => {
                 let paged = here.paged(mv == NavMove::PageDown, dates);
                 return if paged == here { self } else { CalendarView { land: true, ..paged } };
             }
-            _ if self.precision != DatePrecision::Day => return self,
             NavMove::Back => (false, 1),
-            NavMove::Up => (false, 7),
+            NavMove::Up => (false, row),
             NavMove::Forward => (true, 1),
-            NavMove::Down => (true, 7),
+            NavMove::Down => (true, row),
             _ => return self,
         };
         let paged = here.paged(forward, dates);
-        if (paged.year, paged.month) == (self.year, self.month) {
-            return self;
+        match self.precision {
+            DatePrecision::Day => {
+                if (paged.year, paged.month) == (self.year, self.month) {
+                    return self;
+                }
+                let days_here = i32::from(dates.local_days_in_month(self.year, self.month));
+                let days_there = i32::from(dates.local_days_in_month(paged.year, paged.month));
+                let day = if forward { from + by - days_here } else { days_there + from - by };
+                CalendarView { active: day.clamp(1, days_there.max(1)), land: true, ..paged }
+            }
+            DatePrecision::Month => {
+                if paged.year == self.year {
+                    return self;
+                }
+                let months = i32::from(dates.local_months_in_year(paged.year).max(1));
+                let column = (from - 1).rem_euclid(PICK_STRIDE);
+                let month = match (forward, by == 1) {
+                    (true, true) => 1,
+                    (false, true) => months,
+                    (true, false) => column + 1,
+                    (false, false) => column + 1 + (months - 1 - column) / PICK_STRIDE * PICK_STRIDE,
+                };
+                CalendarView { active: month.clamp(1, months), land: true, ..paged }
+            }
+            _ => {
+                if paged.first_year() == self.first_year() {
+                    return self;
+                }
+                let (first, last) = Self::year_range(self.local(), dates);
+                let step = if forward { by } else { -by };
+                CalendarView { active: (from + step).clamp(first, last), land: true, ..paged }
+            }
         }
-        let days_here = i32::from(dates.local_days_in_month(self.year, self.month));
-        let days_there = i32::from(dates.local_days_in_month(paged.year, paged.month));
-        let day = if forward { from + by - days_here } else { days_there + from - by };
-        CalendarView { active: day.clamp(1, days_there.max(1)), land: true, ..paged }
     }
 
     /// The title over the page.

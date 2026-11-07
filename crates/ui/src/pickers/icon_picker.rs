@@ -7,15 +7,20 @@
 mod stories;
 
 use super::words::PickerWords;
-use crate::contract::{ActivateOn, Bind, CollectionEvent, NoValue, Outcome, Pattern, Props, SelectMode, Show as _, ShowCollection as _};
+use crate::contract::{
+    ActivateOn, Bind, BodyCx, CollectionEvent, NoValue, Outcome, Pattern, Props, Remember as _, SelectMode, Show as _, ShowCollection as _,
+    ShowContainer as _,
+};
+use crate::layout_components::Stack;
 use crate::primitives::IconSpec;
 use crate::runtime::env::{Env, Label};
 use crate::text::TextField;
-use crate::tile_grid::{CaptionPlace, Tile, TileGrid, TileGroup};
+use crate::tile_grid::{CaptionPlace, GridEvent, Tile, TileGrid, TileGroup};
 use craft_behavior::{DisplayOrder, EditEvent, GestureId, ItemSource, Mixed, Selection};
 use craft_i18n::matcher::Matcher;
 use egui::{Response, Ui};
 use std::borrow::Cow;
+use std::collections::HashSet;
 use std::hash::Hash;
 use std::sync::Arc;
 
@@ -143,6 +148,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
     /// Shows the picker and returns what the user did this pass.
     pub fn show(self, ui: &mut Ui) -> IconPickerOutput<K> {
         let IconPicker { label, mut value, groups } = self;
+        let shown = Stack::new().show(ui, |ui, cx| Self::body(ui, cx, &label, &mut value, groups));
+        shown.inner.unwrap_or_else(|| IconPickerOutput { response: shown.output.clone(), picked: None, search_changed: false })
+    }
+
+    /// The search field over the grid, inside the picker's root container. The names of the closed groups are kept in
+    /// the container's memory.
+    fn body(ui: &mut Ui, cx: &mut BodyCx<'_>, label: &Label, value: &mut Bind<'a, Option<K>>, groups: &[IconPickerGroup<K>]) -> IconPickerOutput<K> {
         let env = Env::of(ui);
         let words = env.words::<PickerWords>();
         let grid_id = ui.scope_id().with("icons");
@@ -167,9 +179,13 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
             }
             items.extend(kept);
         }
+        let closed = cx.memory::<ClosedGroups>().clone();
         // The header rows are keyed after the cells, whose keys are their positions.
-        let shown_groups: Vec<TileGroup<usize>> =
-            named.into_iter().enumerate().map(|(at, (start, count, name))| TileGroup::new(items.len() + at, start, count, name)).collect();
+        let shown_groups: Vec<TileGroup<usize>> = named
+            .iter()
+            .enumerate()
+            .map(|(at, (start, count, name))| TileGroup::new(items.len() + at, *start, *count, name.clone()).open(!closed.0.contains(name)))
+            .collect();
         let held: Option<K> = match value.reborrow().get() {
             Some(Mixed::Same(Some(key))) => Some(key),
             _ => None,
@@ -183,6 +199,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
             .activate(ActivateOn::Click)
             .caption(CaptionPlace::None)
             .groups(&shown_groups)
+            .collapsible()
             .selection(Bind::given(selection))
             .rows_stamp(query_stamp(&query))
             .empty(words.icon_no_match.clone())
@@ -194,6 +211,21 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
                     None => tile,
                 }
             });
+        for event in &grid.events {
+            let (group, open) = match event {
+                GridEvent::GroupOpen { group, open } => (*group, Some(*open)),
+                GridEvent::GroupPicked { group, .. } => (*group, None),
+                _ => continue,
+            };
+            if let Some((_, _, name)) = named.get(group) {
+                let closed = &mut cx.memory::<ClosedGroups>().0;
+                if open.unwrap_or_else(|| closed.contains(name)) {
+                    closed.remove(name);
+                } else {
+                    closed.insert(name.clone());
+                }
+            }
+        }
         let picked = grid.response.events.iter().find_map(|event| match event {
             CollectionEvent::Activate(at) => source.items.get(*at).map(|item| item.key.clone()),
             _ => None,
@@ -207,6 +239,10 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> IconPicker<'a, K> {
         IconPickerOutput { response: grid.response.response, picked, search_changed }
     }
 }
+
+/// The names of the groups the user closed.
+#[derive(Clone, Default)]
+struct ClosedGroups(HashSet<String>);
 
 /// The rows stamp of a search text: the same text keeps the layout, another one rebuilds it.
 fn query_stamp(query: &str) -> u64 {
