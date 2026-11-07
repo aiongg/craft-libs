@@ -2,7 +2,7 @@
 
 use craft_ui::testing::layout::wrapped_text;
 use craft_ui::testing::parity::{self, ParityState, Replay, line_diff};
-use craft_ui::testing::trial;
+use craft_ui::testing::{Story, StoryData, StoryOutput, trial};
 
 #[derive(Clone)]
 struct Text(String);
@@ -42,4 +42,24 @@ fn replay_matching_runs_only_the_stories_the_track_has_migrated() {
 fn line_diff_reports_removed_and_added_lines_in_order() {
     assert_eq!(line_diff("a\nb\nc\n", "a\nx\nc\n"), ["- b", "+ x"]);
     assert!(line_diff("a\n", "a\n").is_empty());
+}
+
+#[derive(Clone, Debug, PartialEq)]
+struct Words(String);
+
+fn show_words(ui: &mut egui::Ui, data: &mut StoryData) -> StoryOutput {
+    let words = data.shown("text", Words("Other text".to_owned())).0.clone();
+    wrapped_text(ui, &words);
+    StoryOutput::default()
+}
+
+/// A registered story replays without a second scene: its args are its `shown` values, so the difference from the
+/// capture names the arg's Debug text.
+#[trial]
+fn replay_story_reads_the_args_from_the_stories_shown_values() {
+    let story = Story::new("words", show_words);
+    let replay = parity::replay_story(ID, &story);
+    assert!(!replay.missing, "{replay}");
+    assert!(replay.differences.iter().any(|line| line.starts_with("- ") && line.contains(r#"Text("Blend mode")"#)), "{replay}");
+    assert!(replay.differences.iter().any(|line| line.starts_with("+ ") && line.contains(r#"Words("Other text")"#)), "{replay}");
 }

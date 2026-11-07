@@ -13,7 +13,7 @@ mod tree;
 
 pub(crate) use tree::Line;
 
-use super::Fixture;
+use super::{Fixture, Story};
 use egui::Vec2;
 use std::cell::RefCell;
 use std::fmt;
@@ -40,13 +40,13 @@ const SURFACE: Vec2 = Vec2::new(640.0, 1200.0);
 /// A story shown by a fixture at the capture's surface size, with the state its args are read from.
 pub struct Scene<S> {
     fixture: Fixture,
-    state: Rc<RefCell<S>>,
+    read: Box<dyn Fn() -> S>,
 }
 
 impl<S: ParityState> Scene<S> {
     /// The story's args now.
     fn state(&self) -> S {
-        self.state.borrow().clone()
+        (self.read)()
     }
 
     /// The AccessKit tree of the latest frame, as text lines.
@@ -61,7 +61,25 @@ pub fn scene<S: ParityState>(state: S, mut app: impl FnMut(&mut egui::Ui, &mut S
     let shown = state.clone();
     let mut fixture = Fixture::new(move |ui| app(ui, &mut shown.borrow_mut()));
     fixture.room(SURFACE);
-    Scene { fixture, state }
+    Scene { fixture, read: Box::new(move || state.borrow().clone()) }
+}
+
+/// The args of a registered story: the values it shows with `StoryData::shown`, as `(name, Debug text)`.
+#[derive(Clone)]
+struct StoryArgs(Vec<(String, String)>);
+
+impl ParityState for StoryArgs {
+    fn args(&self) -> Vec<(String, String)> {
+        self.0.clone()
+    }
+}
+
+/// A scene for a registered story: the fixture shows the story, and its args are the story's `shown` values.
+fn story_scene(story: &Story) -> Scene<StoryArgs> {
+    let mut fixture = Fixture::story(story);
+    fixture.room(SURFACE);
+    let data = fixture.data_handle();
+    Scene { fixture, read: Box::new(move || StoryArgs(data.borrow().shown_args())) }
 }
 
 /// The story as text: its id, args and tree at rest, then the script's steps. The same format the capture has.
@@ -166,8 +184,20 @@ pub fn replay<S: ParityState>(id: &str, scene: &mut Scene<S>) -> Replay {
     Replay { id: id.to_owned(), missing: false, differences: line_diff(&captured, &replayed) }
 }
 
+/// Replays the registered `story` as the legacy story `id` and compares it with the capture. The story is the one the
+/// suite and the viewer show, so a migrated story is written once.
+pub fn replay_story(id: &str, story: &Story) -> Replay {
+    replay(id, &mut story_scene(story))
+}
+
+/// Replays every captured story whose id contains `filter` for which `story_of` returns a registered story (it
+/// returns `None` for a story the track has not migrated).
+pub fn replay_stories<'a>(filter: &str, mut story_of: impl FnMut(&str) -> Option<&'a Story>) -> Vec<Replay> {
+    captured_ids(filter).into_iter().filter_map(|id| story_of(&id).map(|story| replay_story(&id, story))).collect()
+}
+
 /// Replays every captured story whose id contains `filter` for which `scene_of` returns a scene (it returns `None`
-/// for a story the track has not migrated).
+/// for a story the track has not migrated). `scene` is for a legacy story whose args no `StoryData` value holds.
 pub fn replay_matching<S: ParityState>(filter: &str, mut scene_of: impl FnMut(&str) -> Option<Scene<S>>) -> Vec<Replay> {
     captured_ids(filter).into_iter().filter_map(|id| scene_of(&id).map(|mut scene| replay(&id, &mut scene))).collect()
 }
