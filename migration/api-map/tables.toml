@@ -24,3 +24,49 @@ status = "pending"
 # type = ""
 # old = ""
 # new = ""
+
+# MetadataTable (tables-b). Blocked on a contract misfit: see the track report. The entries record the
+# intended mapping; `status` stays "pending" until a row can paint name and value cells.
+
+[[type]]
+name = "MetadataTableOutput"
+old = "craft_ui::list::metadata::MetadataTableOutput"
+new = "craft_ui::table::MetadataTableOutput"
+status = "pending"
+note = "chosen_changed becomes the toggled and chosen keys"
+
+[[type]]
+name = "MetadataStyle"
+old = "craft_ui::list::metadata::MetadataStyle"
+new = ""
+status = "removed"
+note = "sizes and colours come from Table, ListRow and the tokens; the pattern has no style"
+
+[[type]]
+name = "MetadataLabels"
+old = "craft_ui::list::metadata::MetadataLabels"
+new = ""
+status = "removed"
+note = "words are installed words of craft_ui::table; per-call overrides go through Common.label"
+
+[[setter]]
+type = "MetadataTable"
+old = "filter(&mut String)"
+new = "filter(Bind<String>)"
+
+[[setter]]
+type = "MetadataTable"
+old = "choose(&mut Vec<String>)"
+new = "choose(Bind<Vec<String>>)"
+
+[[setter]]
+type = "MetadataTable"
+old = "max_height(f32)"
+new = ""
+note = "removed: the table sizes by Sizing and the room it is given"
+
+[[setter]]
+type = "MetadataTable"
+old = "labels(MetadataLabels)"
+new = ""
+note = "removed: installed words"
