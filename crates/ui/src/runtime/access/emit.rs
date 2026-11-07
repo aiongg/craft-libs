@@ -234,7 +234,10 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
             .controls(!relations.controls.is_empty()),
     );
     keys::register_node(ctx, own.id, own.id, None, own.focusable);
-    scope::register(ctx, own.id, own.keeps_name);
+    scope::register(
+        ctx,
+        scope::ScopeNode { id: own.id, keeps_name: own.keeps_name, name: name.text.clone(), description: spec.description.clone() },
+    );
 }
 
 /// Creates and fills the sub-node of `decl`.

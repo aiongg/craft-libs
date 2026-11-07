@@ -78,7 +78,7 @@ struct Scope {
     owner: Id,
     kind: Kind,
     /// The direct controls: node components inside this scope that sit in no other node component of it.
-    nodes: Vec<(Id, bool)>,
+    nodes: Vec<ScopeNode>,
     /// Node components inside this scope whose step 16 has not come yet, outermost first.
     open: Vec<Id>,
     /// The first baseline of the first control, from the control's top.
@@ -89,6 +89,16 @@ struct Scope {
     control_min: Option<f32>,
     /// A control inside scrubs by the label.
     scrub: bool,
+}
+
+/// A control that reported its node in a scope: the name and description its node got at its own report.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ScopeNode {
+    pub id: Id,
+    /// The control keeps its own name when a label names it.
+    pub keeps_name: bool,
+    pub name: Option<String>,
+    pub description: Option<String>,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -142,10 +152,10 @@ pub(crate) fn enter(ctx: &Context, id: Id) {
 
 /// Registers the node `id` with the innermost scope at its step 16, when no other node component of the scope
 /// holds it. Children reach step 16 first, so they find their parent still open.
-pub(crate) fn register(ctx: &Context, id: Id, keeps_name: bool) {
+pub(crate) fn register(ctx: &Context, node: ScopeNode) {
     Service::<Stack>::of(ctx).with(|stack| {
         let Some(scope) = stack.0.last_mut() else { return };
-        let direct = match scope.open.iter().rposition(|open| *open == id) {
+        let direct = match scope.open.iter().rposition(|open| *open == node.id) {
             Some(at) => {
                 scope.open.truncate(at);
                 at == 0
@@ -153,7 +163,7 @@ pub(crate) fn register(ctx: &Context, id: Id, keeps_name: bool) {
             None => scope.open.is_empty(),
         };
         if direct {
-            scope.nodes.push((id, keeps_name));
+            scope.nodes.push(node);
         }
     });
 }
@@ -233,6 +243,80 @@ pub(crate) struct Merged {
     pub enabled: bool,
 }
 
+/// One change a label scope makes to a node, decided here and written by `runtime::egui::access`.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum LabelPatch {
+    /// The label's own node: the role `Label` and the label's text, each only where the node has none yet.
+    Label { id: Id, text: String },
+    /// `node` keeps its name and is described by `label`.
+    DescribedBy { node: Id, label: Id },
+    /// `label` replaces `node`'s name.
+    LabelledBy { node: Id, label: Id },
+    /// `container` is labelled by `label`: it holds several controls.
+    GroupLabelledBy { container: Id, label: Id },
+}
+
+/// What `label` does to the `nodes` registered in the scope of `container`: one control is labelled by it
+/// (described by it when the control keeps its own name or the label describes), several make the container's node
+/// labelled by it, none leaves everything alone.
+pub(crate) fn label_patches(container: Id, label: &FieldLabel, nodes: &[ScopeNode]) -> Vec<LabelPatch> {
+    if nodes.is_empty() {
+        return Vec::new();
+    }
+    let mut patches = vec![LabelPatch::Label { id: label.id, text: label.text.clone() }];
+    match nodes {
+        [only] if label.role == FieldLabelRole::Describes || only.keeps_name => {
+            patches.push(LabelPatch::DescribedBy { node: only.id, label: label.id });
+        }
+        [only] => patches.push(LabelPatch::LabelledBy { node: only.id, label: label.id }),
+        _ => patches.push(LabelPatch::GroupLabelledBy { container, label: label.id }),
+    }
+    patches
+}
+
+/// What a merged container adds to its child's node: the joined name and description and the states.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct MergePatch {
+    pub child: Id,
+    /// The child's name with the container's after it; `None` when the container has none.
+    pub name: Option<String>,
+    pub description: Option<String>,
+    pub disabled: bool,
+    pub selected: bool,
+    pub toggled: Option<adapter::Toggle>,
+    pub invalid: bool,
+    pub busy: bool,
+}
+
+/// `own` and `added` joined by `separator`, or whichever is not empty.
+fn joined(own: Option<&str>, added: &str, separator: &str) -> String {
+    match own {
+        Some(own) if !own.is_empty() => format!("{own}{separator}{added}"),
+        _ => added.to_owned(),
+    }
+}
+
+/// What the container's `merged` facts do to its one `child`: names join with ", " and descriptions with ". ".
+pub(crate) fn merge_patch(child: &ScopeNode, merged: &Merged) -> MergePatch {
+    let toggled = if merged.flags.contains(Flags::MIXED) {
+        Some(adapter::Toggle::Mixed)
+    } else if merged.flags.contains(Flags::CHECKED) {
+        Some(adapter::Toggle::On)
+    } else {
+        None
+    };
+    MergePatch {
+        child: child.id,
+        name: (!merged.name.is_empty()).then(|| joined(child.name.as_deref(), &merged.name, ", ")),
+        description: merged.description.as_deref().map(|text| joined(child.description.as_deref(), text, ". ")),
+        disabled: !merged.enabled,
+        selected: merged.flags.contains(Flags::SELECTED),
+        toggled,
+        invalid: merged.flags.contains(Flags::INVALID),
+        busy: merged.flags.contains(Flags::BUSY),
+    }
+}
+
 /// Closes the scope of `container`, if it opened one, and patches the nodes registered in it. `merged` is the
 /// container's own facts, read by a merge scope.
 pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
@@ -241,7 +325,9 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
     let Some(scope) = scope else { return };
     match scope.kind {
         Kind::Label(label) => {
-            adapter::patch_label(ctx, scope.container, &label, &scope.nodes);
+            for patch in label_patches(scope.container, &label, &scope.nodes) {
+                adapter::write_label_patch(ctx, &patch);
+            }
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
             }
@@ -264,8 +350,8 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
         }
         Kind::Merge => {
             debug_assert_eq!(scope.nodes.len(), 1, "a merged container shows exactly one component");
-            if let (Some(merged), Some((child, _))) = (merged, scope.nodes.first()) {
-                adapter::patch_merge(ctx, *child, &merged);
+            if let (Some(merged), Some(child)) = (merged, scope.nodes.first()) {
+                adapter::write_merge_patch(ctx, &merge_patch(child, &merged));
             }
         }
     }

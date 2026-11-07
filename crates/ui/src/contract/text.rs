@@ -172,16 +172,16 @@ fn facts<C: Component>(
     masked: bool,
     read_only: bool,
 ) {
-    if !crate::runtime::egui::access::enabled(&cx.core.ctx, widget) {
+    if !text_access::exposed(&cx.core.ctx, widget) {
         state.rows = None;
         return;
     }
     let rows = adapter::Rows::of(&out.layout, &out.layout.full, rect.min);
     let text = out.layout.full.clone();
     let selection = text_edit::selection(&cx.core.ctx, widget).map(|(caret, anchor)| (rows.pos(&text, anchor), rows.pos(&text, caret)));
-    let name = cx.core.resolved.label;
-    crate::runtime::egui::access::set_label(&cx.core.ctx, widget, name);
-    *cx.core.text_access.borrow_mut() = Some(text_access::TextFacts { text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
+    let name = cx.core.resolved.label.to_owned();
+    *cx.core.text_access.borrow_mut() =
+        Some(text_access::TextFacts { widget, name, text, masked, editable: !read_only, lines: rows.lines.clone(), selection });
     state.rows = Some(rows);
 }
 

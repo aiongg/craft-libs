@@ -6,7 +6,7 @@ use super::Component;
 use super::cx::{Cx, PartsCx};
 use crate::primitives::{EditorPurpose, EditorState, ImeSurface};
 use crate::runtime::access::text::{self as text_access, Line, Run, TextFacts};
-use crate::runtime::egui::{access as egui_access, editor as egui_editor, focus as egui_focus};
+use crate::runtime::egui::{editor as egui_editor, focus as egui_focus};
 use crate::runtime::focus::KeyUse;
 use crate::runtime::{commands, ime};
 use craft_behavior::{EditCommand, EditorInput, PartKey};
@@ -104,7 +104,7 @@ impl<C: Component> Cx<'_, C> {
             ime::note_caret(ctx, info.widget, info.rect, state.caret, masked);
         }
         ime::note_editor(ctx, info.widget, state.revision, info.edited, (state.can_undo, state.can_redo));
-        if !egui_access::enabled(ctx, info.widget) {
+        if !text_access::exposed(ctx, info.widget) {
             return;
         }
         let lines = state
@@ -124,6 +124,8 @@ impl<C: Component> Cx<'_, C> {
             .collect();
         let text = state.lines.iter().map(|line| line.text).collect::<Vec<_>>().join("\n");
         let selection = state.selection.or(Some((state.caret_at, state.caret_at)));
-        *self.core.text_access.borrow_mut() = Some(TextFacts { text, masked, editable: !info.read_only, lines, selection });
+        let name = self.core.resolved.label.to_owned();
+        *self.core.text_access.borrow_mut() =
+            Some(TextFacts { widget: info.widget, name, text, masked, editable: !info.read_only, lines, selection });
     }
 }

@@ -1,77 +1,66 @@
-//! The label-scope patch, the merge into a child's node, and the status node of announcements.
+//! Writes the label-scope and merge patches `runtime::access::scope` decides, and the status node of announcements.
 
-use crate::runtime::access::scope::{FieldLabel, Merged};
-use craft_theme::Flags;
+use crate::runtime::access::scope::{LabelPatch, MergePatch};
+use super::Toggle;
 use egui::{Context, Id};
 
-/// Names the controls `nodes` registered in the scope of `container` by `label`: one control is labelled by it
-/// (described by it when it keeps its own name), several make the container's node labelled by it.
-pub(crate) fn patch_label(ctx: &Context, container: Id, label: &FieldLabel, nodes: &[(Id, bool)]) {
-    if nodes.is_empty() {
-        return;
-    }
-    ctx.accesskit_node_builder(label.id, |node| {
-        if node.role() == accesskit::Role::Unknown {
-            node.set_role(accesskit::Role::Label);
-        }
-        if node.label().is_none() {
-            node.set_label(label.text.clone());
-        }
-    });
-    let target = label.id.accesskit_id();
-    let describes = label.role == crate::runtime::access::scope::FieldLabelRole::Describes;
-    match nodes {
-        [(control, keeps_name)] => {
-            let keeps_name = describes || *keeps_name;
-            ctx.accesskit_node_builder(*control, |node| {
-                if keeps_name {
-                    let mut described = node.described_by().to_vec();
-                    described.push(target);
-                    node.set_described_by(described);
-                } else {
-                    node.clear_label();
-                    node.set_labelled_by(vec![target]);
+/// Writes one label-scope change.
+pub(crate) fn write_label_patch(ctx: &Context, patch: &LabelPatch) {
+    match patch {
+        LabelPatch::Label { id, text } => {
+            ctx.accesskit_node_builder(*id, |node| {
+                if node.role() == accesskit::Role::Unknown {
+                    node.set_role(accesskit::Role::Label);
+                }
+                if node.label().is_none() {
+                    node.set_label(text.clone());
                 }
             });
         }
-        _ => {
-            ctx.accesskit_node_builder(container, |node| node.set_labelled_by(vec![target]));
+        LabelPatch::DescribedBy { node, label } => {
+            ctx.accesskit_node_builder(*node, |node| {
+                let mut described = node.described_by().to_vec();
+                described.push(label.accesskit_id());
+                node.set_described_by(described);
+            });
+        }
+        LabelPatch::LabelledBy { node, label } => {
+            ctx.accesskit_node_builder(*node, |node| {
+                node.clear_label();
+                node.set_labelled_by(vec![label.accesskit_id()]);
+            });
+        }
+        LabelPatch::GroupLabelledBy { container, label } => {
+            ctx.accesskit_node_builder(*container, |node| node.set_labelled_by(vec![label.accesskit_id()]));
         }
     }
 }
 
-/// Adds a merged container's name, description and states to its child's node.
-pub(crate) fn patch_merge(ctx: &Context, child: Id, merged: &Merged) {
-    ctx.accesskit_node_builder(child, |node| {
-        if !merged.name.is_empty() {
-            let own = node.label().map(str::to_owned);
-            node.set_label(match own {
-                Some(own) if !own.is_empty() => format!("{own}, {}", merged.name),
-                _ => merged.name.clone(),
-            });
+/// Writes a merged container's name, description and states into its child's node.
+pub(crate) fn write_merge_patch(ctx: &Context, patch: &MergePatch) {
+    ctx.accesskit_node_builder(patch.child, |node| {
+        if let Some(name) = &patch.name {
+            node.set_label(name.clone());
         }
-        if let Some(text) = &merged.description {
-            let own = node.description().map(str::to_owned);
-            node.set_description(match own {
-                Some(own) if !own.is_empty() => format!("{own}. {text}"),
-                _ => text.clone(),
-            });
+        if let Some(description) = &patch.description {
+            node.set_description(description.clone());
         }
-        if !merged.enabled {
+        if patch.disabled {
             node.set_disabled();
         }
-        if merged.flags.contains(Flags::SELECTED) {
+        if patch.selected {
             node.set_selected(true);
         }
-        if merged.flags.contains(Flags::MIXED) {
-            node.set_toggled(accesskit::Toggled::Mixed);
-        } else if merged.flags.contains(Flags::CHECKED) {
-            node.set_toggled(accesskit::Toggled::True);
+        match patch.toggled {
+            Some(Toggle::Mixed) => node.set_toggled(accesskit::Toggled::Mixed),
+            Some(Toggle::On) => node.set_toggled(accesskit::Toggled::True),
+            Some(Toggle::Off) => node.set_toggled(accesskit::Toggled::False),
+            None => {}
         }
-        if merged.flags.contains(Flags::INVALID) {
+        if patch.invalid {
             node.set_invalid(accesskit::Invalid::True);
         }
-        if merged.flags.contains(Flags::BUSY) {
+        if patch.busy {
             node.set_busy();
         }
     });
