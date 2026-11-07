@@ -1,15 +1,22 @@
 //! `Env` and scopes, app values and `content_env`.
 
-use crate::runtime::egui::{child, pass, scale, stack, style};
+mod label;
+
+pub use label::{Label, Word};
+
+use crate::runtime::egui::memory::Service;
+use crate::runtime::egui::{child, input as raw_input, pass, scale, stack, style};
 use crate::runtime::frame::PerViewport;
+use crate::style::{EnvKey, Ink, UiTokens};
 use craft_behavior::{CanvasTransform, MotionMode};
 use craft_host::Host;
+use craft_host::target::Os;
 pub use craft_i18n::Direction;
-use craft_theme::{AppSizes, ControlSize, TextSize};
+use craft_theme::{AppSizes, Appearance, Contrast, ControlSize, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::hash::Hash;
+use std::hash::{Hash, Hasher};
 use std::ops::Deref;
 use std::sync::Arc;
 
@@ -65,6 +72,13 @@ pub trait EnvValue: Clone + PartialEq + Send + Sync + 'static {
 
     /// The value where nothing above sets one; computed at its first `get`, outside every hook.
     fn root() -> Self;
+
+    /// The hash of the value, folded into `EnvKey` when `AFFECTS_STYLE`. Written by `#[env(style)]`; a value
+    /// that does not affect style returns `None`.
+    #[doc(hidden)]
+    fn style_hash(&self) -> Option<u64> {
+        None
+    }
 }
 
 /// Marker for values `style` may read. `Hash`, because the value is folded into the style key.
@@ -75,13 +89,31 @@ pub trait StyleValue: EnvValue + Hash {}
 #[derive(Clone, Default)]
 pub struct AppValues {
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
+    /// The hash of each style-affecting value, by type.
+    style: HashMap<TypeId, u64>,
 }
 
 impl AppValues {
     /// Sets the value of type `T`.
     pub fn set<T: EnvValue>(&mut self, value: T) -> &mut Self {
+        match value.style_hash().filter(|_| T::AFFECTS_STYLE) {
+            Some(hash) => self.style.insert(TypeId::of::<T>(), hash),
+            None => self.style.remove(&TypeId::of::<T>()),
+        };
         self.map.insert(TypeId::of::<T>(), Arc::new(value));
         self
+    }
+
+    /// The hash of every style-affecting value, independent of the order they were set in.
+    pub(crate) fn style_hash(&self) -> u64 {
+        self.style
+            .iter()
+            .map(|(ty, hash)| {
+                let mut hasher = std::collections::hash_map::DefaultHasher::new();
+                (ty, hash).hash(&mut hasher);
+                hasher.finish()
+            })
+            .fold(0, u64::wrapping_add)
     }
 
     /// A clone of the value, else `T::root()`.
@@ -93,6 +125,10 @@ impl AppValues {
     pub(crate) fn extend(&mut self, other: &AppValues) {
         for (ty, value) in &other.map {
             self.map.insert(*ty, Arc::clone(value));
+            match other.style.get(ty) {
+                Some(hash) => self.style.insert(*ty, *hash),
+                None => self.style.remove(ty),
+            };
         }
     }
 }
@@ -109,6 +145,12 @@ pub struct RootEnv {
     pub direction: Direction,
     /// The motion mode.
     pub motion: MotionMode,
+    /// Light or dark.
+    pub mode: Mode,
+    /// Standard or high contrast.
+    pub contrast: Contrast,
+    /// The density preset.
+    pub density: Size,
     /// The interface scale over the native pixels per point.
     pub scale: Scale,
     /// Whether Tab reaches every control.
@@ -124,6 +166,9 @@ impl Default for RootEnv {
             text_size: TextSize::default(),
             direction: Direction::Ltr,
             motion: MotionMode::default(),
+            mode: Mode::Light,
+            contrast: Contrast::Standard,
+            density: Size::default(),
             scale: Scale::default(),
             tab_all_controls: true,
             values: AppValues::default(),
@@ -154,6 +199,24 @@ impl RootEnv {
         self.motion = motion;
         self
     }
+
+    /// Sets light or dark.
+    pub fn mode(mut self, mode: Mode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    /// Sets standard or high contrast.
+    pub fn contrast(mut self, contrast: Contrast) -> Self {
+        self.contrast = contrast;
+        self
+    }
+
+    /// Sets the density preset.
+    pub fn density(mut self, density: Size) -> Self {
+        self.density = density;
+        self
+    }
 }
 
 /// The inherited context of a `Ui`: one `Arc` clone per read.
@@ -174,6 +237,16 @@ impl Deref for Env {
 #[derive(Clone)]
 #[non_exhaustive]
 pub struct Scoped {
+    /// The resolved tokens of the scope; read in `style` only.
+    pub(crate) tokens: Arc<UiTokens>,
+    /// The operating system.
+    pub(crate) os: Os,
+    /// Whether the window is active.
+    pub(crate) active: bool,
+    /// The text and icon ink of the surface the scope sits on, set by a container for its body.
+    pub ink: Ink,
+    /// The key of everything above that the style cache depends on.
+    pub(crate) key: EnvKey,
     /// Ambient control size; the root default is `Md`.
     pub size: ControlSize,
     /// AND of every scope and gate above.
@@ -210,16 +283,26 @@ impl EnvCapture {
 
 impl Env {
     /// The root env of a frame: the app's values with the pixels per point read back from egui.
-    pub(crate) fn from_root(root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
+    pub(crate) fn from_root(ctx: &Context, root: &RootEnv, host: Option<Arc<Host>>, pixels_per_point: f32) -> Env {
+        let tokens = root_tokens(ctx, root);
+        let os = raw_input::os(ctx);
+        let scale = Scale(pixels_per_point);
+        // F3-LATER: runtime::windows (`WindowInfo.active` per viewport)
+        let active = true;
         Env {
             scoped: Arc::new(Scoped {
+                key: EnvKey::new(tokens.key(), root.direction, scale, os, active, root.values.style_hash()),
+                tokens,
+                os,
+                active,
+                ink: Ink::default(),
                 size: ControlSize::Md,
                 enabled: true,
                 read_only: false,
                 direction: root.direction,
                 motion: MotionPolicy::new(root.motion),
                 ids_stable: true,
-                scale: Scale(pixels_per_point),
+                scale,
                 arena: None,
                 transform: None,
                 host,
@@ -238,7 +321,7 @@ impl Env {
         let found = PerViewport::<ViewportEnvs>::with(ctx, viewport, |envs| {
             stack::nearest(ui, |node| envs.entries.get(&node).cloned()).or_else(|| envs.root.clone())
         });
-        let env = found.unwrap_or_else(|| Env::from_root(&RootEnv::default(), None, scale::pixels_per_point(ctx)));
+        let env = found.unwrap_or_else(|| Env::from_root(ctx, &RootEnv::default(), None, scale::pixels_per_point(ctx)));
         if style::is_enabled(ui) { env } else { env.derive(|s| s.enabled = false) }
     }
 
@@ -252,6 +335,7 @@ impl Env {
         EnvCapture(self.derive(|s| {
             s.arena = None;
             s.transform = None;
+            s.ink = Ink::default();
         }))
     }
 
@@ -264,6 +348,7 @@ impl Env {
     pub(crate) fn derive(&self, f: impl FnOnce(&mut Scoped)) -> Env {
         let mut scoped = (*self.scoped).clone();
         f(&mut scoped);
+        scoped.key = EnvKey::new(scoped.tokens.key(), scoped.direction, scoped.scale, scoped.os, scoped.active, scoped.values.style_hash());
         Env { scoped: Arc::new(scoped) }
     }
 
@@ -320,6 +405,36 @@ impl Drop for Restore<'_> {
             Env::restore(self.ctx, installed);
         }
     }
+}
+
+/// The tokens the root resolves to, cached by the inputs that determine them.
+fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
+    #[derive(Default)]
+    struct Cache {
+        entries: Vec<(TokenInputs, Arc<UiTokens>)>,
+    }
+    let inputs = TokenInputs { sizes: Arc::as_ptr(&root.sizes) as usize, mode: root.mode, contrast: root.contrast, density: root.density, text_size: root.text_size, reduced: root.motion != MotionMode::Full };
+    let service = Service::<Cache>::of(ctx);
+    if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| *key == inputs).map(|(_, tokens)| tokens.clone())) {
+        return hit;
+    }
+    let appearance = Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: inputs.reduced };
+    let themes = builtins();
+    let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
+    let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
+    service.with(|cache| cache.entries.push((inputs, tokens.clone())));
+    tokens
+}
+
+/// What the resolved root tokens depend on. The sizes are compared by identity, as `set_input` does.
+#[derive(Clone, Copy, PartialEq)]
+struct TokenInputs {
+    sizes: usize,
+    mode: Mode,
+    contrast: Contrast,
+    density: Size,
+    text_size: TextSize,
+    reduced: bool,
 }
 
 /// What component code sees: everything in `Env` except tokens, size, enabled, read-only, arena, transform

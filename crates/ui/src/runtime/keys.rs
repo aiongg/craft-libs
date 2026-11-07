@@ -51,7 +51,6 @@ struct Batch {
 }
 
 #[derive(Clone)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 struct Item {
     intent: Intent,
     /// A physical left or right arrow: under right-to-left text it reads as the opposite logical move.
@@ -432,7 +431,6 @@ impl Intents {
 }
 
 /// The intents routed to `id` this pass, with physical horizontal moves read in the component's direction.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
     let routed = current(ctx, |stage| stage.routed.get(&id).cloned()).unwrap_or_default();
     let flip = |mv| match (rtl, mv) {
@@ -452,7 +450,6 @@ pub(crate) fn intents_of(ctx: &Context, id: Option<Id>, rtl: bool) -> Intents {
 }
 
 /// Writes back what a component left untaken, so a scope's `Submit` and `Cancel` rules see it.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn settle(ctx: &Context, id: Option<Id>, intents: &Intents) {
     current(ctx, |stage| {
         let Some(routed) = stage.routed.get_mut(&id) else { return };
@@ -488,6 +485,20 @@ fn take_untaken(ctx: &Context, intent: &Intent) -> bool {
     })
 }
 
+/// Takes the pass's first Escape from every component's intents: a captured press cancels first, so no
+/// component sees this Escape as `Cancel`.
+pub(crate) fn take_escape(ctx: &Context) -> bool {
+    current(ctx, |stage| {
+        for routed in stage.routed.values_mut() {
+            if let Some(at) = routed.items.iter().position(|item| matches!(item.intent, Intent::Cancel)) {
+                routed.items.remove(at);
+                return true;
+            }
+        }
+        false
+    })
+}
+
 /// What an untaken Escape does in a scope: `None` when no Escape arrived or a component took it. One scope
 /// takes each Escape.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
@@ -501,7 +512,6 @@ pub(crate) fn scope_escape(ctx: &Context, rule: CancelRule, press_captured: bool
 
 /// Reads the claimed chord: whether it arrived this pass for `id`, consuming it. Also true for a chord
 /// withheld from the component's text or editor part.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
     current(ctx, |stage| match stage.claimed.iter().position(|(owner, claimed)| *owner == id && *claimed == chord) {
         Some(at) => {
@@ -514,13 +524,11 @@ pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
 
 /// A state-dependent claim of `owner`, held from the next frame's input hook on while `owner` is the focused
 /// component.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn claim(ctx: &Context, owner: Id, chord: Chord) {
     current(ctx, |stage| stage.claims.push((owner, chord)));
 }
 
 /// The member whose `Activate` the group `root` reads this pass.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn activated_member(ctx: &Context, root: Id) -> Option<Id> {
     current(ctx, |stage| stage.activated.get(&root).copied())
 }

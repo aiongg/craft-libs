@@ -62,11 +62,6 @@ pub(crate) fn reordered_fonts() -> egui::FontDefinitions {
     definitions
 }
 
-/// Senses `rect` under `id`, as a placed child's one widget does.
-pub(crate) fn placeholder(ui: &mut Ui, id: egui::Id, rect: Rect) -> egui::Response {
-    ui.interact(rect, id, egui::Sense::hover())
-}
-
 /// Runs one frame like `run_frame` and returns the shapes it painted, nested shapes flattened.
 pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, ui: impl FnMut(&mut Ui)) -> Vec<Shape> {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));

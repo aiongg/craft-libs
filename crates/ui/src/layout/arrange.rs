@@ -1,6 +1,7 @@
 //! `Arrangement` and `arrange`: a custom placement of keyed children measured with `measure_in` and shown once.
 
-use crate::runtime::egui::alloc;
+use crate::contract::{Outcome, Props, Show, measure_under};
+use crate::runtime::egui::{alloc, response};
 use crate::runtime::env::Env;
 use crate::runtime::memory::sub;
 use craft_behavior::{Arrangement, Flow, Proposal};
@@ -8,33 +9,44 @@ use egui::{Id, Rect, Response, Ui, Vec2};
 use std::fmt::Debug;
 use std::hash::Hash;
 
-/// What `arrange` needs of a child: its size under an id, and a show at a rect under the same id.
-// F2-MERGE: F3 (the contract's `Show` with `measure_in` and `show_at`; `Placed::new` then takes `C: Show`)
-pub trait Show: sealed::Sealed {
-    /// The size of the child under `id`, measured as it will be shown.
+/// What `arrange` needs of a child: its size under an id, and a show at a rect under the same id. The contract's
+/// `Show` is not object safe, so each child sits behind this.
+trait Arranged {
     fn measure_in(&mut self, ui: &mut Ui, id: Id, proposal: Proposal) -> Vec2;
 
-    /// Shows the child at `rect` under `id`.
     fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Response;
 }
 
-/// Implemented inside this crate only until the contract's `Show` replaces it.
-pub(crate) mod sealed {
-    /// Marks the types that implement `Show`.
-    pub trait Sealed {}
+/// A child shown once: `show_at` takes the component.
+struct Child<C>(Option<C>);
+
+impl<C: Show> Arranged for Child<C> {
+    fn measure_in(&mut self, ui: &mut Ui, id: Id, proposal: Proposal) -> Vec2 {
+        match self.0.as_mut() {
+            Some(child) => measure_under(child, ui, Some(id), proposal, None),
+            None => Vec2::ZERO,
+        }
+    }
+
+    fn show_at(&mut self, ui: &mut Ui, id: Id, rect: Rect) -> Response {
+        match self.0.take() {
+            Some(child) => Outcome::response(&Props::id(child, id).show_at(ui, rect)).clone(),
+            None => response::inert(ui, id),
+        }
+    }
 }
 
 /// A keyed child for `arrange`; shown once, under the id derived from the key.
 pub struct Placed<'c> {
     id: Box<dyn Fn(Id) -> Id + 'c>,
-    child: Box<dyn Show + 'c>,
+    child: Box<dyn Arranged + 'c>,
     response: Option<Response>,
 }
 
 impl<'c> Placed<'c> {
     /// A child shown under the id `key` derives from the arranging `Ui`.
     pub fn new<C: Show + 'c>(key: impl Hash + Debug + 'c, child: C) -> Self {
-        Placed { id: Box::new(move |base| sub(base, &key)), child: Box::new(child), response: None }
+        Placed { id: Box::new(move |base| sub(base, &key)), child: Box::new(Child(Some(child))), response: None }
     }
 
     /// The child's response after `arrange` showed it.

@@ -61,7 +61,6 @@ impl<V> TextOutcome<V> {
 /// A part as the sensing core registers it.
 // F2-MERGE: F3 (`PartBuilder` adds tooltip and `pointer_only`)
 #[derive(Clone, Debug)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct PartDecl {
     pub key: PartKey,
     pub index: Option<u64>,
@@ -76,12 +75,10 @@ pub(crate) struct PartDecl {
 
 impl PartDecl {
     /// A part of `key` over `shape` sensing `sense`.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
     pub(crate) fn new(key: PartKey, shape: impl Into<HitShape>, sense: Sense) -> Self {
         PartDecl { key, index: None, shape: shape.into(), sense, priority: HitPriority::BODY, cursor: None, over: false, flags: Flags::default() }
     }
 
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
     fn part_ref(&self) -> PartRef {
         PartRef { key: self.key, index: self.index }
     }
@@ -89,7 +86,6 @@ impl PartDecl {
 
 /// One member's registration for this pass.
 #[derive(Clone, Debug)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct MemberDecl {
     pub id: Id,
     pub rect: Rect,
@@ -101,7 +97,6 @@ pub(crate) struct MemberDecl {
 
 impl MemberDecl {
     /// A member `id` over `rect` sensing `sense`, with `parts`.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
     pub(crate) fn new(id: Id, rect: Rect, sense: Sense, parts: Vec<PartDecl>) -> Self {
         MemberDecl { id, rect, sense, parts, local: false }
     }
@@ -109,7 +104,6 @@ impl MemberDecl {
 
 /// What a root registers at step 8: its rect and its own sense.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 struct RootInfo {
     id: Id,
     rect: Rect,
@@ -118,7 +112,6 @@ struct RootInfo {
 
 /// A shape's owner and, for a part, its key.
 #[derive(Clone, Copy, Debug)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct Hit {
     pub owner: Id,
     pub part: Option<PartRef>,
@@ -127,7 +120,6 @@ pub(crate) struct Hit {
 }
 
 impl Hit {
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
     fn same(&self, other: &Hit) -> bool {
         self.owner == other.owner && self.part == other.part
     }
@@ -135,7 +127,6 @@ impl Hit {
 
 /// What the arena resolved this pass; the root computes it once, members and the root read it.
 #[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct Outcome {
     pass: u64,
     pub hover: Option<Hit>,
@@ -149,7 +140,6 @@ pub(crate) struct Outcome {
 }
 
 #[derive(Default)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 struct ArenaState {
     /// The pass the registration lists below belong to.
     pass: u64,
@@ -169,13 +159,11 @@ struct ArenaState {
 }
 
 #[derive(Default)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 struct Arenas {
     by_root: HashMap<Id, ArenaState>,
     swept: u64,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn with_arena<R>(ctx: &Context, arena: ArenaId, pass_nr: u64, f: impl FnOnce(&mut ArenaState) -> R) -> R {
     PerViewport::<Arenas>::with(ctx, pass::current_viewport(ctx), |arenas| {
         if arenas.swept != pass_nr {
@@ -186,7 +174,6 @@ fn with_arena<R>(ctx: &Context, arena: ArenaId, pass_nr: u64, f: impl FnOnce(&mu
     })
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn rotate(state: &mut ArenaState, pass_nr: u64) {
     if state.pass != pass_nr {
         state.previous = std::mem::take(&mut state.members);
@@ -196,10 +183,8 @@ fn rotate(state: &mut ArenaState, pass_nr: u64) {
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 const OVER: u32 = u32::MAX;
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn own_shapes(own: &[PartDecl], root: Id, target: f32) -> Vec<Shape<Id>> {
     own.iter()
         .map(|part| {
@@ -209,7 +194,6 @@ fn own_shapes(own: &[PartDecl], root: Id, target: f32) -> Vec<Shape<Id>> {
         .collect()
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn member_shapes(member: &MemberDecl, position: u32, target: f32) -> Vec<Shape<Id>> {
     let local = member.local;
     let root =
@@ -221,7 +205,6 @@ fn member_shapes(member: &MemberDecl, position: u32, target: f32) -> Vec<Shape<I
 }
 
 /// The shapes of last pass in resolution order: own parts, then members in show order.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
     let root = state.root.map_or(Id::NULL, |root| root.id);
     let mut shapes = own_shapes(&state.previous_own, root, target);
@@ -233,7 +216,6 @@ fn candidates(state: &ArenaState, target: f32) -> Vec<Shape<Id>> {
 
 /// Joins `decl` to `arena`: a member registers its root shape and parts at its show-order position.
 /// Returns whether its shapes lie in the arena's body layer.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn join(ctx: &Context, arena: ArenaId, layer: Layer, mut decl: MemberDecl) -> bool {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     let target = pointer::frame(ctx).target;
@@ -261,7 +243,6 @@ pub(crate) fn set_layer(ctx: &Context, arena: ArenaId, layer: Layer) {
 }
 
 /// What a root registers and reads at step 8.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct RootSpec<'a> {
     pub id: Id,
     pub rect: Rect,
@@ -284,15 +265,14 @@ pub(crate) struct RootResult {
     pub sense: Sense,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) type PartResults = HashMap<(PartKey, Option<u64>), PartResult>;
 
 /// Step 8 for a root: its egui widgets, its registration, the lifecycle and what it reads back.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     let ctx = ui.ctx();
     let arena = ArenaId::new(spec.id);
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
+    crate::runtime::frame::register_end_sweep(ctx, std::any::TypeId::of::<Arenas>(), sweep_undrawn);
     let (clip, layer) = (ui.clip_rect(), ui.layer_id());
     let last_union = with_arena(ctx, arena, pass_nr, |state| {
         rotate(state, pass_nr);
@@ -340,7 +320,6 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
 }
 
 /// A member's step 8: it joins the arena and builds its `Response` and results from the arena's outcome.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct MemberSpec<'a> {
     pub id: Id,
     pub rect: Rect,
@@ -349,7 +328,6 @@ pub(crate) struct MemberSpec<'a> {
     pub enabled: bool,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) struct MemberResult {
     pub response: Response,
     pub parts: PartResults,
@@ -358,7 +336,6 @@ pub(crate) struct MemberResult {
     pub activated: bool,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> MemberResult {
     let ctx = ui.ctx();
     let local = join(ctx, arena, ui.layer_id(), MemberDecl::new(spec.id, spec.rect, spec.sense, spec.parts.to_vec()));
@@ -373,7 +350,6 @@ pub(crate) fn sense_member(ui: &Ui, arena: ArenaId, spec: MemberSpec<'_>) -> Mem
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>) -> MemberView {
     let phase = outcome.target.filter(|target| target.owner == id).and(outcome.phase);
     MemberView {
@@ -389,7 +365,6 @@ fn member_view(outcome: &Outcome, id: Id, local: bool, pointer_pos: Option<Pos2>
 
 /// The resolve rule over last pass's shapes at `point`. A press inside the root rect that hits no shape goes to
 /// the root's own background when the root senses a press.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn resolve_in(state: &ArenaState, xf: Option<LayerMap>, point: Pos2, kind: ResolveFor, target: f32) -> Option<Hit> {
     let shapes = candidates(state, target);
     let won = resolve_mapped(&shapes, point, kind, |p| xf.map_or(p, |map| map.to_layer(p)));
@@ -399,7 +374,6 @@ fn resolve_in(state: &ArenaState, xf: Option<LayerMap>, point: Pos2, kind: Resol
 /// Runs the press lifecycle for this pass, once: later calls in the pass return the same outcome. A repeated
 /// pass has no events, so phases hold and a release, click or activation does not repeat. `union_sense` is
 /// what the root's egui widgets sense.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sense: Sense) -> Outcome {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     let done = with_arena(ctx, arena, pass_nr, |state| state.outcome.filter(|outcome| outcome.pass == pass_nr));
@@ -463,18 +437,40 @@ fn outcome(ctx: &Context, arena: ArenaId, layer: Layer, enabled: bool, union_sen
     if cancelled {
         crate::runtime::frame::note_cancelled_press(ctx);
     }
+    pointer::note_captured(ctx, arena.0, outcome.dragging);
     outcome
 }
 
+/// The end hook's sweep: a press whose owner was not drawn in the pass ends, so a removed owner never keeps the
+/// pointer captured. egui's own drag ends at the next begin hook.
+fn sweep_undrawn(ctx: &Context) {
+    let viewport = pass::current_viewport(ctx);
+    let pass_nr = pass::pass_nr(ctx, viewport);
+    let gone: Vec<Id> = PerViewport::<Arenas>::with(ctx, viewport, |arenas| {
+        let mut gone = Vec::new();
+        for (root, state) in &mut arenas.by_root {
+            if state.pass != pass_nr && state.machine.target().is_some() {
+                state.machine = PressMachine::default();
+                gone.push(*root);
+            }
+        }
+        gone
+    });
+    for root in &gone {
+        pointer::note_captured(ctx, *root, false);
+    }
+    if !gone.is_empty() {
+        crate::runtime::frame::note_cancelled_press(ctx);
+    }
+}
+
 /// The arena's outcome of the running pass, idle when the root has not run yet.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn read_outcome(ctx: &Context, arena: ArenaId) -> Outcome {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     with_arena(ctx, arena, pass_nr, |state| state.outcome.filter(|outcome| outcome.pass == pass_nr)).unwrap_or_default()
 }
 
 /// A phase in the owner's space: a member of a transformed body reads positions in the body layer.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn in_owner_space(phase: PressPhase, target: &Hit, xf: Option<LayerMap>) -> PressPhase {
     match xf {
         Some(map) if target.local => phase.mapped(|at| map.to_layer(at), |delta| map.delta_to_layer(delta)),
@@ -482,7 +478,6 @@ fn in_owner_space(phase: PressPhase, target: &Hit, xf: Option<LayerMap>) -> Pres
     }
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 fn known_parts(ctx: &Context, arena: ArenaId, owner: Id) -> Vec<(PartKey, Option<u64>)> {
     let pass_nr = pass::pass_nr(ctx, pass::current_viewport(ctx));
     with_arena(ctx, arena, pass_nr, |state| {
@@ -498,7 +493,6 @@ fn known_parts(ctx: &Context, arena: ArenaId, owner: Id) -> Vec<(PartKey, Option
 /// The part results of one owner: a part reads the press phase when it is the press winner, `Hover` when it is
 /// the topmost shape under the pointer, else idle. A part first registered this pass is not in last pass's
 /// registrations and reads idle.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[PartDecl]) -> PartResults {
     let outcome = read_outcome(ctx, arena);
     let known = known_parts(ctx, arena, owner);
@@ -524,7 +518,6 @@ pub(crate) fn part_results(ctx: &Context, arena: ArenaId, owner: Id, decls: &[Pa
 }
 
 /// The owner's own shape's press state: a member's root shape or the root background. `Idle` unless it won.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn shape_press(ctx: &Context, arena: ArenaId, owner: Id) -> PressState {
     let outcome = read_outcome(ctx, arena);
     let frame = pointer::frame(ctx);
@@ -539,7 +532,6 @@ pub(crate) fn shape_press(ctx: &Context, arena: ArenaId, owner: Id) -> PressStat
 }
 
 /// The cursor a hovered part of `decls` declares, if any: the sensing core's request for the cursor service.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the pipeline of F3 is the caller"))]
 pub(crate) fn hovered_cursor(decls: &[PartDecl], results: &PartResults) -> Option<CursorIcon> {
     decls.iter().filter(|decl| results.get(&(decl.key, decl.index)).is_some_and(|result| result.hovered)).find_map(|decl| decl.cursor)
 }

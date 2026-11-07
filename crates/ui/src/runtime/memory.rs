@@ -137,7 +137,6 @@ struct Seen(u64);
 
 /// Registers `owner`'s pass, at step 3: eviction tests only owners. Shown entries of an owner not registered
 /// for 3 passes of the viewport that last showed it and 0.5 s are evicted by `evict`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn register_owner(ctx: &Context, owner: Id) {
     let viewport = pass::current_viewport(ctx);
     let (pass_nr, at) = (pass::pass_nr(ctx, viewport), frame::clock(ctx));
@@ -210,7 +209,6 @@ pub(crate) fn adopt<T: Any + Clone + Send + Sync>(ctx: &Context, owner: Id, id: 
 }
 
 /// Drops the evicted slots, outside every lock and hook, so a slot's `Drop` may touch the `Context`.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn dispose_evicted(ctx: &Context) {
     let queue = Service::<Registry>::of(ctx).with(|reg| std::mem::take(&mut reg.graveyard));
     drop(queue);
@@ -244,10 +242,8 @@ pub struct MemoryStage {
     pub(crate) face: bool,
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 impl MemoryStage {
     /// A stage whose entries belong to `base`.
-    #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
     }
@@ -296,7 +292,6 @@ impl MemoryStage {
     }
 
     /// Read-only access for `measure_in`: opens no stage.
-    #[expect(dead_code, reason = "used by the pipeline (F3)")]
     pub(crate) fn peek<T: Slot>(ctx: &Context, id: Id) -> T {
         store::peek_clone::<Wrapped<SHOWN, T>>(ctx, id).map(|wrapped| wrapped.0).unwrap_or_default()
     }

@@ -50,13 +50,11 @@ pub struct DuplicateStyle(pub &'static str);
 /// The frozen replacements of a context.
 #[derive(Default)]
 pub(crate) struct Frozen {
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     map: HashMap<TypeId, Arc<dyn Any + Send + Sync>>,
 }
 
 impl Frozen {
     /// The replacement for key type `K`, if the app made one.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn get<K: StyleKey, S: ComponentStyle>(&self) -> Option<Replacement<K, S>> {
         self.map.get(&TypeId::of::<K>()).and_then(|f| f.downcast_ref::<Replacement<K, S>>()).copied()
     }
@@ -67,7 +65,6 @@ impl Frozen {
     }
 
     /// The replacement for `K` in `ctx`.
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the style step of the pipeline (F3) is the caller"))]
     pub(crate) fn of<K: StyleKey, S: ComponentStyle>(ctx: &egui::Context) -> Option<Replacement<K, S>> {
         Service::<Frozen>::of(ctx).with(|frozen| frozen.get::<K, S>())
     }

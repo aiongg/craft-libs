@@ -8,11 +8,6 @@ use egui::epaint::text::FontId;
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Align, Painter};
 
-/// Implemented by the allowlisted components that paint content with a raw painter (a preview, a waveform).
-/// `PaintUi::content_painter` takes no other component.
-// F2-MERGE: F3 (the supertrait is `Component`)
-pub trait ContentPainter {}
-
 /// The raw painter of an allowlisted content painter, clipped to its rect.
 #[non_exhaustive]
 pub struct ContentPainterCx {
@@ -22,7 +17,6 @@ pub struct ContentPainterCx {
 
 impl ContentPainterCx {
     /// A raw painter for a content painter.
-    #[expect(dead_code, reason = "built by `PaintUi::content_painter` (F3)")]
     pub(crate) fn new(painter: Painter) -> Self {
         ContentPainterCx { painter }
     }

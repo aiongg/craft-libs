@@ -1,1 +1,65 @@
-//! Records and queries for the debug inspector.
+//! Decision records and findings: what each pipeline step did, kept in test builds and while `FrameInput.inspect`
+//! is on.
+
+use crate::runtime::egui::memory::Service;
+use crate::runtime::frame;
+use egui::{Context, Id};
+use std::collections::HashMap;
+
+/// A rule a component broke that the pipeline reports instead of panicking.
+#[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Finding {
+    /// The rule's name.
+    pub rule: &'static str,
+    /// The component's type.
+    pub component: &'static str,
+    /// What the finding is about, such as a part or an id.
+    pub subject: String,
+}
+
+#[derive(Default)]
+struct Log {
+    steps: HashMap<Id, Vec<&'static str>>,
+    findings: Vec<Finding>,
+}
+
+/// Whether records are kept: in test builds, and in any build while the debug inspector is on.
+pub(crate) fn recording(ctx: &Context) -> bool {
+    cfg!(feature = "testing") || frame::inspecting(ctx)
+}
+
+/// Starts the step record of `id` for a new show.
+pub(crate) fn begin(ctx: &Context, id: Id) {
+    if recording(ctx) {
+        Service::<Log>::of(ctx).with(|log| log.steps.insert(id, Vec::new()));
+    }
+}
+
+/// Records that `step` ran for `id`.
+pub(crate) fn step(ctx: &Context, id: Id, step: &'static str) {
+    if recording(ctx) {
+        Service::<Log>::of(ctx).with(|log| log.steps.entry(id).or_default().push(step));
+    }
+}
+
+/// The steps the latest show of `id` ran, in order.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by trials and the debug inspector"))]
+pub(crate) fn steps_of(ctx: &Context, id: Id) -> Vec<&'static str> {
+    Service::<Log>::of(ctx).with(|log| log.steps.get(&id).cloned().unwrap_or_default())
+}
+
+/// Reports a finding.
+pub(crate) fn finding(ctx: &Context, finding: Finding) {
+    Service::<Log>::of(ctx).with(|log| {
+        if !log.findings.contains(&finding) {
+            log.findings.push(finding);
+        }
+    });
+}
+
+/// Every finding reported on the context.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "read by trials and the debug inspector"))]
+pub(crate) fn findings(ctx: &Context) -> Vec<Finding> {
+    Service::<Log>::of(ctx).with(|log| log.findings.clone())
+}

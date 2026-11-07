@@ -13,7 +13,6 @@ pub(crate) struct PaintRecord {
     /// The first text's baseline, which `LabelColumn` aligns a row label to next frame.
     pub baseline: Option<f32>,
     /// The faces painted this frame.
-    #[expect(dead_code, reason = "written by `PaintUi::face` (F3)")]
     pub faces: Vec<FaceRecord>,
 }
 
@@ -33,7 +32,6 @@ pub(crate) struct FaceRecord {
 
 /// The base id of the face painted for `part` of the composite `id`: owned by the composite, so the face's hover
 /// and press animations key by it.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn face_id(composite: Id, part: PartRef) -> Id {
     sub(composite, ("face", part))
 }

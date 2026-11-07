@@ -23,6 +23,16 @@ pub use crate::runtime::keys::Intents;
 pub use craft_behavior::{Letters, Roving};
 pub use policy::{ActivateKeys, EditSet, EnterRule, FocusPolicy, FocusTarget, Initial, KeepKeys, KeyUse};
 
+/// The shape the focus ring takes around a part.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum FocusShape {
+    /// The part's rect.
+    Rect,
+    /// The circle inside the part's rect.
+    Circle,
+}
+
 /// A focus stop: a component, or one of its parts.
 pub(crate) type StopKey = (Id, Option<PartRef>);
 
@@ -115,7 +125,6 @@ pub(crate) fn apply(ctx: &Context, acts: Vec<Act>) {
 }
 
 /// Registers a stop of the running pass in the innermost open scope, in registration order.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
     with(ctx, |state| {
         let scope = state.open.last().map(|(id, _)| *id);
@@ -124,7 +133,6 @@ pub(crate) fn register_stop(ctx: &Context, stop: Stop) {
 }
 
 /// Registers a roving group of the running pass.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn register_group(ctx: &Context, group: Group) {
     with(ctx, |state| {
         state.groups.insert(group.id, group);
@@ -184,7 +192,6 @@ pub(crate) fn request_now(ctx: &Context, target: FocusTarget) {
 
 /// The stop focus is on, in the viewport whose pass is running: the focused member or part of the egui
 /// root, else the root itself.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn focused_stop(ctx: &Context) -> Option<StopKey> {
     let root = egui_focus::focused(ctx)?;
     with(ctx, |state| Some(state.focused.get(&root).copied().unwrap_or((root, None))))
@@ -215,19 +222,16 @@ pub(crate) fn in_row_child(ctx: &Context) -> bool {
 
 /// Whether the focus stop is the component `id`: the focused member or item of its arena, or a root that
 /// holds focus while none of its members is the stop. A root's own focused part counts as the root.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn is_focused(ctx: &Context, id: Id) -> bool {
     focused_stop(ctx).is_some_and(|(focused, _)| focused == id)
 }
 
 /// `is_focused` and focus arrived by keyboard, so the ring shows.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn focus_visible(ctx: &Context, id: Id) -> bool {
     is_focused(ctx, id) && with(ctx, |state| state.visible)
 }
 
 /// The part of `id` that is the focus stop, when one is.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn active_part(ctx: &Context, id: Id) -> Option<PartRef> {
     focused_stop(ctx).filter(|(focused, _)| *focused == id).and_then(|(_, part)| part)
 }

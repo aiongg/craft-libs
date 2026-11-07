@@ -5,7 +5,6 @@ use egui::response::Flags;
 use egui::{Id, LayerId, Pos2, Rect, Response, Ui, Vec2};
 
 /// egui's sense for a library sense: `FOCUS` makes the widget a focus stop.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
     let mut mapped = egui::Sense::hover();
     if sense.contains(Sense::CLICK) {
@@ -21,14 +20,12 @@ pub(crate) fn to_egui(sense: Sense) -> egui::Sense {
 }
 
 /// A root's egui widget over `rect`, clipped by the caller.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn widget(ui: &Ui, id: Id, rect: Rect, sense: Sense) -> Response {
     ui.interact(rect, id, to_egui(sense))
 }
 
 /// What a member's `Response` reports, from the arena's resolution.
 #[derive(Clone, Copy, Debug, Default)]
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) struct MemberView {
     pub hovered: bool,
     /// The member holds the open press.
@@ -43,12 +40,10 @@ pub(crate) struct MemberView {
 }
 
 /// A member's `Response`, built from egui's public fields. It registers no egui widget.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn member(ui: &Ui, id: Id, rect: Rect, enabled: bool, view: MemberView) -> Response {
     member_on(ui.ctx(), ui.layer_id(), ui.clip_rect(), id, rect, enabled, view)
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 fn member_on(ctx: &egui::Context, layer_id: LayerId, clip: Rect, id: Id, rect: Rect, enabled: bool, view: MemberView) -> Response {
     let mut flags = Flags::empty();
     let hovered = enabled && view.hovered;
@@ -89,7 +84,6 @@ fn member_on(ctx: &egui::Context, layer_id: LayerId, clip: Rect, id: Id, rect: R
 /// Removes egui's click and drag flags from the root's `Response` unless the root's own shapes won the press:
 /// a press on a member belongs to the member, and a press the press-target rule refused belongs to the widget
 /// egui chose.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn keep_press_flags(response: &mut Response, own: bool) {
     if !own {
         response.flags.remove(
@@ -101,5 +95,34 @@ pub(crate) fn keep_press_flags(response: &mut Response, own: bool) {
                 | Flags::DRAG_STOPPED
                 | Flags::IS_POINTER_BUTTON_DOWN_ON,
         );
+    }
+}
+
+/// Rewrites the click flags of the root's `Response` at step 17: egui's fake click on Enter, Space or AccessKit
+/// `Click` is cleared, and set again only when the pipeline activated the component by key. A command-bound
+/// component reports no click, because the command fires instead.
+pub(crate) fn rewrite_clicks(response: &mut Response, activated_by_key: bool, command_bound: bool) {
+    response.flags.remove(Flags::FAKE_PRIMARY_CLICKED);
+    if activated_by_key {
+        response.flags.insert(Flags::FAKE_PRIMARY_CLICKED);
+    }
+    if command_bound {
+        response.flags.remove(Flags::CLICKED | Flags::FAKE_PRIMARY_CLICKED);
+    }
+}
+
+/// An inert `Response` for the component `id`: no widget, no interaction. It stands in for the root widget until
+/// a pass creates it, so the step-17 id assertion holds when no pass ran.
+pub(crate) fn inert(ui: &Ui, id: Id) -> Response {
+    Response {
+        ctx: ui.ctx().clone(),
+        layer_id: ui.layer_id(),
+        id,
+        rect: Rect::from_min_size(ui.next_widget_position(), Vec2::ZERO),
+        interact_rect: Rect::NOTHING,
+        sense: egui::Sense::hover(),
+        interact_pointer_pos_or_nan: Pos2::NAN,
+        intrinsic_size_or_nan: Vec2::NAN,
+        flags: Flags::empty(),
     }
 }

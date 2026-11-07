@@ -71,10 +71,8 @@ pub(crate) struct PassPointer {
     /// The primary events, presses carrying their click counts.
     pub events: Vec<PointerEvent>,
     pub hover: Option<Pos2>,
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub primary_down: bool,
     pub press_targets: PressTargets,
-    #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
     pub focus_lost: bool,
 }
 
@@ -84,6 +82,8 @@ struct Memory {
     press_targets: PressTargets,
     /// A cancel a service requested for the running pass.
     requested: Option<(u64, PressCancel)>,
+    /// The roots whose press is captured by a drag.
+    captured: std::collections::HashSet<Id>,
 }
 
 /// What one root registered on one layer: its shapes and its egui widgets.
@@ -185,7 +185,6 @@ pub fn frame(ctx: &Context) -> PointerFrame {
     })
 }
 
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 /// Ends every captured press of the running viewport at its next lifecycle run in this pass (Escape, a part
 /// turning disabled). The next begin hook ends egui's own drag so hover reaches other widgets again.
 pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
@@ -194,8 +193,23 @@ pub(crate) fn cancel_press(ctx: &Context, reason: PressCancel) {
     PerViewport::<Memory>::with(ctx, viewport, |memory| memory.requested = Some((pass_nr, reason)));
 }
 
+/// Records whether the press of the root `root` is captured by a drag.
+pub(crate) fn note_captured(ctx: &Context, root: Id, captured: bool) {
+    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| {
+        if captured {
+            memory.captured.insert(root);
+        } else {
+            memory.captured.remove(&root);
+        }
+    });
+}
+
+/// Whether a press of the running viewport is captured by a drag: Escape cancels it before anything else.
+pub(crate) fn press_captured(ctx: &Context) -> bool {
+    PerViewport::<Memory>::with(ctx, pass::current_viewport(ctx), |memory| !memory.captured.is_empty())
+}
+
 /// Why captured presses end in the running pass: a cancel a service requested, else the window losing focus.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
     let viewport = pass::current_viewport(ctx);
     let pass_nr = pass::pass_nr(ctx, viewport);
@@ -205,14 +219,12 @@ pub(crate) fn cancel_of_pass(ctx: &Context) -> Option<PressCancel> {
 
 /// Writes `shapes` of the arena rooted at `root` into the running pass's shape record under `layer`. Stack
 /// positions are per arena, so each root's shapes stay apart.
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn record_shapes(ctx: &Context, layer: Layer, root: Id, shapes: impl IntoIterator<Item = Shape<Id>>) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| record.this.entry(layer).or_default().entry(root).or_default().shapes.extend(shapes));
 }
 
 /// Records the egui widgets that stand for the root at `root` (`click` when they sense a click).
-#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "used by the pipeline (F3)"))]
 pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[Id], click: bool) {
     let viewport = pass::current_viewport(ctx);
     PerViewport::<Shapes>::with(ctx, viewport, |record| {
