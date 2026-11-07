@@ -88,13 +88,15 @@ note = "`TextField::complete(completer)`: the text adapter owns the popup, the l
 name = "DatePicker"
 old = "craft_ui::controls::date::DatePicker"
 new = "craft_ui::pickers::DatePicker"
-status = "pending"
+status = "moved"
+note = "A `Component` shown with `Show::show`: a text part (typed dates through `DateCodec`) and a calendar button that opens a popover. The output is `EditResponse<Option<PickedDate>>`; the value comes from the binding."
 
 [[type]]
 name = "IconPicker"
 old = "craft_ui::controls::icon_picker::IconPicker"
 new = "craft_ui::pickers::IconPicker"
-status = "pending"
+status = "moved"
+note = "A pattern over `TextField::search` and `TileGrid`, shown with its own `show(ui) -> IconPickerOutput<K>`. `IconPicker::new(label, Bind<Option<K>>, &[IconPickerGroup<K>])`; the host paints each icon with `paint`."
 
 [[type]]
 name = "ComboState"
@@ -354,3 +356,170 @@ type = "SelectFace"
 old = "PickerField::Thumbnail(PickerThumb)"
 new = "thumb(ThumbAspect, paint).name(false)"
 note = "The thumbnail alone; the name stays the face's accessible name."
+
+[[type]]
+name = "DatePrecision"
+old = "craft_ui::controls::date::DatePrecision"
+new = "craft_ui::pickers::DatePrecision"
+status = "moved"
+note = "Now `#[non_exhaustive]`; `DatePrecision::ALL` is unchanged."
+
+[[type]]
+name = "PickedDate"
+old = "craft_ui::controls::date::PickedDate"
+new = "craft_ui::pickers::PickedDate"
+status = "moved"
+note = "The constructors, `parse`, `iso`, `precision`, `first_day`, `last_day`, `calendar_date`, `from_calendar_date` and `in_bounds` are unchanged; the fields are read-only outside the crate."
+
+[[type]]
+name = "month_grid"
+old = "craft_ui::controls::date::month_grid"
+new = "craft_ui::pickers::month_grid"
+status = "moved"
+note = "A pure function, unchanged."
+
+[[type]]
+name = "local_month_grid"
+old = "craft_ui::controls::date::local_month_grid"
+new = "craft_ui::pickers::local_month_grid"
+status = "moved"
+note = "A pure function, unchanged."
+
+[[type]]
+name = "DatePickerStyle"
+old = "craft_ui::controls::date::DatePickerStyle"
+new = ""
+status = "removed"
+note = "A `ComponentStyle` built from the tokens: the field look of `DatePicker` and `CalendarStyle` for the page. The legacy `DatePicker::style(tokens, size)` and its public fields are gone."
+
+[[type]]
+name = "DatePickerLabels"
+old = "craft_ui::controls::date::DatePickerLabels"
+new = ""
+status = "removed"
+note = "The words are rows of `PickerWords` (`datePicker.*`); override them through the scope words."
+
+[[type]]
+name = "DateCodec"
+old = ""
+new = "craft_ui::pickers::DateCodec"
+status = "replaced"
+note = "The codec of the text part: ISO text at every precision, the region short date at day precision, bounded by the picker offers and bounds."
+
+[[type]]
+name = "Calendar"
+old = ""
+new = "craft_ui::pickers::Calendar"
+status = "replaced"
+note = "The page of the popover (days, months or years with previous and next buttons), a leaf with its own stories. The host keeps its `CalendarView` and applies `CalendarOutput::moved`."
+
+[[type]]
+name = "IconPickerItem"
+old = "craft_ui::controls::icon_picker::IconPickerItem"
+new = "craft_ui::pickers::IconPickerItem"
+status = "moved"
+note = "`IconPickerItem::new(key, label)` and the `keywords` setter replace the struct literal."
+
+[[type]]
+name = "IconPickerGroup"
+old = "craft_ui::controls::icon_picker::IconPickerGroup"
+new = "craft_ui::pickers::IconPickerGroup"
+status = "moved"
+note = "`IconPickerGroup::new(name, items)` replaces the struct literal."
+
+[[type]]
+name = "IconPickerOutput"
+old = "craft_ui::controls::icon_picker::IconPickerOutput"
+new = "craft_ui::pickers::IconPickerOutput"
+status = "moved"
+note = "`picked: Option<K>` as before; `response` is the grid's response and `search_changed` reports an edit of the search text."
+
+[[type]]
+name = "IconPickerStyle"
+old = "craft_ui::controls::icon_picker::IconPickerStyle"
+new = ""
+status = "removed"
+note = "The look comes from `TextField::search` and `TileGrid`; the legacy `IconPicker::style(tokens)` is gone."
+
+[[type]]
+name = "IconPickerLabels"
+old = "craft_ui::controls::icon_picker::IconPickerLabels"
+new = ""
+status = "removed"
+note = "The words are rows of `PickerWords` (`iconPicker.*`)."
+
+[[type]]
+name = "icon_matches"
+old = "craft_ui::controls::icon_picker::icon_matches"
+new = ""
+status = "removed"
+note = "The search matches the cell label and keywords with `craft_i18n::matcher::Matcher` on the scope folder."
+
+[[setter]]
+type = "DatePicker"
+old = "new(id_salt, label, value: &mut Option<PickedDate>)"
+new = "new(label, Bind<Option<PickedDate>>)"
+note = "The id comes from `Props::id_salt`; the value is a `Bind`."
+
+[[setter]]
+type = "DatePicker"
+old = "labels(DatePickerLabels)"
+new = ""
+note = "Words come from the scope (`PickerWords`)."
+
+[[setter]]
+type = "DatePicker"
+old = "precisions(&[DatePrecision])"
+new = "precisions(&[DatePrecision])"
+
+[[setter]]
+type = "DatePicker"
+old = "min(Option<PickedDate>)"
+new = "min(PickedDate)"
+note = "Leave it unset for no minimum."
+
+[[setter]]
+type = "DatePicker"
+old = "max(Option<PickedDate>)"
+new = "max(PickedDate)"
+note = "Leave it unset for no maximum."
+
+[[setter]]
+type = "DatePicker"
+old = "today(PickedDate)"
+new = "today(PickedDate)"
+
+[[setter]]
+type = "DatePicker"
+old = "size(ControlSize)"
+new = ""
+note = "The ambient control size of the scope applies."
+
+[[setter]]
+type = "DatePicker"
+old = "enabled(bool)"
+new = "Props::enabled(bool)"
+
+[[setter]]
+type = "IconPicker"
+old = "new(id_salt, label, groups, paint)"
+new = "new(label, Bind<Option<K>>, &[IconPickerGroup<K>])"
+note = "The id comes from `Props::id_salt`; the value is a `Bind`; the painter is the `paint` setter."
+
+[[setter]]
+type = "IconPicker"
+old = "paint: Fn(&Painter, Rect, &K, Color32)"
+new = "paint(Fn(&ContentPainterCx, Rect, &K))"
+note = "The host reads its own ink; the picker passes no colour."
+
+[[setter]]
+type = "IconPicker"
+old = "max_height(f32)"
+new = ""
+note = "The grid fills the room the host gives the picker and scrolls inside it."
+
+[[setter]]
+type = "IconPicker"
+old = "labels(IconPickerLabels)"
+new = ""
+note = "Words come from the scope (`PickerWords`)."
