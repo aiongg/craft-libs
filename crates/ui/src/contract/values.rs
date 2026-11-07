@@ -136,6 +136,17 @@ impl<'a, T: Value> Bind<'a, T> {
         self
     }
 
+    /// What the binding holds now, for a component's `flags`, which runs before any context exists (a face has
+    /// none). `None` for a kept binding, whose value lives in session memory.
+    pub(crate) fn current(&self) -> Option<Mixed<&T>> {
+        match &self.source {
+            Source::Given(Mixed::Same(value)) | Source::MutMixed(Mixed::Same(value)) => Some(Mixed::Same(value)),
+            Source::Given(Mixed::Mixed) | Source::MutMixed(Mixed::Mixed) => Some(Mixed::Mixed),
+            Source::Mut(value) => Some(Mixed::Same(&**value)),
+            Source::Kept => None,
+        }
+    }
+
     /// The binding as the pipeline reads and writes it.
     pub fn reborrow(&mut self) -> BindMut<'_, T> {
         let source = match &mut self.source {

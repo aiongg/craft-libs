@@ -1,5 +1,7 @@
 //! Text and number fields: `TextField<C>` and `NumberField` on the text part (18.3).
 
+#[cfg(feature = "testing")]
+mod stories;
 mod words;
 
 use crate::contract::{
