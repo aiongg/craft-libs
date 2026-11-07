@@ -304,7 +304,7 @@ impl<'a> Guides<'a> {
                 }
                 cx.keep::<PendingKey>().0 = None;
             }
-            GesturePhase::Cancel => {
+            _ => {
                 cx.cancel(CancelReason::Escape);
                 cx.keep::<PendingKey>().0 = None;
             }
