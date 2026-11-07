@@ -52,12 +52,12 @@ fn strip(ui: &mut Ui, strip: TabStrip<'_, usize>, count: usize, kind: TabKind) -
 
 #[story(TabStrip<'static, usize>, covers = [Default, Many], drive = Drive::Never)]
 fn tab_strip_many(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Documents").selected(3).reorder(ReorderRule::new()), TITLES.len(), TabKind::Document)
+    strip(ui, TabStrip::new("Documents").shown(3).reorder(ReorderRule::new()), TITLES.len(), TabKind::Document)
 }
 
 #[story(TabStrip<'static, usize>, covers = [One], drive = Drive::Never)]
 fn tab_strip_one(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Documents").selected(0), 1, TabKind::Document)
+    strip(ui, TabStrip::new("Documents").shown(0), 1, TabKind::Document)
 }
 
 #[story(TabStrip<'static, usize>, covers = [Empty], drive = Drive::Never)]
@@ -67,5 +67,5 @@ fn tab_strip_empty(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 
 #[story(TabStrip<'static, usize>, covers = [], drive = Drive::Never)]
 fn tab_strip_panel(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    strip(ui, TabStrip::new("Panels").selected(1), 4, TabKind::Panel)
+    strip(ui, TabStrip::new("Panels").shown(1), 4, TabKind::Panel)
 }

@@ -237,7 +237,7 @@ impl<K: Send + Sync + 'static> WindowDropTarget<ListDrag<K>> for TearOff {
 /// visible. A tab dragged out of the strip and released where no other strip, dock or drop target takes it is
 /// reported as `torn_off`.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(collection, probe(TabStrip<'static, usize>))]
+#[component(collection, overlay, probe(TabStrip<'static, usize>))]
 pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> {
     #[common]
     common: Common,
@@ -253,7 +253,7 @@ pub struct TabStrip<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + '
     large: bool,
     /// The tab the host shows. A click, an arrow key or a drop reports the new one in the output.
     #[prop]
-    selected: Option<K>,
+    shown: Option<K>,
     /// A tab dragged out and released where no target takes it is reported as `torn_off`.
     #[prop(flag)]
     tear_off: bool,
@@ -285,7 +285,7 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> TabStri
             items: CollectionProps::new().select(SelectMode::Single),
             kind: TabKind::Document,
             large: false,
-            selected: None,
+            shown: None,
             tear_off: false,
             can_drag: None,
             accept_from: None,
@@ -357,7 +357,7 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
             .iter()
             .enumerate()
             .filter(|(at, _)| all || report.hidden.contains(at))
-            .map(|(_, (key, text))| Entry::new(key.clone(), text.clone()).checked(all && self.selected.as_ref() == Some(key)))
+            .map(|(_, (key, text))| Entry::new(key.clone(), text.clone()).checked(all && self.shown.as_ref() == Some(key)))
             .collect();
         let name = cx.label();
         let layer = crate::menu::layer(false).anchor(ui.anchor_part(OVERFLOW));
@@ -409,14 +409,14 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Collection 
 
     /// The shown tab is the single selection; the strip reports a change and the host applies it.
     fn selection(&mut self) -> Option<BindMut<'_, Selection<K>>> {
-        self.held = Bind::given(self.selected.clone().map_or_else(Selection::default, Selection::single));
+        self.held = Bind::given(self.shown.clone().map_or_else(Selection::default, Selection::single));
         Some(self.held.reborrow())
     }
 
     fn item_layout(&self, source: &dyn ItemSource<K>, width: f32, cx: &StyleCx<'_>) -> StripLayout {
         let count = source.len();
         *self.texts.borrow_mut() = (0..count).map(|at| (source.key(at), source.text(at).map(|text| text.into_owned()).unwrap_or_default())).collect();
-        let selected = self.selected.as_ref().and_then(|key| source.index_of(key)).unwrap_or(usize::MAX);
+        let selected = self.shown.as_ref().and_then(|key| source.index_of(key)).unwrap_or(usize::MAX);
         StripLayout::new(count, width, cx.tokens.size.bar.tab, selected, self.kind.fit_mode(), self.report.clone())
     }
 

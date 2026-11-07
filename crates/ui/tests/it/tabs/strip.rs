@@ -39,7 +39,7 @@ fn rig(room: Vec2) -> (Fixture, Rc<RefCell<Vec<usize>>>) {
     let picked = Rc::new(RefCell::new(Vec::new()));
     let seen = picked.clone();
     let mut fixture = Fixture::new(move |ui| {
-        let out = TabStrip::new("Documents").selected(0).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
+        let out = TabStrip::new("Documents").shown(0).show_items(ui, &Titles, &mut |key, _| Tab::new(TITLES[*key]));
         for event in out.response.events {
             if let CollectionEvent::Selection(SelectionChange::Set(keys)) = event {
                 seen.borrow_mut().extend(keys);

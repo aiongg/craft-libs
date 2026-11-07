@@ -167,7 +167,7 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
             strip = strip.tear_off();
         }
         if let Some(document) = selected {
-            strip = strip.selected(document);
+            strip = strip.shown(document);
         }
         if reorderable {
             strip = strip.reorder(ReorderRule::new());

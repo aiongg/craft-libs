@@ -109,7 +109,8 @@ note = "The id salt is `Props::id_salt`, the kind is `kind(TabKind)`."
 [[setter]]
 type = "TabStrip"
 old = "selected(&K)"
-new = "selected(K)"
+new = "shown(K)"
+note = "`selected` is the Props setter of an item's own state; the strip names the tab it shows."
 
 [[setter]]
 type = "TabStrip"
