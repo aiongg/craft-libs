@@ -19,3 +19,10 @@ mod preview;
 
 pub use dialog::{BelowRows, FooterExtra, HostedParamDialog, ParamDialog, ParamDialogOutput, ParamDialogWords, ParamLayout, ParamResult};
 pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewWords, PreviewZoom, PreviewZoomOutput};
+
+pub mod size_model;
+
+pub use size_model::{
+    COMMIT_DECIMALS, DEFAULT_RESOLUTION, LinkedSize, MAX_PIXELS, POINTS_PER_INCH, PPI_RANGE, PixelSize, SizeError, resize_from_scale,
+    resize_from_side,
+};

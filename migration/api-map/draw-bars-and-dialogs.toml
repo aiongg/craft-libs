@@ -13,8 +13,45 @@ old = ""
 new = ""
 status = "pending"
 
+[[type]]
+name = "ReferencePoint"
+old = "craft_ui::canvas::ReferencePoint"
+new = "craft_ui::pickers::ReferencePoint"
+status = "moved"
+note = "The 3 by 3 picker, now `ReferencePoint::new(label, Bind<Anchor9>)` with output `EditResponse<Anchor9>`, over the one `craft_ui::pickers::Anchor9` (`craft_behavior::Anchor9`; `Center` is `Centre`). It has the look of PhotoCraft's Canvas Size picker; the compact options-bar look is not ported."
+
+[[type]]
+name = "RefSize"
+old = "craft_ui::canvas::RefSize"
+new = ""
+status = "removed"
+note = "The picker has one size, set by the style. `Large` is that size; `Compact` is not ported."
+
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
 # type = ""
 # old = ""
 # new = ""
+
+[[setter]]
+type = "ReferencePoint"
+old = "ReferencePoint::new(id_salt, Option<Anchor9>)"
+new = "ReferencePoint::new(label, Bind<Anchor9>)"
+note = "The picker always has a point; a mixed binding checks none. The pick comes back in the output's event."
+
+[[setter]]
+type = "ReferencePoint"
+old = "growth(i8, i8)"
+new = "growth((f64, f64))"
+note = "The change in width and height; only the signs decide the arrows."
+
+[[setter]]
+type = "ReferencePoint"
+old = "size(RefSize)"
+new = ""
+
+[[setter]]
+type = "ReferencePoint"
+old = "names([String; 9])"
+new = ""
+note = "The nine names are the picker family's words (`PickerWords`)."

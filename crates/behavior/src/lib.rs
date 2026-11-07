@@ -3,6 +3,8 @@
 //!
 //! The crate depends on no egui crate: it uses `emath` and the `accesskit` data crate only.
 
+pub mod anchor;
+
 pub mod arrangement;
 pub mod canvas;
 pub mod codec;
@@ -48,6 +50,9 @@ pub mod anchor;
 pub mod geometry;
 
 pub use accesskit::{Action as AccessAction, ActionData as AccessData};
+
+pub use anchor::Anchor9;
+
 pub use arrangement::Arrangement;
 pub use canvas::CanvasTransform;
 

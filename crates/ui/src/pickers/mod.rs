@@ -11,6 +11,8 @@ mod tree_picker;
 mod unit_select;
 mod words;
 
+mod reference_point;
+
 pub use combo_box::ComboBox;
 pub use date::{
     Calendar, CalendarOutput, CalendarStyle, CalendarView, DateCodec, DatePicker, DatePrecision, PickedDate, local_month_grid, month_grid,
@@ -22,3 +24,6 @@ pub use icon_picker::{IconPicker, IconPickerGroup, IconPickerItem, IconPickerOut
 pub use select::{Select, SelectStyle};
 pub use tree_picker::{TreeEntry, TreePicker, TreePickerStyle};
 pub use unit_select::{UnitSelect, UnitSelectOutput, UnitSelectStyle};
+
+pub use craft_behavior::Anchor9;
+pub use reference_point::{ReferencePoint, ReferencePointStyle};

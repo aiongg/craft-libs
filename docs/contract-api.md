@@ -13,6 +13,7 @@ Pure UI behaviours (layer 1): press lifecycle, `ValueDrag`, navigation, item lay
 - `craft_behavior::AccessAction`: re-export of `accesskit::Action` (outside these crates).
 - `craft_behavior::AccessData`: re-export of `accesskit::ActionData` (outside these crates).
 - `craft_behavior::AccessRequest`: re-export of `craft_behavior::intent::AccessRequest`.
+- `craft_behavior::Anchor9`: re-export of `craft_behavior::anchor::Anchor9`.
 - `craft_behavior::Applied`: re-export of `craft_behavior::value::Applied`.
 - `craft_behavior::Arrangement`: re-export of `craft_behavior::arrangement::Arrangement`.
 - `craft_behavior::Arrows`: re-export of `craft_behavior::nav::Arrows`.
