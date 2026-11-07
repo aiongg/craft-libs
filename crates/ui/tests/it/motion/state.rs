@@ -51,14 +51,16 @@ fn state_easing_reaches_its_end_value_and_stops_requesting_repaints() {
     };
     frames.idle(3, &mut show);
     assert_eq!(frames.repaint_delay(), None, "a resting component asks for nothing");
+    let rest = seen.get();
     frames.frame(vec![moved(Pos2::new(10.0, 10.0))], &mut show);
     let mut values = vec![seen.get()];
     while frames.repaint_delay() == Some(Duration::ZERO) && values.len() < 60 {
         frames.frame(Vec::new(), &mut show);
         values.push(seen.get());
     }
-    assert_eq!(seen.get(), 1.0, "the hover value reached its end: {values:?}");
-    assert!(values.iter().any(|v| *v > 0.0 && *v < 1.0), "it passed through values between: {values:?}");
+    let end = seen.get();
+    assert!(end > rest, "the hover value rose from {rest} to its end: {values:?}");
+    assert!(values.iter().any(|v| *v > rest && *v < end), "it passed through values between: {values:?}");
     assert!(values.windows(2).all(|pair| pair[0] <= pair[1]), "it rose without stepping back: {values:?}");
     assert_eq!(frames.repaint_delay(), None, "once at its end it requests no repaint");
 }

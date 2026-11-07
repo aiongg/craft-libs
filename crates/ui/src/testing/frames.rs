@@ -39,7 +39,14 @@ impl Frames {
 
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
-        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default, repaint_delay: Duration::MAX, host: None }
+        Frames {
+            ctx: fixture::bare_context(),
+            time: 0.0,
+            root: RootEnv::default(),
+            cursor: egui::CursorIcon::Default,
+            repaint_delay: Duration::MAX,
+            host: None,
+        }
     }
 
     /// Installs the runtime on the context.

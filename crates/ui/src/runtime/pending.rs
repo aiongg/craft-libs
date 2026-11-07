@@ -124,35 +124,36 @@ pub(crate) fn poll<T: Clone + Send + Sync + 'static, E: Clone + Send + Sync + 's
     let ctx = stage.ctx().clone();
     let sizing = stage.is_peek();
     let slot = stage.shown::<PendingSlot<T, E>>(id);
-    if slot.started.is_none() && !sizing {
-        if let Some(host) = Env::host_of(&ctx) {
-            let Job { name, run } = start();
-            let progress = Progress { bits: Arc::new(AtomicU32::new(NO_REPORT)), ctx: ctx.clone() };
-            let shared = Arc::new(Shared { result: Mutex::new(None), progress: progress.clone() });
-            let cancel = Cancel::new();
-            let (landing, token) = (shared.clone(), cancel.clone());
-            host.jobs().spawn(
-                name,
-                Box::new(move || {
-                    let result = run(&progress, &token);
-                    if !token.is_cancelled() {
-                        *landing.result.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
-                        repaint::request(&ctx);
-                    }
-                }),
-            );
-            slot.started = Some(Started { shared, _owner: Arc::new(CancelOnDrop(cancel)) });
-        }
+    if slot.started.is_none()
+        && !sizing
+        && let Some(host) = Env::host_of(&ctx)
+    {
+        let Job { name, run } = start();
+        let progress = Progress { bits: Arc::new(AtomicU32::new(NO_REPORT)), ctx: ctx.clone() };
+        let shared = Arc::new(Shared { result: Mutex::new(None), progress: progress.clone() });
+        let cancel = Cancel::new();
+        let (landing, token) = (shared.clone(), cancel.clone());
+        host.jobs().spawn(
+            name,
+            Box::new(move || {
+                let result = run(&progress, &token);
+                if !token.is_cancelled() {
+                    *landing.result.lock().unwrap_or_else(PoisonError::into_inner) = Some(result);
+                    repaint::request(&ctx);
+                }
+            }),
+        );
+        slot.started = Some(Started { shared, _owner: Arc::new(CancelOnDrop(cancel)) });
     }
-    if let Some(started) = &slot.started {
-        if matches!(slot.shown, Pending::Loading { .. }) {
-            let landed = started.shared.result.lock().unwrap_or_else(PoisonError::into_inner).take();
-            slot.shown = match landed {
-                Some(Ok(value)) => Pending::Ready(value),
-                Some(Err(error)) => Pending::Failed(error),
-                None => Pending::Loading { progress: started.shared.progress.get() },
-            };
-        }
+    if let Some(started) = &slot.started
+        && matches!(slot.shown, Pending::Loading { .. })
+    {
+        let landed = started.shared.result.lock().unwrap_or_else(PoisonError::into_inner).take();
+        slot.shown = match landed {
+            Some(Ok(value)) => Pending::Ready(value),
+            Some(Err(error)) => Pending::Failed(error),
+            None => Pending::Loading { progress: started.shared.progress.get() },
+        };
     }
     &slot.shown
 }

@@ -443,19 +443,13 @@ fn root_tokens(ctx: &Context, root: &RootEnv) -> Arc<UiTokens> {
     struct Cache {
         entries: Vec<(TokenInputs, Arc<UiTokens>)>,
     }
-    let inputs = TokenInputs {
-        sizes: root.sizes.clone(),
-        mode: root.mode,
-        contrast: root.contrast,
-        density: root.density,
-        text_size: root.text_size,
-    };
+    let inputs =
+        TokenInputs { sizes: root.sizes.clone(), mode: root.mode, contrast: root.contrast, density: root.density, text_size: root.text_size };
     let service = Service::<Cache>::of(ctx);
     if let Some(hit) = service.with(|cache| cache.entries.iter().find(|(key, _)| key.same(&inputs)).map(|(_, tokens)| tokens.clone())) {
         return hit;
     }
-    let appearance =
-        Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: false };
+    let appearance = Appearance { mode: root.mode, contrast: root.contrast, size: root.density, text_size: root.text_size, reduced_motion: false };
     let themes = builtins();
     let theme: &ThemeDef = themes.iter().find(|theme| theme.id.as_str() == SUITE_DEFAULT).unwrap_or(&themes[0]);
     let tokens = Arc::new(UiTokens::new(Arc::new(resolve_sized(theme, appearance, None, &root.sizes).tokens)));
