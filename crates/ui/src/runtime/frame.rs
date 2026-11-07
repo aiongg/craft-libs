@@ -280,8 +280,10 @@ struct ViewportRecord {
 }
 
 /// What the begin hook read of the running pass; steps read it, none writes it.
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub(crate) struct PassFacts {
+    /// The context the pass runs in. Another context on the same thread, and a pass a panic left open, read none of these.
+    pub ctx: Context,
     pub viewport: ViewportId,
     pub pass_nr: u64,
     /// The pass's time in seconds.
@@ -293,14 +295,14 @@ thread_local! {
     static RUNNING: RefCell<Vec<PassFacts>> = const { RefCell::new(Vec::new()) };
 }
 
-/// The facts of the innermost running pass on this thread, `None` outside every pass.
-pub(crate) fn running() -> Option<PassFacts> {
-    RUNNING.with(|running| running.borrow().last().copied())
+/// The facts of the innermost running pass of `ctx` on this thread, `None` outside every pass of it.
+pub(crate) fn running(ctx: &Context) -> Option<PassFacts> {
+    RUNNING.with(|running| running.borrow().iter().rev().find(|facts| facts.ctx == *ctx).cloned())
 }
 
 /// The running pass's time in seconds, read once by the begin hook.
 pub(crate) fn clock(ctx: &Context) -> f64 {
-    match running() {
+    match running(ctx) {
         Some(facts) => facts.now,
         None => PerViewport::<ViewportRecord>::with(ctx, pass::current_viewport(ctx), |record| record.now),
     }
@@ -351,7 +353,12 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
     // H5: read the clock once; the runtime cancelled a captured press since this viewport's last pass.
     let now = pass::now(&ctx);
     let pass_nr = pass::pass_nr(&ctx, viewport);
-    RUNNING.with(|running| running.borrow_mut().push(PassFacts { viewport, pass_nr, now }));
+    RUNNING.with(|running| {
+        let mut running = running.borrow_mut();
+        // A pass of this viewport that never ended (a panic unwound through it) is not still running.
+        running.retain(|facts| !(facts.ctx == ctx && facts.viewport == viewport));
+        running.push(PassFacts { ctx: ctx.clone(), viewport, pass_nr, now });
+    });
     let cancelled = PerViewport::<ViewportRecord>::with(&ctx, viewport, |record| {
         record.now = now;
         std::mem::take(&mut record.press_cancelled)
@@ -416,5 +423,10 @@ pub(crate) fn end_pass(ui: &mut Ui) {
     for prune in prunes {
         prune(&ctx, &live);
     }
-    RUNNING.with(|running| running.borrow_mut().pop());
+    RUNNING.with(|running| {
+        let mut running = running.borrow_mut();
+        if let Some(at) = running.iter().rposition(|facts| facts.ctx == ctx) {
+            running.remove(at);
+        }
+    });
 }

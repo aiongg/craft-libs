@@ -5,7 +5,7 @@ use egui::{Context, ViewportId};
 
 /// The pass number of `viewport`; it counts every pass, discard passes included.
 pub(crate) fn pass_nr(ctx: &Context, viewport: ViewportId) -> u64 {
-    match frame::running() {
+    match frame::running(ctx) {
         Some(facts) if facts.viewport == viewport => facts.pass_nr,
         _ => ctx.cumulative_pass_nr_for(viewport),
     }
@@ -24,7 +24,7 @@ pub(crate) fn root_frame_nr(ctx: &Context) -> u64 {
 
 /// The viewport whose pass is running.
 pub(crate) fn current_viewport(ctx: &Context) -> ViewportId {
-    match frame::running() {
+    match frame::running(ctx) {
         Some(facts) => facts.viewport,
         None => ctx.viewport_id(),
     }

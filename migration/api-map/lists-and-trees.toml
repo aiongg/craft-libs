@@ -168,11 +168,18 @@ status = "replaced"
 note = "`TreeRow::new(row, depth, has_children, open)` is `row.depth(depth)` plus `.group(open)` for a row that has children: one component, no wrapper. `TreeRow::text` is `ListWords`; `into_row` and `show` are gone."
 
 [[type]]
-name = "UndoRowEvent, UndoRowOutput"
-old = "craft_ui::list::{UndoRowEvent, UndoRowOutput}"
-new = "craft_ui::contract::CollectionEvent"
+name = "UndoRowEvent"
+old = "craft_ui::list::UndoRowEvent"
+new = ""
 status = "removed"
 note = "An undo row reports nothing of its own: a press on the row is `CollectionEvent::Activate`, which `undo_count(&events)` reads."
+
+[[type]]
+name = "UndoRowOutput"
+old = "craft_ui::list::UndoRowOutput"
+new = ""
+status = "removed"
+note = "See `UndoRowEvent`."
 
 [[type]]
 name = "FindingsList"
