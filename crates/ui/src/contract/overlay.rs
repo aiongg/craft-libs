@@ -12,7 +12,7 @@ use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
-use crate::runtime::{frame, keys, pointer};
+use crate::runtime::{frame, keys, layout_memory, pointer};
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, Intent, OwnerClass};
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui};
@@ -842,6 +842,10 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let mut memory = recall(layer, ctx);
     let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
     let area = area_id(layer.id);
+    // The layer is placed by the size it took last pass; the layout memory entry under `size_id` marks that read, so a
+    // change of the size asks for the discard pass that places the layer by its real size within the frame.
+    let size_id = sub(layer.id, "layer_size");
+    let _ = layout_memory::read(ctx, size_id);
     let size = areas::layer_rect(ctx, area).map_or(egui::Vec2::ZERO, |rect| rect.size());
     let cap = match overlay.fit {
         OverlayFit::ContentCapped(share) => egui::Vec2::new(bounds.width() * share.x, bounds.height() * share.y),
@@ -889,6 +893,7 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
         Env::restore(ctx, installed);
     });
     overlay::end_layer(ctx);
+    layout_memory::record(ctx, size_id, shown.rect.size());
     let mut entry = OpenEntry::new(layer.id, overlay.rank, overlay.keys, shown.rect, shown.layer);
     entry.parent = parent;
     entry.anchor = matches!(overlay.place, Place::Anchored { .. }).then_some(anchor);

@@ -364,10 +364,11 @@ impl<'b> BodyHooks<'b> {
     }
 
     /// What a header or footer took. Before the body's width is known a region runs in the whole room and a `Fill`
-    /// child takes all of it, so no width is recorded then.
+    /// child takes all of it, so a region that took the whole room records no width then; one that took less
+    /// records what its content needs, so the next pass offers it that much and nothing in it measures squeezed.
     fn region_size(&self, ui: &Ui) -> Vec2 {
         let size = ui.min_rect().size();
-        if self.remembered.is_some() { size } else { Vec2::new(0.0, size.y) }
+        if self.remembered.is_some() || size.x + 0.5 < ui.max_rect().width() { size } else { Vec2::new(0.0, size.y) }
     }
 
     /// The width the regions ask for in a content-sized container: the widest of what each took last pass.
