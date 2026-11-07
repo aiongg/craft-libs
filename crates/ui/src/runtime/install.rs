@@ -1,7 +1,7 @@
 //! `runtime::install`: adds the runtime plugin once and sets the egui options the runtime owns.
 
 use crate::runtime::egui::{focus, input, plugin};
-use crate::runtime::frame;
+use crate::runtime::{commands, frame};
 use crate::style::{DuplicateStyle, StyleReplacements};
 use egui::Context;
 
@@ -43,6 +43,8 @@ pub enum InstallError {
     AlreadyInstalled,
     /// Two style replacements name one style key.
     DuplicateStyle(DuplicateStyle),
+    /// A command set's definitions are unusable, or two commands share an id.
+    Commands(commands::CommandDefError),
 }
 
 impl std::fmt::Display for InstallError {
@@ -50,6 +52,7 @@ impl std::fmt::Display for InstallError {
         match self {
             InstallError::AlreadyInstalled => f.write_str("the runtime is already installed on this context"),
             InstallError::DuplicateStyle(DuplicateStyle(key)) => write!(f, "two style replacements for the style key {key}"),
+            InstallError::Commands(error) => write!(f, "command registry: {error}"),
         }
     }
 }
@@ -64,6 +67,7 @@ pub fn install(ctx: &Context, spec: InstallSpec) -> Result<(), InstallError> {
         return Err(InstallError::AlreadyInstalled);
     }
     let looks = spec.looks.freeze().map_err(InstallError::DuplicateStyle)?;
+    commands::install(ctx).map_err(InstallError::Commands)?;
     looks.store(ctx);
     focus::never_surrender_focus(ctx);
     input::clear_shortcuts(ctx);

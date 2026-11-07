@@ -4,7 +4,7 @@
 use super::{Component, Resolved, Show, Tooltip, ValueOf};
 use crate::primitives::sensing::{PartDecl, PartResults};
 use crate::primitives::{PaintRecord, PartResult, TextEnv, TextLayout, TextRun};
-use crate::runtime::commands::ResolvedCommand;
+use crate::runtime::commands::{CommandAccess, CommandChain, Commands, ResolvedCommand};
 use crate::runtime::env::{Env, EnvView, Label};
 use crate::runtime::focus::{self, FocusShape};
 use crate::runtime::keys::Intents;
@@ -402,6 +402,42 @@ impl<C: Component> Focus for Cx<'_, C> {
         self.core.reveal(rect);
     }
 }
+
+impl<C: Component> CommandAccess for Cx<'_, C> {
+    fn command_ctx(&self) -> &Context {
+        &self.core.ctx
+    }
+
+    fn command_chain(&self) -> &CommandChain {
+        self.core.env.command_chain()
+    }
+}
+
+impl<C: Component> Commands for Cx<'_, C> {}
+
+impl CommandAccess for BodyCx<'_> {
+    fn command_ctx(&self) -> &Context {
+        self.memory.ctx()
+    }
+
+    fn command_chain(&self) -> &CommandChain {
+        self.env.command_chain()
+    }
+}
+
+impl Commands for BodyCx<'_> {}
+
+impl<K> CommandAccess for ItemCx<'_, '_, K> {
+    fn command_ctx(&self) -> &Context {
+        self.memory.ctx()
+    }
+
+    fn command_chain(&self) -> &CommandChain {
+        self.env.command_chain()
+    }
+}
+
+impl<K> Commands for ItemCx<'_, '_, K> {}
 
 /// The label a component shows (chapter 19).
 // F3-LATER: words (F4 adds `words::<L>()`)

@@ -1,6 +1,7 @@
 //! A fixed-rate frame driver over a context.
 
 use crate::runtime::egui::{areas, fixture};
+use crate::runtime::commands::CommandInput;
 use crate::runtime::env::RootEnv;
 use crate::runtime::frame::{FrameInput, announce, set_input};
 use crate::runtime::{InstallSpec, install};
@@ -16,6 +17,7 @@ pub struct Frames {
     time: f64,
     root: RootEnv,
     cursor: egui::CursorIcon,
+    commands: CommandInput,
 }
 
 impl Default for Frames {
@@ -34,7 +36,7 @@ impl Frames {
 
     /// A fresh context without the runtime, for frames that ran before `install`.
     pub fn uninstalled() -> Self {
-        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default }
+        Frames { ctx: fixture::bare_context(), time: 0.0, root: RootEnv::default(), cursor: egui::CursorIcon::Default, commands: CommandInput::new() }
     }
 
     /// Installs the runtime on the context.
@@ -48,9 +50,14 @@ impl Frames {
         self.root = root;
     }
 
+    /// The command input every following frame is given.
+    pub fn commands(&mut self, commands: CommandInput) {
+        self.commands = commands;
+    }
+
     /// One frame with `events`; `ui` runs once per pass. Returns the number of passes.
     pub fn frame(&mut self, events: Vec<Event>, mut ui: impl FnMut(&mut Ui)) -> usize {
-        set_input(&self.ctx, FrameInput::new(self.root.clone()));
+        set_input(&self.ctx, FrameInput::new(self.root.clone()).commands(self.commands.clone()));
         let mut passes = 0;
         self.run(events, |root| {
             passes += 1;

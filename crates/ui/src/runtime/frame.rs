@@ -4,6 +4,7 @@ use crate::runtime::egui::input::{self as raw_input, HeldInput, RawInput};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
+use crate::runtime::commands::{self, CommandInput, Fired};
 use crate::runtime::{cursor, focus, keys, layout_memory, memory, pointer, wheel};
 use craft_host::Host;
 use craft_host::target::Os;
@@ -19,6 +20,8 @@ use std::sync::Arc;
 pub struct FrameInput {
     /// The app's root values.
     pub root: RootEnv,
+    /// App-scope command state, the binding overrides and the gate, set from app state.
+    pub commands: CommandInput,
     /// The app's `Host`, read through `EnvView::host`.
     pub host: Option<Arc<Host>>,
     /// Whether decision records are kept for the debug inspector.
@@ -28,7 +31,13 @@ pub struct FrameInput {
 impl FrameInput {
     /// A frame with `root` and no host.
     pub fn new(root: RootEnv) -> Self {
-        FrameInput { root, host: None, inspect: false }
+        FrameInput { root, commands: CommandInput::new(), host: None, inspect: false }
+    }
+
+    /// Sets the command input.
+    pub fn commands(mut self, commands: CommandInput) -> Self {
+        self.commands = commands;
+        self
     }
 
     /// Sets the host.
@@ -48,6 +57,8 @@ impl FrameInput {
 #[derive(Clone, Debug, Default, PartialEq)]
 #[non_exhaustive]
 pub struct FrameOutput {
+    /// The app-scope commands fired since the last call, in order.
+    pub fired: Vec<Fired>,
     /// Text for the live announcement region.
     pub announcements: Vec<String>,
     /// Whether the chrome-toggle key was pressed.
@@ -154,6 +165,7 @@ pub(crate) fn register_end_sweep(ctx: &Context, key: TypeId, sweep: fn(&Context)
 /// or after a pass whose plugin hooks did not run, is a debug assertion.
 pub fn set_input(ctx: &Context, input: FrameInput) {
     let scale = input.root.scale;
+    let commands = input.commands.clone();
     let root_passes = pass::pass_nr(ctx, ViewportId::ROOT);
     let hooks_ran = store::with::<FrameState, _>(ctx, |state| {
         debug_assert!(state.passes_open == 0, "set_input was called during a pass");
@@ -164,6 +176,7 @@ pub fn set_input(ctx: &Context, input: FrameInput) {
         state.input = Some(input);
         ran
     });
+    commands::set_input(ctx, &commands);
     debug_assert!(hooks_ran, "the runtime plugin's hooks did not run for the previous pass: drive frames with `Context::run_ui` or `run_pass`");
     scale::set_interface_scale(ctx, scale.0);
 }
@@ -200,7 +213,9 @@ pub(crate) fn in_pass(ctx: &Context) -> bool {
 
 /// Everything accumulated since the last call, across passes and discarded passes.
 pub fn take_output(ctx: &Context) -> FrameOutput {
-    store::with::<FrameState, _>(ctx, |state| std::mem::take(&mut state.output))
+    let mut output = store::with::<FrameState, _>(ctx, |state| std::mem::take(&mut state.output));
+    output.fired = commands::take_fired(ctx);
+    output
 }
 
 /// Sets the end hook's ghost-layer painter.
@@ -297,12 +312,15 @@ pub(crate) fn begin_pass(ui: &mut Ui) {
         pointer::cancel_press(&ctx, craft_behavior::PressCancel::Escape);
     }
     wheel::begin(&ctx);
+    // H7: shortcuts the owner allows, through the gate.
+    commands::begin(&ctx);
 }
 
 /// The end hook.
 pub(crate) fn end_pass(ui: &mut Ui) {
     let ctx = ui.ctx().clone();
     cursor::end_pass(&ctx);
+    commands::end(&ctx);
     let painter = store::with::<FrameState, _>(&ctx, |state| state.frame_layers);
     if let Some(paint_frame_layers) = painter {
         paint_frame_layers(&ctx);

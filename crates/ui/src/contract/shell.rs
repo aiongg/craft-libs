@@ -3,6 +3,7 @@
 //! F3-LATER: body (F5) and item (F6) steps. These carry what the simplest form of each step reads: whether the
 //! container is an arena root and its focus scope, and the collection's key-independent settings.
 
+use crate::runtime::commands::CommandScope;
 use crate::runtime::focus::FocusPolicy;
 use std::marker::PhantomData;
 
@@ -14,17 +15,25 @@ pub struct ContainerProps {
     pub arena: bool,
     /// A focus scope for the body, when the container has one.
     pub focus: Option<FocusPolicy>,
+    /// The container is an instance of this command scope: the scoped commands of the scope reach its body.
+    pub command_scope: Option<CommandScope>,
 }
 
 impl ContainerProps {
     /// Props with no arena and no focus scope.
     pub const fn new() -> Self {
-        ContainerProps { arena: false, focus: None }
+        ContainerProps { arena: false, focus: None, command_scope: None }
     }
 
     /// Makes the container an arena root.
     pub const fn arena(mut self, on: bool) -> Self {
         self.arena = on;
+        self
+    }
+
+    /// Makes the container an instance of `scope`.
+    pub const fn command_scope(mut self, scope: CommandScope) -> Self {
+        self.command_scope = Some(scope);
         self
     }
 

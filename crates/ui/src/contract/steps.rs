@@ -4,7 +4,7 @@
 use super::cx::{CxCore, Decls, MeasureCx};
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, ValueOf};
 use crate::primitives::{FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
-use crate::runtime::commands::ResolvedCommand;
+use crate::runtime::commands::{self, ResolvedCommand};
 use crate::runtime::egui::{memory as store, pass, repaint, response};
 use crate::runtime::env::{Env, Label};
 use crate::runtime::focus::{self, Group, Stop};
@@ -157,19 +157,19 @@ pub(crate) struct EnvStep {
     pub command: Option<Arc<ResolvedCommand>>,
 }
 
-/// Step 1, env: enabled = instance AND scopes; read-only = instance OR scopes; size; variant; label.
-pub(crate) fn env<C: Component>(env: &Env, common: &Common) -> EnvStep {
+/// Step 1, env: enabled = instance AND scopes AND the bound command's state; read-only = instance OR scopes;
+/// size; variant; label.
+pub(crate) fn env<C: Component>(ctx: &Context, env: &Env, common: &Common) -> EnvStep {
     let default = <C::Style as ComponentStyle>::VARIANTS.first().copied().unwrap_or(Variant::SECONDARY);
     let requested = common.variant.unwrap_or(default);
     let variant = accepted_variant::<C::StyleKey, C::Style>(requested).variant;
-    // F3-LATER: commands (F4 adds the board's state: enabled, checked, and the command's own label)
-    let command = common.command.as_ref().map(|command| Arc::new(ResolvedCommand { title: Arc::from(command.0) }));
+    let command = common.command.as_ref().map(|command| Arc::new(commands::resolve_bound(ctx, &env.commands, command)));
     let label = match (&common.label, &command) {
-        (Label::Empty, Some(command)) => Label::Shared(command.title.clone()),
+        (Label::Empty, Some(command)) => Label::Shared(command.label.clone()),
         (label, _) => label.clone(),
     };
     EnvStep {
-        enabled: common.enabled.unwrap_or(true) && env.enabled,
+        enabled: common.enabled.unwrap_or(true) && env.enabled && command.as_ref().is_none_or(|command| command.enabled),
         read_only: common.read_only == Some(true) || env.read_only,
         size: common.size.unwrap_or(env.size),
         variant,
@@ -621,7 +621,12 @@ pub(crate) fn report<C: Component>(cx: &Cx<'_, C>) {
 pub(crate) fn before_finish<C: Component>(cx: &mut Cx<'_, C>, activated: bool) {
     let by_key = activated && cx.core.activation.is_some_and(|activation| activation.by_key);
     response::rewrite_clicks(&mut cx.core.response, by_key, cx.core.command.is_some());
-    // F4-LATER: the command fires here; gesture finish and `EditEvent::fold`.
+    if activated {
+        if let Some(command) = &cx.core.command {
+            commands::fire_bound(&cx.core.ctx, command, by_key);
+        }
+    }
+    // F4-LATER: gesture finish and `EditEvent::fold`.
 }
 
 /// The sizes a body or collection records at step 17.

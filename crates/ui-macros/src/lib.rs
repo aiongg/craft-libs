@@ -1,6 +1,7 @@
 //! Macros of craft-ui: `#[derive(Component, Props, ComponentStyle, TokenGroup, CommandSet, EnvValue)]`,
 //! `words!`, `#[story]`, `#[craft_ui::testing::trial]` and `register_contract!`.
 
+mod command_set;
 mod component;
 mod env;
 mod props;
@@ -17,6 +18,15 @@ use syn::{ItemFn, ReturnType, parse_macro_input};
 
 fn expanded(result: syn::Result<proc_macro2::TokenStream>) -> TokenStream {
     result.unwrap_or_else(syn::Error::into_compile_error).into()
+}
+
+/// Writes `CommandSet` for an enum of unit variants and registers the set, which the command board loads at
+/// install. `#[command(prefix = "..", scope = "..")]` on the enum gives the id prefix (`prefix.variant_name`)
+/// and the scope (the application scope without one); each variant takes `label`, `icon`, `kind`, `modal`,
+/// `default`, `path` and `alias`.
+#[proc_macro_derive(CommandSet, attributes(command))]
+pub fn derive_command_set(input: TokenStream) -> TokenStream {
+    expanded(command_set::derive(input.into()))
 }
 
 /// Writes `Meta`, the `<Type>StyleKey` type, `HasProps` for a container or collection, and the type's

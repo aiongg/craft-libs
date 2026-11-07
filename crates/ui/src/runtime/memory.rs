@@ -252,6 +252,11 @@ pub struct MemoryStage {
 }
 
 impl MemoryStage {
+    /// The egui context the stage belongs to.
+    pub(crate) fn ctx(&self) -> &Context {
+        &self.ctx
+    }
+
     /// A stage whose entries belong to `base`.
     pub(crate) fn open(ctx: &Context, base: Id) -> Self {
         Self::open_owned(ctx, base, base)
