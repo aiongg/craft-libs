@@ -3,11 +3,13 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
+use crate::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, Validity, WordSetCx as _,
+};
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
 use crate::text::NumberField;
-use crate::value_drag::{Slider, SliderScale};
+use crate::value_drag::{Slider, SliderScale, TrackFace};
 use craft_behavior::{Flow, Metrics, Mixed, Proposal, Sense, decimals_for_step};
 use egui::{Rect, Vec2, pos2};
 use std::ops::RangeInclusive;
@@ -52,14 +54,67 @@ pub struct SliderField<'a> {
     /// What the number counts: the field shows its unit and reads its spellings.
     #[prop]
     unit_kind: Option<UnitKind>,
+    /// A unit shown after the number, for a quantity with no `UnitKind` (a font axis).
+    #[prop(into)]
+    unit: Option<Label>,
+    /// Whether the part of the track before the thumb is filled.
+    #[prop]
+    fill: bool,
+    /// The look of the track in place of the groove and the fill (a colour gradient).
+    #[prop]
+    track_face: Option<TrackFace<'a>>,
 }
 
 impl<'a> SliderField<'a> {
     /// A slider and number field named `label` over `value` in `range`.
     pub fn new(label: impl Into<Label>, value: Bind<'a, f64>, range: RangeInclusive<f64>) -> Self {
-        SliderField { common: Common::new(), value, range, scale: SliderScale::Linear, step: None, wheel_step: None, unit_kind: None }.label(label)
+        SliderField {
+            common: Common::new(),
+            value,
+            range,
+            scale: SliderScale::Linear,
+            step: None,
+            wheel_step: None,
+            unit_kind: None,
+            unit: None,
+            fill: true,
+            track_face: None,
+        }
+        .label(label)
     }
 
+    /// What the children are built from, apart from the binding and the track face.
+    fn look(&self) -> Look {
+        Look {
+            range: self.range.clone(),
+            scale: self.scale,
+            step: self.step,
+            wheel_step: self.wheel_step,
+            unit_kind: self.unit_kind,
+            unit: self.unit.clone(),
+            fill: self.fill,
+            reset: self.value.reset_value().copied(),
+        }
+    }
+}
+
+/// What a `SliderField` builds its two children from.
+struct Look {
+    range: RangeInclusive<f64>,
+    scale: SliderScale,
+    step: Option<f64>,
+    wheel_step: Option<f64>,
+    unit_kind: Option<UnitKind>,
+    unit: Option<Label>,
+    fill: bool,
+    /// The reset value of the composite's own binding, which both children restore on a double click.
+    reset: Option<f64>,
+}
+
+/// The composite's check on a number, as a child with the same value type reads it.
+type Check<'c, V> = Option<&'c dyn Fn(&V) -> Validity<V>>;
+
+impl Look {
     /// The step the host set, when it is a usable one.
     fn set_step(&self) -> Option<f64> {
         self.step.filter(|step| step.is_finite() && *step > 0.0)
@@ -69,8 +124,21 @@ impl<'a> SliderField<'a> {
         self.set_step().unwrap_or(if (self.range.end() - self.range.start()).abs() <= SHORT_RANGE { SHORT_STEP } else { LONG_STEP })
     }
 
-    fn slider(&self, name: &Label, shown: Mixed<f64>) -> Slider<'static> {
-        let slider = Slider::new(self.given(shown), self.range.clone()).scale(self.scale).label(name.clone());
+    /// The slider showing `shown`. Its check is the composite's, so a value the composite refuses or warns about
+    /// looks invalid or warned on the slider too, and a value it fixes is fixed before the composite adopts it.
+    fn slider<'c>(&self, name: &Label, shown: Mixed<f64>, check: Check<'c, f64>, face: Option<TrackFace<'c>>) -> Slider<'c> {
+        let mut bind = Bind::given(shown);
+        if let Some(reset) = self.reset {
+            bind = bind.reset(reset);
+        }
+        if let Some(check) = check {
+            bind = bind.check(check);
+        }
+        let slider = Slider::new(bind, self.range.clone()).scale(self.scale).fill(self.fill).label(name.clone());
+        let slider = match face {
+            Some(face) => slider.track_face(face),
+            None => slider,
+        };
         let slider = match self.set_step() {
             Some(step) => slider.step(step),
             None => slider,
@@ -81,25 +149,19 @@ impl<'a> SliderField<'a> {
         }
     }
 
-    /// The binding a child shows `shown` through, with the reset value of this component's own.
-    fn given(&self, shown: Mixed<f64>) -> Bind<'static, f64> {
-        let bind = Bind::given(shown);
-        match self.value.reset_value() {
-            Some(default) => bind.reset(*default),
-            None => bind,
-        }
-    }
-
-    fn field(&self, name: &Label, shown: Mixed<f64>) -> NumberField<'static> {
+    /// The number field showing `shown`, with the composite's check as the slider has it.
+    fn field<'c>(&self, name: &Label, shown: Mixed<f64>, check: Check<'c, Option<f64>>) -> NumberField<'c> {
         let number = match shown {
             Mixed::Same(value) => Mixed::Same(Some(value)),
             Mixed::Mixed => Mixed::Mixed,
         };
-        let bind = Bind::given(number);
-        let bind = match self.value.reset_value() {
-            Some(default) => bind.reset(Some(*default)),
-            None => bind,
-        };
+        let mut bind = Bind::given(number);
+        if let Some(reset) = self.reset {
+            bind = bind.reset(Some(reset));
+        }
+        if let Some(check) = check {
+            bind = bind.check(check);
+        }
         let step = self.field_step();
         let field = NumberField::new(name.clone(), bind)
             .range(self.range.clone())
@@ -107,10 +169,24 @@ impl<'a> SliderField<'a> {
             .snap_typed(self.set_step().is_some())
             .commit_decimals(decimals_for_step(step))
             .scrub_by_label();
-        match self.unit_kind {
+        let field = match self.unit_kind {
             Some(kind) => field.unit_kind(kind),
             None => field,
+        };
+        match &self.unit {
+            Some(unit) => field.unit(unit.clone()),
+            None => field,
         }
+    }
+}
+
+/// The composite's verdict on a number as a number field's, which reads `Option<f64>`.
+fn lifted(verdict: Validity<f64>) -> Validity<Option<f64>> {
+    match verdict {
+        Validity::Fix(number) => Validity::Fix(Some(number)),
+        Validity::Warn(message) => Validity::Warn(message),
+        Validity::Refuse(message) => Validity::Refuse(message),
+        _ => Validity::Ok,
     }
 }
 
@@ -133,8 +209,9 @@ impl Component for SliderField<'_> {
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
         let shown = shown_of(cx.value());
         let name = cx.label();
-        let slider = cx.child("slider", &mut self.slider(&name, shown), Proposal::Ideal);
-        let field = cx.child("field", &mut self.field(&name, shown), Proposal::Ideal);
+        let look = self.look();
+        let slider = cx.child("slider", &mut look.slider(&name, shown, None, None), Proposal::Ideal);
+        let field = cx.child("field", &mut look.field(&name, shown, None), Proposal::Ideal);
         Vec2::new(slider.x + cx.gap() + cx.style.field, slider.y.max(field.y))
     }
 
@@ -150,13 +227,18 @@ impl Component for SliderField<'_> {
         let place = |logical: Rect| flow.to_physical(logical.translate(cx.rect.min.to_vec2()));
         // The field is shown first, so it is the first Tab stop.
         // The group has no stop, so its tooltip, and with it the reason it is disabled, is carried by the first stop.
-        let field_view = self.field(&name, shown);
+        let look = self.look();
+        let face = self.track_face.take();
+        let bind = self.value.reborrow();
+        let on_slider = |value: &f64| bind.validity(value);
+        let on_field = |value: &Option<f64>| value.map_or(Validity::Ok, |value| lifted(bind.validity(&value)));
+        let field_view = look.field(&name, shown, Some(&on_field));
         let field_view = match cx.resolved.tooltip {
             Some(tooltip) => field_view.tooltip(tooltip.clone()),
             None => field_view,
         };
         let typed = ui.child("field", place(field), field_view);
-        let dragged = ui.child("slider", place(track), self.slider(&name, shown));
+        let dragged = ui.child("slider", place(track), look.slider(&name, shown, Some(&on_slider), face));
         let start = *self.range.start();
         cx.adopt(&typed, &start, |value, mine| {
             if let Some(value) = value {
