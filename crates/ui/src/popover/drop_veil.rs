@@ -12,6 +12,7 @@ use craft_behavior::{Metrics, Sense};
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
 
+#[cfg(feature = "testing")]
 mod stories;
 
 /// The style of a drop veil: the card's padding and text. The scrim, the frame and the card's surface come from the
