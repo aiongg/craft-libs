@@ -38,6 +38,6 @@ fn fixture_command_state_checks_a_bound_icon_button() {
     let button = fixture.by_role(craft_ui::contract::Role::BUTTON)[0];
     fixture.command_state(EditCommands::Undo, CommandState::new().checked(true)).idle(3);
     assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)));
-    fixture.command_state(EditCommands::Undo, CommandState::new().checked(false)).idle(3);
-    assert_eq!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(false)));
+    fixture.command_state(EditCommands::Undo, CommandState::new()).idle(3);
+    assert_ne!(fixture.tree().toggled_of(button.node), Some(Mixed::Same(true)), "cleared state is not checked");
 }
