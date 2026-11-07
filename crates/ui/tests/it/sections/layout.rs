@@ -136,12 +136,12 @@ fn pinned_sections_stay_above_the_others() {
 #[trial]
 fn applying_events_changes_the_layout() {
     let mut layout = usual();
-    assert!(layout.apply(&SectionEvent::Moved { key: key("keywords"), before: Some(key("albums")) }));
+    assert!(layout.apply(&SectionEvent::moved(key("keywords"), Some(key("albums")))));
     assert_eq!(order(&layout)[0], "keywords");
     assert!(layout.apply(&SectionEvent::Hidden(key("local"))) && layout.is_hidden(&key("local")));
     assert!(!layout.apply(&SectionEvent::Hidden(key("local"))), "already hidden");
     assert!(layout.apply(&SectionEvent::Shown(key("local"))) && !layout.is_hidden(&key("local")));
-    assert!(layout.apply(&SectionEvent::Folded { key: key("byDate"), folded: true }) && layout.is_folded(&key("byDate")));
+    assert!(layout.apply(&SectionEvent::folded(key("byDate"), true)) && layout.is_folded(&key("byDate")));
     assert!(layout.apply(&SectionEvent::Pinned(key("byDate"))) && layout.is_pinned(&key("byDate")));
     assert!(layout.apply(&SectionEvent::Unpinned(key("byDate"))) && !layout.is_pinned(&key("byDate")));
 }

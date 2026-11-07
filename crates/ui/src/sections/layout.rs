@@ -53,6 +53,7 @@ impl SectionState {
 pub enum SectionEvent {
     /// Move `key` before `before` (`None`: to the end). From a header drag, Alt with the arrow keys, or Move Up and
     /// Move Down.
+    #[non_exhaustive]
     Moved {
         /// The section moved.
         key: SectionKey,
@@ -64,6 +65,7 @@ pub enum SectionEvent {
     /// The section was shown again.
     Shown(SectionKey),
     /// The section was folded or unfolded.
+    #[non_exhaustive]
     Folded {
         /// The section.
         key: SectionKey,
@@ -74,6 +76,18 @@ pub enum SectionEvent {
     Pinned(SectionKey),
     /// The section was released from the top.
     Unpinned(SectionKey),
+}
+
+impl SectionEvent {
+    /// `key` moved before `before` (`None`: to the end).
+    pub fn moved(key: SectionKey, before: Option<SectionKey>) -> Self {
+        SectionEvent::Moved { key, before }
+    }
+
+    /// `key` folded (`folded`) or unfolded.
+    pub fn folded(key: SectionKey, folded: bool) -> Self {
+        SectionEvent::Folded { key, folded }
+    }
 }
 
 /// The arrangement of a sidebar's sections, top to bottom. Pinned sections come first, in their own order, then the
