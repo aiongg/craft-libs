@@ -4,7 +4,7 @@
 use super::ItemsHooks;
 use crate::contract::collection::{CollectionEvent, ColumnEvent, ColumnSpec, HeaderMenuRequest};
 use crate::contract::{Collection, Common, Component, Cx, Focus as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Show as _};
-use crate::primitives::TextRun;
+use crate::primitives::{IconSpec, TextRun};
 use crate::runtime::access::items::{HeaderCell, report_header};
 use crate::runtime::commands::{self, CommandRef, CommandSet, CommandState};
 use crate::runtime::egui::{alloc, child};
@@ -13,8 +13,8 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::style::{ComponentStyle, StyleCx, scroll_bar_look};
 use craft_behavior::grid::resolve_columns;
 use craft_behavior::{
-    ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, Insets, Intent, Metrics, NavMove, NavShape, PartKey, PointerButton, PressPhase,
-    Roving, Sense,
+    Align, ColumnKey, ColumnWidth, CursorIcon, Flow, HitLevel, HitPriority, IconId, Insets, Intent, Metrics, NavMove, NavShape, PartKey,
+    PointerButton, PressPhase, Roving, Sense,
 };
 use egui::{Context, Id, Pos2, Rect, Response, Ui, UiBuilder, Vec2};
 
@@ -351,18 +351,13 @@ impl Header {
         let ctx = ui.ctx().clone();
         for cell in &self.cells {
             let spec = &self.specs[cell.spec];
-            let mut text = cx.core.env.resolve(&spec.header).as_str().to_owned();
-            if let Some((key, descending)) = &self.memory.sorted
-                && *key == spec.key
-            {
-                text.push(' ');
-                text.push(if *descending { '▼' } else { '▲' });
-            }
+            let text = cx.core.env.resolve(&spec.header).as_str().to_owned();
+            let sort = self.memory.sorted.as_ref().filter(|(key, _)| *key == spec.key).map(|(_, descending)| *descending);
             let builder = UiBuilder::new().max_rect(cell.rect).layout(child::column_layout(rtl)).scope_id(sub(id, ("header_cell", cell.hash)));
             let mut cell_ui = alloc::child(ui, builder);
             cell_ui.set_clip_rect(cell.rect.intersect(ui.clip_rect()));
             let installed = Env::install_for(&cell_ui, env.derive(|scoped| scoped.arena = None));
-            let label = HeaderText::new(Label::from(text), self.inset).id(sub(id, ("header_text", cell.hash)));
+            let label = HeaderText::new(Label::from(text), self.inset, sort).id(sub(id, ("header_text", cell.hash)));
             label.show_at(&mut cell_ui, cell.rect);
             Env::restore(&ctx, installed);
         }
@@ -426,11 +421,13 @@ struct HeaderText {
     #[common]
     common: Common,
     inset: f32,
+    /// Whether the column is the sorted one, and if so whether it sorts descending.
+    sort: Option<bool>,
 }
 
 impl HeaderText {
-    fn new(text: Label, inset: f32) -> Self {
-        HeaderText { common: Common::new(), inset }.label(text)
+    fn new(text: Label, inset: f32, sort: Option<bool>) -> Self {
+        HeaderText { common: Common::new(), inset, sort }.label(text)
     }
 }
 
@@ -449,7 +446,19 @@ impl Component for HeaderText {
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let flow = Flow::new(cx.rect, cx.core.env.direction().is_rtl());
-        ui.draw().text(flow.inset(Insets::horizontal(self.inset)), &TextRun::new(cx.core.resolved.label));
+        let inner = Flow::new(flow.inset(Insets::horizontal(self.inset)), flow.is_rtl());
+        let text = match self.sort {
+            Some(descending) => {
+                let tokens = &cx.core.env.tokens;
+                let (side, gap) = (tokens.size.icon.sm, tokens.space.gap.tight);
+                let (slot, rest) = inner.take_end(side + gap);
+                let id = IconId::new(if descending { "sort_descending" } else { "sort_ascending" });
+                ui.draw().icon(Flow::new(slot, flow.is_rtl()).align(Vec2::splat(side), Align::Max, Align::Center), &IconSpec::svg(id));
+                rest.rect()
+            }
+            None => inner.rect(),
+        };
+        ui.draw().text(text, &TextRun::new(cx.core.resolved.label));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

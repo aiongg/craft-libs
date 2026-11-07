@@ -2,7 +2,7 @@
 
 use craft_i18n::Direction;
 use craft_theme::{Contrast, ControlSize, Mode, Rgba, Variant};
-use craft_ui::primitives::{PaintShape, RuleKind, StrokeWidth};
+use craft_ui::primitives::{IconSpec, PaintShape, RuleKind, StrokeWidth, TextureCache, ToolIcon, has_icon};
 use craft_ui::style::{Corners, DataColor, Ink, SurfaceKind};
 use craft_ui::testing::style::{paint_frame, tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
@@ -82,4 +82,27 @@ fn a_state_fill_replaces_the_surface_fill_instead_of_stacking() {
             .collect();
         assert_eq!(fills, vec![wash], "one fill, the state's");
     });
+}
+
+#[trial]
+fn every_tool_names_a_catalog_icon_and_an_id_that_round_trips() {
+    let mut ids = std::collections::HashSet::new();
+    for tool in ToolIcon::ALL {
+        assert!(has_icon(&tool.icon()), "{tool:?} names an icon the catalog lacks");
+        assert!(ids.insert(tool.id()), "{tool:?} repeats the id {}", tool.id());
+        assert_eq!(ToolIcon::from_id(tool.id()), Some(tool));
+    }
+    assert_eq!(ToolIcon::from_id("nonsense"), None);
+}
+
+#[trial]
+fn an_icon_loads_its_texture_once_and_paints_it_every_frame() {
+    let mut frames = Frames::new();
+    let tokens = tokens(Mode::Light, Contrast::Standard);
+    let spec = IconSpec::svg(ToolIcon::Brush.icon());
+    for _ in 0..3 {
+        let (shapes, _) = paint_frame(&mut frames, &tokens, Direction::Ltr, Ink::OnPanel, |draw| draw.icon(RECT, &spec));
+        assert!(!shapes.is_empty(), "the icon paints a textured shape");
+    }
+    assert_eq!(TextureCache::len(&frames.ctx), 1, "one texture serves every frame");
 }

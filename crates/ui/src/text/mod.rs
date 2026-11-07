@@ -107,6 +107,13 @@ impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
         self
     }
 
+    /// The field shows `lines` lines and wraps its text; 1 is a single-line field.
+    #[must_use]
+    pub fn lines(mut self, lines: usize) -> Self {
+        self.options.lines = Some(lines);
+        self
+    }
+
     /// The most characters the text holds.
     #[must_use]
     pub fn limit(mut self, limit: usize) -> Self {
