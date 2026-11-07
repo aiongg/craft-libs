@@ -136,7 +136,7 @@ impl CanvasGrid {
     pub fn new(label: impl Into<Label>) -> Self {
         CanvasGrid {
             common: Common::new(),
-            spacing: Vec2 { x: DEFAULT_STEP, y: DEFAULT_STEP },
+            spacing: (DEFAULT_STEP, DEFAULT_STEP).into(),
             subdivisions: 1,
             origin: Point::ZERO,
             bounds: None,
