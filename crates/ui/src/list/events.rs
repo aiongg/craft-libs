@@ -95,7 +95,7 @@ impl LogEvent {
     }
 
     /// The event as a list row: its level icon, its message with the repeat count and, at the end, `age` in the
-    /// caption role. A screen reader reads the level, message and age. `striped` tints an odd row.
+    /// caption role. A screen reader reads the message, level and age. `striped` tints an odd row.
     pub fn row(&self, age: &str, words: &EventWords, striped: bool) -> ListRow<'static> {
         let message = self.message_with_count(words);
         let name = words.row_name.fill(&[("level", self.level.word(words)), ("message", message.as_str()), ("age", age)]);

@@ -22,7 +22,7 @@ craft_ui::words! {
         /// An event that happened several times in a row: `{message}`, `{count}`.
         repeated: template "eventLog.repeated" = "{message}  (\u{d7}{count})";
         /// A row's accessible name: `{level}`, `{message}` and `{age}`.
-        row_name: template "eventLog.rowName" = "{level}: {message}, {age}";
+        row_name: template "eventLog.rowName" = "{message}, {level}, {age}";
         /// The details line over the selected event's message: `{level}`, `{source}` and `{time}`.
         details: template "eventLog.details" = "{level} \u{b7} {source} \u{b7} {time}";
         none: "eventLog.none" = "No events.";

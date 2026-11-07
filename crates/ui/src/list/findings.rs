@@ -62,8 +62,8 @@ impl Finding {
         self
     }
 
-    /// The finding as a list row: its severity icon, text and detail line. A screen reader reads the severity word,
-    /// the text and the detail.
+    /// The finding as a list row: its severity icon, text and detail line. A screen reader reads the text, the severity
+    /// word and the detail; the name starts with the visible text.
     pub fn row(&self, words: &FindingsWords) -> ListRow<'static> {
         let level = match self.severity {
             Severity::Info => words.info.as_str(),
@@ -71,8 +71,8 @@ impl Finding {
             Severity::Error => words.error.as_str(),
         };
         let name = match &self.detail {
-            Some(detail) => format!("{level}: {}, {detail}", self.text),
-            None => format!("{level}: {}", self.text),
+            Some(detail) => format!("{}, {level}, {detail}", self.text),
+            None => format!("{}, {level}", self.text),
         };
         let row = ListRow::new(self.text.clone()).icon(IconSpec::svg(self.severity.icon())).accessible_name(name);
         match &self.detail {
