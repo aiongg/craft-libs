@@ -9,6 +9,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 const INCH_PER_CENTIMETRE: f64 = 2.54;
+/// The next whole number of pixels/cm above 72 pixels/inch.
+const STEPPED: f64 = 29.0;
 
 /// A resolution row in pixels per centimetre shows two digits and an arrow press steps by one unit of that kind,
 /// writing the base value back in pixels per inch.
@@ -33,5 +35,5 @@ fn a_resolution_row_shows_the_digits_and_step_of_its_unit_kind() {
     fixture.key(Key::ArrowUp, Modifiers::NONE);
     fixture.idle(2);
     let base = fields.borrow().number("resolution").unwrap_or_default();
-    assert!((base - 29.0 * INCH_PER_CENTIMETRE).abs() < 1e-6, "the arrow steps to 29 pixels/cm: {base}");
+    assert_eq!(base, STEPPED * INCH_PER_CENTIMETRE, "the arrow steps to the next whole pixel/cm");
 }
