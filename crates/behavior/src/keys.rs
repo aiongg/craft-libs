@@ -299,7 +299,7 @@ mod tests {
             check(os, Key::Right, Mods::ALT, value, fine(NavMove::Forward, false));
             check(os, Key::Left, Mods { shift: true, ..Mods::ALT }, value, fine(NavMove::Back, true));
             check(os, Key::Up, Mods::ALT, number, fine(NavMove::Up, false));
-            check(os, Key::Up, Mods::ALT, text, None);
+            check(os, Key::Up, Mods::ALT, text, Some(Intent::Close));
         }
         let word = MoveMods::new(false, false, Granularity::Word);
         check(Os::Mac, Key::Left, Mods::ALT, text, Some(Intent::Move(NavMove::Back, word)));
