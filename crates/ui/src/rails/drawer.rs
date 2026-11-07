@@ -6,7 +6,8 @@ use super::words::RailWords;
 use crate::buttons::{Button, IconButton};
 use crate::contract::overlay::{Anchor, Dismiss, Overlay, Place};
 use crate::contract::{
-    Bind, CollectionEvent, Gap, NoValue, Outcome, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing, clicked,
+    Bind, CollectionEvent, Gap, ListDrag, NoValue, Outcome, Props as _, SelectMode, Show as _, ShowCollection as _, ShowContainer as _, Sizing,
+    clicked,
 };
 use crate::display::{Shade, Text};
 use crate::layout_components::{Row, Stack};
@@ -248,6 +249,10 @@ impl<T: Value + 'static> ToolbarDrawer<'_, T> {
                         let list = List::<DrawerKey>::new(words.drawer_tools.clone())
                             .id(ui.scope_id().with("drawer-tools"))
                             .select(SelectMode::Single)
+                            .drag_payload(|drag: &ListDrag<DrawerKey>| match drag.grabbed {
+                                DrawerKey::Tool { group, tool } => ToolDrag::drawer(group, tool),
+                                DrawerKey::Group(group) => ToolDrag::drawer(group, 0),
+                            })
                             .sizing(Sizing::Content);
                         let out = list.show_items(ui, &rows, &mut |key, _| match *key {
                             DrawerKey::Group(group) => ListRow::new(groups[group].label.clone()).heading(),

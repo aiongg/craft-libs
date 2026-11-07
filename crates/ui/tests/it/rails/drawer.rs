@@ -1,6 +1,9 @@
 //! The drawer's own logic: how an edit changes the toolbar and what a drop on the rail asks for.
 
-use craft_ui::rails::{DrawerGroup, DropAt, RailTool, ToolDrag, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit, drop_edit};
+use craft_ui::contract::Show as _;
+use craft_ui::rails::{
+    DrawerGroup, DropAt, LastUsed, RailTool, ToolDrag, ToolRail, ToolSlot, ToolbarDrawer, ToolbarEdit, apply_toolbar_edit, drop_edit,
+};
 use craft_ui::runtime::commands::EditCommands;
 use craft_ui::testing::{Fixture, trial};
 use egui::{Key, Modifiers, Rect, pos2, vec2};
@@ -126,4 +129,29 @@ fn down_from_the_last_tool_of_a_group_lands_on_the_first_tool_of_the_next() {
     let added: Vec<u8> =
         edits.borrow().iter().filter_map(|edit| if let ToolbarEdit::Add { tool, .. } = edit { Some(tool.id) } else { None }).collect();
     assert_eq!(added, [CUT], "the second group's heading row is skipped");
+}
+
+#[trial]
+fn a_drawer_row_dragged_onto_the_rail_drops_as_a_drawer_tool() {
+    let edits = Rc::new(RefCell::new(Vec::new()));
+    let seen = edits.clone();
+    let rail_at = Rc::new(Cell::new(Rect::NOTHING));
+    let rail_seen = rail_at.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let groups = [DrawerGroup::new("History", vec![tool(UNDO), tool(REDO)]), DrawerGroup::new("Clipboard", vec![tool(CUT), tool(COPY)])];
+        let toolbar = [slot(0, &[UNDO])];
+        let last_used = LastUsed::default();
+        let rail = ToolRail::new("Tools", &toolbar, &UNDO, &last_used).editing().show_rail(ui, |_, _| {});
+        rail_seen.set(rail.response.rect);
+        let out = ToolbarDrawer::new(rail.response.rect, &groups, &toolbar, rail.dropped).show(ui);
+        seen.borrow_mut().extend(out.edits);
+    });
+    fixture.room(vec2(800.0, 600.0));
+    fixture.settle();
+    let row = fixture.by_label("Cut").expect("the drawer lists Cut");
+    let by = rail_at.get().center() - row.center();
+    fixture.drag(&row, by);
+    let added: Vec<u8> =
+        edits.borrow().iter().filter_map(|edit| if let ToolbarEdit::Add { tool, .. } = edit { Some(tool.id) } else { None }).collect();
+    assert_eq!(added, [CUT], "the drop on the rail adds the dragged drawer tool");
 }
