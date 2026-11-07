@@ -163,8 +163,3 @@ new = "post(&Context, &PostedNotice, silenced)"
 type = "NoticeCenter"
 old = "auto_hide(Option<Duration>)"
 new = "timeout(f32)"
-
-[[setter]]
-type = "NoticeAction"
-old = "NoticeAction::new(label)"
-new = "NoticeAction::new(label).default_action()"
