@@ -1,5 +1,5 @@
 //! `#[derive(CommandSet)]` with `#[command(prefix = "..", scope = "..")]` on the enum and
-//! `#[command(label = "..", icon = "..", kind = "..", modal = "..", default = "..", path = "..", alias = "..")]` on variants.
+//! `#[command(label = "..", icon = "..", kind = "..", group = "..", modal = "..", default = "..", path = "..", alias = "..")]` on variants.
 
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -16,6 +16,7 @@ struct VariantAttrs {
     label: Option<LitStr>,
     icon: Option<LitStr>,
     kind: Option<LitStr>,
+    group: Option<LitStr>,
     modal: Option<LitStr>,
     defaults: Vec<LitStr>,
     paths: Vec<LitStr>,
@@ -44,13 +45,31 @@ fn snake(name: &str) -> String {
     out
 }
 
-fn kind_tokens(kind: &LitStr) -> syn::Result<TokenStream> {
-    Ok(match kind.value().as_str() {
-        "command" => quote!(::craft_ui::runtime::commands::CommandKind::Command),
-        "toggle" => quote!(::craft_ui::runtime::commands::CommandKind::Toggle),
-        "momentary" => quote!(::craft_ui::runtime::commands::CommandKind::Momentary),
-        _ => return Err(syn::Error::new(kind.span(), "`kind` is `\"command\"`, `\"toggle\"` or `\"momentary\"`")),
-    })
+fn kind_tokens(kind: &LitStr, group: Option<&LitStr>) -> syn::Result<TokenStream> {
+    let group_tokens =
+        group.map_or_else(|| quote!(::core::option::Option::None), |group| quote!(::core::option::Option::Some(::std::string::String::from(#group))));
+    let plain = |tokens: TokenStream| match group {
+        None => Ok(tokens),
+        Some(group) => Err(syn::Error::new(group.span(), "`group` belongs to `kind = \"radio\"` and `kind = \"tool\"`")),
+    };
+    match kind.value().as_str() {
+        "command" => plain(quote!(::craft_ui::runtime::commands::CommandKind::Command)),
+        "toggle" => plain(quote!(::craft_ui::runtime::commands::CommandKind::Toggle)),
+        "momentary" => plain(quote!(::craft_ui::runtime::commands::CommandKind::Momentary)),
+        "radio" => Ok(quote!(::craft_ui::runtime::commands::CommandKind::Radio { group: #group_tokens })),
+        "tool" => Ok(quote!(::craft_ui::runtime::commands::CommandKind::Tool { group: #group_tokens })),
+        _ => Err(syn::Error::new(kind.span(), "`kind` is `\"command\"`, `\"toggle\"`, `\"radio\"`, `\"tool\"` or `\"momentary\"`")),
+    }
+}
+
+/// The rules of `Scope::new`, checked where the derive reads the literal.
+fn check_scope(scope: &LitStr) -> syn::Result<()> {
+    let name = scope.value();
+    let bad = name.is_empty() || name.len() > 64 || name.trim() != name || name.chars().any(|c| c == ':' || c.is_control());
+    if bad {
+        return Err(syn::Error::new(scope.span(), "a scope name is 1 to 64 bytes, with no `:`, control character or outer whitespace"));
+    }
+    Ok(())
 }
 
 fn modal_tokens(modal: &LitStr) -> syn::Result<TokenStream> {
@@ -73,6 +92,7 @@ fn variant(variant: &Variant) -> syn::Result<VariantAttrs> {
             () if meta.path.is_ident("label") => attrs.label = Some(value(meta)?),
             () if meta.path.is_ident("icon") => attrs.icon = Some(value(meta)?),
             () if meta.path.is_ident("kind") => attrs.kind = Some(value(meta)?),
+            () if meta.path.is_ident("group") => attrs.group = Some(value(meta)?),
             () if meta.path.is_ident("modal") => attrs.modal = Some(value(meta)?),
             () if meta.path.is_ident("default") => attrs.defaults.push(value(meta)?),
             () if meta.path.is_ident("path") => attrs.paths.push(value(meta)?),
@@ -105,6 +125,9 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         Ok(true)
     })?;
     let prefix = set.prefix.ok_or_else(|| syn::Error::new_spanned(ident, "a command set names its id prefix: `#[command(prefix = \"..\")]`"))?;
+    if let Some(scope) = &set.scope {
+        check_scope(scope)?;
+    }
     let scope = match &set.scope {
         Some(scope) => quote!(::craft_ui::runtime::commands::CommandScope::new(#scope)),
         None => quote!(::craft_ui::runtime::commands::CommandScope::APP),
@@ -122,9 +145,13 @@ pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
         if let Some(icon) = &attrs.icon {
             chain.extend(quote!(.with_icon(#icon)));
         }
-        if let Some(kind) = &attrs.kind {
-            let kind = kind_tokens(kind)?;
-            chain.extend(quote!(.with_kind(#kind)));
+        match (&attrs.kind, &attrs.group) {
+            (Some(kind), group) => {
+                let kind = kind_tokens(kind, group.as_ref())?;
+                chain.extend(quote!(.with_kind(#kind)));
+            }
+            (None, Some(group)) => return Err(syn::Error::new(group.span(), "`group` needs `kind = \"radio\"` or `kind = \"tool\"`")),
+            (None, None) => {}
         }
         if let Some(modal) = &attrs.modal {
             let modal = modal_tokens(modal)?;

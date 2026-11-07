@@ -1,8 +1,9 @@
 //! The clipboard handle `Commands::clipboard` returns, over `runtime::egui::clipboard`.
 
 use crate::runtime::egui::clipboard;
+use crate::runtime::keys;
 use crate::runtime::pending::Pending;
-use egui::{ColorImage, Context};
+use egui::{ColorImage, Context, Id};
 use std::sync::Arc;
 
 /// One clipboard item.
@@ -46,8 +47,8 @@ pub struct ClipboardHandle {
 }
 
 impl ClipboardHandle {
-    pub(crate) fn new(ctx: &Context) -> Self {
-        let slot = match clipboard::pasted_text(ctx) {
+    pub(crate) fn new(ctx: &Context, owner: Option<Id>) -> Self {
+        let slot = match owner.and_then(|id| keys::pasted_text(ctx, id)) {
             Some(text) => Pending::Ready(ClipContent { text: Some(text) }),
             None => Pending::Loading { progress: None },
         };
@@ -65,7 +66,7 @@ impl ClipboardHandle {
         }
     }
 
-    /// The pasted content: ready in the pass that carries the paste event.
+    /// The pasted content: ready in the pass that delivers the paste to the focused component that lists Paste.
     pub fn paste(&self) -> &Pending<ClipContent, ClipError> {
         &self.slot
     }

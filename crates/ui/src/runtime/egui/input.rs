@@ -69,11 +69,13 @@ pub(crate) fn os(ctx: &Context) -> Os {
 /// One key event as the key stage reads it.
 pub(crate) enum KeyEvent {
     /// A key press, repeats included: the key as typed and everything the layout matcher reads.
-    Press { key: craft_keymap::Key, input: KeyInput },
+    Press { key: craft_keymap::Key, input: KeyInput, repeat: bool },
+    /// A key release.
+    Release { input: KeyInput },
     /// Typed text.
     Text(String),
-    /// egui's own clipboard events.
-    Clip(craft_behavior::EditCommand),
+    /// egui's own clipboard events; a paste carries its text.
+    Clip { command: craft_behavior::EditCommand, text: Option<String> },
     /// A pointer press, which ends keyboard modality.
     PointerPress,
     /// An AccessKit action request.
@@ -84,18 +86,26 @@ pub(crate) enum KeyEvent {
     Other,
 }
 
-/// The key stage's reading of `event`.
-pub(crate) fn key_event(event: &Event, os: Os) -> KeyEvent {
+/// The key stage's reading of `event`. `latin` is the raw input's Latin-layout characters.
+pub(crate) fn key_event(event: &Event, os: Os, latin: &[(egui::Key, char)]) -> KeyEvent {
+    let read = |event: &Event| {
+        let mut input = KeyInput::from_egui(event, os)?;
+        if let Event::Key { physical_key: Some(physical), .. } = event {
+            input.latin = latin.iter().find(|(key, _)| key == physical).map(|(_, c)| *c);
+        }
+        Some(input)
+    };
     match event {
-        Event::Key { pressed: true, .. } => match KeyInput::from_egui(event, os) {
-            Some(input) => input.typed.map_or(KeyEvent::Other, |key| KeyEvent::Press { key, input }),
+        Event::Key { pressed: true, repeat, .. } => match read(event) {
+            Some(input) => input.typed.map_or(KeyEvent::Other, |key| KeyEvent::Press { key, input, repeat: *repeat }),
             None => KeyEvent::Other,
         },
+        Event::Key { pressed: false, .. } => read(event).map_or(KeyEvent::Other, |input| KeyEvent::Release { input }),
         Event::Text(text) => KeyEvent::Text(text.clone()),
         Event::ModifiersChanged(modifiers) => KeyEvent::Modifiers(Mods::from_egui(modifiers, os)),
-        Event::Copy => KeyEvent::Clip(craft_behavior::EditCommand::Copy),
-        Event::Cut => KeyEvent::Clip(craft_behavior::EditCommand::Cut),
-        Event::Paste(_) => KeyEvent::Clip(craft_behavior::EditCommand::Paste),
+        Event::Copy => KeyEvent::Clip { command: craft_behavior::EditCommand::Copy, text: None },
+        Event::Cut => KeyEvent::Clip { command: craft_behavior::EditCommand::Cut, text: None },
+        Event::Paste(text) => KeyEvent::Clip { command: craft_behavior::EditCommand::Paste, text: Some(text.clone()) },
         Event::PointerButton { pressed: true, .. } => KeyEvent::PointerPress,
         Event::AccessKitActionRequest(request) => KeyEvent::Access(Action(request.clone())),
         _ => KeyEvent::Other,
@@ -293,19 +303,4 @@ pub(crate) fn wheel_read(ctx: &Context, line: f32, page: f32) -> Option<(Vec2, W
         }
         read
     })
-}
-
-/// Whether this pass carries a key press or a clipboard event, which the shortcut dispatcher reads.
-pub(crate) fn has_shortcut_events(ctx: &Context) -> bool {
-    ctx.input(|input| input.events.iter().any(|event| matches!(event, Event::Key { pressed: true, .. } | Event::Copy | Event::Cut | Event::Paste(_))))
-}
-
-/// A copy of the pass's input state, for a reader that must not run under the context's input lock.
-pub(crate) fn snapshot(ctx: &Context) -> egui::InputState {
-    ctx.input(Clone::clone)
-}
-
-/// Replaces the pass's input events.
-pub(crate) fn replace_events(ctx: &Context, events: Vec<Event>) {
-    ctx.input_mut(|input| input.events = events);
 }

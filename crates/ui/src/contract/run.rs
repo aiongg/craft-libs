@@ -453,7 +453,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     p.trace.mark(Step::State);
     steps::state(comp, cx, false, env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
-        commands::note_focus(&ctx, &env.commands);
+        commands::note_focus(&ctx, id, &env.commands);
     }
     // 13 paint
     p.trace.mark(Step::Paint);
@@ -509,7 +509,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     let mut stage = if sizing { MemoryStage::open_peek(&ctx, id) } else { MemoryStage::open(&ctx, id) };
     let resolved = steps::resolved(id, &step1, &common);
     // 4 value
-    let value = steps::value(&mut comp, &mut stage, id);
+    let value = steps::value(&mut comp, &mut stage, id, step1.command.as_deref());
     let (shown, mixed) = (value.value, value.mixed);
     let cancelled: Vec<_> = value.cancelled.into_iter().collect();
     hooks.read(&mut comp, &mut stage, id);

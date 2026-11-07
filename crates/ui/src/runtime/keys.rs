@@ -2,14 +2,15 @@
 //! every key event of the pass, the begin hook turns them into the `Intents` of the focused component,
 //! and claims, menu-bar keys and AccessKit action requests are routed from the same record.
 
-use crate::runtime::commands::{self, EditCommands};
+use crate::runtime::commands::{self, EditCommands, FirePhase};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::focus::{self, StopRec};
 use crate::runtime::frame::PerViewport;
+use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
-use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, MoveMods, NavMove, OwnerClass, PartRef};
+use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Key, KeyInput, Layout, Mods};
 use egui::{Context, Id, Vec2, ViewportId};
@@ -38,10 +39,37 @@ struct Press {
     mods: Mods,
 }
 
+/// A key press, release or clipboard chord that the shortcut dispatcher may match, with the press that the
+/// intents may have consumed.
+#[derive(Clone, Copy)]
+pub(crate) struct Shortcut {
+    pub(crate) input: KeyInput,
+    pub(crate) phase: FirePhase,
+    /// The press typed text in this pass.
+    typed: bool,
+    /// The index of the press in `Batch::presses`.
+    press: Option<usize>,
+}
+
+/// The key events the owner leaves to the app this pass, with the facts the matching needs.
+#[derive(Default)]
+pub(crate) struct Shortcuts {
+    pub(crate) keys: Vec<Shortcut>,
+    /// A text field owns the keys: plain keys wait for it.
+    pub(crate) typing: bool,
+    /// A dialog owns the keys: commands that do not fire in dialogs wait.
+    pub(crate) dialog: bool,
+    /// The layout that reads the presses.
+    pub(crate) layout: Layout,
+}
+
 /// What the input hook recorded for the next pass's begin hook.
 #[derive(Default)]
 struct Batch {
     presses: Vec<Press>,
+    shortcuts: Vec<Shortcut>,
+    /// The text of the paste the focused component takes.
+    paste: Option<String>,
     texts: Vec<String>,
     clips: Vec<EditCommand>,
     access: Vec<Action>,
@@ -90,6 +118,13 @@ struct Stage {
     last_nodes: HashMap<u64, Node>,
     activated: HashMap<Id, Id>,
     alt: AltTrack,
+    shortcuts: Shortcuts,
+    /// The paste text the focused component reads through its clipboard handle.
+    pasted: Option<(Id, Arc<str>)>,
+    /// Edit commands fired from the queue for the focused component.
+    queued_edits: Vec<EditCommand>,
+    /// The components that asked for a context menu in this pass, with the rect it opens at.
+    contexts: Vec<(Id, egui::Rect)>,
 }
 
 fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Stage) -> R) -> R {
@@ -117,18 +152,46 @@ impl Strip<'_> {
     /// Records `event` in `batch` and returns whether egui keeps it.
     fn event(&self, batch: &mut Batch, alt: &mut AltTrack, event: KeyEvent) -> bool {
         match event {
-            KeyEvent::Press { key, input } => {
+            KeyEvent::Press { key, input, repeat } => {
                 alt.other_key = true;
-                self.press(batch, key, &input)
+                self.press(batch, key, &input, repeat)
+            }
+            KeyEvent::Release { input } => {
+                batch.shortcuts.push(Shortcut { input, phase: FirePhase::Release, typed: false, press: None });
+                true
             }
             KeyEvent::Text(text) => {
                 alt.other_key = true;
+                if let Some(press) = batch.shortcuts.last_mut().filter(|shortcut| shortcut.phase == FirePhase::Press) {
+                    press.typed = true;
+                }
                 batch.texts.push(text);
                 true
             }
-            KeyEvent::Clip(command) if (self.edits)(command) => {
+            KeyEvent::Clip { command, text } if (self.edits)(command) => {
                 batch.clips.push(command);
+                if text.is_some() {
+                    batch.paste = text;
+                }
                 false
+            }
+            KeyEvent::Clip { command, .. } => {
+                // The platform sends the clipboard event in place of the chord: an unlisted one is the chord. The
+                // web sends the chord's press as well.
+                let key = match command {
+                    EditCommand::Cut => Key::X,
+                    EditCommand::Paste => Key::V,
+                    _ => Key::C,
+                };
+                let input = KeyInput::new(Mods::CMD).with_typed(key);
+                let sent = batch
+                    .shortcuts
+                    .iter()
+                    .any(|shortcut| shortcut.phase == FirePhase::Press && shortcut.input.mods == Mods::CMD && shortcut.input.typed == Some(key));
+                if !sent {
+                    batch.shortcuts.push(Shortcut { input, phase: FirePhase::Press, typed: false, press: None });
+                }
+                true
             }
             KeyEvent::PointerPress => {
                 alt.other_key = true;
@@ -157,7 +220,7 @@ impl Strip<'_> {
         alt.down = held;
     }
 
-    fn press(&self, batch: &mut Batch, key: Key, input: &KeyInput) -> bool {
+    fn press(&self, batch: &mut Batch, key: Key, input: &KeyInput, repeat: bool) -> bool {
         let mods = input.mods;
         let claimed = self.claims.iter().find(|chord| self.layout.matches(chord, input, self.os));
         let ctrl_tab = key == Key::Tab && (if self.os == Os::Mac { mods.ctrl && !mods.cmd } else { mods.cmd });
@@ -191,6 +254,9 @@ impl Strip<'_> {
             false
         } else {
             batch.presses.push(Press { key, mods });
+            if !repeat {
+                batch.shortcuts.push(Shortcut { input: *input, phase: FirePhase::Press, typed: false, press: Some(batch.presses.len() - 1) });
+            }
             true
         }
     }
@@ -208,8 +274,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let edit_chords = if keys.is_some_and(|keys| EditCommands::ALL.iter().any(|command| keys.edits.contains(command.edit()))) {
         commands::edit_chords(ctx)
     } else {
-        Vec::new()
+        Arc::default()
     };
+    let latin = input.latin_layout_chars.clone();
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
@@ -228,7 +295,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         let mut batch = Batch::default();
         let mut visible = None;
         input.events.retain(|event| {
-            let read = raw_input::key_event(event, os);
+            let read = raw_input::key_event(event, os, &latin);
             visible = match &read {
                 KeyEvent::PointerPress => Some(false),
                 KeyEvent::Press { .. } | KeyEvent::Text(_) => Some(true),
@@ -259,6 +326,7 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let target = focus::focused_rec(ctx);
     let (batch, nodes) = current(ctx, |stage| {
         stage.routed.clear();
+        stage.contexts.clear();
         stage.claimed.clear();
         stage.activated.clear();
         stage.claims.clear();
@@ -267,9 +335,10 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     });
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
+    let mut consumed = vec![false; batch.presses.len()];
     if let Some(rec) = &target {
-        for press in &batch.presses {
-            route_press(ctx, os, rec, press, &mut routed, &mut activated);
+        for (press, taken) in batch.presses.iter().zip(&mut consumed) {
+            *taken = route_press(ctx, os, rec, press, &mut routed, &mut activated);
         }
         for text in &batch.texts {
             if matches!(rec.stop.keys.owner, OwnerClass::Text) {
@@ -284,6 +353,12 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     for command in &clips {
         push(&mut routed, focused, Intent::Edit(*command), false);
     }
+    let queued = current(ctx, |stage| std::mem::take(&mut stage.queued_edits));
+    for command in queued {
+        push(&mut routed, focused, Intent::Edit(command), false);
+    }
+    let shortcuts = owned_shortcuts(ctx, target.as_ref(), &batch, &consumed);
+    let pasted = batch.paste.as_deref().zip(focused).map(|(text, id)| (id, Arc::<str>::from(text)));
     let escapes = craft_behavior::focus::route_escapes(batch.escapes, press_captured);
     for _ in 0..escapes.to_components {
         push(&mut routed, focused, Intent::Cancel, false);
@@ -297,6 +372,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
         stage.claimed = claimed;
         stage.activated = activated;
         stage.menu = batch.menu;
+        stage.shortcuts = shortcuts;
+        if !stage.shortcuts.keys.is_empty() {
+            stage.shortcuts.layout = stage.layout.clone();
+        }
+        stage.pasted = pasted;
     });
     escapes.cancels_press
 }
@@ -305,8 +385,80 @@ fn push(routed: &mut HashMap<Option<Id>, Routed>, target: Option<Id>, intent: In
     routed.entry(target).or_default().items.push(Item { intent, horizontal });
 }
 
-/// One key press of the focused component: the table's row, else the activation keys, else a nudge.
-fn route_press(ctx: &Context, os: Os, rec: &StopRec, press: &Press, routed: &mut HashMap<Option<Id>, Routed>, activated: &mut HashMap<Id, Id>) {
+/// The shortcut events the key owner leaves to the app (9.3). The owner is the focused component's class, or
+/// `Blocked` while a modal layer is open. `Menu` and `Recorder` keep every key; a `Widget` or popup keeps the keys
+/// it activates with, the keys of its intents and the keys its filter keeps from the key stage; a text field
+/// keeps the text its presses typed.
+fn owned_shortcuts(ctx: &Context, target: Option<&StopRec>, batch: &Batch, consumed: &[bool]) -> Shortcuts {
+    let present: Vec<OwnerClass> = target.iter().map(|rec| rec.stop.keys.owner).collect();
+    let owner = key_owner(commands::modal_open(ctx), &present);
+    let held_by = |keys: Option<&focus::KeyUse>, at: usize| {
+        let Some(keys) = keys else { return false };
+        let key = batch.presses[at].key;
+        let kept = match keys.keep {
+            focus::KeepKeys::Tab => key == Key::Tab,
+            focus::KeepKeys::InlineArrows => matches!(key, Key::Left | Key::Right),
+            focus::KeepKeys::BlockArrows => matches!(key, Key::Left | Key::Right | Key::Up | Key::Down),
+            _ => false,
+        };
+        consumed[at] || kept
+    };
+    let (typing, dialog) = (owner == KeyOwner::Class(OwnerClass::Text), owner == KeyOwner::Class(OwnerClass::Dialog));
+    let widget = matches!(owner, KeyOwner::Class(OwnerClass::Widget | OwnerClass::Popup | OwnerClass::PassivePopup));
+    let silent = matches!(owner, KeyOwner::Class(OwnerClass::Menu | OwnerClass::Recorder));
+    let keys = if silent {
+        Vec::new()
+    } else {
+        let owner_keys = target.map(|rec| &rec.stop.keys);
+        batch
+            .shortcuts
+            .iter()
+            .filter(|shortcut| !(typing && shortcut.typed))
+            .filter(|shortcut| !(widget && shortcut.press.is_some_and(|at| held_by(owner_keys, at))))
+            .copied()
+            .collect()
+    };
+    Shortcuts { keys, typing, dialog, layout: Layout::default() }
+}
+
+/// Takes the shortcut events the key stage left to the app this pass, for the dispatcher at H7.
+pub(crate) fn take_shortcuts(ctx: &Context) -> Shortcuts {
+    current(ctx, |stage| std::mem::take(&mut stage.shortcuts))
+}
+
+/// Asks the focused component of the running viewport to take `command` as `Intent::Edit` in the next pass.
+/// `false` when it does not list the command. A paste asks the platform for the clipboard text, which arrives as
+/// the paste event that becomes the intent.
+pub(crate) fn queue_edit(ctx: &Context, command: EditCommand) -> bool {
+    let viewport = crate::runtime::egui::pass::current_viewport(ctx);
+    let record = focus::record(ctx, viewport);
+    if record.focused.is_none() || !record.keys.is_some_and(|keys| keys.edits.contains(command)) {
+        return false;
+    }
+    if command == EditCommand::Paste {
+        crate::runtime::egui::clipboard::request_paste(ctx);
+    } else {
+        with(ctx, viewport, |stage| stage.queued_edits.push(command));
+        crate::runtime::egui::repaint::request_of(ctx, viewport);
+    }
+    true
+}
+
+/// The text of the paste the focused component `id` takes this pass.
+pub(crate) fn pasted_text(ctx: &Context, id: Id) -> Option<Arc<str>> {
+    current(ctx, |stage| stage.pasted.as_ref().filter(|(owner, _)| *owner == id).map(|(_, text)| Arc::clone(text)))
+}
+
+/// One key press of the focused component: the table's row, else the activation keys, else a nudge. Returns
+/// whether the component's intents took the press.
+fn route_press(
+    ctx: &Context,
+    os: Os,
+    rec: &StopRec,
+    press: &Press,
+    routed: &mut HashMap<Option<Id>, Routed>,
+    activated: &mut HashMap<Id, Id>,
+) -> bool {
     let stop = &rec.stop;
     let id = Some(stop.id);
     let horizontal = matches!(press.key, Key::Left | Key::Right);
@@ -328,12 +480,12 @@ fn route_press(ctx: &Context, os: Os, rec: &StopRec, press: &Press, routed: &mut
         }
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(rec, routed, activated),
         None if stop.role.nudge => {
-            if let Some(nudge) = nudge_of(press.key, press.mods) {
-                routed.entry(id).or_default().nudge = Some(nudge);
-            }
+            let Some(nudge) = nudge_of(press.key, press.mods) else { return false };
+            routed.entry(id).or_default().nudge = Some(nudge);
         }
-        None => {}
+        None => return false,
     }
+    true
 }
 
 /// `Activate` of a group member goes to the group's root, which reads `activated_member`.
@@ -417,6 +569,16 @@ impl Intents {
         }
     }
 
+    /// Takes the next edit command.
+    pub fn take_edit(&mut self) -> Option<EditCommand> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Edit(_)))?;
+        self.items[at].1 = true;
+        match self.items[at].0 {
+            Intent::Edit(command) => Some(command),
+            _ => None,
+        }
+    }
+
     /// Takes the next typed text.
     pub fn take_text(&mut self) -> Option<Arc<str>> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Text(_)))?;
@@ -435,6 +597,11 @@ impl Intents {
     /// Takes the AccessKit `SetValue` request.
     pub fn take_set_value(&mut self) -> Option<f64> {
         self.set_value.take()
+    }
+
+    /// Whether an intent of the kind of `intent` is routed and not taken.
+    pub fn untaken(&self, intent: &Intent) -> bool {
+        self.items.iter().any(|(item, taken)| !taken && item.same_kind(intent))
     }
 
     /// Takes the next `Intent::Access` request.
@@ -530,6 +697,22 @@ pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
 /// component.
 pub(crate) fn claim(ctx: &Context, owner: Id, chord: Chord) {
     current(ctx, |stage| stage.claims.push((owner, chord)));
+}
+
+/// Records that `id` asked for a context menu in this pass, to open at `rect`: a secondary-button release on it, or
+/// a `ContextMenu` intent it did not take (9.2 rule 3).
+pub(crate) fn request_context(ctx: &Context, id: Id, rect: egui::Rect) {
+    current(ctx, |stage| {
+        if !stage.contexts.iter().any(|(owner, _)| *owner == id) {
+            stage.contexts.push((id, rect));
+        }
+    });
+}
+
+/// The rect `id`'s context request of this pass opens at, when it made one. A `Trigger::Context` opener reads it.
+#[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the overlay triggers (F5) read it"))]
+pub(crate) fn context_request(ctx: &Context, id: Id) -> Option<egui::Rect> {
+    current(ctx, |stage| stage.contexts.iter().find(|(owner, _)| *owner == id).map(|(_, rect)| *rect))
 }
 
 /// The member whose `Activate` the group `root` reads this pass.
