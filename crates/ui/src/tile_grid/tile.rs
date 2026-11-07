@@ -9,7 +9,7 @@ use super::words::TileWords;
 use super::{BadgeKind, BadgeSlot, BadgeVisibility, CaptionPlace, TileBadge, TileFlag, TileMark, TileStatus};
 use crate::choice::{Checkbox, ChoiceWords, Rating};
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
+    Access, Bind, Common, Component, Cx, Focus as _, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
     Styled as _, WordSetCx as _,
 };
 use crate::display::Badge;
@@ -17,7 +17,7 @@ use crate::list::{RowThumb, ThumbAspect, ThumbPaint, ToggleState};
 use crate::primitives::{ContentPainterCx, IconSpec, PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, DataColor, Flags, IconLook, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
-use craft_behavior::{Flow, IconId, Insets, Metrics, Mixed, PartKey, PressPhase, Proposal, Sense};
+use craft_behavior::{AccessAction, AccessData, Flow, IconId, Insets, Metrics, Mixed, PartKey, PressPhase, Proposal, Sense};
 use craft_keymap::Mods;
 use craft_theme::variant::{Emphasis, Tone};
 use craft_theme::{Rgba, Srgba, Stateful, States, TypeRole, Variant, over};
@@ -619,6 +619,19 @@ impl Component for Tile<'_> {
         {
             self.event = Some(TilePartEvent::Check { mods: result.press.mods });
         }
+        let current = self.rating.unwrap_or(0);
+        while let Some(request) = cx.intents().take_access() {
+            if request.target != Some(RATING.into()) {
+                continue;
+            }
+            let rated = match (request.action, request.data) {
+                (AccessAction::Increment, _) => current.saturating_add(1),
+                (AccessAction::Decrement, _) => current.saturating_sub(1),
+                (AccessAction::SetValue, Some(AccessData::NumericValue(value))) => value.round().max(0.0) as u8,
+                _ => continue,
+            };
+            self.event = Some(TilePartEvent::Rate(rated.min(STARS)));
+        }
     }
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
@@ -747,7 +760,8 @@ impl Tile<'_> {
         let style = cx.style;
         ui.draw().fill(&PaintShape::Rect(bar, CornerRadius::ZERO), cx.resolve(&style.plate));
         if let (Some(rating), Some(_)) = (self.rating, placed.stars) {
-            ui.face(RATING, Rating::new(Bind::given(rating), STARS));
+            let words = cx.words::<TileWords>();
+            ui.face(RATING, Rating::new(Bind::given(rating), STARS).label(words.rating.fill(&[("name", cx.resolved.label)])));
         }
         let draw = ui.draw();
         if let (Some(flag), Some(rect)) = (self.flag, placed.flag) {

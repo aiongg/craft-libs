@@ -26,12 +26,13 @@ fn tile_long_text(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 #[story(Tile<'static>, covers = [], drive = Drive::Never)]
-fn tile_badges_and_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn tile_badges_and_bar(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let rating = data.value("rating", 3u8);
     let duplicate = TileBadge::new(BadgeSlot::StartBottom, BadgeKind::Text("Duplicate".into()), Tone::Warn, Some("Already in the bin".into()));
     let edited = TileBadge::new(BadgeSlot::EndBottom, BadgeKind::Glyph(IconId::new("flag")), Tone::Neutral, Some("Edited".into()));
-    Tile::new("IMG_0002.jpg")
+    let out = Tile::new("IMG_0002.jpg")
         .thumb(ThumbAspect::new(3, 2), |_, _| {})
-        .rating(3)
+        .rating(*rating)
         .flag(TileFlag::Picked)
         .label_color(Srgba::rgb(0.86, 0.31, 0.24))
         .label_name("Red")
@@ -41,8 +42,11 @@ fn tile_badges_and_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .badge(edited)
         .range((0.2, 0.7))
         .scrub(0.4)
-        .show(ui)
-        .into()
+        .show(ui);
+    if let Some(TilePartEvent::Rate(stars)) = out.event {
+        *rating = stars;
+    }
+    out.into()
 }
 
 fn click_check(fixture: &mut Fixture) {
