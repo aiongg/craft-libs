@@ -6,13 +6,14 @@ use crate::contract::{
     Access, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Outcome, PaintUi, PartsCx, Pointer as _,
     Props as _, Role, WordSetCx as _,
 };
+use crate::buttons::IconButton;
 use crate::controls::check::Checkbox;
 use crate::controls::disclosure::Disclosure;
-use crate::primitives::{PaintShape, Span, StrokeWidth, TextRun};
+use crate::primitives::{Span, TextRun};
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, Ink, StyleColor, StyleCx, TypeRole};
-use craft_behavior::{Flow, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
-use egui::{Pos2, Rect, Response, Vec2};
+use crate::style::{ComponentStyle, StyleCx, TypeRole};
+use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
+use egui::{Rect, Response, Vec2};
 
 /// How much weight a header carries.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -218,12 +219,12 @@ impl Component for TitleRow<'_> {
             }
         }
         for (at, action) in self.actions.iter().enumerate().rev() {
-            let label = match action {
-                HeaderAction::Close => words.close.clone(),
-                HeaderAction::Menu => words.menu.clone(),
-                HeaderAction::Float => words.float.clone(),
+            let (icon, label) = match action {
+                HeaderAction::Close => ("close", words.close.clone()),
+                HeaderAction::Menu => ("more", words.menu.clone()),
+                HeaderAction::Float => ("float", words.float.clone()),
             };
-            ui.face(ACTION.at(at as u64), ActionFace::new(*action).label(label));
+            ui.face(ACTION.at(at as u64), IconButton::new(IconId::new(icon)).label(label));
             flow = flow.take_end(side).1;
         }
         ui.draw().text(flow.rect(), &title_run(self, cx.style.role, cx.resolved.label));
@@ -244,72 +245,4 @@ fn title_run<'t>(row: &'t TitleRow<'_>, role: TypeRole, title: &'t str) -> TextR
         spans.push(Span::new(format!(" {}", subtitle.as_str())).muted());
     }
     TextRun::spans(spans).role(role)
-}
-
-/// The style of the title row's faces: a mark colour and its size.
-#[derive(Clone, Debug, PartialEq, ComponentStyle)]
-struct MarkStyle {
-    #[style(metrics)]
-    metrics: Metrics,
-    ink: StyleColor,
-    side: f32,
-}
-
-fn mark_style(cx: &StyleCx<'_>) -> MarkStyle {
-    let side = cx.control().icon;
-    MarkStyle { metrics: Metrics::new().min_size(Vec2::splat(side)), ink: cx.ink(Ink::OnPanel), side }
-}
-
-/// The look of an action part.
-// F8-LATER: `IconButton` with the icon set replaces this face.
-#[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "A face of the title row's action parts, shown only inside it."))]
-struct ActionFace {
-    #[common]
-    common: Common,
-    action: HeaderAction,
-}
-
-impl ActionFace {
-    fn new(action: HeaderAction) -> Self {
-        ActionFace { common: Common::new(), action }
-    }
-}
-
-impl Component for ActionFace {
-    const ROLE: Role = Role::BUTTON;
-    type Style = MarkStyle;
-    type Output = Response;
-
-    fn style(cx: &StyleCx<'_>, _: ActionFaceStyleKey) -> MarkStyle {
-        mark_style(cx)
-    }
-
-    fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let (c, u) = (cx.rect.center(), cx.style.side / 4.0);
-        let draw = ui.draw();
-        match self.action {
-            HeaderAction::Close => {
-                draw.stroke(&PaintShape::Path(vec![c + Vec2::new(-u, -u), c + Vec2::new(u, u)]), StrokeWidth::Medium, cx.style.ink);
-                draw.stroke(&PaintShape::Path(vec![c + Vec2::new(-u, u), c + Vec2::new(u, -u)]), StrokeWidth::Medium, cx.style.ink);
-            }
-            HeaderAction::Menu => {
-                for step in [-1.0, 0.0, 1.0] {
-                    let dot: Pos2 = c + Vec2::new(step * u * 1.5, 0.0);
-                    draw.fill(&PaintShape::Circle(dot, u / 3.0), cx.style.ink);
-                }
-            }
-            HeaderAction::Float => {
-                draw.stroke(
-                    &PaintShape::Rect(Rect::from_center_size(c, Vec2::splat(u * 2.0)), egui::CornerRadius::ZERO),
-                    StrokeWidth::Thin,
-                    cx.style.ink,
-                );
-            }
-        }
-    }
-
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
-    }
 }
