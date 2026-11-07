@@ -15,12 +15,10 @@ use craft_theme::HitSizes;
 use egui::{Context, Id, Pos2, Vec2};
 use std::collections::HashMap;
 
-/// Points one wheel line scrolls.
-// F5: `Scroll.notch`
+/// Points one wheel line adds to `PointerFrame.scroll`; scroll owners apply their own notch (the wheel service).
 pub(crate) const WHEEL_LINE_POINTS: f32 = 40.0;
 
-/// Points one wheel page scrolls.
-// F5: `Scroll.notch`
+/// Points one wheel page adds to `PointerFrame.scroll`.
 pub(crate) const WHEEL_PAGE_POINTS: f32 = 400.0;
 
 /// The pointer input of one pass of one viewport, egui-converted.

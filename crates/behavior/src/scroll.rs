@@ -1,5 +1,6 @@
 //! Scroll positions and the range a scroll part shows.
 
+use crate::intent::NavMove;
 use std::ops::Range;
 
 /// Offsets and extents in content units. They are `f64` so a sheet of a million rows scrolls exactly.
@@ -67,6 +68,19 @@ pub fn page(span: &ScrollSpan, toward_end: bool) -> Range<f64> {
     shifted(span, if toward_end { visible } else { -visible })
 }
 
+/// The visible range after a navigation move that scrolls: a page up or down, or to the start or the end of the
+/// content. `None` for any other move.
+pub fn jump(span: &ScrollSpan, mv: NavMove) -> Option<Range<f64>> {
+    let visible = span.visible.end - span.visible.start;
+    Some(match mv {
+        NavMove::PageUp => page(span, false),
+        NavMove::PageDown => page(span, true),
+        NavMove::Start => span.content.start..span.content.start + visible,
+        NavMove::End => shifted(span, span.content.end - span.content.start),
+        _ => return None,
+    })
+}
+
 fn shifted(span: &ScrollSpan, shift: f64) -> Range<f64> {
     let visible = span.visible.end - span.visible.start;
     let last = (span.content.end - visible).max(span.content.start);
@@ -87,6 +101,14 @@ mod tests {
         assert_eq!(moved, 800.0..1000.0);
         let past = drag(&span, 100.0, 10.0, 500.0);
         assert_eq!(past, 800.0..1000.0, "the range stops at the end of the content");
+    }
+
+    #[test]
+    fn home_and_end_show_the_ends_of_the_content() {
+        let span = ScrollSpan::new(0.0..500.0, 100.0..300.0);
+        assert_eq!(jump(&span, NavMove::Start), Some(0.0..200.0));
+        assert_eq!(jump(&span, NavMove::End), Some(300.0..500.0));
+        assert_eq!(jump(&span, NavMove::Down), None);
     }
 
     #[test]

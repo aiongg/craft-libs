@@ -5,7 +5,7 @@ use super::cx::BodyCx;
 use super::label::{self, LabelIn};
 use crate::style::ComponentStyle as _;
 use super::run::{ShapeHooks, ShowAt};
-use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Pad, PartsCx, Scroll, Sizing};
+use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Notch, Pad, PartsCx, Scroll, Sizing};
 use crate::layout;
 use crate::primitives::{ScrollBar, Surface};
 use crate::runtime::access::{self, Politeness, Role};
@@ -13,11 +13,14 @@ use crate::runtime::egui::{alloc, areas, child, response, style};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, sub};
-use crate::runtime::{commands, layout_memory, wheel};
+use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
+use crate::runtime::motion::{Driver, Presence, spec};
+use crate::runtime::{keys, layout_memory, pointer, wheel};
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::{
-    Axis, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelTaker,
+    Axis, CancelRule, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
+use craft_keymap::{Chord, Key, Mods};
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Shape, Stroke, Ui, UiBuilder, Vec2};
 use serde::{Deserialize, Serialize};
@@ -57,6 +60,23 @@ pub(crate) struct Placement {
 pub(crate) fn placement_id(id: Id) -> Id {
     sub(id, "placement")
 }
+
+/// The keyboard mode of a floating container (16.3): arrows move or resize it until Enter or Escape.
+#[derive(Clone, Copy, PartialEq)]
+enum WindowModeKind {
+    Move,
+    Size,
+}
+
+/// A container's window mode with the placement Escape restores. Kept in session memory.
+#[derive(Clone, Default, PartialEq)]
+struct WindowMode {
+    kind: Option<WindowModeKind>,
+    restore: Placement,
+}
+
+/// The arrow chords, with and without Shift, a window mode holds, with the direction each moves.
+const MODE_ARROWS: [(Key, Vec2); 4] = [(Key::Left, Vec2::new(-1.0, 0.0)), (Key::Right, Vec2::new(1.0, 0.0)), (Key::Up, Vec2::new(0.0, -1.0)), (Key::Down, Vec2::new(0.0, 1.0))];
 
 /// The eight edge and corner grips of a resizable layer, in the order of `GRIPS`: which edges each moves.
 const GRIPS: [(i8, i8, CursorIcon); 8] = [
@@ -134,6 +154,105 @@ pub(super) struct BodyHooks<'b> {
     view: Option<Rect>,
     save: Option<crate::runtime::memory::SaveKey>,
     layer: bool,
+    /// How open the body is: 0 to 1, animating when the container's `Collapse` does.
+    presence: Presence,
+    /// The distance one arrow press moves or resizes a window in its keyboard mode.
+    nudge: f32,
+    /// The window mode the container is in, and what Escape restores.
+    mode: WindowMode,
+}
+
+impl BodyHooks<'_> {
+    /// AccessKit scroll actions aimed at the container's node: a page along an axis, or an offset.
+    fn access_scroll<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        use accesskit::{Action, ActionData};
+        let Some(scroll) = props.scroll else { return };
+        let rtl = cx.core.env.direction().is_rtl();
+        let view = self.last.view.map_or(Vec2::ZERO, |view| rect_of(view).size());
+        while let Some(request) = cx.core.intents.take_scroll_access(false) {
+            let (vertical, toward_end) = match request.action {
+                Action::ScrollUp => (true, false),
+                Action::ScrollDown => (true, true),
+                Action::ScrollLeft => (false, rtl),
+                Action::ScrollRight => (false, !rtl),
+                _ => {
+                    if let Some(ActionData::SetScrollOffset(point)) = request.data {
+                        self.offset = ScrollPos { x: point.x, y: point.y };
+                        self.moved = true;
+                    }
+                    continue;
+                }
+            };
+            let (visible, extent, offset) = if vertical { (view.y, self.last.extent.1, self.offset.y) } else { (view.x, self.last.extent.0, self.offset.x) };
+            let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
+            let start = craft_behavior::scroll::page(&span, toward_end).start;
+            if vertical {
+                self.offset.y = start;
+            } else {
+                self.offset.x = start;
+            }
+            self.moved = true;
+        }
+        self.clamp_offset(scroll, view);
+    }
+
+    /// The `window.Move` and `window.Size` commands and the keys of the mode they start (16.3): arrows move or
+    /// resize by a step (Shift: four steps), Enter or the command again keeps the placement, Escape restores it,
+    /// and focus leaving the container ends the mode. The mode holds its chords through the key stage, so no
+    /// component under focus sees them.
+    fn window_keys<C: Container>(&mut self, props: &ContainerProps, cx: &mut Cx<'_, C>) {
+        if props.command_scope != Some(WindowCommand::SCOPE) {
+            return;
+        }
+        let (id, ctx) = (cx.core.id, cx.core.ctx.clone());
+        let started = commands::take_for_instance(&ctx, Some(id), WindowCommand::from_ref).map(|(command, _)| command);
+        let slot = cx.core.memory.shown::<Placement>(placement_id(id)).clone();
+        let mut mode = self.mode.clone();
+        if let Some(command) = started {
+            let kind = match command {
+                WindowCommand::Move => WindowModeKind::Move,
+                _ => WindowModeKind::Size,
+            };
+            mode = if mode.kind == Some(kind) { WindowMode::default() } else { WindowMode { kind: Some(kind), restore: slot.clone() } };
+        }
+        if mode.kind.is_some() && crate::runtime::focus::focus_in_scope(&ctx, id) != Some(true) {
+            mode = WindowMode::default();
+        }
+        if let Some(kind) = mode.kind {
+            let step = self.nudge;
+            let min = cx.style.metrics().min_size;
+            let rect = cx.core.rect;
+            let mut placement = slot;
+            for (key, direction) in MODE_ARROWS {
+                for (mods, scale) in [(Mods::NONE, 1.0), (Mods::SHIFT, 4.0)] {
+                    let chord = Chord::new(mods, key);
+                    keys::capture(&ctx, id, chord);
+                    while keys::take_claimed(&ctx, id, chord) {
+                        let delta = direction * step * scale;
+                        let mut pos = placement.pos.map_or(rect.min, Pos2::from);
+                        let mut size = placement.size.map_or(rect.size(), Vec2::from);
+                        match kind {
+                            WindowModeKind::Move => pos += delta,
+                            WindowModeKind::Size => size = (size + delta).max(min),
+                        }
+                        placement = Placement { pos: Some(pos.into()), size: Some(size.into()) };
+                    }
+                }
+            }
+            for key in [Key::Enter, Key::Escape] {
+                let chord = Chord::new(Mods::NONE, key);
+                keys::capture(&ctx, id, chord);
+                if keys::take_claimed(&ctx, id, chord) {
+                    if key == Key::Escape {
+                        placement = mode.restore.clone();
+                    }
+                    mode = WindowMode::default();
+                }
+            }
+            *cx.core.memory.shown::<Placement>(placement_id(id)) = placement;
+        }
+        self.mode = mode;
+    }
 }
 
 impl<'b> BodyHooks<'b> {
@@ -162,6 +281,9 @@ impl<'b> BodyHooks<'b> {
             view: None,
             save: None,
             layer: false,
+            presence: Presence { t: 1.0, visible: true, exiting: false },
+            nudge: 0.0,
+            mode: WindowMode::default(),
         }
     }
 
@@ -172,7 +294,7 @@ impl<'b> BodyHooks<'b> {
         let top = inner.min.y + header_h;
         let content_sized = props.sizing == Sizing::Content;
         let (bottom, footer_top) = if content_sized {
-            let body_h = if self.open { self.remembered.map_or(0.0, |size| size.y) } else { 0.0 };
+            let body_h = self.remembered.map_or(0.0, |size| size.y) * self.presence.t;
             (top + (room.y - header_h - footer_h).max(0.0), top + body_h)
         } else {
             (inner.max.y - footer_h, inner.max.y - footer_h)
@@ -261,11 +383,16 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         comp.props(Internal::new()).live
     }
 
+    fn scrolls(&self, comp: &C) -> (bool, bool) {
+        comp.props(Internal::new()).scroll.map_or((false, false), |scroll| (scroll.vertical_on(), scroll.horizontal_on()))
+    }
+
     fn read(&mut self, comp: &mut C, stage: &mut MemoryStage, id: Id, env: &Env) {
         let ctx = stage.ctx().clone();
         let props = comp.props(Internal::new());
         let (has_header, has_footer, scroll) = (props.header.is_some(), props.footer.is_some(), props.scroll);
-        let initially_open = props.collapse.is_none_or(|collapse| collapse.initially_open);
+        let collapse = props.collapse;
+        let initially_open = collapse.is_none_or(|collapse| collapse.initially_open);
         let save = props.save.clone();
         self.save = save.clone();
         let layer = matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. });
@@ -279,6 +406,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             None => *stage.session::<OpenState>(sub(id, "open")).0.get_or_insert(initially_open),
         };
         self.open_at_read = self.open;
+        self.presence = match collapse {
+            Some(collapse) if collapse.animated => Driver { stage: &*stage, base: id, policy: env.motion }.presence("collapse", self.open, spec::OPEN_RISE),
+            _ => Presence { t: f32::from(u8::from(self.open)), visible: self.open, exiting: false },
+        };
+        self.mode = stage.session::<WindowMode>(sub(id, "window_mode")).clone();
         if layer {
             let empty = *stage.shown::<Placement>(placement_id(id)) == Placement::default();
             if empty && let Some(key) = &save {
@@ -325,6 +457,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             self.offset.x += f64::from(if rtl { -dx } else { dx });
             self.moved = true;
         }
+        for mv in super::steps::take_scroll_moves(&ctx, id) {
+            let (visible, extent, offset, vertical) = if scroll.vertical_on() { (view.y, self.last.extent.1, self.offset.y, true) } else { (view.x, self.last.extent.0, self.offset.x, false) };
+            let span = ScrollSpan::new(0.0..f64::from(extent).max(f64::from(visible)), offset..offset + f64::from(visible));
+            if let Some(range) = craft_behavior::scroll::jump(&span, mv) {
+                if vertical {
+                    self.offset.y = range.start;
+                } else {
+                    self.offset.x = range.start;
+                }
+                self.moved = true;
+            }
+        }
         let follows = stage.session::<ScrollState>(sub(id, "scroll")).follow_end.unwrap_or(true);
         if scroll.anchor == super::ScrollAnchor::End && follows && !self.moved {
             self.offset.y = f64::from((self.last.extent.1 - view.y).max(0.0));
@@ -338,7 +482,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             ShowAt::Flow => ui.available_rect_before_wrap(),
         };
         let props = comp.props(Internal::new());
-        let body = if self.open { self.remembered.unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        let remembered = self.remembered.unwrap_or(Vec2::ZERO);
+        let body = if self.presence.visible { Vec2::new(remembered.x, remembered.y * self.presence.t) } else { Vec2::ZERO };
         let width = body.x.max(self.header_last.x).max(self.footer_last.x);
         let height = body.y + self.header_last.y + self.footer_last.y;
         Vec2::new(width, height) + Vec2::splat(2.0 * pad_of(scx.tokens, props.pad))
@@ -371,11 +516,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             for (bar, span) in self.scroll_geometry(&props, view, rtl, tokens) {
                 pcx.scroll(bar.key, bar.track, bar.axis, span);
             }
-            wheel::register(
-                &ctx,
-                WheelTaker::new(pcx.id, view).vertical(props.scroll.is_some_and(|scroll| scroll.vertical_on())).horizontal(props.scroll.is_some_and(|scroll| scroll.horizontal_on())),
-            );
+            if let Some(scroll) = props.scroll {
+                let notch = match scroll.notch {
+                    Notch::Lines(lines) => WheelNotch::Points(lines * tokens.tokens().typography.body.line_height),
+                    Notch::ViewShare(share) => WheelNotch::ViewShare(share),
+                };
+                wheel::register(&ctx, WheelTaker::new(pcx.id, view).vertical(scroll.vertical_on()).horizontal(scroll.horizontal_on()).notch(notch));
+            }
         }
+        self.nudge = gap_of(tokens, Gap::Row);
         let handle = tokens.tokens().size.handle.sm;
         let reason = "the Move and Size commands of the window command set do the same";
         if props.header.is_some_and(|header| header.band == super::DragBand::Move) && regions.header.height() > 0.0 {
@@ -422,10 +571,12 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 self.offset.x = range.start;
                 self.moved = true;
             }
+            self.access_scroll(props, cx);
         }
         if !layer {
             return;
         }
+        self.window_keys(props, cx);
         let id = cx.core.id;
         let min = cx.style.metrics().min_size;
         let rect = cx.core.rect;
@@ -532,7 +683,8 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         }
         let label_extra = (regions.body.size() - body_rect.size()).max(Vec2::ZERO);
         // B3 body, if open, under the body env; the gate is read after the header changed it.
-        let is_open = open;
+        let animated = props.collapse.is_some_and(|collapse| collapse.animated);
+        let is_open = open || (animated && self.presence.visible);
         let enabled = gate.unwrap_or(true);
         if is_open {
             let body_env = region_env.derive(|scoped| {
@@ -555,6 +707,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             let mut bcx = BodyCx::new(body_id, body_env.view(), resolved, body_rect, &mut *cx.core.memory, &mut open, gate.as_mut());
             let gap = Vec2::splat(gap_of(&env.tokens, props.body_gap));
             let layout_id = sub(id, "layout");
+            // While the body opens or closes, it shows only the part of its last height that the presence reaches.
+            let reveal_clip = (animated && self.presence.t < 1.0)
+                .then(|| Rect::from_min_max(body_rect.min, Pos2::new(body_rect.max.x, body_rect.min.y + self.remembered.map_or(0.0, |size| size.y) * self.presence.t)));
             let (layout, body) = (&props.layout, &mut *self.body);
             let mut run = |parent: &mut Ui, at: Rect, bcx: &mut BodyCx<'_>| -> Option<Vec2> {
                 let mut body_ui = alloc::child(parent, {
@@ -562,6 +717,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if node { access::with_parent(builder, id) } else { builder }
                 });
                 style::set_item_spacing(&mut body_ui, gap);
+                if let Some(clip) = reveal_clip {
+                    body_ui.set_clip_rect(clip.intersect(body_ui.clip_rect()));
+                }
                 let installed = Env::install_for(&body_ui, body_env.clone());
                 match props.scroll {
                     Some(scroll) => {
@@ -664,10 +822,23 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             // A viewport mount settles once per child pass: the baseline moves so a change applies once.
             self.gate_at_read = self.gate;
         }
+        let id = cx.core.id;
+        let (collapsible, policy) = {
+            let props = comp.props(Internal::new());
+            (props.collapse.is_some(), props.focus)
+        };
+        let closable = collapsible || comp.open().is_some();
+        if !self.layer
+            && closable
+            && policy.cancel != CancelRule::Ignore
+            && crate::runtime::focus::focus_in_scope(&cx.core.ctx, id) == Some(true)
+            && let Some(craft_behavior::focus::EscapeStep::CloseScope) = keys::scope_escape(&cx.core.ctx, policy.cancel, pointer::press_captured(&cx.core.ctx), false)
+        {
+            self.close = true;
+        }
         if self.close {
             self.open = false;
         }
-        let id = cx.core.id;
         if self.open != self.open_at_read {
             match comp.open() {
                 Some(mut bind) => {
@@ -709,6 +880,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 view.extent = (extent.x, extent.y);
             }
             view.view = self.view.map(|view| [view.min.x, view.min.y, view.max.x, view.max.y]);
+        }
+        if *stage.session::<WindowMode>(sub(id, "window_mode")) != self.mode {
+            *stage.session::<WindowMode>(sub(id, "window_mode")) = self.mode.clone();
         }
         if self.layer {
             // The mount host places the next pass by this; it runs before this stage is written back.

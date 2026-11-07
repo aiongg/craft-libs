@@ -22,6 +22,11 @@ pub(crate) enum NodeAction {
     SetValue,
     Expand,
     Collapse,
+    ScrollUp,
+    ScrollDown,
+    ScrollLeft,
+    ScrollRight,
+    SetScrollOffset,
 }
 
 impl NodeAction {
@@ -34,6 +39,11 @@ impl NodeAction {
             NodeAction::SetValue => accesskit::Action::SetValue,
             NodeAction::Expand => accesskit::Action::Expand,
             NodeAction::Collapse => accesskit::Action::Collapse,
+            NodeAction::ScrollUp => accesskit::Action::ScrollUp,
+            NodeAction::ScrollDown => accesskit::Action::ScrollDown,
+            NodeAction::ScrollLeft => accesskit::Action::ScrollLeft,
+            NodeAction::ScrollRight => accesskit::Action::ScrollRight,
+            NodeAction::SetScrollOffset => accesskit::Action::SetScrollOffset,
         }
     }
 }

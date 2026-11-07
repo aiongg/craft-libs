@@ -81,6 +81,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         None
     }
 
+    /// The axes the shape's body scrolls on, vertical then horizontal.
+    fn scrolls(&self, _comp: &C) -> (bool, bool) {
+        (false, false)
+    }
+
     /// What the shape adds to the content size at step 5, before padding and `min_size`.
     fn extent(&mut self, _comp: &C, _ui: &Ui, _at: ShowAt, _id: Id, _scx: &StyleCx<'_>) -> Vec2 {
         Vec2::ZERO
@@ -455,7 +460,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) });
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), scrolls: p.hooks.scrolls(comp), group: steps::member_group(&ctx, env.roving, id) });
     tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
     p.activated = comp.activated(cx) && resolved.enabled;
 }

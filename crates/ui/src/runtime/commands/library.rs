@@ -61,7 +61,7 @@ impl EditCommands {
 
 /// The `window` commands (16.3): a floating container moves and resizes from the keyboard.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
-#[command(prefix = "window")]
+#[command(prefix = "window", scope = "window")]
 #[non_exhaustive]
 pub enum WindowCommand {
     /// Move the focused window with the arrow keys.

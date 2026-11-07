@@ -113,6 +113,9 @@ struct Stage {
     routed: HashMap<Option<Id>, Routed>,
     claimed: Vec<(Id, Chord)>,
     claims: Vec<(Id, Chord)>,
+    /// Chords a container holds for itself while focus is anywhere in the viewport (a window mode), from the
+    /// pass that registered them.
+    captures: Vec<(Id, Chord)>,
     menu: Vec<MenuKey>,
     layout: Layout,
     nodes: HashMap<u64, Node>,
@@ -289,6 +292,7 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
+        claims.extend(stage.captures.iter().map(|(_, chord)| *chord));
         let edits = |command| keys.is_some_and(|keys| keys.edits.contains(command));
         stage.layout.set_latin(input.keyboard_layout_is_latin);
         let strip = Strip {
@@ -333,14 +337,14 @@ pub(crate) fn take_nav(ctx: &Context) -> NavKeys {
 pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     let os = raw_input::os(ctx);
     let target = focus::focused_rec(ctx);
-    let (batch, nodes) = current(ctx, |stage| {
+    let (batch, nodes, captures) = current(ctx, |stage| {
         stage.routed.clear();
         stage.contexts.clear();
         stage.claimed.clear();
         stage.activated.clear();
         stage.claims.clear();
         stage.last_nodes = std::mem::take(&mut stage.nodes);
-        (std::mem::take(&mut stage.batch), stage.last_nodes.clone())
+        (std::mem::take(&mut stage.batch), stage.last_nodes.clone(), std::mem::take(&mut stage.captures))
     });
     let mut routed: HashMap<Option<Id>, Routed> = HashMap::new();
     let mut activated = HashMap::new();
@@ -372,7 +376,11 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     for _ in 0..escapes.to_components {
         push(&mut routed, focused, Intent::Cancel, false);
     }
-    let claimed = batch.claimed.iter().filter_map(|chord| focused.map(|id| (id, *chord))).collect::<Vec<_>>();
+    let claimed = batch
+        .claimed
+        .iter()
+        .filter_map(|chord| captures.iter().find(|(_, held)| held == chord).map(|(owner, _)| *owner).or(focused).map(|id| (id, *chord)))
+        .collect::<Vec<_>>();
     for request in &batch.access {
         route_access(ctx, request, &nodes, &mut routed, &mut activated);
     }
@@ -578,6 +586,43 @@ impl Intents {
         }
     }
 
+    /// Takes the next move that scrolls (page up or down, start, end): what a focused component that does not
+    /// take it leaves to the scroll owner around it (9.2 rule 5).
+    pub(crate) fn take_scroll_move(&mut self) -> Option<NavMove> {
+        let at = self
+            .items
+            .iter()
+            .position(|(item, taken)| !taken && matches!(item, Intent::Move(NavMove::PageUp | NavMove::PageDown | NavMove::Start | NavMove::End, _)))?;
+        self.items[at].1 = true;
+        match self.items[at].0 {
+            Intent::Move(mv, _) => Some(mv),
+            _ => None,
+        }
+    }
+
+    /// Takes the next AccessKit request that asks a scroll region to scroll, or with `into_view` to show its target.
+    pub(crate) fn take_scroll_access(&mut self, into_view: bool) -> Option<AccessRequest> {
+        use accesskit::Action;
+        let at = self.items.iter().position(|(item, taken)| {
+            !taken
+                && matches!(
+                    item,
+                    Intent::Access(request)
+                        if request.target.is_none()
+                            && (request.action == Action::ScrollIntoView) == into_view
+                            && matches!(
+                                request.action,
+                                Action::ScrollUp | Action::ScrollDown | Action::ScrollLeft | Action::ScrollRight | Action::ScrollIntoView | Action::SetScrollOffset
+                            )
+                )
+        })?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Access(request) => Some(request.clone()),
+            _ => None,
+        }
+    }
+
     /// Takes the next edit command.
     pub fn take_edit(&mut self) -> Option<EditCommand> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Edit(_)))?;
@@ -709,6 +754,17 @@ pub(crate) fn take_claimed(ctx: &Context, id: Id, chord: Chord) -> bool {
 /// component.
 pub(crate) fn claim(ctx: &Context, owner: Id, chord: Chord) {
     current(ctx, |stage| stage.claims.push((owner, chord)));
+}
+
+/// Holds `chord` for `owner` from the next input hook on, whichever component has focus: the key stage withholds
+/// it from every component and `take_claimed` reads it. Used while a container is in a mode that owns the arrow
+/// keys, Enter and Escape (the window move and size modes, 16.3); the claim lapses when it is not renewed.
+pub(crate) fn capture(ctx: &Context, owner: Id, chord: Chord) {
+    current(ctx, |stage| {
+        if !stage.captures.contains(&(owner, chord)) {
+            stage.captures.push((owner, chord));
+        }
+    });
 }
 
 /// Records that `id` asked for a context menu in this pass, to open at `rect`: a secondary-button release on it, or

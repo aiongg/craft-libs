@@ -71,4 +71,4 @@ pub use sense::Sense;
 pub use sizing::{ControlMetrics, Metrics, Proposal};
 pub use value::{Applied, CancelReason, EditEvent, EditPolicy, Gesture, GestureId, GesturePhase, Mixed, Validity, Value};
 pub use value_drag::ValueDrag;
-pub use wheel::{Wheel, WheelPhase, WheelTaker, WheelUnit};
+pub use wheel::{Wheel, WheelNotch, WheelPhase, WheelTaker, WheelUnit};

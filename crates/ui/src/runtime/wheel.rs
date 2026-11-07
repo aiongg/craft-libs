@@ -1,5 +1,6 @@
 //! The wheel service (8.6): takers register their view rects, the begin hook splits the pass's wheel input
-//! among them from last pass's registrations, and each taker reads its share once.
+//! among them from last pass's registrations, and each taker reads its share once. The device reports lines and
+//! pages; the service converts them to points with the notch each taker registered.
 
 use crate::runtime::egui::{input, pass};
 use crate::runtime::focus;
@@ -40,7 +41,7 @@ pub(crate) fn begin(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let pass_pointer = pointer::pass_pointer(ctx);
     let frame = pass_pointer.frame.clone();
-    let wheel_in = input::wheel_read(ctx, pointer::WHEEL_LINE_POINTS, pointer::WHEEL_PAGE_POINTS);
+    let wheel_in = input::wheel_read(ctx, 1.0, 1.0);
     let focused = focus::focused_stop(ctx).map(|(owner, _)| owner);
     let hover = pass_pointer.hover.or(frame.as_ref().and_then(|frame| frame.pos));
     let pressed_on = pass_pointer
@@ -75,7 +76,17 @@ pub(crate) fn begin(ctx: &Context) {
             return;
         }
         let share = Wheel::new(scroll, mods, unit, phase).zoom(frame.zoom);
-        state.shares = split(&state.last, at, share, focused, state.armed);
+        // The device's lines and pages become points of each taker: the notch is the scroll owner's to choose.
+        let shares = split(&state.last, at, share, focused, state.armed);
+        state.shares = shares
+            .into_iter()
+            .map(|(owner, mut share)| {
+                if let Some(taker) = state.last.iter().find(|taker| taker.owner == owner) {
+                    share.scroll = taker.points(share.scroll, unit);
+                }
+                (owner, share)
+            })
+            .collect();
     });
 }
 

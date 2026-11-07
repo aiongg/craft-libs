@@ -35,6 +35,8 @@ pub(crate) struct Own<'a> {
     pub focusable: bool,
     pub clickable: bool,
     pub keeps_name: bool,
+    /// The axes the component's body scrolls on, vertical then horizontal: the node serves the scroll actions.
+    pub scrolls: (bool, bool),
     pub access: &'a Access,
     /// The popups the component shows this pass.
     pub popups: &'a [PopupShown],
@@ -147,6 +149,19 @@ fn declare_actions(spec: &mut NodeSpec, focusable: bool, clickable: bool, numeri
     }
 }
 
+/// The scroll actions of a node that scrolls: a page along each axis, and an offset.
+fn declare_scroll_actions(spec: &mut NodeSpec, (vertical, horizontal): (bool, bool)) {
+    if vertical {
+        spec.actions.extend([NodeAction::ScrollUp, NodeAction::ScrollDown]);
+    }
+    if horizontal {
+        spec.actions.extend([NodeAction::ScrollLeft, NodeAction::ScrollRight]);
+    }
+    if vertical || horizontal {
+        spec.actions.push(NodeAction::SetScrollOffset);
+    }
+}
+
 fn custom_actions(spec: &mut NodeSpec, actions: &[(i32, Label)]) {
     spec.custom_actions = actions.iter().map(|(id, label)| (*id, label.as_str().to_owned())).collect();
 }
@@ -203,6 +218,7 @@ pub(crate) fn report(ctx: &Context, own: &Own<'_>) {
         spec.actions.push(if expanded { NodeAction::Collapse } else { NodeAction::Expand });
     }
     declare_actions(&mut spec, own.focusable, own.clickable, numeric);
+    declare_scroll_actions(&mut spec, own.scrolls);
     custom_actions(&mut spec, &access.custom_actions);
     write_node(ctx, own.id, &spec);
     report_violations(

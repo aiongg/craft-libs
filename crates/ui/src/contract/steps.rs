@@ -18,7 +18,7 @@ use crate::runtime::motion::{Drives as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
-    CancelReason, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value,
+    CancelReason, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PartRef, PressCancel, Proposal, Roving, Sense, Value,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
@@ -653,8 +653,29 @@ pub(crate) fn register_reset<C: Component>(comp: &mut C, cx: &Cx<'_, C>) {
     scope::register_reset(&cx.core.ctx, cx.core.id, differs);
 }
 
+/// What the component left untaken that a scroll region serves: page and end moves go to the innermost scroll
+/// owner around the component, and an AccessKit request to show the component reveals its rect there. Both are
+/// applied at the owner's step 4 of the next pass.
+fn route_to_scroll_owner(core: &mut CxCore<'_>) {
+    let mut moves = Vec::new();
+    while let Some(mv) = core.intents.take_scroll_move() {
+        moves.push(mv);
+    }
+    let reveal = core.intents.take_scroll_access(true).is_some();
+    if moves.is_empty() && !reveal {
+        return;
+    }
+    let Some(owner) = wheel::nearest_scroll_owner(&core.ctx, core.rect) else { return };
+    store::Service::<ScrollMoves>::of(&core.ctx).with(|queue| queue.0.extend(moves.into_iter().map(|mv| (owner, mv))));
+    if reveal {
+        store::Service::<Reveals>::of(&core.ctx).with(|reveals| reveals.0.push(Reveal { owner, rect: core.rect }));
+    }
+    repaint::request(&core.ctx);
+}
+
 /// Writes back what the component left untaken, and its state-dependent claims for the next frames.
 pub(crate) fn after_update(core: &mut CxCore<'_>) {
+    route_to_scroll_owner(core);
     keys::settle(&core.ctx, Some(core.id), &core.intents);
     if core.intents.untaken(&Intent::ContextMenu)
         || (core.response.hovered() && crate::runtime::pointer::frame(&core.ctx).release == Some(craft_behavior::PointerButton::Secondary))
@@ -937,6 +958,19 @@ pub(crate) fn take_reveal(ctx: &Context, owner: Id) -> Option<Rect> {
     })
 }
 
+/// A page or end move a focused component left untaken, addressed to the scroll owner around it (9.2 rule 5).
+#[derive(Default)]
+struct ScrollMoves(Vec<(Id, NavMove)>);
+
+/// The scroll moves addressed to `owner`, in the order they arrived.
+pub(crate) fn take_scroll_moves(ctx: &Context, owner: Id) -> Vec<NavMove> {
+    store::Service::<ScrollMoves>::of(ctx).with(|moves| {
+        let (mine, rest) = std::mem::take(&mut moves.0).into_iter().partition(|(id, _)| *id == owner);
+        moves.0 = rest;
+        mine.into_iter().map(|(_, mv)| mv).collect()
+    })
+}
+
 /// Step 15, settle: child edits adopted with `cx.adopt` join the pass's events and are applied, and the open state of the
 /// component's popups is written. A reveal request goes to the nearest scroll owner; anything queued for the next pass requests a repaint.
 pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
@@ -965,6 +999,8 @@ pub(crate) struct ReportIn<'a> {
     pub sense: Sense,
     /// The container's `ContainerProps.live`.
     pub live: Option<Politeness>,
+    /// The axes the container's body scrolls on.
+    pub scrolls: (bool, bool),
     /// The roving group the component's own stop is in.
     pub group: Option<Id>,
 }
@@ -1049,6 +1085,7 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         focusable,
         clickable: resolved.enabled && input.sense.contains(Sense::CLICK),
         keeps_name: resolved.keeps_name,
+        scrolls: input.scrolls,
         access: &access,
         popups: &super::overlay::popups_shown(ctx, id),
     };
@@ -1114,6 +1151,7 @@ pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
             focusable: false,
             clickable: false,
             keeps_name: false,
+            scrolls: (false, false),
             access: &access,
             popups: &[],
         },

@@ -76,12 +76,29 @@ pub struct WheelTaker<O> {
     pub zoom: bool,
     /// A value control: it takes vertical scroll only while focused or armed. Horizontal scroll needs no gate.
     pub gated: bool,
+    /// The distance of one wheel line.
+    pub notch: WheelNotch,
+}
+
+/// The distance one wheel line scrolls a taker.
+#[derive(Clone, Copy, Debug, PartialEq)]
+#[non_exhaustive]
+pub enum WheelNotch {
+    /// This many points.
+    Points(f32),
+    /// This share of the taker's view along the axis.
+    ViewShare(f32),
+}
+
+impl WheelNotch {
+    /// The distance of a taker that states none.
+    pub const DEFAULT: WheelNotch = WheelNotch::Points(40.0);
 }
 
 impl<O> WheelTaker<O> {
     /// A taker over `rect` that takes no axis yet.
     pub const fn new(owner: O, rect: Rect) -> Self {
-        WheelTaker { owner, rect, horizontal: false, vertical: false, zoom: false, gated: false }
+        WheelTaker { owner, rect, horizontal: false, vertical: false, zoom: false, gated: false, notch: WheelNotch::DEFAULT }
     }
 
     /// Whether it takes horizontal scroll.
@@ -106,6 +123,26 @@ impl<O> WheelTaker<O> {
     pub const fn gated(mut self, on: bool) -> Self {
         self.gated = on;
         self
+    }
+
+    /// The distance of one wheel line.
+    pub const fn notch(mut self, notch: WheelNotch) -> Self {
+        self.notch = notch;
+        self
+    }
+
+    /// `scroll`, given in `unit`s of the device, as points of this taker's view: a line is one notch, a page is
+    /// the view.
+    pub fn points(&self, scroll: Vec2, unit: WheelUnit) -> Vec2 {
+        let size = self.rect.size();
+        match unit {
+            WheelUnit::Point => scroll,
+            WheelUnit::Line => match self.notch {
+                WheelNotch::Points(points) => scroll * points,
+                WheelNotch::ViewShare(share) => scroll * size * share,
+            },
+            WheelUnit::Page => scroll * size,
+        }
     }
 }
 
@@ -145,6 +182,16 @@ mod tests {
 
     fn rect(size: f32) -> Rect {
         Rect::from_min_size(pos2(0.0, 0.0), Vec2::splat(size))
+    }
+
+    #[test]
+    fn a_line_scrolls_the_takers_notch_and_a_page_scrolls_its_view() {
+        let lines = WheelTaker::new(1u8, rect(200.0)).vertical(true).notch(WheelNotch::Points(30.0));
+        assert_eq!(lines.points(Vec2::new(0.0, 2.0), WheelUnit::Line), Vec2::new(0.0, 60.0));
+        let share = WheelTaker::new(1u8, rect(200.0)).vertical(true).notch(WheelNotch::ViewShare(0.25));
+        assert_eq!(share.points(Vec2::new(0.0, 2.0), WheelUnit::Line), Vec2::new(0.0, 100.0));
+        assert_eq!(share.points(Vec2::new(0.0, 1.0), WheelUnit::Page), Vec2::new(0.0, 200.0));
+        assert_eq!(share.points(Vec2::new(0.0, 7.0), WheelUnit::Point), Vec2::new(0.0, 7.0));
     }
 
     #[test]
