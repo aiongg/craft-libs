@@ -39,3 +39,9 @@ pub use list_manager::{
 };
 pub use password::{PasswordAnswer, PasswordDialog, PasswordOutput, PasswordPurpose, PasswordStrength, PasswordWords, Secret, password_strength};
 pub use report::{ReportDialog, ReportNote, ReportOutput, ReportWords};
+
+mod sizing;
+
+pub use sizing::{
+    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, ImageSize, ImageSizeOutput, ImageSizeResult, Resample, SizingOutput, SizingWords,
+};
