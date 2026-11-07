@@ -3,6 +3,7 @@
 
 use craft_behavior::Sense;
 use craft_theme::variant::Tone;
+use craft_ui::contract::MeasureCx;
 use craft_ui::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Edit as _, EditResponse, HeaderRegion, Props as _, Role, Show as _,
     ShowContainer as _, SideLabel, Validity,
@@ -10,10 +11,10 @@ use craft_ui::contract::{
 use craft_ui::runtime::env::Message;
 use craft_ui::style::StyleCx;
 use craft_ui::testing::{Frames, trial};
-use egui::{Rect, Response, Ui};
+use egui::{Rect, Response, Ui, Vec2};
 use std::cell::Cell;
 
-use super::kit::PlainStyle;
+use super::kit::{PlainStyle, SIZE};
 
 const AT: Rect = Rect { min: egui::pos2(0.0, 0.0), max: egui::pos2(300.0, 60.0) };
 
@@ -32,6 +33,10 @@ impl Component for Checked<'_> {
 
     fn style(_: &StyleCx<'_>, _: CheckedStyleKey) -> PlainStyle {
         PlainStyle::default()
+    }
+
+    fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {
+        SIZE
     }
 
     fn sense(&self) -> Sense {
