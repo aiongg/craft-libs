@@ -3,7 +3,7 @@
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun, Wrap};
 use crate::style::{ComponentStyle, FocusLook, Stateful, StyleCx, TextLook, TypeRole};
-use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
+use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase, Sense};
 use craft_theme::States;
 use egui::{Pos2, Response, Vec2};
 
@@ -69,6 +69,11 @@ impl Component for Link {
             text: TextLook::new(TypeRole::Body, Stateful::new(color).off(States::new(color, color, color, cx.color(colors.text.disabled)))),
             underline: cx.tokens.stroke.thin / 2.0,
         }
+    }
+
+    /// A middle click opens the link in a new tab.
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS | Sense::MIDDLE_CLICK
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {

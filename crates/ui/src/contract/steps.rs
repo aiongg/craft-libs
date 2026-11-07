@@ -1223,6 +1223,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access.position =
             input.group.and_then(|group| focus::group_position(ctx, id, group)).or_else(|| core.env.facts_of(id).map(|facts| facts.position));
     }
+    if role == Role::TAB && access.position.is_none() {
+        eprintln!("DBGPOS id={:?} group={:?} facts_any={:?}", id, input.group, core.env.facts_of(id).is_some());
+    }
     let paint = core.paint.borrow();
     if role == Role::Merged {
         let facts = scope::Merged {
@@ -1326,7 +1329,8 @@ fn report_sub(core: &CxCore<'_>, input: &ReportIn<'_>, node: &SubNode, face: Opt
 pub(crate) fn report_inert<C: Component>(cx: &Cx<'_, C>) {
     let Role::Node(role) = C::ROLE else { return };
     let core = &cx.core;
-    let access = Access::default();
+    let mut access = Access::default();
+    access.position = core.env.facts_of(core.id).map(|facts| facts.position);
     access::report(
         &core.ctx,
         &Own {

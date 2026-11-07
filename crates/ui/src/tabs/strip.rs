@@ -130,7 +130,7 @@ impl StripLayout {
         layout
     }
 
-    /// Places the tabs the fit keeps from the start edge; the others get no width, at the end edge. The overflow button
+    /// Places the tabs the fit keeps from the start edge; the others are not listed as visible, so they are not built. The overflow button
     /// is as wide as the row is high.
     fn refit(&mut self) {
         let count = self.ideal.len();
@@ -156,7 +156,7 @@ impl ItemLayout for StripLayout {
     }
 
     fn visible(&self, _: ScrollPos, _: Vec2, out: &mut Vec<usize>) {
-        out.extend(0..self.ideal.len());
+        out.extend((0..self.ideal.len()).filter(|&at| self.shown[at]));
     }
 
     fn rect(&self, at: usize, offset: ScrollPos) -> Rect {
@@ -327,7 +327,13 @@ impl<K: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Component f
             OverflowPlace::AfterTabs => flow.take_start(report.tabs_end).1.take_start(report.overflow).0,
         };
         self.more = Some(slot);
-        cx.part(OVERFLOW, slot).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Edge, 0)).over().toggles("menu").on_press();
+        cx.part(OVERFLOW, slot)
+            .sense(Sense::CLICK)
+            .priority(HitPriority::new(HitLevel::Edge, 0))
+            .over()
+            .toggles("menu")
+            .on_press()
+            .pointer_only("Alt+Down opens the overflow menu");
     }
 
     /// A drag of this strip's tabs that no target takes is a tear-off.

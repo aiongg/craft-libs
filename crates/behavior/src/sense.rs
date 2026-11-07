@@ -22,6 +22,9 @@ bitflags! {
         const TAKE_FOCUS = 64;
         /// The horizontal wheel share, taken without focus or arming; the split rule passes the vertical share on.
         const WHEEL_X = 128;
+        /// A middle press that ends within slop is a click the component reads from its press; it never activates.
+        /// Without this bit a middle press only captures for a drag.
+        const MIDDLE_CLICK = 256;
     }
 }
 
