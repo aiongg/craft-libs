@@ -18,6 +18,7 @@ use crate::contract::{
 use crate::list::{List, ListRow};
 use crate::menu::Menu;
 use crate::runtime::env::Label;
+use crate::runtime::focus::FocusPolicy;
 use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::text::TextField;
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps};
@@ -216,7 +217,9 @@ impl<T: Value + 'static> Component for Select<'_, T> {
         let held = self.position(cx.value());
         let (searchable, dress) = (self.searchable, self.decorate.as_ref());
         let mut header_menu = self.header_menu.as_mut();
-        let events = ui.show(popup, Overlay::dropdown(), |ui, body| {
+        // A filter field needs the key focus, so its popup takes focus in; the others leave it on the field.
+        let overlay = if searchable { Overlay::dropdown().focus(FocusPolicy::POPUP) } else { Overlay::dropdown() };
+        let events = ui.show(popup, overlay, |ui, body| {
             let mut query = String::new();
             if searchable || header_menu.is_some() {
                 ui.horizontal(|ui| {
