@@ -41,7 +41,10 @@ pub(crate) enum Kind {
 struct Scope {
     container: Id,
     kind: Kind,
+    /// The direct controls: node components inside this scope that sit in no other node component of it.
     nodes: Vec<(Id, bool)>,
+    /// Node components inside this scope whose step 16 has not come yet, outermost first.
+    open: Vec<Id>,
 }
 
 #[derive(Default)]
@@ -49,7 +52,7 @@ struct Stack(Vec<Scope>);
 
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, kind: Kind) {
-    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new() }));
+    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new() }));
 }
 
 /// The innermost label scope's label, read by `cx.field_label()`.
@@ -62,10 +65,29 @@ pub(crate) fn field_label(ctx: &Context) -> Option<FieldLabel> {
     })
 }
 
-/// Registers the node `id` with the innermost scope, as its component fills it.
-pub(crate) fn register(ctx: &Context, id: Id, keeps_name: bool) {
+/// Notes that the node component `id` created its node at step 8: the node components that run inside it are
+/// not direct controls of the scope.
+pub(crate) fn enter(ctx: &Context, id: Id) {
     Service::<Stack>::of(ctx).with(|stack| {
         if let Some(scope) = stack.0.last_mut() {
+            scope.open.push(id);
+        }
+    });
+}
+
+/// Registers the node `id` with the innermost scope at its step 16, when no other node component of the scope
+/// holds it. Children reach step 16 first, so they find their parent still open.
+pub(crate) fn register(ctx: &Context, id: Id, keeps_name: bool) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        let Some(scope) = stack.0.last_mut() else { return };
+        let direct = match scope.open.iter().rposition(|open| *open == id) {
+            Some(at) => {
+                scope.open.truncate(at);
+                at == 0
+            }
+            None => scope.open.is_empty(),
+        };
+        if direct {
             scope.nodes.push((id, keeps_name));
         }
     });

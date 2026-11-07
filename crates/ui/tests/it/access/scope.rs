@@ -20,9 +20,9 @@ fn field(frames: &mut Frames, controls: usize, keeps_name: bool) -> (Id, Vec<Id>
     let mut ids = Vec::new();
     frames.frame(vec![], |ui| {
         ids.clear();
-        // The container's report step closes the scope and patches the nodes registered in it.
-        begin_label_scope(ui.ctx(), container, field_label());
         Panel::new().id(container).show(ui, |ui, _| {
+            // The container's body opens the scope; its report step closes it and patches the nodes registered in it.
+            begin_label_scope(ui.ctx(), container, field_label());
             for at in 0..controls {
                 let seen = RefCell::new(Seen::default());
                 Probe::new(&seen).label(format!("Control {at}")).keeps_name(keeps_name).show(ui);
@@ -109,4 +109,47 @@ fn a_decorator_merges_its_name_and_description_into_the_child() {
     assert!(!tree.has(decor.expect("shown")), "the decorator has no node");
     let child = seen.borrow().id.expect("the child updated");
     assert_eq!((tree.name(child), tree.description(child)), (Some("Inbox, 3 unread"), Some("New mail")));
+}
+
+// A container control inside a field is the one control: the label names it, not the field and not its children.
+#[trial]
+fn a_container_control_inside_a_field_is_the_one_control() {
+    let mut frames = Frames::new();
+    let container = global("access.field", "container-control");
+    let group = RefCell::new(Seen::default());
+    let (first, second) = (RefCell::new(Seen::default()), RefCell::new(Seen::default()));
+    frames.frame(vec![], |ui| {
+        Panel::new().id(container).show(ui, |ui, _| {
+            begin_label_scope(ui.ctx(), container, field_label());
+            Panel::new().seen(&group).show(ui, |ui, _| {
+                Probe::new(&first).label("First").show(ui);
+                Probe::new(&second).label("Second").show(ui);
+            });
+        });
+    });
+    let tree = frames.tree();
+    let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
+    assert_eq!(tree.labelled_by(id(&group)), [NodeKey::of(field_label().id)]);
+    assert!(tree.labelled_by(container).is_empty(), "the field is not made a group");
+    assert!(tree.labelled_by(id(&first)).is_empty() && tree.labelled_by(id(&second)).is_empty());
+}
+
+// A decorator around a container merges into the container's node, not into one of its children.
+#[trial]
+fn a_decorator_around_a_container_merges_into_the_container() {
+    let mut frames = Frames::new();
+    let group = RefCell::new(Seen::default());
+    let child = RefCell::new(Seen::default());
+    frames.frame(vec![], |ui| {
+        let decorator = Decor { common: Common::new(), props: ContainerProps::new() }.label("3 unread");
+        decorator.show(ui, |ui, _| {
+            Panel::new().seen(&group).show(ui, |ui, _| {
+                Probe::new(&child).label("Inbox").show(ui);
+            });
+        });
+    });
+    let tree = frames.tree();
+    let id = |seen: &RefCell<Seen>| seen.borrow().id.expect("updated");
+    assert_eq!(tree.name(id(&child)), Some("Inbox"), "the grandchild keeps its own name");
+    assert!(tree.name(id(&group)).is_some_and(|name| name.contains("3 unread")));
 }
