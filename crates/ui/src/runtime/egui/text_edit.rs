@@ -115,7 +115,19 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
                 edit.show(ui)
             }};
         }
-        if read_only { build!(&mut read) } else { build!(&mut *text) }
+        let shown = if read_only { build!(&mut read) } else { build!(&mut *text) };
+        // egui gives a widget of a disabled `Ui` no focus stop and drops its focus; a disabled part whose reason shows
+        // on focus keeps both (as `response::widget` does for a root).
+        if focusable && !ui.is_enabled() {
+            let layer = ui.layer_id();
+            ui.ctx().memory_mut(|memory| {
+                memory.interested_in_focus(id, layer);
+                if had_focus {
+                    memory.request_focus(id);
+                }
+            });
+        }
+        shown
     });
     let output = output.inner;
     let focused = output.response.has_focus();

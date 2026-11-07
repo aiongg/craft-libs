@@ -28,7 +28,7 @@ pub struct FieldGroup {
 impl FieldGroup {
     /// A group named `label`.
     pub fn new(label: impl Into<Label>) -> Self {
-        let props = ContainerProps::new().sizing(Sizing::Fill).label_column(true);
+        let props = ContainerProps::new().sizing(Sizing::FillWidth).label_column(true);
         FieldGroup { common: Common::new(), props }.label(label)
     }
 }

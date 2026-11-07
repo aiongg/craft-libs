@@ -717,7 +717,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 let room = ui.available_size_before_wrap();
                 Vec2::new(if room.x.is_finite() { size.x.max(room.x) } else { size.x }, if room.y.is_finite() { size.y.max(room.y) } else { size.y })
             }
-            _ => size,
+            Sizing::FillWidth => {
+                let room = ui.available_width();
+                Vec2::new(if room.is_finite() { size.x.max(room) } else { size.x }, size.y)
+            }
+            Sizing::Content => size,
         }
     }
 
