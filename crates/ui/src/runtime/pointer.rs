@@ -238,6 +238,20 @@ pub(crate) fn record_widgets(ctx: &Context, layer: Layer, root: Id, widgets: &[I
     });
 }
 
+/// The parts of the root `root` that sense a drag in last pass's shape record, in registration order.
+pub(crate) fn drag_parts(ctx: &Context, root: Id) -> Vec<craft_behavior::PartRef> {
+    let viewport = pass::current_viewport(ctx);
+    PerViewport::<Shapes>::with(ctx, viewport, |record| {
+        let mut parts = Vec::new();
+        for layer in record.last.values() {
+            if let Some(entry) = layer.get(&root) {
+                parts.extend(entry.shapes.iter().filter(|shape| shape.sense.contains(craft_behavior::Sense::DRAG)).filter_map(|shape| shape.part));
+            }
+        }
+        parts
+    })
+}
+
 /// The winner of a press at `at` among last pass's shapes of the root egui hands the press to, on the topmost
 /// layer under it, with that root: what the focus service classifies the press by (8.3, H7). A press whose egui
 /// target is no root's widget has no winner. Shapes of transformed bodies lie on their own layers.

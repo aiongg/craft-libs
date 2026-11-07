@@ -263,7 +263,7 @@ fn mark_style(cx: &StyleCx<'_>) -> MarkStyle {
 /// The look of an action part.
 // F8-LATER: `IconButton` with the icon set replaces this face.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "A face of the title row's action parts, shown only inside it."))]
+#[component(exempt(case = "face-only", reason = "A face of the title row's action parts, shown only inside it."))]
 struct ActionFace {
     #[common]
     common: Common,

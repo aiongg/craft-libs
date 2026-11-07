@@ -217,23 +217,29 @@ pub struct StoryOutput {
     pub id: Option<Id>,
     /// The edit events' kinds, in order.
     pub edits: Vec<EditKind>,
+    /// The pass reported a click, by pointer or by keyboard activation.
+    pub clicked: bool,
 }
 
 impl From<Response> for StoryOutput {
     fn from(response: Response) -> Self {
-        StoryOutput { id: Some(response.id), edits: Vec::new() }
+        StoryOutput { id: Some(response.id), edits: Vec::new(), clicked: super::contract::clicked(&response) }
     }
 }
 
 impl<K, E> From<crate::contract::CollectionResponse<K, E>> for StoryOutput {
     fn from(response: crate::contract::CollectionResponse<K, E>) -> Self {
-        StoryOutput { id: Some(response.response.id), edits: Vec::new() }
+        StoryOutput { id: Some(response.response.id), edits: Vec::new(), clicked: super::contract::clicked(&response.response) }
     }
 }
 
 impl<T> From<EditResponse<T>> for StoryOutput {
     fn from(response: EditResponse<T>) -> Self {
-        StoryOutput { id: Some(response.response.id), edits: response.event.iter().filter_map(EditKind::of).collect() }
+        StoryOutput {
+            id: Some(response.response.id),
+            edits: response.event.iter().filter_map(EditKind::of).collect(),
+            clicked: super::contract::clicked(&response.response),
+        }
     }
 }
 

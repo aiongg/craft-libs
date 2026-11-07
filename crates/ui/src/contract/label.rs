@@ -125,7 +125,7 @@ impl super::Outcome for LabelOutput {
 
 /// The side label as a leaf: its own node, press state and reset dot.
 #[derive(super::Component)]
-#[component(exempt(case = "stories", reason = "The label leaf is shown by the label step, never stand-alone."))]
+#[component(exempt(case = "face-only", reason = "The label leaf is shown by the label step, never stand-alone."))]
 struct LabelLeaf {
     #[common]
     common: super::Common,

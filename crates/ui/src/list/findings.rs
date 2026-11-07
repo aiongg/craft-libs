@@ -315,7 +315,7 @@ struct EmptyNoteStyle {
 /// The text of an empty list.
 // F8-MERGE: Notice (display family) replaces this note.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "The empty state of `FindingsList`, shown by its empty story."))]
+#[component(exempt(case = "face-only", reason = "The empty state of `FindingsList`, shown by its empty story."))]
 struct EmptyNote {
     #[common]
     common: Common,

@@ -257,7 +257,7 @@ pub struct TipStyle {
 
 /// The text of a tooltip, on a popup surface.
 #[derive(crate::contract::Component)]
-#[component(exempt(case = "stories", reason = "The tooltip text is shown by the overlay host, never stand-alone."))]
+#[component(exempt(case = "face-only", reason = "The tooltip text is shown by the overlay host, never stand-alone."))]
 pub(crate) struct TipText<'a> {
     #[common]
     common: Common,

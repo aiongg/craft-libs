@@ -16,6 +16,22 @@ pub(crate) struct FrameResult {
     pub ime: Option<ImeSeen>,
     /// The texts the frame put on the clipboard.
     pub copied: Vec<String>,
+    /// The text runs the frame painted.
+    pub texts: Vec<PaintedText>,
+    /// The visual bounds of every shape the frame painted.
+    pub bounds: Vec<Rect>,
+}
+
+/// A text run a frame painted.
+#[derive(Clone, Debug, PartialEq)]
+#[non_exhaustive]
+pub struct PaintedText {
+    /// Where the run lies, in points.
+    pub rect: Rect,
+    /// The layout cut text.
+    pub elided: bool,
+    /// The run's full text.
+    pub text: String,
 }
 
 /// The IME output of a frame: the owner widget, whether it asks the OS to interrupt a composition, the caret rect.
@@ -36,6 +52,22 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
+    let mut flat = Vec::new();
+    for clipped in &output.shapes {
+        flatten_ref(&clipped.shape, &mut flat);
+    }
+    let bounds = flat.iter().map(|shape| shape.visual_bounding_rect()).collect();
+    let texts = flat
+        .iter()
+        .filter_map(|shape| match shape {
+            Shape::Text(text) => Some(PaintedText {
+                rect: text.galley.rect.translate(text.pos.to_vec2()),
+                elided: text.galley.elided,
+                text: text.galley.job.text.clone(),
+            }),
+            _ => None,
+        })
+        .collect();
     let closed = output.viewport_output.values().any(|viewport| viewport.commands.iter().any(|command| matches!(command, ViewportCommand::Close)));
     let repaint_delay = output.viewport_output.get(&egui::ViewportId::ROOT).map_or(std::time::Duration::MAX, |viewport| viewport.repaint_delay);
     let copied = output
@@ -47,6 +79,8 @@ pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, ui: impl F
     FrameResult {
         closed,
         copied,
+        texts,
+        bounds,
         cursor: output.platform_output.cursor_icon,
         repaint_delay,
         tree: crate::runtime::egui::access::tree_of(&mut output),
@@ -93,7 +127,9 @@ pub(crate) fn set_max_click_duration(ctx: &Context, seconds: f64) {
 
 /// A fresh context with no plugin and AccessKit on.
 pub(crate) fn bare_context() -> Context {
+    static FONTS: std::sync::OnceLock<egui::FontDefinitions> = std::sync::OnceLock::new();
     let ctx = Context::default();
+    ctx.set_fonts(FONTS.get_or_init(egui::FontDefinitions::default).clone());
     ctx.enable_accesskit();
     ctx
 }
@@ -126,6 +162,13 @@ pub(crate) fn run_frame_shapes(ctx: &Context, time: f64, ui: impl FnMut(&mut Ui)
         flatten(clipped.shape, &mut flat);
     }
     flat
+}
+
+fn flatten_ref<'a>(shape: &'a Shape, out: &mut Vec<&'a Shape>) {
+    match shape {
+        Shape::Vec(shapes) => shapes.iter().for_each(|shape| flatten_ref(shape, out)),
+        other => out.push(other),
+    }
 }
 
 fn flatten(shape: Shape, out: &mut Vec<Shape>) {
