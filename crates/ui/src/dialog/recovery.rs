@@ -4,19 +4,14 @@
 use super::host::{DialogResult, StackDialog};
 use super::prompt::{Prompt, Reply, buttons};
 use super::stack::{DialogId, DialogStack, dialog_id};
-use super::words::RecoveryLabels;
-use crate::contract::Bind;
-use crate::runtime::env::Env;
+use super::words::DialogWords;
+use crate::contract::{Bind, NoValue, Outcome};
+use crate::runtime::env::{Env, Label};
 use crate::runtime::overlay::CloseReason;
-use crate::runtime::windows::os_of;
 use crate::sections::DialogRole;
-use craft_theme::Tone;
-use egui::{Context, Ui};
+use craft_i18n::age::AgeStyle;
+use egui::{Context, Response, Ui};
 use std::time::Duration;
-
-const MINUTE: u64 = 60;
-const HOUR: u64 = 60 * MINUTE;
-const DAY: u64 = 24 * HOUR;
 
 /// One autosaved document, as the app's recovery folder lists it.
 #[derive(Clone, Debug, PartialEq)]
@@ -28,7 +23,7 @@ pub struct RecoveredDocument {
     pub name: String,
     /// How long before the app listed the recovery folder it was autosaved.
     pub age: Duration,
-    /// Why Recover is disabled now ("Stop recording first"), shown under the message; `None` enables it.
+    /// Why Recover is disabled now ("Stop recording first"), the tooltip of the disabled button; `None` enables it.
     pub blocked: Option<String>,
 }
 
@@ -57,6 +52,27 @@ pub enum RecoveryAnswer {
     Discard,
 }
 
+/// What the recovery dialog reports: its response, how it closed and the answer given.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct RecoveryOutput {
+    /// The dialog's response.
+    pub response: Response,
+    /// How the dialog closed in this pass; `None` while it stays open.
+    pub closed: Option<CloseReason>,
+    /// Discard or Recover, the pass a button or Enter answers; `None` when the dialog stays open or was dismissed
+    /// (Escape, the close action): the copy stays and is offered again at the next launch.
+    pub answer: Option<RecoveryAnswer>,
+}
+
+impl Outcome for RecoveryOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
+    }
+}
+
 /// Recover Unsaved Work, one document at a time: a prompt saying when the document was autosaved, with Discard and
 /// Recover (the accepting answer). Escape and the close action keep the copy for the next launch. The app enqueues
 /// the first document at `StartupStage::Recovery` and opens the next after taking each answer.
@@ -79,15 +95,36 @@ impl RecoveryDialog {
     }
 }
 
-/// How long ago `seconds` was: the whole minutes, hours or days, "recently" under a minute.
-fn age_text(words: &RecoveryLabels, format: &craft_i18n::Format, seconds: u64) -> String {
-    let (count, n) = match seconds {
-        0..MINUTE => return words.recently.as_str().to_owned(),
-        MINUTE..HOUR => (&words.minutes_ago, seconds / MINUTE),
-        HOUR..DAY => (&words.hours_ago, seconds / HOUR),
-        _ => (&words.days_ago, seconds / DAY),
-    };
-    count.text(n, &format.integer(n))
+impl RecoveryDialog {
+    /// Shows the offer; `hosted` holds the open state in the dialog's own field, else in memory.
+    fn present(&mut self, ui: &mut Ui, hosted: bool) -> RecoveryOutput {
+        let env = Env::of(ui);
+        let words = env.words::<DialogWords>();
+        let age = env.relative_age(self.document.age.as_secs(), AgeStyle::Long);
+        let message = words.recovery_message.fill(&[("name", self.document.name.as_str()), ("age", age.as_str())]);
+        let reason = self.document.blocked.clone().map(|reason| Label::from_cow(reason.into()));
+        let replies = vec![
+            Reply::plain(words.recovery_discard.clone(), DialogRole::Other),
+            Reply::plain(words.recovery_recover.clone(), DialogRole::Accept).enabled(reason.is_none(), reason),
+        ];
+        let mut prompt = Prompt::new(words.recovery_title.clone(), message).answers(buttons(&env, replies));
+        if hosted {
+            prompt = prompt.opened(Bind::bound(&mut self.open));
+        }
+        let shown = prompt.show(ui);
+        let answer = match (shown.closed, shown.picked) {
+            (Some(CloseReason::Activated | CloseReason::Enter), Some(0)) => Some(RecoveryAnswer::Discard),
+            (Some(CloseReason::Activated | CloseReason::Enter), Some(_)) => Some(RecoveryAnswer::Recover),
+            _ => None,
+        };
+        RecoveryOutput { response: shown.response, closed: shown.closed, answer }
+    }
+
+    /// Shows the offer; `answer` is `Some` the pass Discard or Recover answers, and `closed` without an answer means
+    /// the dialog was dismissed.
+    pub fn show(mut self, ui: &mut Ui) -> RecoveryOutput {
+        self.present(ui, false)
+    }
 }
 
 impl StackDialog for RecoveryDialog {
@@ -98,27 +135,9 @@ impl StackDialog for RecoveryDialog {
     }
 
     fn show(&mut self, ui: &mut Ui, _: &DialogStack) -> Option<DialogResult<RecoveryAnswer>> {
-        let env = Env::of(ui);
-        let words = env.words::<RecoveryLabels>();
-        let age = age_text(&words, env.format(), self.document.age.as_secs());
-        let message = words.message.fill(&[("name", self.document.name.as_str()), ("age", age.as_str())]);
-        let blocked = self.document.blocked.is_some();
-        let replies = [
-            Reply::new(words.discard.clone(), DialogRole::Other, None),
-            Reply::new(words.recover.clone(), DialogRole::Accept, None).enabled(!blocked),
-        ];
-        let mut prompt =
-            Prompt::new(words.title.clone(), message).answers(buttons(&replies, os_of(ui.ctx()))).enter(!blocked).opened(Bind::bound(&mut self.open));
-        if let Some(reason) = &self.document.blocked {
-            prompt = prompt.tone(Tone::Warn, reason.clone());
-        }
-        let shown = prompt.show(ui);
-        let closed = shown.closed?;
-        Some(match (closed, shown.picked) {
-            (CloseReason::Activated | CloseReason::Enter, Some(0)) => DialogResult::Ok(RecoveryAnswer::Discard),
-            (CloseReason::Activated | CloseReason::Enter, Some(_)) => DialogResult::Ok(RecoveryAnswer::Recover),
-            _ => DialogResult::Cancel,
-        })
+        let shown = self.present(ui, true);
+        shown.closed?;
+        Some(shown.answer.map_or(DialogResult::Cancel, DialogResult::Ok))
     }
 
     /// Recover, the accepting answer; `None` while recovery is blocked.

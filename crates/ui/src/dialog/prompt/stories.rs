@@ -1,12 +1,12 @@
 //! Stories of the prompts.
 
-use super::super::{Alert, DialogStack, Prompt, RecoveredDocument, RecoveryDialog, StackDialog, StandardPrompt, UnsavedChangesDialog};
+use super::super::{Alert, Prompt, RecoveredDocument, RecoveryDialog, StandardPrompt, UnsavedChangesDialog};
 use crate::choice::Checkbox;
 use crate::contract::{Bind, Props as _, Show as _};
 use crate::sections::{DialogRole, FooterButton};
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_quit::CloseScope;
-use craft_theme::Tone;
+use craft_theme::variant::Tone;
 use egui::Ui;
 use std::time::Duration;
 
@@ -55,28 +55,20 @@ fn alert(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(StandardPrompt, covers = [], drive = Drive::Never)]
 fn standard_prompt(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut prompt = StandardPrompt::confirm_delete(["Background", "Layer 1"], 2).dont_show_again();
-    prompt.show(ui, &DialogStack::default());
-    StoryOutput::default()
+    StandardPrompt::confirm_delete(["Background", "Layer 1"], 2).dont_show_again().show(ui).into()
 }
 
 #[story(StandardPrompt, covers = [], drive = Drive::Never)]
 fn standard_prompt_without_apply(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut prompt = StandardPrompt::trash_mask().can_apply(false);
-    prompt.show(ui, &DialogStack::default());
-    StoryOutput::default()
+    StandardPrompt::trash_mask().can_apply(false).show(ui).into()
 }
 
 #[story(UnsavedChangesDialog, covers = [], drive = Drive::Never)]
 fn unsaved_changes_dialog(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut dialog = UnsavedChangesDialog::new(CloseScope::Close, "poster.psd").remaining(3);
-    dialog.show(ui, &DialogStack::default());
-    StoryOutput::default()
+    UnsavedChangesDialog::new(CloseScope::Close, "poster.psd").remaining(3).show(ui).into()
 }
 
 #[story(RecoveryDialog, covers = [], drive = Drive::Never)]
 fn recovery_dialog(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let mut dialog = RecoveryDialog::new(RecoveredDocument::new("poster", "poster.psd", AUTOSAVED_AGO).blocked("Stop recording first"));
-    dialog.show(ui, &DialogStack::default());
-    StoryOutput::default()
+    RecoveryDialog::new(RecoveredDocument::new("poster", "poster.psd", AUTOSAVED_AGO).blocked("Stop recording first")).show(ui).into()
 }
