@@ -124,6 +124,12 @@ impl AccessTree {
         self.node(id).map_or_else(Vec::new, |node| node.described_by().iter().map(|key| NodeKey(key.0)).collect())
     }
 
+    /// The place of the node of `id` in its set: its zero-based index and the size of the set.
+    pub fn position(&self, id: Id) -> Option<(usize, usize)> {
+        let node = self.node(id)?;
+        Some((node.position_in_set()?, node.size_of_set()?))
+    }
+
     /// The live politeness of the node of `id`.
     pub fn live(&self, id: Id) -> Option<Politeness> {
         match self.node(id)?.live()? {

@@ -911,6 +911,8 @@ pub(crate) struct ReportIn<'a> {
     pub sense: Sense,
     /// The container's `ContainerProps.live`.
     pub live: Option<Politeness>,
+    /// The roving group the component's own stop is in.
+    pub group: Option<Id>,
 }
 
 /// The bound command's hint and shortcut text, which describe and key its node.
@@ -951,6 +953,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
     }
     if access.live.is_none() {
         access.live = input.live;
+    }
+    if access.position.is_none() {
+        access.position = input.group.and_then(|group| focus::group_position(ctx, id, group));
     }
     let tooltip = resolved.tooltip.map(|tooltip| tooltip.spec().text.as_str());
     let paint = core.paint.borrow();

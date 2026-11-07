@@ -89,11 +89,11 @@ pub struct CxCore<'a> {
     pub(crate) roving_arrival: Option<Id>,
 }
 
-impl CxCore<'_> {
+impl<C: Component> Cx<'_, C> {
     /// Names the member of this container's roving group (`ContainerProps.roving`) that Tab arrives at; the
-    /// first enabled member when none is named.
+    /// first member when none is named.
     pub fn roving_arrival(&mut self, member: Id) {
-        self.roving_arrival = Some(member);
+        self.core.roving_arrival = Some(member);
     }
 }
 

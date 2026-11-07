@@ -514,7 +514,7 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     steps::settle(comp, cx);
     // 16 report. F5-LATER: the tooltip runs from `tip` here.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp) });
+    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: env.roving });
     let _ = p.tip.take();
     p.activated = comp.activated(cx) && resolved.enabled;
 }

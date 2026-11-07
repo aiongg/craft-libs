@@ -139,6 +139,15 @@ pub(crate) fn register_group(ctx: &Context, group: Group) {
     });
 }
 
+/// The place of the component `id`'s own stop among last pass's members of the roving group `group`.
+pub(crate) fn group_position(ctx: &Context, id: Id, group: Id) -> Option<crate::runtime::access::SetPosition> {
+    with(ctx, |state| {
+        let members = || state.last_stops.iter().filter(|rec| rec.stop.group == Some(group) && rec.stop.part.is_none());
+        let index = members().position(|rec| rec.stop.id == id)?;
+        Some(crate::runtime::access::SetPosition::new(index).of(members().count()))
+    })
+}
+
 /// Opens the scope `id` for the stops registered until the matching [`pop_scope`].
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn push_scope(ctx: &Context, id: Id, policy: FocusPolicy, label: Option<Arc<str>>) {
