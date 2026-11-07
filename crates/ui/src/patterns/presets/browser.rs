@@ -601,10 +601,16 @@ impl<K: Clone + Eq + Hash + Send + Sync + 'static> PresetBrowser<'_, K> {
                     _ => {}
                 }
             }
+            // A secondary press or release selects the row it lands on so that the row's menu acts on it; that selection
+            // is not a pick, and a picker would commit it.
+            let secondary = {
+                let frame = crate::runtime::pointer::frame(ui.ctx());
+                frame.buttons.contains(craft_behavior::Buttons::SECONDARY) || frame.release == Some(craft_behavior::PointerButton::Secondary)
+            };
             for event in pass.seen {
                 match event {
                     Seen::Select(key) => {
-                        if row_of(&key).is_some_and(|at| !rows[at].is_group()) {
+                        if !secondary && row_of(&key).is_some_and(|at| !rows[at].is_group()) {
                             events.push(PresetEvent::Select { key, mods });
                         }
                     }

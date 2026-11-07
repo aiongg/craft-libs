@@ -58,7 +58,8 @@ fn escape_closes_the_popover_without_a_pick() {
 
 /// A picker whose row menu may delete only Amber, with the events it reported.
 fn deleting_picker() -> (Fixture, Rc<RefCell<Vec<PresetEvent<u32>>>>) {
-    let value = Rc::new(Cell::new(Some(AMBER)));
+    // No value, so the only node labelled with a preset's name is its tile, not the closed field.
+    let value = Rc::new(Cell::new(None));
     let state = Rc::new(RefCell::new(PresetState::<u32>::new()));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let reported = seen.clone();

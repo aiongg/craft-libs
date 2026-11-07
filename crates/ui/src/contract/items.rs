@@ -651,9 +651,14 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                     let editor = comp.rename_editor(&mut row_ui, Bind::bound(&mut draft), label, &name);
                     self.renaming.draft = draft;
                     if let Some(editor) = editor {
+                        // A layer that is still fading out (the menu the rename was chosen in) takes focus away from what
+                        // lies under it, so the request repeats until the field holds the focus.
                         if !self.renaming.focused {
-                            focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
-                            self.renaming.focused = true;
+                            if focus::is_focused(&ctx, editor.response.id) {
+                                self.renaming.focused = true;
+                            } else {
+                                focus::request_now(&ctx, focus::FocusTarget::Id(editor.response.id));
+                            }
                         }
                         let gesture = self.renaming.gesture;
                         let before = Mixed::Same(Rename { key: key.clone(), name });
@@ -936,12 +941,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             _ => {}
         }
         // A secondary release on a row asks for its menu (9.2 rule 3); the row joins the selection unless it is in it.
-        // Something over the collection, or a part of a row or of the collection that is under the pointer, keeps the
-        // request away.
+        // Something over the collection, or a part of a row or of the collection that takes presses and is under the
+        // pointer, keeps the request away.
         let released = crate::runtime::pointer::frame(&ctx);
         if released.release == Some(craft_behavior::PointerButton::Secondary)
             && cx.core.response.hovered()
-            && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id)).hover.is_none_or(|hit| hit.part.is_none())
+            && crate::primitives::sensing::read_outcome(&ctx, ArenaId::new(cx.core.id))
+                .hover
+                .is_none_or(|hit| hit.part.is_none() || !hit.sense.takes_press())
             && let Some(pos) = released.pos.filter(|pos| rect.contains(xf.map_or(*pos, |map| map.to_layer(*pos))))
             && let Some(at) = layout.hit(local(pos), offset)
             && self.source.enabled(at)

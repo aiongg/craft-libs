@@ -182,6 +182,8 @@ fn a_context_menu_opened_from_inside_a_popover_leaves_the_popover_open() {
     });
     fixture.settle();
     let target = fixture.by_label("Target").expect("the target has a node");
+    fixture.click(&target);
+    fixture.settle();
     let at = target.center();
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![pointer::secondary(at, true)]);
