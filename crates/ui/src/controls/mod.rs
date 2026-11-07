@@ -1,8 +1,6 @@
-//! Value controls: `Checkbox`, `Slider`, `RadioGroup` and `Radio`, `Disclosure`, `Select`.
+//! Value controls: `Slider`, `Disclosure` and `Select`.
 
-pub mod check;
 pub mod disclosure;
-pub mod radio;
 pub mod select;
 pub mod slider;
 #[cfg(feature = "testing")]
