@@ -1,5 +1,6 @@
 # API changes that are not tied to one family: calls every migrated caller meets.
 # The codemods read this file beside the family files.
+# A `[[call]]` entry's `old` and `new` are Rust expressions (`_` stands for any expression); `new` is empty for a removed call.
 
 [[call]]
 old = "|ui| { .. }"
@@ -12,9 +13,9 @@ new = ""
 note = "Removed: a component reads tokens through its style function."
 
 [[call]]
-old = "Host::of(ctx)"
-new = "EnvView::host()"
-note = "The host is read from the env view."
+old = "Host::of(ui)"
+new = "cx.env.host()"
+note = "The host is read from the env view of the context; the result is an Option."
 
 [[call]]
 old = "craft_ui::docking::DropTarget"
@@ -22,9 +23,9 @@ new = "craft_ui::docking::DockDrop"
 note = "The app-built struct is renamed."
 
 [[call]]
-old = "the label setter on a component that shows a visible label"
-new = "Common.label through the label setter of Props"
-note = "The label is owned by Common; containers hold only its kind and layout."
+old = "_.label(_)"
+new = "Props::label(_, label)"
+note = "A component's own label setter is the Props setter that writes Common.label; containers hold only its kind and layout."
 
 [[token]]
 old = "space.pad.panel"

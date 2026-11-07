@@ -1,6 +1,7 @@
 //! The integration binary of craft-ui: every test is a registered trial.
 
 mod access;
+mod api_map;
 pub(crate) mod body;
 mod callsites;
 mod canvas;
