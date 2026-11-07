@@ -15,7 +15,7 @@ use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
 use crate::sections::{DialogRole, FooterBar, FooterButton};
-use craft_behavior::{CanvasTransform, EditEvent, GestureId, Mixed};
+use craft_behavior::{EditEvent, GestureId, Mixed};
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
 use std::borrow::Cow;
