@@ -419,6 +419,8 @@ pub struct SubNode {
     pub position: Option<SetPosition>,
     /// The indexes of a cell.
     pub grid: GridPlace,
+    /// The heading level or tree depth.
+    pub level: Option<usize>,
     pub(crate) sort: Option<bool>,
     pub(crate) part: PartRef,
     pub(crate) role: Role,
@@ -436,6 +438,7 @@ impl SubNode {
             expanded: None,
             position: None,
             grid: GridPlace::default(),
+            level: None,
             sort: None,
             part,
             role,
@@ -443,6 +446,12 @@ impl SubNode {
             flags: Flags::empty(),
             custom_actions: Vec::new(),
         }
+    }
+
+    /// The heading level or tree depth.
+    pub fn level(&mut self, level: usize) -> &mut Self {
+        self.level = Some(level);
+        self
     }
 
     /// Nests this sub-node below another sub-node of the same component.

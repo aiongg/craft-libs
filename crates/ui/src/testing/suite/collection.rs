@@ -75,7 +75,14 @@ pub(super) fn keys_move_the_lead(subject: &Subject) -> Result<(), String> {
             }
         };
         let first = lead(&fixture, &container).ok_or_else(|| format!("{name}: a click on the first row left no lead"))?;
-        expect(&mut fixture, Key::ArrowDown, Modifiers::NONE, first + 1, "Down")?;
+        // Where the second item sits beside the first, the items wrap in rows and Down moves a whole row.
+        let wrapped = shown.iter().skip(1).any(|other| (other.rect.min.y - shown[0].rect.min.y).abs() < shown[0].rect.height() / 2.0);
+        fixture.key(Key::ArrowDown, Modifiers::NONE);
+        fixture.idle(2);
+        match lead(&fixture, &container) {
+            Some(found) if found == first + 1 || (wrapped && found > first) => {}
+            found => return Err(format!("{name}: after Down the lead is {found:?}, expected {}", first + 1)),
+        }
         expect(&mut fixture, Key::ArrowUp, Modifiers::NONE, first, "Up")?;
         expect(&mut fixture, Key::End, ends, size - 1, "End")?;
         expect(&mut fixture, Key::Home, ends, 0, "Home")?;
@@ -244,7 +251,9 @@ pub(super) fn long_collection_builds_only_visible_rows(subject: &Subject) -> Res
         let Some((fixture, container, shown)) = with_rows(story, 1) else { continue };
         let Some((_, size)) = position_in_set(&fixture, shown[0].node) else { continue };
         let row = shown[0].rect.height();
-        if row.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || (size as f32) * row <= 2.0 * container.rect.height() {
+        // Items that wrap fill a row of their own: the set takes as many rows of the room as it has rows of items.
+        let across = shown.iter().filter(|other| (other.rect.min.y - shown[0].rect.min.y).abs() < row / 2.0).count().max(1);
+        if row.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) || (size.div_ceil(across) as f32) * row <= 2.0 * container.rect.height() {
             continue;
         }
         if shown.len() >= size {
@@ -280,7 +289,10 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
         if top.rect.min.y > container.rect.min.y + row || (!last_row && bottom.rect.max.y < container.rect.max.y - row) {
             return Err(format!("{}: the frame of the scroll leaves part of the viewport without rows", story.name));
         }
-        if now.windows(2).any(|pair| pair[1].rect.min.y - pair[0].rect.max.y > row) {
+        // A section header between two items fills the space it takes; any other gap is a row that is missing.
+        let headings = nodes_of(&fixture, &container, Role::HEADING);
+        let filled = |above: f32, below: f32| headings.iter().any(|heading| heading.rect.min.y >= above && heading.rect.max.y <= below);
+        if now.windows(2).any(|pair| pair[1].rect.min.y - pair[0].rect.max.y > row && !filled(pair[0].rect.max.y, pair[1].rect.min.y)) {
             return Err(format!("{}: the frame of the scroll shows rows with a gap between them", story.name));
         }
     }

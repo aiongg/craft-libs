@@ -881,7 +881,7 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         let (ctx, id) = (cx.core.ctx.clone(), cx.core.id);
         let len = self.source.len();
         let mode = Self::select_mode(comp);
-        let outline = Outline::new(self.source).columns(layout.column_count());
+        let outline = Outline::new(self.source).columns(layout.column_count()).layout(layout);
         let cells = layout.column_count() > 0 && Self::selects_cells(comp);
         let page = self.page_rows(layout, view);
         while !header_held && let Some((mv, mods)) = cx.core.intents.take_move() {

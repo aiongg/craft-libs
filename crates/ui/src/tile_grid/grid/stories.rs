@@ -1,6 +1,6 @@
 //! Stories of `TileGrid`.
 
-use super::{TileGrid, TileGroup};
+use super::{GridEvent, TileGrid, TileGroup};
 use crate::contract::ShowCollection as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use crate::tile_grid::Tile;
@@ -60,11 +60,22 @@ fn tile_grid_justified(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
 }
 
 #[story(TileGrid<'static, usize>, covers = [], drive = Drive::Never)]
-fn tile_grid_groups(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
+fn tile_grid_groups(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
+    let open = data.value("open", [true, false, true]);
     let groups = [
-        TileGroup::new(0, 12, "October 2026").detail("12 photos"),
-        TileGroup::new(12, 8, "September 2026").detail("8 photos"),
-        TileGroup::new(20, 10, "August 2026").detail("10 photos").open(false),
+        TileGroup::new(0, 12, "October 2026").detail("12 photos").open(open[0]),
+        TileGroup::new(12, 8, "September 2026").detail("8 photos").open(open[1]),
+        TileGroup::new(20, 10, "August 2026").detail("10 photos").open(open[2]),
     ];
-    grid(ui, TileGrid::new("Library").groups(&groups).collapsible(), 30)
+    let out = TileGrid::new("Library")
+        .groups(&groups)
+        .collapsible()
+        .zoom(2.0)
+        .show_items(ui, &Photos(30), &mut |key, _| Tile::new(format!("Photo {}", key + 1)));
+    for event in &out.events {
+        if let GridEvent::GroupOpen { group, open: wanted } = event {
+            open[*group] = *wanted;
+        }
+    }
+    out.into()
 }

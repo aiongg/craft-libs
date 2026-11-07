@@ -18,6 +18,8 @@ craft_ui::words! {
         stack: template "tileGrid.stack" = "×{n}";
         /// The name of a tile's check box: `{name}` is the tile's name.
         select: template "tileGrid.select" = "Select {name}";
+        /// The name of a tile's star rating: `{name}` is the tile's name.
+        rating: template "tileGrid.rating" = "Rating of {name}";
         /// The slider's end buttons.
         smaller: "tileGrid.smaller" = "Smaller Thumbnails";
         larger: "tileGrid.larger" = "Larger Thumbnails";

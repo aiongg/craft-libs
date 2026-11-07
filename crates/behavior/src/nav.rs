@@ -286,12 +286,14 @@ fn ragged_at(outline: &dyn NavOutline, row: usize, column: usize) -> Option<usiz
 fn ragged(outline: &dyn NavOutline, state: &NavState, lead: usize, mv: NavMove) -> NavStep {
     let Some((row, column, _)) = locate(outline, lead) else { return NavStep::Unhandled };
     let rows = (0..).take_while(|&r| outline.row_len(r).is_some()).count();
+    // A row without a position that takes the lead (a closed group's) is passed over in the move's direction.
+    let toward = |rows: Vec<usize>| moved(rows.into_iter().find_map(|row| ragged_at(outline, row, column)));
     let vertical = |to: Option<usize>| moved(to.and_then(|row| ragged_at(outline, row, column)));
     match mv {
         NavMove::Back => moved(neighbour(outline, state, lead, false)),
         NavMove::Forward => moved(neighbour(outline, state, lead, true)),
-        NavMove::Up => vertical(row.checked_sub(1)),
-        NavMove::Down => vertical(Some(row + 1).filter(|&r| r < rows)),
+        NavMove::Up => toward((0..row).rev().collect()),
+        NavMove::Down => toward((row + 1..rows).collect()),
         NavMove::PageUp => vertical(Some(row.saturating_sub(state.page))),
         NavMove::PageDown => vertical(Some((row + state.page).min(rows - 1))),
         NavMove::Start => moved(first_enabled(outline)),

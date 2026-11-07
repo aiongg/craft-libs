@@ -38,5 +38,5 @@ fn list_row_text_cell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         (NAME, Rect::from_min_max(Pos2::new(left, 0.0), Pos2::new(split, height))),
         (SIZE, Rect::from_min_max(Pos2::new(split, 0.0), Pos2::new(left + width, height))),
     ];
-    ListRow::new("report.pdf").cells(&cells).cell(SIZE, "2.4 MB").show(ui).into()
+    show_as_only_item(ui, ListRow::new("report.pdf").cells(&cells).cell(SIZE, "2.4 MB")).into()
 }
