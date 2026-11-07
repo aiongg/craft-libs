@@ -3,15 +3,18 @@
 
 use std::{collections::HashSet, hash::Hash};
 
+use crate::flow::Axis;
+
 use super::{
+    DockSide,
     action::{Action, Location, Placement},
     edit::{node_at, split_frame, split_frame_sized},
-    groups::{Column, Group, Moving, Place, Side, Target, Unit},
+    groups::{Column, DockEdge, Group, Moving, PanelPlace, Target, Unit},
     layout::Layout,
     limits::{MAX_DEPTH, MAX_PANELS, valid_active, valid_height, valid_monitor, valid_rect, valid_size, valid_width},
-    node::{Floating, Node, StackEntry, Zone},
+    node::{Floating, Node, StackEntry},
     policy::{DockError, Permissions},
-    split::{SplitAxis, SplitSize},
+    split::SplitSize,
 };
 
 impl<P: Clone + Eq + Hash> Layout<P> {
@@ -57,7 +60,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     group.minimized = false;
                     return Ok(());
                 }
-                if let Place::Floating { window, .. } = place
+                if let PanelPlace::Floating { window, .. } = place
                     && let Some(window) = self.floating.get_mut(window)
                 {
                     window.minimized = false;
@@ -169,7 +172,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     group.minimized = minimized;
                     return Ok(());
                 }
-                if let Place::Floating { window, .. } = place {
+                if let PanelPlace::Floating { window, .. } = place {
                     self.floating.get_mut(window).ok_or(DockError::MissingPanel)?.minimized = minimized;
                     return Ok(());
                 }
@@ -264,33 +267,33 @@ impl<P: Clone + Eq + Hash> Layout<P> {
 
     /// Where [`Action::Open`] without an anchor puts an absent panel in a layout with a root:
     /// the end of the first shown dock group that accepts tabs, in the end-side dock if one has
-    /// such a group, else a new frame at the right edge of the docked area.
+    /// such a group, else a new frame at the end edge of the docked area.
     pub fn open_place(&self, permissions: impl Fn(&P) -> Permissions) -> Option<(P, Placement<P>)> {
-        let docked: Vec<(&P, Place)> = self
+        let docked: Vec<(&P, PanelPlace)> = self
             .panels()
             .into_iter()
             .filter_map(|p| Some((p, self.place(p)?)))
-            .filter(|(_, place)| !matches!(place, Place::Floating { .. }))
+            .filter(|(_, place)| !matches!(place, PanelPlace::Floating { .. }))
             .collect();
-        let side = |place: &Place| match place {
-            Place::Dock { path, .. } => match self.root.as_ref().and_then(|root| node_at(root, path)) {
+        let side = |place: &PanelPlace| match place {
+            PanelPlace::Dock { path, .. } => match self.root.as_ref().and_then(|root| node_at(root, path)) {
                 Some(Node::Dock { side, .. }) => Some(*side),
                 _ => None,
             },
             _ => None,
         };
         // A minimized group or an iconic column would leave the panel open but not shown.
-        let shown = |place: &Place| match place {
-            Place::Dock { group, .. } => self.column(place).is_some_and(|c| !c.iconic && c.groups.get(*group).is_some_and(|g| !g.minimized)),
+        let shown = |place: &PanelPlace| match place {
+            PanelPlace::Dock { group, .. } => self.column(place).is_some_and(|c| !c.iconic && c.groups.get(*group).is_some_and(|g| !g.minimized)),
             _ => false,
         };
         let groups = docked.iter().filter(|(p, place)| side(place).is_some() && shown(place) && permissions(p).accepts_tabs);
-        if let Some((panel, _)) = groups.clone().find(|(_, place)| side(place) == Some(Side::End)).or_else(|| groups.clone().next()) {
+        if let Some((panel, _)) = groups.clone().find(|(_, place)| side(place) == Some(DockEdge::End)).or_else(|| groups.clone().next()) {
             return Some(((*panel).clone(), Placement::Tab { before: None }));
         }
         // A canvas anchor would narrow the edge to the canvas column.
         let edge = docked.iter().find(|(p, _)| !permissions(p).is_protected()).or(docked.first());
-        edge.map(|(panel, _)| ((*panel).clone(), Placement::Edge(Zone::Right)))
+        edge.map(|(panel, _)| ((*panel).clone(), Placement::Edge(DockSide::End)))
     }
 
     pub(super) fn insert(&mut self, entry: StackEntry<P>, anchor: &P, placement: Placement<P>, canvas: &dyn Fn(&P) -> bool) -> Result<(), DockError> {
@@ -303,7 +306,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         };
         let root = self.tree_mut(window).ok_or(DockError::MissingTarget)?;
         if let Placement::Split(zone) = placement
-            && zone != Zone::Center
+            && zone != DockSide::Center
         {
             let new = Node::Tabs { panels: vec![entry.panel], active: 0 };
             return if split_frame(root, &path, new, zone) { Ok(()) } else { Err(DockError::MissingTarget) };
@@ -538,10 +541,10 @@ pub(super) fn node_location<P: Clone + Eq>(node: &Node<P>, panel: &P) -> Option<
             {
                 location.anchor = Some(anchor.clone());
                 location.placement = Placement::Split(match (*axis, is_first) {
-                    (SplitAxis::Horizontal, true) => Zone::Left,
-                    (SplitAxis::Horizontal, false) => Zone::Right,
-                    (SplitAxis::Vertical, true) => Zone::Top,
-                    (SplitAxis::Vertical, false) => Zone::Bottom,
+                    (Axis::X, true) => DockSide::Start,
+                    (Axis::X, false) => DockSide::End,
+                    (Axis::Y, true) => DockSide::Top,
+                    (Axis::Y, false) => DockSide::Bottom,
                 });
                 location.size = Some(*size);
                 let mut members = Vec::new();
@@ -599,7 +602,7 @@ pub(super) fn restore_around_subtree<P: Clone + Eq + Hash>(
     node: &mut Node<P>,
     panel: &P,
     members: &HashSet<&P>,
-    zone: Zone,
+    zone: DockSide,
     size: SplitSize,
 ) -> bool {
     let mut actual = Vec::new();
@@ -607,9 +610,9 @@ pub(super) fn restore_around_subtree<P: Clone + Eq + Hash>(
     if actual.len() == members.len() && actual.iter().all(|p| members.contains(p)) {
         let new = Node::Tabs { panels: vec![panel.clone()], active: 0 };
         let old = std::mem::replace(node, Node::Tabs { panels: Vec::new(), active: 0 });
-        let (first, second) = if matches!(zone, Zone::Left | Zone::Top) { (new, old) } else { (old, new) };
+        let (first, second) = if matches!(zone, DockSide::Start | DockSide::Top) { (new, old) } else { (old, new) };
         *node = Node::Split {
-            axis: if matches!(zone, Zone::Top | Zone::Bottom) { SplitAxis::Vertical } else { SplitAxis::Horizontal },
+            axis: if matches!(zone, DockSide::Top | DockSide::Bottom) { Axis::Y } else { Axis::X },
             size,
             first: Box::new(first),
             second: Box::new(second),

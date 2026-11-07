@@ -1,6 +1,7 @@
 //! Size limits and value checks for a dock layout.
 
-use super::{node::Monitor, split::SplitSize};
+use super::split::SplitSize;
+use crate::monitor::Monitor;
 
 /// Limits are checked before cloning or recursively modifying an application layout.
 pub const MAX_DEPTH: usize = 64;

@@ -2,20 +2,14 @@
 
 use std::hash::Hash;
 
-use super::{
-    action::Placement,
-    edit::node_at,
-    layout::Layout,
-    node::{Node, Zone},
-    policy::DockError,
-};
+use super::{DockSide, action::Placement, edit::node_at, layout::Layout, node::Node, policy::DockError};
 
 /// The window edge a [`Node::Dock`] sits on, in reading order so right-to-left interfaces
-/// mirror. `Start` is the edge of a horizontal split's first child (left in a left-to-right
-/// layout); the renderer maps it to a physical edge from the layout direction.
+/// mirror. `Start` is the edge of a horizontal split's first child; the renderer maps it to a physical edge from
+/// the layout direction.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
-pub enum Side {
+pub enum DockEdge {
     /// The first edge in reading order (left in a left-to-right layout).
     Start,
     /// The last edge in reading order (right in a left-to-right layout).
@@ -78,7 +72,7 @@ impl GroupLocation {
 
 impl ColumnLocation {
     /// A column location on `side`, `width` points wide when expanded.
-    pub const fn new(side: Side, width: f32, iconic: bool, iconic_width: Option<f32>) -> Self {
+    pub const fn new(side: DockEdge, width: f32, iconic: bool, iconic_width: Option<f32>) -> Self {
         Self { side, width, iconic, iconic_width }
     }
 }
@@ -107,43 +101,39 @@ pub enum Target<P> {
     #[non_exhaustive]
     NewDock {
         /// The edge to put the dock on.
-        side: Side,
+        side: DockEdge,
     },
     /// A new floating window.
     #[non_exhaustive]
     Float {
-        /// Window rect as `[x, y, width, height]` in logical points. `None` keeps the source's
-        /// size at a default position.
-        rect: Option<[f32; 4]>,
+        /// Window rect as `[x, y, width, height]` in logical points, which the caller takes from its
+        /// `FloatSpace`.
+        rect: [f32; 4],
     },
 }
 
 impl<P: Clone + Eq + Hash> Placement<P> {
-    /// The placement for a drop zone on `anchor`'s group, in the vocabulary its container
-    /// accepts. `zone` is physical: `Left` is the left half on screen in either direction.
+    /// The placement for a drop on the `side` of `anchor`'s group, in the vocabulary its container accepts.
     ///
-    /// | Anchor in | `Center` | `Top`, `Bottom` | `Left`, `Right` |
+    /// | Anchor in | `Center` | `Top`, `Bottom` | `Start`, `End` |
     /// |---|---|---|---|
     /// | the split tree or a floating window | [`Placement::Split`] | `Split` | `Split` |
     /// | a dock column | `Split(Center)` (join as tabs) | [`Placement::Group`] above or below | [`Placement::Column`] on that side |
     ///
-    /// A dock's `Column { after }` counts from its window edge, which depends on the dock's
-    /// side and `right_to_left` (see [`Side`]); this picks `after` so the new column lands on
-    /// the zone's side of the anchor's column.
-    pub fn for_zone(layout: &Layout<P>, anchor: &P, zone: Zone, right_to_left: bool) -> Result<Self, DockError> {
+    /// A dock's `Column { after }` counts from its window edge, which is the dock's [`DockEdge`] in reading order;
+    /// this picks `after` so the new column lands on the side of the anchor's column.
+    pub fn for_zone(layout: &Layout<P>, anchor: &P, side: DockSide) -> Result<Self, DockError> {
         let place = layout.place(anchor).ok_or(DockError::MissingTarget)?;
-        Ok(match (place, zone) {
-            (Place::Node(_) | Place::Floating { .. }, zone) | (_, zone @ Zone::Center) => Placement::Split(zone),
-            (Place::Dock { .. }, Zone::Top | Zone::Bottom) => Placement::Group { below: zone == Zone::Bottom, height: None },
-            (Place::Dock { path, .. }, _) => {
-                let side = match layout.root.as_ref().and_then(|root| node_at(root, &path)) {
+        Ok(match (place, side) {
+            (PanelPlace::Node(_) | PanelPlace::Floating { .. }, side) | (_, side @ DockSide::Center) => Placement::Split(side),
+            (PanelPlace::Dock { .. }, DockSide::Top | DockSide::Bottom) => Placement::Group { below: side == DockSide::Bottom, height: None },
+            (PanelPlace::Dock { path, .. }, _) => {
+                let edge = match layout.root.as_ref().and_then(|root| node_at(root, &path)) {
                     Some(Node::Dock { side, .. }) => *side,
                     _ => return Err(DockError::MissingTarget),
                 };
-                // The physical edge of the dock: Start is left in a left-to-right layout.
-                let left_edge = (side == Side::Start) != right_to_left;
-                // `after` is away from the window edge: rightwards for a left dock.
-                Placement::Column { after: (zone == Zone::Right) == left_edge }
+                // `after` is away from the window edge: towards the end for a start dock.
+                Placement::Column { after: (side == DockSide::End) == (edge == DockEdge::Start) }
             }
         })
     }
@@ -180,7 +170,7 @@ pub struct GroupLocation {
 #[non_exhaustive]
 pub struct ColumnLocation {
     /// The dock edge the column was on.
-    pub side: Side,
+    pub side: DockEdge,
     /// Expanded width in points.
     pub width: f32,
     /// Whether the column was collapsed to icons.
@@ -192,7 +182,7 @@ pub struct ColumnLocation {
 /// Where a panel is. Paths lead from the root: false is a split's first child, true its second.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum Place {
+pub enum PanelPlace {
     /// A `Tabs` or `Stack` node.
     Node(Vec<bool>),
     /// A group of a dock column.
@@ -215,14 +205,14 @@ pub enum Place {
     },
 }
 
-impl Place {
+impl PanelPlace {
     /// The tree (`None` for the docked layout, else a floating window) and the path of a
     /// `Tabs` or `Stack` node.
     pub fn tree_path(&self) -> Option<(Option<usize>, &[bool])> {
         match self {
-            Place::Node(path) => Some((None, path)),
-            Place::Floating { window, path } => Some((Some(*window), path)),
-            Place::Dock { .. } => None,
+            PanelPlace::Node(path) => Some((None, path)),
+            PanelPlace::Floating { window, path } => Some((Some(*window), path)),
+            PanelPlace::Dock { .. } => None,
         }
     }
 }
@@ -245,15 +235,13 @@ pub(super) struct Moving<P> {
     pub width: Option<f32>,
     pub iconic: bool,
     pub iconic_width: Option<f32>,
-    pub rect: Option<[f32; 4]>,
-    pub native: Option<[f32; 4]>,
     /// The id of a whole floating window in transit, which a new window keeps.
     pub id: Option<u64>,
 }
 
 impl<P> Moving<P> {
     pub(super) fn group(group: Group<P>) -> Self {
-        Self { groups: vec![group], node: None, minimized: false, width: None, iconic: false, iconic_width: None, rect: None, native: None, id: None }
+        Self { groups: vec![group], node: None, minimized: false, width: None, iconic: false, iconic_width: None, id: None }
     }
 
     pub(super) fn into_column(self, width: f32) -> Column<P> {
@@ -268,12 +256,12 @@ impl<P> Target<P> {
     }
 
     /// Builds [`Target::NewDock`].
-    pub fn new_dock(side: Side) -> Self {
+    pub fn new_dock(side: DockEdge) -> Self {
         Self::NewDock { side }
     }
 
     /// Builds [`Target::Float`].
-    pub fn float(rect: Option<[f32; 4]>) -> Self {
+    pub fn float(rect: [f32; 4]) -> Self {
         Self::Float { rect }
     }
 }

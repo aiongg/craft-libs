@@ -1,26 +1,12 @@
 //! The docked tree, its leaves and the floating windows.
 
+use crate::{flow::Axis, monitor::Monitor};
+
 use super::{
     edit::{stack_tree, tree_groups, tree_panels},
-    groups::{Column, Group, Side},
-    split::{SplitAxis, SplitSize},
+    groups::{Column, DockEdge, Group},
+    split::SplitSize,
 };
-
-/// A drop zone on a group: the middle, or a side half.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[non_exhaustive]
-pub enum Zone {
-    /// The middle of the group.
-    Center,
-    /// The left half.
-    Left,
-    /// The right half.
-    Right,
-    /// The top half.
-    Top,
-    /// The bottom half.
-    Bottom,
-}
 
 /// A node of a layout tree.
 #[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -30,12 +16,12 @@ pub enum Node<P> {
     #[non_exhaustive]
     Split {
         /// Direction the children lie in.
-        axis: SplitAxis,
+        axis: Axis,
         /// How the two children share the room.
         size: SplitSize,
-        /// The first child: left or top.
+        /// The first child: the start (or top) child.
         first: Box<Node<P>>,
-        /// The second child: right or bottom.
+        /// The second child: the end (or bottom) child.
         second: Box<Node<P>>,
     },
     /// A group of tabs.
@@ -58,7 +44,7 @@ pub enum Node<P> {
     #[non_exhaustive]
     Dock {
         /// The window edge the dock sits on.
-        side: Side,
+        side: DockEdge,
         /// The columns, in order from the window edge inward.
         columns: Vec<Column<P>>,
     },
@@ -118,19 +104,6 @@ impl<P: PartialEq> PartialEq for Floating<P> {
     }
 }
 
-/// A display, in desktop logical points. Applications on an egui with monitor reports fill
-/// the application's monitor list with these; native floating windows store the one they are on.
-#[derive(Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
-#[non_exhaustive]
-pub struct Monitor {
-    /// Display name from the OS, when it reports one.
-    pub name: Option<String>,
-    /// `[x, y, width, height]` on the desktop.
-    pub rect: [f32; 4],
-    /// Physical pixels per logical point.
-    pub scale: f32,
-}
-
 impl<P> Node<P> {
     /// A group of tabs with tab `active` selected.
     pub fn tabs(panels: Vec<P>, active: usize) -> Self {
@@ -138,7 +111,7 @@ impl<P> Node<P> {
     }
 
     /// Two children along `axis`, sharing the room by `size`.
-    pub fn split(axis: SplitAxis, size: SplitSize, first: Node<P>, second: Node<P>) -> Self {
+    pub fn split(axis: Axis, size: SplitSize, first: Node<P>, second: Node<P>) -> Self {
         Self::Split { axis, size, first: Box::new(first), second: Box::new(second) }
     }
 }
@@ -147,13 +120,6 @@ impl<P> StackEntry<P> {
     /// An open accordion section for `panel` with no preferred height.
     pub fn new(panel: P) -> Self {
         Self { panel, open: true, height: None }
-    }
-}
-
-impl Monitor {
-    /// A display at `rect` with `scale` physical pixels per logical point.
-    pub fn new(name: Option<String>, rect: [f32; 4], scale: f32) -> Self {
-        Self { name, rect, scale }
     }
 }
 
@@ -224,8 +190,9 @@ impl<P> Floating<P> {
 pub(super) mod floating_serde {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{Floating, Group, Monitor, Node, fresh_window_id};
+    use super::{Floating, Group, Node, fresh_window_id};
     use crate::dock::edit::stack_tree;
+    use crate::monitor::Monitor;
 
     #[derive(Serialize)]
     struct V1<'a, P> {
@@ -384,7 +351,7 @@ impl<P> Node<P> {
     }
 
     /// Builds [`Node::Dock`].
-    pub fn dock(side: Side, columns: Vec<Column<P>>) -> Self {
+    pub fn dock(side: DockEdge, columns: Vec<Column<P>>) -> Self {
         Self::Dock { side, columns }
     }
 }

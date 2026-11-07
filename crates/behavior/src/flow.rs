@@ -38,13 +38,16 @@ impl Insets {
     }
 }
 
-/// A screen axis.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+/// An axis of the screen or of a document. Saved layouts written with the former split axis names load through
+/// the aliases.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum Axis {
     /// Left to right.
+    #[serde(alias = "Horizontal", alias = "horizontal")]
     X,
     /// Top to bottom.
+    #[serde(alias = "Vertical", alias = "vertical")]
     Y,
 }
 

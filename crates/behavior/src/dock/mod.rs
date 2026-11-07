@@ -1,14 +1,14 @@
 //! The geometry of a dock: a tree of splits over groups, laid out in a rect, with the split handles between
 //! children and the side of a group a drop lands on (20.6).
 //!
-//! The tree and its rects are logical: the first child is at the start edge. A caller under right-to-left maps
-//! each rect with `Flow::to_physical`.
+//! The tree and its rects are in reading order: a split's first child is its start (or top) child. A caller under
+//! right-to-left maps each rect with `Flow::to_physical`, which mirrors the workspace.
 //!
 //! The panel layout of a dock ([`Layout`]) is the persisted model: docked tree, floating windows, the actions that
 //! edit it and the rules that validate it.
 
 use crate::flow::Axis;
-use emath::{Pos2, Rect, Vec2};
+use emath::{Pos2, Rect};
 
 mod action;
 mod edit;
@@ -19,15 +19,17 @@ mod limits;
 mod node;
 mod policy;
 mod split;
+mod zones;
 
 pub use action::{Action, Location, Placement};
 pub use edit::{first_active, leaves, node_at, tree_groups, tree_panels};
-pub use groups::{Column, ColumnLocation, Group, GroupLocation, PanelState, Place, Side, Target};
+pub use groups::{Column, ColumnLocation, DockEdge, Group, GroupLocation, PanelPlace, PanelState, Target};
 pub use layout::Layout;
 pub use limits::{MAX_DEPTH, MAX_PANELS};
-pub use node::{Floating, Monitor, Node, StackEntry, Zone};
+pub use node::{Floating, Node, StackEntry};
 pub use policy::{DockError, Permissions};
-pub use split::{SplitAxis, SplitSize};
+pub use split::SplitSize;
+pub use zones::{SIDE_ZONE_DEPTH_SHARE, SIDE_ZONE_FRACTION, ZoneSize, zones};
 
 /// The id of a dock group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -228,13 +230,17 @@ pub struct DockHandle {
     pub split: Rect,
 }
 
-/// The side of a group a dropped panel docks on.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+/// The side of a group a dropped panel docks on, in reading order: `Start` is the left half in a left-to-right
+/// window and the right half in a right-to-left one. Saved layouts and actions written with the physical names
+/// `Left` and `Right` load as `Start` and `End`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 pub enum DockSide {
     /// Before the group along the reading direction.
+    #[serde(alias = "Left", alias = "left")]
     Start,
     /// After the group along the reading direction.
+    #[serde(alias = "Right", alias = "right")]
     End,
     /// Above the group.
     Top,
@@ -245,18 +251,6 @@ pub enum DockSide {
 }
 
 impl DockSide {
-    /// The side of `group` that `at` lies on: the nearest edge when `at` is within `edge` of the group's extent
-    /// from it (a fraction, `0.0..=0.5`), else `Center`.
-    pub fn pick(group: Rect, at: Pos2, edge: f32) -> DockSide {
-        let size = group.size();
-        if size.x <= 0.0 || size.y <= 0.0 {
-            return DockSide::Center;
-        }
-        let from = Vec2::new((at.x - group.left()) / size.x, (at.y - group.top()) / size.y);
-        let sides = [(from.x, DockSide::Start), (1.0 - from.x, DockSide::End), (from.y, DockSide::Top), (1.0 - from.y, DockSide::Bottom)];
-        sides.into_iter().filter(|(distance, _)| *distance <= edge).min_by(|a, b| a.0.total_cmp(&b.0)).map_or(DockSide::Center, |(_, side)| side)
-    }
-
     /// The axis the side splits along; `None` for `Center`.
     pub const fn axis(self) -> Option<Axis> {
         match self {
@@ -357,15 +351,6 @@ mod tests {
         assert_eq!(tree.groups(), vec![GroupId(0), GroupId(2), GroupId(1)]);
         assert_eq!(tree.layout(area())[1].1.top(), 100.0);
         assert!(!tree.dock(GroupId(0), DockSide::Center, GroupId(3)));
-    }
-
-    #[test]
-    fn a_drop_near_an_edge_picks_that_side() {
-        let group = area();
-        assert_eq!(DockSide::pick(group, pos2(10.0, 100.0), 0.25), DockSide::Start);
-        assert_eq!(DockSide::pick(group, pos2(290.0, 100.0), 0.25), DockSide::End);
-        assert_eq!(DockSide::pick(group, pos2(150.0, 10.0), 0.25), DockSide::Top);
-        assert_eq!(DockSide::pick(group, pos2(150.0, 100.0), 0.25), DockSide::Center);
     }
 
     #[test]

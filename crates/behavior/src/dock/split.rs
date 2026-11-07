@@ -1,14 +1,4 @@
-//! The axis and size of a split in a persisted dock layout.
-
-/// The direction in which the children of a split are placed.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-#[non_exhaustive]
-pub enum SplitAxis {
-    /// First child on the left, second child on the right.
-    Horizontal,
-    /// First child above the second child.
-    Vertical,
-}
+//! The size of a split in a persisted dock layout.
 
 /// A transient sizing request. Applications may adapt their own persisted sizing enum.
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]

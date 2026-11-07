@@ -2,17 +2,20 @@
 
 use std::{collections::HashSet, hash::Hash};
 
+use crate::flow::Axis;
+
 use super::{
+    DockSide,
     action::{Action, Location, Placement},
     edit::{node_at, valid_column},
-    groups::{Column, ColumnLocation, Group, GroupLocation, Moving, PanelState, Place, Side, Target},
+    groups::{Column, ColumnLocation, DockEdge, Group, GroupLocation, Moving, PanelPlace, PanelState, Target},
     inner::{
         check_group, check_leaf, group_location, node_location, restore_around_subtree, restore_parent_size, restore_stack_kind, stack_entry_mut,
     },
     limits::{MAX_DEPTH, MAX_NODES, MAX_PANELS, valid_height, valid_monitor, valid_rect, valid_size, valid_width},
-    node::{Floating, Node, Zone},
+    node::{Floating, Node},
     policy::{DockError, Permissions},
-    split::{SplitAxis, SplitSize},
+    split::SplitSize,
 };
 
 /// The panels of a workspace: a docked tree plus floating windows. Every panel occurs once.
@@ -62,14 +65,14 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                     if !valid_size(*size) {
                         return Err(DockError::InvalidGeometry);
                     }
-                    let horizontal = *axis == SplitAxis::Horizontal;
+                    let horizontal = *axis == Axis::X;
                     visit.push((second, depth + 1, false, end && horizontal));
                     visit.push((first, depth + 1, start && horizontal, false));
                 }
                 Node::Dock { side, columns } => {
                     let (at_edge, taken) = match side {
-                        Side::Start => (start, &mut docks.0),
-                        Side::End => (end, &mut docks.1),
+                        DockEdge::Start => (start, &mut docks.0),
+                        DockEdge::End => (end, &mut docks.1),
                     };
                     if !at_edge || *taken {
                         return Err(DockError::InvalidPlacement);
@@ -181,7 +184,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     /// `pinned` panels stay put: the group and its neighbour must hold none.
     pub(super) fn step_target(&self, panel: &P, up: bool, pinned: &dyn Fn(&P) -> bool) -> Result<(P, Placement<P>), DockError> {
         let place = self.place(panel).ok_or(DockError::MissingPanel)?;
-        let Place::Dock { group, .. } = place else { return Err(DockError::InvalidPlacement) };
+        let PanelPlace::Dock { group, .. } = place else { return Err(DockError::InvalidPlacement) };
         let groups = &self.column(&place).ok_or(DockError::MissingPanel)?.groups;
         let neighbour = if up { group.checked_sub(1) } else { group.checked_add(1) }.and_then(|i| groups.get(i)).ok_or(DockError::MissingTarget)?;
         let own = groups.get(group).ok_or(DockError::MissingPanel)?;
@@ -197,14 +200,14 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         self.validate()?;
         let place = self.place(panel).ok_or(DockError::MissingPanel)?;
         let (groups, group, column) = match &place {
-            Place::Node(_) => return self.root.as_ref().and_then(|node| node_location(node, panel)).ok_or(DockError::MissingPanel),
-            Place::Floating { window, .. } => {
+            PanelPlace::Node(_) => return self.root.as_ref().and_then(|node| node_location(node, panel)).ok_or(DockError::MissingPanel),
+            PanelPlace::Floating { window, .. } => {
                 let window = self.floating.get(*window).ok_or(DockError::MissingPanel)?;
                 let mut location = node_location(&window.root, panel).ok_or(DockError::MissingPanel)?;
                 location.floating = Some(window.rect);
                 return Ok(location);
             }
-            Place::Dock { path, group, .. } => {
+            PanelPlace::Dock { path, group, .. } => {
                 let side = match self.root.as_ref().and_then(|root| node_at(root, path)) {
                     Some(Node::Dock { side, .. }) => *side,
                     _ => return Err(DockError::MissingPanel),
@@ -229,7 +232,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             location.anchor = Some(anchor);
             location.placement = Placement::Group { below: true, height: None };
         } else if groups.len() == 1
-            && let Place::Dock { path, column, .. } = &place
+            && let PanelPlace::Dock { path, column, .. } = &place
             && let Some(Node::Dock { columns, .. }) = self.root.as_ref().and_then(|root| node_at(root, path))
         {
             let first_of = |c: Option<&Column<P>>| first(c.and_then(|c| c.groups.first()));
@@ -248,8 +251,8 @@ impl<P: Clone + Eq + Hash> Layout<P> {
     pub fn panel_state(&self, panel: &P) -> PanelState {
         let showing = match self.place(panel) {
             None => return PanelState::Hidden,
-            Some(place @ (Place::Node(_) | Place::Floating { .. })) => {
-                let minimized = matches!(place, Place::Floating { window, .. } if self.floating.get(window).is_some_and(|w| w.minimized));
+            Some(place @ (PanelPlace::Node(_) | PanelPlace::Floating { .. })) => {
+                let minimized = matches!(place, PanelPlace::Floating { window, .. } if self.floating.get(window).is_some_and(|w| w.minimized));
                 !minimized
                     && match self.node_of(&place) {
                         Some(Node::Tabs { panels, active }) => panels.get(*active) == Some(panel),
@@ -302,7 +305,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
         let window_open = location.anchor.as_ref().is_some_and(|anchor| proposed.floating.iter().any(|w| w.contains(anchor)));
         if let Some(rect) = location.floating.filter(|_| !window_open) {
             // A window that closed as a whole reopens at its last rect.
-            proposed.insert_moving(moving(), Target::Float { rect: Some(rect) }, &|_| false)?;
+            proposed.insert_moving(moving(), Target::Float { rect }, &|_| false)?;
         } else if let Some(anchor) = &location.anchor
             && matches!(location.placement, Placement::Group { .. } | Placement::Column { .. })
         {
@@ -325,7 +328,7 @@ impl<P: Clone + Eq + Hash> Layout<P> {
                 return Err(DockError::MissingTarget);
             }
             let mut around = false;
-            if let Placement::Split(zone @ (Zone::Left | Zone::Right | Zone::Top | Zone::Bottom)) = location.placement
+            if let Placement::Split(zone @ (DockSide::Start | DockSide::End | DockSide::Top | DockSide::Bottom)) = location.placement
                 && !location.sibling.is_empty()
             {
                 if location.sibling.len() > MAX_PANELS {
@@ -379,10 +382,10 @@ impl<P: Clone + Eq + Hash> Layout<P> {
             let anchor = self
                 .panels()
                 .into_iter()
-                .find(|p| matches!(self.place(p), Some(Place::Dock { .. } | Place::Node(_))))
+                .find(|p| matches!(self.place(p), Some(PanelPlace::Dock { .. } | PanelPlace::Node(_))))
                 .cloned()
                 .ok_or(DockError::MissingTarget)?;
-            proposed.apply_inner(Action::OpenAt { panel: panel.clone(), anchor, placement: Placement::Edge(Zone::Right) }, &|_| false)?;
+            proposed.apply_inner(Action::OpenAt { panel: panel.clone(), anchor, placement: Placement::Edge(DockSide::End) }, &|_| false)?;
             if let Some(root) = proposed.root.as_mut() {
                 restore_parent_size(root, &panel, SplitSize::Ratio(0.25));
             }

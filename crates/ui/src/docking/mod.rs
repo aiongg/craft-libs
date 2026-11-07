@@ -32,6 +32,7 @@ use crate::layout_components::Row;
 use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
+use craft_behavior::dock::{ZoneSize, zones};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
 use craft_behavior::{
     Axis, CursorIcon, DockHandle, DockSide, DockTree, Flow, GroupId, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense,
@@ -40,9 +41,6 @@ use egui::{Pos2, Rect, Response, Ui};
 use tab::PanelTab;
 
 const HANDLE: PartKey = PartKey::new("handle");
-
-/// How far from each edge of a group a drop docks on that side, as a share of the group's width or height.
-const EDGE: f32 = 0.25;
 
 /// The stable key of a panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -112,10 +110,9 @@ struct GroupDrops {
 }
 
 impl GroupDrops {
-    /// The side of `rect` that `at` selects, read along the reading direction.
+    /// The side of `rect` that `at` selects, by the dock's zone function.
     fn side(&self, rect: Rect, at: Pos2) -> DockSide {
-        let logical = if self.rtl { Pos2::new(rect.right() - (at.x - rect.left()), at.y) } else { at };
-        DockSide::pick(rect, logical, EDGE)
+        zones(rect, ZoneSize::Fraction, self.rtl).into_iter().find(|(_, zone)| zone.contains(at)).map_or(DockSide::Center, |(side, _)| side)
     }
 }
 
