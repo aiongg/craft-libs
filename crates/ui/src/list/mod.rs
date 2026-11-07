@@ -1,9 +1,20 @@
-//! `List` and its rows: `ListRow`, `TreeRow`, `FindingsList` and `EventLog`.
+//! `List` and its rows: `ListRow`, `TreeRow`, `FindingsList`, `EventList` and `UndoList`.
 
+mod events;
 mod findings;
 #[cfg(feature = "testing")]
 mod stories;
+mod undo;
+mod view;
+mod view_words;
+#[cfg(feature = "testing")]
+mod view_stories;
 mod words;
 
-pub use findings::{Finding, FindingEvent, FindingRow, FindingRowOutput, FindingRowStyle, Findings, FindingsList, FindingsListStyle, Severity};
+pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};
+pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
+pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRow, UndoRowEvent, UndoRowOutput, UndoRowStyle, UndoRows, footer_text, undo_count};
+pub use view::{List, ListStyle};
+pub use view_words::{EventWords, FindingsWords, UndoWords};
 pub use words::ListWords;
+
