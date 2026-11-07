@@ -95,6 +95,16 @@ pub struct CxCore<'a> {
     pub(crate) roving_arrival: Option<Id>,
     /// The text part's result of this pass, from step 8b.
     pub(crate) texts: Option<(PartKey, Box<dyn std::any::Any>)>,
+    /// Where the text part reserved the surface in the painter, so the field's surface paints beneath its text.
+    pub(crate) surface_slot: Option<egui::layers::ShapeIdx>,
+    /// The editor part as step 8b set it up.
+    pub(crate) editor: Option<super::editor::EditorInfo>,
+    /// The editor part's inputs of this pass, until `editor_input` takes them.
+    pub(crate) editor_inputs: Vec<craft_behavior::EditorInput>,
+    /// The text part's draft is not a value of its codec.
+    pub(crate) text_invalid: bool,
+    /// The text facts step 16 gives AccessKit, from the text adapter or the editor's `editor_state`.
+    pub(crate) text_access: RefCell<Option<crate::runtime::access::text::TextFacts>>,
     /// Enter was pressed in the text part.
     pub(crate) submitted: bool,
     /// Escape abandoned the text part's edit.

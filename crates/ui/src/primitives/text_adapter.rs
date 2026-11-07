@@ -1,13 +1,14 @@
 //! The text adapter: places the egui text widget at a text part's rect, applies the IME engine's edits and the
-//! edit commands to it, and reports what happened for the next pass's typing run (18.2).
+//! edit commands to it, and records what happened for the pass's typing run (18.2).
 
 use crate::primitives::{TextLayout, TextOptions};
+use crate::runtime::access::text::{Line, Run};
 use crate::runtime::egui::{clipboard, focus as egui_focus, text_edit};
 use crate::runtime::focus::{KeepKeys, KeyUse};
 use crate::runtime::keys::{self, Intents};
 use crate::runtime::{commands, ime};
-use craft_behavior::{EditCommand, EditorInput, Intent, PartKey};
-use egui::{Context, Id, Rect, Ui};
+use craft_behavior::{EditCommand, EditorInput, Intent, PartKey, TextPos};
+use egui::{Context, Id, Pos2, Rect, Ui};
 use std::any::Any;
 use std::sync::Arc;
 
@@ -39,7 +40,12 @@ pub(crate) struct TextState {
     pub dirty: bool,
     pub end: Option<End>,
     pub invalid: bool,
+    /// The text a commit left, shown for the pass after it.
+    pub normalised: Option<String>,
     pub preedit: Option<Preedit>,
+    /// The rows of last pass's text, for mapping an AccessKit selection back to characters; kept only while
+    /// AccessKit runs.
+    pub rows: Option<Rows>,
     pub caret: Option<usize>,
     /// The pass time the caret last moved or text was typed, for the blink.
     pub caret_moved: f64,
@@ -88,6 +94,43 @@ pub(crate) struct AdapterOut {
     pub focused: bool,
 }
 
+/// The rows of a laid-out text as AccessKit lines, with the byte where each starts in the text.
+#[derive(Clone)]
+pub(crate) struct Rows {
+    pub lines: Vec<Line>,
+    starts: Vec<usize>,
+}
+
+impl Rows {
+    /// The rows of `layout` over `text`, placed from `origin`. A newline between two rows belongs to neither.
+    pub(crate) fn of(layout: &TextLayout, text: &str, origin: Pos2) -> Rows {
+        let (mut lines, mut starts, mut at) = (Vec::new(), Vec::new(), 0);
+        for (row, rect, runs) in layout.row_lines() {
+            starts.push(at);
+            at += row.len();
+            if text.get(at..).is_some_and(|rest| rest.starts_with('\n')) {
+                at += 1;
+            }
+            let runs = runs.into_iter().map(|run| Run { bytes: run.bytes, rtl: run.rtl, positions: run.positions, widths: run.widths }).collect();
+            lines.push(Line { text: row, rect: rect.translate(origin.to_vec2()), runs });
+        }
+        Rows { lines, starts }
+    }
+
+    /// The position of character `chars` of `text`.
+    pub(crate) fn pos(&self, text: &str, chars: usize) -> TextPos {
+        let byte = byte_of(text, chars);
+        let line = self.starts.iter().rposition(|start| *start <= byte).unwrap_or(0);
+        TextPos::new(line, byte.saturating_sub(self.starts.get(line).copied().unwrap_or(0)))
+    }
+
+    /// The character index of `pos` in `text`.
+    pub(crate) fn chars(&self, text: &str, pos: TextPos) -> usize {
+        let byte = self.starts.get(pos.line).copied().unwrap_or(0) + pos.byte;
+        text.get(..byte).map_or_else(|| text.chars().count(), |head| head.chars().count())
+    }
+}
+
 fn byte_of(text: &str, chars: usize) -> usize {
     text.char_indices().nth(chars).map_or(text.len(), |(byte, _)| byte)
 }
@@ -111,10 +154,11 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
         text_edit::select(ctx, widget, caret, caret);
         changed = true;
     }
-    if input.read_only || !input.focused {
+    let edits = ime::take(ctx, widget, input.read_only);
+    if !input.focused {
         return changed;
     }
-    for edit in ime::take(ctx, widget) {
+    for edit in edits {
         match edit {
             EditorInput::Preedit { text: composing, .. } => {
                 state.preedit = (!composing.is_empty())
@@ -131,6 +175,9 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
         }
     }
     while let Some(command) = input.intents.take_edit() {
+        if input.read_only && !EditorInput::Edit(command).is_read_only_safe() {
+            continue;
+        }
         match command {
             EditCommand::SelectAll => text_edit::select(ctx, widget, 0, text.chars().count()),
             EditCommand::Copy | EditCommand::Cut => {
@@ -173,7 +220,7 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
 pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut {
     let (ctx, widget) = (input.ctx, text_id(input.id, input.key));
     let focused_before = input.focused;
-    let mut base = state.draft.clone().unwrap_or_else(|| input.shown.to_owned());
+    let mut base = state.draft.clone().or_else(|| state.normalised.take()).unwrap_or_else(|| input.shown.to_owned());
     let edited = apply(&mut input, state, &mut base, widget);
     if focused_before && (state.draft.is_some() || state.preedit.is_some()) && input.intents.take(Intent::Cancel) {
         state.end = Some(End::Escape);

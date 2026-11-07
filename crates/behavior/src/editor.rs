@@ -67,6 +67,11 @@ impl EditorInput {
         EditorInput::Preedit { text: text.into(), cursor }
     }
 
+    /// A `Select` of `anchor` to `focus`.
+    pub const fn select(anchor: TextPos, focus: TextPos) -> Self {
+        EditorInput::Select { anchor, focus }
+    }
+
     /// Whether the input changes no text: a read-only editor receives only these (18.4).
     pub const fn is_read_only_safe(&self) -> bool {
         match self {

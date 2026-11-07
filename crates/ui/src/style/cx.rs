@@ -1,7 +1,7 @@
 //! `StyleCx`: what `style` and the app colour hooks get. Tokens are readable only through it.
 
 use super::key::{EnvKey, Ink};
-use super::look::{StyleColor, SurfaceKind};
+use super::look::{StyleColor, SurfaceKind, SurfaceLook};
 use super::paint::{HandleLook, ResetMarkLook, RuleKind, RuleLook, ScrollBarLook, handle_look, reset_mark_look, rule_look, scroll_bar_look};
 use super::surface::{SurfaceStyle, surface_style};
 use super::tokens::UiTokens;
@@ -10,7 +10,8 @@ use crate::runtime::env::{AppValues, Scale, StyleValue};
 use craft_behavior::ControlMetrics;
 use craft_host::target::Os;
 use craft_i18n::Direction;
-use craft_theme::{BySize, ControlSize, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
+use craft_theme::Stroke as StrokeStep;
+use craft_theme::{BySize, ControlSize, Flags, RadiusStep, Rgba, Stateful, States, TokenGroup, Variant, VariantLook, variant::Tone};
 use egui::{Color32, Context, CornerRadius};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
@@ -134,6 +135,16 @@ impl<'a> StyleCx<'a> {
     /// What a surface of `kind` draws.
     pub fn surface(&self, kind: SurfaceKind) -> SurfaceStyle {
         surface_style(self.tokens, kind)
+    }
+
+    /// The look of a text or value field: the well surface with an edge over it that takes the focus colour while
+    /// the field holds focus, in any modality, and the failure colour while its value is invalid.
+    pub fn field(&self) -> SurfaceLook {
+        let well = self.surface(SurfaceKind::Well);
+        let line = &self.tokens.color.line;
+        let edge =
+            Stateful::new(self.color(Rgba::TRANSPARENT)).when(Flags::INVALID, self.tone(Tone::Bad)).when(Flags::FOCUSED, self.color(line.focus));
+        SurfaceLook::new(Stateful::new(StyleColor(well.fill))).kind(SurfaceKind::Well).radius(well.radius).border(edge, StrokeStep::W1.width(1.0))
     }
 
     /// The line a rule of `kind` draws.

@@ -238,7 +238,7 @@ pub(crate) fn run(ui: &mut Ui, env: &Env, input: &LabelIn<'_>) -> Rect {
     }
     let slot = if reset.is_some() { slot_side } else { 0.0 };
     let mut leaf = LabelLeaf::new(input.text.clone(), slot);
-    leaf.scrub = input.side.scrub;
+    leaf.scrub = input.side.scrub || scope::last_scrub(&ctx, input.scope);
     leaf.resettable = reset.is_some();
     leaf.differs = reset.is_some_and(|fact| fact.differs);
     let kids_scope = sub(input.scope, "label_ui");

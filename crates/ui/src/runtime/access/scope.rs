@@ -83,6 +83,8 @@ struct Scope {
     baseline: Option<f32>,
     /// The control that registered a reset value and whether its value differs from it.
     reset: Option<ResetFact>,
+    /// A control inside scrubs by the label.
+    scrub: bool,
 }
 
 /// What a control tells its label scope about its reset (10.2).
@@ -99,7 +101,8 @@ struct Stack(Vec<Scope>);
 
 /// Opens the scope of `container`; its body shows inside it.
 pub(crate) fn begin(ctx: &Context, container: Id, kind: Kind) {
-    Service::<Stack>::of(ctx).with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None }));
+    Service::<Stack>::of(ctx)
+        .with(|stack| stack.0.push(Scope { container, kind, nodes: Vec::new(), open: Vec::new(), baseline: None, reset: None, scrub: false }));
 }
 
 /// The innermost label scope's label, read by `cx.field_label()`.
@@ -159,6 +162,23 @@ pub(crate) fn register_reset(ctx: &Context, control: Id, differs: bool) {
     });
 }
 
+/// Registers that a control of the innermost label scope scrubs by the label, so the label senses a drag.
+pub(crate) fn register_scrub(ctx: &Context) {
+    Service::<Stack>::of(ctx).with(|stack| {
+        if let Some(scope) = stack.0.iter_mut().rev().find(|scope| matches!(scope.kind, Kind::Label(_))) {
+            scope.scrub = true;
+        }
+    });
+}
+
+/// Whether a control of the label scope of `container` scrubbed by the label last frame.
+pub(crate) fn last_scrub(ctx: &Context, container: Id) -> bool {
+    Service::<Scrubs>::of(ctx).with(|scrubs| scrubs.0.contains(&container))
+}
+
+#[derive(Default)]
+struct Scrubs(std::collections::HashSet<Id>);
+
 /// The reset fact the label scope of `container` recorded last frame.
 pub(crate) fn last_reset(ctx: &Context, container: Id) -> Option<ResetFact> {
     Service::<Resets>::of(ctx).with(|resets| resets.0.get(&container).copied())
@@ -187,6 +207,13 @@ pub(crate) fn finish(ctx: &Context, container: Id, merged: Option<Merged>) {
             if let Some(baseline) = scope.baseline {
                 layout_memory::record(ctx, sub(scope.container, "baseline"), Vec2::new(0.0, baseline));
             }
+            Service::<Scrubs>::of(ctx).with(|scrubs| {
+                if scope.scrub {
+                    scrubs.0.insert(scope.container);
+                } else {
+                    scrubs.0.remove(&scope.container);
+                }
+            });
             Service::<Resets>::of(ctx).with(|resets| match scope.reset {
                 Some(fact) => resets.0.insert(scope.container, fact),
                 None => resets.0.remove(&scope.container),

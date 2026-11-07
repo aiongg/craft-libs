@@ -26,6 +26,7 @@ pub struct Frames {
     commands: CommandInput,
     tree: Option<AccessTree>,
     ime: Option<fixture::ImeSeen>,
+    copied: Vec<String>,
     modifiers: egui::Modifiers,
     /// The modifiers the context was last told about.
     told: egui::Modifiers,
@@ -57,6 +58,7 @@ impl Frames {
             commands: CommandInput::new(),
             tree: None,
             ime: None,
+            copied: Vec::new(),
             modifiers: egui::Modifiers::NONE,
             told: egui::Modifiers::NONE,
         }
@@ -143,12 +145,18 @@ impl Frames {
         self.repaint_delay = result.repaint_delay;
         self.tree = result.tree;
         self.ime = result.ime;
+        self.copied = result.copied;
         result.closed
     }
 
     /// The IME output of the last frame: `None` when it wrote none.
     pub fn ime(&self) -> Option<&fixture::ImeSeen> {
         self.ime.as_ref()
+    }
+
+    /// The texts the last frame put on the clipboard.
+    pub fn copied(&self) -> &[String] {
+        &self.copied
     }
 
     /// The AccessKit tree the last frame produced.

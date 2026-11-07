@@ -1,12 +1,15 @@
 //! Typing runs, submit and escape, undo, completion, the number field and the caret blink.
 
 use super::kit::Rig;
+use crate::label::kit::Field;
 use craft_behavior::MotionMode;
 use craft_ui::contract::{Bind, Props as _, Show as _};
+use craft_ui::contract::{ShowContainer as _, SideLabel};
 use craft_ui::primitives::{Completer, Completion};
 use craft_ui::runtime::commands::{CommandRef, EditCommands};
 use craft_ui::runtime::frame::take_output;
 use craft_ui::testing::input::key_press;
+use craft_ui::testing::pointer::drag;
 use craft_ui::testing::text::{caret, painted};
 use craft_ui::testing::trial;
 use craft_ui::text::{NumberField, TextField};
@@ -165,4 +168,23 @@ fn caret_blinks_and_stops_when_motion_is_off() {
     assert!(full.contains(&true) && full.contains(&false), "the caret blinks: {full:?}");
     let off = visible_over_time(MotionMode::Off);
     assert!(off.iter().all(|shown| *shown), "the caret stays solid: {off:?}");
+}
+
+/// A number field with `scrub_by_label` follows a drag on its side label, one point of drag per unit.
+#[trial]
+fn a_number_field_scrubs_by_its_label() {
+    const ROW: egui::Rect = egui::Rect { min: egui::Pos2::new(10.0, 10.0), max: egui::Pos2::new(310.0, 40.0) };
+    const DRAG: f32 = 30.0;
+    const ROUNDING: f64 = 1.5;
+    let mut frames = craft_ui::testing::Frames::new();
+    let value = std::cell::RefCell::new(Some(10.0f64));
+    let mut show = |ui: &mut egui::Ui| {
+        Field::new("Opacity", SideLabel::new()).id_salt("row").show_at(ui, ROW, |ui, _| {
+            NumberField::new("Opacity", Bind::bound(&mut *value.borrow_mut())).scrub_by_label().id_salt("scrubbed").show(ui);
+        });
+    };
+    frames.idle(4, &mut show);
+    drag(&mut frames, ROW.min + egui::vec2(4.0, 12.0), egui::vec2(DRAG, 0.0), &mut show);
+    let scrubbed = value.borrow().unwrap_or_default();
+    assert!((scrubbed - 10.0 - f64::from(DRAG)).abs() < ROUNDING, "a drag on the label scrubs by its length: {scrubbed}");
 }

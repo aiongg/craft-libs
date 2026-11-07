@@ -157,6 +157,8 @@ pub enum Intent {
     Reset,
     /// Typed text; one event can carry several characters.
     Text(Arc<str>),
+    /// Tab in a component whose key filter keeps it.
+    Tab,
     /// An edit command the focused component lists.
     Edit(EditCommand),
     /// Switch to the next or previous page.

@@ -857,6 +857,9 @@ pub(crate) fn state<C: Component>(comp: &C, cx: &mut Cx<'_, C>, open: bool, inhe
     if cx.mixed {
         flags |= Flags::MIXED;
     }
+    if cx.core.text_invalid {
+        flags |= Flags::INVALID;
+    }
     match &cx.validity {
         Validity::Refuse(_) => flags |= Flags::INVALID,
         Validity::Warn(_) => flags |= Flags::WARN,
@@ -900,7 +903,15 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
     let fill = cx.core.resolve(&look.fill);
     let ppp = ui.ctx().pixels_per_point();
     let shapes = match look.kind_in(&cx.core.state) {
-        Some(kind) => Surface::shapes(&surface_style(&env.tokens, kind), Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp),
+        Some(kind) => {
+            let mut shapes = Surface::shapes(&surface_style(&env.tokens, kind), Some(fill.egui()), cx.core.rect, look.corners, env.direction, ppp);
+            if let Some(border) = &look.border {
+                let radius = look.corners.apply(look.radius, env.direction);
+                let color = cx.core.resolve(border);
+                shapes.extend(StateLayer::shapes(StateLayerKind::Outline, color, cx.core.rect, radius, look.border_width));
+            }
+            shapes
+        }
         None => {
             let radius = look.corners.apply(look.radius, env.direction);
             let mut shapes = StateLayer::shapes(StateLayerKind::Fill, fill, cx.core.rect, radius, 0.0);
@@ -911,7 +922,12 @@ pub(crate) fn paint_surface<C: Component>(ui: &Ui, env: &Env, cx: &Cx<'_, C>) {
             shapes
         }
     };
-    ui.painter().extend(shapes);
+    match cx.core.surface_slot {
+        Some(slot) => ui.painter().set(slot, egui::Shape::Vec(shapes)),
+        None => {
+            ui.painter().extend(shapes);
+        }
+    }
 }
 
 /// Step 13, paint, after `C::paint`: the focus ring of the focused component or its active part, when focus is
@@ -1063,6 +1079,9 @@ fn report_access<C: Component>(comp: &C, cx: &Cx<'_, C>, input: &ReportIn<'_>) {
         access: &access,
     };
     adapter::fill_own(ctx, &own);
+    if let Some(facts) = core.text_access.take() {
+        crate::runtime::access::text::report_text(ctx, id, &facts);
+    }
     if core.member_of.is_some() && flags.contains(Flags::FOCUSED) {
         adapter::set_focus(ctx, id);
     }

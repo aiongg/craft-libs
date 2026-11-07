@@ -4,6 +4,7 @@
 
 mod live;
 pub(crate) mod scope;
+pub(crate) mod text;
 
 use crate::runtime::egui::access::NodeRole;
 use crate::runtime::env::Label;

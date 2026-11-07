@@ -237,6 +237,11 @@ fn blank_core<'a>(
         root_sense: Sense::empty(),
         roving_arrival: None,
         texts: None,
+        surface_slot: None,
+        editor: None,
+        editor_inputs: Vec::new(),
+        text_invalid: false,
+        text_access: std::cell::RefCell::new(None),
         submitted: false,
         escaped: false,
     }
@@ -319,9 +324,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     p.trace.mark(Step::Parts);
     let flow = Flow::new(rect, rtl);
     let mut parts = PartsStep { decls: Vec::new(), rovings: Vec::new(), scrolls: Vec::new(), text: super::text::TextStep::default() };
-    let text_state_id = crate::runtime::memory::sub(id, "text_state");
     if !inert && C::INPUT == Input::Text {
-        parts.text.state = cx.core.memory.shown::<crate::primitives::text_adapter::TextState>(text_state_id).clone();
         parts.text.commit_now = focus::commit_now(&ctx) == Some(id);
     }
     if !inert {
@@ -347,9 +350,16 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::check_parts(&ctx, std::any::type_name::<C>(), &parts);
     let text_keys = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::keys_of(C::KEYS, &decl.options));
     let text_widget = parts.text.decl.as_ref().map(|decl| crate::primitives::text_adapter::text_id(id, decl.key));
-    if text_widget.is_some() {
-        *cx.core.memory.shown::<crate::primitives::text_adapter::TextState>(text_state_id) = parts.text.state.clone();
-    }
+    let editor_keys = parts
+        .text
+        .editor
+        .as_ref()
+        .map(|decl| (crate::primitives::ImeSurface::of(id, decl.key).widget(), super::editor::keys_of(C::KEYS, decl.purpose)));
+    let (holder_widget, text_keys) = match (text_widget, text_keys, editor_keys) {
+        (Some(widget), keys, _) => (Some(widget), keys),
+        (None, _, Some((widget, keys))) => (Some(widget), Some(keys)),
+        (None, keys, None) => (None, keys),
+    };
     let own = if inert || !resolved.enabled { Sense::HOVER } else { comp.sense() };
     let arena = p.hooks.arena(comp);
     let member = if arena || matches!(C::INPUT, Input::Text | Input::Editor) { None } else { env.arena };
@@ -357,9 +367,9 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_stops(&StopsIn {
         ctx: &ctx,
         id,
-        holder: text_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
+        holder: holder_widget.unwrap_or_else(|| member.map_or(id, |arena| arena.0)),
         focusable: !inert && resolved.enabled && own.contains(Sense::FOCUS),
-        text: text_widget.is_some(),
+        text: holder_widget.is_some(),
         keys: text_keys.unwrap_or(C::KEYS),
         role: KeyRole::new().resettable(resettable),
         rtl,
@@ -423,6 +433,8 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     if text_widget.is_some() {
         let ink = crate::style::ink_color(&env.tokens, env.ink);
         super::text::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS), rtl, ink);
+    } else if holder_widget.is_some() {
+        super::editor::run(cx, ui, &mut parts.text, text_keys.unwrap_or(C::KEYS));
     }
     // 9 update
     p.trace.mark(Step::Update);

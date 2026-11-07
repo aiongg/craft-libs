@@ -10,7 +10,7 @@ use crate::primitives::text_adapter::{TextState, text_id};
 use crate::primitives::{Completer, Completion, TextKey, TextOptions, TextRun};
 use crate::runtime::egui::text_edit;
 use crate::runtime::env::Label;
-use crate::style::{ComponentStyle, StyleCx};
+use crate::style::{ComponentStyle, StyleCx, SurfaceLook};
 use craft_behavior::{Codec, GesturePhase, Insets, Metrics, NumberCodec, PartKey, PlainText, PressPhase, Sense, ValueDrag};
 use craft_keymap::{Chord, Key};
 use egui::{Rect, Vec2};
@@ -21,9 +21,11 @@ use std::sync::Arc;
 const MIN_WIDTH_IN_HEIGHTS: f32 = 8.0;
 
 /// The style of a text field: padding and minimum size from the control metrics.
-#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct FieldStyle {
+    #[style(surface)]
+    surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
 }
@@ -34,7 +36,7 @@ impl FieldStyle {
         let metrics = Metrics::new()
             .padding(Insets::new(control.pad_x, 0.0, control.pad_x, 0.0))
             .min_size(Vec2::new(control.height * MIN_WIDTH_IN_HEIGHTS, control.height));
-        FieldStyle { metrics }
+        FieldStyle { surface: cx.field(), metrics }
     }
 }
 
@@ -56,7 +58,7 @@ struct CompletionState {
 /// A text field over a codec: plain text by default.
 #[derive(crate::contract::Component)]
 #[component(probe(TextField<'static, PlainText>))]
-pub struct TextField<'a, C: Codec + 'static = PlainText> {
+pub struct TextField<'a, C: Codec + Clone + 'static = PlainText> {
     #[common]
     common: Common,
     value: Bind<'a, C::Value>,
@@ -78,7 +80,7 @@ impl<'a> TextField<'a, PlainText> {
     }
 }
 
-impl<'a, C: Codec + 'static> TextField<'a, C> {
+impl<'a, C: Codec + Clone + 'static> TextField<'a, C> {
     /// A field named `label` that shows `value` through `codec`.
     pub fn with_codec(label: impl Into<Label>, value: Bind<'a, C::Value>, codec: C) -> Self {
         TextField { common: Common::new(), value, codec, options: TextOptions::default() }.label(label)
@@ -127,7 +129,7 @@ impl<'a, C: Codec + 'static> TextField<'a, C> {
     }
 }
 
-impl<C: Codec + 'static> Component for TextField<'_, C> {
+impl<C: Codec + Clone + 'static> Component for TextField<'_, C> {
     const ROLE: Role = Role::TEXT_INPUT;
     const INPUT: crate::contract::Input = crate::contract::Input::Text;
     type Style = FieldStyle;
@@ -312,10 +314,11 @@ impl Component for NumberField<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if !self.scrub {
+        if !self.scrub || cx.core.resolved.read_only || !cx.core.resolved.enabled {
             return;
         }
         let Some(label) = cx.field_label() else { return };
+        crate::runtime::access::scope::register_scrub(&cx.core.ctx);
         let rtl = cx.env.direction().is_rtl();
         let drag = ValueDrag::relative(SCRUB_RATE, f64::MIN..=f64::MAX);
         match label.press.phase {
@@ -337,6 +340,79 @@ impl Component for NumberField<'_> {
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> EditResponse<Option<f64>> {
+        cx.edit_response()
+    }
+}
+
+/// The style of selectable text: padding from the control metrics, no surface.
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+#[non_exhaustive]
+pub struct SelectableStyle {
+    #[style(metrics)]
+    metrics: Metrics,
+}
+
+/// Read-only text the user can focus, select and copy.
+#[derive(crate::contract::Component)]
+pub struct SelectableText<'a> {
+    #[common]
+    common: Common,
+    value: Bind<'a, String>,
+    options: TextOptions,
+}
+
+impl SelectableText<'_> {
+    /// Selectable `text` named `label`.
+    pub fn new(label: impl Into<Label>, text: &str) -> Self {
+        SelectableText { common: Common::new(), value: Bind::given(text.to_owned()), options: TextOptions::default() }.label(label).read_only(true)
+    }
+
+    /// The text wraps over several lines.
+    #[must_use]
+    pub fn multiline(mut self) -> Self {
+        self.options.lines = Some(usize::MAX);
+        self
+    }
+
+    /// Monospace text.
+    #[must_use]
+    pub fn mono(mut self) -> Self {
+        self.options.mono = true;
+        self
+    }
+}
+
+impl Component for SelectableText<'_> {
+    const ROLE: Role = Role::TEXT_INPUT;
+    const INPUT: crate::contract::Input = crate::contract::Input::Text;
+    type Style = SelectableStyle;
+    type Output = EditResponse<String>;
+
+    fn style(cx: &StyleCx<'_>, _: SelectableTextStyleKey) -> SelectableStyle {
+        SelectableStyle { metrics: Metrics::new().padding(Insets::new(cx.control().pad_x, 0.0, cx.control().pad_x, 0.0)) }
+    }
+
+    fn sense(&self) -> Sense {
+        Sense::CLICK | Sense::FOCUS | Sense::TAKE_FOCUS
+    }
+
+    fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
+        let text = cx.value().map_or("", String::as_str);
+        let run = TextRun::new(text);
+        cx.layout(&if self.options.multiline() { run.wrap(crate::primitives::Wrap::Line) } else { run }).size()
+    }
+
+    fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
+        if let Some(value) = cx.value() {
+            cx.text(text_part::<String>(), rect, &PlainText, value, &self.options);
+        }
+    }
+
+    fn bind(&mut self) -> Option<BindMut<'_, String>> {
+        Some(self.value.reborrow())
+    }
+
+    fn finish(self, cx: Cx<'_, Self>) -> EditResponse<String> {
         cx.edit_response()
     }
 }

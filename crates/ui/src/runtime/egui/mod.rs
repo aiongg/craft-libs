@@ -5,6 +5,7 @@ pub mod alloc;
 pub mod areas;
 pub mod child;
 pub mod clipboard;
+pub mod editor;
 #[cfg(feature = "testing")]
 pub(crate) mod fixture;
 pub mod focus;

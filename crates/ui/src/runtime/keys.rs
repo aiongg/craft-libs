@@ -11,7 +11,7 @@ use crate::runtime::overlay;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
 use craft_behavior::keys;
-use craft_behavior::{AccessRequest, CancelRule, EditCommand, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
+use craft_behavior::{AccessRequest, CancelRule, EditCommand, EditorInput, Intent, KeyOwner, MoveMods, NavMove, OwnerClass, PartRef};
 use craft_host::target::Os;
 use craft_keymap::{Chord, Key, KeyInput, Layout, Mods};
 use egui::{Context, Id, Vec2, ViewportId};
@@ -488,6 +488,7 @@ fn route_press(
             }
         }
         None if press.key == Key::Space && plain && stop.keys.activate.space() => route_activate(rec, routed, activated),
+        None if press.key == Key::Tab && plain && stop.keys.keep == focus::KeepKeys::Tab => push(routed, id, Intent::Tab, false),
         None if stop.role.nudge => {
             let Some(nudge) = nudge_of(press.key, press.mods) else { return false };
             routed.entry(id).or_default().nudge = Some(nudge);
@@ -613,6 +614,24 @@ impl Intents {
         self.items.iter().any(|(item, taken)| !taken && item.same_kind(intent))
     }
 
+    /// Takes the next intent an editor reads as input: typed text, a move, a delete, an edit command, Enter as a
+    /// newline, Tab, and Escape as a cancel.
+    pub(crate) fn take_editor_input(&mut self) -> Option<EditorInput> {
+        let at = self.items.iter().position(|(item, taken)| !taken && editor_input_of(item).is_some())?;
+        self.items[at].1 = true;
+        editor_input_of(&self.items[at].0)
+    }
+
+    /// Takes the next `Intent::Access` request that `wanted` accepts.
+    pub(crate) fn take_access_where(&mut self, wanted: impl Fn(&AccessRequest) -> bool) -> Option<AccessRequest> {
+        let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Access(request) if wanted(request)))?;
+        self.items[at].1 = true;
+        match &self.items[at].0 {
+            Intent::Access(request) => Some(request.clone()),
+            _ => None,
+        }
+    }
+
     /// Takes the next `Intent::Access` request.
     pub fn take_access(&mut self) -> Option<AccessRequest> {
         let at = self.items.iter().position(|(item, taken)| !taken && matches!(item, Intent::Access(_)))?;
@@ -621,6 +640,19 @@ impl Intents {
             Intent::Access(request) => Some(request.clone()),
             _ => None,
         }
+    }
+}
+
+fn editor_input_of(intent: &Intent) -> Option<EditorInput> {
+    match intent {
+        Intent::Text(text) => Some(EditorInput::Text(Arc::clone(text))),
+        Intent::Move(mv, mods) => Some(EditorInput::Move(*mv, *mods)),
+        Intent::Delete { forward, by, .. } => Some(EditorInput::delete(*forward, *by)),
+        Intent::Edit(command) => Some(EditorInput::Edit(*command)),
+        Intent::Submit => Some(EditorInput::Newline),
+        Intent::Tab => Some(EditorInput::Tab),
+        Intent::Cancel => Some(EditorInput::Cancel),
+        _ => None,
     }
 }
 

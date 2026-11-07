@@ -27,6 +27,16 @@ struct Engine {
     preedit: String,
     caret: Option<(Id, Rect, Rect, bool)>,
     interrupt: Option<Id>,
+    /// What the editor that owns the IME reported at its last pass.
+    editor: Option<EditorFacts>,
+}
+
+#[derive(Clone, Copy)]
+struct EditorFacts {
+    owner: Id,
+    revision: u64,
+    can_undo: bool,
+    can_redo: bool,
 }
 
 fn with<R>(ctx: &Context, viewport: ViewportId, f: impl FnOnce(&mut Engine) -> R) -> R {
@@ -93,9 +103,41 @@ pub(crate) fn begin(ctx: &Context, owner: Option<Id>) {
     });
 }
 
-/// The edits waiting for `owner`; empty for any other component.
-pub(crate) fn take(ctx: &Context, owner: Id) -> Vec<EditorInput> {
-    current(ctx, |engine| if engine.owner == Some(owner) { std::mem::take(&mut engine.edits) } else { Vec::new() })
+/// The edits waiting for `owner`; empty for any other component. A read-only owner takes none and never composes.
+pub(crate) fn take(ctx: &Context, owner: Id, read_only: bool) -> Vec<EditorInput> {
+    current(ctx, |engine| {
+        if engine.owner != Some(owner) {
+            return Vec::new();
+        }
+        if read_only {
+            engine.edits.clear();
+            engine.composing = false;
+            engine.preedit.clear();
+            return Vec::new();
+        }
+        std::mem::take(&mut engine.edits)
+    })
+}
+
+/// What an editor that draws its own caret reports once per pass. A new `revision` that follows no edit the engine
+/// delivered (`edited`) is an app change: the composition context is stale, so the OS composition is interrupted
+/// and its late events are dropped.
+pub(crate) fn note_editor(ctx: &Context, owner: Id, revision: u64, edited: bool, history: (bool, bool)) {
+    current(ctx, |engine| {
+        let changed = engine.editor.is_some_and(|last| last.owner == owner && last.revision != revision);
+        if changed && !edited && engine.owner == Some(owner) && engine.composing {
+            engine.composing = false;
+            engine.preedit.clear();
+            engine.stale = true;
+            engine.interrupt = Some(owner);
+        }
+        engine.editor = Some(EditorFacts { owner, revision, can_undo: history.0, can_redo: history.1 });
+    });
+}
+
+/// Whether the editor `owner` had something to undo and to redo at its last report.
+pub(crate) fn editor_history(ctx: &Context, owner: Id) -> (bool, bool) {
+    current(ctx, |engine| engine.editor.filter(|facts| facts.owner == owner).map_or((false, false), |facts| (facts.can_undo, facts.can_redo)))
 }
 
 /// The preedit of `owner` when it lost focus while composing, once: its adapter appends it to the draft.

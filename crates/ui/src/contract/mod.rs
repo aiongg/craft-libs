@@ -3,6 +3,7 @@
 mod body;
 mod container;
 mod cx;
+pub(crate) mod editor;
 pub mod ghost;
 mod group;
 mod label;
