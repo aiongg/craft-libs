@@ -27,3 +27,9 @@ pub use preview::{PreviewOutput, PreviewPane, PreviewPaneStyle, PreviewState, Pr
 mod size_model;
 
 pub use size_model::{LinkedSize, MAX_DOCUMENT_SIDE, SizeError, resize_from_scale, resize_from_side};
+
+mod sizing;
+
+pub use sizing::{
+    CanvasExtension, CanvasSize, CanvasSizeOutput, CanvasSizeResult, ImageSize, ImageSizeOutput, ImageSizeResult, Resample, SizingOutput, SizingWords,
+};
