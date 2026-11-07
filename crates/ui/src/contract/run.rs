@@ -31,10 +31,11 @@ pub(crate) enum ShowAt {
 }
 
 /// Where a component's steps 6 to 16 run: calls `pass` with the `Ui` they run in and the placement that `Ui`
-/// imposes (`None` keeps the caller's). A host that opens a new egui layer or viewport installs `env` there. F5
-/// adds the layer and viewport hosts, which call `pass` once per child pass.
+/// imposes (`None` keeps the caller's), and the env it runs under when that is not the caller's (a viewport's own
+/// window facts). A host that opens a new egui layer or viewport installs `env` there. F5 adds the layer and
+/// viewport hosts, which call `pass` once per child pass.
 pub(crate) trait Host {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>));
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>));
 
     /// Why the host asks the component to close, decided after its passes ran.
     fn dismissed(&self) -> Option<CloseReason> {
@@ -56,8 +57,8 @@ pub(crate) struct HostCx<'a> {
 pub(super) struct Inline;
 
 impl Host for Inline {
-    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
-        pass(parent, None);
+    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+        pass(parent, None, None);
     }
 }
 
@@ -271,22 +272,22 @@ struct Pass<'r, 'a, C: Component> {
 }
 
 /// Steps 6 to 16, in the `Ui` the host gives, inside the component's focus scope.
-fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>) {
+fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let scope = if p.sizing || ui.is_sizing_pass() { None } else { p.hooks.focus(p.comp) };
     let (ctx, id) = (p.cx.core.ctx.clone(), p.resolved.id);
     if let Some(policy) = scope {
         focus::push_scope(&ctx, id, policy, None);
     }
-    steps_6_to_16(p, ui, host_at);
+    steps_6_to_16(p, ui, host_at, host_env);
     if scope.is_some() {
         focus::pop_scope(&ctx);
     }
 }
 
-fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>) {
+fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
-    let (env, resolved, inert) = (p.env, p.resolved, p.inert);
+    let (env, resolved, inert) = (host_env.unwrap_or(p.env), p.resolved, p.inert);
     let metrics = p.style.metrics();
     // 6 place
     let rect = steps::place(ui, host_at.unwrap_or(p.at), if inert { Vec2::ZERO } else { p.size });
@@ -607,7 +608,7 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         real: false,
         activated: false,
     };
-    host.run(id, ui, env, &mut |host_ui, host_at| pass(&mut run, host_ui, host_at));
+    host.run(id, ui, env, &mut |host_ui, host_at, host_env| pass(&mut run, host_ui, host_at, host_env));
     let (real_pass, activated) = (run.real, run.activated);
     drop(run);
     // A layer's dismissal is decided after its body so a field inside commits in the press pass; its open state is

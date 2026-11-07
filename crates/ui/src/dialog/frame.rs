@@ -1,29 +1,48 @@
 //! `DialogFrame` (16.5) and the chrome every dialog shell shares: the title row with its close action, the footer
 //! region and the footer closure's context.
 
+use super::host::DialogResult;
 use crate::contract::{
     BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, Pad, Props as _, Role, Scroll, Show as _,
     ShowContainer as _, WordSetCx as _,
 };
+use crate::contract::{NoValue, Outcome};
 use crate::runtime::env::Label;
 use crate::runtime::overlay::CloseReason;
-use crate::sections::{FooterBar, HeaderAction, HeaderStrength, TitleRow};
+use crate::sections::{DialogRole, FooterBar, FooterButton, HeaderAction, HeaderStrength, TitleRow};
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::{Metrics, Sense};
 use egui::{Response, Ui};
 
-/// What a dialog calls when it closes: a closure over the reason.
-pub struct CloseHandler<'a>(Box<dyn FnMut(CloseReason) + 'a>);
+/// What a dialog shell returns: its response, how it closed in this pass, and the footer button that was picked.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct DialogOutput {
+    /// The dialog's response.
+    pub response: Response,
+    /// How the dialog closed in this pass: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
+    /// `Requested` what a footer button asked for. `None` while it stays open. Reported once for each close.
+    pub closed: Option<CloseReason>,
+    /// The index, in the order given to `buttons`, of the footer button clicked in this pass.
+    pub picked: Option<usize>,
+}
 
-impl<'a, F: FnMut(CloseReason) + 'a> From<F> for CloseHandler<'a> {
-    fn from(report: F) -> Self {
-        CloseHandler(Box::new(report))
+impl Outcome for DialogOutput {
+    type Value = NoValue;
+
+    fn response(&self) -> &Response {
+        &self.response
     }
 }
 
-impl CloseHandler<'_> {
-    pub(super) fn report(&mut self, why: CloseReason) {
-        (self.0)(why);
+impl DialogOutput {
+    /// The dialog's answer for a [`DialogHost`](super::DialogHost) entry: `Ok(answer())` when it closed as an OK
+    /// (Enter or an accepting button), `Cancel` when it closed any other way, `None` while it is open.
+    pub fn result<T>(&self, answer: impl FnOnce() -> T) -> Option<DialogResult<T>> {
+        match self.closed? {
+            CloseReason::Enter | CloseReason::Activated => Some(DialogResult::Ok(answer())),
+            _ => Some(DialogResult::Cancel),
+        }
     }
 }
 
@@ -65,11 +84,19 @@ pub(super) fn header(ui: &mut Ui, cx: &mut BodyCx<'_>, actions: &[HeaderAction])
     }
 }
 
-/// Fills the footer region with the caller's closure inside a footer bar.
-pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<FooterFn<'_>>) {
-    let Some(content) = content.as_mut() else { return };
+/// Fills the footer region: the caller's content closure in a footer bar, and under it the dialog buttons, whose
+/// roles decide the close reason (`Accept` and the other outcomes close as `Activated`, `Cancel` as `Requested`).
+pub(super) fn footer(ui: &mut Ui, cx: &mut BodyCx<'_>, content: &mut Option<FooterFn<'_>>, buttons: &[FooterButton], picked: &mut Option<usize>) {
     let mut close = None;
-    FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
+    if let Some(content) = content.as_mut() {
+        FooterBar::body().show(ui, |ui, bar| content(ui, &mut FooterCx { bar, close: &mut close }));
+    }
+    if !buttons.is_empty() {
+        *picked = FooterBar::buttons(buttons.iter().cloned()).show_content(ui);
+        if let Some(at) = *picked {
+            close.get_or_insert(if buttons[at].role() == DialogRole::Cancel { CloseReason::Requested } else { CloseReason::Activated });
+        }
+    }
     if let Some(why) = close {
         cx.request_close_as(why);
     }
@@ -157,6 +184,6 @@ impl Container for DialogFrame<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        footer(ui, cx, &mut self.footer);
+        footer(ui, cx, &mut self.footer, &[], &mut None);
     }
 }

@@ -63,7 +63,7 @@ pub trait StackDialog: Any + Send {
     }
 
     /// Which of several dialogs of this type this is, when the app keeps more than one open
-    /// ([`ParamDialog::instance`](super::ParamDialog::instance)). The host replaces an open dialog
+    /// (`ParamDialog::instance`). The host replaces an open dialog
     /// only by one of the same type and instance; `None` (the default) is one dialog per type.
     fn instance(&self) -> Option<DialogId> {
         None

@@ -1,7 +1,7 @@
 //! The variants the runner makes of every story, so authors write none of them: disabled, read-only, right-to-left,
 //! each motion mode and a language change.
 
-use super::drive::{cancels, run, settled, variants};
+use super::drive::{cancels, root_target, run, settled, variants};
 use super::{ANY, Case, Subject};
 use crate::runtime::egui::access::Declared;
 use crate::runtime::env::Direction;
@@ -104,7 +104,8 @@ fn read_only_changes_nothing(subject: &Subject) -> Result<(), String> {
 }
 
 /// Under right-to-left the shown area keeps its size and every interactive node lies where the left-to-right
-/// layout reflected across the shown area puts it.
+/// layout reflected across the shown area puts it. A story that allocates nothing in flow (a layer or a full-window
+/// mount) is reflected across its component's own node.
 fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let show = |direction: Direction| {
@@ -114,8 +115,9 @@ fn rtl_mirrors(subject: &Subject) -> Result<(), String> {
             fixture
         };
         let (ltr, rtl) = (show(Direction::Ltr), show(Direction::Rtl));
-        let within = ltr.shown();
-        if (ltr.shown().width() - rtl.shown().width()).abs() > 0.5 {
+        let flowless = !ltr.shown().is_positive();
+        let within = if flowless { root_target(&ltr).rect } else { ltr.shown() };
+        if !flowless && (ltr.shown().width() - rtl.shown().width()).abs() > 0.5 {
             return Err(format!("{}: the width differs between directions", story.name));
         }
         let tree = ltr.tree();

@@ -1,7 +1,11 @@
 //! `FooterBar` (16.4): the container that fills a container's footer region.
 
+use super::words::SectionWords;
 use crate::buttons::{Button, IconButton};
-use crate::contract::{BodyLayout, Common, Component, Container, ContainerProps, Cx, Props as _, Role, RowAlign, Show as _, ShowContainer as _};
+use crate::contract::{
+    Access, BodyLayout, Common, Component, Container, ContainerProps, Cx, Props as _, Role, RowAlign, Show as _, ShowContainer as _, WordSetCx as _,
+};
+use crate::runtime::access::Name;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{IconId, Metrics, NavShape, Roving, Sense};
@@ -78,6 +82,11 @@ pub struct FooterButton {
 }
 
 impl FooterButton {
+    /// The meaning of the button.
+    pub(crate) fn role(&self) -> DialogRole {
+        self.role
+    }
+
     /// A button named `label` with the meaning `role`.
     pub fn new(label: impl Into<Label>, role: DialogRole) -> Self {
         FooterButton { label: label.into(), role }
@@ -161,6 +170,13 @@ impl Component for FooterBar {
 
     fn sense(&self) -> Sense {
         Sense::empty()
+    }
+
+    /// A footer bar the caller did not label is named by the words of the family.
+    fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
+        if cx.resolved.label.is_empty() {
+            access.name(Name::Text(cx.words::<SectionWords>().footer.as_str().to_owned()));
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> Response {

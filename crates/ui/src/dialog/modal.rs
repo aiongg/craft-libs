@@ -1,7 +1,7 @@
 //! `Dialog` (16.5): `DialogFrame`'s chrome on an egui layer: modal or modeless, movable by its header, with a
 //! focus trap, placement and size remembered under a `SaveKey`.
 
-use super::frame::{self, CloseHandler, FOOTER, FooterCx, FooterFn};
+use super::frame::{self, DialogOutput, FOOTER, FooterCx, FooterFn};
 use crate::contract::overlay::{FloatPlace, OverlayFit, Place};
 use crate::contract::{
     Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, DragBand, HeaderRegion, Mount, Overlay, Props as _, Role, SaveKey,
@@ -9,9 +9,10 @@ use crate::contract::{
 use crate::runtime::env::Label;
 use crate::runtime::focus::Initial;
 use crate::runtime::overlay::{Backdrop, CloseReason, Rank};
+use crate::sections::FooterButton;
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
-use egui::{Pos2, Response, Ui};
+use egui::{Pos2, Ui};
 
 /// The style of a dialog: the surface and padding come from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
@@ -40,13 +41,12 @@ pub struct Dialog<'a> {
     #[prop(name = "opened")]
     open: Option<Bind<'a, bool>>,
     footer: Option<FooterFn<'a>>,
+    buttons: Vec<FooterButton>,
     /// Whether the title row has a close action.
     #[prop]
     closable: bool,
-    /// Reports how the dialog closed: `Escape` is the cancel, `Enter` the OK of `close_on_enter`, `Activated` and
-    /// `Requested` what a footer button asked for with `FooterCx::request_close_as`. Called once for each close.
-    #[prop(into)]
-    on_close: Option<CloseHandler<'a>>,
+    closed: Option<CloseReason>,
+    picked: Option<usize>,
 }
 
 impl<'a> Dialog<'a> {
@@ -54,7 +54,8 @@ impl<'a> Dialog<'a> {
     pub fn new(title: impl Into<Label>) -> Self {
         let overlay = Overlay::dialog().resizable(false);
         let props = frame::chrome_props().mount(Mount::Layer(overlay)).header(HeaderRegion::new().band(DragBand::Move).rule(true));
-        Dialog { common: Common::new(), props, open: None, footer: None, closable: true, on_close: None }.label(title)
+        Dialog { common: Common::new(), props, open: None, footer: None, buttons: Vec::new(), closable: true, closed: None, picked: None }
+            .label(title)
     }
 
     fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
@@ -136,7 +137,16 @@ impl<'a> Dialog<'a> {
         self
     }
 
-    /// The footer's content: the closure fills a footer bar under the body.
+    /// The dialog buttons in the footer, in the platform's order for their roles. A click closes the dialog: `Cancel`
+    /// as `CloseReason::Requested`, every other role as `CloseReason::Activated`; `DialogOutput::picked` says which.
+    #[must_use]
+    pub fn buttons(mut self, buttons: impl IntoIterator<Item = FooterButton>) -> Self {
+        self.props = self.props.footer(FOOTER);
+        self.buttons = buttons.into_iter().collect();
+        self
+    }
+
+    /// The footer's content: the closure fills a footer bar above the buttons, or alone.
     #[must_use]
     pub fn footer(mut self, content: impl FnMut(&mut Ui, &mut FooterCx<'_, '_>) + 'a) -> Self {
         self.props = self.props.footer(FOOTER);
@@ -148,7 +158,7 @@ impl<'a> Dialog<'a> {
 impl Component for Dialog<'_> {
     const ROLE: Role = Role::DIALOG;
     type Style = DialogStyle;
-    type Output = Response;
+    type Output = DialogOutput;
 
     fn style(_: &StyleCx<'_>, _: DialogStyleKey) -> DialogStyle {
         DialogStyle::default()
@@ -158,8 +168,8 @@ impl Component for Dialog<'_> {
         Sense::empty()
     }
 
-    fn finish(self, cx: Cx<'_, Self>) -> Response {
-        cx.response.clone()
+    fn finish(self, cx: Cx<'_, Self>) -> DialogOutput {
+        DialogOutput { response: cx.response.clone(), closed: self.closed, picked: self.picked }
     }
 }
 
@@ -173,12 +183,10 @@ impl Container for Dialog<'_> {
     }
 
     fn footer(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
-        frame::footer(ui, cx, &mut self.footer);
+        frame::footer(ui, cx, &mut self.footer, &self.buttons, &mut self.picked);
     }
 
     fn closed(&mut self, why: CloseReason) {
-        if let Some(report) = self.on_close.as_mut() {
-            report.report(why);
-        }
+        self.closed.get_or_insert(why);
     }
 }

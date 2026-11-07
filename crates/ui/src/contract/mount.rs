@@ -74,15 +74,15 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
 struct ClosedHost;
 
 impl Host for ClosedHost {
-    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {}
+    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {}
 }
 
 /// The parent `Ui` is the host `Ui`.
 struct InlineHost;
 
 impl Host for InlineHost {
-    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
-        pass(parent, None);
+    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+        pass(parent, None, None);
     }
 }
 
@@ -90,7 +90,7 @@ impl Host for InlineHost {
 struct PaneHost(ShellPane);
 
 impl Host for PaneHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
         let rtl = env.direction.is_rtl();
         let (edge, along_x) = match self.0.edge {
             PaneEdge::Start => (if rtl { Edge::Right } else { Edge::Left }, true),
@@ -106,7 +106,7 @@ impl Host for PaneHost {
         let last = layout_memory::read(&ctx, extent).map(|size| if along_x { size.x } else { size.y });
         let outer = panels::show_pane(parent, edge, sub(id, ("pane", self.0.name)), last, |ui| {
             let installed = Env::install_for(ui, env.clone());
-            pass(ui, None);
+            pass(ui, None, None);
             Env::restore(&ui.ctx().clone(), installed);
         });
         if last.is_none() && edge != Edge::Center && outer.is_positive() {
@@ -132,7 +132,7 @@ impl LayerHost {
 }
 
 impl Host for LayerHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
         // A sizing pass of the parent shows no layer: a layer takes no room in its parent.
         if parent.is_sizing_pass() {
             return;
@@ -149,7 +149,7 @@ impl Host for LayerHost {
         let own = Rect::from_min_max(parent.cursor().min, parent.cursor().min);
         let anchor = overlay::resolve_anchor(&ctx, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade };
-        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(at.unwrap_or(ShowAt::Flow))));
+        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(at.unwrap_or(ShowAt::Flow)), None));
         self.dismissed = out.dismissed;
     }
 
@@ -176,7 +176,7 @@ struct FullWindowHost {
 }
 
 impl Host for FullWindowHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
         if parent.is_sizing_pass() {
             return;
         }
@@ -184,7 +184,7 @@ impl Host for FullWindowHost {
         let window = ctx.content_rect();
         let overlay = full_window_overlay(self.focus).place(Place::Float(FloatPlace::at(window.min)));
         let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade };
-        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window))));
+        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window)), None));
         self.dismissed = out.dismissed;
     }
 
@@ -205,7 +205,7 @@ struct ViewportHost {
 }
 
 impl Host for ViewportHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
         let ctx = parent.ctx().clone();
         let focus = self.overlay.focus;
         let mut window_rules = self.overlay.clone();
@@ -228,7 +228,7 @@ impl Host for ViewportHost {
             if real {
                 crate::runtime::overlay::begin_layer(&ctx, id);
             }
-            pass(ui, Some(ShowAt::Rect(window)));
+            pass(ui, Some(ShowAt::Rect(window)), Some(&scoped_env));
             if real {
                 crate::runtime::overlay::end_layer(&ctx);
             }

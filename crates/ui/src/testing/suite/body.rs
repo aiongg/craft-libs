@@ -49,7 +49,8 @@ pub(super) fn title_names_the_container(subject: &Subject) -> Result<(), String>
     Ok(())
 }
 
-/// Escape closes the layer: no layer that takes keys is left on top of it.
+/// Escape closes the layer: no layer that takes keys is left on top of it. A layer whose scope ignores Escape (a
+/// blocking overlay nobody can cancel) is not asked to.
 pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
     if !is_body(subject) {
         return Ok(());
@@ -57,6 +58,12 @@ pub(super) fn layer_closes_on_escape(subject: &Subject) -> Result<(), String> {
     for story in &subject.stories {
         let Some(mut fixture) = layer_fixture(story) else { continue };
         let Some(id) = fixture.root_id() else { continue };
+        let ignores = crate::runtime::focus::with(fixture.ctx(), |state| {
+            state.last_scopes.get(&id).is_some_and(|scope| scope.policy.cancel == craft_behavior::focus::CancelRule::Ignore)
+        });
+        if ignores {
+            continue;
+        }
         fixture.key(Key::Escape, Modifiers::NONE);
         fixture.idle(3);
         if on_layer(&fixture) {
