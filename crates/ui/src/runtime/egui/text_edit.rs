@@ -51,7 +51,7 @@ pub(crate) fn show(ui: &mut Ui, edit: Edit<'_>) -> Shown {
     let mut layouter = |ui: &Ui, text: &dyn egui::TextBuffer, wrap_width: f32| {
         let text = text.as_str();
         let mut job = LayoutJob::default();
-        job.wrap.max_width = wrap_width;
+        job.wrap.max_width = if multiline { wrap_width } else { f32::INFINITY };
         let plain = TextFormat::simple(font_id.clone(), ink);
         match preedit.as_ref().filter(|range| range.end <= text.len() && text.is_char_boundary(range.start) && text.is_char_boundary(range.end)) {
             Some(range) => {
