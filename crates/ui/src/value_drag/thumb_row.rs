@@ -455,7 +455,7 @@ impl<'r, const N: usize> Layout<'r, N> {
             Some(period) if rules.scale.span() > 0.0 => ((right - left) as f64 * period / rules.scale.span()) as f32,
             _ => 0.0,
         };
-        Layout { rules, left, right, rtl, pick: Pick { reach, overlap: thumb.x, period }, alone }
+        Layout { rules, left, right, rtl, pick: Pick { reach, overlap: thumb.x, period, span: false }, alone }
     }
 
     fn x_of(&self, value: f64) -> f32 {

@@ -117,6 +117,27 @@ fn a_press_near_a_mark_sets_the_mark() {
     assert_eq!(*fixture.data().value("value", 0.0), MARK, "the middle of the track is 50, two units from the mark");
 }
 
+/// A drag that starts between the thumbs moves both, keeping the distance between them; a press on the thumbs'
+/// own places and a click between them move nothing together.
+#[trial]
+fn a_drag_between_the_range_thumbs_moves_both_and_keeps_their_distance() {
+    let mut fixture = Fixture::story(&Story::new("range-slider", show_range));
+    fixture.settle();
+    let lower = fixture.by_label("Level, Minimum").expect("the lower thumb is named by the label and its end");
+    let upper = fixture.by_label("Level, Maximum").expect("the upper thumb is named by the label and its end");
+    let between = lower.center().lerp(upper.center(), 0.5);
+    let travel = Vec2::new(12.0, 0.0);
+    fixture.frame(vec![pointer::moved(between)]);
+    fixture.frame(vec![pointer::press(between)]);
+    fixture.frame(vec![pointer::moved(between + travel / 2.0)]);
+    fixture.frame(vec![pointer::moved(between + travel)]);
+    fixture.frame(vec![pointer::release(between + travel)]);
+    fixture.idle(2);
+    let (low, high) = (lower_end(&fixture), upper_end(&fixture));
+    assert!(low > 20.0, "the lower thumb moved with the drag: {low}");
+    assert!((high - low - (UPPER_END - 20.0)).abs() < TOLERANCE, "the thumbs keep their distance: {low} to {high}");
+}
+
 const FIELD: Rect = Rect { min: Pos2::new(20.0, 20.0), max: Pos2::new(220.0, 50.0) };
 /// The distance the thumb's centre travels along the field: the width less the thumb's square.
 const TRAVEL: f32 = 170.0;

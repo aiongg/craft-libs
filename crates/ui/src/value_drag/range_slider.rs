@@ -232,22 +232,30 @@ impl Component for RangeSlider<'_> {
         let snap = |position: f64| marks.snapped(&scale, length, position);
         // Thumbs follow the pointer's position along the track, in positions 0 to 1.
         let travel = Travel { track: (area.left() + half)..(area.right() - half), units: 0.0..=1.0, rtl };
-        let pick = Pick { reach: half, overlap: area.height(), period: 0.0 };
+        let pick = Pick { reach: half, overlap: area.height(), period: 0.0, span: true };
         let flow = cx.flow;
-        let press_at = |pair: &Pair, x: f32| {
+        let thumbs_at = |pair: &Pair| {
             let (lower, upper) = placed(&scale, pair);
-            let xs = [lower, upper].map(|value| thumb_rect(&scale, value, area, flow).center().x);
-            pick.press(&xs, x)
+            [lower, upper].map(|value| thumb_rect(&scale, value, area, flow).center().x)
         };
-        // The thumb a press moves and the value it gives it, kept between the other thumb and the end of the range.
-        let moved = |from: &Pair, press: Press, state: &PressState, fine: bool| -> Option<(bool, f64)> {
+        let press_at = |pair: &Pair, x: f32| pick.press(&thumbs_at(pair), x);
+        // The ends a press gives: the thumb it moves, kept between the other thumb and the end of the range, or both
+        // thumbs of a span, which keep their distance inside the range.
+        let moved = |from: &Pair, press: Press, state: &PressState, fine: bool| -> Option<Pair> {
             let (origin, pos) = track::pointer(state)?;
-            let upper = press.thumb(origin.x, pos.x)? == 1;
             let pair = placed(&scale, from);
+            let value_at = |position: f64| scale.snap(scale.at_position(position));
+            if press == Press::Span {
+                let position = travel.value(press, scale.position(pair.0), state, fine)?;
+                let width = pair.1 - pair.0;
+                let lower = value_at(position).min(scale.max - width).max(scale.min);
+                return Some((Mixed::Same(lower), Mixed::Same((lower + width).min(scale.max))));
+            }
+            let upper = press.thumb(origin.x, pos.x)? == 1;
             let position = travel.value(press, scale.position(if upper { pair.1 } else { pair.0 }), state, fine)?;
-            let value = snap(position).unwrap_or_else(|| scale.snap(scale.at_position(position)));
+            let value = snap(position).unwrap_or_else(|| value_at(position));
             let (low, high) = Self::bounds(&scale, pair, upper);
-            Some((upper, value.clamp(low, high)))
+            Some(with(from.clone(), upper, value.clamp(low, high)))
         };
         for key in [LOWER, UPPER, TRACK] {
             let press = cx.part(key).press;
@@ -255,7 +263,11 @@ impl Component for RangeSlider<'_> {
                 PressPhase::DragStart { start, pos, .. } => {
                     let from = Self::current(cx);
                     if let Some(picked) = press_at(&from, start.origin.x) {
-                        let thumb = picked.thumb(start.origin.x, pos.x);
+                        let xs = thumbs_at(&from);
+                        // A span focuses the thumb nearer the press.
+                        let thumb = picked.thumb(start.origin.x, pos.x).or_else(|| {
+                            (picked == Press::Span).then(|| usize::from((start.origin.x - xs[0]).abs() > (start.origin.x - xs[1]).abs()))
+                        });
                         let held = cx.memory::<Held>();
                         held.drag = Some((from, picked));
                         if let Some(thumb) = thumb {
@@ -267,27 +279,27 @@ impl Component for RangeSlider<'_> {
                 }
                 PressPhase::Drag { .. } => {
                     if let Some((from, picked)) = cx.memory::<Held>().drag
-                        && let Some((upper, value)) = moved(&from, picked, &press, true)
+                        && let Some(next) = moved(&from, picked, &press, true)
                     {
-                        cx.propose(with(from, upper, value));
+                        cx.propose(next);
                     }
                 }
                 PressPhase::Release { start, click, .. } => {
                     if cx.gesture().is_some() {
                         if let Some((from, picked)) = cx.memory::<Held>().drag
-                            && let Some((upper, value)) = moved(&from, picked, &press, true)
+                            && let Some(next) = moved(&from, picked, &press, true)
                         {
-                            cx.propose(with(from, upper, value));
+                            cx.propose(next);
                         }
                         cx.commit();
                     } else if click && start.clicks < 2 {
                         // A press on the track moves the nearer thumb there; a click on a thumb changes nothing.
                         let from = Self::current(cx);
-                        if let Some(jump @ Press::Jump(_)) = press_at(&from, start.origin.x)
-                            && let Some((upper, value)) = moved(&from, jump, &press, false)
+                        if let Some(jump @ Press::Jump(thumb)) = press_at(&from, start.origin.x)
+                            && let Some(next) = moved(&from, jump, &press, false)
                         {
-                            cx.set(with(from, upper, value));
-                            cx.focus_part(key_of(upper));
+                            cx.set(next);
+                            cx.focus_part(key_of(thumb == 1));
                         }
                     }
                 }
