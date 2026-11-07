@@ -3,25 +3,66 @@
 
 use super::body::{Placement, placement_id};
 use super::container::PaneEdge;
-use super::run::{Host, ShowAt};
 use super::overlay::{self, FloatPlace, Layer, Overlay, Place};
+use super::run::{Host, HostCx, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::panels::{self, Edge};
-use crate::runtime::egui::{memory as store, viewports};
+use crate::runtime::egui::{areas, memory as store, viewports};
 use crate::runtime::env::Env;
+use crate::runtime::focus::FocusPolicy;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
+use crate::runtime::motion::{self, Presence};
+use crate::runtime::overlay::CloseReason;
 use egui::{Id, Pos2, Rect, Ui, Vec2};
 
-/// The host for `props.mount`.
-pub(super) fn host(props: &ContainerProps) -> Box<dyn Host> {
+/// The host a mount chose, and whether it shows the container fading out.
+pub(super) struct Mounted {
+    pub host: Box<dyn Host>,
+    /// The container is closed and its layer is still fading: the body still shows, as it was.
+    pub exiting: bool,
+}
+
+/// The host for `props.mount`. A layer-like mount of a closed container shows nothing once its exit fade ended.
+pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool) -> Mounted {
+    let ctx = at.ui.ctx();
+    let layer = |overlay: &Overlay| {
+        let presence = if at.ui.is_sizing_pass() {
+            Presence { t: 1.0, visible: open, exiting: false }
+        } else {
+            motion::layer_presence(ctx, sub(at.id, "presence"), at.id, at.env.motion, open, overlay.motion)
+        };
+        (presence.visible.then_some(presence.t), !open)
+    };
+    let closed = || Mounted { host: Box::new(ClosedHost), exiting: false };
     match &props.mount {
-        Mount::Inline => Box::new(InlineHost),
-        Mount::Pane(pane) => Box::new(PaneHost(*pane)),
-        Mount::Layer(overlay) => Box::new(LayerHost(overlay.clone())),
-        Mount::FullWindow => Box::new(FullWindowHost),
-        Mount::Viewport { fallback } => Box::new(ViewportHost(LayerHost(fallback.clone()))),
+        Mount::Inline => Mounted { host: Box::new(InlineHost), exiting: false },
+        Mount::Pane(pane) => Mounted { host: Box::new(PaneHost(*pane)), exiting: false },
+        Mount::Layer(overlay) => match layer(overlay) {
+            (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(overlay.clone(), exiting, fade)), exiting },
+            (None, _) => closed(),
+        },
+        Mount::FullWindow => match layer(&Overlay::floating()) {
+            (Some(fade), exiting) => Mounted { host: Box::new(FullWindowHost { exiting, fade }), exiting },
+            (None, _) => closed(),
+        },
+        Mount::Viewport { fallback } => {
+            if !viewports::available(ctx) {
+                return match layer(fallback) {
+                    (Some(fade), exiting) => Mounted { host: Box::new(LayerHost::new(fallback.clone(), exiting, fade)), exiting },
+                    (None, _) => closed(),
+                };
+            }
+            if open { Mounted { host: Box::new(ViewportHost { focus: fallback.focus }), exiting: false } } else { closed() }
+        }
     }
+}
+
+/// A closed layer-like container: nothing shows and no layer is recorded.
+struct ClosedHost;
+
+impl Host for ClosedHost {
+    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {}
 }
 
 /// The parent `Ui` is the host `Ui`.
@@ -56,49 +97,87 @@ impl Host for PaneHost {
 }
 
 /// A layer through the overlay host, at the container's placement: the overlay's own place until the user moves it.
-struct LayerHost(Overlay);
+struct LayerHost {
+    overlay: Overlay,
+    exiting: bool,
+    fade: f32,
+    dismissed: Option<CloseReason>,
+}
+
+impl LayerHost {
+    fn new(overlay: Overlay, exiting: bool, fade: f32) -> Self {
+        LayerHost { overlay, exiting, fade, dismissed: None }
+    }
+}
 
 impl Host for LayerHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+        // A sizing pass of the parent shows no layer: a layer takes no room in its parent.
+        if parent.is_sizing_pass() {
+            return;
+        }
         let ctx = parent.ctx().clone();
         let placement: Placement = store::peek_clone(&ctx, placement_id(id)).unwrap_or_default();
-        let mut overlay = self.0.clone();
+        let mut overlay = self.overlay.clone();
         if let Some(pos) = placement.pos {
             overlay.place = Place::Float(FloatPlace::at(Pos2::from(pos)));
         }
         let at = placement.pos.zip(placement.size).map(|(pos, size)| ShowAt::Rect(Rect::from_min_size(Pos2::from(pos), Vec2::from(size))));
-        let layer = Layer { id: sub(id, "layer"), overlay: &overlay, anchor: Rect::ZERO, env, exiting: false, fade: 1.0 };
-        overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(at.unwrap_or(ShowAt::Flow))));
+        // Without an opener, an anchor given as a rect or point is in the parent's layer, and `Response` is the
+        // parent's cursor.
+        let own = Rect::from_min_max(parent.cursor().min, parent.cursor().min);
+        let anchor = overlay::resolve_anchor(&ctx, &overlay, own, areas::layer_to_screen(&ctx, parent.layer_id()));
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor, env, exiting: self.exiting, fade: self.fade };
+        let out = overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(at.unwrap_or(ShowAt::Flow))));
+        self.dismissed = out.dismissed;
+    }
+
+    fn dismissed(&self) -> Option<CloseReason> {
+        self.dismissed
     }
 }
 
 /// Over the whole window, on a layer of its own.
-struct FullWindowHost;
+struct FullWindowHost {
+    exiting: bool,
+    fade: f32,
+}
 
 impl Host for FullWindowHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
+        if parent.is_sizing_pass() {
+            return;
+        }
         let ctx = parent.ctx().clone();
         let window = ctx.content_rect();
         let overlay = Overlay::floating().place(Place::Float(FloatPlace::at(window.min)));
-        let layer = Layer { id: sub(id, "window"), overlay: &overlay, anchor: Rect::ZERO, env, exiting: false, fade: 1.0 };
+        let layer = Layer { id, owner: id, overlay: &overlay, anchor: Rect::ZERO, env, exiting: self.exiting, fade: self.fade };
         overlay::host(&ctx, &layer, &mut |ui| pass(ui, Some(ShowAt::Rect(window))));
     }
 }
 
-/// An OS viewport where the integration opens them, else the fallback layer.
-struct ViewportHost(LayerHost);
+/// An OS viewport of the integration; the fallback layer is `LayerHost`.
+struct ViewportHost {
+    /// The fallback overlay's focus policy: the viewport's root scope.
+    focus: FocusPolicy,
+}
 
 impl Host for ViewportHost {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>)) {
         let ctx = parent.ctx().clone();
-        if !viewports::available(&ctx) {
-            return self.0.run(id, parent, env, pass);
-        }
         let size = layout_memory::read(&ctx, id);
+        let focus = self.focus;
         viewports::show_immediate(&ctx, viewports::viewport_id(id), "", size, |ui| {
             let installed = Env::install_for(ui, env.clone());
             let window = ui.max_rect();
+            let scoped = focus != FocusPolicy::NONE && !ui.is_sizing_pass();
+            if scoped {
+                crate::runtime::focus::push_scope(&ctx, id, focus, None);
+            }
             pass(ui, Some(ShowAt::Rect(window)));
+            if scoped {
+                crate::runtime::focus::pop_scope(&ctx);
+            }
             Env::restore(&ctx, installed);
         });
     }

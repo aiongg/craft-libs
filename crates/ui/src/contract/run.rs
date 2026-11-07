@@ -3,18 +3,19 @@
 
 use super::cx::PartsCx;
 use super::steps::{self, MeasureIn, PartsStep, ShapeKind, Step, StopsIn, Trace};
-use super::{overlay, tooltip};
 use super::{
     Activation, BodyCx, Collection, Common, Component, Container, Cx, CxCore, Internal, ItemCx, Meta, OverlayUi, PaintUi, Props, Resolved, Show,
     TipFn, Validity,
 };
 use super::{Inner, ItemFn};
+use super::{overlay, tooltip};
 use crate::primitives::sensing::{self, MemberSpec, PartDecl, RootSpec};
 use crate::primitives::{FaceRecord, PaintRecord, PartResult, face_id};
 use crate::runtime::access::{Politeness, Role, scope};
 use crate::runtime::egui::{access, alloc, child};
 use crate::runtime::env::{AppValues, ArenaId, Env, EnvView};
 use crate::runtime::memory::{MemoryStage, sub};
+use crate::runtime::overlay::CloseReason;
 use crate::runtime::{commands, focus, inspect, keys, memory};
 use crate::style::{ComponentStyle as _, Ink, StateSet, StyleCx};
 use craft_behavior::{Flow, Input, ItemLayout, ItemSource, KeyRole, PartRef, PressState, Proposal, Roving, ScrollPos, Sense};
@@ -37,6 +38,19 @@ pub(crate) enum ShowAt {
 /// adds the layer and viewport hosts, which call `pass` once per child pass.
 pub(crate) trait Host {
     fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>));
+
+    /// Why the host asks the component to close, decided after its passes ran.
+    fn dismissed(&self) -> Option<CloseReason> {
+        None
+    }
+}
+
+/// What a shape's `host` hook reads to choose a host.
+pub(crate) struct HostCx<'a> {
+    /// The parent `Ui`.
+    pub ui: &'a Ui,
+    pub env: &'a Env,
+    pub id: Id,
 }
 
 /// The parent `Ui` is the host `Ui`.
@@ -54,7 +68,10 @@ pub(crate) trait ShapeHooks<C: Component> {
     fn shape(&self) -> ShapeKind;
 
     /// Where steps 6 to 16 run.
-    fn host(&mut self, comp: &C) -> Box<dyn Host>;
+    fn host(&mut self, comp: &C, at: HostCx<'_>) -> Box<dyn Host>;
+
+    /// The host asked the component to close after its passes (a dismissal rule of the layer fired).
+    fn dismissed(&mut self, _comp: &mut C, _cx: &mut Cx<'_, C>, _why: CloseReason) {}
 
     /// The focus scope pushed at step 6 and popped after step 16.
     fn focus(&self, _comp: &C) -> Option<crate::runtime::focus::FocusPolicy> {
@@ -118,7 +135,7 @@ impl<C: Component> ShapeHooks<C> for LeafHooks {
         ShapeKind::Leaf
     }
 
-    fn host(&mut self, _: &C) -> Box<dyn Host> {
+    fn host(&mut self, _: &C, _: HostCx<'_>) -> Box<dyn Host> {
         Box::new(Inline)
     }
 
@@ -136,7 +153,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         ShapeKind::Item
     }
 
-    fn host(&mut self, _: &C) -> Box<dyn Host> {
+    fn host(&mut self, _: &C, _: HostCx<'_>) -> Box<dyn Host> {
         Box::new(Inline)
     }
 
@@ -455,9 +472,18 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::settle(comp, cx);
     // 16 report, then the tooltip.
     p.trace.mark(Step::Report);
-    steps::report(comp, cx, &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) });
-    tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take() });
-    p.activated = comp.activated(cx) && resolved.enabled;
+    steps::report(
+        comp,
+        cx,
+        &steps::ReportIn { node, decls: &parts.decls, sense: own, live: p.hooks.live(comp), group: steps::member_group(&ctx, env.roving, id) },
+    );
+    tooltip::run(cx, tooltip::TipIn { ui: &*ui, env, rich: p.tip.take(), parts: &parts.decls });
+    // Activations accumulate across the passes of a viewport mount.
+    let activated = comp.activated(cx) && resolved.enabled;
+    if activated {
+        crate::runtime::overlay::note_activated(&ctx, id);
+    }
+    p.activated |= activated;
 }
 
 fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>>, hooks: &mut dyn ShapeHooks<C>) -> C::Output {
@@ -522,12 +548,16 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
         mixed,
         // A cancel step 4 raised over a document that moved is reported, not applied: the app's value stays. One that
         // carries the value the gesture began with restores it at step 11.
-        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) { 0 } else { cancelled.len() },
+        applied: if cancelled.iter().any(|event| matches!(event, craft_behavior::EditEvent::Cancel { before: Some(_), .. })) {
+            0
+        } else {
+            cancelled.len()
+        },
         events: cancelled,
         validity: Validity::Ok,
     };
     // 6 to 16, in the host's `Ui`, once per call of the host.
-    let mut host = hooks.host(&comp);
+    let mut host = hooks.host(&comp, HostCx { ui: &*ui, env: &env, id });
     let mut run = Pass {
         comp: &mut comp,
         cx: &mut cx,
@@ -548,6 +578,9 @@ fn run<C: Component>(mut comp: C, ui: &mut Ui, at: ShowAt, tip: Option<TipFn<'_>
     host.run(id, ui, &env, &mut |host_ui, host_at| pass(&mut run, host_ui, host_at));
     let (real_pass, activated) = (run.real, run.activated);
     drop(run);
+    if real_pass && let Some(why) = host.dismissed() {
+        hooks.dismissed(&mut comp, &mut cx, why);
+    }
     // 17 finish, once: the stage is written back after `finish` returns, so writes made in `finish` are kept.
     if real_pass {
         trace.mark(Step::Finish);

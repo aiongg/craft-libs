@@ -271,7 +271,9 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) {
     raw_input::set_click_options(ctx, frame_hit(ctx).slop);
     // H3: the key stage strips what the runtime owns; egui decides on a repaint from the events left.
     let stripped = keys::input_hook(ctx, input);
-    if held_back || stripped {
+    // H3b: a press outside the top menu family goes no further than the menu's dismissal.
+    let absorbed = overlay::absorb_presses(ctx, input);
+    if held_back || stripped || absorbed {
         raw_input::request_repaint_of(ctx, viewport);
     }
 }

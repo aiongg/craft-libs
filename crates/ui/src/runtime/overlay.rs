@@ -8,9 +8,10 @@ use crate::runtime::egui::areas::{self, Layer, Tier};
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
 use crate::runtime::frame::{PassStep, PerViewport, Stamped};
+use crate::runtime::pointer;
 use craft_behavior::OwnerClass;
 use craft_behavior::overlay::Side;
-use egui::{Context, Id, Rect, ViewportId};
+use egui::{Context, Id, Pos2, Rect, ViewportId};
 use smallvec::SmallVec;
 use std::collections::HashMap;
 
@@ -74,7 +75,7 @@ impl Rank {
         }
     }
 
-    /// Whether the layer takes keys: the layers `top` can name.
+    /// Whether a layer of this rank takes keys without a focus scope.
     const fn takes_keys(self) -> bool {
         matches!(self, Rank::Popup | Rank::Modal { .. } | Rank::ModalChrome)
     }
@@ -120,8 +121,7 @@ pub enum OpenFilter {
 
 /// One shown egui layer.
 #[derive(Clone, Debug)]
-#[non_exhaustive]
-pub struct OpenEntry {
+pub(crate) struct OpenEntry {
     /// The layer's id.
     pub id: Id,
     /// The layer it was opened from inside.
@@ -141,12 +141,39 @@ pub struct OpenEntry {
     /// The layer's egui id and the cover under it, listed in the order.
     pub(crate) layer: Layer,
     pub(crate) cover: Option<Layer>,
+    /// The layer has a focus scope.
+    pub(crate) scoped: bool,
+    /// A press outside its family closes it and goes no further.
+    pub(crate) absorbs: bool,
 }
 
 impl OpenEntry {
     /// An entry for the layer `id` of `rank`.
     pub(crate) fn new(id: Id, rank: Rank, keys: OwnerClass, rect: Rect, layer: Layer) -> Self {
-        OpenEntry { id, parent: None, rank, keys, anchor: None, rect, side: Side::Below, exiting: false, layer, cover: None }
+        OpenEntry {
+            id,
+            parent: None,
+            rank,
+            keys,
+            anchor: None,
+            rect,
+            side: Side::Below,
+            exiting: false,
+            layer,
+            cover: None,
+            scoped: false,
+            absorbs: false,
+        }
+    }
+
+    /// Whether the layer takes keys: the layers `top` can name. A layer with a focus scope takes keys whatever its rank.
+    fn takes_keys(&self) -> bool {
+        self.scoped || self.rank.takes_keys()
+    }
+
+    /// Whether the layer takes pointer input.
+    fn interactable(&self) -> bool {
+        !self.exiting && self.rank != Rank::Tooltip
     }
 }
 
@@ -156,6 +183,8 @@ struct Pass {
     last: Vec<OpenEntry>,
     /// The layers whose bodies are running, innermost last.
     drawing: Vec<Id>,
+    /// The layers a component inside was activated in, this pass.
+    activated: Vec<Id>,
 }
 
 #[derive(Default)]
@@ -165,10 +194,16 @@ struct Persist {
     modal: bool,
     /// A press the modal drop removed, for the window host to raise the modal's window.
     dropped_press: bool,
+    /// The screen rects a press may land in without closing the top menu family: the family and its anchors. `None`
+    /// when the top layer does not absorb outside presses.
+    absorb_zone: Option<Vec<Rect>>,
+    /// An outside press the input hook removed for the running pass.
+    outside_press: Option<Pos2>,
 }
 
+/// The closes queued and not yet taken, each with the root frame that queued it.
 #[derive(Default)]
-struct Closes(Vec<(Id, CloseReason)>);
+struct Closes(Vec<(Id, CloseReason, u64)>);
 
 fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
     let viewport = pass::current_viewport(ctx);
@@ -182,6 +217,7 @@ fn with_pass<R>(ctx: &Context, f: impl FnOnce(&mut Pass) -> R) -> R {
                 pass.last.clear();
             }
             pass.drawing.clear();
+            pass.activated.clear();
         },
         f,
     )
@@ -196,18 +232,20 @@ pub fn is_open(ctx: &Context, id: Id) -> bool {
     with_pass(ctx, |pass| pass.last.iter().any(|entry| entry.id == id))
 }
 
-/// Queues a close of the layer `id`. The owner's step 9 or `OverlayUi::show` collects it and step 15 writes it.
+/// Queues a close of the layer `id` (a popup or a container). The owner's step 9 or `OverlayUi::show` collects it and
+/// step 15 writes it.
 pub fn request_close(ctx: &Context, id: Id, why: CloseReason) {
-    Service::<Closes>::of(ctx).with(|closes| closes.0.push((id, why)));
+    let frame = pass::root_frame_nr(ctx);
+    Service::<Closes>::of(ctx).with(|closes| closes.0.push((id, why, frame)));
     ctx.request_repaint();
 }
 
 /// The queued close of `id`, once.
 pub(crate) fn take_close(ctx: &Context, id: Id) -> Option<CloseReason> {
     Service::<Closes>::of(ctx).with(|closes| {
-        let at = closes.0.iter().position(|(closed, _)| *closed == id)?;
+        let at = closes.0.iter().position(|(closed, ..)| *closed == id)?;
         let reason = closes.0[at].1;
-        closes.0.retain(|(closed, _)| *closed != id);
+        closes.0.retain(|(closed, ..)| *closed != id);
         Some(reason)
     })
 }
@@ -218,7 +256,7 @@ pub fn any_open(ctx: &Context, filter: OpenFilter) -> bool {
         pass.last.iter().filter(|entry| !entry.exiting).any(|entry| match filter {
             OpenFilter::Any => true,
             OpenFilter::Modal => entry.rank.is_modal(),
-            OpenFilter::Keys => entry.rank.takes_keys(),
+            OpenFilter::Keys => entry.takes_keys(),
         })
     })
 }
@@ -230,7 +268,7 @@ pub fn top(ctx: &Context) -> Option<Id> {
     with_pass(ctx, |pass| {
         let live: Vec<OpenEntry> = pass.last.iter().filter(|entry| !entry.exiting).cloned().collect();
         let families = families(&live, &raised);
-        families.iter().rev().find_map(|members| members.iter().rev().find(|entry| entry.rank.takes_keys()).map(|entry| entry.id))
+        families.iter().rev().find_map(|members| members.iter().rev().find(|entry| entry.takes_keys()).map(|entry| entry.id))
     })
 }
 
@@ -252,7 +290,7 @@ pub fn family(ctx: &Context, id: Id) -> SmallVec<[Id; 4]> {
 }
 
 /// The entry of the layer `id` shown last frame.
-pub fn entry(ctx: &Context, id: Id) -> Option<OpenEntry> {
+pub(crate) fn entry(ctx: &Context, id: Id) -> Option<OpenEntry> {
     with_pass(ctx, |pass| pass.last.iter().find(|entry| entry.id == id).cloned())
 }
 
@@ -271,6 +309,46 @@ pub(crate) fn end_layer(ctx: &Context) {
     with_pass(ctx, |pass| {
         pass.drawing.pop();
     });
+}
+
+/// Records that the component `id` was activated: every layer whose body is running, except the one `id` is the
+/// container of, may close on it (`Dismiss.on_activate`).
+pub(crate) fn note_activated(ctx: &Context, id: Id) {
+    with_pass(ctx, |pass| {
+        let layers: Vec<Id> = pass.drawing.iter().copied().filter(|layer| *layer != id).collect();
+        pass.activated.extend(layers);
+    });
+}
+
+/// Whether a component inside the layer `id` was activated in this pass.
+pub(crate) fn activated_inside(ctx: &Context, id: Id) -> bool {
+    with_pass(ctx, |pass| pass.activated.contains(&id))
+}
+
+/// The input hook: removes the primary presses that land outside the top menu family, its anchors and its parents,
+/// so nothing below the menu sees them (`Outside::Absorb`), and keeps the first one for the layers' dismissal.
+/// Returns whether it removed one.
+pub(crate) fn absorb_presses(ctx: &Context, input: &mut egui::RawInput) -> bool {
+    let zone = with_persist(ctx, input.viewport_id, |persist| persist.absorb_zone.clone());
+    let Some(zone) = zone else { return false };
+    let before = input.events.len();
+    let mut first = None;
+    input.events.retain(|event| match event {
+        egui::Event::PointerButton { pos, pressed: true, .. } if !zone.iter().any(|rect| rect.contains(*pos)) => {
+            first.get_or_insert(*pos);
+            false
+        }
+        _ => true,
+    });
+    if let Some(pos) = first {
+        with_persist(ctx, input.viewport_id, |persist| persist.outside_press = Some(pos));
+    }
+    input.events.len() != before
+}
+
+/// The outside press the input hook removed for the running pass.
+pub(crate) fn absorbed_press(ctx: &Context) -> Option<Pos2> {
+    with_persist(ctx, pass::current_viewport(ctx), |persist| persist.outside_press)
 }
 
 /// Records the layer shown in this pass; a layer shown again in a discarded pass replaces its entry.
@@ -300,7 +378,8 @@ fn families(entries: &[OpenEntry], raised: &HashMap<Id, u64>) -> Vec<Vec<OpenEnt
             None => groups.push((root, vec![entry.clone()])),
         }
     }
-    let class = |members: &Vec<OpenEntry>| members.first().map_or(0, |root| root.rank.class());
+    // A modal opened from a floating panel lifts the whole family: the family sorts by its highest member.
+    let class = |members: &Vec<OpenEntry>| members.iter().map(|member| member.rank.class()).max().unwrap_or(0);
     groups.sort_by_key(|(root, members)| (class(members), raised.get(root).copied().unwrap_or(0)));
     groups.into_iter().map(|(_, members)| members).collect()
 }
@@ -310,14 +389,18 @@ fn families(entries: &[OpenEntry], raised: &HashMap<Id, u64>) -> Vec<Vec<OpenEnt
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
     let (current, last_ids) = with_pass(ctx, |pass| (pass.current.clone(), pass.last.iter().map(|entry| entry.id).collect::<Vec<_>>()));
-    let pressed = ctx.input(|input| input.pointer.primary_pressed().then(|| input.pointer.interact_pos()).flatten());
+    let pressed = pointer::frame(ctx).press.map(|press| press.origin);
     let order = with_persist(ctx, viewport, |persist| {
         let stamp = |id: Id, persist: &mut Persist| {
             persist.counter += 1;
             persist.raised.insert(id, persist.counter);
         };
         let live = |entry: &&OpenEntry| !entry.exiting;
-        let roots: Vec<Id> = current.iter().filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent))).map(|entry| entry.id).collect();
+        let roots: Vec<Id> = current
+            .iter()
+            .filter(|entry| entry.parent.is_none_or(|parent| !current.iter().any(|other| other.id == parent)))
+            .map(|entry| entry.id)
+            .collect();
         for root in &roots {
             if !last_ids.contains(root) {
                 stamp(*root, persist);
@@ -326,9 +409,11 @@ pub(crate) fn end_pass(ctx: &Context) {
         persist.raised.retain(|id, _| roots.contains(id));
         let before = families(&current, &persist.raised);
         if let Some(point) = pressed
-            && let Some(hit) = before.iter().rev().find(|members| members.iter().filter(live).any(|entry| entry.rect.contains(point)))
+            && let Some(hit) = before
+                .iter()
+                .rev()
+                .find(|members| members.iter().filter(live).filter(|entry| entry.interactable()).any(|entry| entry.rect.contains(point)))
             && let Some(root) = hit.first()
-            && hit.iter().all(|entry| entry.rank.class() == root.rank.class() || entry.parent.is_some())
         {
             stamp(root.id, persist);
         }
@@ -341,9 +426,19 @@ pub(crate) fn end_pass(ctx: &Context) {
             }
         }
         persist.modal = current.iter().any(|entry| entry.rank.is_modal() && !entry.exiting);
+        persist.outside_press = None;
+        persist.absorb_zone = families
+            .iter()
+            .rev()
+            .find_map(|members| members.iter().rev().find(|entry| !entry.exiting && entry.takes_keys()).map(|top| (top, members)))
+            .filter(|(top, _)| top.absorbs)
+            .map(|(_, members)| members.iter().flat_map(|member| std::iter::once(member.rect).chain(member.anchor)).collect());
         order
     });
     areas::set_layer_order(ctx, &order);
+    // An owner takes a close in the frame after the request at the latest; one nobody took is for a layer that is not shown.
+    let now = pass::root_frame_nr(ctx);
+    Service::<Closes>::of(ctx).with(|closes| closes.0.retain(|(.., queued)| queued + 1 >= now));
     let top_modal = current.iter().rev().find(|entry| entry.rank.is_modal() && !entry.exiting);
     if let Some(entry) = top_modal {
         areas::set_modal_layer(ctx, entry.layer);

@@ -1,11 +1,13 @@
 //! `TitleRow`: lead and action parts wear faces, report a value and an action, and form one roving stop.
 
-use craft_behavior::PartKey;
 use crate::contract::kit::PlainStyle;
-use craft_ui::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, Bind, Props as _, Role, Show as _, ShowContainer as _};
+use craft_behavior::PartKey;
+use craft_ui::contract::{
+    Bind, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, HeaderRegion, Props as _, Role, Show as _, ShowContainer as _,
+};
 use craft_ui::sections::FooterBar;
-use craft_ui::style::StyleCx;
 use craft_ui::sections::{HeaderAction, HeaderStrength, TitleOutput, TitleRow};
+use craft_ui::style::StyleCx;
 use craft_ui::testing::focus::{active_part, egui_focused, key_release};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::click;

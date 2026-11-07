@@ -5,13 +5,14 @@
 
 use super::{BodyCx, Component, Cx, Resolved};
 use crate::runtime::egui::areas::{self, LayerSpec};
-use crate::runtime::egui::memory::{self as store, Service};
+use crate::runtime::egui::memory::Service;
 use crate::runtime::env::Env;
 use crate::runtime::focus::{self, FocusPolicy, Initial};
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{self, MotionSpec, spec};
 use crate::runtime::overlay::{self, Backdrop, CloseReason, OpenEntry, Rank};
 use crate::runtime::{frame, keys, pointer};
+use crate::style::Flags;
 use craft_behavior::overlay::{Align, MinWidth, PlaceRequest, Side};
 use craft_behavior::{CancelRule, Intent, OwnerClass};
 use egui::{Align2, Context, Id, Pos2, Rect, Response, Ui};
@@ -224,6 +225,8 @@ pub struct Opener {
     pub id: Id,
     /// The opener's rect in its layer space.
     pub rect: Rect,
+    /// The opener's egui layer: its rect maps to the screen through this layer's transform.
+    pub layer: egui::LayerId,
     /// The trigger.
     pub trigger: Trigger,
 }
@@ -260,6 +263,8 @@ pub struct Overlay {
 const DROPDOWN_SHARE: ViewportShare = ViewportShare::new(1.0, 0.4);
 /// The share of the viewport a dialog or modal may take.
 const DIALOG_SHARE: ViewportShare = ViewportShare::new(0.8, 0.9);
+/// The share of the viewport a tooltip or a toast card may take before its text wraps.
+const NOTE_SHARE: ViewportShare = ViewportShare::new(0.4, 1.0);
 
 impl Overlay {
     fn base(rank: Rank, place: Place, fit: OverlayFit, keys: OwnerClass, focus: FocusPolicy) -> Overlay {
@@ -309,7 +314,8 @@ impl Overlay {
 
     /// A tooltip: below the control, no focus, never takes input.
     pub fn tooltip() -> Overlay {
-        let mut overlay = Overlay::base(Rank::Tooltip, Overlay::below(), OverlayFit::Content, OwnerClass::PassivePopup, FocusPolicy::NONE);
+        let mut overlay =
+            Overlay::base(Rank::Tooltip, Overlay::below(), OverlayFit::ContentCapped(NOTE_SHARE), OwnerClass::PassivePopup, FocusPolicy::NONE);
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
@@ -324,6 +330,7 @@ impl Overlay {
             FocusPolicy::DIALOG,
         );
         overlay.movable = true;
+        overlay.resize = Resize::GRIPS;
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
@@ -332,33 +339,22 @@ impl Overlay {
     pub fn modal() -> Overlay {
         let mut overlay = Overlay::dialog();
         overlay.movable = false;
+        overlay.resize = Resize::NONE;
         overlay
     }
 
     /// A toast stack: the viewport's bottom end corner.
     pub fn toast() -> Overlay {
         let place = Place::anchored(Anchor::Viewport(Align2::RIGHT_BOTTOM), Side::Above, Align::End);
-        let mut overlay = Overlay::base(Rank::Toast, place, OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
+        let mut overlay = Overlay::base(Rank::Toast, place, OverlayFit::ContentCapped(NOTE_SHARE), OwnerClass::Widget, FocusPolicy::NONE);
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
 
     /// A floating panel: a window-rank layer with no scope.
     pub fn floating() -> Overlay {
-        let mut overlay = Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
-        overlay.dismiss = Dismiss::new().outside(Outside::Keep);
-        overlay
-    }
-
-    /// Drag feedback at the pointer.
-    pub fn ghost() -> Overlay {
-        let mut overlay = Overlay::base(
-            Rank::Tooltip,
-            Place::anchored(Anchor::Pointer, Side::End, Align::Start),
-            OverlayFit::Content,
-            OwnerClass::PassivePopup,
-            FocusPolicy::NONE,
-        );
+        let mut overlay =
+            Overlay::base(Rank::Window, Place::Float(FloatPlace::centred()), OverlayFit::Content, OwnerClass::Widget, FocusPolicy::NONE);
         overlay.dismiss = Dismiss::new().outside(Outside::Keep);
         overlay
     }
@@ -417,10 +413,13 @@ impl Overlay {
         self
     }
 
-    /// Records the opener and anchors the layer at its rect.
+    /// Records the opener. An anchored layer hangs from the opener's rect, on the side and alignment its preset
+    /// gave; a floating layer keeps its place, and the opener serves focus return and the trigger.
     pub fn opened_by(mut self, anchor: &Response, trigger: Trigger) -> Overlay {
-        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, trigger });
-        self.place = Place::anchored(Anchor::Rect(anchor.rect), Side::Below, Align::Start);
+        self.opener = Some(Opener { id: anchor.id, rect: anchor.rect, layer: anchor.layer_id, trigger });
+        if let Place::Anchored { anchor: hung, .. } = &mut self.place {
+            *hung = Anchor::Rect(anchor.rect);
+        }
         self
     }
 }
@@ -437,7 +436,7 @@ impl PopupHandle {
         PopupHandle { id: sub(opener, ("popup", name)), name }
     }
 
-    /// The popup's id: its egui layer id.
+    /// The popup's id: its open state's and its entry in the layer stack.
     pub fn id(self) -> Id {
         self.id
     }
@@ -515,7 +514,8 @@ pub(crate) fn popup_shown(ctx: &Context, owner: Id) -> bool {
 /// Step 10: the open state of every popup `owner` registered, with the closes `request_close` queued applied.
 pub(crate) fn open_map(stage: &mut MemoryStage, owner: Id) -> HashMap<Id, bool> {
     let ctx = stage.ctx().clone();
-    let popups: Vec<Id> = with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
+    let popups: Vec<Id> =
+        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
     popups
         .into_iter()
         .map(|popup| {
@@ -537,7 +537,8 @@ pub(crate) fn apply_closes(ctx: &Context, closed: Vec<(Id, CloseReason)>) {
 /// Step 15: writes the open slots of the popups `owner` registered, then forgets the queued changes.
 pub(crate) fn write_open(stage: &mut MemoryStage, owner: Id) {
     let ctx = stage.ctx().clone();
-    let popups: Vec<Id> = with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
+    let popups: Vec<Id> =
+        with_popups(&ctx, |popups| popups.registered.iter().filter(|(registered, _)| *registered == owner).map(|(_, popup)| *popup).collect());
     for popup in popups {
         let open = open_now(stage, popup);
         stage.shown::<OpenSlot>(popup).0 = open;
@@ -568,10 +569,12 @@ impl PopupHandle {
     pub fn trigger<C: Component>(self, trigger: Trigger, cx: &mut Cx<'_, C>) {
         let core = &mut cx.core;
         let ctx = core.ctx.clone();
+        let resting = core.response.hovered() || core.state.flags.contains(Flags::FOCUS_VISIBLE);
         let toggled = match trigger {
-            Trigger::Click | Trigger::Press => core.activation.is_some(),
+            Trigger::Click => core.activation.is_some(),
+            Trigger::Press => core.press.phase.is_press(),
             Trigger::Context => core.intents.take(Intent::ContextMenu),
-            Trigger::Hover => self.dwell(&ctx, core.memory, core.response.hovered(), super::tooltip::DELAY),
+            Trigger::Hover => self.dwell(&ctx, core.memory, resting, super::tooltip::DELAY),
             Trigger::Hold => self.dwell(&ctx, core.memory, core.press.phase.is_press(), HOLD),
             Trigger::Manual => false,
         };
@@ -579,6 +582,8 @@ impl PopupHandle {
             queue(&ctx, self.id, if matches!(trigger, Trigger::Click | Trigger::Press) { OpenOp::Toggle } else { OpenOp::Open });
         } else if trigger != Trigger::Manual && core.intents.take(Intent::Open) {
             queue(&ctx, self.id, OpenOp::Open);
+        } else if trigger == Trigger::Hover && !resting && open_now(core.memory, self.id) && !pointer_in_popup(&ctx, self.id) {
+            queue(&ctx, self.id, OpenOp::Close);
         }
     }
 
@@ -616,6 +621,12 @@ impl PopupHandle {
     }
 }
 
+/// Whether the pointer is over the shown layer `popup`: a hover popup stays while the pointer is on it.
+fn pointer_in_popup(ctx: &Context, popup: Id) -> bool {
+    let shown = overlay::entry(ctx, popup);
+    shown.zip(areas::pointer_pos(ctx)).is_some_and(|(entry, at)| entry.rect.contains(at))
+}
+
 #[derive(Clone, Copy, Default)]
 struct Dwell(Option<f64>);
 
@@ -651,16 +662,11 @@ impl<'a> OverlayUi<'a> {
         let owner = overlay.opener.map_or(self.owner, |opener| opener.id);
         let presence = motion::layer_presence(&ctx, popup.id, owner, self.env.motion, open, overlay.motion);
         if !presence.visible {
-            forget_pointer(&ctx, popup.id);
+            forget_layer(&ctx, popup.id, owner);
             return None;
         }
-        let anchor_local = match (&overlay.place, overlay.opener) {
-            (_, Some(opener)) => opener.rect,
-            (Place::Anchored { anchor: Anchor::Rect(rect), .. }, None) => *rect,
-            (Place::Anchored { anchor: Anchor::Point(at), .. }, None) => Rect::from_min_max(*at, *at),
-            _ => self.anchor,
-        };
-        let layer = Layer { id: popup.id, overlay: &overlay, anchor: self.to_screen * anchor_local, env: &self.env, exiting: !open, fade: presence.t };
+        let anchor = resolve_anchor(&ctx, &overlay, self.anchor, self.to_screen);
+        let layer = Layer { id: popup.id, owner, overlay: &overlay, anchor, env: &self.env, exiting: !open, fade: presence.t };
         let resolved = self.resolved;
         let mut result = None;
         let mut requested = false;
@@ -674,8 +680,8 @@ impl<'a> OverlayUi<'a> {
             requested = bcx.close_requested();
             stage.write_back();
         });
-        with_popups(&ctx, |popups| popups.shown.push((self.owner, popup.id)));
         if open {
+            with_popups(&ctx, |popups| popups.shown.push((self.owner, popup.id)));
             if requested {
                 self.closed.push((popup.id, CloseReason::Requested));
             } else if let Some(reason) = out.dismissed {
@@ -688,8 +694,10 @@ impl<'a> OverlayUi<'a> {
 
 /// What the host reads for one layer.
 pub(crate) struct Layer<'a> {
-    /// The layer's egui id.
+    /// The id of the layer's open state: the popup's or the container's. Its egui layer id derives from it.
     pub id: Id,
+    /// The component whose memory stage holds the layer's bookkeeping: the opener or the container.
+    pub owner: Id,
     pub overlay: &'a Overlay,
     /// The anchor in screen space.
     pub anchor: Rect,
@@ -707,24 +715,56 @@ pub(crate) struct LayerOut {
     pub dismissed: Option<CloseReason>,
 }
 
+/// What a layer remembers while it is shown, in its owner's memory stage: gone when the layer hides.
 #[derive(Clone, Copy, Default)]
-struct Since(f64);
-
-/// The stop that was focused when a layer first appeared.
-#[derive(Clone, Copy, Default)]
-struct NotedOpener(Option<focus::StopKey>);
-
-fn pointer_slot(id: Id) -> Id {
-    sub(id, "pointer_at")
+struct LayerMemory {
+    /// The pointer position when the layer first appeared, for `Anchor::Pointer`.
+    pointer_at: Option<Pos2>,
+    /// The stop that was focused when the layer first appeared.
+    opener_stop: Option<Option<focus::StopKey>>,
+    /// The pass time the layer first appeared, for `Dismiss.timeout`.
+    since: Option<f64>,
 }
 
-fn forget_pointer(ctx: &Context, id: Id) {
-    let _ = store::take::<Pos2>(ctx, pointer_slot(id));
-    let _ = store::take::<Since>(ctx, sub(id, "since"));
-    let _ = store::take::<NotedOpener>(ctx, sub(id, "opener_stop"));
+fn memory_slot(id: Id) -> Id {
+    sub(id, "layer_memory")
 }
 
-fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect) -> Rect {
+fn recall(layer: &Layer<'_>, ctx: &Context) -> LayerMemory {
+    MemoryStage::peek::<LayerMemory>(ctx, memory_slot(layer.id))
+}
+
+fn remember(layer: &Layer<'_>, ctx: &Context, memory: LayerMemory) {
+    let mut stage = MemoryStage::open_owned(ctx, layer.id, layer.owner);
+    *stage.shown::<LayerMemory>(memory_slot(layer.id)) = memory;
+    stage.write_back();
+}
+
+/// The layer `id` is hidden: it forgets what it remembered, so its next appearance starts fresh. Every host caller
+/// calls it when the layer's presence is hidden.
+pub(crate) fn forget_layer(ctx: &Context, id: Id, owner: Id) {
+    let mut stage = MemoryStage::open_owned(ctx, id, owner);
+    let _ = stage.take::<LayerMemory>(memory_slot(id));
+    stage.write_back();
+}
+
+/// The egui layer id of the layer `id`.
+fn area_id(id: Id) -> Id {
+    sub(id, "area")
+}
+
+/// The anchor of `overlay` in screen space: the opener's rect through the opener's own layer, else `own` (the
+/// owner's rect) or the given rect or point, in the space `own_to_screen` maps.
+pub(crate) fn resolve_anchor(ctx: &Context, overlay: &Overlay, own: Rect, own_to_screen: egui::emath::TSTransform) -> Rect {
+    match (&overlay.place, overlay.opener) {
+        (_, Some(opener)) => areas::layer_to_screen(ctx, opener.layer) * opener.rect,
+        (Place::Anchored { anchor: Anchor::Rect(rect), .. }, None) => own_to_screen * *rect,
+        (Place::Anchored { anchor: Anchor::Point(at), .. }, None) => own_to_screen * Rect::from_min_max(*at, *at),
+        _ => own_to_screen * own,
+    }
+}
+
+fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect, memory: &mut LayerMemory) -> Rect {
     let point = |at: Pos2| Rect::from_min_max(at, at);
     match &layer.overlay.place {
         Place::Anchored { anchor: Anchor::Viewport(at), .. } => {
@@ -732,16 +772,23 @@ fn anchor_rect(ctx: &Context, layer: &Layer<'_>, bounds: Rect) -> Rect {
             point(at.pos_in_rect(&bounds.shrink(inset)))
         }
         Place::Anchored { anchor: Anchor::Pointer, .. } => {
-            let at = store::peek_clone::<Pos2>(ctx, pointer_slot(layer.id)).or_else(|| areas::pointer_pos(ctx)).unwrap_or(bounds.center());
-            store::put(ctx, pointer_slot(layer.id), at);
-            point(at)
+            point(*memory.pointer_at.get_or_insert_with(|| areas::pointer_pos(ctx).unwrap_or(bounds.center())))
         }
         _ => layer.anchor,
     }
 }
 
-/// Where the layer goes: the pure placement of the anchored forms, the viewport centre or the given position for floats.
-fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, anchor: Rect) -> (Rect, Side) {
+/// Where the layer goes and the room its body has there.
+struct Placed {
+    at: Pos2,
+    side: Side,
+    /// The most the body may take from `at`: what the viewport leaves, within the fit's cap.
+    room: egui::Vec2,
+}
+
+/// The pure placement of the anchored forms; the viewport centre or the given position for floats, kept inside the
+/// safe rect.
+fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, anchor: Rect, cap: egui::Vec2) -> Placed {
     match &layer.overlay.place {
         Place::Anchored { side, align, .. } => {
             let kept = overlay::entry(ctx, layer.id).map(|entry| entry.side);
@@ -752,11 +799,15 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, a
                 .min_width(layer.overlay.min_width)
                 .kept(kept);
             let placed = craft_behavior::overlay::place(&request);
-            (placed.rect, placed.side)
+            // The room is what the side the layer took leaves for a body as large as the cap.
+            let room = craft_behavior::overlay::place(&request.kept(Some(placed.side)).size(cap)).rect.size();
+            Placed { at: placed.rect.min, side: placed.side, room }
         }
         Place::Float(float) => {
             let min = float.pos.unwrap_or_else(|| bounds.center() - size / 2.0);
-            (Rect::from_min_size(min, size), Side::Below)
+            let max_min = Pos2::new((bounds.right() - size.x).max(bounds.left()), (bounds.bottom() - size.y).max(bounds.top()));
+            let at = Pos2::new(min.x.clamp(bounds.left(), max_min.x), min.y.clamp(bounds.top(), max_min.y));
+            Placed { at, side: Side::Below, room: (bounds.max - at).max(egui::Vec2::ZERO).min(cap) }
         }
     }
 }
@@ -765,58 +816,47 @@ fn placement(ctx: &Context, layer: &Layer<'_>, size: egui::Vec2, bounds: Rect, a
 pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut Ui)) -> LayerOut {
     let overlay = layer.overlay;
     let bounds = areas::safe_rect(ctx);
-    let anchor = anchor_rect(ctx, layer, bounds);
-    let size = areas::layer_rect(ctx, layer.id).map_or(egui::Vec2::ZERO, |rect| rect.size());
-    let (at, side) = placement(ctx, layer, size, bounds, anchor);
+    let mut memory = recall(layer, ctx);
+    let anchor = anchor_rect(ctx, layer, bounds, &mut memory);
+    let area = area_id(layer.id);
+    let size = areas::layer_rect(ctx, area).map_or(egui::Vec2::ZERO, |rect| rect.size());
+    let cap = match overlay.fit {
+        OverlayFit::ContentCapped(share) => egui::Vec2::new(bounds.width() * share.x, bounds.height() * share.y),
+        _ => bounds.size(),
+    };
+    let placed = placement(ctx, layer, size, bounds, anchor, cap);
     let tier = overlay.rank.tier();
-    // The cover under the layer: a modal's scrim, or a transparent one that swallows an outside press.
-    let backdrop = match overlay.rank {
-        Rank::Modal { backdrop } => Some(backdrop),
-        _ if overlay.dismiss.outside == Outside::Absorb && !layer.exiting => Some(Backdrop::None),
+    // A modal's scrim; it takes the presses below the modal while the modal is open.
+    let cover_id = sub(layer.id, "cover");
+    let cover = match overlay.rank {
+        Rank::Modal { backdrop } if backdrop != Backdrop::None => {
+            let hole = match backdrop {
+                Backdrop::ScrimWithHole(hole) => Some(hole),
+                _ => None,
+            };
+            let scrim = crate::style::scrim_color(&layer.env.tokens).gamma_multiply(layer.fade);
+            areas::show_cover_layer(ctx, cover_id, tier, bounds, scrim, hole, !layer.exiting);
+            Some(areas::layer_of(tier, cover_id))
+        }
         _ => None,
     };
-    let cover_id = sub(layer.id, "cover");
-    let cover = backdrop.filter(|backdrop| *backdrop != Backdrop::None || overlay.dismiss.outside == Outside::Absorb).map(|backdrop| {
-        let scrim = match (backdrop, overlay.rank) {
-            (Backdrop::None, _) => None,
-            _ => Some(crate::style::scrim_color(&layer.env.tokens)),
-        };
-        let hole = match backdrop {
-            Backdrop::ScrimWithHole(hole) => Some(hole),
-            _ => None,
-        };
-        areas::show_cover_layer(ctx, cover_id, tier, bounds, scrim, hole);
-        areas::layer_of(tier, cover_id)
-    });
     let parent = overlay::drawing_parent(ctx);
     let scope = (overlay.focus != FocusPolicy::NONE).then_some(overlay.focus);
-    let capped = match overlay.fit {
-        OverlayFit::ContentCapped(share) => Some(egui::Vec2::new(bounds.width() * share.x, bounds.height() * share.y)),
-        _ => None,
-    };
-    let spec = LayerSpec { id: layer.id, tier, at: at.min, interactable: overlay.rank != Rank::Tooltip && !layer.exiting };
+    let min_width = overlay.min_width.points(anchor.width());
+    let spec = LayerSpec { id: area, tier, at: placed.at, interactable: overlay.rank != Rank::Tooltip && !layer.exiting };
     // The opener of the layer's scope is the stop focused when the layer first appears: egui's modal gate takes focus
     // from the widgets below a modal layer by the first pass that shows the layer.
-    let opener_slot = sub(layer.id, "opener_stop");
-    let noted = store::peek_clone::<NotedOpener>(ctx, opener_slot).or_else(|| {
-        let noted = NotedOpener(focus::focused_stop(ctx));
-        store::put(ctx, opener_slot, noted);
-        Some(noted)
-    });
+    let opener = *memory.opener_stop.get_or_insert_with(|| focus::focused_stop(ctx));
     overlay::begin_layer(ctx, layer.id);
     let shown = areas::show_layer(ctx, &spec, |ui| {
         areas::fade(ui, layer.fade);
         let installed = Env::install_for(ui, layer.env.clone());
         let real = !ui.is_sizing_pass();
         if let (Some(policy), true) = (scope, real) {
-            focus::push_scope_from(ctx, layer.id, policy, None, noted.and_then(|noted| noted.0));
+            focus::push_scope_from(ctx, layer.id, policy, None, opener);
         }
-        match capped {
-            Some(cap) => {
-                areas::capped(ui, cap, |ui| body(ui));
-            }
-            None => body(ui),
-        }
+        areas::bound(ui, placed.room, min_width.min(placed.room.x));
+        body(ui);
         if scope.is_some() && real {
             focus::pop_scope(ctx);
         }
@@ -826,27 +866,51 @@ pub(crate) fn host(ctx: &Context, layer: &Layer<'_>, body: &mut dyn FnMut(&mut U
     let mut entry = OpenEntry::new(layer.id, overlay.rank, overlay.keys, shown.rect, shown.layer);
     entry.parent = parent;
     entry.anchor = matches!(overlay.place, Place::Anchored { .. }).then_some(anchor);
-    entry.side = side;
+    entry.side = placed.side;
     entry.exiting = layer.exiting;
     entry.cover = cover;
+    entry.scoped = scope.is_some();
+    entry.absorbs = overlay.dismiss.outside == Outside::Absorb;
     overlay::record(ctx, entry);
-    let dismissed = if layer.exiting { None } else { dismissal(ctx, layer, shown.rect, anchor, scope) };
+    let dismissed = if layer.exiting { None } else { dismissal(ctx, layer, shown.rect, anchor, scope, &mut memory) };
+    remember(layer, ctx, memory);
     LayerOut { dismissed }
 }
 
 /// The dismissal rules of 15.4, decided after the body ran so a field inside still commits in the press pass.
-fn dismissal(ctx: &Context, layer: &Layer<'_>, rect: Rect, anchor: Rect, scope: Option<FocusPolicy>) -> Option<CloseReason> {
+fn dismissal(
+    ctx: &Context,
+    layer: &Layer<'_>,
+    rect: Rect,
+    anchor: Rect,
+    scope: Option<FocusPolicy>,
+    memory: &mut LayerMemory,
+) -> Option<CloseReason> {
     let dismiss = layer.overlay.dismiss;
     if let Some(reason) = escape(ctx, layer, scope) {
         return Some(reason);
     }
-    if dismiss.outside != Outside::Keep
-        && let Some(press) = areas::primary_press_at(ctx)
-    {
-        let inside_family = overlay::family(ctx, layer.id).iter().filter_map(|id| overlay::entry(ctx, *id)).any(|entry| entry.rect.contains(press));
-        if !rect.contains(press) && !anchor.contains(press) && !inside_family {
-            return Some(CloseReason::Outside);
+    match dismiss.outside {
+        Outside::Keep => {}
+        // The input hook removed the press and recorded it; presses inside the family and its anchors never get here.
+        Outside::Absorb => {
+            if overlay::absorbed_press(ctx).is_some() {
+                return Some(CloseReason::Outside);
+            }
         }
+        Outside::Close => {
+            let press = pointer::frame(ctx).press.filter(|press| press.button == craft_behavior::PointerButton::Primary).map(|press| press.origin);
+            if let Some(press) = press {
+                let inside_family =
+                    overlay::family(ctx, layer.id).iter().filter_map(|id| overlay::entry(ctx, *id)).any(|entry| entry.rect.contains(press));
+                if !rect.contains(press) && !anchor.contains(press) && !inside_family {
+                    return Some(CloseReason::Outside);
+                }
+            }
+        }
+    }
+    if dismiss.on_activate && overlay::activated_inside(ctx, layer.id) {
+        return Some(CloseReason::Activated);
     }
     if dismiss.enter && scope.is_some() && overlay::top(ctx) == Some(layer.id) && keys::take_submit(ctx) {
         return Some(CloseReason::Enter);
@@ -861,11 +925,8 @@ fn dismissal(ctx: &Context, layer: &Layer<'_>, rect: Rect, anchor: Rect, scope: 
     }
     if let Some(timeout) = dismiss.timeout {
         let now = frame::clock(ctx);
-        let since = store::peek_clone::<Since>(ctx, sub(layer.id, "since")).unwrap_or_else(|| {
-            store::put(ctx, sub(layer.id, "since"), Since(now));
-            Since(now)
-        });
-        let due = since.0 + f64::from(timeout);
+        let since = *memory.since.get_or_insert(now);
+        let due = since + f64::from(timeout);
         if now >= due {
             return Some(CloseReason::Timeout);
         }

@@ -59,6 +59,17 @@ pub enum MinWidth {
     Points(f32),
 }
 
+impl MinWidth {
+    /// The width in points, given the anchor's width.
+    pub fn points(self, anchor_width: f32) -> f32 {
+        match self {
+            MinWidth::None => 0.0,
+            MinWidth::Anchor => anchor_width,
+            MinWidth::Points(points) => finite(points).max(0.0),
+        }
+    }
+}
+
 /// What `place` reads.
 #[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
@@ -87,6 +98,12 @@ impl PlaceRequest {
     /// A request for `size` around `anchor` inside `bounds`: below, aligned to the start, no gap, free width.
     pub const fn new(anchor: Rect, size: Vec2, bounds: Rect) -> Self {
         PlaceRequest { anchor, size, side: Side::Below, align: Align::Start, rtl: false, gap: 0.0, min_width: MinWidth::None, bounds, kept: None }
+    }
+
+    /// Sets the content size.
+    pub const fn size(mut self, size: Vec2) -> Self {
+        self.size = size;
+        self
     }
 
     /// Sets the preferred side.
@@ -167,11 +184,7 @@ pub fn place(request: &PlaceRequest) -> Placement {
     let anchor = clean(request.anchor);
     let bounds = clean(request.bounds);
     let gap = finite(request.gap).max(0.0);
-    let min_width = match request.min_width {
-        MinWidth::None => 0.0,
-        MinWidth::Anchor => anchor.width(),
-        MinWidth::Points(points) => finite(points).max(0.0),
-    };
+    let min_width = request.min_width.points(anchor.width());
     let wanted = Vec2::new(finite(request.size.x).max(min_width).max(0.0), finite(request.size.y).max(0.0));
     let rtl = request.rtl;
     let need = if request.side.vertical() { wanted.y } else { wanted.x };

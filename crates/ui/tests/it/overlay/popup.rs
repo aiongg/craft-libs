@@ -124,3 +124,38 @@ fn a_press_inside_the_popup_keeps_it_open() {
     assert!(frame(&mut frames, vec![], false), "a press inside the popup does not close it");
     assert!(frame(&mut frames, vec![], false));
 }
+
+#[trial]
+fn a_click_on_the_opener_closes_its_open_menu() {
+    let mut frames = Frames::new();
+    let below = RefCell::new(Seen::default());
+    let opened = Opened::default();
+    let content = RefCell::new(Seen::default());
+    let mut show = |ui: &mut Ui| {
+        opened.shown.set(false);
+        Opener::new(&opened, &content, Trigger::Click, Overlay::menu).id_salt("opener").show_at(ui, OPENER);
+        Leaf::new(&below, Vec2::new(60.0, 30.0)).id_salt("below").show_at(ui, BELOW);
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, OPENER.center(), &mut show);
+    frames.idle(30, &mut show);
+    assert!(opened.shown.get(), "a click opens the menu");
+    click(&mut frames, OPENER.center(), &mut show);
+    frames.idle(30, &mut show);
+    assert!(!opened.shown.get(), "the press on the opener reaches it, and its toggle closes the menu");
+}
+
+#[trial]
+fn a_press_trigger_opens_on_the_press() {
+    let mut frames = Frames::new();
+    let below = RefCell::new(Seen::default());
+    let frame = |frames: &mut Frames, events| scene(frames, events, Trigger::Press, Overlay::popover, false, &below);
+    for _ in 0..3 {
+        frame(&mut frames, vec![]);
+    }
+    let at = OPENER.center();
+    frame(&mut frames, vec![moved(at)]);
+    frame(&mut frames, vec![press(at)]);
+    let shown = [frame(&mut frames, vec![]), frame(&mut frames, vec![])];
+    assert!(shown[1], "the popup opens while the button is still down");
+}

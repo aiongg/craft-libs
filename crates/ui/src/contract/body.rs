@@ -3,7 +3,6 @@
 
 use super::cx::BodyCx;
 use super::label::{self, LabelIn};
-use crate::style::ComponentStyle as _;
 use super::run::{ShapeHooks, ShowAt};
 use super::{Container, ContainerProps, Cx, Gap, Internal, Mount, Pad, PartsCx, Scroll, Sizing};
 use crate::layout;
@@ -14,9 +13,10 @@ use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
 use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::{commands, layout_memory, wheel};
+use crate::style::ComponentStyle as _;
 use crate::style::{Corners, RuleKind, StyleCx, UiTokens, rule_look, scroll_bar_look, surface_style};
 use craft_behavior::{
-    Axis, Roving, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, ScrollPos, ScrollSpan, WheelTaker,
+    Axis, CursorIcon, EditEvent, GestureId, HitLevel, HitPriority, Mixed, PartKey, PressPhase, Roving, ScrollPos, ScrollSpan, WheelTaker,
 };
 use egui::emath::TSTransform;
 use egui::{Context, Id, Pos2, Rect, Shape, Stroke, Ui, UiBuilder, Vec2};
@@ -121,6 +121,8 @@ pub(super) struct BodyHooks<'b> {
     gate: Option<bool>,
     gate_at_read: Option<bool>,
     close: bool,
+    /// The container is closed and its layer is fading out: the body shows as it was and nothing is written.
+    exiting: bool,
     offset: ScrollPos,
     offset_at_read: ScrollPos,
     scroll_bound: bool,
@@ -150,6 +152,7 @@ impl<'b> BodyHooks<'b> {
             gate: None,
             gate_at_read: None,
             close: false,
+            exiting: false,
             offset: ScrollPos::default(),
             offset_at_read: ScrollPos::default(),
             scroll_bound: false,
@@ -212,7 +215,10 @@ impl<'b> BodyHooks<'b> {
             bars.push((Bar { key: SCROLL_Y, axis: Axis::Y, track }, span));
         }
         if h_on {
-            let track = Rect::from_min_max(Pos2::new(view.min.x, view.max.y - thickness), Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y));
+            let track = Rect::from_min_max(
+                Pos2::new(view.min.x, view.max.y - thickness),
+                Pos2::new(view.max.x - if v_on { thickness } else { 0.0 }, view.max.y),
+            );
             let content = f64::from(ex).max(f64::from(view.width()));
             let span = ScrollSpan::new(0.0..content, self.offset.x..self.offset.x + f64::from(view.width()));
             bars.push((Bar { key: SCROLL_X, axis: Axis::X, track }, span));
@@ -231,22 +237,56 @@ impl<'b> BodyHooks<'b> {
     }
 }
 
+impl BodyHooks<'_> {
+    /// Writes the open state when it changed since it was read: to the binding, else to the session slot.
+    fn write_open<C: Container>(&mut self, comp: &mut C, cx: &mut Cx<'_, C>) {
+        if self.open == self.open_at_read {
+            return;
+        }
+        let id = cx.core.id;
+        match comp.open() {
+            Some(mut bind) => {
+                let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
+                bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
+            }
+            None => cx.core.memory.session::<OpenState>(sub(id, "open")).0 = Some(self.open),
+        }
+        self.open_at_read = self.open;
+    }
+}
+
 impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
     fn shape(&self) -> super::steps::ShapeKind {
         super::steps::ShapeKind::Body
     }
 
-    fn host(&mut self, comp: &C) -> Box<dyn super::run::Host> {
-        super::mount::host(comp.props(Internal::new()))
+    fn host(&mut self, comp: &C, at: super::run::HostCx<'_>) -> Box<dyn super::run::Host> {
+        let mounted = super::mount::host(comp.props(Internal::new()), &at, self.open);
+        if mounted.exiting {
+            self.exiting = true;
+            self.open = true;
+        }
+        mounted.host
     }
 
+    fn dismissed(&mut self, comp: &mut C, cx: &mut Cx<'_, C>, _why: crate::runtime::overlay::CloseReason) {
+        self.close = true;
+        self.open = false;
+        self.write_open(comp, cx);
+    }
+
+    /// The layer's own scope is the overlay host's (one scope per layer); `Inline`, `Pane` and `FullWindow`
+    /// containers push `props.focus`.
     fn focus(&self, comp: &C) -> Option<FocusPolicy> {
         let props = comp.props(Internal::new());
-        let policy = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => overlay.focus,
-            _ => props.focus,
-        };
-        (policy != FocusPolicy::NONE).then_some(policy)
+        if matches!(props.mount, Mount::Layer(_) | Mount::Viewport { .. }) {
+            debug_assert!(
+                props.focus == FocusPolicy::NONE,
+                "a layer or viewport mount takes its focus scope from `Overlay.focus`, not `ContainerProps.focus`"
+            );
+            return None;
+        }
+        (props.focus != FocusPolicy::NONE).then_some(props.focus)
     }
 
     fn arena(&self, comp: &C) -> bool {
@@ -273,6 +313,9 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.remembered = layout_memory::read(&ctx, id);
         self.header_last = if has_header { layout_memory::read(&ctx, sub(id, "header")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
         self.footer_last = if has_footer { layout_memory::read(&ctx, sub(id, "footer")).unwrap_or(Vec2::ZERO) } else { Vec2::ZERO };
+        if !matches!(props.mount, Mount::Inline | Mount::Pane(_)) && crate::runtime::overlay::take_close(&ctx, id).is_some() {
+            self.close = true;
+        }
         self.open_bound = comp.open().is_some();
         self.open = match comp.open() {
             Some(bind) => matches!(bind.get(), Some(Mixed::Same(true))),
@@ -373,12 +416,19 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             }
             wheel::register(
                 &ctx,
-                WheelTaker::new(pcx.id, view).vertical(props.scroll.is_some_and(|scroll| scroll.vertical_on())).horizontal(props.scroll.is_some_and(|scroll| scroll.horizontal_on())),
+                WheelTaker::new(pcx.id, view)
+                    .vertical(props.scroll.is_some_and(|scroll| scroll.vertical_on()))
+                    .horizontal(props.scroll.is_some_and(|scroll| scroll.horizontal_on())),
             );
         }
         let handle = tokens.tokens().size.handle.sm;
         let reason = "the Move and Size commands of the window command set do the same";
-        if props.header.is_some_and(|header| header.band == super::DragBand::Move) && regions.header.height() > 0.0 {
+        // A layer moves when its overlay says so; other mounts follow the header's band.
+        let movable = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay } => overlay.movable,
+            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move),
+        };
+        if props.header.is_some() && movable && regions.header.height() > 0.0 {
             pcx.part(MOVE_BAND, regions.header)
                 .sense(craft_behavior::Sense::DRAG)
                 .priority(HitPriority::new(HitLevel::Edge, 0))
@@ -567,12 +617,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     Some(scroll) => {
                         let off = self.offset;
                         let big = super::MAX_EXTENT;
-                        let (width, height) = (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
+                        let (width, height) =
+                            (if scroll.horizontal_on() { big } else { at.width() }, if scroll.vertical_on() { big } else { at.height() });
                         let x = if scroll.horizontal_on() { off.x as f32 } else { 0.0 };
                         let min_x = if rtl { at.max.x - width + x } else { at.min.x - x };
                         let max = Rect::from_min_size(Pos2::new(min_x, at.min.y - off.y as f32), Vec2::new(width, height));
                         let layout_of = *body_ui.layout();
-                        let mut region_ui = alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
+                        let mut region_ui =
+                            alloc::child(&mut body_ui, UiBuilder::new().scope_id(sub(id, "scroll_region")).layout(layout_of).max_rect(max));
                         region_ui.set_clip_rect(at.intersect(body_ui.clip_rect()));
                         layout::run_body(&mut region_ui, layout_id, layout, gap, |ui| body(ui, bcx));
                         self.extent = Some(region_ui.min_rect().size());
@@ -591,7 +643,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     if props.arena {
                         crate::primitives::sensing::set_layer(&ctx, ArenaId::new(id), layer);
                     }
-                    let forward = areas::Forward { id: sub(id, "transform"), sense: response::to_egui(cx.core.root_sense), rect: rect.intersect(ui.clip_rect()) };
+                    let forward = areas::Forward {
+                        id: sub(id, "transform"),
+                        sense: response::to_egui(cx.core.root_sense),
+                        rect: rect.intersect(ui.clip_rect()),
+                    };
                     areas::show_body_layer(&ctx, parent, layer, tf, body_rect.min, Some(forward), |area_ui| run(area_ui, body_rect, &mut bcx))
                 }
                 None => run(ui, body_rect, &mut bcx),
@@ -633,7 +689,11 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     let (at, len) = craft_behavior::scroll::thumb(&span, length, look.min_thumb);
                     let thumb = super::cx::thumb_rect(bar.track, bar.axis, rtl, at, len);
                     let enabled = cx.core.resolved.enabled;
-                    let state = super::steps::part_state(cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE), enabled, None);
+                    let state = super::steps::part_state(
+                        cx.core.results.get(&(bar.key, Some(super::cx::THUMB))).unwrap_or(&crate::primitives::PartResult::IDLE),
+                        enabled,
+                        None,
+                    );
                     ui.painter().extend(ScrollBar::shapes(&look, bar.track, thumb, &state));
                 }
             }
@@ -664,20 +724,15 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
             // A viewport mount settles once per child pass: the baseline moves so a change applies once.
             self.gate_at_read = self.gate;
         }
+        if self.exiting {
+            // The container closed already; the fade only keeps its body on screen.
+            self.open = self.open_at_read;
+            self.close = false;
+        }
         if self.close {
             self.open = false;
         }
-        let id = cx.core.id;
-        if self.open != self.open_at_read {
-            match comp.open() {
-                Some(mut bind) => {
-                    let (label, doc_key) = (cx.core.label_arc(), cx.core.resolved.doc_key);
-                    bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.open_at_read), self.open, label, doc_key));
-                }
-                None => cx.core.memory.session::<OpenState>(sub(id, "open")).0 = Some(self.open),
-            }
-            self.open_at_read = self.open;
-        }
+        self.write_open(comp, cx);
         if self.offset != self.offset_at_read {
             match comp.scroll() {
                 Some(mut bind) => {
@@ -685,7 +740,7 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                     bind.apply(&EditEvent::set(GestureId::default(), Mixed::Same(self.offset_at_read), self.offset, label, doc_key));
                 }
                 None => {
-                    let state = cx.core.memory.session::<ScrollState>(sub(id, "scroll"));
+                    let state = cx.core.memory.session::<ScrollState>(sub(cx.core.id, "scroll"));
                     state.offset = (self.offset.x, self.offset.y);
                 }
             }

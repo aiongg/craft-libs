@@ -4,16 +4,19 @@
 //! delay, and at once while a neighbour's tooltip was hiding a moment ago. A press, a menu that owns keys and a
 //! running drag hide it.
 
+use super::cx::PartExtras;
 use super::overlay::{self, Anchor, Layer, Overlay, Place};
-use super::{Common, Component, Cx, Props as _, Show, TipFn, TooltipAt, TooltipWhen};
+use super::{Common, Component, Cx, Props as _, Show, TipFn, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
+use crate::primitives::sensing::PartDecl;
+use crate::primitives::{TextRun, Wrap};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{areas, pass, repaint};
 use crate::runtime::env::Env;
 use crate::runtime::memory::{self, sub};
 use crate::runtime::motion;
-use crate::runtime::{frame, pointer};
-use crate::primitives::{TextRun, Wrap};
+use crate::runtime::{drag, frame, pointer};
 use crate::style::{ComponentStyle, Flags, StyleColor, StyleCx, SurfaceKind, SurfaceLook};
+use craft_behavior::PartRef;
 use craft_behavior::overlay::{Align, Side};
 use craft_behavior::{Metrics, OwnerClass};
 use craft_theme::Stateful;
@@ -28,6 +31,8 @@ pub const GRACE: f64 = 0.3;
 struct TipState {
     since: Option<f64>,
     shown: bool,
+    /// The part the tooltip belongs to; `None` for the component's own.
+    subject: Option<PartRef>,
 }
 
 /// When the last tooltip of the context hid.
@@ -40,24 +45,27 @@ pub(crate) struct TipIn<'a> {
     pub env: &'a Env,
     /// The rich content closure of `show_with_tip`.
     pub rich: Option<TipFn<'a>>,
+    /// The parts the component declared this pass, with their tooltips.
+    pub parts: &'a [(PartDecl, PartExtras)],
 }
 
-/// The text a tooltip shows, or `None` when the component has none: the tooltip's text, or its disabled text while
-/// disabled, with the bound command's chord; else the full label when the paint cut it.
+/// The text a tooltip shows for `spec`: the disabled text while disabled.
+fn spec_text(env: &crate::runtime::env::EnvView<'_>, spec: &TooltipSpec, enabled: bool) -> String {
+    let label = match (&spec.disabled_text, enabled) {
+        (Some(disabled), false) => disabled,
+        _ => &spec.text,
+    };
+    env.resolve(label).as_str().to_owned()
+}
+
+/// The text the component's own tooltip shows, or `None` when it has none: the tooltip's text, or its disabled text
+/// while disabled, with the bound command's chord; else the full label when the paint cut it.
 fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
     let core = &cx.core;
-    let resolved = core.resolved;
-    let spec = resolved.tooltip.map(|tooltip| tooltip.spec());
-    let base = match spec {
-        Some(spec) => {
-            let label = match (&spec.disabled_text, resolved.enabled) {
-                (Some(disabled), false) => disabled,
-                _ => &spec.text,
-            };
-            Some(core.env.resolve(label).as_str().to_owned())
-        }
-        None => core.paint.borrow().elided.clone(),
-    }?;
+    let base = match core.resolved.tooltip.map(|tooltip| tooltip.spec()) {
+        Some(spec) => spec_text(&core.env, spec, core.resolved.enabled),
+        None => core.paint.borrow().elided.clone()?,
+    };
     let platform = craft_keymap::egui::platform(&core.ctx);
     Some(match core.command.as_deref().and_then(|command| command.chord.as_ref()) {
         Some(chord) => format!("{base} ({})", chord.display(platform)),
@@ -65,25 +73,125 @@ fn text_of<C: Component>(cx: &Cx<'_, C>) -> Option<String> {
     })
 }
 
-/// Step 16, after the component's report: advances the component's tooltip timer and shows its tooltip.
+/// A part's tooltip, for the part the pointer is over or the keyboard is on.
+struct PartTip {
+    part: PartRef,
+    spec: TooltipSpec,
+    rect: Rect,
+    hovered: bool,
+}
+
+/// The part whose tooltip shows: the hovered one with a tooltip, else the keyboard's active part.
+fn part_tip<C: Component>(cx: &Cx<'_, C>, parts: &[(PartDecl, PartExtras)]) -> Option<PartTip> {
+    let core = &cx.core;
+    let tip = |decl: &PartDecl, extras: &PartExtras, hovered: bool| {
+        let part = PartRef { key: decl.key, index: decl.index };
+        let rect = core.results.get(&(part.key, part.index))?.rect;
+        Some(PartTip { part, spec: extras.tooltip.as_ref()?.spec().clone(), rect, hovered })
+    };
+    let hovered = parts.iter().find_map(|(decl, extras)| {
+        let result = core.results.get(&(decl.key, decl.index))?;
+        if result.hovered { tip(decl, extras, true) } else { None }
+    });
+    hovered.or_else(|| {
+        let active = core.active.filter(|_| core.state.flags.contains(Flags::FOCUS_VISIBLE))?;
+        parts.iter().find(|(decl, _)| decl.key == active.key && decl.index == active.index).and_then(|(decl, extras)| tip(decl, extras, false))
+    })
+}
+
+/// Step 16, after the component's report: advances the component's tooltip timer and shows its tooltip, or the
+/// tooltip of the part the pointer or the keyboard is on.
 pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
     let core = &cx.core;
-    let ctx = &core.ctx;
-    let (id, now) = (core.id, frame::clock(ctx));
+    let part = part_tip(cx, input.parts);
+    let keyboard = core.state.flags.contains(Flags::FOCUS_VISIBLE);
+    let own_spec = core.resolved.tooltip.map(|tooltip| tooltip.spec().clone());
+    let (text, spec, rect, hovered, subject) = match &part {
+        Some(part) => (
+            Some(spec_text(&core.env, &part.spec, core.resolved.enabled)),
+            Some(part.spec.clone()),
+            part.rect,
+            part.hovered || keyboard,
+            Some(part.part),
+        ),
+        None => (text_of(cx), own_spec, core.rect, core.response.hovered() || keyboard, None),
+    };
+    let call = TipCall {
+        ctx: &core.ctx,
+        owner: core.memory.owner(),
+        id: core.id,
+        env: input.env,
+        to_screen: areas::layer_to_screen(&core.ctx, input.ui.layer_id()),
+        rect,
+        text,
+        rich: if part.is_some() { None } else { input.rich },
+        spec,
+        wants_input: hovered,
+        pressed: core.press.phase.is_press(),
+        subject,
+    };
+    show_tip(call);
+}
+
+/// Shows `tooltip` for a raw egui response during the app migration: the same delay, grace and placement as a
+/// component's tooltip, none of its pipeline.
+pub fn attach(response: &egui::Response, tooltip: &Tooltip) {
+    let ctx = &response.ctx;
+    let Some(env) = Env::root_of(ctx) else { return };
+    memory::register_owner(ctx, response.id);
+    let spec = tooltip.spec().clone();
+    let text = spec_text(&env.view(), &spec, response.enabled());
+    let call = TipCall {
+        ctx,
+        owner: response.id,
+        id: response.id,
+        env: &env,
+        to_screen: areas::layer_to_screen(ctx, response.layer_id),
+        rect: response.rect,
+        text: Some(text),
+        rich: None,
+        spec: Some(spec),
+        wants_input: response.hovered() || response.has_focus(),
+        pressed: response.is_pointer_button_down_on(),
+        subject: None,
+    };
+    show_tip(call);
+}
+
+/// What `show_tip` shows a tooltip from.
+struct TipCall<'a> {
+    ctx: &'a egui::Context,
+    /// Whose memory holds the timer: the component, or the raw response.
+    owner: egui::Id,
+    id: egui::Id,
+    env: &'a Env,
+    to_screen: egui::emath::TSTransform,
+    /// The rect the tooltip hangs from, in the layer's space.
+    rect: Rect,
+    text: Option<String>,
+    rich: Option<TipFn<'a>>,
+    spec: Option<TooltipSpec>,
+    /// The pointer rests on the subject or the keyboard is on it.
+    wants_input: bool,
+    pressed: bool,
+    subject: Option<PartRef>,
+}
+
+fn show_tip(call: TipCall<'_>) {
+    let TipCall { ctx, owner, id, env, to_screen, rect, text, rich, spec, wants_input, pressed, subject } = call;
+    let now = frame::clock(ctx);
     let state_id = sub(id, "tip_state");
-    let text = text_of(cx);
-    let has_content = text.is_some() || input.rich.is_some();
+    let has_content = text.is_some() || rich.is_some();
     let mut state = store::take::<TipState>(ctx, state_id).unwrap_or_else(|| {
-        memory::adopt::<TipState>(ctx, core.memory.owner(), state_id);
+        memory::adopt::<TipState>(ctx, owner, state_id);
         TipState::default()
     });
-    let spec = core.resolved.tooltip.map(|tooltip| tooltip.spec());
-    let when_now = spec.is_some_and(|spec| spec.when == TooltipWhen::Now);
-    let keyboard = core.state.flags.contains(Flags::FOCUS_VISIBLE);
-    let wants = has_content && (core.response.hovered() || keyboard);
-    let suppressed = core.press.phase.is_press()
-        || overlay_blocks(ctx)
-        || pointer::press_captured(ctx);
+    if state.subject != subject {
+        state = TipState { subject, ..TipState::default() };
+    }
+    let when_now = spec.as_ref().is_some_and(|spec| spec.when == TooltipWhen::Now);
+    let wants = has_content && wants_input;
+    let suppressed = pressed || overlay_blocks(ctx) || pointer::press_captured(ctx) || drag::running(ctx);
     if wants {
         state.since.get_or_insert(now);
     } else {
@@ -104,20 +212,20 @@ pub(crate) fn run<C: Component>(cx: &Cx<'_, C>, input: TipIn<'_>) {
     state.shown = show;
     store::put(ctx, state_id, state);
     let tip_id = sub(id, "tip");
-    let presence = motion::layer_presence(ctx, tip_id, core.memory.owner(), input.env.motion, show, overlay_motion());
+    let presence = motion::layer_presence(ctx, tip_id, owner, env.motion, show, overlay_motion());
     if !presence.visible {
+        overlay::forget_layer(ctx, tip_id, owner);
         return;
     }
-    let at_pointer = spec.is_some_and(|spec| spec.at == TooltipAt::Pointer);
+    let at_pointer = spec.as_ref().is_some_and(|spec| spec.at == TooltipAt::Pointer);
     let place = if at_pointer {
         Place::anchored(Anchor::Pointer, Side::Below, Align::Start)
     } else {
-        Place::anchored(Anchor::Rect(core.rect), Side::Below, Align::Start)
+        Place::anchored(Anchor::Rect(rect), Side::Below, Align::Start)
     };
     let tooltip = Overlay::tooltip().place(place);
-    let to_screen = areas::layer_to_screen(ctx, input.ui.layer_id());
-    let layer = Layer { id: tip_id, overlay: &tooltip, anchor: to_screen * core.rect, env: input.env, exiting: !show, fade: presence.t };
-    let mut rich = input.rich;
+    let layer = Layer { id: tip_id, owner, overlay: &tooltip, anchor: to_screen * rect, env, exiting: !show, fade: presence.t };
+    let mut rich = rich;
     overlay::host(ctx, &layer, &mut |ui| match rich.take() {
         Some(content) => content(ui),
         None => {
@@ -167,7 +275,7 @@ impl Component for TipText<'_> {
     }
 
     fn measure(&mut self, cx: &super::MeasureCx<'_, Self>) -> Vec2 {
-        cx.layout(&TextRun::new(self.text).wrap(Wrap::Line)).size()
+        cx.layout(&TextRun::new(self.text).wrap(Wrap::Wrap)).size()
     }
 
     fn sense(&self) -> craft_behavior::Sense {
@@ -176,7 +284,7 @@ impl Component for TipText<'_> {
 
     fn paint(&mut self, ui: &mut super::PaintUi<'_>, cx: &Cx<'_, Self>) {
         let rect: Rect = cx.content_rect;
-        ui.draw().text(rect, &TextRun::new(self.text));
+        ui.draw().text(rect, &TextRun::new(self.text).wrap(Wrap::Wrap));
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> egui::Response {
