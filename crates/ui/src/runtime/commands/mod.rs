@@ -7,6 +7,7 @@ mod registry;
 
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
 pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule, Platform};
+pub use library::ChromeCommand;
 pub use library::{EditCommands, WindowCommand};
 pub use registry::CommandDefError;
 #[doc(hidden)]

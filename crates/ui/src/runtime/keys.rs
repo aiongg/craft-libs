@@ -2,12 +2,12 @@
 //! every key event of the pass, the begin hook turns them into the `Intents` of the focused component,
 //! and claims, menu-bar keys and AccessKit action requests are routed from the same record.
 
-use crate::runtime::commands::{self, EditCommands, FirePhase};
+use crate::runtime::commands::{self, ChromeCommand, EditCommands, FirePhase};
 use crate::runtime::egui::access::node_key;
 use crate::runtime::egui::input::{self as raw_input, Action, ActionKind, KeyEvent, RawInput};
 use crate::runtime::env::Env;
 use crate::runtime::focus::{self, KeepKeys, KeyUse, StopRec};
-use crate::runtime::frame::{PerViewport, request_chrome_toggle};
+use crate::runtime::frame::{ChromeToggle, PerViewport, request_chrome_toggle};
 use crate::runtime::overlay;
 use craft_behavior::focus::key_owner;
 use craft_behavior::focus::{EscapeFacts, EscapeStep, escape_step};
@@ -101,8 +101,16 @@ struct Batch {
     last_press: Option<KeyInput>,
     /// What this pass's typed text taught: the physical key, the modifiers and the text.
     learned: Vec<(Key, Mods, String)>,
-    /// A bare Tab press asked to toggle the chrome.
-    chrome_toggle: bool,
+    /// The bare Tab presses the input hook took from egui: each toggles the window's panels or moves focus, which
+    /// `take_nav` decides once this pass's root env is installed.
+    tabs: Vec<TabPress>,
+}
+
+/// A bare Tab or Shift+Tab press.
+struct TabPress {
+    input: KeyInput,
+    /// An auto-repeat of a key that is still held.
+    repeat: bool,
 }
 
 #[derive(Clone)]
@@ -184,8 +192,6 @@ struct Strip<'a> {
     os: Os,
     layout: &'a Layout,
     keeps_tab: bool,
-    /// A bare Tab toggles the chrome instead of moving focus (`tab_toggles_chrome`).
-    chrome_tab: bool,
     pages: bool,
     claims: &'a [Chord],
     edits: &'a dyn Fn(EditCommand) -> bool,
@@ -298,12 +304,8 @@ impl Strip<'_> {
         } else if let Some((command, _)) = edit {
             batch.clips.push(*command);
             false
-        } else if bare_tab && self.chrome_tab {
-            // A repeat of the toggling press is dropped: it neither toggles again nor moves focus.
-            batch.chrome_toggle |= !repeat;
-            false
         } else if bare_tab && !self.keeps_tab {
-            batch.nav.tabs.push(!mods.shift);
+            batch.tabs.push(TabPress { input: *input, repeat });
             false
         } else if ctrl_tab {
             batch.presses.push(Press { key, mods, repeat });
@@ -336,17 +338,32 @@ impl Strip<'_> {
     }
 }
 
-/// Whether a bare Tab toggles the chrome (spec 1.8) instead of moving focus: `enabled` is
-/// `RootEnv.tab_toggles_chrome`, and `focused` is the `KeyUse` of the focused component, `None` when nothing is
-/// focused. It is on when nothing is focused or the focused component keeps Tab and is no text part; a text part that
-/// keeps Tab for indentation never loses it, and elsewhere Tab moves focus.
+/// Whether a bare Tab press that a chrome command is bound to toggles the window's panels (spec 1.8) instead of
+/// moving focus. `enabled` is `RootEnv.tab_toggles_chrome`; `canvas` is whether the window registered a document
+/// canvas (a stop with `KeyUse::chrome_key`) in its last pass; `layer` is what the layer stack says about the focus
+/// and `focused` is the `KeyUse` of the focused component, `None` when nothing is focused.
 ///
-/// Open question Q3 (README of briefs/l4): the owner has not chosen between this rule (A), toggling only when a canvas
-/// has focus (B), and A or B by window plus rebindable commands (C). An answer changes this function only.
-/// `KeyUse::CANVAS` keeps the arrows, not Tab, so a canvas does not match yet; the answer to Q3 decides how a canvas is
-/// recognised.
-fn tab_toggles_chrome(enabled: bool, focused: Option<&KeyUse>) -> bool {
-    enabled && focused.is_none_or(|keys| keys.keep == KeepKeys::Tab && keys.owner != OwnerClass::Text)
+/// A modal or dialog layer never toggles: Tab moves focus inside it. In a window with a canvas the toggle is on when
+/// nothing is focused or the canvas is; elsewhere it is on only when the canvas is focused. A component that keeps
+/// Tab never reaches this function: the press is its own.
+fn tab_toggles_chrome(enabled: bool, canvas: bool, layer: overlay::LayerKeys, focused: Option<&KeyUse>) -> bool {
+    let closed = matches!(layer, overlay::LayerKeys::Blocked | overlay::LayerKeys::Class(OwnerClass::Dialog));
+    if !enabled || closed {
+        return false;
+    }
+    let on_canvas = focused.is_some_and(|keys| keys.chrome_key);
+    if canvas { focused.is_none() || on_canvas } else { on_canvas }
+}
+
+/// The toggle of the chrome command whose bound chord `input` presses, when that command is enabled.
+fn chrome_toggle_of(ctx: &Context, input: &KeyInput) -> Option<ChromeToggle> {
+    let os = crate::runtime::windows::os_of(ctx);
+    let layout = layout_of(ctx);
+    ChromeCommand::ALL.into_iter().find_map(|command| {
+        let resolved = commands::resolve(ctx, command);
+        let chord = resolved.chord?;
+        (resolved.enabled && layout.matches(&chord, input, os)).then_some(command.toggle())
+    })
 }
 
 #[cfg(feature = "testing")]
@@ -376,7 +393,6 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
         Arc::default()
     };
     let latin = input.latin_layout_chars.clone();
-    let chrome_tab = tab_toggles_chrome(Env::root_for(ctx, viewport).is_some_and(|env| env.tab_toggles_chrome), keys.as_ref());
     let (batch, visible) = with(ctx, viewport, |stage| {
         let mut claims = record.claims.clone();
         claims.extend(stage.claims.iter().filter(|(owner, _)| Some(*owner) == record.focused).map(|(_, chord)| *chord));
@@ -387,7 +403,6 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
             os,
             layout: &stage.layout,
             keeps_tab: keys.is_some_and(|keys| keys.keep == focus::KeepKeys::Tab),
-            chrome_tab,
             pages: record.pages,
             claims: &claims,
             edits: &edits,
@@ -413,18 +428,35 @@ pub(crate) fn input_hook(ctx: &Context, input: &mut RawInput) -> bool {
     if let Some(visible) = visible {
         focus::set_visible(ctx, viewport, visible);
     }
-    if batch.chrome_toggle {
-        request_chrome_toggle(ctx);
-    }
     with(ctx, viewport, |stage| {
         stage.batch = batch;
     });
     input.events.len() != before
 }
 
-/// Takes the Tab and F6 moves the input hook recorded, for the focus service's begin hook.
+/// Takes the Tab and F6 moves the input hook recorded, for the focus service's begin hook. The pass's root env is
+/// installed by now, so a bare Tab that passes the chrome gate and has a chrome command bound to it becomes that
+/// command's toggle for the running viewport; any other Tab moves focus. A repeat of a toggling press is dropped: it
+/// neither toggles again nor moves focus.
 pub(crate) fn take_nav(ctx: &Context) -> NavKeys {
-    current(ctx, |stage| std::mem::take(&mut stage.batch.nav))
+    let (mut nav, tabs) = current(ctx, |stage| (std::mem::take(&mut stage.batch.nav), std::mem::take(&mut stage.batch.tabs)));
+    if tabs.is_empty() {
+        return nav;
+    }
+    let viewport = crate::runtime::egui::pass::current_viewport(ctx);
+    let enabled = Env::root_for(ctx, viewport).is_some_and(|env| env.tab_toggles_chrome);
+    let focused = focus::focused_rec(ctx);
+    let canvas = focus::with(ctx, |state| state.stops.iter().any(|rec| rec.stop.keys.chrome_key));
+    let layer = overlay::key_layer(ctx, &focused.as_ref().map(|rec| focus::scope_chain(ctx, rec)).unwrap_or_default());
+    let gate = tab_toggles_chrome(enabled, canvas, layer, focused.as_ref().map(|rec| &rec.stop.keys));
+    for press in tabs {
+        match gate.then(|| chrome_toggle_of(ctx, &press.input)).flatten() {
+            Some(toggle) if !press.repeat => request_chrome_toggle(ctx, viewport, toggle),
+            Some(_) => {}
+            None => nav.tabs.push(!press.input.mods.shift),
+        }
+    }
+    nav
 }
 
 /// The begin hook's intents: the pass's key events, AccessKit requests and claimed chords, routed to the
@@ -616,8 +648,17 @@ pub(crate) fn layout_of(ctx: &Context) -> Layout {
 }
 
 /// Takes the shortcut events the key stage left to the app this pass, for the dispatcher at H7.
+///
+/// A press of a chord a chrome command is rebound to fires that command here: it toggles the running viewport's panels
+/// and goes no further.
 pub(crate) fn take_shortcuts(ctx: &Context) -> Shortcuts {
-    current(ctx, |stage| std::mem::take(&mut stage.shortcuts))
+    let mut shortcuts = current(ctx, |stage| std::mem::take(&mut stage.shortcuts));
+    let viewport = crate::runtime::egui::pass::current_viewport(ctx);
+    shortcuts.keys.retain(|shortcut| {
+        let toggle = (shortcut.phase == FirePhase::Press).then(|| chrome_toggle_of(ctx, &shortcut.input)).flatten();
+        toggle.inspect(|toggle| request_chrome_toggle(ctx, viewport, *toggle)).is_none()
+    });
+    shortcuts
 }
 
 /// Asks the focused component of the running viewport to take `command` as `Intent::Edit` in the next pass.

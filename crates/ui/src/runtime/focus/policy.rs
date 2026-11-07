@@ -227,6 +227,9 @@ pub struct KeyUse {
     /// The component acts on the arrow moves routed to it (`Intent::Move`: it takes them with `take_move`), so a
     /// shortcut never shares them. A control that does not (a button) leaves them to the commands around the focus.
     pub moves: bool,
+    /// The component is a document canvas: a window that registers one this pass shows a document, and a bare Tab
+    /// toggles that window's panels with nothing focused or the canvas focused (`window.togglePanels`).
+    pub chrome_key: bool,
 }
 
 impl KeyUse {
@@ -234,7 +237,7 @@ impl KeyUse {
     pub const TEXT_MULTILINE: KeyUse = KeyUse::of(Input::Text).with_keep(KeepKeys::BlockArrows);
     /// A code editor: Tab inserts.
     pub const CODE: KeyUse = KeyUse::of(Input::Editor).with_keep(KeepKeys::Tab);
-    /// A canvas: all arrows, no activation.
+    /// A document canvas: all arrows, no activation, and the key that marks its window as showing a document.
     pub const CANVAS: KeyUse = KeyUse {
         keep: KeepKeys::BlockArrows,
         activate: ActivateKeys::Neither,
@@ -243,9 +246,11 @@ impl KeyUse {
         owner: OwnerClass::Widget,
         value: false,
         moves: false,
+        chrome_key: true,
     };
-    /// A shortcut recorder.
-    pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, ..KeyUse::CANVAS };
+    /// A shortcut recorder: it takes the arrows of a canvas, but it is no document, so it marks no window and a Tab in
+    /// it never toggles panels.
+    pub const RECORDER: KeyUse = KeyUse { owner: OwnerClass::Recorder, chrome_key: false, ..KeyUse::CANVAS };
 
     /// The default key use of a component that takes `input`. The only place egui key filters start from.
     pub const fn of(input: Input) -> KeyUse {
@@ -260,7 +265,7 @@ impl KeyUse {
             OwnerClass::Text => EditSet::ALL,
             _ => EditSet::NONE,
         };
-        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false }
+        KeyUse { keep, activate, claims: &[], edits, owner, value: false, moves: false, chrome_key: false }
     }
 
     /// The same use claiming `claims`.

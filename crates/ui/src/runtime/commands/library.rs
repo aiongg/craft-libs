@@ -1,5 +1,6 @@
 //! The command sets the library itself declares.
 
+use crate::runtime::frame::ChromeToggle;
 use craft_behavior::EditCommand;
 
 /// The edit commands (11.3). A focused component that lists one in `KEYS.edits` takes it as
@@ -76,4 +77,33 @@ pub enum WindowCommand {
     /// Resize the focused window with the arrow keys.
     #[command(label = "Size", default = "Alt+F8", no_default_on = "mac")]
     Size,
+}
+
+// The chrome commands (spec 1.8): a bare Tab or Shift+Tab that passes the key stage's gate fires one for the window it
+// was pressed in, and the window's shell hides its panels (`FrameOutput.chrome_toggles`). Rebinding a command moves its key.
+
+/// The `window` commands that hide the panels of the window they run in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, craft_ui_macros::CommandSet)]
+#[command(prefix = "window")]
+#[non_exhaustive]
+pub enum ChromeCommand {
+    /// Show or hide every panel of the window.
+    #[command(label = "Show or Hide Panels", default = "Tab", modal = "blocked")]
+    TogglePanels,
+    /// Show or hide every panel of the window except the tools.
+    #[command(label = "Show or Hide Panels Except Tools", default = "Shift+Tab", modal = "blocked")]
+    TogglePanelsKeepTools,
+}
+
+impl ChromeCommand {
+    /// Both commands.
+    pub const ALL: [ChromeCommand; 2] = [ChromeCommand::TogglePanels, ChromeCommand::TogglePanelsKeepTools];
+
+    /// The toggle the command writes to the output.
+    pub const fn toggle(self) -> ChromeToggle {
+        match self {
+            ChromeCommand::TogglePanels => ChromeToggle::Panels,
+            ChromeCommand::TogglePanelsKeepTools => ChromeToggle::PanelsKeepTools,
+        }
+    }
 }
