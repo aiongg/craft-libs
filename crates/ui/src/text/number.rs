@@ -6,21 +6,24 @@
 #[cfg(feature = "testing")]
 mod stories;
 
+use super::adorn::{Adornment, Placed, place};
+use super::words::TextWords;
 use super::{FieldStyle, text_part};
+use crate::buttons::IconButton;
 use crate::contract::{
-    Access, ActivateOn, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Focus as _, Input, LeadOnOpen, MeasureCx,
-    Name, Numeric, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Remember as _, Role, Scrub, SelectMode,
-    Show as _, ShowCollection as _, Styled as _, WordSetCx as _,
+    Access, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, Entry, Focus as _, Input, MeasureCx, Numeric, Outcome,
+    Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, Scrub, Show as _, ShowCollection as _, Styled as _,
+    WordSetCx as _,
 };
 use crate::list::{List, ListRow};
 use crate::primitives::{IconSpec, TextOptions, TextRun};
 use crate::runtime::env::{Label, UnitKind, Units};
-use crate::runtime::focus::{FocusPolicy, Initial};
-use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, Ink, StyleCx, SurfaceLook, TextLook, TypeRole};
 use crate::value_drag::Slider;
+use craft_behavior::nav::{LARGE_STEPS, StepResult, ValueAxes, ValueSteps};
 use craft_behavior::{
-    Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, NavMove, NotAValue, NumberCodec, PartKey, Selection,
-    Sense, ValueDrag,
+    Codec, DisplayOrder, Flow, HitLevel, HitPriority, IconId, Intent, ItemSource, Metrics, MoveMods, NavMove, NotAValue, NumberCodec, PartKey,
+    Selection, Sense, ValueDrag, decimals_for_step, wheel_step,
 };
 use craft_theme::Stateful;
 use egui::{Pos2, Rect, Response, Vec2};
@@ -29,10 +32,6 @@ use std::ops::{Deref, RangeInclusive};
 
 /// The step of an arrow press, the wheel and the label scrub when the field sets none.
 const DEFAULT_STEP: f64 = 1.0;
-/// How many steps Shift and the Page keys move by.
-const COARSE: f64 = 10.0;
-/// The share of a step Ctrl or Cmd moves by.
-const FINE: f64 = 0.1;
 /// The decimals a field writes when neither a codec nor a unit kind says.
 const DEFAULT_DECIMALS: usize = 3;
 /// How far a value may sit off a multiple of the step and still count as on it.
@@ -43,41 +42,19 @@ const PRESETS: PartKey = PartKey::new("presets");
 /// The chevron that opens the popup slider.
 const SLIDER: PartKey = PartKey::new("slider");
 
-/// One row of a number field's presets list.
-#[derive(Clone, Debug, PartialEq)]
+/// The chevron's icon.
+const CHEVRON: &str = "chevron_down";
+
+/// What a presets row picks: a number the field takes, or a choice that is not a number (Auto, Metrics) and
+/// leaves the value alone.
+#[derive(Clone, Copy, Debug, PartialEq)]
 #[non_exhaustive]
-pub enum Preset {
-    /// A number: a pick sets the field to `value`. The row is selected while the field holds `value`.
-    #[non_exhaustive]
-    Value {
-        /// The row's text.
-        label: Label,
-        /// The number a pick sets.
-        value: f64,
-    },
-    /// A choice that is not a number (Auto, Metrics): a pick leaves the value alone and `NumberOutput::preset`
-    /// names the row. `checked` says the choice is current.
-    #[non_exhaustive]
-    Choice {
-        /// The row's text.
-        label: Label,
-        /// The choice is current.
-        checked: bool,
-    },
-    /// A line between groups of rows.
-    Separator,
-}
-
-impl Preset {
-    /// A numeric row.
-    pub fn value(label: impl Into<Label>, value: f64) -> Self {
-        Preset::Value { label: label.into(), value }
-    }
-
-    /// A row that is not a number.
-    pub fn choice(label: impl Into<Label>, checked: bool) -> Self {
-        Preset::Choice { label: label.into(), checked }
-    }
+pub enum NumberPick {
+    /// A pick sets the field to this number. The row is checked while the field holds it.
+    Number(f64),
+    /// A pick leaves the value alone and `NumberOutput::preset` names it. The row is checked by its entry's
+    /// `checked`.
+    Choice(u32),
 }
 
 /// What a number field reports: the edit and the preset row picked this pass.
@@ -85,8 +62,8 @@ impl Preset {
 pub struct NumberOutput {
     /// The edit response of the value.
     pub edit: EditResponse<Option<f64>>,
-    /// The position of the `Preset::Choice` row the user picked.
-    pub preset: Option<usize>,
+    /// The presets row the user picked this pass.
+    pub preset: Option<NumberPick>,
 }
 
 impl Deref for NumberOutput {
@@ -154,19 +131,28 @@ impl Rule {
         } else {
             at.floor() + n + 1.0
         };
-        self.settle(round_to(multiple * size, places(size)))
+        self.settle(round_to(multiple * size, decimals_for_step(size)))
+    }
+
+    /// `value` on the nearest multiple of the step.
+    fn snap(&self, value: f64) -> f64 {
+        round_to((value / self.step).round() * self.step, decimals_for_step(self.step))
     }
 }
 
-/// The decimal places of `size`.
-fn places(size: f64) -> i32 {
-    let text = format!("{size}");
-    text.split_once('.').map_or(0, |(_, fraction)| fraction.len() as i32)
+/// `value` rounded to `decimals` decimal places.
+fn round_to(value: f64, decimals: usize) -> f64 {
+    let scale = 10f64.powi(i32::try_from(decimals).unwrap_or(0));
+    (value * scale).round() / scale
 }
 
-fn round_to(value: f64, places: i32) -> f64 {
-    let scale = 10f64.powi(places);
-    (value * scale).round() / scale
+/// The scale of a step by an arrow key: Shift moves `LARGE_STEPS` steps, Alt a share of one, both together one.
+fn key_scale(mods: MoveMods) -> f64 {
+    match (mods.extend, mods.fine) {
+        (true, false) => LARGE_STEPS,
+        (false, true) => 1.0 / LARGE_STEPS,
+        _ => 1.0,
+    }
 }
 
 /// Whether `text` is a plain number rather than an expression or a relative input, which apply on commit only.
@@ -175,11 +161,22 @@ fn is_plain(text: &str) -> bool {
     !text.starts_with(['+', '*', '/']) && text.chars().skip(1).all(|c| !matches!(c, '+' | '-' | '*' | '/' | '(' | ')'))
 }
 
-/// The field's codec with the range applied to what it reads, and a plain number applying as it is typed.
+/// The field's codec with what a committed value is held to: the range, the step grid when typed values snap, and
+/// the decimals a committed value is rounded to. A plain number applies as it is typed unless typed values snap,
+/// which apply on commit only.
 #[derive(Clone)]
 struct Ruled {
     inner: NumberCodec,
     rule: Rule,
+    snap: bool,
+    decimals: Option<usize>,
+}
+
+impl Ruled {
+    fn held(&self, number: f64) -> f64 {
+        let snapped = if self.snap { self.rule.snap(number) } else { number };
+        self.rule.settle(self.decimals.map_or(snapped, |decimals| round_to(snapped, decimals)))
+    }
 }
 
 impl Codec for Ruled {
@@ -190,11 +187,11 @@ impl Codec for Ruled {
     }
 
     fn parse(&self, text: &str, start: &Option<f64>) -> Result<Option<f64>, NotAValue> {
-        self.inner.parse(text, start).map(|read| read.map(|number| self.rule.settle(number)))
+        self.inner.parse(text, start).map(|read| read.map(|number| self.held(number)))
     }
 
     fn applies_as_typed(&self, text: &str) -> bool {
-        is_plain(text) && matches!(self.inner.parse(text, &None), Ok(Some(_)))
+        !self.snap && is_plain(text) && matches!(self.inner.parse(text, &None), Ok(Some(_)))
     }
 
     fn filter(&self, c: char) -> bool {
@@ -214,7 +211,7 @@ impl Codec for Ruled {
     }
 }
 
-/// The style of a number field: the field look and the chevron of its popups.
+/// The style of a number field: the field look, which the chevrons are laid out by, and the unit's text.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct NumberStyle {
@@ -222,25 +219,11 @@ pub struct NumberStyle {
     surface: SurfaceLook,
     #[style(metrics)]
     metrics: Metrics,
-    /// The chevron of the presets list and the popup slider.
-    #[style(icon)]
-    chevron: IconLook,
-}
-
-/// The presses an opened popup counts, so each opening gives the presets list a new id and its lead starts again.
-#[derive(Clone, Copy, Default)]
-struct Opened(u32);
-
-/// The row last highlighted in the open presets list.
-#[derive(Clone, Copy, Default)]
-struct Highlight(Option<usize>);
-
-/// The field's regions along its inline axis.
-struct Strip {
-    text: Rect,
-    unit: Option<Rect>,
-    presets: Option<Rect>,
-    slider: Option<Rect>,
+    /// The unit shown after the number.
+    #[style(text)]
+    unit: TextLook,
+    /// The field look the adornments are placed by; `surface` and `metrics` are its own.
+    field: FieldStyle,
 }
 
 /// A number field: a text part over [`NumberCodec`]; empty text is `None`.
@@ -250,8 +233,8 @@ pub struct NumberField<'a> {
     #[common]
     common: Common,
     value: Bind<'a, Option<f64>>,
-    /// The codec, to read another locale's separators or units. Without one the field reads and writes with the
-    /// env's locale and the spellings of `unit_kind`.
+    /// The codec, to read another locale's separators or units, or to read words such as "Auto" (`or_parse`).
+    /// Without one the field reads and writes with the env's locale and the spellings of `unit_kind`.
     #[prop]
     codec: Option<NumberCodec>,
     /// What the number counts: typed text may carry this kind's unit spellings ("12 mm") in the user's language or
@@ -269,14 +252,22 @@ pub struct NumberField<'a> {
     unit: Option<Label>,
     /// The rows of the list a chevron after the field opens; Alt+Down opens it too.
     #[prop]
-    presets: Option<&'a [Preset]>,
+    presets: Option<&'a [Entry<NumberPick>]>,
     /// A chevron after the field opens a slider over `range` below it.
     #[prop]
     popup_slider: Option<RangeInclusive<f64>>,
+    /// A typed value goes to the nearest multiple of the step when it commits.
+    #[prop]
+    snap_typed: bool,
+    /// The decimals a committed value is rounded to; the display keeps the codec's.
+    #[prop]
+    commit_decimals: Option<usize>,
     options: TextOptions,
     scrub: bool,
-    picked: Option<usize>,
+    picked: Option<NumberPick>,
     unit_size: Vec2,
+    /// Whether the presets list and the popup slider are open in this pass, for the chevrons' accessible state.
+    open: [bool; 2],
 }
 
 impl<'a> NumberField<'a> {
@@ -292,10 +283,13 @@ impl<'a> NumberField<'a> {
             unit: None,
             presets: None,
             popup_slider: None,
+            snap_typed: false,
+            commit_decimals: None,
             options: TextOptions::default(),
             scrub: false,
             picked: None,
             unit_size: Vec2::ZERO,
+            open: [false; 2],
         }
         .label(label)
     }
@@ -322,35 +316,49 @@ impl<'a> NumberField<'a> {
     }
 
     fn ruled(&self, units: &Units) -> Ruled {
-        Ruled { inner: self.number_codec(units), rule: self.rule() }
+        Ruled { inner: self.number_codec(units), rule: self.rule(), snap: self.snap_typed, decimals: self.commit_decimals }
     }
 
     /// The unit's size, the room it takes and the gap before it.
     fn unit_extent(&self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        self.unit.as_ref().map_or(Vec2::ZERO, |unit| cx.layout(&TextRun::new(unit.as_str())).size())
+        self.unit.as_ref().map_or(Vec2::ZERO, |unit| cx.layout(&TextRun::new(unit.as_str()).role(cx.style.unit.role)).size())
     }
 
-    fn strip(&self, rect: Rect, rtl: bool, side: f32, gap: f32) -> Strip {
-        let mut flow = Flow::new(rect, rtl);
-        let mut take = |wanted: bool, width: f32| {
-            wanted.then(|| {
-                let (taken, rest) = flow.take_end(width);
-                flow = rest;
-                taken
-            })
-        };
-        let slider = take(self.popup_slider.is_some(), side);
-        let presets = take(self.presets.is_some(), side);
-        let unit = take(self.unit_size.x > 0.0, self.unit_size.x + gap);
-        Strip { text: flow.rect(), unit, presets, slider }
+    /// The chevrons after the text, in order, with their parts and accessible names.
+    fn chevrons(&self, words: &TextWords) -> Vec<(PartKey, Label)> {
+        let mut chevrons = Vec::new();
+        if self.presets.is_some() {
+            chevrons.push((PRESETS, words.presets.clone()));
+        }
+        if self.popup_slider.is_some() {
+            chevrons.push((SLIDER, words.slider.clone()));
+        }
+        chevrons
     }
 
-    /// Toggles a popup from its chevron and opens the first from Alt+Down.
+    fn adornments(chevrons: &[(PartKey, Label)]) -> Vec<Adornment> {
+        chevrons.iter().map(|(key, name)| Adornment::button(*key, IconSpec::svg(IconId::new(CHEVRON)), name.clone())).collect()
+    }
+
+    /// The rect of the text and the chevrons inside `rect`.
+    fn laid_out(style: &NumberStyle, rect: Rect, rtl: bool, chevrons: &[(PartKey, Label)]) -> Placed {
+        place(rect, &style.field, &[], &Self::adornments(chevrons), rtl)
+    }
+
+    /// The text rect and the unit's: the unit sits between the text and the chevrons.
+    fn text_and_unit(&self, text: Rect, rtl: bool, gap: f32) -> (Rect, Option<Rect>) {
+        if self.unit_size.x <= 0.0 {
+            return (text, None);
+        }
+        let (unit, rest) = Flow::new(text, rtl).take_end(self.unit_size.x + gap);
+        (rest.rect(), Some(unit))
+    }
+
+    /// Toggles a popup from its chevron and opens one on Alt+Down: the presets list, else the slider.
     fn drive_popups(&mut self, cx: &mut Cx<'_, Self>) {
         let presets = self.presets.map(|_| cx.popup("presets"));
         let slider = self.popup_slider.as_ref().map(|_| cx.popup("slider"));
         let mut asked = cx.intents().take(Intent::Open);
-        let was_open = presets.is_some_and(|popup| popup.is_open(cx));
         for (popup, part) in [(presets, PRESETS), (slider, SLIDER)] {
             let Some(popup) = popup else { continue };
             if cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click()) {
@@ -368,93 +376,66 @@ impl<'a> NumberField<'a> {
         {
             popup.open(cx);
         }
-        if let Some(popup) = presets
-            && popup.is_open(cx)
-            && !was_open
-        {
-            *cx.memory::<Highlight>() = Highlight(None);
-            cx.memory::<Opened>().0 += 1;
-        }
+        self.open = [presets.is_some_and(|popup| popup.is_open(cx)), slider.is_some_and(|popup| popup.is_open(cx))];
     }
 
-    fn show_presets(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, rows: &[Preset]) {
+    fn show_presets(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, rows: &[Entry<NumberPick>]) {
         let popup = cx.popup("presets");
-        let labels: Vec<Label> = rows
-            .iter()
-            .map(|row| match row {
-                Preset::Value { label, .. } | Preset::Choice { label, .. } => cx.env.resolve(label),
-                Preset::Separator => Label::Empty,
-            })
-            .collect();
+        let labels: Vec<Label> =
+            rows.iter().map(|row| if row.is_separator() { Label::Empty } else { cx.env.resolve(&row.label().clone()) }).collect();
         let current = cx.value().and_then(|value| *value);
-        let held = |at: usize| match &rows[at] {
-            Preset::Value { value, .. } => current.is_some_and(|current| (current - value).abs() <= 1e-4 * current.abs().max(1.0)),
-            Preset::Choice { checked, .. } => *checked,
-            Preset::Separator => false,
+        let held = |at: usize| match rows[at].value() {
+            Some(NumberPick::Number(value)) => current.is_some_and(|current| (current - value).abs() <= 1e-4 * current.abs().max(1.0)),
+            Some(NumberPick::Choice(_)) => rows[at].checked(),
+            None => false,
         };
         let marked = (0..rows.len()).find(|at| held(*at));
-        let lead = cx.recall::<Highlight>().0.or(marked);
-        let opened = cx.recall::<Opened>().0;
         let name = cx.label();
-        let overlay = Overlay::dropdown().focus(FocusPolicy::POPUP.initial(Initial::First));
-        let events = ui.show(popup, overlay, |ui, _| {
-            let selection = lead.map_or_else(Selection::default, |at| Selection::new(vec![at], Some(at), Some(at)));
+        let events = ui.show(popup, Overlay::dropdown(), |ui, _| {
+            let selection = marked.map_or_else(Selection::default, |at| Selection::new(vec![at], Some(at), Some(at)));
             let source = Presets { rows, labels: &labels };
-            List::<usize>::new(name.clone())
-                .select(SelectMode::Single)
-                .activate(ActivateOn::Click)
-                .lead_on_open(LeadOnOpen::First)
-                .lead_follows_hover(true)
+            List::<usize>::options(name.clone())
                 .selection(Bind::given(selection))
-                .id_salt(opened)
-                .show_items(ui, &source, &mut |at, _| match rows[*at] {
-                    Preset::Separator => ListRow::spacer(),
-                    _ => ListRow::new(labels[*at].clone()).option(),
+                .show_items(ui, &source, &mut |at, _| {
+                    if rows[*at].is_separator() { ListRow::spacer() } else { ListRow::new(labels[*at].clone()).enabled(rows[*at].enabled()).option() }
                 })
                 .events
         });
-        let mut picked = None;
-        for event in events.into_iter().flatten() {
-            match event {
-                CollectionEvent::LeadMoved(at) => cx.memory::<Highlight>().0 = Some(at),
-                CollectionEvent::Activate(at) => picked = Some(at),
-                _ => {}
+        let picked = events.into_iter().flatten().find_map(|event| match event {
+            CollectionEvent::Activate(at) => rows[at].value().copied(),
+            _ => None,
+        });
+        if let Some(pick) = picked {
+            if let NumberPick::Number(value) = pick {
+                cx.set(Some(self.rule().settle(value)));
             }
-        }
-        if let Some(at) = picked {
-            match &rows[at] {
-                Preset::Value { value, .. } => cx.set(Some(self.rule().settle(*value))),
-                Preset::Choice { .. } => self.picked = Some(at),
-                Preset::Separator => {}
-            }
-            popup.close(cx);
+            self.picked = Some(pick);
         }
     }
 
     fn show_slider(&mut self, ui: &mut OverlayUi<'_>, cx: &mut Cx<'_, Self>, range: &RangeInclusive<f64>) {
         let popup = cx.popup("slider");
         let rule = self.rule();
-        let mut shown = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.settle((range.start() + range.end()) / 2.0));
+        let start = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.settle((range.start() + range.end()) / 2.0));
+        let mut shown = start;
         let name = cx.label();
         let step = self.step;
-        let changed = ui.show(popup, Overlay::popover(), |ui, _| {
-            let before = shown;
+        let edit = ui.show(popup, Overlay::popover(), |ui, _| {
             let slider = Slider::new(Bind::bound(&mut shown), range.clone()).label(name.clone());
             match step {
                 Some(step) => slider.step(step).show(ui),
                 None => slider.show(ui),
-            };
-            shown != before
+            }
         });
-        if changed == Some(true) {
-            cx.set(Some(rule.settle(shown)));
+        if let Some(edit) = edit {
+            cx.adopt(&edit, &Some(start), |value, mine| *mine = Some(rule.settle(*value)));
         }
     }
 }
 
 /// The preset rows as a collection source, keyed by position.
 struct Presets<'a> {
-    rows: &'a [Preset],
+    rows: &'a [Entry<NumberPick>],
     labels: &'a [Label],
 }
 
@@ -472,7 +453,7 @@ impl DisplayOrder<usize> for Presets<'_> {
     }
 
     fn is_section(&self, at: usize) -> bool {
-        matches!(self.rows[at], Preset::Separator)
+        self.rows[at].is_separator()
     }
 
     fn text(&self, at: usize) -> Option<Cow<'_, str>> {
@@ -489,8 +470,13 @@ impl Component for NumberField<'_> {
     type Output = NumberOutput;
 
     fn style(cx: &StyleCx<'_>, _: NumberFieldStyleKey) -> NumberStyle {
-        let FieldStyle { surface, metrics, .. } = FieldStyle::at(cx);
-        NumberStyle { surface, metrics, chevron: IconLook::new(cx.control().icon, Stateful::new(cx.ink(Ink::OnPanel))) }
+        let field = FieldStyle::at(cx);
+        NumberStyle {
+            surface: field.surface.clone(),
+            metrics: field.metrics,
+            unit: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
+            field,
+        }
     }
 
     fn sense(&self) -> Sense {
@@ -498,25 +484,32 @@ impl Component for NumberField<'_> {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let codec = NumberCodec::default();
+        let codec = self.number_codec(&cx.env.units());
         let sample = cx.value().map_or(Cow::Borrowed(""), |value| codec.sample(value));
         let text = cx.layout(&TextRun::new(sample.as_ref())).size();
         self.unit_size = self.unit_extent(cx);
         let unit = if self.unit_size.x > 0.0 { self.unit_size.x + cx.gap() } else { 0.0 };
-        let chevrons = f32::from(self.presets.is_some()) + f32::from(self.popup_slider.is_some());
-        Vec2::new(text.x + unit + chevrons * cx.icon(), text.y.max(self.unit_size.y))
+        // The chevrons' extent is the span from the text's end to the last chevron's far edge, laid out in the
+        // field's minimum size, which is wide enough for any adornments.
+        let chevrons = self.chevrons(&cx.words::<TextWords>());
+        let probe = Rect::from_min_size(Pos2::ZERO, cx.style.metrics.min_size);
+        let placed = Self::laid_out(cx.style, probe, false, &chevrons);
+        let adornments = placed.trailing.last().map_or(0.0, |last| last.max.x - placed.text.max.x);
+        Vec2::new(text.x + unit + adornments, text.y.max(self.unit_size.y))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
         self.unit_size = self.unit_extent(cx);
-        let strip = self.strip(rect, cx.flow.is_rtl(), cx.icon(), cx.gap());
-        if let Some(value) = cx.value() {
-            cx.text(text_part::<Option<f64>>(), strip.text, &self.ruled(&cx.env.units()), value, &self.options);
-        }
-        for (key, at, hint) in [(PRESETS, strip.presets, "Alt+Down opens the list"), (SLIDER, strip.slider, "Alt+Down opens the slider")] {
-            if let Some(at) = at {
-                cx.part(key, at).sense(Sense::CLICK).priority(HitPriority::new(HitLevel::Handle, 0)).pointer_only(hint);
-            }
+        let rtl = cx.flow.is_rtl();
+        let chevrons = self.chevrons(&cx.words::<TextWords>());
+        let placed = Self::laid_out(cx.style, rect, rtl, &chevrons);
+        let (text, _) = self.text_and_unit(placed.text, rtl, cx.gap());
+        cx.text(text_part::<Option<f64>>(), text, &self.ruled(&cx.env.units()), cx.value().unwrap_or(&None), &self.options);
+        let slider_reason =
+            if self.presets.is_some() { "Alt+Down opens the presets list; the slider opens by pointer" } else { "Alt+Down opens the slider" };
+        for ((key, _), at) in chevrons.iter().zip(&placed.trailing) {
+            let reason = if *key == PRESETS { "Alt+Down opens the list" } else { slider_reason };
+            cx.part(*key, *at).sense(Sense::CLICK | Sense::KEEP_FOCUS).priority(HitPriority::new(HitLevel::Handle, 0)).pointer_only(reason);
         }
     }
 
@@ -526,59 +519,41 @@ impl Component for NumberField<'_> {
 
     fn scrub(&self) -> Option<Scrub<Option<f64>>> {
         let rule = self.rule();
-        let drag = ValueDrag::relative(rule.step, rule.bounds()).warp(true).hide_cursor(true).coarse(COARSE).fine(FINE);
+        let drag = ValueDrag::relative(rule.step, rule.bounds()).warp(true).hide_cursor(true).coarse(LARGE_STEPS).fine(1.0 / LARGE_STEPS);
         // Rounded to the field's decimals, so a scrubbed value carries no float noise. The step is not a grid
         // here: an Alt drag moves by a share of it.
-        let places = i32::try_from(self.decimals()).unwrap_or(0);
-        let round = move |number: f64| {
-            let scale = 10f64.powi(places);
-            (number * scale).round() / scale
-        };
-        self.scrub.then(|| Scrub::new(drag, |value: &Option<f64>| value.unwrap_or(0.0), move |number| Some(round(number))))
+        let decimals = self.decimals();
+        self.scrub.then(|| Scrub::new(drag, |value: &Option<f64>| value.unwrap_or(0.0), move |number| Some(round_to(number, decimals))))
     }
 
-    /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. A
-    /// step starts from the applied value, or from 0 kept in the range while the field is blank.
+    /// Arrows, Page keys and the wheel step the value, AccessKit sets it, and the chevrons open the popups. Up and
+    /// Down step by the step, with Shift by `LARGE_STEPS` steps and, on a field without a dropdown, with Alt by a
+    /// tenth; on a field with presets or a popup slider Alt+Down opens the dropdown instead, and the wheel keeps its
+    /// Alt fine step. A step starts from the applied value, or from 0 kept in the
+    /// range while the field is blank.
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        if self.presets.is_some() || self.popup_slider.is_some() {
-            self.drive_popups(cx);
-        }
         let rule = self.rule();
+        let has_popups = self.presets.is_some() || self.popup_slider.is_some();
         while let Some((mv, mods)) = cx.intents().take_move() {
             let (notches, scale) = match mv {
-                NavMove::Up => (
-                    1,
-                    if mods.extend {
-                        COARSE
-                    } else if mods.lead {
-                        FINE
-                    } else {
-                        1.0
-                    },
-                ),
-                NavMove::Down => (
-                    -1,
-                    if mods.extend {
-                        COARSE
-                    } else if mods.lead {
-                        FINE
-                    } else {
-                        1.0
-                    },
-                ),
-                NavMove::PageUp => (1, COARSE),
-                NavMove::PageDown => (-1, COARSE),
+                NavMove::Up => (1, key_scale(mods)),
+                NavMove::Down => (-1, key_scale(mods)),
+                NavMove::PageUp => (1, LARGE_STEPS),
+                NavMove::PageDown => (-1, LARGE_STEPS),
                 _ => continue,
             };
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
             cx.set(Some(rule.stepped(from, notches, scale)));
         }
-        if let Some(wheel) = cx.take_wheel()
-            && wheel.scroll.y != 0.0
-        {
-            let notches = if wheel.scroll.y > 0.0 { 1 } else { -1 };
+        if has_popups {
+            self.drive_popups(cx);
+        }
+        if let Some(wheel) = cx.take_wheel() {
             let from = cx.value().and_then(|value| *value).unwrap_or_else(|| rule.blank());
-            cx.set(Some(rule.stepped(from, notches, if wheel.mods.shift { COARSE } else { 1.0 })));
+            let steps = ValueSteps::new(from, rule.low, rule.high, rule.step, rule.step * LARGE_STEPS).fine(rule.step / LARGE_STEPS);
+            if let StepResult::Set(next) = wheel_step(&steps, ValueAxes::Both, &wheel, cx.env.direction().is_rtl()) {
+                cx.set(Some(rule.settle(round_to(next, decimals_for_step(rule.step / LARGE_STEPS)))));
+            }
         }
         if let Some(next) = cx.intents().take_set_value() {
             cx.set(Some(rule.settle(next)));
@@ -595,6 +570,8 @@ impl Component for NumberField<'_> {
         }
     }
 
+    /// The numeric value, and a button node per chevron named by its word (the painted face) that is expanded while
+    /// its popup is open.
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let rule = self.rule();
         let numeric = match cx.value() {
@@ -602,27 +579,27 @@ impl Component for NumberField<'_> {
             _ => Numeric::empty(rule.bounds()),
         };
         access.numeric(numeric.step(rule.step));
-        for (key, shown) in [(PRESETS, self.presets.is_some()), (SLIDER, self.popup_slider.is_some())] {
+        for (key, shown, open) in [(PRESETS, self.presets.is_some(), self.open[0]), (SLIDER, self.popup_slider.is_some(), self.open[1])] {
             if shown {
-                access.node(key, Role::BUTTON).name = Name::Text(cx.resolved.label.to_owned());
+                access.node(key, Role::BUTTON).expanded = Some(open);
             }
         }
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
-        let strip = self.strip(cx.rect, cx.flow.is_rtl(), cx.style.chevron.side, cx.style.metrics.gap);
-        let draw = ui.draw();
-        if let (Some(unit), Some(label)) = (strip.unit, &self.unit) {
+        let rtl = cx.flow.is_rtl();
+        let chevrons = self.chevrons(&cx.words::<TextWords>());
+        let placed = Self::laid_out(cx.style, cx.rect, rtl, &chevrons);
+        let (_, unit) = self.text_and_unit(placed.text, rtl, cx.style.metrics.gap);
+        if let (Some(unit), Some(label)) = (unit, &self.unit) {
             let top = unit.center().y - self.unit_size.y / 2.0;
-            let (_, rest) = Flow::new(unit, cx.flow.is_rtl()).take_start(cx.style.metrics.gap);
+            let (_, rest) = Flow::new(unit, rtl).take_start(cx.style.metrics.gap);
             let at = rest.rect();
-            draw.text(Rect::from_min_size(Pos2::new(at.min.x, top), Vec2::new(at.width(), self.unit_size.y)), &TextRun::new(label.as_str()));
+            let run = TextRun::new(label.as_str()).role(cx.style.unit.role).color(cx.resolve(&cx.style.unit.color));
+            ui.draw().text(Rect::from_min_size(Pos2::new(at.min.x, top), Vec2::new(at.width(), self.unit_size.y)), &run);
         }
-        for (key, at) in [(PRESETS, strip.presets), (SLIDER, strip.slider)] {
-            if let Some(at) = at {
-                let glyph = Rect::from_center_size(at.center(), Vec2::splat(cx.style.chevron.side));
-                draw.icon(glyph, &IconSpec::svg(IconId::new("chevron_down")).color(cx.resolve_part(key, &cx.style.chevron.color)));
-            }
+        for (key, name) in chevrons {
+            ui.face(key, IconButton::new(IconId::new(CHEVRON)).label(name));
         }
     }
 

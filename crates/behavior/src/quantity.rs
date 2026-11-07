@@ -11,6 +11,17 @@ fn digit(c: char) -> Option<u32> {
     DIGIT_BLOCKS.iter().find_map(|&zero| (zero..zero + 10).contains(&(c as u32)).then(|| c as u32 - zero))
 }
 
+/// Whether `c` can be part of a unit spelling: a letter or a symbol that stands for a unit (`%`, `°`, `×`).
+fn is_unit_char(c: char) -> bool {
+    c.is_alphabetic() || matches!(c, '%' | '\u{2030}' | '°' | '×' | '′' | '″')
+}
+
+/// Whether `spelling` can be registered with [`Reader::unit`]: letters and unit symbols only, so the reader can
+/// tell it from a number or an operator.
+pub fn is_unit_spelling(spelling: &str) -> bool {
+    !spelling.is_empty() && spelling.chars().all(is_unit_char)
+}
+
 /// A unit spelling and the factor that turns its quantity into the base unit.
 #[derive(Clone, Debug, PartialEq)]
 struct Unit {
@@ -56,7 +67,8 @@ impl Reader {
         self
     }
 
-    /// A unit spelling (case-insensitive) and its factor to the base unit.
+    /// A unit spelling (case-insensitive; letters or the symbols `%`, `°`, `×`) and its factor to the base unit.
+    /// Spaces between the number and the spelling are skipped, so "12 %" reads like "12%".
     #[must_use]
     pub fn unit(mut self, spelling: &str, factor: f64) -> Self {
         self.units.push(Unit { spelling: spelling.to_lowercase(), factor });
@@ -148,7 +160,7 @@ impl Parse<'_> {
 
     fn quantity(&mut self) -> Result<f64, NotAValue> {
         let number = self.number()?;
-        let rest: String = self.chars[self.at..].iter().take_while(|c| c.is_alphabetic()).collect();
+        let rest: String = self.chars[self.at..].iter().copied().take_while(|c| is_unit_char(*c)).collect();
         if rest.is_empty() {
             return Ok(number);
         }
@@ -195,6 +207,11 @@ mod tests {
         assert_eq!(reader.read("+5", Some(10.0)), Ok(15.0));
         assert_eq!(reader.read("*2", Some(10.0)), Ok(20.0));
         assert_eq!(reader.read("٣٤", None), Ok(34.0), "Arabic-Indic digits");
+        let symbols = Reader::new().unit("%", 1.0).unit("°", 1.0).unit("×", 1.0);
+        assert_eq!(symbols.read("12 %", None), Ok(12.0), "a symbol spelling after a space");
+        assert_eq!(symbols.read("12°", None), Ok(12.0));
+        assert_eq!(symbols.read("1.5×", None), Ok(1.5));
+        assert_eq!(symbols.read("10%+5%", None), Ok(15.0), "a symbol ends where the next operator starts");
         for bad in ["", "abc", "1 +", "2px", "1/0", "(1"] {
             assert_eq!(reader.read(bad, Some(1.0)), Err(NotAValue), "{bad:?} is not a value");
         }

@@ -250,7 +250,7 @@ pub(crate) fn report_sub(ctx: &Context, decl: &SubDecl<'_>) {
     }
     let flags = node.flags | decl.face.as_ref().map_or(Flags::empty(), |face| face.flags);
     let numeric = node.numeric.as_ref().or_else(|| decl.face.as_ref().and_then(|face| face.numeric));
-    let expanded = expanded_of(flags, decl.face.as_ref().and_then(|face| face.expanded));
+    let expanded = expanded_of(flags, node.expanded.or_else(|| decl.face.as_ref().and_then(|face| face.expanded)));
     let mut spec = NodeSpec::new(role);
     spec.rect = Some(decl.rect);
     spec.label = name.text.clone();
