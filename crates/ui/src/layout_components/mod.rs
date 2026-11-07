@@ -1,7 +1,7 @@
 //! The layout components `Stack`, `Row` and `Grid`: containers with no surface, header or footer whose body
 //! lays its children out (6.3).
 
-use crate::contract::{BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Pad, Role, Scroll, Sizing};
+use crate::contract::{Access, BodyCx, Common, Component, Container, ContainerProps, Cx, FooterRegion, Gap, HeaderRegion, Pad, Role, Scroll, Sizing};
 use crate::layout::{BodyLayout, RowAlign};
 use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{ColumnWidth, Metrics};
@@ -89,12 +89,21 @@ macro_rules! layout_component {
         }
 
         impl $(<$life>)? Component for $name $(<$life>)? {
-            const ROLE: Role = Role::None;
+            const ROLE: Role = Role::GROUP;
+            const ALT_ROLES: &'static [Role] = &[Role::None];
             type Style = LayoutStyle;
             type Output = Response;
 
             fn style(_: &StyleCx<'_>, _: $key) -> LayoutStyle {
                 LayoutStyle::new()
+            }
+
+            /// A scrolled body is a named group: its scroll region is a Tab stop and a target of Page keys. An unscrolled
+            /// one lays out its children and is no node of its own.
+            fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+                if self.props.scroll.is_none() {
+                    access.role(Role::None);
+                }
             }
 
             fn finish(self, cx: Cx<'_, Self>) -> Response {
