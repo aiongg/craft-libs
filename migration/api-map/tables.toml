@@ -81,7 +81,8 @@ note = "The cell closure is gone: a row is a `ListRow` built in the item closure
 name = "MetadataTable"
 old = "craft_ui::list::metadata::MetadataTable"
 new = "craft_ui::table::MetadataTable"
-status = "pending"
+status = "moved"
+note = "a pattern over Table; show(ui) is an inherent method of the pattern"
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -180,3 +181,64 @@ type = "Table"
 old = "show(ui, cell)"
 new = "show_items(ui, &source, item)"
 note = "The item closure returns a `ListRow` per key."
+
+# MetadataTable (tables-b).
+
+[[type]]
+name = "MetadataTableOutput"
+old = "craft_ui::list::metadata::MetadataTableOutput"
+new = "craft_ui::table::MetadataTableOutput"
+status = "moved"
+note = "response becomes table (CollectionResponse); chosen_changed is a method; checked lists the changed keys"
+
+[[type]]
+name = "MetadataRow"
+old = "craft_ui::list::metadata::MetadataRow"
+new = "craft_ui::table::MetadataRow"
+status = "moved"
+note = "key and locked are derived setters; matches(query) is new"
+
+[[type]]
+name = "MetadataGroup"
+old = "craft_ui::list::metadata::MetadataGroup"
+new = "craft_ui::table::MetadataGroup"
+status = "moved"
+note = "non_exhaustive: build with MetadataGroup::new(name, rows)"
+
+[[type]]
+name = "MetadataStyle"
+old = "craft_ui::list::metadata::MetadataStyle"
+new = ""
+status = "removed"
+note = "sizes and colours come from Table, ListRow and the tokens; the pattern has no style"
+
+[[type]]
+name = "MetadataLabels"
+old = "craft_ui::list::metadata::MetadataLabels"
+new = ""
+status = "removed"
+note = "the words are installed words (MetadataWords)"
+
+[[type]]
+name = "filter_metadata"
+old = "craft_ui::list::metadata::filter_metadata"
+new = ""
+status = "removed"
+note = "use MetadataRow::matches(query); the table filters its own rows"
+
+[[setter]]
+type = "MetadataTable"
+old = "new(id_salt, &[MetadataGroup])"
+new = "new(label, &[MetadataGroup])"
+
+[[setter]]
+type = "MetadataTable"
+old = "max_height(f32)"
+new = ""
+note = "removed: the table sizes by Sizing and the room it is given"
+
+[[setter]]
+type = "MetadataTable"
+old = "labels(MetadataLabels)"
+new = ""
+note = "removed: installed words"
