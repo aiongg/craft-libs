@@ -18,6 +18,7 @@ use crate::runtime::frame::PerViewport;
 use craft_behavior::{DocKey, PartRef};
 use egui::{Context, Id, ViewportId};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 pub use crate::runtime::keys::Intents;
 pub use craft_behavior::{Letters, Roving};
@@ -127,7 +128,19 @@ pub(crate) fn with_viewport<R>(ctx: &Context, viewport: ViewportId, f: impl FnOn
     PerViewport::<State>::with(ctx, viewport, f)
 }
 
+/// Counts the focus writes of the process. A component's `Facts` carry the count they were read at, so a write
+/// during its pass (a request, a layer taking focus into itself) shows as a changed count and the facts are read
+/// again. Another context's write only causes an extra read.
+static WRITES: AtomicU64 = AtomicU64::new(0);
+
+pub(crate) fn writes() -> u64 {
+    WRITES.load(Ordering::Acquire)
+}
+
 pub(crate) fn apply(ctx: &Context, acts: Vec<Act>) {
+    if !acts.is_empty() {
+        WRITES.fetch_add(1, Ordering::AcqRel);
+    }
     for act in acts {
         match act {
             Act::Focus(id, filter) => egui_focus::focus_with_filter(ctx, id, filter),
@@ -222,9 +235,14 @@ pub(crate) fn register_doc(ctx: &Context, key: DocKey, id: Id) {
     });
 }
 
-/// Moves focus to `target` at the next pass's begin hook, leaves modality unchanged and asks the enclosing
-/// scroll owner to reveal it. The one public path to programmatic focus.
+/// Moves focus to `target`, leaves modality unchanged and asks the enclosing scroll owner to reveal it. Called
+/// while a pass runs, it moves focus in that pass, so the rest of the pass reads the new focus; called between
+/// passes, it moves focus at the next pass's begin hook. The one public path to programmatic focus.
 pub fn request(ctx: &Context, target: FocusTarget) {
+    if crate::runtime::frame::in_pass(ctx) {
+        request_now(ctx, target);
+        return;
+    }
     with(ctx, |state| state.pending = Some(target));
     crate::runtime::egui::repaint::request_of(ctx, crate::runtime::egui::pass::current_viewport(ctx));
 }
@@ -289,13 +307,16 @@ pub(crate) struct Facts {
     pub(crate) visible: bool,
     /// `active_part`.
     pub(crate) part: Option<PartRef>,
+    /// The count of focus writes when the facts were read; see `writes`.
+    pub(crate) at: u64,
 }
 
 /// The focus facts of the component `id`, read once.
 pub(crate) fn facts(ctx: &Context, id: Id) -> Facts {
+    let at = writes();
     match focused_stop(ctx) {
-        Some((focused, part)) if focused == id => Facts { focused: true, visible: with(ctx, |state| state.visible), part },
-        _ => Facts::default(),
+        Some((focused, part)) if focused == id => Facts { focused: true, visible: with(ctx, |state| state.visible), part, at },
+        _ => Facts { at, ..Facts::default() },
     }
 }
 
