@@ -286,7 +286,7 @@ fn the_keys_a_canvas_holds_reach_the_tool_while_it_has_focus() {
     fixture.fixture().key(egui::Key::Escape, Modifiers::NONE);
     let got = fixture.tool().got.clone();
     assert!(got.iter().any(|key| matches!(key, ToolKey::Nudge { direction, .. } if *direction == Vec2::X)), "an arrow nudges: {got:?}");
-    assert!(got.contains(&ToolKey::Delete { forward: true }), "Delete deletes forward: {got:?}");
+    assert!(got.iter().any(|key| matches!(key, ToolKey::Delete { forward: true, .. })), "Delete deletes forward: {got:?}");
     assert!(got.contains(&ToolKey::Cancel), "Escape with no gesture reaches the tool as Cancel: {got:?}");
 }
 
