@@ -13,6 +13,8 @@ use super::overlay::{self, Anchor, Layer, Overlay, Place};
 use super::{Common, Component, Cx, Props as _, Show, TipFn, Tooltip, TooltipAt, TooltipSpec, TooltipWhen};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{TextRun, Wrap};
+use crate::runtime::access::scope::LabelPatch;
+use crate::runtime::access::{Access, Name};
 use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{areas, pass, repaint};
 use crate::runtime::env::Env;
@@ -258,7 +260,12 @@ fn show_tip(call: TipCall<'_>) {
         Some(content) => content(ui),
         None => {
             if let Some(text) = &text {
-                TipText { common: Common::default(), text }.id_salt(tip_id).show(ui);
+                let tip = TipText { common: Common::default(), text }.id_salt(tip_id).show(ui);
+                if subject.is_none() {
+                    // The described control's node was written earlier in the pass; the relation joins it.
+                    let patch = LabelPatch::DescribedBy { node: id, label: tip.id };
+                    crate::runtime::egui::access::write_label_patch(ctx, &patch);
+                }
             }
         }
     });
@@ -316,6 +323,10 @@ impl Component for TipText<'_> {
 
     fn sense(&self) -> craft_behavior::Sense {
         craft_behavior::Sense::empty()
+    }
+
+    fn access(&self, access: &mut Access, _: &Cx<'_, Self>) {
+        access.name(Name::Text(self.text.to_owned()));
     }
 
     fn paint(&mut self, ui: &mut super::PaintUi<'_>, cx: &Cx<'_, Self>) {
