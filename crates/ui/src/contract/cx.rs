@@ -1393,6 +1393,7 @@ pub(crate) struct PartExtras {
     pub drag_cursor: Option<CursorIcon>,
     pub tooltip: Option<Tooltip>,
     pub pointer_only: Option<&'static str>,
+    pub keyboard_via: Option<PartKey>,
     pub value: bool,
     pub own_reset: bool,
     pub selected: bool,
@@ -1486,6 +1487,13 @@ impl PartBuilder<'_> {
     /// A part with no focus stop names its keyboard path: the intent or command that does the same.
     pub fn pointer_only(self, reason: &'static str) -> Self {
         self.declared.pointer_only = Some(reason);
+        self
+    }
+
+    /// A part with no focus stop of its own does the same as the focusable part `part` of this component, which
+    /// carries the keyboard path.
+    pub fn keyboard_via(self, part: PartKey) -> Self {
+        self.declared.keyboard_via = Some(part);
         self
     }
 }

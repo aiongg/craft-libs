@@ -19,8 +19,8 @@ use crate::runtime::windows::WindowHost;
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
 use craft_behavior::{
-    CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartRef,
-    PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
+    CancelReason, Cursor, CursorPriority, DragWarp, EditEvent, Gesture, GesturePhase, Input, Intent, KeyRole, Mixed, NavMove, PaintedCursor, PartKey,
+    PartRef, PressCancel, Proposal, Roving, Sense, Value, ValueDrag,
 };
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Pos2, Rect, Response, Ui, Vec2};
@@ -559,10 +559,13 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     }
 }
 
-/// Step 7's finding (22.4): a part that senses `CLICK` or `DRAG` is focusable or declares its keyboard path.
+/// Step 7's finding (22.4): a part that senses `CLICK` or `DRAG` is focusable, declares its keyboard path, or names
+/// the focusable part of the component that carries it.
 pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsStep) {
+    let focusable = |key: PartKey| parts.decls.iter().any(|(decl, extras)| decl.key == key && extras.focusable);
     for (decl, extras) in &parts.decls {
-        if decl.sense.intersects(Sense::CLICK | Sense::DRAG) && !extras.focusable && extras.pointer_only.is_none() {
+        let has_path = extras.focusable || extras.pointer_only.is_some() || extras.keyboard_via.is_some_and(focusable);
+        if decl.sense.intersects(Sense::CLICK | Sense::DRAG) && !has_path {
             inspect::finding(
                 ctx,
                 inspect::Finding {
