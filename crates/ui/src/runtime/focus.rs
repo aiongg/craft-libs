@@ -251,6 +251,32 @@ pub(crate) fn register_menu_bar(ctx: &Context) {
     with(ctx, |state| state.menu_bar = true);
 }
 
+/// A registered menu bar takes the keyboard (F10, a lone Alt): focus moves to `target`, a stop of the bar, in this
+/// pass, and the stop that held it is remembered for [`give_back_bar`]. Focus already inside the bar leaves the
+/// remembered stop as it is.
+pub(crate) fn take_for_bar(ctx: &Context, bar: Id, target: FocusTarget) {
+    let held = focused_stop(ctx).filter(|(id, _)| *id != bar);
+    with(ctx, |state| {
+        if held.is_some() || state.bar_return.is_none() {
+            state.bar_return = held;
+        }
+    });
+    request(ctx, target);
+}
+
+/// Returns focus to the stop a menu bar took it from, in this pass. `false` when there is none.
+pub(crate) fn give_back_bar(ctx: &Context) -> bool {
+    let Some((id, part)) = with(ctx, |state| state.bar_return.take()) else { return false };
+    request(ctx, part.map_or(FocusTarget::Id(id), |part| FocusTarget::Part(id, part)));
+    true
+}
+
+/// Forgets the stop a menu bar took focus from: focus left the bar by other means, so a later Escape has nowhere
+/// to return to.
+pub(crate) fn forget_bar_return(ctx: &Context) {
+    with(ctx, |state| state.bar_return = None);
+}
+
 /// Registers the component that `FocusTarget::Doc(key)` focuses.
 #[cfg_attr(not(feature = "testing"), expect(dead_code, reason = "the component pipeline (F3) registers and reads it"))]
 pub(crate) fn register_doc(ctx: &Context, key: DocKey, id: Id) {
