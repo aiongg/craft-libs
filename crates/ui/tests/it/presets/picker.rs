@@ -112,9 +112,18 @@ fn the_row_menu_cannot_delete_a_preset_can_delete_refuses() {
 
 #[trial]
 fn debug_amber_frames() {
+    debug_frames("Amber");
+}
+
+#[trial]
+fn debug_coral_frames() {
+    debug_frames("Coral");
+}
+
+fn debug_frames(label: &str) {
     let (mut fixture, _seen) = deleting_picker();
     open(&mut fixture);
-    let at = fixture.by_label("Amber").expect("tile").rect.center();
+    let at = fixture.by_label(label).expect("tile").rect.center();
     let mut log = Vec::new();
     let names = |f: &Fixture| -> Vec<String> { f.tree().keys().into_iter().filter_map(|k| f.tree().name_of(k).map(str::to_owned)).collect() };
     fixture.frame(vec![pointer::moved(at)]);
