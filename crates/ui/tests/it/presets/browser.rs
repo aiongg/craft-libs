@@ -91,6 +91,8 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     let rename = fixture.by_label("Rename…").expect("a secondary click on a preset opens the row menu");
     fixture.click(&rename);
     fixture.idle(3);
+    let names: Vec<String> = fixture.tree().keys().into_iter().map(|k| format!("{:?}", fixture.tree().name_of(k))).collect();
+    panic!("DEBUG {names:?}");
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
