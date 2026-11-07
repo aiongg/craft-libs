@@ -1,0 +1,1346 @@
+story composites/layers-panel/narrow
+args
+  extra = Number { value: 0.0, min: 0.0, max: 240.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                  r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.1.0.1 GenericContainer ""
+                    r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.1.0.1.0.0 TextRun "" value="100"
+                    r.0.0.0.0.0.0.1.0.1.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+                r.0.0.0.0.0.0.1.1 GenericContainer ""
+                  r.0.0.0.0.0.0.1.1.0 Button "Lock transparent pixels" description="Lock transparent pixels" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.2 GenericContainer ""
+                  r.0.0.0.0.0.0.1.2.0 Button "Lock image pixels" description="Lock image pixels" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.3 GenericContainer ""
+                  r.0.0.0.0.0.0.1.3.0 Button "Lock position" description="Lock position" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.4 GenericContainer ""
+                  r.0.0.0.0.0.0.1.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames" description="Prevent auto-nesting in and out of Artboards and Frames" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.5 GenericContainer ""
+                  r.0.0.0.0.0.0.1.5.0 Button "Lock all" description="Lock all" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.1.6 GenericContainer ""
+                  r.0.0.0.0.0.0.1.6.0 GenericContainer ""
+                    r.0.0.0.0.0.0.1.6.0.0 Label "" value="Fill:"
+                  r.0.0.0.0.0.0.1.6.1 GenericContainer ""
+                    r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill" value="100%" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.1.6.1.0.0 TextRun "" value="100"
+                    r.0.0.0.0.0.0.1.6.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Tree "Layers" actions=[Focus]
+                  r.0.0.0.0.0.0.2.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.2.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.2.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Header" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Header" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Logo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Logo" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Collapse Logo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Marks" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Marks" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Collapse Marks" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Mark A" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Mark A" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.11 GenericContainer ""
+                        r.0.0.0.0.0.0.2.0.0.0.0.12 TreeItem "Mark B" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.13 Button "Visibility Mark B" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.14 GenericContainer ""
+                        r.0.0.0.0.0.0.2.0.0.0.0.15 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Visibility Ring" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Title" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.20 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.21 Button "Visibility Tagline" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Link layer mask of Tagline" description="Link layer mask of Tagline" [unchecked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Photo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Photo" [checked] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Collapse Photo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                        r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+                        r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Curves 1" [checked] actions=[Click]
+                  r.0.0.0.0.0.0.2.0.1 ScrollBar "Scroll bar" actions=[Click]
+              r.0.0.0.0.0.0.3 GenericContainer ""
+                r.0.0.0.0.0.0.3.0 Button "Delete Layer" description="Delete Layer" actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.1 Button "Create a new layer" description="Create a new layer" actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.2 Button "Create a new group" description="Create a new group" actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" description="Create new fill or adjustment layer" [collapsed popup:Menu] actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.4 GenericContainer ""
+                  r.0.0.0.0.0.0.3.4.0 Button "Add Layer Mask" description="Add Layer Mask" actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.5 Button "Add a layer style" description="Add a layer style" [collapsed popup:Menu] actions=[Click,Focus]
+                r.0.0.0.0.0.0.3.6 GenericContainer ""
+                  r.0.0.0.0.0.0.3.6.0 Button "Link layers" description="Link layers" [disabled] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Least width: 198 points" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Least width: 198 points"
+          r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 ComboBox "Filter type"
+  2: r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers"
+  3: r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers"
+  4: r.0.0.0.0.0.0.0.3 Button "Filter for type layers"
+  5: r.0.0.0.0.0.0.0.4 Button "Filter for shape layers"
+  6: r.0.0.0.0.0.0.0.5 Button "Filter for smart objects"
+  7: r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode"
+  8: r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity"
+  9: r.0.0.0.0.0.0.1.1.0 Button "Lock transparent pixels"
+  10: r.0.0.0.0.0.0.1.2.0 Button "Lock image pixels"
+  11: r.0.0.0.0.0.0.1.3.0 Button "Lock position"
+  12: r.0.0.0.0.0.0.1.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  13: r.0.0.0.0.0.0.1.5.0 Button "Lock all"
+  14: r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill"
+  15: r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Portrait"
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 Button "Visibility Portrait" [checked] actions=[Click]
+  16: r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring"
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 Button "Visibility Portrait" [checked] actions=[Click]
+  17: r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Link layer mask of Tagline"
+  18: r.0.0.0.0.0.0.3.0 Button "Delete Layer"
+  19: r.0.0.0.0.0.0.3.1 Button "Create a new layer"
+  20: r.0.0.0.0.0.0.3.2 Button "Create a new group"
+  21: r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer"
+  22: r.0.0.0.0.0.0.3.4.0 Button "Add Layer Mask"
+  23: r.0.0.0.0.0.0.3.5 Button "Add a layer style"
+  24: r.0.0.0.0.0.0.0.0 ComboBox "Filter type"
+  cycle after 23 nodes
+drive: 52 actionable nodes
+drive r.0.0.0.0.0.0.0.0 ComboBox "Filter type"
+  click:
+    focus: r.0.0.0.0.0.0.0.0 ComboBox "Filter type" -> r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Mode" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" -> r.0.0.0.0.0.0.0.0 ComboBox "Filter type"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Mode" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0 ComboBox "Filter type" -> r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Mode" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" -> r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Name" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 SearchInput "Search layers" value="" placeholder="Search" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0 TextRun "" value=""
+    + r.0.0.0.0.0.0.1.0.1.0 Label "" value="Opacity:"
+    + r.0.0.0.0.0.0.1.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.1.1 GenericContainer ""
+    + r.0.0.0.0.0.0.1.1.0 Label "" value="Lock:"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" -> r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Name" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 SearchInput "Search layers" value="" placeholder="Search" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0 TextRun "" value=""
+    + r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.1.0 Label "" value="Opacity:"
+    - r.0.0.0.0.0.0.1.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.1.1 GenericContainer ""
+    - r.0.0.0.0.0.0.1.1.0 Label "" value="Lock:"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" -> r.0.0.0.0.0.0.0.0 ComboBox "Filter type"
+    - r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" controls=[r.0.0.0.0.0.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Kind" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "Mode" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0 ComboBox "Filter type" value="Kind" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers"
+  click:
+    focus: r.0.0.0.0.0.0.0.0 ComboBox "Filter type" -> r Window ""
+    - r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Header" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Header" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Logo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Logo" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Collapse Logo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Marks" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Marks" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Collapse Marks" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.15 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Visibility Ring" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Title" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Photo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Photo" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Collapse Photo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Curves 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Retouch" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Dodge" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Dodge" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.13 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 Button "Visibility Portrait" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Unlink layer mask of Portrait" description="Unlink layer mask of Portrait" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Link vector mask of Portrait" description="Link vector mask of Portrait" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.18 Button "Visibility Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.19 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.19.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Visibility Effects" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Outer Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Color Overlay" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+  Space:
+    - r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Header" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Header" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Logo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Logo" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Collapse Logo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Marks" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Marks" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Collapse Marks" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.15 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Visibility Ring" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Title" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Retouch" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Dodge" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Dodge" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.13 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 Button "Visibility Portrait" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Unlink layer mask of Portrait" description="Unlink layer mask of Portrait" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Link vector mask of Portrait" description="Link vector mask of Portrait" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.18 Button "Visibility Glow" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.19 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.19.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.20 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Visibility Effects" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Outer Glow" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Color Overlay" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Photo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Photo" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Collapse Photo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Curves 1" [checked] actions=[Click]
+  Enter:
+    - r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" description="Filter for pixel layers" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Header" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Header" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.2 Button "Collapse Header" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Logo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Logo" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Collapse Logo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Marks" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Marks" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Collapse Marks" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.15 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Visibility Ring" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Title" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Photo" description="group" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Photo" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Collapse Photo" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Curves 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Retouch" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Dodge" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Dodge" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.13 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 Button "Visibility Portrait" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Unlink layer mask of Portrait" description="Unlink layer mask of Portrait" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Link vector mask of Portrait" description="Link vector mask of Portrait" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.18 Button "Visibility Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.19 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.19.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Visibility Effects" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Outer Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Color Overlay" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 Button "Filter for pixel layers" -> r Window ""
+drive r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers"
+  click:
+    - r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Curves 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 Button "Unlink layer mask of Curves 1" description="Unlink layer mask of Curves 1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+  Space:
+    - r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Curves 1" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 Button "Unlink layer mask of Curves 1" description="Unlink layer mask of Curves 1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+  Enter:
+    - r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" description="Filter for adjustment layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Curves 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 Button "Unlink layer mask of Curves 1" description="Unlink layer mask of Curves 1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Outline" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Outline" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Expand effects Outline" description="Show or hide the layer's effects  (Alt-click: all layers)" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.30 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0.0.0.0.31 TreeItem "Dust" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.32 Button "Visibility Dust" [checked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.2 Button "Filter for adjustment layers" -> r Window ""
+drive r.0.0.0.0.0.0.0.3 Button "Filter for type layers"
+  click:
+    - r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Title" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Outer Glow" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 Button "Visibility Color Overlay" [checked] actions=[Click]
+  Space:
+    - r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Title" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Outer Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 Button "Visibility Color Overlay" [checked] actions=[Click]
+  Enter:
+    - r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.3 Button "Filter for type layers" description="Filter for type layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Title" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Outer Glow" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Outer Glow" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.28 TreeItem "Color Overlay" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 Button "Visibility Color Overlay" [checked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.3 Button "Filter for type layers" -> r Window ""
+drive r.0.0.0.0.0.0.0.4 Button "Filter for shape layers"
+  click:
+    - r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Effects" [checked] actions=[Click]
+  Space:
+    - r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Effects" [checked] actions=[Click]
+  Enter:
+    - r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" description="Filter for shape layers" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Effects" description="effect of Glow" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Effects" [checked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.4 Button "Filter for shape layers" -> r Window ""
+drive r.0.0.0.0.0.0.0.5 Button "Filter for smart objects"
+  click:
+    - r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Backdrop" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Backdrop" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Backdrop" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Glow" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Backdrop" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" description="Filter for smart objects" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Glow" description="pixel layer, effects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Glow" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Backdrop" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Glow" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Backdrop" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.5 Button "Filter for smart objects" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.0.0.1.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Begin { id: GestureId(571), value: None }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Begin { id: GestureId(571), value: None }))"
+  Space:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.0.0.1.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Begin { id: GestureId(571), value: None }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Begin { id: GestureId(571), value: None }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Commit { id: GestureId(571), value: \"normal\", changed: false, modifiers: Modifiers::NONE }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Commit { id: GestureId(571), value: \"normal\", changed: false, modifiers: "
+    + r.0.0.0.0.2.1 TextRun "" value="Modifiers::NONE }))"
+  Enter:
+    focus: r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.0.0.1.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0.0 ListBox ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Commit { id: GestureId(571), value: \"normal\", changed: false, modifiers: Modifiers::NONE }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Commit { id: GestureId(571), value: \"normal\", changed: false, modifiers: "
+    - r.0.0.0.0.2.1 TextRun "" value="Modifiers::NONE }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Begin { id: GestureId(572), value: None }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Begin { id: GestureId(572), value: None }))"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve"
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Begin { id: GestureId(572), value: None }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Begin { id: GestureId(572), value: None }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"dissolve\", modifiers: Modifiers::NONE }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"dissolve\", modifiers: Modifiers::NONE }))"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" -> r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal"
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"dissolve\", modifiers: Modifiers::NONE }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"dissolve\", modifiers: Modifiers::NONE }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"normal\", modifiers: Modifiers::NONE }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"normal\", modifiers: Modifiers::NONE }))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" -> r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" controls=[r.0.0.0.0.0.0.1.0.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.0.0 ListBox ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 ListBoxOption "Normal" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 ListBoxOption "Dissolve" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.2 ListBoxOption "Darken" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.3 ListBoxOption "Multiply" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.4 ListBoxOption "Color Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.5 ListBoxOption "Linear Burn" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.6 ListBoxOption "Darker Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.7 ListBoxOption "Lighten" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.8 ListBoxOption "Screen" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.9 ListBoxOption "Color Dodge" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.10 ListBoxOption "Linear Dodge (Add)" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.11 ListBoxOption "Lighter Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.12 ListBoxOption "Overlay" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.13 ListBoxOption "Soft Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.14 ListBoxOption "Hard Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.15 ListBoxOption "Vivid Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.16 ListBoxOption "Linear Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.17 ListBoxOption "Pin Light" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.18 ListBoxOption "Hard Mix" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.19 ListBoxOption "Difference" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.20 ListBoxOption "Exclusion" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.21 ListBoxOption "Subtract" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.22 ListBoxOption "Divide" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.23 ListBoxOption "Hue" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.24 ListBoxOption "Saturation" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.25 ListBoxOption "Color" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.0.0.26 ListBoxOption "Luminosity" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"normal\", modifiers: Modifiers::NONE }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Update { id: GestureId(572), value: \"normal\", modifiers: Modifiers::NONE }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Cancel { id: GestureId(572), reason: Escape }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Cancel { id: GestureId(572), reason: Escape }))"
+drive r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity"
+  click:
+    focus: r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" -> r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Blend(Cancel { id: GestureId(572), reason: Escape }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Blend(Cancel { id: GestureId(572), reason: Escape }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Opacity(Set { value: 99.0, modifiers: Modifiers::NONE }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Opacity(Set { value: 99.0, modifiers: Modifiers::NONE }))"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.1.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.1.1 Button "Opacity"
+  click:
+    - r.0.0.0.0.0.0.1.0.1.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.1.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.1.1.0 Dialog ""
+    + r.0.0.0.0.0.0.1.0.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.1.1.0.0.0.0 Slider "Opacity" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    - r.0.0.0.0.0.0.1.0.1.1 Button "Opacity" description="Opacity" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.1.1.0 Dialog ""
+    - r.0.0.0.0.0.0.1.0.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.1.1.0.0.0.0 Slider "Opacity" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.1.0.1.1 Button "Opacity" description="Opacity" [collapsed] actions=[Click]
+drive r.0.0.0.0.0.0.1.1.0 Button "Lock transparent pixels"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Opacity(Set { value: 99.0, modifiers: Modifiers::NONE }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Opacity(Set { value: 99.0, modifiers: Modifiers::NONE }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Transparency, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Transparency, on: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.1.0 Button "Lock transparent pixels" -> r Window ""
+drive r.0.0.0.0.0.0.1.2.0 Button "Lock image pixels"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Transparency, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Transparency, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Pixels, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Pixels, on: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.2.0 Button "Lock image pixels" -> r Window ""
+drive r.0.0.0.0.0.0.1.3.0 Button "Lock position"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Pixels, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Pixels, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Position, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Position, on: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.3.0 Button "Lock position" -> r Window ""
+drive r.0.0.0.0.0.0.1.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Position, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Position, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Artboard, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Artboard, on: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.4.0 Button "Prevent auto-nesting in and out of Artboards and Frames" -> r Window ""
+drive r.0.0.0.0.0.0.1.5.0 Button "Lock all"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Artboard, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Artboard, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: All, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: All, on: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.5.0 Button "Lock all" -> r Window ""
+drive r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: All, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: All, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Fill(Set { value: 99.0, modifiers: Modifiers::NONE }))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Fill(Set { value: 99.0, modifiers: Modifiers::NONE }))"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.6.1.0 SpinButton "Fill" -> r Window ""
+drive r.0.0.0.0.0.0.1.6.1.1 Button "Fill"
+  click:
+    - r.0.0.0.0.0.0.1.6.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.1.6.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.1.6.1.1.0 Dialog ""
+    + r.0.0.0.0.0.0.1.6.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.6.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.6.1.1.0.0.0.0 Slider "Fill" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    - r.0.0.0.0.0.0.1.6.1.1 Button "Fill" description="Fill" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.1.6.1.1.0 Dialog ""
+    - r.0.0.0.0.0.0.1.6.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.6.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.6.1.1.0.0.0.0 Slider "Fill" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.1.6.1.1 Button "Fill" description="Fill" [collapsed] actions=[Click]
+drive r.0.0.0.0.0.0.2.0 Tree "Layers"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Fill(Set { value: 99.0, modifiers: Modifiers::NONE }))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Fill(Set { value: 99.0, modifiers: Modifiers::NONE }))"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(13), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(13), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" -> r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop"
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29 TreeItem "Smart Filters" description="Smart Filter of Backdrop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.30 Button "Visibility Smart Filters" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(13), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(13), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" -> r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait"
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Header"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Header"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.2 Button "Collapse Header"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Logo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Logo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Collapse Logo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Marks"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Marks"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Collapse Marks"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Mark A"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: All, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: All, on: true })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: All, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: All, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(13), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(13), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" -> r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop"
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(13), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(13), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" -> r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait"
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(14), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Mark A"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(13), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Transparency, on: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Transparency, on: true })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0.0.0.12 TreeItem "Mark B"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B"
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Properties(Lock { kind: Transparency, on: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Properties(Lock { kind: Transparency, on: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: Some(Pixels) })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: Some(Pixels) })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: Some(Pixels) })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: Some(Pixels) })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(5), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(5), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" -> r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring"
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(5), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(5), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" -> r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B"
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.13 Button "Visibility Mark B"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Mark B" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, hidden, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Mark B" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(5), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(5), column: Visibility, edit: Commit { id: GestureId(573), value: ToggleEdit { column: 0, row: Layer(5), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(5), column: Visibility, edit: Commit { id: GestureId(573), value: "
+    + r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(5), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0.0.0.15 TreeItem "Ring"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring"
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, hidden, pixels targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(5), column: Visibility, edit: Commit { id: GestureId(573), value: ToggleEdit { column: 0, row: Layer(5), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(5), column: Visibility, edit: Commit { id: GestureId(573), value: "
+    - r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(5), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: Some(VectorMask) })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: Some(VectorMask) })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: Some(VectorMask) })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: Some(VectorMask) })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(6), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(6), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" -> r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title"
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(6), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(6), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" -> r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring"
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Visibility Ring"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, hidden, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(6), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(6), column: Visibility, edit: Commit { id: GestureId(574), value: ToggleEdit { column: 0, row: Layer(6), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(6), column: Visibility, edit: Commit { id: GestureId(574), value: "
+    + r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(6), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Unlink vector mask of Ring"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Unlink vector mask of Ring" description="Unlink vector mask of Ring" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Link vector mask of Ring" description="Link vector mask of Ring" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(6), column: Visibility, edit: Commit { id: GestureId(574), value: ToggleEdit { column: 0, row: Layer(6), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(6), column: Visibility, edit: Commit { id: GestureId(574), value: "
+    - r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(6), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+    + r.0.0.0.0.2 Label "" value="Last event: MaskLink { layer: 6, part: VectorMask, linked: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: MaskLink { layer: 6, part: VectorMask, linked: false }"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Title"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title"
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, hidden, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: MaskLink { layer: 6, part: VectorMask, linked: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: MaskLink { layer: 6, part: VectorMask, linked: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(7), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(7), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" -> r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline"
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(7), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(7), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" -> r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title"
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Title"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Title" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, hidden, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Title" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(7), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(7), column: Visibility, edit: Commit { id: GestureId(575), value: ToggleEdit { column: 0, row: Layer(7), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(7), column: Visibility, edit: Commit { id: GestureId(575), value: "
+    + r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(7), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0.0.0.20 TreeItem "Tagline"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline"
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, hidden, vector mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(7), column: Visibility, edit: Commit { id: GestureId(575), value: ToggleEdit { column: 0, row: Layer(7), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(7), column: Visibility, edit: Commit { id: GestureId(575), value: "
+    - r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(7), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: Some(LayerMask) })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: Some(LayerMask) })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: Some(LayerMask) })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: Some(LayerMask) })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(8), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(8), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" -> r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Multiply" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(8), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(8), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" -> r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Multiply" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.21 Button "Visibility Tagline"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Tagline" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, hidden, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Tagline" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(8), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(8), column: Visibility, edit: Commit { id: GestureId(576), value: ToggleEdit { column: 0, row: Layer(8), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(8), column: Visibility, edit: Commit { id: GestureId(576), value: "
+    + r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(8), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Link layer mask of Tagline"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.13 Button "Link layer mask of Tagline" description="Link layer mask of Tagline" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.13 Button "Unlink layer mask of Tagline" description="Unlink layer mask of Tagline" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(8), column: Visibility, edit: Commit { id: GestureId(576), value: ToggleEdit { column: 0, row: Layer(8), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(8), column: Visibility, edit: Commit { id: GestureId(576), value: "
+    - r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(8), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+    + r.0.0.0.0.2 Label "" value="Last event: MaskLink { layer: 8, part: LayerMask, linked: true }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: MaskLink { layer: 8, part: LayerMask, linked: true }"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.23 TreeItem "Photo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Visibility Photo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Collapse Photo"
+  all steps: node gone
+drive r.0.0.0.0.0.0.2.0.0.0.0.26 TreeItem "Curves 1"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Multiply" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, hidden, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: MaskLink { layer: 8, part: LayerMask, linked: true }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: MaskLink { layer: 8, part: LayerMask, linked: true }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: Some(LayerMask) })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: Some(LayerMask) })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: Some(LayerMask) })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: Some(LayerMask) })"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(10), on: Row }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(10), on: Row }"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" -> r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Multiply" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate { row: Layer(10), on: Row }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate { row: Layer(10), on: Row }"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(11), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(11), pick: Replace, part: None })"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" -> r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1"
+    - r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Normal" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 ComboBox "Blend Mode" value="Multiply" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(11), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(11), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.0.0.0.27 Button "Visibility Curves 1"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Visibility Curves 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, hidden, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Visibility Curves 1" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Select(LayerSelect { layer: Some(10), pick: Replace, part: None })"
+    + r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(10), column: Visibility, edit: Commit { id: GestureId(577), value: ToggleEdit { column: 0, row: Layer(10), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(10), column: Visibility, edit: Commit { id: GestureId(577), value: "
+    + r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(10), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.1 ScrollBar "Scroll bar"
+  click:
+    - r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Mark A" description="pixel layer, linked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Mark A" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.0 TreeItem "Scratches" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.1 Button "Visibility Scratches" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.2 TreeItem "Fine" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.3 Button "Visibility Fine" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.4 TreeItem "Coarse" description="pixel layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.5 Button "Visibility Coarse" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Solid Color 1" description="fill layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Solid Color 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Unlink layer mask of Solid Color 1" description="Unlink layer mask of Solid Color 1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Gradient Fill 1" description="fill layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Gradient Fill 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Hue/Saturation 1" description="adjustment layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Hue/Saturation 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.13 TreeItem "Levels 2" description="adjustment layer, layer mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.14 Button "Visibility Levels 2" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Unlink layer mask of Levels 2" description="Unlink layer mask of Levels 2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.16 TreeItem "Rectangle 1" description="shape layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.17 Button "Visibility Rectangle 1" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.18 TreeItem "Ellipse 1" description="shape layer, locked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.19 Button "Visibility Ellipse 1" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.3 TreeItem "Mark B" description="pixel layer, linked, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.4 Button "Visibility Mark B" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.20.0 Button "Unlock Ellipse 1" description="Unlock Ellipse 1" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Headline" description="type layer, This layer uses a font that is not installed." [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Visibility Headline" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.6 TreeItem "Ring" description="shape layer, vector mask, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.7 Button "Visibility Ring" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.8 Button "Link vector mask of Ring" description="Link vector mask of Ring" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.9 TreeItem "Title" description="type layer, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.10 Button "Visibility Title" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.11 TreeItem "Tagline" description="pixel layer, layer mask, hidden" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.12 Button "Visibility Tagline" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.13 Button "Unlink layer mask of Tagline" description="Unlink layer mask of Tagline" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.14 TreeItem "Curves 1" description="adjustment layer, layer mask, disabled mask, hidden, layer mask targeted" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.15 Button "Visibility Curves 1" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.16 Button "Unlink layer mask of Curves 1" description="Unlink layer mask of Curves 1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.17 TreeItem "Retouch" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.18 Button "Visibility Retouch" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.19 TreeItem "Dodge" description="Clipped to the layer below, pixel layer, clipped" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.20 Button "Visibility Dodge" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.21 TreeItem "Portrait" description="pixel layer, layer mask, vector mask" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.22 Button "Visibility Portrait" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.23 Button "Unlink layer mask of Portrait" description="Unlink layer mask of Portrait" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.24 Button "Link vector mask of Portrait" description="Link vector mask of Portrait" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0.0.0.0.25 TreeItem "Backdrop" description="smart object, Smart Filters" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.26 Button "Visibility Backdrop" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.24 TreeItem "Paper" description="pixel layer, locked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.25 Button "Visibility Paper" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.27.0 Button "Collapse effects Backdrop" description="Show or hide the layer's effects  (Alt-click: all layers)" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.26.0 Button "Unlock Paper" description="Unlock Paper" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.0.0.0.0.27 TreeItem "Stamp" description="pixel layer, locked" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.2.0.0.0.0.28 Button "Visibility Stamp" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0.0.0.29 TreeItem "Smart Filters" description="Smart Filter of Backdrop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.2.0.0.0.0.30 Button "Visibility Smart Filters" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0.0.0.29.0 Button "Unlock Stamp" description="Unlock Stamp" actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.3.0 Button "Delete Layer"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Toggle(LayerToggle { row: Layer(10), column: Visibility, edit: Commit { id: GestureId(577), value: ToggleEdit { column: 0, row: Layer(10), on: false }, changed: true, modifiers: Modifiers::NONE } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Toggle(LayerToggle { row: Layer(10), column: Visibility, edit: Commit { id: GestureId(577), value: "
+    - r.0.0.0.0.2.1 TextRun "" value="ToggleEdit { column: 0, row: Layer(10), on: false }, changed: true, modifiers: Modifiers::NONE } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Footer(Delete { confirm: true })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(Delete { confirm: true })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.0 Button "Delete Layer" -> r Window ""
+drive r.0.0.0.0.0.0.3.1 Button "Create a new layer"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Footer(Delete { confirm: true })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(Delete { confirm: true })"
+    + r.0.0.0.0.2 Label "" value="Last event: Footer(NewLayer { ask: false, below: false })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(NewLayer { ask: false, below: false })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.1 Button "Create a new layer" -> r Window ""
+drive r.0.0.0.0.0.0.3.2 Button "Create a new group"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Footer(NewLayer { ask: false, below: false })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(NewLayer { ask: false, below: false })"
+    + r.0.0.0.0.2 Label "" value="Last event: Footer(NewGroup { from_selection: false, ask: false, below: false })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(NewGroup { from_selection: false, ask: false, below: false })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.2 Button "Create a new group" -> r Window ""
+drive r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer"
+  click:
+    - r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" description="Create new fill or adjustment layer" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" description="Create new fill or adjustment layer" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.3.0 Menu ""
+    + r.0.0.0.0.0.0.3.3.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.3.0.0.0.0.0 MenuItem "Brightness/Contrast" actions=[Click]
+    + r.0.0.0.0.0.0.3.3.0.0.0.0.1 MenuItem "Levels" actions=[Click]
+    + r.0.0.0.0.0.0.3.3.0.0.0.0.2 MenuItem "Curves" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" description="Create new fill or adjustment layer" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.3.0 Menu ""
+    - r.0.0.0.0.0.0.3.3.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.3.0.0.0.0.0 MenuItem "Brightness/Contrast" actions=[Click]
+    - r.0.0.0.0.0.0.3.3.0.0.0.0.1 MenuItem "Levels" actions=[Click]
+    - r.0.0.0.0.0.0.3.3.0.0.0.0.2 MenuItem "Curves" actions=[Click]
+    + r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" description="Create new fill or adjustment layer" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.3.4.0 Button "Add Layer Mask"
+  click:
+    focus: r.0.0.0.0.0.0.3.3 Button "Create new fill or adjustment layer" -> r Window ""
+    - r.0.0.0.0.2 Label "" value="Last event: Footer(NewGroup { from_selection: false, ask: false, below: false })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(NewGroup { from_selection: false, ask: false, below: false })"
+    + r.0.0.0.0.2 Label "" value="Last event: Footer(AddMask { invert: false })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Footer(AddMask { invert: false })"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.4.0 Button "Add Layer Mask" -> r Window ""
+drive r.0.0.0.0.0.0.3.5 Button "Add a layer style"
+  click:
+    - r.0.0.0.0.0.0.3.5 Button "Add a layer style" description="Add a layer style" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.5 Button "Add a layer style" description="Add a layer style" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.5.0 Menu ""
+    + r.0.0.0.0.0.0.3.5.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Drop Shadow" actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.1 MenuItem "Stroke" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.0.3.5 Button "Add a layer style" description="Add a layer style" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.5.0 Menu ""
+    - r.0.0.0.0.0.0.3.5.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Drop Shadow" actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.1 MenuItem "Stroke" actions=[Click]
+    + r.0.0.0.0.0.0.3.5 Button "Add a layer style" description="Add a layer style" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.3.5 Button "Add a layer style" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,267 @@
+story patterns/rail/tool
+args
+  columns = Number { value: 1.0, min: 1.0, max: 2.0 }
+  hidden = Choice { options: ["none", "pencil", "stamp", "eraser tools"], index: 0 }
+  height = Number { value: 480.0, min: 160.0, max: 700.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Pane ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Toolbar "Tools"
+                  r.0.0.0.0.0.0.0.0.0 Button "Toolbar" description="Toolbar" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" description="V" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.1 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.2 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.3 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" description="C" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.4 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" description="I" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.5 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [checked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.6 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" description="S" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.7 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" description="E" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.8 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" description="G" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.9 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" description="P" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.10 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.1.0.11 Button "Edit Toolbar…" description="Edit Toolbar…" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.2 ScrollBar "Scroll bar" actions=[Click]
+                  r.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.3.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.3.0.0 Button "Quick Mask Mode" description="Q" actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.3.0.1 Button "Standard Screen Mode" description="F" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Nothing yet; flyout closed" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Nothing yet; flyout closed"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 Button "Toolbar"
+  2: r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move"
+  3: r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee"
+  4: r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso"
+  5: r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop"
+  6: r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper"
+  7: r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush"
+  8: r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp"
+  9: r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser"
+  10: r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient"
+  11: r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen"
+  12: r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand"
+  13: r.0.0.0.0.0.0.0.0.1.0.11 Button "Edit Toolbar…"
+  14: r.0.0.0.0.0.0.0.0.3.0.0 Button "Quick Mask Mode"
+  15: r.0.0.0.0.0.0.0.0.3.0.1 Button "Standard Screen Mode"
+  16: r.0.0.0.0.0.0.0.0.0 Button "Toolbar"
+  cycle after 15 nodes
+drive: 17 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 Button "Toolbar"
+  click:
+    - r.0.0.0.0.1 Label "" value="Nothing yet; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Nothing yet; flyout closed"
+    + r.0.0.0.0.1 Label "" value="toggle columns; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="toggle columns; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 Button "Toolbar" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move"
+  click: no change
+  Space:
+    - r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" description="V" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" description="V" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="toggle columns; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="toggle columns; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected move; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected move; flyout closed"
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" description="V" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.0.0 Button "Move" description="V" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" description="M" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected move; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected move; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected marquee; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected marquee; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" description="M" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" description="L" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected marquee; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected marquee; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected lasso; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected lasso; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" description="L" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" description="C" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" description="C" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected lasso; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected lasso; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected crop; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected crop; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" description="C" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.3.0 Button "Crop" description="C" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" description="I" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" description="I" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected crop; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected crop; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected eyedropper; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected eyedropper; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" description="I" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.4.0 Button "Eyedropper" description="I" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected eyedropper; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected eyedropper; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected brush; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected brush; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.5.0 Button "Brush" description="B" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" description="S" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" description="S" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected brush; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected brush; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected stamp; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected stamp; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" description="S" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.6.0 Button "Clone Stamp" description="S" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" description="E" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" description="E" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected stamp; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected stamp; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected eraser; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected eraser; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" description="E" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.7.0 Button "Eraser" description="E" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" description="G" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" description="G" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected eraser; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected eraser; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected gradient; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected gradient; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" description="G" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.8.0 Button "Gradient" description="G" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" description="P" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" description="P" [checked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected gradient; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected gradient; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected pen; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected pen; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" description="P" [checked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.9.0 Button "Pen" description="P" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand" description="H" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand" description="H" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="selected pen; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected pen; flyout closed"
+    + r.0.0.0.0.1 Label "" value="selected hand; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="selected hand; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.10.0 Button "Hand" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0.11 Button "Edit Toolbar…"
+  click: no change
+  Space:
+    - r.0.0.0.0.1 Label "" value="selected hand; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="selected hand; flyout closed"
+    + r.0.0.0.0.1 Label "" value="edit toolbar; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="edit toolbar; flyout closed"
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0.11 Button "Edit Toolbar…" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.2 ScrollBar "Scroll bar"
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.3.0.0 Button "Quick Mask Mode"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.3.0.0 Button "Quick Mask Mode" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.3.0.1 Button "Standard Screen Mode"
+  click:
+    - r.0.0.0.0.0.0.0.0.3.0.1 Button "Standard Screen Mode" description="F" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.3.0.1 Button "Full Screen Mode" description="F" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

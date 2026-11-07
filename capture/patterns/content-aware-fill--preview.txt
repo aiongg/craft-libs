@@ -1,0 +1,336 @@
+story patterns/content-aware-fill/preview
+args
+  open = Bool(true)
+  preview = Choice { options: ["ready", "recomputing", "failed"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Content-Aware Fill (Layer 1, 0%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Content-Aware Fill (Layer 1, 0%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Content-Aware Fill (Layer 1, 0%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Toolbar "Tool options"
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 GenericContainer ""
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 Button "Sampling Brush Tool" description="Sampling Brush Tool" actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.1 Button "Add" description="Add" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.2 Button "Subtract" description="Subtract" [checked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.3 Label "" value="Size:"
+                  r.1.1.0.3.0.0.0.0.4 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+                    r.1.1.0.3.0.0.0.0.4.1 SpinButton "Size" value="20 px" number=20 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.1.1.0.3.0.0.0.0.4.1.0 TextRun "" value="20"
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Toolbar "Tools"
+              r.1.1.0.4.0.0.0 GenericContainer ""
+                r.1.1.0.4.0.0.0.0 GenericContainer ""
+                  r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.0.0 Button "Sampling Brush Tool" description="B" [checked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.1.0 Button "Lasso Tool" description="L" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.2.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+                    r.1.1.0.4.0.0.0.0.3.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+              r.1.1.0.4.0.0.1 GenericContainer ""
+        r.1.1.0.5 Pane ""
+          r.1.1.0.5.0 GenericContainer ""
+            r.1.1.0.5.0.0 Group "Content-Aware Fill"
+              r.1.1.0.5.0.0.0 Header "Content-Aware Fill"
+              r.1.1.0.5.0.0.1 GenericContainer ""
+                r.1.1.0.5.0.0.1.0 GenericContainer ""
+                  r.1.1.0.5.0.0.1.0.0 Label "" value="Content-Aware Fill"
+              r.1.1.0.5.0.0.2 GenericContainer ""
+              r.1.1.0.5.0.0.3 GenericContainer ""
+                r.1.1.0.5.0.0.3.0 GenericContainer ""
+                  r.1.1.0.5.0.0.3.0.0 GenericContainer ""
+                    r.1.1.0.5.0.0.3.0.0.0 GenericContainer ""
+                      r.1.1.0.5.0.0.3.0.0.0.0 GenericContainer ""
+                        r.1.1.0.5.0.0.3.0.0.0.0.0 DisclosureTriangle "Sampling Area Overlay" [collapsed] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.1 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.1.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.1.0.0 Label "" value="Sampling Area Overlay"
+                        r.1.1.0.5.0.0.3.0.0.0.0.2 DisclosureTriangle "Sampling Area Options" [expanded] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.3 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.3.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.3.0.0 Label "" value="Sampling Area Options"
+                        r.1.1.0.5.0.0.3.0.0.0.0.4 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.4.0 Button "Reset" description="Reset" actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.5 RadioGroup "Sampling Area Options"
+                          r.1.1.0.5.0.0.3.0.0.0.0.5.0 RadioButton "Auto" [checked] actions=[Click,Focus]
+                          r.1.1.0.5.0.0.3.0.0.0.0.5.1 RadioButton "Rectangular" [unchecked] actions=[Click,Focus]
+                          r.1.1.0.5.0.0.3.0.0.0.0.5.2 RadioButton "Custom" [unchecked] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.6 CheckBox "Sample All Layers" [unchecked] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.7 DisclosureTriangle "Fill Settings" [expanded] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.8 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.8.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.8.0.0 Label "" value="Fill Settings"
+                        r.1.1.0.5.0.0.3.0.0.0.0.9 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.9.0 Button "Reset" description="Reset" actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.10 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.10.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.10.0.0 Label "" value="Color Adaptation" actions=[Click]
+                              r.1.1.0.5.0.0.3.0.0.0.0.10.0.0.0 TextRun "" value="Color Adaptation"
+                            r.1.1.0.5.0.0.3.0.0.0.0.10.0.1 ComboBox "Color Adaptation" value="Default" [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.11 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.11.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.11.0.0 Label "" value="Rotation Adaptation" actions=[Click]
+                              r.1.1.0.5.0.0.3.0.0.0.0.11.0.0.0 TextRun "" value="Rotation Adaptation"
+                            r.1.1.0.5.0.0.3.0.0.0.0.11.0.1 ComboBox "Rotation Adaptation" value="None" [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.12 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.12.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.12.0.0 CheckBox "Scale" [unchecked] actions=[Click,Focus]
+                            r.1.1.0.5.0.0.3.0.0.0.0.12.0.1 CheckBox "Mirror" [unchecked] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.13 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+                        r.1.1.0.5.0.0.3.0.0.0.0.14 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.14.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.14.0.0 Label "" value="Output Settings"
+                        r.1.1.0.5.0.0.3.0.0.0.0.15 GenericContainer ""
+                          r.1.1.0.5.0.0.3.0.0.0.0.15.0 GenericContainer ""
+                            r.1.1.0.5.0.0.3.0.0.0.0.15.0.0 Label "" value="Output To" actions=[Click]
+                              r.1.1.0.5.0.0.3.0.0.0.0.15.0.0.0 TextRun "" value="Output To"
+                            r.1.1.0.5.0.0.3.0.0.0.0.15.0.1 ComboBox "Output To" value="New Layer" [collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.5.0.0.4 GenericContainer ""
+                r.1.1.0.5.0.0.4.0 Button "Reset" description="Reset" actions=[Click,Focus]
+              r.1.1.0.5.0.0.5 GenericContainer ""
+                r.1.1.0.5.0.0.5.0 GenericContainer ""
+                  r.1.1.0.5.0.0.5.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.5.0.0.5.0.1 Button "Cancel" actions=[Click,Focus]
+                  r.1.1.0.5.0.0.5.0.2 Button "Apply" actions=[Click,Focus]
+        r.1.1.0.6 Pane ""
+          r.1.1.0.6.0 GenericContainer ""
+            r.1.1.0.6.0.0 Group "Preview"
+              r.1.1.0.6.0.0.0 Header "Preview"
+              r.1.1.0.6.0.0.1 GenericContainer ""
+                r.1.1.0.6.0.0.1.0 GenericContainer ""
+                  r.1.1.0.6.0.0.1.0.0 Label "" value="Preview"
+              r.1.1.0.6.0.0.2 GenericContainer ""
+              r.1.1.0.6.0.0.3 GenericContainer ""
+                r.1.1.0.6.0.0.3.0 Pane ""
+                  r.1.1.0.6.0.0.3.0.0 GenericContainer ""
+                    r.1.1.0.6.0.0.3.0.0.0 GenericContainer ""
+                      r.1.1.0.6.0.0.3.0.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+                      r.1.1.0.6.0.0.3.0.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+                      r.1.1.0.6.0.0.3.0.0.0.2 ComboBox "Zoom" value="29.5%" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.1.1.0.6.0.0.3.1 Pane ""
+                  r.1.1.0.6.0.0.3.1.0 GenericContainer ""
+                r.1.1.0.6.0.0.3.2 Canvas "Preview" value="29%" actions=[Click,Focus]
+        r.1.1.0.7 Canvas "Image" value="0%" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.0 Button "Sampling Brush Tool"
+  2: r.1.1.0.3.0.0.0.0.1 Button "Add"
+  3: r.1.1.0.3.0.0.0.0.2 Button "Subtract"
+  4: r.1.1.0.3.0.0.0.0.4.0 Unknown ""
+  5: r.1.1.0.3.0.0.0.0.4.1 SpinButton "Size"
+  6: r.1.1.0.3.0.0.0.0.4.0 Unknown ""
+  cycle after 5 nodes
+drive: 36 actionable nodes
+drive r.1.1.0.3.0.0.0.0.0 Button "Sampling Brush Tool"
+  click:
+    focus: r.1.1.0.3.0.0.0.0.4.0 Unknown "" -> r Window ""
+  Space: no change
+  Enter:
+    focus: r.1.1.0.3.0.0.0.0.0 Button "Sampling Brush Tool" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Content-Aware Fill (Layer 1, 0%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Content-Aware Fill (Layer 1, 0%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Content-Aware Fill (Layer 1, 0%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Toolbar "Tool options"
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 Button "Sampling Brush Tool" description="Sampling Brush Tool" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1 Button "Add" description="Add" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.2 Button "Subtract" description="Subtract" [checked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.3 Label "" value="Size:"
+    - r.1.1.0.3.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.4.0 Unknown "" actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.4.1 SpinButton "Size" value="20 px" number=20 in 1..5000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.3.0.0.0.0.4.1.0 TextRun "" value="20"
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Toolbar "Tools"
+    - r.1.1.0.4.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.0.0 Button "Sampling Brush Tool" description="B" [checked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.1.0 Button "Lasso Tool" description="L" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.2.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.0.0.3.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.1 GenericContainer ""
+    - r.1.1.0.5 Pane ""
+    - r.1.1.0.5.0 GenericContainer ""
+    - r.1.1.0.5.0.0 Group "Content-Aware Fill"
+    - r.1.1.0.5.0.0.0 Header "Content-Aware Fill"
+    - r.1.1.0.5.0.0.1 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0 GenericContainer ""
+    - r.1.1.0.5.0.0.1.0.0 Label "" value="Content-Aware Fill"
+    - r.1.1.0.5.0.0.2 GenericContainer ""
+    - r.1.1.0.5.0.0.3 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.0 DisclosureTriangle "Sampling Area Overlay" [collapsed] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.1.0.0 Label "" value="Sampling Area Overlay"
+    - r.1.1.0.5.0.0.3.0.0.0.0.2 DisclosureTriangle "Sampling Area Options" [expanded] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.3.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.3.0.0 Label "" value="Sampling Area Options"
+    - r.1.1.0.5.0.0.3.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.4.0 Button "Reset" description="Reset" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.5 RadioGroup "Sampling Area Options"
+    - r.1.1.0.5.0.0.3.0.0.0.0.5.0 RadioButton "Auto" [checked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.5.1 RadioButton "Rectangular" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.5.2 RadioButton "Custom" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.6 CheckBox "Sample All Layers" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.7 DisclosureTriangle "Fill Settings" [expanded] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.8.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.8.0.0 Label "" value="Fill Settings"
+    - r.1.1.0.5.0.0.3.0.0.0.0.9 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.9.0 Button "Reset" description="Reset" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.10 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.10.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.10.0.0 Label "" value="Color Adaptation" actions=[Click]
+    - r.1.1.0.5.0.0.3.0.0.0.0.10.0.0.0 TextRun "" value="Color Adaptation"
+    - r.1.1.0.5.0.0.3.0.0.0.0.10.0.1 ComboBox "Color Adaptation" value="Default" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.11 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.11.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.11.0.0 Label "" value="Rotation Adaptation" actions=[Click]
+    - r.1.1.0.5.0.0.3.0.0.0.0.11.0.0.0 TextRun "" value="Rotation Adaptation"
+    - r.1.1.0.5.0.0.3.0.0.0.0.11.0.1 ComboBox "Rotation Adaptation" value="None" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.12 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.12.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.12.0.0 CheckBox "Scale" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.12.0.1 CheckBox "Mirror" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.13 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.3.0.0.0.0.14 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.14.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.14.0.0 Label "" value="Output Settings"
+    - r.1.1.0.5.0.0.3.0.0.0.0.15 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.15.0 GenericContainer ""
+    - r.1.1.0.5.0.0.3.0.0.0.0.15.0.0 Label "" value="Output To" actions=[Click]
+    - r.1.1.0.5.0.0.3.0.0.0.0.15.0.0.0 TextRun "" value="Output To"
+    - r.1.1.0.5.0.0.3.0.0.0.0.15.0.1 ComboBox "Output To" value="New Layer" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.5.0.0.4 GenericContainer ""
+    - r.1.1.0.5.0.0.4.0 Button "Reset" description="Reset" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.5 GenericContainer ""
+    - r.1.1.0.5.0.0.5.0 GenericContainer ""
+    - r.1.1.0.5.0.0.5.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.5.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.5.0.0.5.0.2 Button "Apply" actions=[Click,Focus]
+    - r.1.1.0.6 Pane ""
+    - r.1.1.0.6.0 GenericContainer ""
+    - r.1.1.0.6.0.0 Group "Preview"
+    - r.1.1.0.6.0.0.0 Header "Preview"
+    - r.1.1.0.6.0.0.1 GenericContainer ""
+    - r.1.1.0.6.0.0.1.0 GenericContainer ""
+    - r.1.1.0.6.0.0.1.0.0 Label "" value="Preview"
+    - r.1.1.0.6.0.0.2 GenericContainer ""
+    - r.1.1.0.6.0.0.3 GenericContainer ""
+    - r.1.1.0.6.0.0.3.0 Pane ""
+    - r.1.1.0.6.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.6.0.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.6.0.0.3.0.0.0.0 Button "Zoom Out" description="Zoom Out" actions=[Click,Focus]
+    - r.1.1.0.6.0.0.3.0.0.0.1 Button "Zoom In" description="Zoom In" actions=[Click,Focus]
+    - r.1.1.0.6.0.0.3.0.0.0.2 ComboBox "Zoom" value="29.5%" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.6.0.0.3.1 Pane ""
+    - r.1.1.0.6.0.0.3.1.0 GenericContainer ""
+    - r.1.1.0.6.0.0.3.2 Canvas "Preview" value="29%" actions=[Click,Focus]
+    - r.1.1.0.7 Canvas "Image" value="0%" actions=[Click,Focus]
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1 Button "Add"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.2 Button "Subtract"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.4.0 Unknown ""
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.4.1 SpinButton "Size"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.0.0 Button "Sampling Brush Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.1.0 Button "Lasso Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.2.0 Button "Hand Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.0.0.3.0 Button "Zoom Tool"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.0 DisclosureTriangle "Sampling Area Overlay"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.2 DisclosureTriangle "Sampling Area Options"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.4.0 Button "Reset"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.5.0 RadioButton "Auto"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.5.1 RadioButton "Rectangular"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.5.2 RadioButton "Custom"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.6 CheckBox "Sample All Layers"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.7 DisclosureTriangle "Fill Settings"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.9.0 Button "Reset"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.10.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.10.0.1 ComboBox "Color Adaptation"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.11.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.11.0.1 ComboBox "Rotation Adaptation"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.12.0.0 CheckBox "Scale"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.12.0.1 CheckBox "Mirror"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.13 DisclosureTriangle "Output Settings"
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.15.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.5.0.0.3.0.0.0.0.15.0.1 ComboBox "Output To"
+  all steps: node gone
+drive r.1.1.0.5.0.0.4.0 Button "Reset"
+  all steps: node gone
+drive r.1.1.0.5.0.0.5.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.5.0.0.5.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.5.0.0.5.0.2 Button "Apply"
+  all steps: node gone
+drive r.1.1.0.6.0.0.3.0.0.0.0 Button "Zoom Out"
+  all steps: node gone
+drive r.1.1.0.6.0.0.3.0.0.0.1 Button "Zoom In"
+  all steps: node gone
+drive r.1.1.0.6.0.0.3.0.0.0.2 ComboBox "Zoom"
+  all steps: node gone
+drive r.1.1.0.6.0.0.3.2 Canvas "Preview"
+  all steps: node gone
+drive r.1.1.0.7 Canvas "Image"
+  all steps: node gone

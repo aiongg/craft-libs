@@ -1,0 +1,387 @@
+story patterns/liquify/tools
+args
+  open = Bool(true)
+  tool = Choice { options: ["Forward Warp", "reconstruct", "smooth", "Twirl Clockwise", "Twirl Counterclockwise", "pucker", "bloat", "Push Left", "freeze", "thaw", "Freeze Lasso", "hand", "zoom"], index: 0 }
+  size = Number { value: 100.0, min: 1.0, max: 3000.0 }
+  density = Number { value: 50.0, min: 0.0, max: 100.0 }
+  pressure = Number { value: 100.0, min: 0.0, max: 100.0 }
+  rate = Number { value: 80.0, min: 0.0, max: 100.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Liquify (Photo, 17%)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 Header "Liquify (Photo, 17%)"
+        r.1.1.0.1 GenericContainer ""
+          r.1.1.0.1.0 GenericContainer ""
+            r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 17%)"
+        r.1.1.0.2 GenericContainer ""
+        r.1.1.0.3 Pane ""
+          r.1.1.0.3.0 GenericContainer ""
+            r.1.1.0.3.0.0 Toolbar "Tools"
+              r.1.1.0.3.0.0.0 GenericContainer ""
+                r.1.1.0.3.0.0.0.0 GenericContainer ""
+                  r.1.1.0.3.0.0.0.0.0 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool" description="W" [checked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.1.0 Button "Reconstruct Tool" description="R" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.2 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.2.0 Button "Smooth Tool" description="E" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.3 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.3.0 Button "Twirl Clockwise Tool" description="C" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.4 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.4.0 Button "Twirl Counterclockwise Tool" description="Twirl Counterclockwise Tool" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.5 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.5.0 Button "Pucker Tool" description="S" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.6 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.6.0 Button "Bloat Tool" description="B" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.7 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.7.0 Button "Push Left Tool" description="O" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.8 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.8.0 Button "Freeze Mask Tool" description="F" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.9 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.9.0 Button "Thaw Mask Tool" description="D" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.10 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.10.0 Button "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it" description="L" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.11 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.11.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.3.0.0.0.0.12 GenericContainer ""
+                    r.1.1.0.3.0.0.0.0.12.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+              r.1.1.0.3.0.0.1 GenericContainer ""
+        r.1.1.0.4 Pane ""
+          r.1.1.0.4.0 GenericContainer ""
+            r.1.1.0.4.0.0 Group "Properties"
+              r.1.1.0.4.0.0.0 Header "Properties"
+              r.1.1.0.4.0.0.1 GenericContainer ""
+                r.1.1.0.4.0.0.1.0 GenericContainer ""
+                  r.1.1.0.4.0.0.1.0.0 Label "" value="Properties"
+              r.1.1.0.4.0.0.2 GenericContainer ""
+              r.1.1.0.4.0.0.3 GenericContainer ""
+                r.1.1.0.4.0.0.3.0 GenericContainer ""
+                  r.1.1.0.4.0.0.3.0.0 GenericContainer ""
+                    r.1.1.0.4.0.0.3.0.0.0 GenericContainer ""
+                      r.1.1.0.4.0.0.3.0.0.0.0 GenericContainer ""
+                        r.1.1.0.4.0.0.3.0.0.0.0.0 DisclosureTriangle "Brush Tool Options" [expanded] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.1 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.1.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.1.0.0 Label "" value="Brush Tool Options"
+                        r.1.1.0.4.0.0.3.0.0.0.0.2 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.2.0 Label "" value="Size"
+                        r.1.1.0.4.0.0.3.0.0.0.0.3 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.3.0 SpinButton "Size" value="100" number=100 in 1..3000 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.3.0.0.0.0.3.0.0 TextRun "" value="100"
+                        r.1.1.0.4.0.0.3.0.0.0.0.4 Slider "Size" number=100 in 1..3000 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.4.0.0.3.0.0.0.0.5 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.5.0 Label "" value="Density"
+                        r.1.1.0.4.0.0.3.0.0.0.0.6 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.6.0 SpinButton "Density" value="50" number=50 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.5.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.3.0.0.0.0.6.0.0 TextRun "" value="50"
+                        r.1.1.0.4.0.0.3.0.0.0.0.7 Slider "Density" number=50 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.5.0] actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.4.0.0.3.0.0.0.0.8 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.8.0 Label "" value="Pressure"
+                        r.1.1.0.4.0.0.3.0.0.0.0.9 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.9.0 SpinButton "Pressure" value="100" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.8.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.3.0.0.0.0.9.0.0 TextRun "" value="100"
+                        r.1.1.0.4.0.0.3.0.0.0.0.10 Slider "Pressure" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.8.0] actions=[Focus,Decrement,SetValue]
+                        r.1.1.0.4.0.0.3.0.0.0.0.11 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.11.0 Label "" value="Rate"
+                        r.1.1.0.4.0.0.3.0.0.0.0.12 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.12.0 SpinButton "Rate" value="80" number=80 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.11.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.3.0.0.0.0.12.0.0 TextRun "" value="80"
+                        r.1.1.0.4.0.0.3.0.0.0.0.13 Slider "Rate" number=80 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.11.0] actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.4.0.0.3.0.0.0.0.14 DisclosureTriangle "Brush Reconstruct Options" [expanded] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.15 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.15.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.15.0.0 Label "" value="Brush Reconstruct Options"
+                        r.1.1.0.4.0.0.3.0.0.0.0.16 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.16.0 Label "" value="Amount"
+                        r.1.1.0.4.0.0.3.0.0.0.0.17 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.17.0 SpinButton "Amount" value="100%" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.16.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                            r.1.1.0.4.0.0.3.0.0.0.0.17.0.0 TextRun "" value="100"
+                        r.1.1.0.4.0.0.3.0.0.0.0.18 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.16.0] actions=[Focus,Decrement,SetValue]
+                        r.1.1.0.4.0.0.3.0.0.0.0.19 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.19.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.19.0.0 Button "Reconstruct" actions=[Click,Focus]
+                            r.1.1.0.4.0.0.3.0.0.0.0.19.0.1 Button "Restore All" actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.20 DisclosureTriangle "Mask Options" [expanded] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.21 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.21.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.21.0.0 Label "" value="Mask Options"
+                        r.1.1.0.4.0.0.3.0.0.0.0.22 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.22.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.22.0.0 Button "None" actions=[Click,Focus]
+                            r.1.1.0.4.0.0.3.0.0.0.0.22.0.1 Button "Mask All" actions=[Click,Focus]
+                            r.1.1.0.4.0.0.3.0.0.0.0.22.0.2 Button "Invert All" actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.23 DisclosureTriangle "View Options" [expanded] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.24 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.24.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.24.0.0 Label "" value="View Options"
+                        r.1.1.0.4.0.0.3.0.0.0.0.25 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.26 GenericContainer ""
+                          r.1.1.0.4.0.0.3.0.0.0.0.26.0 GenericContainer ""
+                            r.1.1.0.4.0.0.3.0.0.0.0.26.0.0 Label "" value="Mesh Size" actions=[Click]
+                              r.1.1.0.4.0.0.3.0.0.0.0.26.0.0.0 TextRun "" value="Mesh Size"
+                            r.1.1.0.4.0.0.3.0.0.0.0.26.0.1 ComboBox "Mesh Size" value="Medium" [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.27 CheckBox "Show Mask" [checked] actions=[Click,Focus]
+                        r.1.1.0.4.0.0.3.0.0.0.0.28 CheckBox "Show Backdrop" [unchecked] actions=[Click,Focus]
+              r.1.1.0.4.0.0.4 GenericContainer ""
+                r.1.1.0.4.0.0.4.0 GenericContainer ""
+                  r.1.1.0.4.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                  r.1.1.0.4.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+        r.1.1.0.5 Canvas "Image" value="17%" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool"
+  2: r.1.1.0.3.0.0.0.0.1.0 Button "Reconstruct Tool"
+  3: r.1.1.0.3.0.0.0.0.2.0 Button "Smooth Tool"
+  4: r.1.1.0.3.0.0.0.0.3.0 Button "Twirl Clockwise Tool"
+  5: r.1.1.0.3.0.0.0.0.4.0 Button "Twirl Counterclockwise Tool"
+  6: r.1.1.0.3.0.0.0.0.5.0 Button "Pucker Tool"
+  7: r.1.1.0.3.0.0.0.0.6.0 Button "Bloat Tool"
+  8: r.1.1.0.3.0.0.0.0.7.0 Button "Push Left Tool"
+  9: r.1.1.0.3.0.0.0.0.8.0 Button "Freeze Mask Tool"
+  10: r.1.1.0.3.0.0.0.0.9.0 Button "Thaw Mask Tool"
+  11: r.1.1.0.3.0.0.0.0.10.0 Button "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it"
+  12: r.1.1.0.3.0.0.0.0.11.0 Button "Hand Tool"
+  13: r.1.1.0.3.0.0.0.0.12.0 Button "Zoom Tool"
+  14: r.1.1.0.4.0.0.3.0.0.0.0.0 DisclosureTriangle "Brush Tool Options"
+  15: r.1.1.0.4.0.0.3.0.0.0.0.3.0 SpinButton "Size"
+  16: r.1.1.0.4.0.0.3.0.0.0.0.4 Slider "Size"
+  17: r.1.1.0.4.0.0.3.0.0.0.0.6.0 SpinButton "Density"
+  18: r.1.1.0.4.0.0.3.0.0.0.0.7 Slider "Density"
+  19: r.1.1.0.4.0.0.3.0.0.0.0.9.0 SpinButton "Pressure"
+  20: r.1.1.0.4.0.0.3.0.0.0.0.10 Slider "Pressure"
+  21: r.1.1.0.4.0.0.3.0.0.0.0.12.0 SpinButton "Rate"
+  22: r.1.1.0.4.0.0.3.0.0.0.0.13 Slider "Rate"
+  23: r.1.1.0.4.0.0.3.0.0.0.0.14 DisclosureTriangle "Brush Reconstruct Options"
+  24: r.1.1.0.4.0.0.3.0.0.0.0.17.0 SpinButton "Amount"
+  25: r.1.1.0.4.0.0.3.0.0.0.0.18 Slider "Amount"
+  26: r.1.1.0.4.0.0.3.0.0.0.0.19.0.0 Button "Reconstruct"
+  27: r.1.1.0.4.0.0.3.0.0.0.0.19.0.1 Button "Restore All"
+  28: r.1.1.0.4.0.0.3.0.0.0.0.20 DisclosureTriangle "Mask Options"
+  29: r.1.1.0.4.0.0.3.0.0.0.0.22.0.0 Button "None"
+  30: r.1.1.0.4.0.0.3.0.0.0.0.22.0.1 Button "Mask All"
+  31: r.1.1.0.4.0.0.3.0.0.0.0.22.0.2 Button "Invert All"
+  32: r.1.1.0.4.0.0.3.0.0.0.0.23 DisclosureTriangle "View Options"
+  33: r.1.1.0.4.0.0.3.0.0.0.0.25 CheckBox "Show Mesh"
+  34: r.1.1.0.4.0.0.3.0.0.0.0.26.0.1 ComboBox "Mesh Size"
+  35: r.1.1.0.4.0.0.3.0.0.0.0.27 CheckBox "Show Mask"
+  36: r.1.1.0.4.0.0.3.0.0.0.0.28 CheckBox "Show Backdrop"
+  37: r.1.1.0.4.0.0.4.0.0 Button "OK"
+  38: r.1.1.0.4.0.0.4.0.1 Button "Cancel"
+  39: r.1.1.0.5 Canvas "Image"
+  40: r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool"
+  cycle after 39 nodes
+drive: 40 actionable nodes
+drive r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Liquify (Photo, 17%)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 Header "Liquify (Photo, 17%)"
+    - r.1.1.0.1 GenericContainer ""
+    - r.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.1.0.0 Label "" value="Liquify (Photo, 17%)"
+    - r.1.1.0.2 GenericContainer ""
+    - r.1.1.0.3 Pane ""
+    - r.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.3.0.0 Toolbar "Tools"
+    - r.1.1.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.0.0 Button "Forward Warp Tool" description="W" [checked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.1.0 Button "Reconstruct Tool" description="R" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.2.0 Button "Smooth Tool" description="E" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.3.0 Button "Twirl Clockwise Tool" description="C" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.4.0 Button "Twirl Counterclockwise Tool" description="Twirl Counterclockwise Tool" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.5.0 Button "Pucker Tool" description="S" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.6.0 Button "Bloat Tool" description="B" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.7 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.7.0 Button "Push Left Tool" description="O" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.8.0 Button "Freeze Mask Tool" description="F" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.9 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.9.0 Button "Thaw Mask Tool" description="D" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.10 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.10.0 Button "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it" description="L" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.11 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.11.0 Button "Hand Tool" description="H" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.0.0.12 GenericContainer ""
+    - r.1.1.0.3.0.0.0.0.12.0 Button "Zoom Tool" description="Z" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.3.0.0.1 GenericContainer ""
+    - r.1.1.0.4 Pane ""
+    - r.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0 Group "Properties"
+    - r.1.1.0.4.0.0.0 Header "Properties"
+    - r.1.1.0.4.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.1.0 GenericContainer ""
+    - r.1.1.0.4.0.0.1.0.0 Label "" value="Properties"
+    - r.1.1.0.4.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.0 DisclosureTriangle "Brush Tool Options" [expanded] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.1.0.0 Label "" value="Brush Tool Options"
+    - r.1.1.0.4.0.0.3.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.2.0 Label "" value="Size"
+    - r.1.1.0.4.0.0.3.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.3.0 SpinButton "Size" value="100" number=100 in 1..3000 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.3.0.0.0.0.3.0.0 TextRun "" value="100"
+    - r.1.1.0.4.0.0.3.0.0.0.0.4 Slider "Size" number=100 in 1..3000 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.2.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.4.0.0.3.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.5.0 Label "" value="Density"
+    - r.1.1.0.4.0.0.3.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.6.0 SpinButton "Density" value="50" number=50 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.5.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.3.0.0.0.0.6.0.0 TextRun "" value="50"
+    - r.1.1.0.4.0.0.3.0.0.0.0.7 Slider "Density" number=50 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.5.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.4.0.0.3.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.8.0 Label "" value="Pressure"
+    - r.1.1.0.4.0.0.3.0.0.0.0.9 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.9.0 SpinButton "Pressure" value="100" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.8.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.3.0.0.0.0.9.0.0 TextRun "" value="100"
+    - r.1.1.0.4.0.0.3.0.0.0.0.10 Slider "Pressure" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.8.0] actions=[Focus,Decrement,SetValue]
+    - r.1.1.0.4.0.0.3.0.0.0.0.11 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.11.0 Label "" value="Rate"
+    - r.1.1.0.4.0.0.3.0.0.0.0.12 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.12.0 SpinButton "Rate" value="80" number=80 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.11.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.3.0.0.0.0.12.0.0 TextRun "" value="80"
+    - r.1.1.0.4.0.0.3.0.0.0.0.13 Slider "Rate" number=80 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.11.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.4.0.0.3.0.0.0.0.14 DisclosureTriangle "Brush Reconstruct Options" [expanded] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.15 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.15.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.15.0.0 Label "" value="Brush Reconstruct Options"
+    - r.1.1.0.4.0.0.3.0.0.0.0.16 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.16.0 Label "" value="Amount"
+    - r.1.1.0.4.0.0.3.0.0.0.0.17 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.17.0 SpinButton "Amount" value="100%" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.16.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.1.1.0.4.0.0.3.0.0.0.0.17.0.0 TextRun "" value="100"
+    - r.1.1.0.4.0.0.3.0.0.0.0.18 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.1.1.0.4.0.0.3.0.0.0.0.16.0] actions=[Focus,Decrement,SetValue]
+    - r.1.1.0.4.0.0.3.0.0.0.0.19 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.19.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.19.0.0 Button "Reconstruct" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.19.0.1 Button "Restore All" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.20 DisclosureTriangle "Mask Options" [expanded] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.21 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.21.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.21.0.0 Label "" value="Mask Options"
+    - r.1.1.0.4.0.0.3.0.0.0.0.22 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.22.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.22.0.0 Button "None" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.22.0.1 Button "Mask All" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.22.0.2 Button "Invert All" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.23 DisclosureTriangle "View Options" [expanded] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.24 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.24.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.24.0.0 Label "" value="View Options"
+    - r.1.1.0.4.0.0.3.0.0.0.0.25 CheckBox "Show Mesh" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.26 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.26.0 GenericContainer ""
+    - r.1.1.0.4.0.0.3.0.0.0.0.26.0.0 Label "" value="Mesh Size" actions=[Click]
+    - r.1.1.0.4.0.0.3.0.0.0.0.26.0.0.0 TextRun "" value="Mesh Size"
+    - r.1.1.0.4.0.0.3.0.0.0.0.26.0.1 ComboBox "Mesh Size" value="Medium" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.27 CheckBox "Show Mask" [checked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.3.0.0.0.0.28 CheckBox "Show Backdrop" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.4.0.0.4 GenericContainer ""
+    - r.1.1.0.4.0.0.4.0 GenericContainer ""
+    - r.1.1.0.4.0.0.4.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.4.0.0.4.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.5 Canvas "Image" value="17%" actions=[Click,Focus]
+  Escape: node gone
+drive r.1.1.0.3.0.0.0.0.1.0 Button "Reconstruct Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.2.0 Button "Smooth Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.3.0 Button "Twirl Clockwise Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.4.0 Button "Twirl Counterclockwise Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.5.0 Button "Pucker Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.6.0 Button "Bloat Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.7.0 Button "Push Left Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.8.0 Button "Freeze Mask Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.9.0 Button "Thaw Mask Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.10.0 Button "Freeze Lasso: drag to freeze an area, Alt-drag to thaw it"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.11.0 Button "Hand Tool"
+  all steps: node gone
+drive r.1.1.0.3.0.0.0.0.12.0 Button "Zoom Tool"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.0 DisclosureTriangle "Brush Tool Options"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.3.0 SpinButton "Size"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.4 Slider "Size"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.6.0 SpinButton "Density"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.7 Slider "Density"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.9.0 SpinButton "Pressure"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.10 Slider "Pressure"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.12.0 SpinButton "Rate"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.13 Slider "Rate"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.14 DisclosureTriangle "Brush Reconstruct Options"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.17.0 SpinButton "Amount"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.18 Slider "Amount"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.19.0.0 Button "Reconstruct"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.19.0.1 Button "Restore All"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.20 DisclosureTriangle "Mask Options"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.22.0.0 Button "None"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.22.0.1 Button "Mask All"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.22.0.2 Button "Invert All"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.23 DisclosureTriangle "View Options"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.25 CheckBox "Show Mesh"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.26.0.0 Label ""
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.26.0.1 ComboBox "Mesh Size"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.27 CheckBox "Show Mask"
+  all steps: node gone
+drive r.1.1.0.4.0.0.3.0.0.0.0.28 CheckBox "Show Backdrop"
+  all steps: node gone
+drive r.1.1.0.4.0.0.4.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.4.0.0.4.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.5 Canvas "Image"
+  all steps: node gone

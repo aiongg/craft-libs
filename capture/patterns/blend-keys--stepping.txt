@@ -1,0 +1,43 @@
+story patterns/blend-keys/stepping
+args
+  target = Choice { options: ["layer", "brush"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Unknown "" actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Press ⇧+ or ⇧−, or ⇧⌥ with N, I, R, K, M, S, O, F, E or U. The brush lists Clear; the layer does not." actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Press ⇧+ or ⇧−, or ⇧⌥ with N, I, R, K, M, S, O, F, E or U. The brush lists Clear; the layer does not."
+          r.0.0.0.0.2 TextInput "" value="" placeholder="Type here: the keys type text" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+            r.0.0.0.0.2.0 TextRun "" value=""
+          r.0.0.0.0.3 Label "" value="No blend key pressed yet." actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="No blend key pressed yet."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Unknown ""
+  2: r.0.0.0.0.2 TextInput ""
+  3: r.0.0.0.0.0 Unknown ""
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0 Unknown ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Unknown "" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2 TextInput ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2 TextInput ""
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2 TextInput "" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.2 TextInput "" -> r Window ""
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

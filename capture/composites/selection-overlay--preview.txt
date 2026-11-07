@@ -1,0 +1,98 @@
+story composites/selection-overlay/preview
+args
+  tint = Choice { options: ["red", "green", "blue"], index: 0 }
+  opacity = Number { value: 50.0, min: 0.0, max: 100.0 }
+  indicates = Choice { options: ["Masked Areas", "Selected Areas"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="No preview" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="No preview"
+            r.0.0.0.0.0.1 Canvas "none" actions=[Click,Focus]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="Grayscale" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="Grayscale"
+            r.0.0.0.0.1.1 Canvas "grayscale" actions=[Click,Focus]
+              r.0.0.0.0.1.1.0 GenericContainer ""
+                r.0.0.0.0.1.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px, Grayscale"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Label "" value="Black Matte" actions=[Click]
+              r.0.0.0.0.2.0.0 TextRun "" value="Black Matte"
+            r.0.0.0.0.2.1 Canvas "blackMatte" actions=[Click,Focus]
+              r.0.0.0.0.2.1.0 GenericContainer ""
+                r.0.0.0.0.2.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px, Black Matte"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Label "" value="White Matte" actions=[Click]
+              r.0.0.0.0.3.0.0 TextRun "" value="White Matte"
+            r.0.0.0.0.3.1 Canvas "whiteMatte" actions=[Click,Focus]
+              r.0.0.0.0.3.1.0 GenericContainer ""
+                r.0.0.0.0.3.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px, White Matte"
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 Label "" value="Quick Mask" actions=[Click]
+              r.0.0.0.0.4.0.0 TextRun "" value="Quick Mask"
+            r.0.0.0.0.4.1 Canvas "quickMask" actions=[Click,Focus]
+              r.0.0.0.0.4.1.0 GenericContainer ""
+                r.0.0.0.0.4.1.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px, Quick Mask"
+          r.0.0.0.0.5 GenericContainer ""
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Canvas "none"
+  2: r.0.0.0.0.1.1 Canvas "grayscale"
+  3: r.0.0.0.0.2.1 Canvas "blackMatte"
+  4: r.0.0.0.0.3.1 Canvas "whiteMatte"
+  5: r.0.0.0.0.4.1 Canvas "quickMask"
+  6: r.0.0.0.0.0.1 Canvas "none"
+  cycle after 5 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 Canvas "none" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 Canvas "none"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Canvas "none" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1 Canvas "grayscale"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1 Canvas "grayscale" -> r Window ""
+drive r.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.1 Canvas "blackMatte"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1 Canvas "blackMatte" -> r Window ""
+drive r.0.0.0.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.1 Canvas "whiteMatte"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1 Canvas "whiteMatte" -> r Window ""
+drive r.0.0.0.0.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.4.1 Canvas "quickMask"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.1 Canvas "quickMask" -> r Window ""

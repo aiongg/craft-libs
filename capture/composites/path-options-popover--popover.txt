@@ -1,0 +1,103 @@
+story composites/path-options-popover/popover
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Path Options" description="Path Options" [unchecked collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.2 Group "Path"
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 GraphicsObject "Anchor 1 of 4" value="160.0 px, 100.0 px" [unselected]
+              r.0.0.0.0.2.0.1 GraphicsObject "Anchor 2 of 4" value="300.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.2.0.2 GraphicsObject "Anchor 3 of 4" value="180.0 px, 300.0 px" [unselected]
+              r.0.0.0.0.2.0.3 GraphicsObject "Anchor 4 of 4" value="80.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.2.0.4 GraphicsObject "Anchor 1 of 3" value="360.0 px, 280.0 px" [unselected]
+              r.0.0.0.0.2.0.5 GraphicsObject "Anchor 2 of 3" value="460.0 px, 160.0 px" [unselected]
+              r.0.0.0.0.2.0.6 GraphicsObject "Anchor 3 of 3" value="580.0 px, 120.0 px" [unselected]
+          r.0.0.0.0.3 Group "Path being drawn"
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GraphicsObject "Anchor 1 of 3" value="80.0 px, 120.0 px" [unselected]
+              r.0.0.0.0.3.0.1 GraphicsObject "Anchor 2 of 3" value="160.0 px, 60.0 px" [unselected]
+              r.0.0.0.0.3.0.2 GraphicsObject "Anchor 3 of 3" value="280.0 px, 110.0 px" [selected]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Path Options"
+  2: r.0.0.0.0.1 Canvas "Document"
+  3: r.0.0.0.0.0 Button "Path Options"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "Path Options"
+  click:
+    focus: r.0.0.0.0.0 Button "Path Options" -> r.1.0.0.1.0.0 SpinButton "Thickness"
+    - r.0.0.0.0.0 Button "Path Options" description="Path Options" [unchecked collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Path Options" description="Path Options" [checked expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Path Options"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 Label "" value="Thickness"
+    + r.1.0.0.1 GenericContainer ""
+    + r.1.0.0.1.0 GenericContainer ""
+    + r.1.0.0.1.0.0 SpinButton "Thickness" value="" placeholder="Auto" labelled_by=[r.1.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.1.0.0.1.0.0.0 TextRun "" value=""
+    + r.1.0.0.2 GenericContainer ""
+    + r.1.0.0.2.0 Label "" value="Color"
+    + r.1.0.0.3 GenericContainer ""
+    + r.1.0.0.3.0 GenericContainer ""
+    + r.1.0.0.3.0.0 ColorWell "Color" value="#378ef0" [unselected] actions=[Click,Focus]
+    + r.1.0.0.4 GenericContainer ""
+    + r.1.0.0.4.0 GenericContainer ""
+    + r.1.0.0.4.0.0 CheckBox "Rubber Band" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.1.0.0.3.0.0 ColorWell "Color" value="#378ef0" [unselected] actions=[Click,Focus]
+    + r.1.0.0.3.0.0 ColorWell "Color" value="#e66e14" [unselected] actions=[Click,Focus]
+  Enter:
+    focus: r.1.0.0.1.0.0 SpinButton "Thickness" -> r Window ""
+  Escape:
+    - r.0.0.0.0.0 Button "Path Options" description="Path Options" [checked expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Path Options" description="Path Options" [unchecked collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Path Options"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 Label "" value="Thickness"
+    - r.1.0.0.1 GenericContainer ""
+    - r.1.0.0.1.0 GenericContainer ""
+    - r.1.0.0.1.0.0 SpinButton "Thickness" value="" placeholder="Auto" labelled_by=[r.1.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.0.0.1.0.0.0 TextRun "" value=""
+    - r.1.0.0.2 GenericContainer ""
+    - r.1.0.0.2.0 Label "" value="Color"
+    - r.1.0.0.3 GenericContainer ""
+    - r.1.0.0.3.0 GenericContainer ""
+    - r.1.0.0.3.0.0 ColorWell "Color" value="#e66e14" [unselected] actions=[Click,Focus]
+    - r.1.0.0.4 GenericContainer ""
+    - r.1.0.0.4.0 GenericContainer ""
+    - r.1.0.0.4.0.0 CheckBox "Rubber Band" [unchecked] actions=[Click,Focus]
+drive r.0.0.0.0.1 Canvas "Document"
+  click:
+    focus: r.0.0.0.0.0 Button "Path Options" -> r Window ""
+    - r.0.0.0.0.3.0.0 GraphicsObject "Anchor 1 of 3" value="80.0 px, 120.0 px" [unselected]
+    - r.0.0.0.0.3.0.1 GraphicsObject "Anchor 2 of 3" value="160.0 px, 60.0 px" [unselected]
+    - r.0.0.0.0.3.0.2 GraphicsObject "Anchor 3 of 3" value="280.0 px, 110.0 px" [selected]
+    + r.0.0.0.0.3.0.0 GraphicsObject "Anchor 1 of 4" value="80.0 px, 120.0 px" [unselected]
+    + r.0.0.0.0.3.0.1 GraphicsObject "Anchor 2 of 4" value="160.0 px, 60.0 px" [unselected]
+    + r.0.0.0.0.3.0.2 GraphicsObject "Anchor 3 of 4" value="280.0 px, 110.0 px" [unselected]
+    + r.0.0.0.0.3.0.3 GraphicsObject "Anchor 4 of 4" value="320.0 px, 200.0 px" [selected]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3 Group "Path being drawn"
+    - r.0.0.0.0.3.0 GenericContainer ""
+    - r.0.0.0.0.3.0.3 GraphicsObject "Anchor 4 of 4" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.2.0.10 GraphicsObject "Anchor 4 of 4" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.3 Group "Path being drawn"
+    + r.0.0.0.0.3.0 GenericContainer ""
+  Escape:
+    focus: r.0.0.0.0.1 Canvas "Document" -> r Window ""

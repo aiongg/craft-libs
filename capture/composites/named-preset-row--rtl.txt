@@ -1,0 +1,193 @@
+story composites/named-preset-row/rtl
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="With the direction set to right to left the row, the field and its popup open from the right. Thumbnails keep their geometry." actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="With the direction set to right to left the row, the field and its popup open from the right. Thumbnails keep "
+            r.0.0.0.0.0.1 TextRun "" value="their geometry."
+          r.0.0.0.0.1 Group "Contour"
+            r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+            r.0.0.0.0.1.1 Button "New…" actions=[Click,Focus]
+          r.0.0.0.0.2 Button "Pattern: Pattern 2" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.3 Label "" value="Picked: Pattern 2" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="Picked: Pattern 2"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0 Button "Contour: Custom"
+  2: r.0.0.0.0.1.1 Button "New…"
+  3: r.0.0.0.0.2 Button "Pattern: Pattern 2"
+  4: r.0.0.0.0.1.0 Button "Contour: Custom"
+  cycle after 3 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.0 Button "Contour: Custom" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.1.0 Button "Contour: Custom"
+  click:
+    focus: r Window "" -> r.1.0.0.0.0.0 ListBoxOption "Contour 1"
+    - r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 Button "Contour: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Contour" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space:
+    - r.0.0.0.0.1.0 Button "Contour: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Contour"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Contour" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    focus: r.0.0.0.0.1.0 Button "Contour: Custom" -> r.1.0.0.0.0.0 ListBoxOption "Contour 1"
+    - r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 Button "Contour: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Contour"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Contour" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    - r.0.0.0.0.1.0 Button "Contour: Custom" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Contour"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Contour" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Contour 1" description="Contour 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Contour 2" description="Contour 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Contour 3" description="Contour 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Contour 4" description="Contour 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+drive r.0.0.0.0.1.1 Button "New…"
+  click:
+    focus: r.0.0.0.0.1.0 Button "Contour: Custom" -> r.0.0.0.0.1.2.0.0 TextInput "Name"
+    - r.0.0.0.0.1.1 Button "New…" actions=[Click,Focus]
+    + r.0.0.0.0.1.1 Label "" value="Name" [hidden]
+    + r.0.0.0.0.1.2 GenericContainer ""
+    + r.0.0.0.0.1.2.0 GenericContainer ""
+    + r.0.0.0.0.1.2.0.0 TextInput "Name" value="Contour 5" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.2.0.0.0 TextRun "" value="Contour 5"
+    + r.0.0.0.0.1.3 Button "OK" actions=[Click,Focus]
+    + r.0.0.0.0.1.4 Button "New…" [disabled] actions=[Click,Focus]
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.2.0.0 TextInput "Name" -> r Window ""
+    - r.0.0.0.0.1.0 Button "Contour: Custom" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Name" [hidden]
+    - r.0.0.0.0.1.2 GenericContainer ""
+    - r.0.0.0.0.1.2.0 GenericContainer ""
+    - r.0.0.0.0.1.2.0.0 TextInput "Name" value="Contour 5" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.2.0.0.0 TextRun "" value="Contour 5"
+    - r.0.0.0.0.1.3 Button "OK" actions=[Click,Focus]
+    - r.0.0.0.0.1.4 Button "New…" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 Button "Contour: Contour 5" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1.1 Button "New…" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.1.1 Button "New…" -> r Window ""
+drive r.0.0.0.0.2 Button "Pattern: Pattern 2"
+  click:
+    focus: r Window "" -> r.1.0.0.0.0.1 ListBoxOption "Pattern 2"
+    - r.0.0.0.0.2 Button "Pattern: Pattern 2" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "Pattern: Pattern 2" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Pattern"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Pattern" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space:
+    - r.0.0.0.0.2 Button "Pattern: Pattern 2" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "Pattern: Pattern 2" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Pattern"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Pattern" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    focus: r.0.0.0.0.2 Button "Pattern: Pattern 2" -> r.1.0.0.0.0.1 ListBoxOption "Pattern 2"
+    - r.0.0.0.0.2 Button "Pattern: Pattern 2" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "Pattern: Pattern 2" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Pattern"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Pattern" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    - r.0.0.0.0.2 Button "Pattern: Pattern 2" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "Pattern: Pattern 2" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Pattern"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Pattern" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 ListBoxOption "Pattern 1" description="Pattern 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 ListBoxOption "Pattern 2" description="Pattern 2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 ListBoxOption "Pattern 3" description="Pattern 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 ListBoxOption "Pattern 4" description="Pattern 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 ListBoxOption "Pattern 5" description="Pattern 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.5 ListBoxOption "Pattern 6" description="Pattern 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 ListBoxOption "Pattern 7" description="Pattern 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 ListBoxOption "Pattern 8" description="Pattern 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 ListBoxOption "Pattern 9" description="Pattern 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.9 ListBoxOption "Pattern 10" description="Pattern 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.10 ListBoxOption "Pattern 11" description="Pattern 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.11 ListBoxOption "Pattern 12" description="Pattern 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+drive r.0.0.0.0.3 Label ""
+  click:
+    focus: r.0.0.0.0.2 Button "Pattern: Pattern 2" -> r Window ""
+  Escape: no change

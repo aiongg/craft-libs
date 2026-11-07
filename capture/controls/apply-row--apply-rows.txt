@@ -1,0 +1,111 @@
+story controls/apply-row/apply-rows
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 CheckBox "Name" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" [disabled]
+                  r.0.0.0.0.0.1.0.0.0 TextRun "" value="Layer"
+            r.0.0.0.0.0.2 Label "" value="Mixed" actions=[Click]
+              r.0.0.0.0.0.2.0 TextRun "" value="Mixed"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 CheckBox "Opacity" [checked] actions=[Click,Focus]
+            r.0.0.0.0.1.1 GenericContainer ""
+              r.0.0.0.0.1.1.0 GenericContainer ""
+                r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.1.1.0.0.0 TextRun "" value="100"
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 CheckBox "Rotation" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.2.1 GenericContainer ""
+              r.0.0.0.0.2.1.0 GenericContainer ""
+                r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step - [disabled]
+                  r.0.0.0.0.2.1.0.0.0 TextRun "" value="15"
+            r.0.0.0.0.2.2 Label "" value="Mixed" actions=[Click]
+              r.0.0.0.0.2.2.0 TextRun "" value="Mixed"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 CheckBox "Name"
+  2: r.0.0.0.0.1.0 CheckBox "Opacity"
+  3: r.0.0.0.0.1.1.0.0 SpinButton "Opacity"
+  4: r.0.0.0.0.2.0 CheckBox "Rotation"
+  5: r.0.0.0.0.0.0 CheckBox "Name"
+  cycle after 4 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0 CheckBox "Name"
+  click:
+    - r.0.0.0.0.0.0 CheckBox "Name" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 CheckBox "Name" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" [disabled]
+    + r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+  Space:
+    - r.0.0.0.0.0.0 CheckBox "Name" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 CheckBox "Name" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" [disabled]
+  Enter:
+    - r.0.0.0.0.0.0 CheckBox "Name" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 CheckBox "Name" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" [disabled]
+    + r.0.0.0.0.0.1.0.0 TextInput "Name" value="Layer" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+  Escape:
+    focus: r.0.0.0.0.0.0 CheckBox "Name" -> r Window ""
+drive r.0.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.0 CheckBox "Opacity"
+  click:
+    - r.0.0.0.0.1.0 CheckBox "Opacity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 CheckBox "Opacity" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step - [disabled]
+  Space:
+    - r.0.0.0.0.1.0 CheckBox "Opacity" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 CheckBox "Opacity" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step - [disabled]
+    + r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+  Enter:
+    - r.0.0.0.0.1.0 CheckBox "Opacity" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0 CheckBox "Opacity" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step 1 actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0 SpinButton "Opacity" value="100" number=100 in 0..100 step - [disabled]
+  Escape:
+    focus: r.0.0.0.0.1.0 CheckBox "Opacity" -> r Window ""
+drive r.0.0.0.0.1.1.0.0 SpinButton "Opacity"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.2.0 CheckBox "Rotation"
+  click:
+    - r.0.0.0.0.2.0 CheckBox "Rotation" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0 CheckBox "Rotation" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step - [disabled]
+    + r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Space:
+    - r.0.0.0.0.2.0 CheckBox "Rotation" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0 CheckBox "Rotation" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step - [disabled]
+  Enter:
+    - r.0.0.0.0.2.0 CheckBox "Rotation" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0 CheckBox "Rotation" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step - [disabled]
+    + r.0.0.0.0.2.1.0.0 SpinButton "Rotation" value="15" number=15 in -180..180 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Escape:
+    focus: r.0.0.0.0.2.0 CheckBox "Rotation" -> r Window ""
+drive r.0.0.0.0.2.2 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,1146 @@
+story patterns/black-white-editor/tint
+args
+  dialog = Bool(true)
+  dynamic_colors = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Default" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="Default"
+            r.0.0.0.0.0.1 Group "Black & White"
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.0.0 Label "" value="Reds"
+                    r.0.0.0.0.0.1.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+                    r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.0.1.0.0.0.3 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.3.0 Label "" value="Yellows"
+                    r.0.0.0.0.0.1.0.0.0.4 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+                    r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.0.1.0.0.0.6 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.6.0 Label "" value="Greens"
+                    r.0.0.0.0.0.1.0.0.0.7 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+                    r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.0.1.0.0.0.9 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.9.0 Label "" value="Cyans"
+                    r.0.0.0.0.0.1.0.0.0.10 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+                    r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.0.1.0.0.0.12 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.12.0 Label "" value="Blues"
+                    r.0.0.0.0.0.1.0.0.0.13 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+                    r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.0.1.0.0.0.15 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.15.0 Label "" value="Magentas"
+                    r.0.0.0.0.0.1.0.0.0.16 GenericContainer ""
+                      r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+                    r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+                  r.0.0.0.0.0.1.0.0.1 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+                    r.0.0.0.0.0.1.0.0.1.2 Button "Default" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="Tinted" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="Tinted"
+            r.0.0.0.0.1.1 Group "Black & White"
+              r.0.0.0.0.1.1.0 GenericContainer ""
+                r.0.0.0.0.1.1.0.0 GenericContainer ""
+                  r.0.0.0.0.1.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.0.0 Label "" value="Reds"
+                    r.0.0.0.0.1.1.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+                    r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.1.1.0.0.0.3 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.3.0 Label "" value="Yellows"
+                    r.0.0.0.0.1.1.0.0.0.4 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+                    r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.1.1.0.0.0.6 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.6.0 Label "" value="Greens"
+                    r.0.0.0.0.1.1.0.0.0.7 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+                    r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.1.1.0.0.0.9 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.9.0 Label "" value="Cyans"
+                    r.0.0.0.0.1.1.0.0.0.10 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+                    r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.1.1.0.0.0.12 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.12.0 Label "" value="Blues"
+                    r.0.0.0.0.1.1.0.0.0.13 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+                    r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+                    r.0.0.0.0.1.1.0.0.0.15 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.15.0 Label "" value="Magentas"
+                    r.0.0.0.0.1.1.0.0.0.16 GenericContainer ""
+                      r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+                    r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+                  r.0.0.0.0.1.1.0.0.1 GenericContainer ""
+                    r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+                    r.0.0.0.0.1.1.0.0.1.2 Button "Default" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds"
+  2: r.0.0.0.0.0.1.0.0.0.2 Slider "Reds"
+  3: r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows"
+  4: r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows"
+  5: r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens"
+  6: r.0.0.0.0.0.1.0.0.0.8 Slider "Greens"
+  7: r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans"
+  8: r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans"
+  9: r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues"
+  10: r.0.0.0.0.0.1.0.0.0.14 Slider "Blues"
+  11: r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas"
+  12: r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas"
+  13: r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint"
+  14: r.0.0.0.0.0.1.0.0.1.2 Button "Default"
+  15: r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds"
+  16: r.0.0.0.0.1.1.0.0.0.2 Slider "Reds"
+  17: r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows"
+  18: r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows"
+  19: r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens"
+  20: r.0.0.0.0.1.1.0.0.0.8 Slider "Greens"
+  21: r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans"
+  22: r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans"
+  23: r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues"
+  24: r.0.0.0.0.1.1.0.0.0.14 Slider "Blues"
+  25: r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas"
+  26: r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas"
+  27: r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint"
+  28: r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color"
+  29: r.0.0.0.0.1.1.0.0.1.2 Button "Default"
+  30: r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds"
+  cycle after 29 nodes
+drive: 31 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="41"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="41"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.2 Slider "Reds"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="39"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="39"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="41"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="41"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="61"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="61"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="59"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="59"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="61"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="61"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="41"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="41"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.8 Slider "Greens"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="39"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="39"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="41"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="41"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="61"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="61"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="59"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="59"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="61"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="61"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="21%" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="21"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="21%" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="21"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.14 Slider "Blues"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="19%" number=19 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="19"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=19 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="19%" number=19 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="19"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=19 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="21%" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="21"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="21%" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="21"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=21 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="81"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="81"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="79%" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="79"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="79%" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="79"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="81"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="81"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="300"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint"
+  click:
+    - r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.1.0 CheckBox "Tint" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.1.2 Button "Default"
+  click:
+    - r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.4.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.7.0.0 TextRun "" value="40"
+    + r.0.0.0.0.0.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.10.0.0 TextRun "" value="60"
+    + r.0.0.0.0.0.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.13.0.0 TextRun "" value="20"
+    + r.0.0.0.0.0.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="300"
+    - r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.16.0.0 TextRun "" value="80"
+    + r.0.0.0.0.0.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.1.2 Button "Default" -> r Window ""
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="61"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="61"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.2 Slider "Reds"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="59"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="59%" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="59"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=59 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="61"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="61%" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="61"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=61 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="60"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="81"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="81"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="79%" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="79"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="79%" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="79"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=79 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="81"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="81%" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="81"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=81 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="80"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="31%" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="31"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="31%" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="31"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.8 Slider "Greens"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="29%" number=29 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="29"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=29 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="29%" number=29 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="29"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=29 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="31%" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="31"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="31%" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="31"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=31 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="30%" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="30"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=30 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="71%" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="71"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="71%" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="71"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="69%" number=69 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="69"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=69 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="69%" number=69 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="69"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=69 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="71%" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="71"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="71%" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="71"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=71 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="70%" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="70"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=70 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="11%" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="11"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="11%" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="11"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.14 Slider "Blues"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="9%" number=9 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="9"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=9 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="9%" number=9 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="9"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=9 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="11%" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="11"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="11%" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="11"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=11 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="10%" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="10"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=10 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="41"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="41"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="39"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="39%" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="39"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=39 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="41"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="41%" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="41"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=41 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="40"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="-200"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="-200%" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="-200"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=-200 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="300"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint"
+  click:
+    - r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color" value="#e1d3b3" [disabled unselected] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.1.0 CheckBox "Tint" -> r Window ""
+drive r.0.0.0.0.1.1.0.0.1.1 ColorWell "Tint Color"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1.1.0.0.1.2 Button "Default"
+  click:
+    - r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.1.0 SpinButton "Reds" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.1.0.0 TextRun "" value="40"
+    + r.0.0.0.0.1.1.0.0.0.2 Slider "Reds" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.0.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.4.0 SpinButton "Yellows" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.4.0.0 TextRun "" value="60"
+    + r.0.0.0.0.1.1.0.0.0.5 Slider "Yellows" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.3.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.7.0 SpinButton "Greens" value="40%" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.7.0.0 TextRun "" value="40"
+    + r.0.0.0.0.1.1.0.0.0.8 Slider "Greens" number=40 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.6.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.10.0 SpinButton "Cyans" value="60%" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.10.0.0 TextRun "" value="60"
+    + r.0.0.0.0.1.1.0.0.0.11 Slider "Cyans" number=60 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.9.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.13.0 SpinButton "Blues" value="20%" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.13.0.0 TextRun "" value="20"
+    + r.0.0.0.0.1.1.0.0.0.14 Slider "Blues" number=20 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.12.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="300%" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="300"
+    - r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=300 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.1.1.0.0.0.16.0 SpinButton "Magentas" value="80%" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.1.0.0.0.16.0.0 TextRun "" value="80"
+    + r.0.0.0.0.1.1.0.0.0.17 Slider "Magentas" number=80 in -200..300 step 1 labelled_by=[r.0.0.0.0.1.1.0.0.0.15.0] actions=[Focus,Decrement,Increment,SetValue]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0.1.2 Button "Default" -> r Window ""

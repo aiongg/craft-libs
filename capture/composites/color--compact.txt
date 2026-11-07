@@ -1,0 +1,778 @@
+story composites/color/compact
+args
+  alpha = Bool(false)
+  eyedropper = Bool(true)
+  dynamic tracks = Bool(true)
+  web colours only = Bool(false)
+  disabled = Bool(false)
+  width = Number { value: 260.0, min: 160.0, max: 480.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Foreground colour"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Label "" value="Hue"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=204.99998474121094 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+            r.0.0.0.0.0.3 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Saturation"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="75%" number=75 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.5.0.0.0 TextRun "" value="75"
+            r.0.0.0.0.0.6 Slider "Saturation" number=75 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 Label "" value="Brightness"
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 GenericContainer ""
+                r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="80%" number=80 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.8.0.0.0 TextRun "" value="80"
+            r.0.0.0.0.0.9 Slider "Brightness" number=80 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.10 GenericContainer ""
+              r.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+            r.0.0.0.0.0.11 GenericContainer ""
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+                  r.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+                r.0.0.0.0.0.11.0.1 GenericContainer ""
+                  r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="338CCC" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="338CCC"
+                r.0.0.0.0.0.11.0.2 Button "Pick screen color" description="Pick screen color" actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  2: r.0.0.0.0.0.0.0.1 Slider "Hue"
+  3: r.0.0.0.0.0.2.0.0 SpinButton "Hue"
+  4: r.0.0.0.0.0.3 Slider "Hue"
+  5: r.0.0.0.0.0.5.0.0 SpinButton "Saturation"
+  6: r.0.0.0.0.0.6 Slider "Saturation"
+  7: r.0.0.0.0.0.8.0.0 SpinButton "Brightness"
+  8: r.0.0.0.0.0.9 Slider "Brightness"
+  9: r.0.0.0.0.0.10.0 Button "Color model: HSB"
+  10: r.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+  11: r.0.0.0.0.0.11.0.2 Button "Pick screen color"
+  12: r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  cycle after 11 nodes
+drive: 13 actionable nodes
+drive r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  click:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="75%" number=75 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="75"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=75 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="80%" number=80 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=80 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="338CCC" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="338CCC"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    - r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: "
+    + r.0.0.0.0.1 Label "" value="Last event: Commit #101 (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Commit #101 (\"#406580\", "
+    + r.0.0.0.0.1.1 TextRun "" value="Some(\"hsb\"))"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 49 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="49%" number=49 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="49"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="416580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="416580"
+    - r.0.0.0.0.1 Label "" value="Last event: Commit #101 (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Commit #101 (\"#406580\", "
+    - r.0.0.0.0.1.1 TextRun "" value="Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#416580\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#416580\", Some(\"hsb\"))"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 49 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="49%" number=49 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="49"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="416580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="416580"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#416580\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#416580\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#406580\", Some(\"hsb\"))"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 51 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="416782" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="416782"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#406580\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#416782\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#416782\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 51 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="416782" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="416782"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#416782\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#416782\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#406580\", Some(\"hsb\"))"
+  Home:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="406580" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="406580"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="808080" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="808080"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#406580\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#406580\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#808080\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#808080\", Some(\"hsb\"))"
+  End:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="808080" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="808080"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#808080\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#808080\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" -> r Window ""
+drive r.0.0.0.0.0.0.0.1 Slider "Hue"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=204.99998474121094 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    - r.0.0.0.0.0.3 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="204°" number=204 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="204"
+    + r.0.0.0.0.0.3 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004C80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004C80"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#004c80\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004c80\", Some(\"hsb\"))"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="204°" number=204 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="204"
+    - r.0.0.0.0.0.3 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=205 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    + r.0.0.0.0.0.3 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004C80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004C80"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#004c80\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004c80\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=205 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    - r.0.0.0.0.0.3 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="206°" number=206 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="206"
+    + r.0.0.0.0.0.3 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004880" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004880"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#004880\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004880\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="206°" number=206 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="206"
+    - r.0.0.0.0.0.3 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=205 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    + r.0.0.0.0.0.3 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004880" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004880"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#004880\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004880\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+  Home:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=205 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    - r.0.0.0.0.0.3 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="004A80" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="004A80"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#004a80\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  End:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    + r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 Slider "Hue" -> r Window ""
+drive r.0.0.0.0.0.2.0.0 SpinButton "Hue"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.2.0.0 SpinButton "Hue"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.2.0.0 SpinButton "Hue" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    - r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    + r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.0.0 SpinButton "Hue" -> r Window ""
+drive r.0.0.0.0.0.3 Slider "Hue"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=358 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    - r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="358°" number=358 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="358"
+    + r.0.0.0.0.0.3 Slider "Hue" number=358 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800004" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800004"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800004\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800004\", Some(\"hsb\"))"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=358 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="358°" number=358 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="358"
+    - r.0.0.0.0.0.3 Slider "Hue" number=358 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    + r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800004" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800004"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800004\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800004\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    - r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    + r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    - r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    + r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+  Home:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="359°" number=359 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="359"
+    - r.0.0.0.0.0.3 Slider "Hue" number=359 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800002" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800002"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800002\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800002\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  End:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    + r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.0.3 Slider "Hue" -> r Window ""
+drive r.0.0.0.0.0.5.0.0 SpinButton "Saturation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.5.0.0 SpinButton "Saturation"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.5.0.0 SpinButton "Saturation" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.0.0 SpinButton "Saturation" -> r Window ""
+drive r.0.0.0.0.0.6 Slider "Saturation"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 98 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="98%" number=98 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="98"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=98 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800303" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800303"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800303\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800303\", Some(\"hsb\"))"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 98 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="98%" number=98 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="98"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=98 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800303" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800303"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800303\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800303\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+  Home:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 99 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="99%" number=99 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="99"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=99 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800101" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800101"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="808080" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="808080"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800101\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800101\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#808080\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#808080\", Some(\"hsb\"))"
+  End:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.6 Slider "Saturation" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="808080" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="808080"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#808080\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#808080\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  Escape:
+    focus: r.0.0.0.0.0.6 Slider "Saturation" -> r Window ""
+drive r.0.0.0.0.0.8.0.0 SpinButton "Brightness"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.8.0.0 SpinButton "Brightness"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.8.0.0 SpinButton "Brightness" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 51 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="820000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="820000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#820000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#820000\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 51 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="820000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="820000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#820000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#820000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.8.0.0 SpinButton "Brightness" -> r Window ""
+drive r.0.0.0.0.0.9 Slider "Brightness"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 49 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="49%" number=49 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="49"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="7D0000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="7D0000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#7d0000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#7d0000\", Some(\"hsb\"))"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 49 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="49%" number=49 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="49"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=49 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="7D0000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="7D0000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#7d0000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#7d0000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 51 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="820000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="820000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#820000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#820000\", Some(\"hsb\"))"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 51 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="51"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=51 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="820000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="820000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#820000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#820000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+  Home:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 0 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="800000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="800000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="000000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="000000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#800000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#800000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#000000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#000000\", Some(\"hsb\"))"
+  End:
+    - r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 0 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 100 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.8.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.9 Slider "Brightness" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.8.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.9 Slider "Brightness" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="000000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="000000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="FF0000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="FF0000"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#000000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#000000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#ff0000\", Some(\"hsb\"))" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#ff0000\", Some(\"hsb\"))"
+  Escape:
+    focus: r.0.0.0.0.0.9 Slider "Brightness" -> r Window ""
+drive r.0.0.0.0.0.10.0 Button "Color model: HSB"
+  click:
+    - r.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.10.0 Button "Color model: HSB" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.10.0.0 Menu ""
+    + r.0.0.0.0.0.10.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.10.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.10.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.10.0.0.0.0.0.0 MenuItemRadio "HSB" [checked] actions=[Click]
+    + r.0.0.0.0.0.10.0.0.0.0.0.1 MenuItemRadio "RGB" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.10.0.0.0.0.0.2 MenuItemRadio "OKLCH" [unchecked] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.10.0 Button "Color model: HSB" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.10.0.0 Menu ""
+    - r.0.0.0.0.0.10.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.10.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.10.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.10.0.0.0.0.0.0 MenuItemRadio "HSB" [checked] actions=[Click]
+    - r.0.0.0.0.0.10.0.0.0.0.0.1 MenuItemRadio "RGB" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.10.0.0.0.0.0.2 MenuItemRadio "OKLCH" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.0.11.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.10.0 Button "Color model: HSB" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" -> r Window ""
+drive r.0.0.0.0.0.11.0.2 Button "Pick screen color"
+  click:
+    - r.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.0.1 Slider "Hue" number=36 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="360°" number=360 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.2.0.0.0 TextRun "" value="360"
+    - r.0.0.0.0.0.3 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.2.0.0 SpinButton "Hue" value="36°" number=36 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.2.0.0.0 TextRun "" value="36"
+    + r.0.0.0.0.0.3 Slider "Hue" number=36 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="FF0000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="FF0000"
+    + r.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="FF9900" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.11.0.1.0.0 TextRun "" value="FF9900"
+    - r.0.0.0.0.1 Label "" value="Last event: Set (\"#ff0000\", Some(\"hsb\"))" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#ff0000\", Some(\"hsb\"))"
+    + r.0.0.0.0.1 Label "" value="Last event: Set (\"#ff9900\", None)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set (\"#ff9900\", None)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.11.0.2 Button "Pick screen color" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

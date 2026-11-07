@@ -1,0 +1,120 @@
+story patterns/dialog/about
+args
+  open = Bool(true)
+  tab = Choice { options: ["about", "contributors", "models"], index: 0 }
+  community button = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "About Studio"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "About Studio" value="About Studio"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 TabList "About Studio" actions=[Focus]
+                    r.1.1.0.0.0.2.0.0.0.0 Tab "About" [selected] actions=[Click,Focus,ShowContextMenu]
+                    r.1.1.0.0.0.2.0.0.0.1 Tab "Contributors" [unselected] actions=[Click,Focus,ShowContextMenu]
+                    r.1.1.0.0.0.2.0.0.0.2 Tab "Models" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.1.0 Label "" value="Studio, a native image editor." actions=[Click]
+                      r.1.1.0.0.0.2.0.0.1.0.0 TextRun "" value="Studio, a native image editor."
+                    r.1.1.0.0.0.2.0.0.1.1 Label "" value="Version 0.42.1 (a1b2c3d, 2026-10-30)" actions=[Click]
+                      r.1.1.0.0.0.2.0.0.1.1.0 TextRun "" value="Version 0.42.1 (a1b2c3d, 2026-10-30)"
+                  r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.2.0 Button "Join the community" actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.2.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.2.1.0 Link "Website" actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.2.1.1 Label "" value="·" actions=[Click]
+                        r.1.1.0.0.0.2.0.0.2.1.1.0 TextRun "" value="·"
+                      r.1.1.0.0.0.2.0.0.2.1.2 Link "Source code" actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.3 Label "" value="egui · wgpu · craft-ui" actions=[Click]
+                    r.1.1.0.0.0.2.0.0.3.0 TextRun "" value="egui · wgpu · craft-ui"
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.2.0 Button "OK"
+  1: r.1.1.0.0.0.2.2.0 Button "OK"
+  2: r.1.1.0.0.0.2.2.0 Button "OK"
+  cycle after 1 nodes
+drive: 13 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.2.0 Button "OK" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "About Studio"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "About Studio" value="About Studio"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 TabList "About Studio" actions=[Focus]
+    - r.1.1.0.0.0.2.0.0.0.0 Tab "About" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.1.1.0.0.0.2.0.0.0.1 Tab "Contributors" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.1.1.0.0.0.2.0.0.0.2 Tab "Models" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0 Label "" value="Studio, a native image editor." actions=[Click]
+    - r.1.1.0.0.0.2.0.0.1.0.0 TextRun "" value="Studio, a native image editor."
+    - r.1.1.0.0.0.2.0.0.1.1 Label "" value="Version 0.42.1 (a1b2c3d, 2026-10-30)" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.1.1.0 TextRun "" value="Version 0.42.1 (a1b2c3d, 2026-10-30)"
+    - r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0 Button "Join the community" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.1.0 Link "Website" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.2.1.1 Label "" value="·" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.2.1.1.0 TextRun "" value="·"
+    - r.1.1.0.0.0.2.0.0.2.1.2 Link "Source code" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.3 Label "" value="egui · wgpu · craft-ui" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.3.0 TextRun "" value="egui · wgpu · craft-ui"
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: " actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: "
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 TabList "About Studio"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0 Tab "About"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1 Tab "Contributors"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.2 Tab "Models"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.1.1 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.2.0 Button "Join the community"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.1.0 Link "Website"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.1.1 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.2.1.2 Link "Source code"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.3 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone

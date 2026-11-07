@@ -1,0 +1,379 @@
+story composites/undo-list/popup
+args
+  steps = Number { value: 30.0, min: 1.0, max: 40.0 }
+  marked = Number { value: 3.0, min: 0.0, max: 40.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBox "Undo History"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [selected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.1 ListBoxOption "Step 29" [selected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28" [selected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.3 ListBoxOption "Step 27" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.4 ListBoxOption "Step 26" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.5 ListBoxOption "Step 25" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.6 ListBoxOption "Step 24" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.7 ListBoxOption "Step 23" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.8 ListBoxOption "Step 22" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.9 ListBoxOption "Step 21" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.10 ListBoxOption "Step 20" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.11 ListBoxOption "Step 19" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.12 ListBoxOption "Step 18" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.13 ListBoxOption "Step 17" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.14 ListBoxOption "Step 16" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.15 ListBoxOption "Step 15" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.16 ListBoxOption "Step 14" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.17 ListBoxOption "Step 13" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.18 ListBoxOption "Step 12" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.19 ListBoxOption "Step 11" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.20 ListBoxOption "Step 10" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.21 ListBoxOption "Step 9" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.22 ListBoxOption "Step 8" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.23 ListBoxOption "Step 7" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.24 ListBoxOption "Step 6" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.25 ListBoxOption "Step 5" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.26 ListBoxOption "Step 4" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.27 ListBoxOption "Step 3" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.28 ListBoxOption "Step 2" [unselected] actions=[Click]
+                  r.0.0.0.0.0.0.0.0.29 ListBoxOption "Step 1" [unselected] actions=[Click]
+              r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Label "" value="Undo 3 Actions" actions=[Click]
+                  r.0.0.0.0.0.0.2.0.0 TextRun "" value="Undo 3 Actions"
+          r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28"
+  2: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28"
+  cycle after 1 nodes
+drive: 33 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Step 29" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Step 29" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0 Label "" value="Undo 3 Actions" actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0 TextRun "" value="Undo 3 Actions"
+    - r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.0.0.2 Button "Cancel" actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(1)"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2 Button "Cancel" actions=[Click]
+    + r.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.2.0 Label "" value="Undo 1 Action" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="Undo 1 Action"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.2.0 Label "" value="Undo 1 Action" actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0 TextRun "" value="Undo 1 Action"
+    + r.0.0.0.0.0.0.2 Button "Cancel" actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 ListBoxOption "Step 30" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 ListBoxOption "Step 29"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(2)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.2 ListBoxOption "Step 28"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(3)"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.3 ListBoxOption "Step 27"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(4)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.4 ListBoxOption "Step 26"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(5)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.5 ListBoxOption "Step 25"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(6)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(6)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.6 ListBoxOption "Step 24"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(6)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(6)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(7)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(7)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.7 ListBoxOption "Step 23"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(7)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(7)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(8)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(8)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.8 ListBoxOption "Step 22"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(8)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(8)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(9)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(9)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.9 ListBoxOption "Step 21"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(9)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(9)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(10)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(10)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.10 ListBoxOption "Step 20"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(10)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(10)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(11)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(11)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.11 ListBoxOption "Step 19"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(11)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(11)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(12)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(12)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.12 ListBoxOption "Step 18"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(12)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(12)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(13)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(13)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.13 ListBoxOption "Step 17"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(13)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(13)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(14)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(14)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.14 ListBoxOption "Step 16"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(14)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(14)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(15)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(15)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.15 ListBoxOption "Step 15"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(15)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(15)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(16)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(16)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.16 ListBoxOption "Step 14"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(16)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(16)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(17)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(17)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.17 ListBoxOption "Step 13"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: UndoThrough(17)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(17)"
+    + r.0.0.0.0.1 Label "" value="Last event: UndoThrough(18)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: UndoThrough(18)"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.18 ListBoxOption "Step 12"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.19 ListBoxOption "Step 11"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.20 ListBoxOption "Step 10"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.21 ListBoxOption "Step 9"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.22 ListBoxOption "Step 8"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.23 ListBoxOption "Step 7"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.24 ListBoxOption "Step 6"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.25 ListBoxOption "Step 5"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.26 ListBoxOption "Step 4"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.27 ListBoxOption "Step 3"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.28 ListBoxOption "Step 2"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.29 ListBoxOption "Step 1"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

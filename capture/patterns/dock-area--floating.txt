@@ -1,0 +1,181 @@
+story patterns/dock-area/floating
+args
+  width = Number { value: 640.0, min: 360.0, max: 960.0 }
+  locale = Choice { options: ["en", "ar"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Canvas" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="Canvas"
+  r.1 GenericContainer ""
+    r.1.0 Button "Move panel window" actions=[Click,Focus]
+    r.1.1 Button "Close panel window" actions=[Click,Focus]
+    r.1.2 Tab "Layers" [selected] actions=[Click,Focus]
+    r.1.3 Tab "Channels" [unselected] actions=[Click,Focus]
+    r.1.4 Button "Move tab group" actions=[Click,Focus]
+    r.1.5 GenericContainer ""
+      r.1.5.0 Label "" value="Panel content" actions=[Click]
+        r.1.5.0.0 TextRun "" value="Panel content"
+    r.1.6 Button "Resize panel window" actions=[Focus]
+    r.1.7 Button "Resize panel window" actions=[Focus]
+    r.1.8 Button "Resize panel window" actions=[Focus]
+    r.1.9 Button "Resize panel window" actions=[Focus]
+    r.1.10 Button "Resize panel window" actions=[Focus]
+    r.1.11 Button "Resize panel window" actions=[Focus]
+    r.1.12 Button "Resize panel window" actions=[Focus]
+    r.1.13 Button "Resize panel window" actions=[Focus]
+  r.2 GenericContainer ""
+    r.2.0 Button "Move panel window" actions=[Click,Focus]
+    r.2.1 Button "Close panel window" actions=[Click,Focus]
+    r.2.2 Tab "History" [selected] actions=[Click,Focus]
+    r.2.3 Button "Move tab group" actions=[Click,Focus]
+    r.2.4 Button "Resize panel window" actions=[Focus]
+    r.2.5 Button "Resize panel window" actions=[Focus]
+    r.2.6 Button "Resize panel window" actions=[Focus]
+    r.2.7 Button "Resize panel window" actions=[Focus]
+    r.2.8 Button "Resize panel window" actions=[Focus]
+    r.2.9 Button "Resize panel window" actions=[Focus]
+    r.2.10 Button "Resize panel window" actions=[Focus]
+    r.2.11 Button "Resize panel window" actions=[Focus]
+tab
+  start: r Window ""
+  1: r.1.0 Button "Move panel window"
+  2: r.1.1 Button "Close panel window"
+  3: r.1.2 Tab "Layers"
+  4: r.1.3 Tab "Channels"
+  5: r.1.4 Button "Move tab group"
+  6: r.1.6 Button "Resize panel window"
+  7: r.1.7 Button "Resize panel window"
+  8: r.1.8 Button "Resize panel window"
+  9: r.1.9 Button "Resize panel window"
+  10: r.1.10 Button "Resize panel window"
+  11: r.1.11 Button "Resize panel window"
+  12: r.1.12 Button "Resize panel window"
+  13: r.1.13 Button "Resize panel window"
+  14: r.2.0 Button "Move panel window"
+  15: r.2.1 Button "Close panel window"
+  16: r.2.2 Tab "History"
+  17: r.2.3 Button "Move tab group"
+  18: r.2.4 Button "Resize panel window"
+  19: r.2.5 Button "Resize panel window"
+  20: r.2.6 Button "Resize panel window"
+  21: r.2.7 Button "Resize panel window"
+  22: r.2.8 Button "Resize panel window"
+  23: r.2.9 Button "Resize panel window"
+  24: r.2.10 Button "Resize panel window"
+  25: r.2.11 Button "Resize panel window"
+  26: r.1.0 Button "Move panel window"
+  cycle after 25 nodes
+drive: 27 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.1.0 Button "Move panel window" -> r Window ""
+  Escape: no change
+drive r.1.0 Button "Move panel window"
+  click:
+    - r.1.2 Tab "Layers" [selected] actions=[Click,Focus]
+    - r.1.3 Tab "Channels" [unselected] actions=[Click,Focus]
+    + r.1.2 Tab "History" [selected] actions=[Click,Focus]
+    - r.1.5 GenericContainer ""
+    - r.1.5.0 Label "" value="Panel content" actions=[Click]
+    - r.1.5.0.0 TextRun "" value="Panel content"
+    - r.2.2 Tab "History" [selected] actions=[Click,Focus]
+    + r.2.2 Tab "Layers" [selected] actions=[Click,Focus]
+    + r.2.3 Tab "Channels" [unselected] actions=[Click,Focus]
+    + r.2.5 GenericContainer ""
+    + r.2.5.0 Label "" value="Panel content" actions=[Click]
+    + r.2.5.0.0 TextRun "" value="Panel content"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.1.0 Button "Move panel window" -> r Window ""
+drive r.1.1 Button "Close panel window"
+  click:
+    - r.1.2 Tab "History" [selected] actions=[Click,Focus]
+    - r.1.3 Button "Move tab group" actions=[Click,Focus]
+    - r.1.4 Button "Resize panel window" actions=[Focus]
+    - r.1.5 Button "Resize panel window" actions=[Focus]
+    - r.1.6 Button "Resize panel window" actions=[Focus]
+    - r.1.7 Button "Resize panel window" actions=[Focus]
+    - r.1.8 Button "Resize panel window" actions=[Focus]
+    - r.1.9 Button "Resize panel window" actions=[Focus]
+    - r.1.10 Button "Resize panel window" actions=[Focus]
+    - r.1.11 Button "Resize panel window" actions=[Focus]
+    - r.2 GenericContainer ""
+    - r.2.0 Button "Move panel window" actions=[Click,Focus]
+    - r.2.1 Button "Close panel window" actions=[Click,Focus]
+  Space:
+    focus: r.1.1 Button "Close panel window" -> r Window ""
+    - r.1 GenericContainer ""
+    - r.1.0 Button "Move panel window" actions=[Click,Focus]
+    - r.1.1 Button "Close panel window" actions=[Click,Focus]
+    - r.1.2 Tab "Layers" [selected] actions=[Click,Focus]
+    - r.1.3 Tab "Channels" [unselected] actions=[Click,Focus]
+    - r.1.4 Button "Move tab group" actions=[Click,Focus]
+    - r.1.5 GenericContainer ""
+    - r.1.5.0 Label "" value="Panel content" actions=[Click]
+    - r.1.5.0.0 TextRun "" value="Panel content"
+    - r.1.6 Button "Resize panel window" actions=[Focus]
+    - r.1.7 Button "Resize panel window" actions=[Focus]
+    - r.1.8 Button "Resize panel window" actions=[Focus]
+    - r.1.9 Button "Resize panel window" actions=[Focus]
+    - r.1.10 Button "Resize panel window" actions=[Focus]
+    - r.1.11 Button "Resize panel window" actions=[Focus]
+    - r.1.12 Button "Resize panel window" actions=[Focus]
+    - r.1.13 Button "Resize panel window" actions=[Focus]
+  Enter: node gone
+  Escape: node gone
+drive r.1.2 Tab "Layers"
+  all steps: node gone
+drive r.1.3 Tab "Channels"
+  all steps: node gone
+drive r.1.4 Button "Move tab group"
+  all steps: node gone
+drive r.1.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.6 Button "Resize panel window"
+  all steps: node gone
+drive r.1.7 Button "Resize panel window"
+  all steps: node gone
+drive r.1.8 Button "Resize panel window"
+  all steps: node gone
+drive r.1.9 Button "Resize panel window"
+  all steps: node gone
+drive r.1.10 Button "Resize panel window"
+  all steps: node gone
+drive r.1.11 Button "Resize panel window"
+  all steps: node gone
+drive r.1.12 Button "Resize panel window"
+  all steps: node gone
+drive r.1.13 Button "Resize panel window"
+  all steps: node gone
+drive r.2.0 Button "Move panel window"
+  all steps: node gone
+drive r.2.1 Button "Close panel window"
+  all steps: node gone
+drive r.2.2 Tab "History"
+  all steps: node gone
+drive r.2.3 Button "Move tab group"
+  all steps: node gone
+drive r.2.4 Button "Resize panel window"
+  all steps: node gone
+drive r.2.5 Button "Resize panel window"
+  all steps: node gone
+drive r.2.6 Button "Resize panel window"
+  all steps: node gone
+drive r.2.7 Button "Resize panel window"
+  all steps: node gone
+drive r.2.8 Button "Resize panel window"
+  all steps: node gone
+drive r.2.9 Button "Resize panel window"
+  all steps: node gone
+drive r.2.10 Button "Resize panel window"
+  all steps: node gone
+drive r.2.11 Button "Resize panel window"
+  all steps: node gone

@@ -1,0 +1,227 @@
+story patterns/text-columns-dialog/dialog
+args
+  open = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Columns"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Columns" value="Columns"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Group "Presets"
+                    r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Presets"
+                      r.1.1.0.0.0.2.0.0.0.0.1 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.1.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.1.0.0 Button "One" actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.0.1.0.1 Button "Two" actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.0.1.0.2 Button "Three" actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.0.1.0.3 Button "Left" actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.0.1.0.4 Button "Right" actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.0.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.0.0.0 Label "" value="Number:"
+                    r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Number:" value="3" number=3 in -..- step 1 labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                          r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="3"
+                  r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.2.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.2.0.0 Group "Width and spacing"
+                        r.1.1.0.0.0.2.0.0.2.0.0.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.2.0.0.0.0 Label "" value="Width and spacing"
+                          r.1.1.0.0.0.2.0.0.2.0.0.0.1 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.2.0.0.0.1.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.0.0 Label "" value="Col 1"
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Width:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width" value="2.083 in" number=2.0833333333333335 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1.0 TextRun "" value="2.083"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.2 Label "" value="Spacing:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3 SpinButton "Spacing" value="0.5 in" number=0.5 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3.0 TextRun "" value="0.5"
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.2 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.2.0 Label "" value="Col 2"
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0 GenericContainer ""
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.0 Label "" value="Width:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1 SpinButton "Width" value="2.083 in" number=2.0833333333333335 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1.0 TextRun "" value="2.083"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.2 Label "" value="Spacing:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3 SpinButton "Spacing" value="0.5 in" number=0.5 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3.0 TextRun "" value="0.5"
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.4 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.4.0 Label "" value="Col 3"
+                              r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0 GenericContainer ""
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.0 Label "" value="Width:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1 SpinButton "Width" value="1.333 in" number=1.3333333333333333 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1.0 TextRun "" value="1.333"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.2 Label "" value="Spacing:"
+                                  r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.3 SpinButton "Spacing" value="" placeholder="Auto" [disabled]
+                                    r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.3.0 TextRun "" value=""
+                    r.1.1.0.0.0.2.0.0.2.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.2.1.0 Label "" value="Preview"
+                      r.1.1.0.0.0.2.0.0.2.1.1 Image "Preview"
+                  r.1.1.0.0.0.2.0.0.3 CheckBox "Equal column width" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.4 CheckBox "Line between" [unchecked] actions=[Click,Focus]
+                  r.1.1.0.0.0.2.0.0.5 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.5.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.5.0.0 Label "" value="Apply to:"
+                  r.1.1.0.0.0.2.0.0.6 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.6.0.0 ComboBox "Apply to:" value="Whole document" labelled_by=[r.1.1.0.0.0.2.0.0.5.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Number:"
+  1: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width"
+  2: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3 SpinButton "Spacing"
+  3: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1 SpinButton "Width"
+  4: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3 SpinButton "Spacing"
+  5: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1 SpinButton "Width"
+  6: r.1.1.0.0.0.2.2.0 Button "OK"
+  7: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  8: r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Number:"
+  9: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width"
+  cycle after 8 nodes
+drive: 17 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Columns"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Columns" value="Columns"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Group "Presets"
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Presets"
+    - r.1.1.0.0.0.2.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.1.0.0 Button "One" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1.0.1 Button "Two" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1.0.2 Button "Three" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1.0.3 Button "Left" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1.0.4 Button "Right" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.0.0.0 Label "" value="Number:"
+    - r.1.1.0.0.0.2.0.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Number:" value="3" number=3 in -..- step 1 labelled_by=[r.1.1.0.0.0.2.0.0.1.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.1.1.0.0.0 TextRun "" value="3"
+    - r.1.1.0.0.0.2.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0 Group "Width and spacing"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.0 Label "" value="Width and spacing"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.0.0 Label "" value="Col 1"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.0 Label "" value="Width:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width" value="2.083 in" number=2.0833333333333335 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1.0 TextRun "" value="2.083"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.2 Label "" value="Spacing:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3 SpinButton "Spacing" value="0.5 in" number=0.5 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3.0 TextRun "" value="0.5"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.2.0 Label "" value="Col 2"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.0 Label "" value="Width:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1 SpinButton "Width" value="2.083 in" number=2.0833333333333335 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1.0 TextRun "" value="2.083"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.2 Label "" value="Spacing:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3 SpinButton "Spacing" value="0.5 in" number=0.5 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3.0 TextRun "" value="0.5"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.4.0 Label "" value="Col 3"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.0 Label "" value="Width:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1 SpinButton "Width" value="1.333 in" number=1.3333333333333333 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1.0 TextRun "" value="1.333"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.2 Label "" value="Spacing:"
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.3 SpinButton "Spacing" value="" placeholder="Auto" [disabled]
+    - r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.3.0 TextRun "" value=""
+    - r.1.1.0.0.0.2.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.2.1.0 Label "" value="Preview"
+    - r.1.1.0.0.0.2.0.0.2.1.1 Image "Preview"
+    - r.1.1.0.0.0.2.0.0.3 CheckBox "Equal column width" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.4 CheckBox "Line between" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.5.0.0 Label "" value="Apply to:"
+    - r.1.1.0.0.0.2.0.0.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.6.0.0 ComboBox "Apply to:" value="Whole document" labelled_by=[r.1.1.0.0.0.2.0.0.5.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0.0 Button "One"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0.1 Button "Two"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0.2 Button "Three"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0.3 Button "Left"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0.4 Button "Right"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.1.1.0.0 SpinButton "Number:"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.1 SpinButton "Width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.1.0.3 SpinButton "Spacing"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.1 SpinButton "Width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.3.0.3 SpinButton "Spacing"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.2.0.0.0.1.0.5.0.1 SpinButton "Width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.3 CheckBox "Equal column width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.4 CheckBox "Line between"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.6.0.0 ComboBox "Apply to:"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

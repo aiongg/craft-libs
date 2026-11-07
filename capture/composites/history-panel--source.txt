@@ -1,0 +1,578 @@
+story composites/history-panel/source
+args
+  source = Choice { options: ["state", "default (oldest)", "none (state gone)"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Reset" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 ListBox "History" actions=[Focus]
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [checked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.17 Button "History brush source: Blur Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+            r.0.0.0.0.1.1 GenericContainer ""
+              r.0.0.0.0.1.1.0 Toolbar "History actions"
+                r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" actions=[Click,Focus]
+                r.0.0.0.0.1.1.0.1 Button "Create new snapshot" description="Create new snapshot" actions=[Click,Focus]
+                r.0.0.0.0.1.1.0.2 Button "Create new document from current state" description="Create new document from current state" actions=[Click,Focus]
+          r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Reset"
+  2: r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool"
+  3: r.0.0.0.0.1.1.0.0 Button "Delete current state"
+  4: r.0.0.0.0.1.1.0.1 Button "Create new snapshot"
+  5: r.0.0.0.0.1.1.0.2 Button "Create new document from current state"
+  6: r.0.0.0.0.0 Button "Reset"
+  cycle after 5 nodes
+drive: 24 actionable nodes
+drive r.0.0.0.0.0 Button "Reset"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.0 ListBox "History"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open"
+    - r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" -> r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" -> r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open"
+    - r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(0)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(0)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.1.1.0.0 Button "Delete current state" description="Delete current state" actions=[Click,Focus]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(0)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(0)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" -> r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool"
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" -> r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Open" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(1)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(1)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool"
+    - r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(1)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(1)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" -> r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop"
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" -> r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool"
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Brush Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(2)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(2)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop"
+    - r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Eraser Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(2)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(2)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" -> r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer"
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" -> r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop"
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Eraser Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(3)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(3)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer"
+    - r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 ListBoxOption "Crop" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(3)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(3)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" -> r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" -> r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer"
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.7 Button "History brush source: Crop" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(4)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(4)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(4)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(4)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" -> r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool"
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" -> r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 Button "History brush source: Move Layer" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(5)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(5)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool"
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(5)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(5)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" -> r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" -> r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool"
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(6)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(6)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(6)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(6)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" -> r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool"
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(8))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(8))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(8))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(8))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(7)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(7)))"
+  Escape: no change
+drive r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool"
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(7)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(7)))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(8))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(8))"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool"
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(8))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(8))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.17 Button "History brush source: Blur Tool"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.17 Button "History brush source: Blur Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.17 Button "History brush source: Blur Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(8)))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(8)))"
+  Escape: no change
+drive r.0.0.0.0.1.1.0.0 Button "Delete current state"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.14 ListBoxOption "Lasso Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.15 Button "History brush source: Lasso Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.16 ListBoxOption "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.17 Button "History brush source: Blur Tool" description="Sets the source for the history brush" [checked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: SetSource(Step(StepId(8)))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: SetSource(Step(StepId(8)))"
+    + r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(7))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(7))"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 ListBoxOption "Pencil Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 Button "History brush source: Pencil Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(7))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(7))"
+    + r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(6))"
+  Enter:
+    - r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 ListBoxOption "Move Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 ListBoxOption "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.11 Button "History brush source: Gradient Tool" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(6))"
+    + r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(5))"
+  Escape:
+    focus: r.0.0.0.0.1.1.0.0 Button "Delete current state" -> r Window ""
+drive r.0.0.0.0.1.1.0.1 Button "Create new snapshot"
+  click:
+    + r.0.0.0.0.1.0.0.0.0.0 ListBoxOption "Snapshot 1" description="Snapshot" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 Button "History brush source: Snapshot 1" description="Sets the source for the history brush" [unchecked] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Last event: DeleteStep(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: DeleteStep(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: NewSnapshot { dialog: false }" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: NewSnapshot { dialog: false }"
+  Space:
+    + r.0.0.0.0.1.0.0.0.0.2 ListBoxOption "Snapshot 2" description="Snapshot" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 Button "History brush source: Snapshot 2" description="Sets the source for the history brush" [unchecked] actions=[Click]
+  Enter:
+    + r.0.0.0.0.1.0.0.0.0.4 ListBoxOption "Snapshot 3" description="Snapshot" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 Button "History brush source: Snapshot 3" description="Sets the source for the history brush" [unchecked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.1.1.0.1 Button "Create new snapshot" -> r Window ""
+drive r.0.0.0.0.1.1.0.2 Button "Create new document from current state"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: NewSnapshot { dialog: false }" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: NewSnapshot { dialog: false }"
+    + r.0.0.0.0.2 Label "" value="Last event: NewDocument(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: NewDocument(StepId(4))"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0.2 Button "Create new document from current state" -> r Window ""
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

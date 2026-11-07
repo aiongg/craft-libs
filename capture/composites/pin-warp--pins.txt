@@ -1,0 +1,222 @@
+story composites/pin-warp/pins
+args
+  width = Number { value: 960.0, min: 200.0, max: 4000.0 }
+  height = Number { value: 640.0, min: 200.0, max: 4000.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="No pins" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="No pins"
+            r.0.0.0.0.0.1 Canvas "No pins" actions=[Click,Focus]
+            r.0.0.0.0.0.2 Group "Puppet Warp"
+              r.0.0.0.0.0.2.0 GenericContainer ""
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Label "" value="Several pins" actions=[Click]
+              r.0.0.0.0.1.0.0 TextRun "" value="Several pins"
+            r.0.0.0.0.1.1 Canvas "Several pins" actions=[Click,Focus]
+            r.0.0.0.0.1.2 Group "Puppet Warp" actions=[Focus]
+              r.0.0.0.0.1.2.0 GenericContainer ""
+                r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+                r.0.0.0.0.1.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [unselected]
+                r.0.0.0.0.1.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+                r.0.0.0.0.1.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Label "" value="A selected pin" actions=[Click]
+              r.0.0.0.0.2.0.0 TextRun "" value="A selected pin"
+            r.0.0.0.0.2.1 Canvas "A selected pin" actions=[Click,Focus]
+            r.0.0.0.0.2.2 Group "Puppet Warp" actions=[Focus]
+              r.0.0.0.0.2.2.0 GenericContainer ""
+                r.0.0.0.0.2.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+                r.0.0.0.0.2.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [selected]
+                r.0.0.0.0.2.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+                r.0.0.0.0.2.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Label "" value="Fixed rotation" actions=[Click]
+              r.0.0.0.0.3.0.0 TextRun "" value="Fixed rotation"
+            r.0.0.0.0.3.1 Canvas "Fixed rotation" actions=[Click,Focus]
+            r.0.0.0.0.3.2 Group "Puppet Warp" actions=[Focus]
+              r.0.0.0.0.3.2.0 GenericContainer ""
+                r.0.0.0.0.3.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+                r.0.0.0.0.3.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px, turn 30°" [selected]
+                r.0.0.0.0.3.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+                r.0.0.0.0.3.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 Label "" value="Several selected" actions=[Click]
+              r.0.0.0.0.4.0.0 TextRun "" value="Several selected"
+            r.0.0.0.0.4.1 Canvas "Several selected" actions=[Click,Focus]
+            r.0.0.0.0.4.2 Group "Puppet Warp" actions=[Focus]
+              r.0.0.0.0.4.2.0 GenericContainer ""
+                r.0.0.0.0.4.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+                r.0.0.0.0.4.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [selected]
+                r.0.0.0.0.4.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [selected]
+                r.0.0.0.0.4.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+          r.0.0.0.0.5 GenericContainer ""
+            r.0.0.0.0.5.0 Label "" value="Mesh hidden" actions=[Click]
+              r.0.0.0.0.5.0.0 TextRun "" value="Mesh hidden"
+            r.0.0.0.0.5.1 Canvas "Mesh hidden" actions=[Click,Focus]
+            r.0.0.0.0.5.2 Group "Puppet Warp" actions=[Focus]
+              r.0.0.0.0.5.2.0 GenericContainer ""
+                r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+                r.0.0.0.0.5.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [unselected]
+                r.0.0.0.0.5.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+                r.0.0.0.0.5.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Canvas "No pins"
+  2: r.0.0.0.0.1.1 Canvas "Several pins"
+  3: r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 4"
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+  4: r.0.0.0.0.2.1 Canvas "A selected pin"
+  5: r.0.0.0.0.2.2.0.1 GraphicsObject "Pin 2 of 4"
+  6: r.0.0.0.0.3.1 Canvas "Fixed rotation"
+  7: r.0.0.0.0.3.2.0.1 GraphicsObject "Pin 2 of 4"
+  8: r.0.0.0.0.4.1 Canvas "Several selected"
+  9: r.0.0.0.0.4.2.0.0 GraphicsObject "Pin 1 of 4"
+  10: r.0.0.0.0.5.1 Canvas "Mesh hidden"
+  11: r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 4"
+    - r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+  12: r.0.0.0.0.0.1 Canvas "No pins"
+  cycle after 11 nodes
+drive: 17 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 Canvas "No pins" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 Canvas "No pins"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.2.0.0 GraphicsObject "Pin 1 of 1"
+    - r.0.0.0.0.0.2 Group "Puppet Warp"
+    + r.0.0.0.0.0.2 Group "Puppet Warp" actions=[Focus]
+    + r.0.0.0.0.0.2.0.0 GraphicsObject "Pin 1 of 1" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Canvas "No pins" -> r Window ""
+    - r.0.0.0.0.0.2 Group "Puppet Warp" actions=[Focus]
+    + r.0.0.0.0.0.2 Group "Puppet Warp"
+    - r.0.0.0.0.0.2.0.0 GraphicsObject "Pin 1 of 1" value="480.0 px, 320.0 px" [selected]
+drive r.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.1 Canvas "Several pins"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.2.0.4 GraphicsObject "Pin 5 of 5"
+    - r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+    - r.0.0.0.0.1.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [unselected]
+    - r.0.0.0.0.1.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+    - r.0.0.0.0.1.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.0 GraphicsObject "Pin 1 of 5" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.1 GraphicsObject "Pin 2 of 5" value="672.0 px, 192.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.2 GraphicsObject "Pin 3 of 5" value="456.0 px, 432.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.3 GraphicsObject "Pin 4 of 5" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.1.2.0.4 GraphicsObject "Pin 5 of 5" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1 Canvas "Several pins" -> r Window ""
+drive r.0.0.0.0.1.2 Group "Puppet Warp"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.2.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.2.0.4 GraphicsObject "Pin 5 of 5" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.2.1 Canvas "A selected pin"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.2.0.4 GraphicsObject "Pin 5 of 5"
+    - r.0.0.0.0.2.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+    - r.0.0.0.0.2.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [selected]
+    - r.0.0.0.0.2.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+    - r.0.0.0.0.2.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.2.2.0.0 GraphicsObject "Pin 1 of 5" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.2.2.0.1 GraphicsObject "Pin 2 of 5" value="672.0 px, 192.0 px" [unselected]
+    + r.0.0.0.0.2.2.0.2 GraphicsObject "Pin 3 of 5" value="456.0 px, 432.0 px" [unselected]
+    + r.0.0.0.0.2.2.0.3 GraphicsObject "Pin 4 of 5" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.2.2.0.4 GraphicsObject "Pin 5 of 5" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.1 Canvas "A selected pin" -> r Window ""
+drive r.0.0.0.0.2.2 Group "Puppet Warp"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.3.0 Label ""
+  click:
+    focus: r.0.0.0.0.2.2.0.4 GraphicsObject "Pin 5 of 5" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3.1 Canvas "Fixed rotation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.2.0.4 GraphicsObject "Pin 5 of 5"
+    - r.0.0.0.0.3.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [unselected]
+    - r.0.0.0.0.3.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px, turn 30°" [selected]
+    - r.0.0.0.0.3.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+    - r.0.0.0.0.3.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.3.2.0.0 GraphicsObject "Pin 1 of 5" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.3.2.0.1 GraphicsObject "Pin 2 of 5" value="672.0 px, 192.0 px, turn 30°" [unselected]
+    + r.0.0.0.0.3.2.0.2 GraphicsObject "Pin 3 of 5" value="456.0 px, 432.0 px" [unselected]
+    + r.0.0.0.0.3.2.0.3 GraphicsObject "Pin 4 of 5" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.3.2.0.4 GraphicsObject "Pin 5 of 5" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.1 Canvas "Fixed rotation" -> r Window ""
+drive r.0.0.0.0.3.2 Group "Puppet Warp"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.4.0 Label ""
+  click:
+    focus: r.0.0.0.0.3.2.0.4 GraphicsObject "Pin 5 of 5" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.4.1 Canvas "Several selected"
+  click:
+    focus: r Window "" -> r.0.0.0.0.4.2.0.4 GraphicsObject "Pin 5 of 5"
+    - r.0.0.0.0.4.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+    - r.0.0.0.0.4.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [selected]
+    - r.0.0.0.0.4.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [selected]
+    - r.0.0.0.0.4.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.4.2.0.0 GraphicsObject "Pin 1 of 5" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.4.2.0.1 GraphicsObject "Pin 2 of 5" value="672.0 px, 192.0 px" [unselected]
+    + r.0.0.0.0.4.2.0.2 GraphicsObject "Pin 3 of 5" value="456.0 px, 432.0 px" [unselected]
+    + r.0.0.0.0.4.2.0.3 GraphicsObject "Pin 4 of 5" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.4.2.0.4 GraphicsObject "Pin 5 of 5" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.1 Canvas "Several selected" -> r Window ""
+drive r.0.0.0.0.4.2 Group "Puppet Warp"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.5.0 Label ""
+  click:
+    focus: r.0.0.0.0.4.2.0.4 GraphicsObject "Pin 5 of 5" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.5.1 Canvas "Mesh hidden"
+  click:
+    focus: r Window "" -> r.0.0.0.0.5.2.0.4 GraphicsObject "Pin 5 of 5"
+    - r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 4" value="336.0 px, 240.0 px" [selected]
+    - r.0.0.0.0.5.2.0.1 GraphicsObject "Pin 2 of 4" value="672.0 px, 192.0 px" [unselected]
+    - r.0.0.0.0.5.2.0.2 GraphicsObject "Pin 3 of 4" value="456.0 px, 432.0 px" [unselected]
+    - r.0.0.0.0.5.2.0.3 GraphicsObject "Pin 4 of 4" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.0 GraphicsObject "Pin 1 of 5" value="336.0 px, 240.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.1 GraphicsObject "Pin 2 of 5" value="672.0 px, 192.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.2 GraphicsObject "Pin 3 of 5" value="456.0 px, 432.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.3 GraphicsObject "Pin 4 of 5" value="312.0 px, 416.0 px" [unselected]
+    + r.0.0.0.0.5.2.0.4 GraphicsObject "Pin 5 of 5" value="480.0 px, 320.0 px" [selected]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5.1 Canvas "Mesh hidden" -> r Window ""
+drive r.0.0.0.0.5.2 Group "Puppet Warp"
+  Space: no change
+  Enter: no change
+  Escape: no change

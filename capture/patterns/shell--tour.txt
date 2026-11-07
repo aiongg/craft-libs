@@ -1,0 +1,74 @@
+story patterns/shell/tour
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 GenericContainer ""
+  r.2 Dialog "Layers"
+    r.2.0 GenericContainer ""
+      r.2.0.0 GenericContainer ""
+        r.2.0.0.0 GenericContainer ""
+          r.2.0.0.0.0 GenericContainer ""
+            r.2.0.0.0.0.0 Label "" value="1 of 3" actions=[Click]
+              r.2.0.0.0.0.0.0 TextRun "" value="1 of 3"
+            r.2.0.0.0.0.1 GenericContainer ""
+              r.2.0.0.0.0.1.0 Button "Skip Tour" description="Skip Tour" actions=[Click,Focus]
+          r.2.0.0.0.1 Label "" value="Layers" actions=[Click]
+            r.2.0.0.0.1.0 TextRun "" value="Layers"
+          r.2.0.0.0.2 Label "" value="Layers stack the parts of a document." actions=[Click]
+            r.2.0.0.0.2.0 TextRun "" value="Layers stack the parts of a "
+            r.2.0.0.0.2.1 TextRun "" value="document."
+          r.2.0.0.0.3 GenericContainer ""
+            r.2.0.0.0.3.0 Button "Skip Tour" actions=[Click,Focus]
+            r.2.0.0.0.3.1 GenericContainer ""
+              r.2.0.0.0.3.1.0 Button "Next" actions=[Click,Focus]
+              r.2.0.0.0.3.1.1 Button "Back" description="Back" [disabled] actions=[Click,Focus]
+  r.3 Unknown "" description="Layers stack the parts of a document."
+tab
+  start: r.2.0.0.0.3.1.0 Button "Next"
+  1: r.2.0.0.0.0.1.0 Button "Skip Tour"
+  2: r.2.0.0.0.3.0 Button "Skip Tour"
+  3: r.2.0.0.0.3.1.0 Button "Next"
+  4: r.2.0.0.0.0.1.0 Button "Skip Tour"
+  cycle after 3 nodes
+drive: 6 actionable nodes
+drive r.2.0.0.0.0.0 Label ""
+  click:
+    focus: r.2.0.0.0.0.1.0 Button "Skip Tour" -> r.2.0.0.0.3.1.0 Button "Next"
+  Escape:
+    focus: r.2.0.0.0.3.1.0 Button "Next" -> r Window ""
+    - r.1 GenericContainer ""
+    - r.2 Dialog "Layers"
+    - r.2.0 GenericContainer ""
+    - r.2.0.0 GenericContainer ""
+    - r.2.0.0.0 GenericContainer ""
+    - r.2.0.0.0.0 GenericContainer ""
+    - r.2.0.0.0.0.0 Label "" value="1 of 3" actions=[Click]
+    - r.2.0.0.0.0.0.0 TextRun "" value="1 of 3"
+    - r.2.0.0.0.0.1 GenericContainer ""
+    - r.2.0.0.0.0.1.0 Button "Skip Tour" description="Skip Tour" actions=[Click,Focus]
+    - r.2.0.0.0.1 Label "" value="Layers" actions=[Click]
+    - r.2.0.0.0.1.0 TextRun "" value="Layers"
+    - r.2.0.0.0.2 Label "" value="Layers stack the parts of a document." actions=[Click]
+    - r.2.0.0.0.2.0 TextRun "" value="Layers stack the parts of a "
+    - r.2.0.0.0.2.1 TextRun "" value="document."
+    - r.2.0.0.0.3 GenericContainer ""
+    - r.2.0.0.0.3.0 Button "Skip Tour" actions=[Click,Focus]
+    - r.2.0.0.0.3.1 GenericContainer ""
+    - r.2.0.0.0.3.1.0 Button "Next" actions=[Click,Focus]
+    - r.2.0.0.0.3.1.1 Button "Back" description="Back" [disabled] actions=[Click,Focus]
+    - r.3 Unknown "" description="Layers stack the parts of a document."
+    + r.0.0.0.0.0 Button "Restart tour" actions=[Click,Focus]
+drive r.2.0.0.0.0.1.0 Button "Skip Tour"
+  all steps: node gone
+drive r.2.0.0.0.1 Label ""
+  all steps: node gone
+drive r.2.0.0.0.2 Label ""
+  all steps: node gone
+drive r.2.0.0.0.3.0 Button "Skip Tour"
+  all steps: node gone
+drive r.2.0.0.0.3.1.0 Button "Next"
+  all steps: node gone

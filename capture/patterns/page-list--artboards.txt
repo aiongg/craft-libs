@@ -1,0 +1,482 @@
+story patterns/page-list/artboards
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBox "Artboards" actions=[Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Lock" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.2.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.4 Button "Lock" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.5 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.5.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.7 Button "Lock" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.8 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.8.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.10 Button "Lock" [checked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.11 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.11.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.13 Button "Lock" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.14.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.16 Button "Lock" [unchecked] actions=[Click]
+                    r.0.0.0.0.0.0.0.0.0.17 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.17.0 Button "Artboard Options" description="Artboard Options" actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 Button "New Artboard" description="New Artboard" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+  2: r.0.0.0.0.0.0.0.0.0.2.0 Button "Artboard Options"
+  3: r.0.0.0.0.0.0.0.0.0.5.0 Button "Artboard Options"
+  4: r.0.0.0.0.0.0.0.0.0.8.0 Button "Artboard Options"
+  5: r.0.0.0.0.0.0.0.0.0.11.0 Button "Artboard Options"
+  6: r.0.0.0.0.0.0.0.0.0.14.0 Button "Artboard Options"
+  7: r.0.0.0.0.0.0.0.0.0.17.0 Button "Artboard Options"
+  8: r.0.0.0.0.0.1.0 Button "Delete Artboard"
+  9: r.0.0.0.0.0.1.1 Button "New Artboard"
+  10: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+  cycle after 9 nodes
+drive: 21 actionable nodes
+drive r.0.0.0.0.0.0 ListBox "Artboards"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(1), selection: Selection { items: [4], lead: Some(4), anchor: Some(1) } })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(1), selection: Selection { items: [4], lead: "
+    + r.0.0.0.0.1.1 TextRun "" value="Some(4), anchor: Some(1) } })"
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(1), selection: Selection { items: [4], lead: Some(4), anchor: Some(1) } })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Toggle, row: Some(1), selection: Selection { items: [4], lead: "
+    - r.0.0.0.0.1.1 TextRun "" value="Some(4), anchor: Some(1) } })"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(1)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" -> r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(0)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(0)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(0)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(0)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(0)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(0)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" -> r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(0)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(0)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Lock" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Lock" [checked] actions=[Click]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(0)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(0)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(665), value: ToggleEdit { column: 0, row: 0, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(665), value: ToggleEdit { column: 0, row: 0, on: true }, changed: true, "
+    + r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.2.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(665), value: ToggleEdit { column: 0, row: 0, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(665), value: ToggleEdit { column: 0, row: 0, on: true }, changed: true, "
+    - r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(0)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(0)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Options(0)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(0)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(1)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features"
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" -> r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(0)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(0)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.4 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Lock" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Lock" [checked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(666), value: ToggleEdit { column: 0, row: 1, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(666), value: ToggleEdit { column: 0, row: 1, on: true }, changed: true, "
+    + r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.5.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(666), value: ToggleEdit { column: 0, row: 1, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(666), value: ToggleEdit { column: 0, row: 1, on: true }, changed: true, "
+    - r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(1)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.5.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features"
+    - r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0 ListBoxOption "Cover" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Options(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(2)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" -> r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" -> r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome"
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(1)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.7 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Lock" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Lock" [checked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(667), value: ToggleEdit { column: 0, row: 2, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(667), value: ToggleEdit { column: 0, row: 2, on: true }, changed: true, "
+    + r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.8.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(667), value: ToggleEdit { column: 0, row: 2, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(667), value: ToggleEdit { column: 0, row: 2, on: true }, changed: true, "
+    - r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(2)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.8.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing"
+    - r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.3 ListBoxOption "Welcome" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Options(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(3)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" -> r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact"
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" -> r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(2)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.10 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.10 Button "Lock" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.10 Button "Lock" [unchecked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(668), value: ToggleEdit { column: 0, row: 3, on: false }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(668), value: ToggleEdit { column: 0, row: 3, on: false }, changed: "
+    + r.0.0.0.0.1.1 TextRun "" value="true, modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.11.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(668), value: ToggleEdit { column: 0, row: 3, on: false }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(668), value: ToggleEdit { column: 0, row: 3, on: false }, changed: "
+    - r.0.0.0.0.1.1 TextRun "" value="true, modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(3)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact"
+    - r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.6 ListBoxOption "Features" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Options(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(4)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" -> r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits"
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" -> r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing"
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(3)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.13 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.13 Button "Lock" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.13 Button "Lock" [checked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(669), value: ToggleEdit { column: 0, row: 4, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(669), value: ToggleEdit { column: 0, row: 4, on: true }, changed: true, "
+    + r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.14.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(669), value: ToggleEdit { column: 0, row: 4, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(669), value: ToggleEdit { column: 0, row: 4, on: true }, changed: true, "
+    - r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(4)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.14.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits"
+    - r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.9 ListBoxOption "Pricing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1 Label "" value="Last event: Options(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Activate(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(5)"
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" -> r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact"
+    - r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.12 ListBoxOption "Contact" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Button "Delete Artboard" description="Delete Artboard" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Activate(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Activate(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Go(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Go(4)"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.15 ListBoxOption "Credits" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.16 Button "Lock"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.16 Button "Lock" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.16 Button "Lock" [checked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Go(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Go(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(670), value: ToggleEdit { column: 0, row: 5, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(670), value: ToggleEdit { column: 0, row: 5, on: true }, changed: true, "
+    + r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+  Escape: no change
+drive r.0.0.0.0.0.0.0.0.0.17.0 Button "Artboard Options"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Lock(Commit { id: GestureId(670), value: ToggleEdit { column: 0, row: 5, on: true }, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Lock(Commit { id: GestureId(670), value: ToggleEdit { column: 0, row: 5, on: true }, changed: true, "
+    - r.0.0.0.0.1.1 TextRun "" value="modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Options(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Options(5)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.17.0 Button "Artboard Options" -> r Window ""
+drive r.0.0.0.0.0.1.0 Button "Delete Artboard"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.1.1 Button "New Artboard"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Options(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Options(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: New { duplicate: None, options: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: New { duplicate: None, options: false }"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1 Button "New Artboard" -> r Window ""

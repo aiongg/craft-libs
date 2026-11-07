@@ -1,0 +1,334 @@
+story composites/history-panel/branches
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Reset" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Tree "History" actions=[Focus]
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+          r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Reset"
+  2: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+  3: r.0.0.0.0.0 Button "Reset"
+  cycle after 2 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0 Button "Reset"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.0 Tree "History"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open"
+    - r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" -> r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open"
+    - r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.0 TreeItem "Open" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(0))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(0))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" -> r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool"
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop"
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.2 TreeItem "Crop" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(2))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(2))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Blur Tool" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(3))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(3))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Brush Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(1))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(1))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool"
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Gradient Tool" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(4))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(4))"
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(6))" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(6))"
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" description="Current state" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 TreeItem "Fill Layer" description="Later state" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.2 Label "" value="Last event: GoTo(StepId(5))" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: GoTo(StepId(5))"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Layer Opacity" -> r Window ""
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

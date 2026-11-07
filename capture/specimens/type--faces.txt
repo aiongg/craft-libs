@@ -1,0 +1,843 @@
+story specimens/type/faces
+args
+  group = Choice { options: ["UI faces", "Mono faces"], index: 0 }
+  tabular = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Inter" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="Inter"
+              r.0.0.0.0.0.0.1 Label "" value="Caption" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Caption"
+              r.0.0.0.0.0.0.2 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.2.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.0.0.2.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.0.0.3 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.3.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.0.0.3.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.0.0.4 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.4.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.0.0.4.1 TextRun "" value="французских булок"
+              r.0.0.0.0.0.0.5 Label "" value="Label" actions=[Click]
+                r.0.0.0.0.0.0.5.0 TextRun "" value="Label"
+              r.0.0.0.0.0.0.6 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.6.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.0.0.6.1 TextRun "" value="judge my vow. 0123456789"
+              r.0.0.0.0.0.0.7 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.7.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.7.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.0.0.8 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.8.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.8.1 TextRun "" value="мягких французских булок"
+              r.0.0.0.0.0.0.9 Label "" value="Body" actions=[Click]
+                r.0.0.0.0.0.0.9.0 TextRun "" value="Body"
+              r.0.0.0.0.0.0.10 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.10.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.0.0.10.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.0.0.10.2 TextRun "" value="0123456789"
+              r.0.0.0.0.0.0.11 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.11.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.11.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.0.0.12 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.12.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.12.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.0.0.12.2 TextRun "" value="булок"
+              r.0.0.0.0.0.0.13 Label "" value="Body strong" actions=[Click]
+                r.0.0.0.0.0.0.13.0 TextRun "" value="Body strong"
+              r.0.0.0.0.0.0.14 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.14.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.0.0.14.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.0.0.14.2 TextRun "" value="0123456789"
+              r.0.0.0.0.0.0.15 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.15.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.15.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.0.0.16 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.16.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.16.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.0.0.16.2 TextRun "" value="булок"
+              r.0.0.0.0.0.0.17 Label "" value="Title" actions=[Click]
+                r.0.0.0.0.0.0.17.0 TextRun "" value="Title"
+              r.0.0.0.0.0.0.18 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.18.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.0.0.18.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.0.0.18.2 TextRun "" value="0123456789"
+              r.0.0.0.0.0.0.19 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.19.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.19.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.0.0.20 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.20.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.20.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.0.0.20.2 TextRun "" value="булок"
+              r.0.0.0.0.0.0.21 Label "" value="Heading" actions=[Click]
+                r.0.0.0.0.0.0.21.0 TextRun "" value="Heading"
+              r.0.0.0.0.0.0.22 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.22.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.0.0.22.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.0.0.22.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.0.0.23 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.23.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.23.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.0.0.23.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.0.0.24 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.24.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.24.1 TextRun "" value="мягких "
+                r.0.0.0.0.0.0.24.2 TextRun "" value="французских булок"
+              r.0.0.0.0.0.0.25 Label "" value="Body large" actions=[Click]
+                r.0.0.0.0.0.0.25.0 TextRun "" value="Body large"
+              r.0.0.0.0.0.0.26 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.0.0.26.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.0.0.26.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.0.0.26.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.0.0.27 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.0.0.27.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.0.0.27.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.0.0.27.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.0.0.28 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.0.0.28.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.0.0.28.1 TextRun "" value="мягких "
+                r.0.0.0.0.0.0.28.2 TextRun "" value="французских булок"
+              r.0.0.0.0.0.0.29 Label "" value="Mono" actions=[Click]
+              r.0.0.0.0.0.0.30 Label "" value="fn main() { let n = 0x1F + 1_000; } // 1111 0000" actions=[Click]
+              r.0.0.0.0.0.0.31 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+              r.0.0.0.0.0.0.32 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+              r.0.0.0.0.0.0.33 Label "" value="default" actions=[Click]
+              r.0.0.0.0.0.0.34 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.0.0.35 Label "" value="tnum" actions=[Click]
+              r.0.0.0.0.0.0.36 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.0.0.37 GenericContainer ""
+                r.0.0.0.0.0.0.37.0 Label "" value="Inspector, Compact" actions=[Click]
+                r.0.0.0.0.0.0.37.1 GenericContainer ""
+                  r.0.0.0.0.0.0.37.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.0.0.37.1.1 GenericContainer ""
+                    r.0.0.0.0.0.0.37.1.1.0 GenericContainer ""
+                      r.0.0.0.0.0.0.37.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.0.0.37.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.0.0.37.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.0.0.37.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.0.0.37.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.0.0.37.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.0.0.37.1.2 GenericContainer ""
+                    r.0.0.0.0.0.0.37.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.0.0.37.1.3 GenericContainer ""
+                    r.0.0.0.0.0.0.37.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.0.0.37.1.4 GenericContainer ""
+                    r.0.0.0.0.0.0.37.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.0.0.37.1.5 GenericContainer ""
+                    r.0.0.0.0.0.0.37.1.5.0 GenericContainer ""
+                      r.0.0.0.0.0.0.37.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.0.0.37.1.5.1 GenericContainer ""
+                      r.0.0.0.0.0.0.37.1.5.1.0 Label "" value="Apply" actions=[Click]
+              r.0.0.0.0.0.0.38 GenericContainer ""
+                r.0.0.0.0.0.0.38.0 Label "" value="Inspector, Comfortable" actions=[Click]
+                r.0.0.0.0.0.0.38.1 GenericContainer ""
+                  r.0.0.0.0.0.0.38.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.0.0.38.1.1 GenericContainer ""
+                    r.0.0.0.0.0.0.38.1.1.0 GenericContainer ""
+                      r.0.0.0.0.0.0.38.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.0.0.38.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.0.0.38.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.0.0.38.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.0.0.38.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.0.0.38.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.0.0.38.1.2 GenericContainer ""
+                    r.0.0.0.0.0.0.38.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.0.0.38.1.3 GenericContainer ""
+                    r.0.0.0.0.0.0.38.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.0.0.38.1.4 GenericContainer ""
+                    r.0.0.0.0.0.0.38.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.0.0.38.1.5 GenericContainer ""
+                    r.0.0.0.0.0.0.38.1.5.0 GenericContainer ""
+                      r.0.0.0.0.0.0.38.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.0.0.38.1.5.1 GenericContainer ""
+                      r.0.0.0.0.0.0.38.1.5.1.0 Label "" value="Apply" actions=[Click]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 Label "" value="IBM Plex Sans" actions=[Click]
+                r.0.0.0.0.1.0.0.0 TextRun "" value="IBM Plex Sans"
+              r.0.0.0.0.1.0.1 Label "" value="Caption" actions=[Click]
+                r.0.0.0.0.1.0.1.0 TextRun "" value="Caption"
+              r.0.0.0.0.1.0.2 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.2.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.1.0.2.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.1.0.3 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.3.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.1.0.3.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.1.0.4 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.4.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.1.0.4.1 TextRun "" value="французских булок"
+              r.0.0.0.0.1.0.5 Label "" value="Label" actions=[Click]
+                r.0.0.0.0.1.0.5.0 TextRun "" value="Label"
+              r.0.0.0.0.1.0.6 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.6.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.1.0.6.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.1.0.7 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.7.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.1.0.7.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.1.0.8 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.8.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.1.0.8.1 TextRun "" value="французских булок"
+              r.0.0.0.0.1.0.9 Label "" value="Body" actions=[Click]
+                r.0.0.0.0.1.0.9.0 TextRun "" value="Body"
+              r.0.0.0.0.1.0.10 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.10.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.1.0.10.1 TextRun "" value="judge my vow. 0123456789"
+              r.0.0.0.0.1.0.11 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.11.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.1.0.11.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.1.0.12 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.12.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.1.0.12.1 TextRun "" value="мягких французских булок"
+              r.0.0.0.0.1.0.13 Label "" value="Body strong" actions=[Click]
+                r.0.0.0.0.1.0.13.0 TextRun "" value="Body strong"
+              r.0.0.0.0.1.0.14 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.14.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.1.0.14.1 TextRun "" value="judge my vow. 0123456789"
+              r.0.0.0.0.1.0.15 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.15.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.1.0.15.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.1.0.16 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.16.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.1.0.16.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.1.0.16.2 TextRun "" value="булок"
+              r.0.0.0.0.1.0.17 Label "" value="Title" actions=[Click]
+                r.0.0.0.0.1.0.17.0 TextRun "" value="Title"
+              r.0.0.0.0.1.0.18 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.18.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.1.0.18.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.1.0.18.2 TextRun "" value="0123456789"
+              r.0.0.0.0.1.0.19 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.19.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.1.0.19.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.1.0.20 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.20.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.1.0.20.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.1.0.20.2 TextRun "" value="булок"
+              r.0.0.0.0.1.0.21 Label "" value="Heading" actions=[Click]
+                r.0.0.0.0.1.0.21.0 TextRun "" value="Heading"
+              r.0.0.0.0.1.0.22 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.22.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.1.0.22.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.1.0.22.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.1.0.23 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.23.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.1.0.23.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.1.0.23.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.1.0.24 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.24.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.1.0.24.1 TextRun "" value="мягких "
+                r.0.0.0.0.1.0.24.2 TextRun "" value="французских булок"
+              r.0.0.0.0.1.0.25 Label "" value="Body large" actions=[Click]
+                r.0.0.0.0.1.0.25.0 TextRun "" value="Body large"
+              r.0.0.0.0.1.0.26 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.1.0.26.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.1.0.26.1 TextRun "" value="quartz, judge my vow. "
+                r.0.0.0.0.1.0.26.2 TextRun "" value="0123456789"
+              r.0.0.0.0.1.0.27 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.1.0.27.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.1.0.27.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.1.0.27.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.1.0.28 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.1.0.28.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.1.0.28.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.1.0.28.2 TextRun "" value="булок"
+              r.0.0.0.0.1.0.29 Label "" value="Mono" actions=[Click]
+                r.0.0.0.0.1.0.29.0 TextRun "" value="Mono"
+              r.0.0.0.0.1.0.30 Label "" value="fn main() { let n = 0x1F + 1_000; } // 1111 0000" actions=[Click]
+              r.0.0.0.0.1.0.31 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+              r.0.0.0.0.1.0.32 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+              r.0.0.0.0.1.0.33 Label "" value="default" actions=[Click]
+              r.0.0.0.0.1.0.34 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.1.0.35 Label "" value="tnum" actions=[Click]
+              r.0.0.0.0.1.0.36 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.1.0.37 GenericContainer ""
+                r.0.0.0.0.1.0.37.0 Label "" value="Inspector, Compact" actions=[Click]
+                r.0.0.0.0.1.0.37.1 GenericContainer ""
+                  r.0.0.0.0.1.0.37.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.1.0.37.1.1 GenericContainer ""
+                    r.0.0.0.0.1.0.37.1.1.0 GenericContainer ""
+                      r.0.0.0.0.1.0.37.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.1.0.37.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.1.0.37.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.1.0.37.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.1.0.37.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.1.0.37.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.1.0.37.1.2 GenericContainer ""
+                    r.0.0.0.0.1.0.37.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.1.0.37.1.3 GenericContainer ""
+                    r.0.0.0.0.1.0.37.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.1.0.37.1.4 GenericContainer ""
+                    r.0.0.0.0.1.0.37.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.1.0.37.1.5 GenericContainer ""
+                    r.0.0.0.0.1.0.37.1.5.0 GenericContainer ""
+                      r.0.0.0.0.1.0.37.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.1.0.37.1.5.1 GenericContainer ""
+                      r.0.0.0.0.1.0.37.1.5.1.0 Label "" value="Apply" actions=[Click]
+              r.0.0.0.0.1.0.38 GenericContainer ""
+                r.0.0.0.0.1.0.38.0 Label "" value="Inspector, Comfortable" actions=[Click]
+                r.0.0.0.0.1.0.38.1 GenericContainer ""
+                  r.0.0.0.0.1.0.38.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.1.0.38.1.1 GenericContainer ""
+                    r.0.0.0.0.1.0.38.1.1.0 GenericContainer ""
+                      r.0.0.0.0.1.0.38.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.1.0.38.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.1.0.38.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.1.0.38.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.1.0.38.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.1.0.38.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.1.0.38.1.2 GenericContainer ""
+                    r.0.0.0.0.1.0.38.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.1.0.38.1.3 GenericContainer ""
+                    r.0.0.0.0.1.0.38.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.1.0.38.1.4 GenericContainer ""
+                    r.0.0.0.0.1.0.38.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.1.0.38.1.5 GenericContainer ""
+                    r.0.0.0.0.1.0.38.1.5.0 GenericContainer ""
+                      r.0.0.0.0.1.0.38.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.1.0.38.1.5.1 GenericContainer ""
+                      r.0.0.0.0.1.0.38.1.5.1.0 Label "" value="Apply" actions=[Click]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 Label "" value="Source Sans 3" actions=[Click]
+                r.0.0.0.0.2.0.0.0 TextRun "" value="Source Sans 3"
+              r.0.0.0.0.2.0.1 Label "" value="Caption" actions=[Click]
+                r.0.0.0.0.2.0.1.0 TextRun "" value="Caption"
+              r.0.0.0.0.2.0.2 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.2.0 TextRun "" value="Sphinx of black quartz, judge my "
+                r.0.0.0.0.2.0.2.1 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.2.0.3 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.3.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.2.0.3.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.2.0.4 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.4.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.2.0.4.1 TextRun "" value="французских булок"
+              r.0.0.0.0.2.0.5 Label "" value="Label" actions=[Click]
+                r.0.0.0.0.2.0.5.0 TextRun "" value="Label"
+              r.0.0.0.0.2.0.6 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.6.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.2.0.6.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.2.0.7 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.7.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.2.0.7.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.2.0.8 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.8.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.2.0.8.1 TextRun "" value="французских булок"
+              r.0.0.0.0.2.0.9 Label "" value="Body" actions=[Click]
+                r.0.0.0.0.2.0.9.0 TextRun "" value="Body"
+              r.0.0.0.0.2.0.10 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.10.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.2.0.10.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.2.0.11 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.11.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.2.0.11.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.2.0.12 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.12.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.2.0.12.1 TextRun "" value="французских булок"
+              r.0.0.0.0.2.0.13 Label "" value="Body strong" actions=[Click]
+                r.0.0.0.0.2.0.13.0 TextRun "" value="Body strong"
+              r.0.0.0.0.2.0.14 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.14.0 TextRun "" value="Sphinx of black quartz, judge "
+                r.0.0.0.0.2.0.14.1 TextRun "" value="my vow. 0123456789"
+              r.0.0.0.0.2.0.15 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.15.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.2.0.15.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.2.0.16 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.16.0 TextRun "" value="Съешь же ещё этих мягких "
+                r.0.0.0.0.2.0.16.1 TextRun "" value="французских булок"
+              r.0.0.0.0.2.0.17 Label "" value="Title" actions=[Click]
+                r.0.0.0.0.2.0.17.0 TextRun "" value="Title"
+              r.0.0.0.0.2.0.18 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.18.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.2.0.18.1 TextRun "" value="judge my vow. 0123456789"
+              r.0.0.0.0.2.0.19 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.19.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.2.0.19.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.2.0.20 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.20.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.2.0.20.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.2.0.20.2 TextRun "" value="булок"
+              r.0.0.0.0.2.0.21 Label "" value="Heading" actions=[Click]
+                r.0.0.0.0.2.0.21.0 TextRun "" value="Heading"
+              r.0.0.0.0.2.0.22 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.22.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.2.0.22.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.2.0.22.2 TextRun "" value="0123456789"
+              r.0.0.0.0.2.0.23 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.23.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.2.0.23.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.2.0.24 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.24.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.2.0.24.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.2.0.24.2 TextRun "" value="булок"
+              r.0.0.0.0.2.0.25 Label "" value="Body large" actions=[Click]
+                r.0.0.0.0.2.0.25.0 TextRun "" value="Body large"
+              r.0.0.0.0.2.0.26 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.2.0.26.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.2.0.26.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.2.0.26.2 TextRun "" value="0123456789"
+              r.0.0.0.0.2.0.27 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.27.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.2.0.27.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.2.0.28 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.2.0.28.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.2.0.28.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.2.0.28.2 TextRun "" value="булок"
+              r.0.0.0.0.2.0.29 Label "" value="Mono" actions=[Click]
+                r.0.0.0.0.2.0.29.0 TextRun "" value="Mono"
+              r.0.0.0.0.2.0.30 Label "" value="fn main() { let n = 0x1F + 1_000; } // 1111 0000" actions=[Click]
+                r.0.0.0.0.2.0.30.0 TextRun "" value="fn main() { let n = "
+                r.0.0.0.0.2.0.30.1 TextRun "" value="0x1F + 1_000; } // "
+                r.0.0.0.0.2.0.30.2 TextRun "" value="1111 0000"
+              r.0.0.0.0.2.0.31 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.2.0.31.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.2.0.31.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.2.0.32 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+              r.0.0.0.0.2.0.33 Label "" value="default" actions=[Click]
+              r.0.0.0.0.2.0.34 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.2.0.35 Label "" value="tnum" actions=[Click]
+              r.0.0.0.0.2.0.36 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.2.0.37 GenericContainer ""
+                r.0.0.0.0.2.0.37.0 Label "" value="Inspector, Compact" actions=[Click]
+                r.0.0.0.0.2.0.37.1 GenericContainer ""
+                  r.0.0.0.0.2.0.37.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.2.0.37.1.1 GenericContainer ""
+                    r.0.0.0.0.2.0.37.1.1.0 GenericContainer ""
+                      r.0.0.0.0.2.0.37.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.2.0.37.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.2.0.37.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.2.0.37.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.2.0.37.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.2.0.37.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.2.0.37.1.2 GenericContainer ""
+                    r.0.0.0.0.2.0.37.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.2.0.37.1.3 GenericContainer ""
+                    r.0.0.0.0.2.0.37.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.2.0.37.1.4 GenericContainer ""
+                    r.0.0.0.0.2.0.37.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.2.0.37.1.5 GenericContainer ""
+                    r.0.0.0.0.2.0.37.1.5.0 GenericContainer ""
+                      r.0.0.0.0.2.0.37.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.2.0.37.1.5.1 GenericContainer ""
+                      r.0.0.0.0.2.0.37.1.5.1.0 Label "" value="Apply" actions=[Click]
+              r.0.0.0.0.2.0.38 GenericContainer ""
+                r.0.0.0.0.2.0.38.0 Label "" value="Inspector, Comfortable" actions=[Click]
+                r.0.0.0.0.2.0.38.1 GenericContainer ""
+                  r.0.0.0.0.2.0.38.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.2.0.38.1.1 GenericContainer ""
+                    r.0.0.0.0.2.0.38.1.1.0 GenericContainer ""
+                      r.0.0.0.0.2.0.38.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.2.0.38.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.2.0.38.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.2.0.38.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.2.0.38.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.2.0.38.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.2.0.38.1.2 GenericContainer ""
+                    r.0.0.0.0.2.0.38.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.2.0.38.1.3 GenericContainer ""
+                    r.0.0.0.0.2.0.38.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.2.0.38.1.4 GenericContainer ""
+                    r.0.0.0.0.2.0.38.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.2.0.38.1.5 GenericContainer ""
+                    r.0.0.0.0.2.0.38.1.5.0 GenericContainer ""
+                      r.0.0.0.0.2.0.38.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.2.0.38.1.5.1 GenericContainer ""
+                      r.0.0.0.0.2.0.38.1.5.1.0 Label "" value="Apply" actions=[Click]
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 Label "" value="System (DejaVu Sans)" actions=[Click]
+                r.0.0.0.0.3.0.0.0 TextRun "" value="System (DejaVu Sans)"
+              r.0.0.0.0.3.0.1 Label "" value="Caption" actions=[Click]
+                r.0.0.0.0.3.0.1.0 TextRun "" value="Caption"
+              r.0.0.0.0.3.0.2 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.2.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.3.0.2.1 TextRun "" value="judge my vow. 0123456789"
+              r.0.0.0.0.3.0.3 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.3.0 TextRun "" value="Ξεσκεπάζω την ψυχοφθόρα "
+                r.0.0.0.0.3.0.3.1 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.3.0.4 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.4.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.3.0.4.1 TextRun "" value="мягких французских булок"
+              r.0.0.0.0.3.0.5 Label "" value="Label" actions=[Click]
+                r.0.0.0.0.3.0.5.0 TextRun "" value="Label"
+              r.0.0.0.0.3.0.6 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.6.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.3.0.6.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.3.0.6.2 TextRun "" value="0123456789"
+              r.0.0.0.0.3.0.7 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.7.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.7.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.3.0.8 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.8.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.3.0.8.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.3.0.8.2 TextRun "" value="булок"
+              r.0.0.0.0.3.0.9 Label "" value="Body" actions=[Click]
+                r.0.0.0.0.3.0.9.0 TextRun "" value="Body"
+              r.0.0.0.0.3.0.10 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.10.0 TextRun "" value="Sphinx of black quartz, "
+                r.0.0.0.0.3.0.10.1 TextRun "" value="judge my vow. "
+                r.0.0.0.0.3.0.10.2 TextRun "" value="0123456789"
+              r.0.0.0.0.3.0.11 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.11.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.11.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.3.0.12 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.12.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.3.0.12.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.3.0.12.2 TextRun "" value="булок"
+              r.0.0.0.0.3.0.13 Label "" value="Body strong" actions=[Click]
+                r.0.0.0.0.3.0.13.0 TextRun "" value="Body strong"
+              r.0.0.0.0.3.0.14 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.14.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.3.0.14.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.3.0.14.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.3.0.15 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.15.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.15.1 TextRun "" value="ψυχοφθόρα βδελυγμία"
+              r.0.0.0.0.3.0.16 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.16.0 TextRun "" value="Съешь же ещё этих "
+                r.0.0.0.0.3.0.16.1 TextRun "" value="мягких французских "
+                r.0.0.0.0.3.0.16.2 TextRun "" value="булок"
+              r.0.0.0.0.3.0.17 Label "" value="Title" actions=[Click]
+                r.0.0.0.0.3.0.17.0 TextRun "" value="Title"
+              r.0.0.0.0.3.0.18 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.18.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.3.0.18.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.3.0.18.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.3.0.19 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.19.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.19.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.3.0.19.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.3.0.20 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.20.0 TextRun "" value="Съешь же ещё "
+                r.0.0.0.0.3.0.20.1 TextRun "" value="этих мягких "
+                r.0.0.0.0.3.0.20.2 TextRun "" value="французских булок"
+              r.0.0.0.0.3.0.21 Label "" value="Heading" actions=[Click]
+                r.0.0.0.0.3.0.21.0 TextRun "" value="Heading"
+              r.0.0.0.0.3.0.22 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.22.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.3.0.22.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.3.0.22.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.3.0.23 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.23.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.23.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.3.0.23.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.3.0.24 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+                r.0.0.0.0.3.0.24.0 TextRun "" value="Съешь же ещё "
+                r.0.0.0.0.3.0.24.1 TextRun "" value="этих мягких "
+                r.0.0.0.0.3.0.24.2 TextRun "" value="французских "
+                r.0.0.0.0.3.0.24.3 TextRun "" value="булок"
+              r.0.0.0.0.3.0.25 Label "" value="Body large" actions=[Click]
+                r.0.0.0.0.3.0.25.0 TextRun "" value="Body large"
+              r.0.0.0.0.3.0.26 Label "" value="Sphinx of black quartz, judge my vow. 0123456789" actions=[Click]
+                r.0.0.0.0.3.0.26.0 TextRun "" value="Sphinx of black "
+                r.0.0.0.0.3.0.26.1 TextRun "" value="quartz, judge my "
+                r.0.0.0.0.3.0.26.2 TextRun "" value="vow. 0123456789"
+              r.0.0.0.0.3.0.27 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+                r.0.0.0.0.3.0.27.0 TextRun "" value="Ξεσκεπάζω την "
+                r.0.0.0.0.3.0.27.1 TextRun "" value="ψυχοφθόρα "
+                r.0.0.0.0.3.0.27.2 TextRun "" value="βδελυγμία"
+              r.0.0.0.0.3.0.28 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+              r.0.0.0.0.3.0.29 Label "" value="Mono" actions=[Click]
+              r.0.0.0.0.3.0.30 Label "" value="fn main() { let n = 0x1F + 1_000; } // 1111 0000" actions=[Click]
+              r.0.0.0.0.3.0.31 Label "" value="Ξεσκεπάζω την ψυχοφθόρα βδελυγμία" actions=[Click]
+              r.0.0.0.0.3.0.32 Label "" value="Съешь же ещё этих мягких французских булок" actions=[Click]
+              r.0.0.0.0.3.0.33 Label "" value="default" actions=[Click]
+              r.0.0.0.0.3.0.34 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.3.0.35 Label "" value="tnum" actions=[Click]
+              r.0.0.0.0.3.0.36 Label "" value="1111  0000\n1234.56\n  777.00" actions=[Click]
+              r.0.0.0.0.3.0.37 GenericContainer ""
+                r.0.0.0.0.3.0.37.0 Label "" value="Inspector, Compact" actions=[Click]
+                r.0.0.0.0.3.0.37.1 GenericContainer ""
+                  r.0.0.0.0.3.0.37.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.3.0.37.1.1 GenericContainer ""
+                    r.0.0.0.0.3.0.37.1.1.0 GenericContainer ""
+                      r.0.0.0.0.3.0.37.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.3.0.37.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.3.0.37.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.3.0.37.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.3.0.37.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.3.0.37.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.3.0.37.1.2 GenericContainer ""
+                    r.0.0.0.0.3.0.37.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.3.0.37.1.3 GenericContainer ""
+                    r.0.0.0.0.3.0.37.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.3.0.37.1.4 GenericContainer ""
+                    r.0.0.0.0.3.0.37.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.3.0.37.1.5 GenericContainer ""
+                    r.0.0.0.0.3.0.37.1.5.0 GenericContainer ""
+                      r.0.0.0.0.3.0.37.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.3.0.37.1.5.1 GenericContainer ""
+                      r.0.0.0.0.3.0.37.1.5.1.0 Label "" value="Apply" actions=[Click]
+              r.0.0.0.0.3.0.38 GenericContainer ""
+                r.0.0.0.0.3.0.38.0 Label "" value="Inspector, Comfortable" actions=[Click]
+                r.0.0.0.0.3.0.38.1 GenericContainer ""
+                  r.0.0.0.0.3.0.38.1.0 Label "" value="Transform" actions=[Click]
+                  r.0.0.0.0.3.0.38.1.1 GenericContainer ""
+                    r.0.0.0.0.3.0.38.1.1.0 GenericContainer ""
+                      r.0.0.0.0.3.0.38.1.1.0.0 Label "" value="X" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.1 GenericContainer ""
+                        r.0.0.0.0.3.0.38.1.1.0.1.0 Label "" value="1024.50" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.2 Label "" value="Y" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.3 GenericContainer ""
+                        r.0.0.0.0.3.0.38.1.1.0.3.0 Label "" value="768.25" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.4 Label "" value="Width" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.5 GenericContainer ""
+                        r.0.0.0.0.3.0.38.1.1.0.5.0 Label "" value="111.00" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.6 Label "" value="Height" actions=[Click]
+                      r.0.0.0.0.3.0.38.1.1.0.7 GenericContainer ""
+                        r.0.0.0.0.3.0.38.1.1.0.7.0 Label "" value="1000.00" actions=[Click]
+                  r.0.0.0.0.3.0.38.1.2 GenericContainer ""
+                    r.0.0.0.0.3.0.38.1.2.0 Label "" value="Duplicate" actions=[Click]
+                  r.0.0.0.0.3.0.38.1.3 GenericContainer ""
+                    r.0.0.0.0.3.0.38.1.3.0 Label "" value="Group" actions=[Click]
+                  r.0.0.0.0.3.0.38.1.4 GenericContainer ""
+                    r.0.0.0.0.3.0.38.1.4.0 Label "" value="Arrange" actions=[Click]
+                  r.0.0.0.0.3.0.38.1.5 GenericContainer ""
+                    r.0.0.0.0.3.0.38.1.5.0 GenericContainer ""
+                      r.0.0.0.0.3.0.38.1.5.0.0 Label "" value="Cancel" actions=[Click]
+                    r.0.0.0.0.3.0.38.1.5.1 GenericContainer ""
+                      r.0.0.0.0.3.0.38.1.5.1.0 Label "" value="Apply" actions=[Click]
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 268 actionable nodes
+  the first 64 are driven
+drive r.0.0.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.5 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.7 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.8 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.9 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.10 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.11 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.12 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.13 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.14 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.15 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.16 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.17 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.18 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.19 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.20 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.21 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.22 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.23 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.24 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.25 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.26 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.27 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.28 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.29 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.30 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.31 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.32 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.33 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.34 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.35 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.36 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.1.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.4.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.5.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.37.1.5.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.3.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.5.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.1.0.7.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.38.1.3.0 Label ""
+  click: no change
+  Escape: no change

@@ -1,0 +1,375 @@
+story patterns/fonts-panel/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Pane ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Tab "Browse" number=4 in -..- step - [checked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 Tab "Installed" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.1 TextInput "Search" value="" placeholder="Search fonts by name" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.1.0 TextRun "" value=""
+          r.0.0.0.0.1 Pane ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 Label "" value="Category"
+                    r.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All categories" number=4 in -..- step - [checked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.1.1 RadioButton "Sans serif" number=2 in -..- step - [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.1.2 RadioButton "Serif" number=1 in -..- step - [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.1.3 RadioButton "Display" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.1.4 RadioButton "Handwriting" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.1.5 RadioButton "Monospace" number=1 in -..- step - [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.2 Label "" value="Language"
+                    r.0.0.0.0.1.0.0.0.0.3 ComboBox "Language" value="Any language" actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.4 Label "" value="Script"
+                    r.0.0.0.0.1.0.0.0.0.5 ComboBox "Script" value="Any script" actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.6 Label "" value="Show"
+                    r.0.0.0.0.1.0.0.0.0.7 GenericContainer ""
+                      r.0.0.0.0.1.0.0.0.0.7.0 RadioButton "All fonts" number=4 in -..- step - [checked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.7.1 RadioButton "Installed" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.1.0.0.0.0.7.2 RadioButton "Not installed" number=4 in -..- step - [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.8 Label "" value="Downloads"
+                    r.0.0.0.0.1.0.0.0.0.9 CheckBox "Allow downloads" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.1.0.0.0.0.10 Label "" value="From each font's source, only when you install or preview a font." actions=[Click]
+                      r.0.0.0.0.1.0.0.0.0.10.0 TextRun "" value="From each font's source, only "
+                      r.0.0.0.0.1.0.0.0.0.10.1 TextRun "" value="when you install or preview a "
+                      r.0.0.0.0.1.0.0.0.0.10.2 TextRun "" value="font."
+          r.0.0.0.0.2 Pane ""
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 GenericContainer ""
+                r.0.0.0.0.2.0.0.0 ComboBox "Sample" value="Sentence" actions=[Click,Focus]
+                r.0.0.0.0.2.0.0.1 TextInput "Sample text" value="" placeholder="The quick brown fox jumps over the lazy dog" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.2.0.0.1.0 TextRun "" value=""
+                r.0.0.0.0.2.0.0.2 GenericContainer ""
+                  r.0.0.0.0.2.0.0.2.0 Slider "Size" number=36 in -..- step - actions=[Click,Focus]
+                  r.0.0.0.0.2.0.0.2.1 Label "" value="36 px"
+              r.0.0.0.0.2.0.1 GenericContainer ""
+                r.0.0.0.0.2.0.1.0 GenericContainer ""
+                  r.0.0.0.0.2.0.1.0.0 GenericContainer ""
+                    r.0.0.0.0.2.0.1.0.0.0 Label "" value="Downloads are off" actions=[Click]
+                      r.0.0.0.0.2.0.1.0.0.0.0 TextRun "" value="Downloads are off"
+                    r.0.0.0.0.2.0.1.0.0.1 Label "" value="Fonts that aren't installed show a sample once you preview them. Nothing is downloaded until you allow it." actions=[Click]
+                      r.0.0.0.0.2.0.1.0.0.1.0 TextRun "" value="Fonts that aren't installed "
+                      r.0.0.0.0.2.0.1.0.0.1.1 TextRun "" value="show a sample once you "
+                      r.0.0.0.0.2.0.1.0.0.1.2 TextRun "" value="preview them. Nothing is "
+                      r.0.0.0.0.2.0.1.0.0.1.3 TextRun "" value="downloaded until you allow it."
+                  r.0.0.0.0.2.0.1.0.1 GenericContainer ""
+                    r.0.0.0.0.2.0.1.0.1.0 Button "Hide this note" description="Hide this note" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.1.0.1.1 Button "Allow downloads" actions=[Click,Focus]
+              r.0.0.0.0.2.0.2 Label "" value="4 families"
+              r.0.0.0.0.2.0.3 GenericContainer ""
+                r.0.0.0.0.2.0.3.0 GenericContainer ""
+                  r.0.0.0.0.2.0.3.0.0 GenericContainer ""
+                    r.0.0.0.0.2.0.3.0.0.0 Button "Amiri" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.1 GenericContainer ""
+                      r.0.0.0.0.2.0.3.0.0.1.0 Button "Install Amiri" actions=[Click,Focus]
+                      r.0.0.0.0.2.0.3.0.0.1.1 Button "Preview Amiri" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.2 Button "Hack" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.3 GenericContainer ""
+                      r.0.0.0.0.2.0.3.0.0.3.0 Button "Install Hack" actions=[Click,Focus]
+                      r.0.0.0.0.2.0.3.0.0.3.1 Button "Preview Hack" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.4 Button "Noto Sans JP" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.5 GenericContainer ""
+                      r.0.0.0.0.2.0.3.0.0.5.0 Button "Install Noto Sans JP" actions=[Click,Focus]
+                      r.0.0.0.0.2.0.3.0.0.5.1 Button "Preview Noto Sans JP" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.6 Button "Ubuntu" actions=[Click,Focus]
+                    r.0.0.0.0.2.0.3.0.0.7 GenericContainer ""
+                      r.0.0.0.0.2.0.3.0.0.7.0 Button "Install Ubuntu" actions=[Click,Focus]
+                      r.0.0.0.0.2.0.3.0.0.7.1 Button "Preview Ubuntu" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 Tab "Browse"
+  2: r.0.0.0.0.0.0.0.0.1 Tab "Installed"
+  3: r.0.0.0.0.0.0.0.1 TextInput "Search"
+  4: r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All categories"
+  5: r.0.0.0.0.1.0.0.0.0.1.1 RadioButton "Sans serif"
+  6: r.0.0.0.0.1.0.0.0.0.1.2 RadioButton "Serif"
+  7: r.0.0.0.0.1.0.0.0.0.1.3 RadioButton "Display"
+  8: r.0.0.0.0.1.0.0.0.0.1.4 RadioButton "Handwriting"
+  9: r.0.0.0.0.1.0.0.0.0.1.5 RadioButton "Monospace"
+  10: r.0.0.0.0.1.0.0.0.0.3 ComboBox "Language"
+  11: r.0.0.0.0.1.0.0.0.0.5 ComboBox "Script"
+  12: r.0.0.0.0.1.0.0.0.0.7.0 RadioButton "All fonts"
+  13: r.0.0.0.0.1.0.0.0.0.7.1 RadioButton "Installed"
+  14: r.0.0.0.0.1.0.0.0.0.7.2 RadioButton "Not installed"
+  15: r.0.0.0.0.1.0.0.0.0.9 CheckBox "Allow downloads"
+  16: r.0.0.0.0.2.0.0.0 ComboBox "Sample"
+  17: r.0.0.0.0.2.0.0.1 TextInput "Sample text"
+  18: r.0.0.0.0.2.0.0.2.0 Slider "Size"
+  19: r.0.0.0.0.2.0.1.0.1.0 Button "Hide this note"
+  20: r.0.0.0.0.2.0.1.0.1.1 Button "Allow downloads"
+  21: r.0.0.0.0.2.0.3.0.0.0 Button "Amiri"
+  22: r.0.0.0.0.2.0.3.0.0.1.0 Button "Install Amiri"
+  23: r.0.0.0.0.2.0.3.0.0.1.1 Button "Preview Amiri"
+  24: r.0.0.0.0.2.0.3.0.0.2 Button "Hack"
+  25: r.0.0.0.0.2.0.3.0.0.3.0 Button "Install Hack"
+  26: r.0.0.0.0.2.0.3.0.0.3.1 Button "Preview Hack"
+  27: r.0.0.0.0.2.0.3.0.0.4 Button "Noto Sans JP"
+  28: r.0.0.0.0.2.0.3.0.0.5.0 Button "Install Noto Sans JP"
+  29: r.0.0.0.0.2.0.3.0.0.5.1 Button "Preview Noto Sans JP"
+  30: r.0.0.0.0.2.0.3.0.0.6 Button "Ubuntu"
+  31: r.0.0.0.0.2.0.3.0.0.7.0 Button "Install Ubuntu"
+  32: r.0.0.0.0.2.0.3.0.0.7.1 Button "Preview Ubuntu"
+  33: r.0.0.0.0.0.0.0.0.0 Tab "Browse"
+  cycle after 32 nodes
+drive: 35 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 Tab "Browse"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 Tab "Browse" -> r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All categories"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0 Tab "Browse" -> r.0.0.0.0.0.0.0.0.1 Tab "Installed"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 Tab "Browse" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 Tab "Installed"
+  click:
+    - r.0.0.0.0.0.0.0.0.0 Tab "Browse" number=4 in -..- step - [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1 Tab "Installed" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1 TextInput "Search" value="" placeholder="Search fonts by name" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.0.0 Tab "Browse" number=4 in -..- step - [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1 Tab "Installed" number=0 in -..- step - [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 TextInput "Search" value="" placeholder="Search installed fonts" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0.0.0.0.0 Label "" value="Category"
+    - r.0.0.0.0.1.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All categories" number=4 in -..- step - [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.1.1 RadioButton "Sans serif" number=2 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.1.2 RadioButton "Serif" number=1 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.1.3 RadioButton "Display" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.1.4 RadioButton "Handwriting" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.1.5 RadioButton "Monospace" number=1 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.2 Label "" value="Language"
+    - r.0.0.0.0.1.0.0.0.0.3 ComboBox "Language" value="Any language" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.4 Label "" value="Script"
+    - r.0.0.0.0.1.0.0.0.0.5 ComboBox "Script" value="Any script" actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.6 Label "" value="Show"
+    + r.0.0.0.0.1.0.0.0.0.0 Label "" value="Source"
+    - r.0.0.0.0.1.0.0.0.0.7.0 RadioButton "All fonts" number=4 in -..- step - [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.7.1 RadioButton "Installed" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.0.7.2 RadioButton "Not installed" number=4 in -..- step - [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All sources" number=0 in -..- step - [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.1.1 RadioButton "Font store" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.1.2 RadioButton "System" number=0 in -..- step - [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.2 Label "" value="Every Craft app uses the fonts in the font store. System fonts are added and removed with your system's own font tools." actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.2.0 TextRun "" value="Every Craft app uses the "
+    + r.0.0.0.0.1.0.0.0.0.2.1 TextRun "" value="fonts in the font store. System "
+    + r.0.0.0.0.1.0.0.0.0.2.2 TextRun "" value="fonts are added and removed "
+    + r.0.0.0.0.1.0.0.0.0.2.3 TextRun "" value="with your system's own font "
+    + r.0.0.0.0.1.0.0.0.0.2.4 TextRun "" value="tools."
+    - r.0.0.0.0.2.0.1 GenericContainer ""
+    - r.0.0.0.0.2.0.1.0 GenericContainer ""
+    - r.0.0.0.0.2.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.1.0.0.0 Label "" value="Downloads are off" actions=[Click]
+    - r.0.0.0.0.2.0.1.0.0.0.0 TextRun "" value="Downloads are off"
+    - r.0.0.0.0.2.0.1.0.0.1 Label "" value="Fonts that aren't installed show a sample once you preview them. Nothing is downloaded until you allow it." actions=[Click]
+    - r.0.0.0.0.2.0.1.0.0.1.0 TextRun "" value="Fonts that aren't installed "
+    - r.0.0.0.0.2.0.1.0.0.1.1 TextRun "" value="show a sample once you "
+    - r.0.0.0.0.2.0.1.0.0.1.2 TextRun "" value="preview them. Nothing is "
+    - r.0.0.0.0.2.0.1.0.0.1.3 TextRun "" value="downloaded until you allow it."
+    - r.0.0.0.0.2.0.1.0.1 GenericContainer ""
+    - r.0.0.0.0.2.0.1.0.1.0 Button "Hide this note" description="Hide this note" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.1.0.1.1 Button "Allow downloads" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.2 Label "" value="4 families"
+    + r.0.0.0.0.2.0.1 Label "" value="0 families"
+    - r.0.0.0.0.2.0.3.0 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0.0 Button "Amiri" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0.1.0 Button "Install Amiri" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.1.1 Button "Preview Amiri" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.2 Button "Hack" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.3 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0.3.0 Button "Install Hack" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.3.1 Button "Preview Hack" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.4 Button "Noto Sans JP" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.5 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0.5.0 Button "Install Noto Sans JP" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.5.1 Button "Preview Noto Sans JP" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.6 Button "Ubuntu" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.2.0.3.0.0.7.0 Button "Install Ubuntu" actions=[Click,Focus]
+    - r.0.0.0.0.2.0.3.0.0.7.1 Button "Preview Ubuntu" actions=[Click,Focus]
+    + r.0.0.0.0.2.0.2.0 Label "" value="No installed fonts match"
+    + r.0.0.0.0.2.0.2.1 Label "" value="Try another name." actions=[Click]
+    + r.0.0.0.0.2.0.2.1.0 TextRun "" value="Try another name."
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1 Tab "Installed" -> r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All sources"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1 Tab "Installed" -> r.0.0.0.0.0.0.0.0.0 Tab "Browse"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.1 Tab "Installed" -> r.0.0.0.0.2.0.0.0 ComboBox "Sample"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1 Tab "Installed" -> r Window ""
+drive r.0.0.0.0.0.0.0.1 TextInput "Search"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.1 TextInput "Search"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1 TextInput "Search" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 TextInput "Search" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.1.0 RadioButton "All categories"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.1.1 RadioButton "Sans serif"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.1.2 RadioButton "Serif"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.1.3 RadioButton "Display"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.1.4 RadioButton "Handwriting"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.1.5 RadioButton "Monospace"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.3 ComboBox "Language"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.5 ComboBox "Script"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.7.0 RadioButton "All fonts"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.7.1 RadioButton "Installed"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.7.2 RadioButton "Not installed"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.9 CheckBox "Allow downloads"
+  click:
+    - r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.4 CheckBox "Allow downloads" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.10 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.0.0 ComboBox "Sample"
+  click:
+    + r.0.0.0.0.2.0.0.0.0 ListBox ""
+    + r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0 Button "Sentence" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.1 Button "Alphabet" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.2 Button "Numerals" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.2.0.0.0.0 ListBox ""
+    - r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0 Button "Sentence" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.1 Button "Alphabet" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.2 Button "Numerals" [unchecked] actions=[Click,Focus]
+  Enter:
+    + r.0.0.0.0.2.0.0.0.0 ListBox ""
+    + r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.0 Button "Sentence" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.1 Button "Alphabet" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.0.0.0.0.0.2 Button "Numerals" [unchecked] actions=[Click,Focus]
+  ArrowDown:
+    focus: r.0.0.0.0.2.0.0.0 ComboBox "Sample" -> r.0.0.0.0.2.0.0.0.0.0.0.0.0 Button "Sentence"
+  ArrowUp:
+    focus: r.0.0.0.0.2.0.0.0 ComboBox "Sample" -> r.0.0.0.0.2.0.0.0.0.0.0.0.2 Button "Numerals"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.0 ComboBox "Sample" -> r Window ""
+    - r.0.0.0.0.2.0.0.0.0 ListBox ""
+    - r.0.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.0 Button "Sentence" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.1 Button "Alphabet" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.0.0.0.0.0.2 Button "Numerals" [unchecked] actions=[Click,Focus]
+drive r.0.0.0.0.2.0.0.1 TextInput "Sample text"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0.1 TextInput "Sample text"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0.1 TextInput "Sample text" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.2.0.0.1 TextInput "Sample text" -> r Window ""
+drive r.0.0.0.0.2.0.0.2.0 Slider "Size"
+  click:
+    - r.0.0.0.0.2.0.0.2.0 Slider "Size" number=36 in -..- step - actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.2.1 Label "" value="36 px"
+    + r.0.0.0.0.2.0.0.2.0 Slider "Size" number=66 in -..- step - actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.2.1 Label "" value="66 px"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.2.0.0.2.0 Slider "Size" number=66 in -..- step - actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.2.1 Label "" value="66 px"
+    + r.0.0.0.0.2.0.0.2.0 Slider "Size" number=65 in -..- step - actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.2.1 Label "" value="65 px"
+  ArrowRight:
+    - r.0.0.0.0.2.0.0.2.0 Slider "Size" number=65 in -..- step - actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.2.1 Label "" value="65 px"
+    + r.0.0.0.0.2.0.0.2.0 Slider "Size" number=66 in -..- step - actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.2.1 Label "" value="66 px"
+  ArrowUp:
+    - r.0.0.0.0.2.0.0.2.0 Slider "Size" number=66 in -..- step - actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.2.1 Label "" value="66 px"
+    + r.0.0.0.0.2.0.0.2.0 Slider "Size" number=67 in -..- step - actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.2.1 Label "" value="67 px"
+  ArrowDown:
+    - r.0.0.0.0.2.0.0.2.0 Slider "Size" number=67 in -..- step - actions=[Click,Focus]
+    - r.0.0.0.0.2.0.0.2.1 Label "" value="67 px"
+    + r.0.0.0.0.2.0.0.2.0 Slider "Size" number=66 in -..- step - actions=[Click,Focus]
+    + r.0.0.0.0.2.0.0.2.1 Label "" value="66 px"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.2.0.0.2.0 Slider "Size" -> r Window ""
+drive r.0.0.0.0.2.0.1.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.1.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.1.0.1.0 Button "Hide this note"
+  all steps: node gone
+drive r.0.0.0.0.2.0.1.0.1.1 Button "Allow downloads"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.0 Button "Amiri"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.1.0 Button "Install Amiri"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.1.1 Button "Preview Amiri"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.2 Button "Hack"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.3.0 Button "Install Hack"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.3.1 Button "Preview Hack"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.4 Button "Noto Sans JP"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.5.0 Button "Install Noto Sans JP"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.5.1 Button "Preview Noto Sans JP"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.6 Button "Ubuntu"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.7.0 Button "Install Ubuntu"
+  all steps: node gone
+drive r.0.0.0.0.2.0.3.0.0.7.1 Button "Preview Ubuntu"
+  all steps: node gone

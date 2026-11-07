@@ -1,0 +1,70 @@
+story patterns/recovery-dialog/dialog
+args
+  open = Bool(true)
+  age = Choice { options: ["seconds", "minutes", "hours", "days"], index: 1 }
+  recover blocked = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Recover Unsaved Work"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Recover Unsaved Work" value="Recover Unsaved Work"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Label "" value="“poster.psd” has unsaved changes from an earlier run, autosaved 5 minutes ago." actions=[Click]
+                    r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="“poster.psd” has unsaved changes from an earlier run, autosaved 5 "
+                    r.1.1.0.0.0.2.0.0.0.1 TextRun "" value="minutes ago."
+              r.1.1.0.0.0.2.1 GenericContainer ""
+                r.1.1.0.0.0.2.1.0 Button "Recover" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.1 Button "Discard" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.1.0 Button "Recover"
+  1: r.1.1.0.0.0.2.1.1 Button "Discard"
+  2: r.1.1.0.0.0.2.1.0 Button "Recover"
+  3: r.1.1.0.0.0.2.1.1 Button "Discard"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.1.1 Button "Discard" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Recover Unsaved Work"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Recover Unsaved Work" value="Recover Unsaved Work"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Label "" value="“poster.psd” has unsaved changes from an earlier run, autosaved 5 minutes ago." actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0 TextRun "" value="“poster.psd” has unsaved changes from an earlier run, autosaved 5 "
+    - r.1.1.0.0.0.2.0.0.0.1 TextRun "" value="minutes ago."
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "Recover" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "Discard" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.1.0 Button "Recover"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.1 Button "Discard"
+  all steps: node gone

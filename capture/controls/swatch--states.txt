@@ -1,0 +1,144 @@
+story controls/swatch/states
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 ColorWell "Opaque" value="#3e63dd" [unselected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 ColorWell "Translucent" value="#e5484d6e" [unselected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.2 ColorWell "Clear" value="#00000000" [unselected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.3 ColorWell "Panel colour" value="#f0f0f0" [unselected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.4 ColorWell "Mixed" [unselected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.5 ColorWell "Selected" value="#30a46c" [selected] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.6 ColorWell "Disabled" value="#f5a524" [disabled unselected] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Label "" value="Clicked 0 times" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 0 times"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 ColorWell "Opaque"
+  2: r.0.0.0.0.0.0.0.0.1 ColorWell "Translucent"
+  3: r.0.0.0.0.0.0.0.0.2 ColorWell "Clear"
+  4: r.0.0.0.0.0.0.0.0.3 ColorWell "Panel colour"
+  5: r.0.0.0.0.0.0.0.0.4 ColorWell "Mixed"
+  6: r.0.0.0.0.0.0.0.0.5 ColorWell "Selected"
+  7: r.0.0.0.0.0.0.0.0.0 ColorWell "Opaque"
+  cycle after 6 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 ColorWell "Opaque"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 0 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 0 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 1 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 1 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 1 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 1 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 2 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 2 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 2 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 2 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 3 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 3 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 ColorWell "Opaque" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 ColorWell "Translucent"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 3 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 3 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 4 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 4 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 4 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 4 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 5 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 5 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 5 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 5 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 6 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 6 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1 ColorWell "Translucent" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.2 ColorWell "Clear"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 6 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 6 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 7 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 7 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 7 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 7 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 8 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 8 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 8 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 8 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 9 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 9 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.2 ColorWell "Clear" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.3 ColorWell "Panel colour"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 9 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 9 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 10 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 10 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 10 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 10 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 11 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 11 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 11 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 11 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 12 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 12 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.3 ColorWell "Panel colour" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.4 ColorWell "Mixed"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 12 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 12 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 13 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 13 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 13 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 13 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 14 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 14 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 14 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 14 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 15 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 15 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.4 ColorWell "Mixed" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.5 ColorWell "Selected"
+  click:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 15 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 15 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 16 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 16 times"
+  Space:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 16 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 16 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 17 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 17 times"
+  Enter:
+    - r.0.0.0.0.0.0.1 Label "" value="Clicked 17 times" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 17 times"
+    + r.0.0.0.0.0.0.1 Label "" value="Clicked 18 times" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Clicked 18 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.5 ColorWell "Selected" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

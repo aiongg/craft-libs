@@ -1,0 +1,249 @@
+story composites/color/pair-dialog
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 TextInput "Palette name" value="Spring" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.0.0 TextRun "" value="Spring"
+                r.0.0.0.0.0.0.0.1 Group "Colours"
+                  r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.1.2 Button "Swap colours" description="Swap colours" actions=[Click,Focus]
+                r.0.0.0.0.0.0.0.2 TextInput "Notes" value="Warm tones" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.0.0.2.0 TextRun "" value="Warm tones"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0 TextInput "Palette name"
+  2: r.0.0.0.0.0.0.0.2 TextInput "Notes"
+  3: r.0.0.0.0.0.0.0.0 TextInput "Palette name"
+  cycle after 2 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0.0.0 TextInput "Palette name"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0 TextInput "Palette name" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0 TextInput "Palette name" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0 Button "Stroke colour"
+  click:
+    - r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" -> r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+    - r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0 Dialog ""
+    + r.0.0.0.0.0.0.0.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0 Group "Stroke colour"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 78 %, Brightness 90 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=12.857142448425293 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="13°" number=12.857142448425293 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="13"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.3 Slider "Hue" number=12.857142448425293 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="78%" number=77.77777862548828 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="78"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.6 Slider "Saturation" number=77.77777862548828 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="90%" number=90 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="90"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.9 Slider "Brightness" number=90 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="E65933" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="E65933"
+  Escape:
+    - r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0 Dialog ""
+    - r.0.0.0.0.0.0.0.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0 Group "Stroke colour"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 78 %, Brightness 90 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=12.857142448425293 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="13°" number=12.857142448425293 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="13"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.3 Slider "Hue" number=12.857142448425293 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="78%" number=77.77777862548828 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="78"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.6 Slider "Saturation" number=77.77777862548828 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="90%" number=90 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="90"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.9 Slider "Brightness" number=90 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="E65933" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="E65933"
+    + r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.1.1 Button "Fill colour"
+  click:
+    focus: r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" -> r Window ""
+    - r.0.0.0.0.0.0.0.1.0 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.1 Button "Fill colour" -> r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0 Dialog ""
+    + r.0.0.0.0.0.0.0.1.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0 Group "Fill colour"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=204.99998474121094 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.3 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="75%" number=75 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="75"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.6 Slider "Saturation" number=75 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="80%" number=80 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="80"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.9 Slider "Brightness" number=80 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="338CCC" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="338CCC"
+  Escape:
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0 Dialog ""
+    - r.0.0.0.0.0.0.0.1.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0 Group "Fill colour"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="205°" number=204.99998474121094 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="205"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.3 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="75%" number=75 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="75"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.6 Slider "Saturation" number=75 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="80%" number=80 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="80"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.9 Slider "Brightness" number=80 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="338CCC" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="338CCC"
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.1.2 Button "Swap colours"
+  click:
+    focus: r.0.0.0.0.0.0.0.1.1 Button "Fill colour" -> r Window ""
+    - r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#338ccc" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#e65933" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#338ccc" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#e65933" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#e65933" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#338ccc" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.0 Button "Stroke colour" value="#338ccc" description="Stroke colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1.1 Button "Fill colour" value="#e65933" description="Fill colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.2 Button "Swap colours" -> r Window ""
+drive r.0.0.0.0.0.0.0.2 TextInput "Notes"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.2 TextInput "Notes"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.2 TextInput "Notes" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0.0.2 TextInput "Notes" -> r Window ""

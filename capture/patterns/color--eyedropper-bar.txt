@@ -1,0 +1,214 @@
+story patterns/color/eyedropper-bar
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Tool options"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 Label "" value="Sample Size:"
+                    r.0.0.0.0.0.0.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.2 Label "" value="Sample:"
+                    r.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.5 Label "" value="Click to sample the foreground color  ·  Alt-click for background" actions=[Click]
+                      r.0.0.0.0.0.0.0.0.0.5.0 TextRun "" value="Click to sample the foreground color  ·  Alt-click for background"
+              r.0.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size"
+  2: r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source"
+  3: r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring"
+  4: r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size"
+  cycle after 3 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" -> r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.2 ListBoxOption "5 by 5 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.3 ListBoxOption "11 by 11 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.4 ListBoxOption "31 by 31 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.5 ListBoxOption "51 by 51 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.6 ListBoxOption "101 by 101 Average" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" -> r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.2 ListBoxOption "5 by 5 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.3 ListBoxOption "11 by 11 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.4 ListBoxOption "31 by 31 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.5 ListBoxOption "51 by 51 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.6 ListBoxOption "101 by 101 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" -> r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.2 ListBoxOption "5 by 5 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.3 ListBoxOption "11 by 11 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.4 ListBoxOption "31 by 31 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.5 ListBoxOption "51 by 51 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.6 ListBoxOption "101 by 101 Average" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" -> r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="3 by 3 Average" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" -> r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="3 by 3 Average" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" -> r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size"
+    - r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" controls=[r.0.0.0.0.0.0.0.0.0.1.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.0 ListBoxOption "Point Sample" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.1 ListBoxOption "3 by 3 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.2 ListBoxOption "5 by 5 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.3 ListBoxOption "11 by 11 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.4 ListBoxOption "31 by 31 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.5 ListBoxOption "51 by 51 Average" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.1.0.0.0.0.0.0.6 ListBoxOption "101 by 101 Average" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" value="Point Sample" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.1.0 ComboBox "Size" -> r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.0 ListBoxOption "Current Layer" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.1 ListBoxOption "Current & Below" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.4 ListBoxOption "Current & Below No Adjustments" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" -> r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.0 ListBoxOption "Current Layer" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.1 ListBoxOption "Current & Below" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.4 ListBoxOption "Current & Below No Adjustments" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" -> r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.0 ListBoxOption "Current Layer" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.1 ListBoxOption "Current & Below" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.4 ListBoxOption "Current & Below No Adjustments" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" -> r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers No Adjustments" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" -> r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers No Adjustments" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" -> r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source"
+    - r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" controls=[r.0.0.0.0.0.0.0.0.0.3.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.0 ListBoxOption "Current Layer" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.1 ListBoxOption "Current & Below" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.2 ListBoxOption "All Layers" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.3 ListBoxOption "All Layers No Adjustments" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.3.0.0.0.0.0.0.4 ListBoxOption "Current & Below No Adjustments" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" value="All Layers" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.3.0 ComboBox "Source" -> r Window ""
+    - r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.4 CheckBox "Show Sampling Ring" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.5 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change

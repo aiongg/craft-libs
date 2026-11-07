@@ -1,0 +1,849 @@
+story patterns/timeline/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Group "Timeline" actions=[Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 GenericContainer ""
+                r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.1.1.2 Button "Add Marker (M)" description="Add Marker (M)" actions=[Click,Focus]
+                r.0.0.0.0.0.1.1.3 Button "Timeline Display Settings" description="Timeline Display Settings" actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;04;29" number=5 in 0..30 step - actions=[Click,Focus]
+              r.0.0.0.0.0.2.1 ListBox "Markers" actions=[Focus]
+              r.0.0.0.0.0.2.2 ListBoxOption "Check this cut, 00;00;11;29" description="Check this cut" [unchecked] actions=[Click]
+              r.0.0.0.0.0.2.3 ListBoxOption "Music swell, 00;00;19;29" description="Music swell" [unchecked] actions=[Click]
+            r.0.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Row "V2"
+              r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+              r.0.0.0.0.0.4.2 GenericContainer ""
+                r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.4.3 Splitter "Drag to change the height of V2"
+              r.0.0.0.0.0.4.4 Splitter "Drag the top edge to change the height of V2"
+              r.0.0.0.0.0.4.5 Button "Title card" value="00:00:01:29 00:00:06:29" [unchecked] actions=[Click]
+              r.0.0.0.0.0.4.6 Button "Logo sting" value="00:00:13:29 00:00:05:29" [unchecked] actions=[Click]
+              r.0.0.0.0.0.4.7 Row "V1"
+              r.0.0.0.0.0.4.8 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+              r.0.0.0.0.0.4.9 GenericContainer ""
+                r.0.0.0.0.0.4.9.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.4.9.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.4.9.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.4.10 Splitter "Drag to change the height of V1"
+              r.0.0.0.0.0.4.11 Button "Interview A-cam" value="00:00:00:00 00:00:11:29" [unchecked] actions=[Click]
+              r.0.0.0.0.0.4.12 Button "City b-roll" value="00:00:11:29 00:00:13:29" [checked] actions=[Click]
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 Row "A1"
+              r.0.0.0.0.0.5.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+              r.0.0.0.0.0.5.2 GenericContainer ""
+                r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.5.3 Splitter "Drag to change the height of A1"
+              r.0.0.0.0.0.5.4 Button "Voice-over" value="00:00:00:00 00:00:21:29" [unchecked] actions=[Click]
+              r.0.0.0.0.0.5.5 Row "A2"
+              r.0.0.0.0.0.5.6 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+              r.0.0.0.0.0.5.7 GenericContainer ""
+                r.0.0.0.0.0.5.7.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.7.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.7.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.7.3 Button "Mute Track A2" description="Mute Track A2" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.0.5.7.4 Button "Solo Track A2" description="Solo Track A2" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.5.8 Splitter "Drag to change the height of A2"
+              r.0.0.0.0.0.5.9 Button "Music bed" value="00:00:00:29 00:00:27:29" [unchecked] actions=[Click]
+            r.0.0.0.0.0.6 Splitter "Drag to change the width of the track headers"
+            r.0.0.0.0.0.7 Splitter "Drag to change how the room is shared between video and audio tracks"
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 ScrollBar "Zoom and Scroll" number=0 in 0..601.5980965329703 step -
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Group "Timeline"
+  2: r.0.0.0.0.0.1.0 SpinButton "Timecode"
+  3: r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)"
+  4: r.0.0.0.0.0.1.1.1 Button "Linked Selection"
+  5: r.0.0.0.0.0.1.1.2 Button "Add Marker (M)"
+  6: r.0.0.0.0.0.1.1.3 Button "Timeline Display Settings"
+  7: r.0.0.0.0.0.2.0 Slider "Time Ruler"
+  8: r.0.0.0.0.0.2.1 ListBox "Markers"
+  9: r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2"
+  10: r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2"
+  11: r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2"
+  12: r.0.0.0.0.0.4.9.0 Button "Toggle Track Lock V1"
+  13: r.0.0.0.0.0.4.9.1 Button "Toggle track targeting V1"
+  14: r.0.0.0.0.0.4.9.2 Button "Toggle Track Output V1"
+  15: r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1"
+  16: r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1"
+  17: r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1"
+  18: r.0.0.0.0.0.5.2.3 Button "Mute Track A1"
+  19: r.0.0.0.0.0.5.2.4 Button "Solo Track A1"
+  20: r.0.0.0.0.0.5.7.0 Button "Toggle Track Lock A2"
+  21: r.0.0.0.0.0.5.7.1 Button "Toggle track targeting A2"
+  22: r.0.0.0.0.0.5.7.2 Button "Toggle Track Output A2"
+  23: r.0.0.0.0.0.5.7.3 Button "Mute Track A2"
+  24: r.0.0.0.0.0.5.7.4 Button "Solo Track A2"
+  25: r.0.0.0.0.0.0 Group "Timeline"
+  cycle after 24 nodes
+drive: 36 actionable nodes
+drive r.0.0.0.0.0.0 Group "Timeline"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Group "Timeline" -> r Window ""
+drive r.0.0.0.0.0.1.0 SpinButton "Timecode"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0 TextInput "Timecode"
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0 TextRun "" value="00;00;04;29"
+  Space: node gone
+  Enter: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  ArrowUp: node gone
+  ArrowDown: node gone
+  Home: node gone
+  End: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)"
+  click:
+    focus: r.0.0.0.0.0.1.0.0 TextInput "Timecode" -> r Window ""
+    - r.0.0.0.0.0.1.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0 TextInput "Timecode" value="00;00;04;29" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0 TextRun "" value="00;00;04;29"
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" description="Snap in Timeline (S)" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1.1.0 Button "Snap in Timeline (S)" -> r Window ""
+drive r.0.0.0.0.0.1.1.1 Button "Linked Selection"
+  click:
+    - r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.1 Button "Linked Selection" description="Linked Selection" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.1.1.1 Button "Linked Selection" -> r Window ""
+drive r.0.0.0.0.0.1.1.2 Button "Add Marker (M)"
+  click:
+    + r.0.0.0.0.0.2.2 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+    + r.0.0.0.0.1 Label "" value="Last event: Add { at: Tick(1270080000000) }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Add { at: Tick(1270080000000) }"
+  Space:
+    + r.0.0.0.0.0.2.3 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+  Enter:
+    + r.0.0.0.0.0.2.4 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.0.1.1.2 Button "Add Marker (M)" -> r Window ""
+drive r.0.0.0.0.0.1.1.3 Button "Timeline Display Settings"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1.3 Button "Timeline Display Settings" -> r Window ""
+drive r.0.0.0.0.0.2.0 Slider "Time Ruler"
+  click:
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;04;29" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;06" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;04;29" number=5 in 0..30 step - actions=[Click,Focus]
+    + r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;06" number=14.2142 in 0..30 step - actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Add { at: Tick(1270080000000) }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Add { at: Tick(1270080000000) }"
+    + r.0.0.0.0.1 Label "" value="Last event: Playhead(Commit { id: GestureId(712), value: Tick(3610634227200), changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Commit { id: GestureId(712), value: Tick(3610634227200), changed: true, modifiers: "
+    + r.0.0.0.0.1.1 TextRun "" value="Modifiers::NONE })"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;06" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;05" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;06" number=14.2142 in 0..30 step - actions=[Click,Focus]
+    + r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;05" number=14.180833333333334 in 0..30 step - actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Playhead(Commit { id: GestureId(712), value: Tick(3610634227200), changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Commit { id: GestureId(712), value: Tick(3610634227200), changed: true, modifiers: "
+    - r.0.0.0.0.1.1 TextRun "" value="Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(3602158560000), modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(3602158560000), modifiers: Modifiers::NONE })"
+  ArrowRight:
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;05" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;06" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;05" number=14.180833333333334 in 0..30 step - actions=[Click,Focus]
+    + r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;06" number=14.2142 in 0..30 step - actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(3602158560000), modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(3602158560000), modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(3610634227200), modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(3610634227200), modifiers: Modifiers::NONE })"
+  ArrowUp: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.2.0 Slider "Time Ruler" -> r.0.0.0.0.0.0 Group "Timeline"
+  Home:
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;14;06" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;00;00" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;14;06" number=14.2142 in 0..30 step - actions=[Click,Focus]
+    + r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;00;00" number=0 in 0..30 step - actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(3610634227200), modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(3610634227200), modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(0), modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(0), modifiers: Modifiers::NONE })"
+  End:
+    - r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;00;00" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 SpinButton "Timecode" value="00;00;29;29" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;00;00" number=0 in 0..30 step - actions=[Click,Focus]
+    + r.0.0.0.0.0.2.0 Slider "Time Ruler" value="00;00;29;29" number=30 in 0..30 step - actions=[Click,Focus]
+    - r.0.0.0.0.0.2.2 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.2.3 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.2.4 ListBoxOption ", 00;00;04;29" description="Markers" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.2.5 ListBoxOption "Check this cut, 00;00;11;29" description="Check this cut" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.2.6 ListBoxOption "Music swell, 00;00;19;29" description="Music swell" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.5 Button "Title card" value="00:00:01:29 00:00:06:29" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.6 Button "Logo sting" value="00:00:13:29 00:00:05:29" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.11 Button "Interview A-cam" value="00:00:00:00 00:00:11:29" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.12 Button "City b-roll" value="00:00:11:29 00:00:13:29" [checked] actions=[Click]
+    - r.0.0.0.0.0.5.4 Button "Voice-over" value="00:00:00:00 00:00:21:29" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.8.0 ScrollBar "Zoom and Scroll" number=0 in 0..601.5980965329703 step -
+    - r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(0), modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(0), modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.0.8.0 ScrollBar "Zoom and Scroll" number=28.579904826648715 in 0..601.5980965329703 step -
+    + r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(7620480000000), modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(7620480000000), modifiers: Modifiers::NONE })"
+  Escape:
+    focus: r.0.0.0.0.0.2.0 Slider "Time Ruler" -> r Window ""
+drive r.0.0.0.0.0.2.1 ListBox "Markers"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.2.1 ListBox "Markers" -> r.0.0.0.0.0.0 Group "Timeline"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.1 ListBox "Markers" -> r Window ""
+drive r.0.0.0.0.0.2.2 ListBoxOption "Check this cut, 00;00;11;29"
+  all steps: node gone
+drive r.0.0.0.0.0.2.3 ListBoxOption "Music swell, 00;00;19;29"
+  all steps: node gone
+drive r.0.0.0.0.0.4.1 Button "Track Color"
+  click:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1.0 Menu ""
+    + r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+  Escape:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.4.1.0 Menu ""
+    - r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+drive r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2"
+  click:
+    - r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Playhead(Set { value: Tick(7620480000000), modifiers: Modifiers::NONE })" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Playhead(Set { value: Tick(7620480000000), modifiers: Modifiers::NONE })"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" description="Toggle Track Lock V2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.2.0 Button "Toggle Track Lock V2" -> r Window ""
+drive r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2"
+  click:
+    - r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" description="Toggle track targeting V2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.2.1 Button "Toggle track targeting V2" -> r Window ""
+drive r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2"
+  click:
+    - r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" description="Toggle Track Output V2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.2.2 Button "Toggle Track Output V2" -> r Window ""
+drive r.0.0.0.0.0.4.5 Button "Title card"
+  all steps: node gone
+drive r.0.0.0.0.0.4.6 Button "Logo sting"
+  all steps: node gone
+drive r.0.0.0.0.0.4.8 Button "Track Color"
+  click:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1.0 Menu ""
+    + r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+  Escape:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.4.1.0 Menu ""
+    - r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+drive r.0.0.0.0.0.4.9.0 Button "Toggle Track Lock V1"
+  click:
+    - r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(2), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" description="Toggle Track Lock V1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.7.0 Button "Toggle Track Lock V1" -> r Window ""
+drive r.0.0.0.0.0.4.9.1 Button "Toggle track targeting V1"
+  click:
+    - r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" description="Toggle track targeting V1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.7.1 Button "Toggle track targeting V1" -> r Window ""
+drive r.0.0.0.0.0.4.9.2 Button "Toggle Track Output V1"
+  click:
+    - r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" description="Toggle Track Output V1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.4.7.2 Button "Toggle Track Output V1" -> r Window ""
+drive r.0.0.0.0.0.4.11 Button "Interview A-cam"
+  all steps: node gone
+drive r.0.0.0.0.0.4.12 Button "City b-roll"
+  all steps: node gone
+drive r.0.0.0.0.0.5.1 Button "Track Color"
+  click:
+    - r.0.0.0.0.0.5.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.5.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.5.1.0 Menu ""
+    + r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+  Escape:
+    - r.0.0.0.0.0.5.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.5.1.0 Menu ""
+    - r.0.0.0.0.0.5.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.5.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+drive r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1"
+  click:
+    - r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(1), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" description="Toggle Track Lock A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.2.0 Button "Toggle Track Lock A1" -> r Window ""
+drive r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1"
+  click:
+    - r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" description="Toggle track targeting A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.2.1 Button "Toggle track targeting A1" -> r Window ""
+drive r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1"
+  click:
+    - r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" description="Toggle Track Output A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.2.2 Button "Toggle Track Output A1" -> r Window ""
+drive r.0.0.0.0.0.5.2.3 Button "Mute Track A1"
+  click:
+    - r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.3 Button "Mute Track A1" description="Mute Track A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.2.3 Button "Mute Track A1" -> r Window ""
+drive r.0.0.0.0.0.5.2.4 Button "Solo Track A1"
+  click:
+    - r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Muted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.2.4 Button "Solo Track A1" description="Solo Track A1" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.2.4 Button "Solo Track A1" -> r Window ""
+drive r.0.0.0.0.0.5.4 Button "Voice-over"
+  all steps: node gone
+drive r.0.0.0.0.0.5.6 Button "Track Color"
+  click:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    + r.0.0.0.0.0.4.1.0 Menu ""
+    + r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+  Escape:
+    - r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [expanded popup:Menu] actions=[Click]
+    - r.0.0.0.0.0.4.1.0 Menu ""
+    - r.0.0.0.0.0.4.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.4.1.0.0.0.0.0 MenuItemRadio "None" [checked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.1 MenuItemRadio "Violet" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.2 MenuItemRadio "Iris" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.3 MenuItemRadio "Caribbean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.4 MenuItemRadio "Lavender" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.5 MenuItemRadio "Cerulean" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.6 MenuItemRadio "Forest" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.7 MenuItemRadio "Rose" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.8 MenuItemRadio "Mango" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.9 MenuItemRadio "Purple" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.10 MenuItemRadio "Blue" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.11 MenuItemRadio "Teal" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.12 MenuItemRadio "Magenta" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.13 MenuItemRadio "Tan" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.14 MenuItemRadio "Green" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.15 MenuItemRadio "Brown" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.4.1.0.0.0.0.16 MenuItemRadio "Yellow" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.4.1 Button "Track Color" description="Track Color" [collapsed popup:Menu] actions=[Click]
+drive r.0.0.0.0.0.5.7.0 Button "Toggle Track Lock A2"
+  click:
+    - r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [disabled unchecked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(3), switch: Solo, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [disabled unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [unchecked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" description="Toggle Track Lock A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.5.8 Button "Music bed" value="00:00:00:29 00:00:27:29" [disabled unchecked] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.6.0 Button "Toggle Track Lock A2" -> r Window ""
+drive r.0.0.0.0.0.5.7.1 Button "Toggle track targeting A2"
+  click:
+    - r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Locked, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" description="Toggle track targeting A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.6.1 Button "Toggle track targeting A2" -> r Window ""
+drive r.0.0.0.0.0.5.7.2 Button "Toggle Track Output A2"
+  click:
+    - r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Targeted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: true, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" description="Toggle Track Output A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.6.2 Button "Toggle Track Output A2" -> r Window ""
+drive r.0.0.0.0.0.5.7.3 Button "Mute Track A2"
+  click:
+    - r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Enabled, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.3 Button "Mute Track A2" description="Mute Track A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.6.3 Button "Mute Track A2" -> r Window ""
+drive r.0.0.0.0.0.5.7.4 Button "Solo Track A2"
+  click:
+    - r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Muted, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }"
+  Space:
+    - r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: false, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: false, exclusive: false }"
+  Enter:
+    - r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.6.4 Button "Solo Track A2" description="Solo Track A2" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: false, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: false, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }"
+  Escape:
+    focus: r.0.0.0.0.0.5.6.4 Button "Solo Track A2" -> r Window ""
+drive r.0.0.0.0.0.5.9 Button "Music bed"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Switch { track: TrackId(4), switch: Solo, value: true, exclusive: false }"
+    + r.0.0.0.0.1 Label "" value="Last event: HeaderWidth(Commit { id: GestureId(713), value: 204.00002, changed: true, modifiers: Modifiers::NONE })" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: HeaderWidth(Commit { id: GestureId(713), value: 204.00002, changed: true, modifiers: "
+    + r.0.0.0.0.1.1 TextRun "" value="Modifiers::NONE })"
+  Escape: no change

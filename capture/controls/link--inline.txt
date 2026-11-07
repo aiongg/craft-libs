@@ -1,0 +1,34 @@
+story controls/link/inline
+args
+  label = Text("release notes")
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="This version changes how layers are saved. Read the " actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="This version changes how layers are saved. Read the "
+            r.0.0.0.0.0.1 Link "release notes" actions=[Click,Focus]
+            r.0.0.0.0.0.2 Label "" value=" before you open older documents." actions=[Click]
+              r.0.0.0.0.0.2.0 TextRun "" value=" before you open older documents."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Link "release notes"
+  2: r.0.0.0.0.0.1 Link "release notes"
+  cycle after 1 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1 Link "release notes" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 Link "release notes"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Link "release notes" -> r Window ""
+drive r.0.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

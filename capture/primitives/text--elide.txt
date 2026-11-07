@@ -1,0 +1,42 @@
+story primitives/text/elide
+args
+  text = Text("IMG_2024_summer_holiday_final_edit.psd")
+  width = Number { value: 180.0, min: 40.0, max: 400.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="End"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "End" value="IMG_2024_summer_holiday_final_edit.psd" description="IMG_2024_summer_holiday_final_edit.psd" labelled_by=[r.0.0.0.0.0.0.0]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Middle"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Label "Middle" value="IMG_2024_summer_holiday_final_edit.psd" description="IMG_2024_summer_holiday_final_edit.psd" labelled_by=[r.0.0.0.0.0.2.0]
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Start"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 Label "Start" value="IMG_2024_summer_holiday_final_edit.psd" description="IMG_2024_summer_holiday_final_edit.psd" labelled_by=[r.0.0.0.0.0.4.0]
+            r.0.0.0.0.0.6 GenericContainer ""
+              r.0.0.0.0.0.6.0 Label "" value="Path"
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 Label "Path" value="/home/ada/Pictures/2026/summer holiday/IMG_2024_summer_holiday_final_edit.psd" description="/home/ada/Pictures/2026/summer holiday/IMG_2024_summer_holiday_final_edit.psd" labelled_by=[r.0.0.0.0.0.6.0]
+            r.0.0.0.0.0.8 GenericContainer ""
+              r.0.0.0.0.0.8.0 Label "" value="RTL"
+            r.0.0.0.0.0.9 GenericContainer ""
+              r.0.0.0.0.0.9.0 GenericContainer ""
+                r.0.0.0.0.0.9.0.0 Label "RTL" value="שם קובץ ארוך מאוד שלא נכנס בשורה אחת של הפאנל.psd" description="שם קובץ ארוך מאוד שלא נכנס בשורה אחת של הפאנל.psd" labelled_by=[r.0.0.0.0.0.8.0]
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 0 actionable nodes

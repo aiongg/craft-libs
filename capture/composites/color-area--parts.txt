@@ -1,0 +1,131 @@
+story composites/color-area/parts
+args
+  mode = Choice { options: ["H", "S", "B", "R", "G", "B (blue)", "L", "a", "b", "OKLCH L", "OKLCH C", "OKLCH H"], index: 0 }
+  compact = Bool(false)
+  disabled = Bool(false)
+  web colours only = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+              r.0.0.0.0.0.0.1 Label "" value="#338CCC  H 205°, S 75 %, B 80 %" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="#338CCC  H 205°, S 75 %, B 80 %"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  2: r.0.0.0.0.0.0.0.0.1 Slider "Hue"
+  3: r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  cycle after 2 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness"
+  click:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 75 %, Brightness 80 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#338CCC  H 205°, S 75 %, B 80 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#338CCC  H 205°, S 75 %, B 80 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 49 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#416580  H 205°, S 49 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#416580  H 205°, S 49 %, B 50 %"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 49 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#416580  H 205°, S 49 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#416580  H 205°, S 49 %, B 50 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 51 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#416782  H 205°, S 50 %, B 51 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#416782  H 205°, S 50 %, B 51 %"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 51 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#416782  H 205°, S 50 %, B 51 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#416782  H 205°, S 50 %, B 51 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+  Home:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 50 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#406580  H 205°, S 50 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#406580  H 205°, S 50 %, B 50 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#808080  H 205°, S 0 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#808080  H 205°, S 0 %, B 50 %"
+  End:
+    - r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 50 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 100 %, Brightness 50 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="#808080  H 205°, S 0 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#808080  H 205°, S 0 %, B 50 %"
+    + r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 Slider "Hue"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204.99998474121094 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#004C80  H 204°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#004C80  H 204°, S 100 %, B 50 %"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=204 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#004C80  H 204°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#004C80  H 204°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#004880  H 206°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#004880  H 206°, S 100 %, B 50 %"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=206 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#004880  H 206°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#004880  H 206°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+  Home:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=205 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#004A80  H 205°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#004A80  H 205°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#800000  H 0°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#800000  H 0°, S 100 %, B 50 %"
+  End:
+    - r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.0.1 Label "" value="#800000  H 0°, S 100 %, B 50 %" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="#800000  H 0°, S 100 %, B 50 %"
+    + r.0.0.0.0.0.0.0.0.1 Slider "Hue" number=360 in 0..360 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.0.1 Label "" value="#800000  H 360°, S 100 %, B 50 %" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="#800000  H 360°, S 100 %, B 50 %"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1 Slider "Hue" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

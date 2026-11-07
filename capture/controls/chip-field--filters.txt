@@ -1,0 +1,118 @@
+story controls/chip-field/filters
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 List "Filters"
+            r.0.0.0.0.0.0 ListItem "Rating: 4 or more" actions=[Click,Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Button "Remove “Rating: 4 or more”" actions=[Click]
+            r.0.0.0.0.0.1 ListItem "Camera: X100V" actions=[Click]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Button "Remove “Camera: X100V”" actions=[Click]
+            r.0.0.0.0.0.2 ListItem "Year: 2024" actions=[Click]
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 Button "Remove “Year: 2024”" actions=[Click]
+            r.0.0.0.0.0.3 ListItem "Flagged" actions=[Click]
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Button "Remove “Flagged”" actions=[Click]
+            r.0.0.0.0.0.4 Button "Clear All" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 ListItem "Rating: 4 or more"
+  2: r.0.0.0.0.0.0 ListItem "Rating: 4 or more"
+  cycle after 1 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.0 ListItem "Rating: 4 or more"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Rating: 4 or more" -> r.0.0.0.0.0.1 ListItem "Camera: X100V"
+    - r.0.0.0.0.0.0 ListItem "Rating: 4 or more" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Rating: 4 or more" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Camera: X100V" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Camera: X100V" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Rating: 4 or more" -> r Window ""
+drive r.0.0.0.0.0.0.0.0 Button "Remove “Rating: 4 or more”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Rating: 4 or more" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Rating: 4 or more”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Camera: X100V" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Camera: X100V" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.1 ListItem "Camera: X100V"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Camera: X100V" -> r.0.0.0.0.0.1 ListItem "Year: 2024"
+    - r.0.0.0.0.0.0 ListItem "Camera: X100V" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Camera: X100V" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Year: 2024" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Year: 2024" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Camera: X100V" -> r Window ""
+drive r.0.0.0.0.0.1.0.0 Button "Remove “Camera: X100V”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Camera: X100V" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Camera: X100V”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Year: 2024" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Year: 2024" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.2 ListItem "Year: 2024"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Year: 2024" -> r.0.0.0.0.0.1 ListItem "Flagged"
+    - r.0.0.0.0.0.0 ListItem "Year: 2024" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Year: 2024" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Flagged" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Flagged" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Year: 2024" -> r Window ""
+drive r.0.0.0.0.0.2.0.0 Button "Remove “Year: 2024”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Year: 2024" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Year: 2024”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Flagged" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Flagged" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.3 ListItem "Flagged"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Flagged" -> r.0.0.0.0.0.1 Button "Clear All"
+    - r.0.0.0.0.0.0 ListItem "Flagged" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Flagged" actions=[Click]
+    - r.0.0.0.0.0.1 Button "Clear All" actions=[Click]
+    + r.0.0.0.0.0.1 Button "Clear All" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Flagged" -> r Window ""
+drive r.0.0.0.0.0.3.0.0 Button "Remove “Flagged”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Flagged" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Flagged”" actions=[Click]
+    - r.0.0.0.0.0.1 Button "Clear All" actions=[Click]
+    + r.0.0.0.0.1 Button "Restore" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.4 Button "Clear All"
+  all steps: node gone

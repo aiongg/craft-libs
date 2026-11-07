@@ -1,0 +1,23 @@
+story primitives/text/truncate
+args
+  role = Choice { options: ["caption", "label", "body", "body_strong", "title", "heading", "body_large", "mono"], index: 2 }
+  text = Text("A long layer name that does not fit in the panel and ends in an ellipsis")
+  width = Number { value: 160.0, min: 40.0, max: 400.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="A long layer name that does not fit in the panel and ends in an ellipsis" description="A long layer name that does not fit in the panel and ends in an ellipsis" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="A long layer name that do…"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change

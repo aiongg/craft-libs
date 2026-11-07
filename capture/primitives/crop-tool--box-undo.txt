@@ -1,0 +1,66 @@
+story primitives/crop-tool/box-undo
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Crop frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "Top left corner" value="0.0 px, 0.0 px" [unselected]
+              r.0.0.0.0.1.0.2 GraphicsObject "Top right corner" value="640.0 px, 0.0 px" [unselected]
+              r.0.0.0.0.1.0.3 GraphicsObject "Bottom right corner" value="640.0 px, 400.0 px" [unselected]
+              r.0.0.0.0.1.0.4 GraphicsObject "Bottom left corner" value="0.0 px, 400.0 px" [unselected]
+              r.0.0.0.0.1.0.5 GraphicsObject "Top edge" value="320.0 px, 0.0 px" [unselected]
+              r.0.0.0.0.1.0.6 GraphicsObject "Right edge" value="640.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.1.0.7 GraphicsObject "Bottom edge" value="320.0 px, 400.0 px" [unselected]
+              r.0.0.0.0.1.0.8 GraphicsObject "Left edge" value="0.0 px, 200.0 px" [unselected]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Button "Undo" [disabled] actions=[Click,Focus]
+            r.0.0.0.0.2.1 Button "Redo" [disabled] actions=[Click,Focus]
+            r.0.0.0.0.2.2 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.2.3 Label "" value="640 × 400 px · 0°" actions=[Click]
+              r.0.0.0.0.2.3.0 TextRun "" value="640 × 400 px · 0°"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Whole frame"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [selected]
+  3: r.0.0.0.0.2.2 Button "Reset"
+  4: r.0.0.0.0.0 Canvas "Document"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r.0.0.0.0.1 Group "Crop frame"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [selected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [unselected]
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1 Group "Crop frame"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" -> r.0.0.0.0.1 Group "Crop frame"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [selected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Whole frame" value="640.0 px × 400.0 px, 0.0 px, 0.0 px, 0.0°" [unselected]
+drive r.0.0.0.0.2.2 Button "Reset"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.2 Button "Reset" -> r Window ""
+drive r.0.0.0.0.2.3 Label ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.1 Group "Crop frame"
+  Escape: no change

@@ -1,0 +1,318 @@
+story controls/chip-field/keywords
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  limit lines = Bool(true)
+  max lines = Number { value: 2.0, min: 1.0, max: 6.0 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 List "Keywords"
+            r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click,Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Button "Remove “Sunset”" actions=[Click]
+            r.0.0.0.0.0.1 ListItem "Harbor" actions=[Click]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Button "Remove “Harbor”" actions=[Click]
+            r.0.0.0.0.0.2 ListItem "Portrait" actions=[Click]
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 Button "Remove “Portrait”" actions=[Click]
+            r.0.0.0.0.0.3 ListItem "Studio, some of the selection" actions=[Click]
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Button "Remove “Studio”" actions=[Click]
+            r.0.0.0.0.0.4 ListItem "Mountain" actions=[Click]
+              r.0.0.0.0.0.4.0 GenericContainer ""
+                r.0.0.0.0.0.4.0.0 Button "Remove “Mountain”" actions=[Click]
+            r.0.0.0.0.0.5 ListItem "Lake" actions=[Click]
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 Button "Remove “Lake”" actions=[Click]
+            r.0.0.0.0.0.6 ListItem "Street" actions=[Click]
+              r.0.0.0.0.0.6.0 GenericContainer ""
+                r.0.0.0.0.0.6.0.0 Button "Remove “Street”" actions=[Click]
+            r.0.0.0.0.0.7 ListItem "Night, some of the selection" actions=[Click]
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 Button "Remove “Night”" actions=[Click]
+            r.0.0.0.0.0.8 ListItem "Winter" actions=[Click]
+              r.0.0.0.0.0.8.0 GenericContainer ""
+                r.0.0.0.0.0.8.0.0 Button "Remove “Winter”" actions=[Click]
+            r.0.0.0.0.0.9 ListItem "Macro" actions=[Click]
+              r.0.0.0.0.0.9.0 GenericContainer ""
+                r.0.0.0.0.0.9.0.0 Button "Remove “Macro”" actions=[Click]
+            r.0.0.0.0.0.10 ListItem "Travel" actions=[Click]
+              r.0.0.0.0.0.10.0 GenericContainer ""
+                r.0.0.0.0.0.10.0.0 Button "Remove “Travel”" actions=[Click]
+            r.0.0.0.0.0.11 ListItem "Family, some of the selection" actions=[Click]
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 Button "Remove “Family”" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 ListItem "Sunset"
+  2: r.0.0.0.0.0.0 ListItem "Sunset"
+  cycle after 1 nodes
+drive: 24 actionable nodes
+drive r.0.0.0.0.0.0 ListItem "Sunset"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0 ListItem "Sunset" -> r.0.0.0.0.0.9 ListItem "Macro"
+    - r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click]
+    - r.0.0.0.0.0.9 ListItem "Macro" actions=[Click]
+    + r.0.0.0.0.0.9 ListItem "Macro" actions=[Click,Focus]
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Sunset" -> r.0.0.0.0.0.1 ListItem "Harbor"
+    - r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Harbor" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Harbor" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Sunset" -> r Window ""
+drive r.0.0.0.0.0.0.0.0 Button "Remove “Sunset”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Sunset" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Sunset”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Harbor" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.1 ListItem "Harbor"
+  click: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0 ListItem "Harbor" -> r.0.0.0.0.0.9 ListItem "Travel"
+    - r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click]
+    - r.0.0.0.0.0.9 ListItem "Travel" actions=[Click]
+    + r.0.0.0.0.0.9 ListItem "Travel" actions=[Click,Focus]
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Harbor" -> r.0.0.0.0.0.1 ListItem "Portrait"
+    - r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Portrait" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Portrait" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Harbor" -> r Window ""
+drive r.0.0.0.0.0.1.0.0 Button "Remove “Harbor”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Harbor" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Harbor”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Portrait" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.2 ListItem "Portrait"
+  click: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0 ListItem "Portrait" -> r.0.0.0.0.0.9 ListItem "Family, some of the selection"
+    - r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click]
+    - r.0.0.0.0.0.9 ListItem "Family, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.9 ListItem "Family, some of the selection" actions=[Click,Focus]
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Portrait" -> r.0.0.0.0.0.1 ListItem "Studio, some of the selection"
+    - r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Studio, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Studio, some of the selection" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Portrait" -> r Window ""
+drive r.0.0.0.0.0.2.0.0 Button "Remove “Portrait”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Portrait" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Portrait”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Studio, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Studio, some of the selection" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.3 ListItem "Studio, some of the selection"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Studio, some of the selection" -> r.0.0.0.0.0.1 ListItem "Mountain"
+    - r.0.0.0.0.0.0 ListItem "Studio, some of the selection" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Studio, some of the selection" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Mountain" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Mountain" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Studio, some of the selection" -> r Window ""
+drive r.0.0.0.0.0.3.0.0 Button "Remove “Studio”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Studio, some of the selection" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Studio”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Mountain" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Mountain" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.4 ListItem "Mountain"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Mountain" -> r.0.0.0.0.0.1 ListItem "Lake"
+    - r.0.0.0.0.0.0 ListItem "Mountain" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Mountain" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Lake" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Lake" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Mountain" -> r Window ""
+drive r.0.0.0.0.0.4.0.0 Button "Remove “Mountain”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Mountain" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Mountain”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Lake" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Lake" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.5 ListItem "Lake"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Lake" -> r.0.0.0.0.0.1 ListItem "Street"
+    - r.0.0.0.0.0.0 ListItem "Lake" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Lake" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Street" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Street" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Lake" -> r Window ""
+drive r.0.0.0.0.0.5.0.0 Button "Remove “Lake”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Lake" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Lake”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Street" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Street" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.6 ListItem "Street"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Street" -> r.0.0.0.0.0.1 ListItem "Night, some of the selection"
+    - r.0.0.0.0.0.0 ListItem "Street" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Street" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Night, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Night, some of the selection" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Street" -> r Window ""
+drive r.0.0.0.0.0.6.0.0 Button "Remove “Street”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Street" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Street”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Night, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Night, some of the selection" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.7 ListItem "Night, some of the selection"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Night, some of the selection" -> r.0.0.0.0.0.1 ListItem "Winter"
+    - r.0.0.0.0.0.0 ListItem "Night, some of the selection" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Night, some of the selection" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Winter" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Winter" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Night, some of the selection" -> r Window ""
+drive r.0.0.0.0.0.7.0.0 Button "Remove “Night”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Night, some of the selection" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Night”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Winter" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Winter" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.8 ListItem "Winter"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Winter" -> r.0.0.0.0.0.1 ListItem "Macro"
+    - r.0.0.0.0.0.0 ListItem "Winter" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Winter" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Macro" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Macro" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Winter" -> r Window ""
+drive r.0.0.0.0.0.8.0.0 Button "Remove “Winter”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Winter" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Winter”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Macro" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Macro" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.9 ListItem "Macro"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Macro" -> r.0.0.0.0.0.1 ListItem "Travel"
+    - r.0.0.0.0.0.0 ListItem "Macro" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Macro" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Travel" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Travel" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Macro" -> r Window ""
+drive r.0.0.0.0.0.9.0.0 Button "Remove “Macro”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Macro" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Macro”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Travel" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Travel" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.10 ListItem "Travel"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 ListItem "Travel" -> r.0.0.0.0.0.1 ListItem "Family, some of the selection"
+    - r.0.0.0.0.0.0 ListItem "Travel" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 ListItem "Travel" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Family, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.1 ListItem "Family, some of the selection" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Travel" -> r Window ""
+drive r.0.0.0.0.0.10.0.0 Button "Remove “Travel”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Travel" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Travel”" actions=[Click]
+    - r.0.0.0.0.0.1 ListItem "Family, some of the selection" actions=[Click]
+    + r.0.0.0.0.0.0 ListItem "Family, some of the selection" actions=[Click,Focus]
+  Escape: node gone
+drive r.0.0.0.0.0.11 ListItem "Family, some of the selection"
+  click: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 ListItem "Family, some of the selection" -> r Window ""
+drive r.0.0.0.0.0.11.0.0 Button "Remove “Family”"
+  click:
+    - r.0.0.0.0.0.0 ListItem "Family, some of the selection" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0 Button "Remove “Family”" actions=[Click]
+    + r.0.0.0.0.1 Button "Restore" actions=[Click,Focus]
+  Escape: node gone

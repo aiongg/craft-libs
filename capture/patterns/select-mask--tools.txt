@@ -1,0 +1,722 @@
+story patterns/select-mask/tools
+args
+  tool = Choice { options: ["Quick Selection", "Refine Edge Brush", "brush", "Object Selection", "lasso", "Polygonal Lasso"], index: 5 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Tool options"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 Button "Polygonal Lasso Tool" description="Polygonal Lasso Tool" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 Button "Add" description="Add" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.2 Button "Subtract" description="Subtract" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.3 Button "Select Subject" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.4 Button "Refine Hair" description="Refine Hair needs hair detection, which isn't available yet" [disabled] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Click to add corners; Enter closes the polygon, Esc drops it." actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Click to add corners; Enter closes the polygon, Esc drops it."
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 Canvas "Image" value="14%" actions=[Click,Focus]
+                r.0.0.0.0.2.0.0.0 GenericContainer ""
+                  r.0.0.0.0.2.0.0.0.0 GraphicsObject "Selection" value="414 px × 382 px at 593 px, 372 px"
+            r.0.0.0.0.2.1 Label "" value="Edits recorded: 0" actions=[Click]
+              r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 0"
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.3.0.2 GenericContainer ""
+                r.0.0.0.0.3.0.2.0 GenericContainer ""
+                  r.0.0.0.0.3.0.2.0.0 Label "" value="View Mode"
+              r.0.0.0.0.3.0.3 GenericContainer ""
+                r.0.0.0.0.3.0.3.0 GenericContainer ""
+                  r.0.0.0.0.3.0.3.0.0 Label "" value="View" actions=[Click]
+                    r.0.0.0.0.3.0.3.0.0.0 TextRun "" value="View"
+                  r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+                r.0.0.0.0.3.0.3.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+                r.0.0.0.0.3.0.3.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.3.0.3.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+                r.0.0.0.0.3.0.3.4 Label "" value="F cycles the views; hold X to see the image" actions=[Click]
+                  r.0.0.0.0.3.0.3.4.0 TextRun "" value="F cycles the views; hold X to see the image"
+              r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement" [checked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.5 CheckBox "High Quality Preview" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.6 DisclosureTriangle "Refine Mode" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.3.0.7 GenericContainer ""
+                r.0.0.0.0.3.0.7.0 GenericContainer ""
+                  r.0.0.0.0.3.0.7.0.0 Label "" value="Refine Mode"
+              r.0.0.0.0.3.0.8 GenericContainer ""
+                r.0.0.0.0.3.0.8.0 Button "Color Aware" [checked] actions=[Click,Focus]
+                r.0.0.0.0.3.0.8.1 Button "Object Aware" description="Object Aware needs a segmentation model, which isn't available yet" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.9 DisclosureTriangle "Edge Detection" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.3.0.10 GenericContainer ""
+                r.0.0.0.0.3.0.10.0 GenericContainer ""
+                  r.0.0.0.0.3.0.10.0.0 Label "" value="Edge Detection"
+              r.0.0.0.0.3.0.11 GenericContainer ""
+                r.0.0.0.0.3.0.11.0 Label "" value="Radius"
+              r.0.0.0.0.3.0.12 GenericContainer ""
+                r.0.0.0.0.3.0.12.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.3.0.12.0.0 TextRun "" value="0"
+              r.0.0.0.0.3.0.13 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Focus,Increment,SetValue]
+              r.0.0.0.0.3.0.14 CheckBox "Smart Radius" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.15 DisclosureTriangle "Global Refinements" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.3.0.16 GenericContainer ""
+                r.0.0.0.0.3.0.16.0 GenericContainer ""
+                  r.0.0.0.0.3.0.16.0.0 Label "" value="Global Refinements"
+              r.0.0.0.0.3.0.17 GenericContainer ""
+                r.0.0.0.0.3.0.17.0 Label "" value="Smooth"
+              r.0.0.0.0.3.0.18 GenericContainer ""
+                r.0.0.0.0.3.0.18.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.3.0.18.0.0 TextRun "" value="0"
+              r.0.0.0.0.3.0.19 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+              r.0.0.0.0.3.0.20 GenericContainer ""
+                r.0.0.0.0.3.0.20.0 Label "" value="Feather"
+              r.0.0.0.0.3.0.21 GenericContainer ""
+                r.0.0.0.0.3.0.21.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.3.0.21.0.0 TextRun "" value="0"
+              r.0.0.0.0.3.0.22 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+              r.0.0.0.0.3.0.23 GenericContainer ""
+                r.0.0.0.0.3.0.23.0 Label "" value="Contrast"
+              r.0.0.0.0.3.0.24 GenericContainer ""
+                r.0.0.0.0.3.0.24.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.3.0.24.0.0 TextRun "" value="0"
+              r.0.0.0.0.3.0.25 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Increment,SetValue]
+              r.0.0.0.0.3.0.26 GenericContainer ""
+                r.0.0.0.0.3.0.26.0 Label "" value="Shift Edge"
+              r.0.0.0.0.3.0.27 GenericContainer ""
+                r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.3.0.27.0.0 TextRun "" value="0"
+              r.0.0.0.0.3.0.28 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Focus,Decrement,Increment,SetValue]
+              r.0.0.0.0.3.0.29 GenericContainer ""
+                r.0.0.0.0.3.0.29.0 Button "Clear Selection" actions=[Click,Focus]
+                r.0.0.0.0.3.0.29.1 Button "Invert" actions=[Click,Focus]
+              r.0.0.0.0.3.0.30 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.3.0.31 GenericContainer ""
+                r.0.0.0.0.3.0.31.0 GenericContainer ""
+                  r.0.0.0.0.3.0.31.0.0 Label "" value="Output Settings"
+              r.0.0.0.0.3.0.32 CheckBox "Decontaminate Colors" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.3.0.33 GenericContainer ""
+                r.0.0.0.0.3.0.33.0 Label "" value="Amount"
+              r.0.0.0.0.3.0.34 GenericContainer ""
+                r.0.0.0.0.3.0.34.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.33.0] [disabled]
+                  r.0.0.0.0.3.0.34.0.0 TextRun "" value="100"
+              r.0.0.0.0.3.0.35 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.33.0] [disabled] actions=[Focus]
+              r.0.0.0.0.3.0.36 GenericContainer ""
+                r.0.0.0.0.3.0.36.0 Label "" value="Output To" actions=[Click]
+                  r.0.0.0.0.3.0.36.0.0 TextRun "" value="Output To"
+                r.0.0.0.0.3.0.36.1 ComboBox "Output To" value="Selection" [collapsed popup:Listbox] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 Button "Polygonal Lasso Tool"
+  2: r.0.0.0.0.0.0.0.0.0.1 Button "Add"
+  3: r.0.0.0.0.0.0.0.0.0.2 Button "Subtract"
+  4: r.0.0.0.0.0.0.0.0.0.3 Button "Select Subject"
+  5: r.0.0.0.0.2.0.0 Canvas "Image"
+  6: r.0.0.0.0.3.0.0 CheckBox "Remember Settings"
+  7: r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode"
+  8: r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode"
+  9: r.0.0.0.0.3.0.3.1 Slider "Opacity"
+  10: r.0.0.0.0.3.0.3.2 CheckBox "Show Edge"
+  11: r.0.0.0.0.3.0.3.3 CheckBox "Show Original"
+  12: r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement"
+  13: r.0.0.0.0.3.0.5 CheckBox "High Quality Preview"
+  14: r.0.0.0.0.3.0.6 DisclosureTriangle "Refine Mode"
+  15: r.0.0.0.0.3.0.8.0 Button "Color Aware"
+  16: r.0.0.0.0.3.0.9 DisclosureTriangle "Edge Detection"
+  17: r.0.0.0.0.3.0.12.0 SpinButton "Radius"
+  18: r.0.0.0.0.3.0.13 Slider "Radius"
+  19: r.0.0.0.0.3.0.14 CheckBox "Smart Radius"
+  20: r.0.0.0.0.3.0.15 DisclosureTriangle "Global Refinements"
+  21: r.0.0.0.0.3.0.18.0 SpinButton "Smooth"
+  22: r.0.0.0.0.3.0.19 Slider "Smooth"
+  23: r.0.0.0.0.3.0.21.0 SpinButton "Feather"
+  24: r.0.0.0.0.3.0.22 Slider "Feather"
+  25: r.0.0.0.0.3.0.24.0 SpinButton "Contrast"
+  26: r.0.0.0.0.3.0.25 Slider "Contrast"
+  27: r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge"
+  28: r.0.0.0.0.3.0.28 Slider "Shift Edge"
+  29: r.0.0.0.0.3.0.29.0 Button "Clear Selection"
+  30: r.0.0.0.0.3.0.29.1 Button "Invert"
+  31: r.0.0.0.0.3.0.30 DisclosureTriangle "Output Settings"
+  32: r.0.0.0.0.3.0.32 CheckBox "Decontaminate Colors"
+  33: r.0.0.0.0.3.0.36.1 ComboBox "Output To"
+  34: r.0.0.0.0.0.0.0.0.0.0 Button "Polygonal Lasso Tool"
+  cycle after 33 nodes
+drive: 38 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0 Button "Polygonal Lasso Tool"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 Button "Polygonal Lasso Tool" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 Button "Add"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 Button "Add" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2 Button "Subtract"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 Button "Add" description="Add" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 Button "Subtract" description="Subtract" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 Button "Add" description="Add" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 Button "Subtract" description="Subtract" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2 Button "Subtract" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.3 Button "Select Subject"
+  click:
+    - r.0.0.0.0.2.1 Label "" value="Edits recorded: 0" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 0"
+    + r.0.0.0.0.2.1 Label "" value="Edits recorded: 1" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 1"
+  Space:
+    - r.0.0.0.0.2.1 Label "" value="Edits recorded: 1" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 1"
+    + r.0.0.0.0.2.1 Label "" value="Edits recorded: 2" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 2"
+  Enter:
+    - r.0.0.0.0.2.1 Label "" value="Edits recorded: 2" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 2"
+    + r.0.0.0.0.2.1 Label "" value="Edits recorded: 3" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="Edits recorded: 3"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 Button "Select Subject" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.2.0.0 Canvas "Image"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.2.1 Label ""
+  click:
+    focus: r.0.0.0.0.2.0.0 Canvas "Image" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3.0.0 CheckBox "Remember Settings"
+  click:
+    - r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [checked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [unchecked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.0 CheckBox "Remember Settings" [checked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.0 CheckBox "Remember Settings" -> r Window ""
+drive r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode"
+  click:
+    - r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.3.0 GenericContainer ""
+    - r.0.0.0.0.3.0.3.0.0 Label "" value="View" actions=[Click]
+    - r.0.0.0.0.3.0.3.0.0.0 TextRun "" value="View"
+    - r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.3.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.4 Label "" value="F cycles the views; hold X to see the image" actions=[Click]
+    - r.0.0.0.0.3.0.3.4.0 TextRun "" value="F cycles the views; hold X to see the image"
+    - r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5 CheckBox "High Quality Preview" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.12.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.13 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.21.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.22 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.24.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.25 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.28 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.34.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.33.0] [disabled]
+    + r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    - r.0.0.0.0.3.0.35 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.33.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+  Space:
+    - r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3 GenericContainer ""
+    + r.0.0.0.0.3.0.3.0 GenericContainer ""
+    + r.0.0.0.0.3.0.3.0.0 Label "" value="View" actions=[Click]
+    + r.0.0.0.0.3.0.3.0.0.0 TextRun "" value="View"
+    + r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.3.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3.4 Label "" value="F cycles the views; hold X to see the image" actions=[Click]
+    + r.0.0.0.0.3.0.3.4.0 TextRun "" value="F cycles the views; hold X to see the image"
+    + r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5 CheckBox "High Quality Preview" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.12.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.13 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.18.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.19 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.21.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.22 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.24.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.25 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.28 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    + r.0.0.0.0.3.0.34.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.33.0] [disabled]
+    - r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.35 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.33.0] [disabled] actions=[Focus]
+  Enter:
+    - r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.3.0 GenericContainer ""
+    - r.0.0.0.0.3.0.3.0.0 Label "" value="View" actions=[Click]
+    - r.0.0.0.0.3.0.3.0.0.0 TextRun "" value="View"
+    - r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode" value="Onion Skin" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.1 Slider "Opacity" value="50%" number=50 in 0..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.3.2 CheckBox "Show Edge" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.3 CheckBox "Show Original" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.3.4 Label "" value="F cycles the views; hold X to see the image" actions=[Click]
+    - r.0.0.0.0.3.0.3.4.0 TextRun "" value="F cycles the views; hold X to see the image"
+    - r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5 CheckBox "High Quality Preview" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.12.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.13 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.11.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.21.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.22 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.24.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.25 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.28 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.26.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.34.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.33.0] [disabled]
+    + r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    - r.0.0.0.0.3.0.35 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.33.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.1 DisclosureTriangle "View Mode" -> r Window ""
+drive r.0.0.0.0.3.0.3.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.3.0.1 ComboBox "View Mode"
+  all steps: node gone
+drive r.0.0.0.0.3.0.3.1 Slider "Opacity"
+  all steps: node gone
+drive r.0.0.0.0.3.0.3.2 CheckBox "Show Edge"
+  all steps: node gone
+drive r.0.0.0.0.3.0.3.3 CheckBox "Show Original"
+  all steps: node gone
+drive r.0.0.0.0.3.0.3.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.4 CheckBox "Real-Time Refinement"
+  all steps: node gone
+drive r.0.0.0.0.3.0.5 CheckBox "High Quality Preview"
+  all steps: node gone
+drive r.0.0.0.0.3.0.6 DisclosureTriangle "Refine Mode"
+  click:
+    - r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5 GenericContainer ""
+    - r.0.0.0.0.3.0.5.0 Button "Color Aware" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5.1 Button "Object Aware" description="Object Aware needs a segmentation model, which isn't available yet" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    + r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    - r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+  Space:
+    - r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5 GenericContainer ""
+    + r.0.0.0.0.3.0.5.0 Button "Color Aware" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5.1 Button "Object Aware" description="Object Aware needs a segmentation model, which isn't available yet" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    + r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    - r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+  Enter:
+    - r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5 GenericContainer ""
+    - r.0.0.0.0.3.0.5.0 Button "Color Aware" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.5.1 Button "Object Aware" description="Object Aware needs a segmentation model, which isn't available yet" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.9.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.10 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.8.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.15.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.16 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.14.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.17.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.21.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.22 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.20.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.24.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.25 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.23.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.31.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.30.0] [disabled]
+    + r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    - r.0.0.0.0.3.0.32 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.30.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.3 DisclosureTriangle "Refine Mode" -> r Window ""
+drive r.0.0.0.0.3.0.8.0 Button "Color Aware"
+  all steps: node gone
+drive r.0.0.0.0.3.0.9 DisclosureTriangle "Edge Detection"
+  click:
+    - r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.7.0 Label "" value="Radius"
+    - r.0.0.0.0.3.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.8.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.10 CheckBox "Smart Radius" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    + r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    - r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+  Space:
+    - r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.7 GenericContainer ""
+    + r.0.0.0.0.3.0.7.0 Label "" value="Radius"
+    + r.0.0.0.0.3.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.8.0.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.10 CheckBox "Smart Radius" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    + r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    - r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+  Enter:
+    - r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.7.0 Label "" value="Radius"
+    - r.0.0.0.0.3.0.8 GenericContainer ""
+    - r.0.0.0.0.3.0.8.0 SpinButton "Radius" value="0 px" number=0 in 0..250 step 1 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.8.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.9 Slider "Radius" number=0 in 0..250 step 2.5 labelled_by=[r.0.0.0.0.3.0.7.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.10 CheckBox "Smart Radius" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.14.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.15 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.13.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.17.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.18 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.16.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.20.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.21 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.19.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.23.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.24 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.22.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.30.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.29.0] [disabled]
+    + r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    - r.0.0.0.0.3.0.31 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.29.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.5 DisclosureTriangle "Edge Detection" -> r Window ""
+drive r.0.0.0.0.3.0.12.0 SpinButton "Radius"
+  all steps: node gone
+drive r.0.0.0.0.3.0.13 Slider "Radius"
+  all steps: node gone
+drive r.0.0.0.0.3.0.14 CheckBox "Smart Radius"
+  all steps: node gone
+drive r.0.0.0.0.3.0.15 DisclosureTriangle "Global Refinements"
+  click:
+    - r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.9.0 Label "" value="Smooth"
+    - r.0.0.0.0.3.0.10 GenericContainer ""
+    - r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.12 GenericContainer ""
+    - r.0.0.0.0.3.0.12.0 Label "" value="Feather"
+    - r.0.0.0.0.3.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.13.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.15 GenericContainer ""
+    - r.0.0.0.0.3.0.15.0 Label "" value="Contrast"
+    - r.0.0.0.0.3.0.16 GenericContainer ""
+    - r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.16.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18 GenericContainer ""
+    - r.0.0.0.0.3.0.18.0 Label "" value="Shift Edge"
+    - r.0.0.0.0.3.0.19 GenericContainer ""
+    - r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.21 GenericContainer ""
+    - r.0.0.0.0.3.0.21.0 Button "Clear Selection" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.21.1 Button "Invert" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    + r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    - r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+  Space:
+    - r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.9.0 Label "" value="Smooth"
+    + r.0.0.0.0.3.0.10 GenericContainer ""
+    + r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.10.0.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.12 GenericContainer ""
+    + r.0.0.0.0.3.0.12.0 Label "" value="Feather"
+    + r.0.0.0.0.3.0.13 GenericContainer ""
+    + r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.13.0.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.15 GenericContainer ""
+    + r.0.0.0.0.3.0.15.0 Label "" value="Contrast"
+    + r.0.0.0.0.3.0.16 GenericContainer ""
+    + r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.16.0.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.3.0.18 GenericContainer ""
+    + r.0.0.0.0.3.0.18.0 Label "" value="Shift Edge"
+    + r.0.0.0.0.3.0.19 GenericContainer ""
+    + r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.3.0.19.0.0 TextRun "" value="0"
+    + r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.3.0.21 GenericContainer ""
+    + r.0.0.0.0.3.0.21.0 Button "Clear Selection" actions=[Click,Focus]
+    + r.0.0.0.0.3.0.21.1 Button "Invert" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    + r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    - r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+  Enter:
+    - r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.9 GenericContainer ""
+    - r.0.0.0.0.3.0.9.0 Label "" value="Smooth"
+    - r.0.0.0.0.3.0.10 GenericContainer ""
+    - r.0.0.0.0.3.0.10.0 SpinButton "Smooth" value="0" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.10.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.11 Slider "Smooth" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.9.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.12 GenericContainer ""
+    - r.0.0.0.0.3.0.12.0 Label "" value="Feather"
+    - r.0.0.0.0.3.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.13.0 SpinButton "Feather" value="0 px" number=0 in 0..1000 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.13.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.14 Slider "Feather" number=0 in 0..1000 step 10 labelled_by=[r.0.0.0.0.3.0.12.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.15 GenericContainer ""
+    - r.0.0.0.0.3.0.15.0 Label "" value="Contrast"
+    - r.0.0.0.0.3.0.16 GenericContainer ""
+    - r.0.0.0.0.3.0.16.0 SpinButton "Contrast" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.16.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.17 Slider "Contrast" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.15.0] actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.3.0.18 GenericContainer ""
+    - r.0.0.0.0.3.0.18.0 Label "" value="Shift Edge"
+    - r.0.0.0.0.3.0.19 GenericContainer ""
+    - r.0.0.0.0.3.0.19.0 SpinButton "Shift Edge" value="0%" number=0 in -100..100 step 1 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.3.0.19.0.0 TextRun "" value="0"
+    - r.0.0.0.0.3.0.20 Slider "Shift Edge" number=0 in -100..100 step 2 labelled_by=[r.0.0.0.0.3.0.18.0] actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.3.0.21 GenericContainer ""
+    - r.0.0.0.0.3.0.21.0 Button "Clear Selection" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.21.1 Button "Invert" actions=[Click,Focus]
+    - r.0.0.0.0.3.0.26.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.25.0] [disabled]
+    + r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    - r.0.0.0.0.3.0.27 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.25.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.7 DisclosureTriangle "Global Refinements" -> r Window ""
+drive r.0.0.0.0.3.0.18.0 SpinButton "Smooth"
+  all steps: node gone
+drive r.0.0.0.0.3.0.19 Slider "Smooth"
+  all steps: node gone
+drive r.0.0.0.0.3.0.21.0 SpinButton "Feather"
+  all steps: node gone
+drive r.0.0.0.0.3.0.22 Slider "Feather"
+  all steps: node gone
+drive r.0.0.0.0.3.0.24.0 SpinButton "Contrast"
+  all steps: node gone
+drive r.0.0.0.0.3.0.25 Slider "Contrast"
+  all steps: node gone
+drive r.0.0.0.0.3.0.27.0 SpinButton "Shift Edge"
+  all steps: node gone
+drive r.0.0.0.0.3.0.28 Slider "Shift Edge"
+  all steps: node gone
+drive r.0.0.0.0.3.0.29.0 Button "Clear Selection"
+  all steps: node gone
+drive r.0.0.0.0.3.0.29.1 Button "Invert"
+  all steps: node gone
+drive r.0.0.0.0.3.0.30 DisclosureTriangle "Output Settings"
+  click:
+    - r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.11 CheckBox "Decontaminate Colors" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.12 GenericContainer ""
+    - r.0.0.0.0.3.0.12.0 Label "" value="Amount"
+    - r.0.0.0.0.3.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    - r.0.0.0.0.3.0.13.0.0 TextRun "" value="100"
+    - r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+    - r.0.0.0.0.3.0.15 GenericContainer ""
+    - r.0.0.0.0.3.0.15.0 Label "" value="Output To" actions=[Click]
+    - r.0.0.0.0.3.0.15.0.0 TextRun "" value="Output To"
+    - r.0.0.0.0.3.0.15.1 ComboBox "Output To" value="Selection" [collapsed popup:Listbox] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.11 CheckBox "Decontaminate Colors" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.12 GenericContainer ""
+    + r.0.0.0.0.3.0.12.0 Label "" value="Amount"
+    + r.0.0.0.0.3.0.13 GenericContainer ""
+    + r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    + r.0.0.0.0.3.0.13.0.0 TextRun "" value="100"
+    + r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+    + r.0.0.0.0.3.0.15 GenericContainer ""
+    + r.0.0.0.0.3.0.15.0 Label "" value="Output To" actions=[Click]
+    + r.0.0.0.0.3.0.15.0.0 TextRun "" value="Output To"
+    + r.0.0.0.0.3.0.15.1 ComboBox "Output To" value="Selection" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.11 CheckBox "Decontaminate Colors" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.12 GenericContainer ""
+    - r.0.0.0.0.3.0.12.0 Label "" value="Amount"
+    - r.0.0.0.0.3.0.13 GenericContainer ""
+    - r.0.0.0.0.3.0.13.0 SpinButton "Amount" value="100%" number=100 in 0..100 step - labelled_by=[r.0.0.0.0.3.0.12.0] [disabled]
+    - r.0.0.0.0.3.0.13.0.0 TextRun "" value="100"
+    - r.0.0.0.0.3.0.14 Slider "Amount" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.3.0.12.0] [disabled] actions=[Focus]
+    - r.0.0.0.0.3.0.15 GenericContainer ""
+    - r.0.0.0.0.3.0.15.0 Label "" value="Output To" actions=[Click]
+    - r.0.0.0.0.3.0.15.0.0 TextRun "" value="Output To"
+    - r.0.0.0.0.3.0.15.1 ComboBox "Output To" value="Selection" [collapsed popup:Listbox] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.3.0.9 DisclosureTriangle "Output Settings" -> r Window ""
+drive r.0.0.0.0.3.0.32 CheckBox "Decontaminate Colors"
+  all steps: node gone
+drive r.0.0.0.0.3.0.36.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3.0.36.1 ComboBox "Output To"
+  all steps: node gone

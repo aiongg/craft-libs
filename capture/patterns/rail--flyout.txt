@@ -1,0 +1,32 @@
+story patterns/rail/flyout
+args
+  items = Number { value: 3.0, min: 1.0, max: 3.0 }
+  selected = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Brush" description="Brush" [checked collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Nothing yet; flyout closed" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Nothing yet; flyout closed"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Brush"
+  2: r.0.0.0.0.0 Button "Brush"
+  cycle after 1 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0 Button "Brush"
+  click:
+    - r.0.0.0.0.1 Label "" value="Nothing yet; flyout closed" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Nothing yet; flyout closed"
+    + r.0.0.0.0.1 Label "" value="clicked; flyout closed" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="clicked; flyout closed"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Button "Brush" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

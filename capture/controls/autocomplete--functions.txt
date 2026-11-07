@@ -1,0 +1,90 @@
+story controls/autocomplete/functions
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Formula" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Formula"
+          r.0.0.0.0.1 TextInput "Formula" value="=SU" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+            r.0.0.0.0.1.0 TextRun "" value="=SU"
+          r.0.0.0.0.2 Label "" value="Column" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Column"
+          r.0.0.0.0.3 TextInput "Column" value="" placeholder="" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+            r.0.0.0.0.3.0 TextRun "" value=""
+tab
+  start: r Window ""
+  1: r.1.0.0.0.0 ListBoxOption "ƒ  SUM"
+    + r.1 ListBox "Suggestions"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 ListBoxOption "ƒ  SUM" [unselected] actions=[Click]
+    + r.1.0.1 Label "" value="Adds the numbers in a range." actions=[Click]
+    + r.1.0.1.0 TextRun "" value="Adds the numbers in a range."
+  2: r.1.0.0.0.0 ListBoxOption "ƒ  SUM"
+    - r.0.0.0.0.1 TextInput "Formula" value="=SU" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.1.0 TextRun "" value="=SU"
+    + r.0.0.0.0.1 TextInput "Formula" value="=SUM" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.1.0 TextRun "" value="=SUM"
+  cycle after 1 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.1.0.0.0.0 ListBoxOption "ƒ  SUM" -> r Window ""
+    - r.1 ListBox "Suggestions"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 ListBoxOption "ƒ  SUM" [unselected] actions=[Click]
+    - r.1.0.1 Label "" value="Adds the numbers in a range." actions=[Click]
+    - r.1.0.1.0 TextRun "" value="Adds the numbers in a range."
+  Escape: no change
+drive r.0.0.0.0.1 TextInput "Formula"
+  click:
+    focus: r Window "" -> r.1.0.0.0.0 ListBoxOption "ƒ  SUM"
+    + r.1 ListBox "Suggestions"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 ListBoxOption "ƒ  SUM" [unselected] actions=[Click]
+    + r.1.0.1 Label "" value="Adds the numbers in a range." actions=[Click]
+    + r.1.0.1.0 TextRun "" value="Adds the numbers in a range."
+  Space: no change
+  Enter:
+    focus: r.1.0.0.0.0 ListBoxOption "ƒ  SUM" -> r Window ""
+    - r.1 ListBox "Suggestions"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 ListBoxOption "ƒ  SUM" [unselected] actions=[Click]
+    - r.1.0.1 Label "" value="Adds the numbers in a range." actions=[Click]
+    - r.1.0.1.0 TextRun "" value="Adds the numbers in a range."
+  Escape:
+    focus: r.1.0.0.0.0 ListBoxOption "ƒ  SUM" -> r.0.0.0.0.1 TextInput "Formula"
+    - r.1 ListBox "Suggestions"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 ListBoxOption "ƒ  SUM" [unselected] actions=[Click]
+    - r.1.0.1 Label "" value="Adds the numbers in a range." actions=[Click]
+    - r.1.0.1.0 TextRun "" value="Adds the numbers in a range."
+drive r.0.0.0.0.2 Label ""
+  click:
+    focus: r.0.0.0.0.1 TextInput "Formula" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3 TextInput "Column"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3 TextInput "Column"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.3 TextInput "Column" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.3 TextInput "Column" -> r Window ""
+drive r.1.0.0.0.0 ListBoxOption "ƒ  SUM"
+  all steps: node gone
+drive r.1.0.1 Label ""
+  click: no change
+  Escape: no change

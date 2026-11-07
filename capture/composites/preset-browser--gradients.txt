@@ -1,0 +1,371 @@
+story composites/preset-browser/gradients
+args
+  view = Choice { options: ["grid", "list"], index: 0 }
+  size = Number { value: 64.0, min: 16.0, max: 96.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Tree "Gradients" actions=[Focus]
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.13 GenericContainer ""
+                  r.0.0.0.0.0.0.0.13.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.13.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.0.0.0.14 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.15 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.16 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.17 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.18 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.19 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.20 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.0.0.0.21 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.1 Label "" value="Drop a gradient on the canvas above. Canvas: none" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Drop a gradient on the canvas above. Canvas: none"
+          r.0.0.0.0.2 Label "" value="Selected: none. Last event: " actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Selected: none. Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+  2: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+  cycle after 1 nodes
+drive: 28 actionable nodes
+drive r.0.0.0.0.0 Tree "Gradients"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: " actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Selected: none. Last event: "
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Selected: none. Last event: Open(OpenChange { row: "
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" -> r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1"
+  ArrowUp: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+    - r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 Button "Collapse Basics" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1" description="Gradient 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2" description="Gradient 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3" description="Gradient 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4" description="Gradient 4" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5" description="Gradient 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6" description="Gradient 6" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7" description="Gradient 7" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8" description="Gradient 8" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9" description="Gradient 9" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10" description="Gradient 10" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11" description="Gradient 11" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12" description="Gradient 12" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 Button "Expand Basics" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: true, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.1 TreeItem "Gradient 1"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.2 TreeItem "Gradient 2"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.3 TreeItem "Gradient 3"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.4 TreeItem "Gradient 4"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.5 TreeItem "Gradient 5"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.6 TreeItem "Gradient 6"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.7 TreeItem "Gradient 7"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.8 TreeItem "Gradient 8"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.9 TreeItem "Gradient 9"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.10 TreeItem "Gradient 10"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.11 TreeItem "Gradient 11"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.12 TreeItem "Gradient 12"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.13.0 TreeItem "Transparent"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0 TreeItem "Basics" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent"
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Transparent" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1000, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1001, open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Expand Transparent" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.9 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1001, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1001, open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" -> r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" -> r.0.0.0.0.0.0.0.0.0 TreeItem "Basics"
+  ArrowLeft:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Transparent" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1001, open: true, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1001, open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Expand Transparent" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.3 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.4 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.5 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.6 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.7 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.8 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.9 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1001, open: false, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1001, open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" -> r Window ""
+drive r.0.0.0.0.0.0.0.13.1 Button "Collapse Transparent"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent"
+    - r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.1.1 Button "Collapse Transparent" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.0.0.0.2 TreeItem "Gradient 13" description="Gradient 13" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.3 TreeItem "Gradient 14" description="Gradient 14" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.4 TreeItem "Gradient 15" description="Gradient 15" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.5 TreeItem "Gradient 16" description="Gradient 16" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.6 TreeItem "Gradient 17" description="Gradient 17" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.7 TreeItem "Gradient 18" description="Gradient 18" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.8 TreeItem "Gradient 19" description="Gradient 19" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.9 TreeItem "Gradient 20" description="Gradient 20" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.1.1 Button "Expand Transparent" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.2 Label "" value="Selected: none. Last event: Open(OpenChange { row: 1001, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.2.1 TextRun "" value="1001, open: true, all: false })"
+    + r.0.0.0.0.2.1 TextRun "" value="1001, open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.14 TreeItem "Gradient 13"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.15 TreeItem "Gradient 14"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.16 TreeItem "Gradient 15"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.17 TreeItem "Gradient 16"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.18 TreeItem "Gradient 17"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.19 TreeItem "Gradient 18"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.20 TreeItem "Gradient 19"
+  all steps: node gone
+drive r.0.0.0.0.0.0.0.21 TreeItem "Gradient 20"
+  all steps: node gone
+drive r.0.0.0.0.0.1 ScrollBar ""
+  all steps: node gone
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.0.1.0 TreeItem "Transparent" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

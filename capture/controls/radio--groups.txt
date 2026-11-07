@@ -1,0 +1,176 @@
+story controls/radio/groups
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 RadioGroup "Units (3)"
+                    r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" [unchecked] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 RadioGroup "Units (5)"
+                    r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.1.3 RadioButton "Points" [disabled unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Label "" value="Selected: Pixels, Inches" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Pixels, Inches"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels"
+  2: r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  3: r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches"
+  4: r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels"
+  5: r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres"
+  6: r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches"
+  7: r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas"
+  8: r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels"
+  cycle after 7 nodes
+drive: 8 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" -> r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" -> r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Pixels, Inches" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Pixels, Inches"
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Millimetres, Inches" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Millimetres, Inches"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.0.0 RadioButton "Pixels"
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Millimetres, Inches" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Millimetres, Inches"
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Inches" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Inches"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" -> r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" -> r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Inches" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Inches"
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Pixels" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Pixels"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" -> r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" -> r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Pixels" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Pixels"
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Millimetres" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Millimetres"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.1.0 RadioButton "Pixels"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" -> r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Millimetres" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Millimetres"
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Inches" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Inches"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" -> r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" -> r.0.0.0.0.0.0.0.0.1.1 RadioButton "Millimetres"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" -> r.0.0.0.0.0.0.0.0.0.1 RadioButton "Millimetres"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas"
+  click:
+    - r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Inches" actions=[Click]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Inches"
+    + r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Label "" value="Selected: Inches, Picas" actions=[Click]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="Selected: Inches, Picas"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" -> r.0.0.0.0.0.0.0.0.1.2 RadioButton "Inches"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" -> r.0.0.0.0.0.0.0.0.0.2 RadioButton "Inches"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1.4 RadioButton "Picas" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

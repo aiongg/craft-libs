@@ -1,0 +1,331 @@
+story composites/stroke-editor/panel
+args
+  closed = Bool(true)
+  dashed = Bool(false)
+  mixed = Bool(false)
+  sections = Choice { options: ["panel", "popover"], index: 0 }
+  unit = Choice { options: ["widths", "document"], index: 0 }
+  stroke width = Number { value: 3.0, min: 0.5, max: 24.0 }
+  width = Number { value: 272.0, min: 160.0, max: 480.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Label "" value="Alignment"
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                  r.0.0.0.0.0.0.1.0.0 RadioGroup "Alignment"
+                    r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" description="Inside" labelled_by=[r.0.0.0.0.0.0.0.0] [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" description="Outside" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Label "" value="Caps" [disabled]
+              r.0.0.0.0.0.0.3 GenericContainer ""
+                r.0.0.0.0.0.0.3.0 GenericContainer ""
+                  r.0.0.0.0.0.0.3.0.0 RadioGroup "Caps"
+                    r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [disabled unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [disabled checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [disabled unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.4 GenericContainer ""
+                r.0.0.0.0.0.0.4.0 Label "" value="Corners"
+              r.0.0.0.0.0.0.5 GenericContainer ""
+                r.0.0.0.0.0.0.5.0 GenericContainer ""
+                  r.0.0.0.0.0.0.5.0.0 RadioGroup "Corners"
+                    r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" description="Miter" labelled_by=[r.0.0.0.0.0.0.4.0] [unchecked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" description="Bevel" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.6 GenericContainer ""
+                r.0.0.0.0.0.0.6.0 Label "" value="Miter limit" [disabled]
+              r.0.0.0.0.0.0.7 GenericContainer ""
+                r.0.0.0.0.0.0.7.0 GenericContainer ""
+                  r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step - labelled_by=[r.0.0.0.0.0.0.6.0] [disabled]
+                    r.0.0.0.0.0.0.7.0.0.0 TextRun "" value="100"
+            r.0.0.0.0.0.1 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+              r.0.0.0.0.1.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment"
+  2: r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center"
+  3: r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside"
+  4: r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners"
+  5: r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round"
+  6: r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel"
+  7: r.0.0.0.0.0.1 CheckBox "Dashed line"
+  8: r.0.0.0.0.1.0 Button "Reset"
+  9: r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment"
+  cycle after 8 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment"
+  click:
+    - r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" description="Inside" labelled_by=[r.0.0.0.0.0.0.0.0] [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" description="Inside" labelled_by=[r.0.0.0.0.0.0.0.0] [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.1.1.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.1.1 Label "" value="Last event: Set" actions=[Click]
+    + r.0.0.0.0.1.1.0 TextRun "" value="Last event: Set"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" -> r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" -> r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center"
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center"
+  click:
+    - r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" description="Inside" labelled_by=[r.0.0.0.0.0.0.0.0] [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment" description="Inside" labelled_by=[r.0.0.0.0.0.0.0.0] [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" -> r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" -> r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" -> r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside"
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside"
+  click:
+    - r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" description="Outside" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" description="Outside" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" -> r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" -> r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" -> r Window ""
+drive r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners"
+  click:
+    - r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" description="Miter" labelled_by=[r.0.0.0.0.0.0.4.0] [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" description="Miter" labelled_by=[r.0.0.0.0.0.0.4.0] [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.6.0 Label "" value="Miter limit" [disabled]
+    + r.0.0.0.0.0.0.6.0 Label "" value="Miter limit"
+    - r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step - labelled_by=[r.0.0.0.0.0.0.6.0] [disabled]
+    + r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" -> r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" -> r.0.0.0.0.0.0.1.0.0.0 RadioButton "Alignment"
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" -> r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round"
+  Escape:
+    focus: r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" -> r Window ""
+drive r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round"
+  click:
+    - r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" description="Miter" labelled_by=[r.0.0.0.0.0.0.4.0] [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners" description="Miter" labelled_by=[r.0.0.0.0.0.0.4.0] [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.6.0 Label "" value="Miter limit"
+    + r.0.0.0.0.0.0.6.0 Label "" value="Miter limit" [disabled]
+    - r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.7.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step - labelled_by=[r.0.0.0.0.0.0.6.0] [disabled]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" -> r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" -> r.0.0.0.0.0.0.5.0.0.0 RadioButton "Corners"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" -> r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel"
+  Escape:
+    focus: r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" -> r Window ""
+drive r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel"
+  click:
+    - r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" description="Bevel" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" description="Bevel" [checked] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" -> r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" -> r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" -> r Window ""
+drive r.0.0.0.0.0.1 CheckBox "Dashed line"
+  click:
+    arg dashed: Bool(false) -> Bool(true)
+    - r.0.0.0.0.0.0.2.0 Label "" value="Caps" [disabled]
+    + r.0.0.0.0.0.0.2.0 Label "" value="Caps"
+    - r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="Dash / gap lengths × stroke width"
+    + r.0.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.3.0 Label "" value="Dash" actions=[Click]
+    + r.0.0.0.0.0.3.0.0 TextRun "" value="Dash"
+    + r.0.0.0.0.0.3.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.1.0 TextRun "" value="4"
+    + r.0.0.0.0.0.3.2 Label "" value="Gap" actions=[Click]
+    + r.0.0.0.0.0.3.2.0 TextRun "" value="Gap"
+    + r.0.0.0.0.0.3.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.3.0 TextRun "" value="2"
+    + r.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.4.0 Button "Add pair" actions=[Click,Focus]
+    + r.0.0.0.0.0.4.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0 Label "" value="Dash offset"
+    + r.0.0.0.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.5.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.0.0 TextRun "" value="0"
+  Space:
+    arg dashed: Bool(true) -> Bool(false)
+    - r.0.0.0.0.0.0.2.0 Label "" value="Caps"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Caps" [disabled]
+    - r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="Dash / gap lengths × stroke width"
+    - r.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.3.0 Label "" value="Dash" actions=[Click]
+    - r.0.0.0.0.0.3.0.0 TextRun "" value="Dash"
+    - r.0.0.0.0.0.3.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.1.0 TextRun "" value="4"
+    - r.0.0.0.0.0.3.2 Label "" value="Gap" actions=[Click]
+    - r.0.0.0.0.0.3.2.0 TextRun "" value="Gap"
+    - r.0.0.0.0.0.3.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.3.0 TextRun "" value="2"
+    - r.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.4.0 Button "Add pair" actions=[Click,Focus]
+    - r.0.0.0.0.0.4.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0 Label "" value="Dash offset"
+    - r.0.0.0.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.5.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.1.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+  Enter:
+    arg dashed: Bool(false) -> Bool(true)
+    - r.0.0.0.0.0.0.2.0 Label "" value="Caps" [disabled]
+    + r.0.0.0.0.0.0.2.0 Label "" value="Caps"
+    - r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [disabled checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="Dash / gap lengths × stroke width"
+    + r.0.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.3.0 Label "" value="Dash" actions=[Click]
+    + r.0.0.0.0.0.3.0.0 TextRun "" value="Dash"
+    + r.0.0.0.0.0.3.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.1.0 TextRun "" value="4"
+    + r.0.0.0.0.0.3.2 Label "" value="Gap" actions=[Click]
+    + r.0.0.0.0.0.3.2.0 TextRun "" value="Gap"
+    + r.0.0.0.0.0.3.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.3.0 TextRun "" value="2"
+    + r.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.4.0 Button "Add pair" actions=[Click,Focus]
+    + r.0.0.0.0.0.4.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.0 Label "" value="Dash offset"
+    + r.0.0.0.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0 GenericContainer ""
+    + r.0.0.0.0.0.5.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.5.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.1.0.0.0 TextRun "" value="0"
+  Escape:
+    focus: r.0.0.0.0.0.1 CheckBox "Dashed line" -> r Window ""
+drive r.0.0.0.0.1.0 Button "Reset"
+  click:
+    arg dashed: Bool(true) -> Bool(false)
+    - r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" description="Outside" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.1 RadioButton "Center" description="Center" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0.0.2 RadioButton "Outside" description="Outside" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.0 Label "" value="Caps"
+    + r.0.0.0.0.0.0.2.0 Label "" value="Caps" [disabled]
+    - r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.0 RadioButton "Caps" description="Butt / Flat" labelled_by=[r.0.0.0.0.0.0.2.0] [disabled unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.1 RadioButton "Round" description="Round" [disabled checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.0.0.2 RadioButton "Square" description="Square" [disabled unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" description="Bevel" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.1 RadioButton "Round" description="Round" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.5.0.0.2 RadioButton "Bevel" description="Bevel" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="Dash / gap lengths × stroke width"
+    - r.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.3.0 Label "" value="Dash" actions=[Click]
+    - r.0.0.0.0.0.3.0.0 TextRun "" value="Dash"
+    - r.0.0.0.0.0.3.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.1.0 TextRun "" value="4"
+    - r.0.0.0.0.0.3.2 Label "" value="Gap" actions=[Click]
+    - r.0.0.0.0.0.3.2.0 TextRun "" value="Gap"
+    - r.0.0.0.0.0.3.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.3.0 TextRun "" value="2"
+    - r.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.4.0 Button "Add pair" actions=[Click,Focus]
+    - r.0.0.0.0.0.4.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.0 Label "" value="Dash offset"
+    - r.0.0.0.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0 GenericContainer ""
+    - r.0.0.0.0.0.5.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.5.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.1.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1.1 Label "" value="Last event: Set" actions=[Click]
+    - r.0.0.0.0.1.1.0 TextRun "" value="Last event: Set"
+    + r.0.0.0.0.1.1 Label "" value="No event yet" actions=[Click]
+    + r.0.0.0.0.1.1.0 TextRun "" value="No event yet"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.1.1 Label ""
+  click: no change
+  Escape: no change

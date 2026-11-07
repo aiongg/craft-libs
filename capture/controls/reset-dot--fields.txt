@@ -1,0 +1,127 @@
+story controls/reset-dot/fields
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Radius"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Group "Radius" labelled_by=[r.0.0.0.0.0.0.0]
+                  r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="12" number=12 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="12"
+                  r.0.0.0.0.0.1.0.0.1 Button "Reset to default" description="Reset to default: 8" actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Rotation"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Group "Rotation" labelled_by=[r.0.0.0.0.0.2.0]
+                  r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" value="0" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.3.0.0.0.0 TextRun "" value="0"
+                  r.0.0.0.0.0.3.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Corner size"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 Group "Corner size" labelled_by=[r.0.0.0.0.0.4.0]
+                  r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" value="4" number=4 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.5.0.0.0.0 TextRun "" value="4"
+                  r.0.0.0.0.0.5.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0.0 SpinButton "Radius"
+  2: r.0.0.0.0.0.1.0.0.1 Button "Reset to default"
+  3: r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation"
+  4: r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size"
+  5: r.0.0.0.0.0.1.0.0.0 SpinButton "Radius"
+  cycle after 4 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.1.0.0.0 SpinButton "Radius"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="12" number=12 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="12"
+    + r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="13" number=13 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="13"
+  ArrowDown:
+    - r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="13" number=13 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="13"
+    + r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="12" number=12 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="12"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.1 Button "Reset to default"
+  click:
+    - r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="12" number=12 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="12"
+    - r.0.0.0.0.0.1.0.0.1 Button "Reset to default" description="Reset to default: 8" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0 SpinButton "Radius" value="8" number=8 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0 TextRun "" value="8"
+    + r.0.0.0.0.0.1.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" value="0" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.3.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" value="1" number=1 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1"
+    + r.0.0.0.0.0.3.0.0.1 Button "Reset to default" description="Reset to default: 0" actions=[Click,Focus]
+  ArrowDown:
+    - r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" value="1" number=1 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1"
+    - r.0.0.0.0.0.3.0.0.1 Button "Reset to default" description="Reset to default: 0" actions=[Click,Focus]
+    + r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" value="0" number=0 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.3.0.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.3.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.3.0.0.0 SpinButton "Rotation" -> r Window ""
+drive r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" value="4" number=4 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0.0 TextRun "" value="4"
+    - r.0.0.0.0.0.5.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" value="5" number=5 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.5.0.0.1 Button "Reset to default" description="Reset to default: 4" actions=[Click,Focus]
+  ArrowDown:
+    - r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" value="5" number=5 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0.0 TextRun "" value="5"
+    - r.0.0.0.0.0.5.0.0.1 Button "Reset to default" description="Reset to default: 4" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" value="4" number=4 in -360..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.5.0.0.1 Button "Reset to default" [disabled] actions=[Click,Focus]
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.0.0.0 SpinButton "Corner size" -> r Window ""

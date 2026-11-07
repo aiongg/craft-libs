@@ -1,0 +1,137 @@
+story patterns/revisions-panel/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Compared with Quarterly review (Maya's copy)" actions=[Click]
+              r.0.0.0.0.0.0.0 TextRun "" value="Compared with Quarterly review (Maya's copy)"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Button "Accept All (3)" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 Button "Reject All (3)" actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.2.0.0 Label "" value="Inserted"
+                r.0.0.0.0.0.2.0.1 Link "Slide inserted after 2" actions=[Click,Focus]
+                r.0.0.0.0.0.2.0.2 GenericContainer ""
+                  r.0.0.0.0.0.2.0.2.0 Button "Reject" actions=[Click,Focus]
+                  r.0.0.0.0.0.2.0.2.1 Button "Accept" actions=[Click,Focus]
+              r.0.0.0.0.0.2.1 Label "" value="• New slide: Market sizing" actions=[Click]
+                r.0.0.0.0.0.2.1.0 TextRun "" value="• New slide: Market sizing"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Label "" value="Changed"
+                r.0.0.0.0.0.3.0.1 Link "Slide 3 changed" actions=[Click,Focus]
+                r.0.0.0.0.0.3.0.2 GenericContainer ""
+                  r.0.0.0.0.0.3.0.2.0 Button "Reject" actions=[Click,Focus]
+                  r.0.0.0.0.0.3.0.2.1 Button "Accept" actions=[Click,Focus]
+              r.0.0.0.0.0.3.1 Label "" value="• Title text changed" actions=[Click]
+                r.0.0.0.0.0.3.1.0 TextRun "" value="• Title text changed"
+              r.0.0.0.0.0.3.2 Label "" value="• Chart data changed" actions=[Click]
+                r.0.0.0.0.0.3.2.0 TextRun "" value="• Chart data changed"
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 GenericContainer ""
+                r.0.0.0.0.0.4.0.0 Label "" value="Deleted"
+                r.0.0.0.0.0.4.0.1 Link "Slide 5 deleted" actions=[Click,Focus]
+                r.0.0.0.0.0.4.0.2 GenericContainer ""
+                  r.0.0.0.0.0.4.0.2.0 Button "Reject" actions=[Click,Focus]
+                  r.0.0.0.0.0.4.0.2.1 Button "Accept" actions=[Click,Focus]
+              r.0.0.0.0.0.4.1 Label "" value="• Removed slide: Appendix" actions=[Click]
+                r.0.0.0.0.0.4.1.0 TextRun "" value="• Removed slide: Appendix"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0 Button "Accept All (3)"
+  2: r.0.0.0.0.0.1.1 Button "Reject All (3)"
+  3: r.0.0.0.0.0.2.0.1 Link "Slide inserted after 2"
+  4: r.0.0.0.0.0.2.0.2.0 Button "Reject"
+  5: r.0.0.0.0.0.2.0.2.1 Button "Accept"
+  6: r.0.0.0.0.0.3.0.1 Link "Slide 3 changed"
+  7: r.0.0.0.0.0.3.0.2.0 Button "Reject"
+  8: r.0.0.0.0.0.3.0.2.1 Button "Accept"
+  9: r.0.0.0.0.0.4.0.1 Link "Slide 5 deleted"
+  10: r.0.0.0.0.0.4.0.2.0 Button "Reject"
+  11: r.0.0.0.0.0.4.0.2.1 Button "Accept"
+  12: r.0.0.0.0.0.1.0 Button "Accept All (3)"
+  cycle after 11 nodes
+drive: 16 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1.0 Button "Accept All (3)" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1.0 Button "Accept All (3)"
+  click:
+    - r.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0 Button "Accept All (3)" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1 Button "Reject All (3)" actions=[Click,Focus]
+    - r.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.2.0.0 Label "" value="Inserted"
+    - r.0.0.0.0.0.2.0.1 Link "Slide inserted after 2" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0.2 GenericContainer ""
+    - r.0.0.0.0.0.2.0.2.0 Button "Reject" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.0.2.1 Button "Accept" actions=[Click,Focus]
+    - r.0.0.0.0.0.2.1 Label "" value="• New slide: Market sizing" actions=[Click]
+    - r.0.0.0.0.0.2.1.0 TextRun "" value="• New slide: Market sizing"
+    - r.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.3.0 GenericContainer ""
+    - r.0.0.0.0.0.3.0.0 Label "" value="Changed"
+    - r.0.0.0.0.0.3.0.1 Link "Slide 3 changed" actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.2 GenericContainer ""
+    - r.0.0.0.0.0.3.0.2.0 Button "Reject" actions=[Click,Focus]
+    - r.0.0.0.0.0.3.0.2.1 Button "Accept" actions=[Click,Focus]
+    - r.0.0.0.0.0.3.1 Label "" value="• Title text changed" actions=[Click]
+    - r.0.0.0.0.0.3.1.0 TextRun "" value="• Title text changed"
+    - r.0.0.0.0.0.3.2 Label "" value="• Chart data changed" actions=[Click]
+    - r.0.0.0.0.0.3.2.0 TextRun "" value="• Chart data changed"
+    - r.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.4.0 GenericContainer ""
+    - r.0.0.0.0.0.4.0.0 Label "" value="Deleted"
+    - r.0.0.0.0.0.4.0.1 Link "Slide 5 deleted" actions=[Click,Focus]
+    - r.0.0.0.0.0.4.0.2 GenericContainer ""
+    - r.0.0.0.0.0.4.0.2.0 Button "Reject" actions=[Click,Focus]
+    - r.0.0.0.0.0.4.0.2.1 Button "Accept" actions=[Click,Focus]
+    - r.0.0.0.0.0.4.1 Label "" value="• Removed slide: Appendix" actions=[Click]
+    - r.0.0.0.0.0.4.1.0 TextRun "" value="• Removed slide: Appendix"
+    + r.0.0.0.0.0.1 Label "" value="No differences left." actions=[Click]
+    + r.0.0.0.0.0.1.0 TextRun "" value="No differences left."
+    + r.0.0.0.0.0.2 Button "End Review" actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: AcceptAll" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: AcceptAll"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.1.1 Button "Reject All (3)"
+  all steps: node gone
+drive r.0.0.0.0.0.2.0.1 Link "Slide inserted after 2"
+  all steps: node gone
+drive r.0.0.0.0.0.2.0.2.0 Button "Reject"
+  all steps: node gone
+drive r.0.0.0.0.0.2.0.2.1 Button "Accept"
+  all steps: node gone
+drive r.0.0.0.0.0.2.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.0.1 Link "Slide 3 changed"
+  all steps: node gone
+drive r.0.0.0.0.0.3.0.2.0 Button "Reject"
+  all steps: node gone
+drive r.0.0.0.0.0.3.0.2.1 Button "Accept"
+  all steps: node gone
+drive r.0.0.0.0.0.3.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.3.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.4.0.1 Link "Slide 5 deleted"
+  all steps: node gone
+drive r.0.0.0.0.0.4.0.2.0 Button "Reject"
+  all steps: node gone
+drive r.0.0.0.0.0.4.0.2.1 Button "Accept"
+  all steps: node gone
+drive r.0.0.0.0.0.4.1 Label ""
+  click: no change
+  Escape: no change

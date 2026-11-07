@@ -1,0 +1,303 @@
+story patterns/page-preview/overlay
+args
+  open = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 ListBox "Pages" actions=[Focus]
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+  r.1 Dialog "Page 3 of 8"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 Button "Previous page" description="Previous page" actions=[Click,Focus]
+            r.1.1.0.0.0.1 Label "" value="Page 3 of 8" actions=[Click]
+              r.1.1.0.0.0.1.0 TextRun "" value="Page 3 of 8"
+            r.1.1.0.0.0.2 Button "Next page" description="Next page" actions=[Click,Focus]
+            r.1.1.0.0.0.3 Button "Close" description="Close" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.3 Button "Close"
+  1: r.1.1.0.0.0.0 Button "Previous page"
+  2: r.1.1.0.0.0.2 Button "Next page"
+  3: r.1.1.0.0.0.3 Button "Close"
+  4: r.1.1.0.0.0.0 Button "Previous page"
+  cycle after 3 nodes
+drive: 12 actionable nodes
+drive r.0.0.0.0.0.0 ListBox "Pages"
+  Space:
+    - r.1 Dialog "Page 3 of 8"
+    + r.0.0.0.0.1 Label "" value="Last event: PagePreviewResponse { stepped: true, closed: false }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: PagePreviewResponse { stepped: true, closed: false }"
+    + r.1 Dialog "Page 2 of 8"
+    - r.1.1.0.0.0.1 Label "" value="Page 3 of 8" actions=[Click]
+    - r.1.1.0.0.0.1.0 TextRun "" value="Page 3 of 8"
+    + r.1.1.0.0.0.1 Label "" value="Page 2 of 8" actions=[Click]
+    + r.1.1.0.0.0.1.0 TextRun "" value="Page 2 of 8"
+  Enter:
+    focus: r.1.1.0.0.0.0 Button "Previous page" -> r Window ""
+    - r.1 Dialog "Page 2 of 8"
+    + r.1 Dialog "Page 1 of 8"
+    - r.1.1.0.0.0.0 Button "Previous page" description="Previous page" actions=[Click,Focus]
+    - r.1.1.0.0.0.1 Label "" value="Page 2 of 8" actions=[Click]
+    - r.1.1.0.0.0.1.0 TextRun "" value="Page 2 of 8"
+    + r.1.1.0.0.0.0 Button "Previous page" description="Previous page" [disabled] actions=[Click,Focus]
+    + r.1.1.0.0.0.1 Label "" value="Page 1 of 8" actions=[Click]
+    + r.1.1.0.0.0.1.0 TextRun "" value="Page 1 of 8"
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    - r.1 Dialog "Page 1 of 8"
+    + r.1 Dialog "Page 2 of 8"
+    - r.1.1.0.0.0.0 Button "Previous page" description="Previous page" [disabled] actions=[Click,Focus]
+    - r.1.1.0.0.0.1 Label "" value="Page 1 of 8" actions=[Click]
+    - r.1.1.0.0.0.1.0 TextRun "" value="Page 1 of 8"
+    + r.1.1.0.0.0.0 Button "Previous page" description="Previous page" actions=[Click,Focus]
+    + r.1.1.0.0.0.1 Label "" value="Page 2 of 8" actions=[Click]
+    + r.1.1.0.0.0.1.0 TextRun "" value="Page 2 of 8"
+  Escape:
+    arg open: Bool(true) -> Bool(false)
+    - r.0.0.0.0.1 Label "" value="Last event: PagePreviewResponse { stepped: true, closed: false }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: PagePreviewResponse { stepped: true, closed: false }"
+    - r.1 Dialog "Page 2 of 8"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 Button "Previous page" description="Previous page" actions=[Click,Focus]
+    - r.1.1.0.0.0.1 Label "" value="Page 2 of 8" actions=[Click]
+    - r.1.1.0.0.0.1.0 TextRun "" value="Page 2 of 8"
+    - r.1.1.0.0.0.2 Button "Next page" description="Next page" actions=[Click,Focus]
+    - r.1.1.0.0.0.3 Button "Close" description="Close" actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: PagePreviewResponse { stepped: false, closed: true }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: PagePreviewResponse { stepped: false, closed: true }"
+drive r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" -> r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" -> r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" -> r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" -> r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" -> r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3"
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" -> r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" -> r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" -> r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4"
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" -> r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" -> r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" -> r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Page 1" description="1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" -> r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5"
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" -> r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5"
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8"
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Page 2" description="2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.3 ListBoxOption "Page 4" description="4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" -> r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6"
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" -> r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8"
+    - r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" description="6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" -> r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3"
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" -> r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5"
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Page 3" description="3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" -> r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7"
+    - r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.4 ListBoxOption "Page 5" description="5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.7 ListBoxOption "Page 8" description="8" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    - r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0.0.6 ListBoxOption "Page 7" description="7" [unselected] actions=[Click,Focus,ShowContextMenu]
+drive r.0.0.0.0.0.0.1 ScrollBar "Scroll bar"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.5 ListBoxOption "Page 6" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.1.1.0.0.0.0 Button "Previous page"
+  all steps: node gone
+drive r.1.1.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2 Button "Next page"
+  all steps: node gone
+drive r.1.1.0.0.0.3 Button "Close"
+  all steps: node gone

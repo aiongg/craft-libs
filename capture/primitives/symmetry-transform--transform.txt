@@ -1,0 +1,123 @@
+story primitives/symmetry-transform/transform
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  mode = Choice { options: ["vertical", "horizontal", "Dual Axis", "diagonal"], index: 0 }
+  x = Number { value: 0.0, min: -500.0, max: 500.0 }
+  y = Number { value: 0.0, min: -400.0, max: 400.0 }
+  angle = Number { value: 0.0, min: 0.0, max: 360.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Toolbar "Transform Symmetry"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Button "Cancel transform" description="Cancel transform" shortcut="Escape" actions=[Click,Focus]
+              r.0.0.0.0.0.1.1 Button "Commit transform" description="Commit transform" shortcut="Enter" actions=[Click,Focus]
+          r.0.0.0.0.1 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.2 Group "Symmetry" actions=[Focus]
+            r.0.0.0.0.2.0 GenericContainer ""
+              r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+              r.0.0.0.0.2.0.1 GraphicsObject "Rotation handle" value="0°" [unselected]
+          r.0.0.0.0.3 GenericContainer ""
+            r.0.0.0.0.3.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0°" actions=[Click]
+              r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0°"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0 Button "Cancel transform"
+  2: r.0.0.0.0.0.1.1 Button "Commit transform"
+  3: r.0.0.0.0.1 Canvas "Document"
+  4: r.0.0.0.0.2.0.0 GraphicsObject "Center"
+    - r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [selected]
+  5: r.0.0.0.0.3.0 Button "Reset"
+  6: r.0.0.0.0.0.1.0 Button "Cancel transform"
+  cycle after 5 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.1.0 Button "Cancel transform"
+  click:
+    - r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0°" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0°"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0 Button "Cancel transform" -> r Window ""
+drive r.0.0.0.0.0.1.1 Button "Commit transform"
+  click:
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1 Button "Commit transform" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+drive r.0.0.0.0.1 Canvas "Document"
+  click:
+    focus: r Window "" -> r.0.0.0.0.2.0.0 GraphicsObject "Center"
+    - r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+    + r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [selected]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+  Escape:
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+drive r.0.0.0.0.2 Group "Symmetry"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.2.0.0 GraphicsObject "Center" -> r.0.0.0.0.2 Group "Symmetry"
+    - r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [selected]
+    + r.0.0.0.0.2.0.0 GraphicsObject "Center" value="320.0 px, 200.0 px" [unselected]
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+  Escape:
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Stored" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Stored"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+drive r.0.0.0.0.3.0 Button "Reset"
+  click:
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0°" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0°"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3.0 Button "Reset" -> r Window ""
+    - r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0°" actions=[Click]
+    - r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0°"
+    + r.0.0.0.0.3.1 Label "" value="Center 320, 200 · 0° · Cancelled" actions=[Click]
+    + r.0.0.0.0.3.1.0 TextRun "" value="Center 320, 200 · 0° · Cancelled"
+drive r.0.0.0.0.3.1 Label ""
+  click:
+    focus: r Window "" -> r.0.0.0.0.2 Group "Symmetry"
+  Escape: no change

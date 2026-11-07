@@ -1,0 +1,58 @@
+story controls/brush-preset-chip/states
+args
+  diameter = Number { value: 30.0, min: 1.0, max: 2500.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Closed" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="Closed"
+              r.0.0.0.0.0.0.1 Button "Brush Preset picker" description="Brush Preset picker" actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 Label "" value="Open" actions=[Click]
+                r.0.0.0.0.0.1.0.0 TextRun "" value="Open"
+              r.0.0.0.0.0.1.1 Button "Brush Preset picker" description="Brush Preset picker" actions=[Click,Focus]
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Four digits" actions=[Click]
+                r.0.0.0.0.0.2.0.0 TextRun "" value="Four digits"
+              r.0.0.0.0.0.2.1 Button "Brush Preset picker" description="Brush Preset picker" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1 Button "Brush Preset picker"
+  2: r.0.0.0.0.0.1.1 Button "Brush Preset picker"
+  3: r.0.0.0.0.0.2.1 Button "Brush Preset picker"
+  4: r.0.0.0.0.0.0.1 Button "Brush Preset picker"
+  cycle after 3 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1 Button "Brush Preset picker" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.1 Button "Brush Preset picker"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Button "Brush Preset picker" -> r Window ""
+drive r.0.0.0.0.0.1.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.1.1 Button "Brush Preset picker"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1 Button "Brush Preset picker" -> r Window ""
+drive r.0.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.2.1 Button "Brush Preset picker"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.1 Button "Brush Preset picker" -> r Window ""

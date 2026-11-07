@@ -1,0 +1,639 @@
+story composites/preset-browser/brushes
+args
+  view = Choice { options: ["grid", "list"], index: 1 }
+  size = Number { value: 32.0, min: 16.0, max: 96.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 SearchInput "Search" value="" placeholder="Search" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+              r.0.0.0.0.0.0.0 TextRun "" value=""
+          r.0.0.0.0.1 Button "Grid View" description="Grid View" [unchecked] actions=[Click,Focus]
+          r.0.0.0.0.2 Button "List View" description="List View" [checked] actions=[Click,Focus]
+          r.0.0.0.0.3 Tree "Brushes" actions=[Focus]
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GenericContainer ""
+                r.0.0.0.0.3.0.0.0 GenericContainer ""
+                  r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+                r.0.0.0.0.3.0.0.1 GenericContainer ""
+                  r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                r.0.0.0.0.3.0.0.2 GenericContainer ""
+                  r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+                r.0.0.0.0.3.0.0.3 GenericContainer ""
+                  r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+                r.0.0.0.0.3.0.0.4 GenericContainer ""
+                  r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+                r.0.0.0.0.3.0.0.5 GenericContainer ""
+                  r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+                r.0.0.0.0.3.0.0.6 GenericContainer ""
+                  r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+                r.0.0.0.0.3.0.0.7 GenericContainer ""
+                  r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+            r.0.0.0.0.3.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.4 GenericContainer ""
+            r.0.0.0.0.4.0 GenericContainer ""
+              r.0.0.0.0.4.0.0 Button "Delete" description="Delete" actions=[Click,Focus]
+            r.0.0.0.0.4.1 Button "New" description="New" actions=[Click,Focus]
+            r.0.0.0.0.4.2 Button "New Group" description="New Group" actions=[Click,Focus]
+            r.0.0.0.0.4.3 GenericContainer ""
+              r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+              r.0.0.0.0.4.3.1 Label "" value="5,000 presets" actions=[Click]
+                r.0.0.0.0.4.3.1.0 TextRun "" value="5,000 presets"
+          r.0.0.0.0.5 Label "" value="Selected: none. Last event: " actions=[Click]
+            r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 SearchInput "Search"
+  2: r.0.0.0.0.1 Button "Grid View"
+  3: r.0.0.0.0.2 Button "List View"
+  4: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1"
+  5: r.0.0.0.0.4.0.0 Button "Delete"
+  6: r.0.0.0.0.4.1 Button "New"
+  7: r.0.0.0.0.4.2 Button "New Group"
+  8: r.0.0.0.0.4.3.0 Slider "Thumbnail size"
+  9: r.0.0.0.0.0.0 SearchInput "Search"
+  cycle after 8 nodes
+drive: 21 actionable nodes
+drive r.0.0.0.0.0.0 SearchInput "Search"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0 SearchInput "Search" -> r Window ""
+  Escape:
+    focus: r.0.0.0.0.0.0 SearchInput "Search" -> r Window ""
+drive r.0.0.0.0.1 Button "Grid View"
+  click:
+    arg view: Choice { options: ["grid", "list"], index: 1 } -> Choice { options: ["grid", "list"], index: 0 }
+    - r.0.0.0.0.1 Button "Grid View" description="Grid View" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Button "List View" description="List View" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Grid View" description="Grid View" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "List View" description="List View" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.3 GenericContainer ""
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.4 GenericContainer ""
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2 TreeItem "Brush 21, 26" description="Brush 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3 TreeItem "Brush 22, 27" description="Brush 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4 TreeItem "Brush 23, 28" description="Brush 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5 TreeItem "Brush 24, 29" description="Brush 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6 TreeItem "Brush 25, 30" description="Brush 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7 TreeItem "Brush 26, 31" description="Brush 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8 TreeItem "Brush 27, 32" description="Brush 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9 TreeItem "Brush 28, 33" description="Brush 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.10 TreeItem "Brush 29, 34" description="Brush 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.11 TreeItem "Brush 30, 35" description="Brush 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.12 TreeItem "Brush 31, 36" description="Brush 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.13 TreeItem "Brush 32, 37" description="Brush 32" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.14 TreeItem "Brush 33, 38" description="Brush 33" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.15 TreeItem "Brush 34, 39" description="Brush 34" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.16 TreeItem "Brush 35, 40" description="Brush 35" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.17 TreeItem "Brush 36, 41" description="Brush 36" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.18 TreeItem "Brush 37, 42" description="Brush 37" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.19 TreeItem "Brush 38, 43" description="Brush 38" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.20 TreeItem "Brush 39, 44" description="Brush 39" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.21 TreeItem "Brush 40, 45" description="Brush 40" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.22 TreeItem "Brush 41, 46" description="Brush 41" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.23 TreeItem "Brush 42, 47" description="Brush 42" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.24 TreeItem "Brush 43, 48" description="Brush 43" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.25 TreeItem "Brush 44, 49" description="Brush 44" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.26 TreeItem "Brush 45, 50" description="Brush 45" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.27 TreeItem "Brush 46, 51" description="Brush 46" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.28 TreeItem "Brush 47, 52" description="Brush 47" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.29 TreeItem "Brush 48, 53" description="Brush 48" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.30 TreeItem "Brush 49, 54" description="Brush 49" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.31 TreeItem "Brush 50, 55" description="Brush 50" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.32 TreeItem "Brush 51, 56" description="Brush 51" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.33 TreeItem "Brush 52, 57" description="Brush 52" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.34 TreeItem "Brush 53, 58" description="Brush 53" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.35 TreeItem "Brush 54, 59" description="Brush 54" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.36 TreeItem "Brush 55, 60" description="Brush 55" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.37 TreeItem "Brush 56, 61" description="Brush 56" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.38 TreeItem "Brush 57, 62" description="Brush 57" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.39 TreeItem "Brush 58, 63" description="Brush 58" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.40 TreeItem "Brush 59, 64" description="Brush 59" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.41 TreeItem "Brush 60, 65" description="Brush 60" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.42 TreeItem "Brush 61, 66" description="Brush 61" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.43 TreeItem "Brush 62, 67" description="Brush 62" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.44 TreeItem "Brush 63, 68" description="Brush 63" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.45 TreeItem "Brush 64, 69" description="Brush 64" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.46 TreeItem "Brush 65, 70" description="Brush 65" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1 Button "Grid View" -> r Window ""
+drive r.0.0.0.0.2 Button "List View"
+  click:
+    arg view: Choice { options: ["grid", "list"], index: 0 } -> Choice { options: ["grid", "list"], index: 1 }
+    - r.0.0.0.0.1 Button "Grid View" description="Grid View" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.2 Button "List View" description="List View" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Grid View" description="Grid View" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.2 Button "List View" description="List View" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.3.0.0.2 TreeItem "Brush 21, 26" description="Brush 21" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3 TreeItem "Brush 22, 27" description="Brush 22" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4 TreeItem "Brush 23, 28" description="Brush 23" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5 TreeItem "Brush 24, 29" description="Brush 24" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6 TreeItem "Brush 25, 30" description="Brush 25" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7 TreeItem "Brush 26, 31" description="Brush 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8 TreeItem "Brush 27, 32" description="Brush 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9 TreeItem "Brush 28, 33" description="Brush 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.10 TreeItem "Brush 29, 34" description="Brush 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.11 TreeItem "Brush 30, 35" description="Brush 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.12 TreeItem "Brush 31, 36" description="Brush 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.13 TreeItem "Brush 32, 37" description="Brush 32" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.14 TreeItem "Brush 33, 38" description="Brush 33" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.15 TreeItem "Brush 34, 39" description="Brush 34" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.16 TreeItem "Brush 35, 40" description="Brush 35" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.17 TreeItem "Brush 36, 41" description="Brush 36" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.18 TreeItem "Brush 37, 42" description="Brush 37" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.19 TreeItem "Brush 38, 43" description="Brush 38" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.20 TreeItem "Brush 39, 44" description="Brush 39" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.21 TreeItem "Brush 40, 45" description="Brush 40" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.22 TreeItem "Brush 41, 46" description="Brush 41" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.23 TreeItem "Brush 42, 47" description="Brush 42" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.24 TreeItem "Brush 43, 48" description="Brush 43" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.25 TreeItem "Brush 44, 49" description="Brush 44" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.26 TreeItem "Brush 45, 50" description="Brush 45" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.27 TreeItem "Brush 46, 51" description="Brush 46" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.28 TreeItem "Brush 47, 52" description="Brush 47" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.29 TreeItem "Brush 48, 53" description="Brush 48" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.30 TreeItem "Brush 49, 54" description="Brush 49" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.31 TreeItem "Brush 50, 55" description="Brush 50" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.32 TreeItem "Brush 51, 56" description="Brush 51" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.33 TreeItem "Brush 52, 57" description="Brush 52" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.34 TreeItem "Brush 53, 58" description="Brush 53" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.35 TreeItem "Brush 54, 59" description="Brush 54" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.36 TreeItem "Brush 55, 60" description="Brush 55" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.37 TreeItem "Brush 56, 61" description="Brush 56" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.38 TreeItem "Brush 57, 62" description="Brush 57" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.39 TreeItem "Brush 58, 63" description="Brush 58" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.40 TreeItem "Brush 59, 64" description="Brush 59" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.41 TreeItem "Brush 60, 65" description="Brush 60" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.42 TreeItem "Brush 61, 66" description="Brush 61" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.43 TreeItem "Brush 62, 67" description="Brush 62" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.44 TreeItem "Brush 63, 68" description="Brush 63" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.45 TreeItem "Brush 64, 69" description="Brush 64" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.46 TreeItem "Brush 65, 70" description="Brush 65" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2 Button "List View" -> r Window ""
+drive r.0.0.0.0.3 Tree "Brushes"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: " actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: "
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: Open(OpenChange { row: 100000, "
+    + r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1"
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1"
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" -> r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media"
+  ArrowUp: no change
+  ArrowLeft:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+  ArrowRight:
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2 GenericContainer ""
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" -> r Window ""
+drive r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1"
+    - r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.0.1 Button "Collapse Brush set 1" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.0.1 Button "Expand Brush set 1" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.1.0 TreeItem "Brush set 2" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.1.1 Button "Expand Brush set 2" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.2.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.2.0 TreeItem "Brush set 3" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.2.1 Button "Expand Brush set 3" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.3.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.3.0 TreeItem "Brush set 4" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.3.1 Button "Expand Brush set 4" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.4.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.4.0 TreeItem "Brush set 5" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.4.1 Button "Expand Brush set 5" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.5.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.5.0 TreeItem "Brush set 6" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.5.1 Button "Expand Brush set 6" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.6.0 TreeItem "Brush set 7" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.6.1 Button "Expand Brush set 7" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.3.0.0.7.1 GenericContainer ""
+    + r.0.0.0.0.3.0.0.7.0 TreeItem "Brush set 8" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.7.1 Button "Expand Brush set 8" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.8 GenericContainer ""
+    + r.0.0.0.0.3.0.0.8.0 TreeItem "Brush set 9" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.8.1 Button "Expand Brush set 9" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.3.0.0.9 GenericContainer ""
+    + r.0.0.0.0.3.0.0.9.0 TreeItem "Brush set 10" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.9.1 Button "Expand Brush set 10" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: true, all: false })" actions=[Click]
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.5.1 TextRun "" value="open: true, all: false })"
+    + r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+  Escape: node gone
+drive r.0.0.0.0.3.0.0.1.0 TreeItem "Dry media"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.1.1 Button "Expand Dry media"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.2.0 TreeItem "Brush 21, 26"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.3.0 TreeItem "Brush 22, 27"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.4.0 TreeItem "Brush 23, 28"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.5.0 TreeItem "Brush 24, 29"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.6.0 TreeItem "Brush 25, 30"
+  all steps: node gone
+drive r.0.0.0.0.3.0.0.7.0 TreeItem "Brush 26, 31"
+  all steps: node gone
+drive r.0.0.0.0.3.1 ScrollBar ""
+  click:
+    focus: r.0.0.0.0.3.0.0.0.0 TreeItem "Brush set 1" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.4.0.0 Button "Delete"
+  click:
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Open(OpenChange { row: 100000, open: false, all: false })" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: Open(OpenChange { row: 100000, "
+    - r.0.0.0.0.5.1 TextRun "" value="open: false, all: false })"
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: Delete" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: Delete"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.0.0 Button "Delete" -> r Window ""
+drive r.0.0.0.0.4.1 Button "New"
+  click:
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: Delete" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: Delete"
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: New" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: New"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.1 Button "New" -> r Window ""
+drive r.0.0.0.0.4.2 Button "New Group"
+  click:
+    + r.0.0.0.0.3.0.0.10 GenericContainer ""
+    + r.0.0.0.0.3.0.0.10.0 TreeItem "New group 200004" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.3.0.0.10.1 Button "Expand New group 200004" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.5 Label "" value="Selected: none. Last event: New" actions=[Click]
+    - r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: New"
+    + r.0.0.0.0.5 Label "" value="Selected: none. Last event: NewGroup" actions=[Click]
+    + r.0.0.0.0.5.0 TextRun "" value="Selected: none. Last event: NewGroup"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4.2 Button "New Group" -> r Window ""
+drive r.0.0.0.0.4.3.0 Slider "Thumbnail size"
+  Space: no change
+  Enter: no change
+  ArrowLeft:
+    arg size: Number { value: 32.0, min: 16.0, max: 96.0 } -> Number { value: 31.280000686645508, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=31.280000686645508 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowRight:
+    arg size: Number { value: 31.280000686645508, min: 16.0, max: 96.0 } -> Number { value: 32.0, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=31.280000686645508 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    arg size: Number { value: 32.0, min: 16.0, max: 96.0 } -> Number { value: 32.720001220703125, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32.720001220703125 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowDown:
+    arg size: Number { value: 32.720001220703125, min: 16.0, max: 96.0 } -> Number { value: 32.0, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32.720001220703125 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+  Home:
+    arg size: Number { value: 32.0, min: 16.0, max: 96.0 } -> Number { value: 24.0, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=32 in 24..96 step 0.72 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=24 in 24..96 step 0.72 actions=[Focus,Increment,SetValue]
+  End:
+    arg size: Number { value: 24.0, min: 16.0, max: 96.0 } -> Number { value: 96.0, min: 16.0, max: 96.0 }
+    - r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=24 in 24..96 step 0.72 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.4.3.0 Slider "Thumbnail size" number=96 in 24..96 step 0.72 actions=[Focus,Decrement,SetValue]
+  Escape:
+    focus: r.0.0.0.0.4.3.0 Slider "Thumbnail size" -> r Window ""
+drive r.0.0.0.0.4.3.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5 Label ""
+  click: no change
+  Escape: no change

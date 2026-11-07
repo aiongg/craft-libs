@@ -1,0 +1,225 @@
+story controls/number-field/scrub
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  locale = Choice { options: ["en", "de", "ar-EG"], index: 0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Label "" value="W"
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" value="1,920 px" number=1920 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.0.0.1.0.0.0.0 TextRun "" value="1,920"
+                      r.0.0.0.0.0.0.0.1.0.0.1 Label "" value="1920" actions=[Click]
+                        r.0.0.0.0.0.0.0.1.0.0.1.0 TextRun "" value="1920"
+                r.0.0.0.0.0.0.0.2 GenericContainer ""
+                  r.0.0.0.0.0.0.0.2.0 Label "" value="H"
+                r.0.0.0.0.0.0.0.3 GenericContainer ""
+                  r.0.0.0.0.0.0.0.3.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.3.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" value="1,080 px" number=1080 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1,080"
+                      r.0.0.0.0.0.0.0.3.0.0.1 Label "" value="1080" actions=[Click]
+                        r.0.0.0.0.0.0.0.3.0.0.1.0 TextRun "" value="1080"
+                r.0.0.0.0.0.0.0.4 GenericContainer ""
+                  r.0.0.0.0.0.0.0.4.0 Label "" value="Angle"
+                r.0.0.0.0.0.0.0.5 GenericContainer ""
+                  r.0.0.0.0.0.0.0.5.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.5.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" value="15°" number=15 in -180..180 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.0.0.5.0.0.0.0 TextRun "" value="15"
+                      r.0.0.0.0.0.0.0.5.0.0.1 Label "" value="15" actions=[Click]
+                        r.0.0.0.0.0.0.0.5.0.0.1.0 TextRun "" value="15"
+                r.0.0.0.0.0.0.0.6 GenericContainer ""
+                  r.0.0.0.0.0.0.0.6.0 Label "" value="Wrap"
+                r.0.0.0.0.0.0.0.7 GenericContainer ""
+                  r.0.0.0.0.0.0.0.7.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.7.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                        r.0.0.0.0.0.0.0.7.0.0.0.0 TextRun "" value="50"
+                      r.0.0.0.0.0.0.0.7.0.0.1 Label "" value="50" actions=[Click]
+                        r.0.0.0.0.0.0.0.7.0.0.1.0 TextRun "" value="50"
+                r.0.0.0.0.0.0.0.8 GenericContainer ""
+                  r.0.0.0.0.0.0.0.8.0 Label "" value="Radius"
+                r.0.0.0.0.0.0.0.9 GenericContainer ""
+                  r.0.0.0.0.0.0.0.9.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" value="4 px" number=4 in 0..500 step 1 labelled_by=[r.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.9.0.0.0 TextRun "" value="4"
+              r.0.0.0.0.0.0.1 Label "" value="Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click edits; the wheel over a field steps it. The Wrap field carries the pointer to the opposite screen edge in a full-screen window." actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="Drag a field or its label sideways: a step a point, Shift ten, Alt a tenth as fast. Esc puts the value back. A click "
+                r.0.0.0.0.0.0.1.1 TextRun "" value="edits; the wheel over a field steps it. The Wrap field carries the pointer to the opposite screen edge in a "
+                r.0.0.0.0.0.0.1.2 TextRun "" value="full-screen window."
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W"
+  2: r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H"
+  3: r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle"
+  4: r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap"
+  5: r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius"
+  6: r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W"
+  cycle after 5 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" value="1,920 px" number=1920 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0 TextRun "" value="1,920"
+    - r.0.0.0.0.0.0.0.1.0.0.1 Label "" value="1920" actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 TextRun "" value="1920"
+    + r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" value="1,921 px" number=1921 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0 TextRun "" value="1,921"
+    + r.0.0.0.0.0.0.0.1.0.0.1 Label "" value="1921" actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 TextRun "" value="1921"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" value="1,921 px" number=1921 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.1.0.0.0.0 TextRun "" value="1,921"
+    - r.0.0.0.0.0.0.0.1.0.0.1 Label "" value="1921" actions=[Click]
+    - r.0.0.0.0.0.0.0.1.0.0.1.0 TextRun "" value="1921"
+    + r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" value="1,920 px" number=1920 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.1.0.0.0.0 TextRun "" value="1,920"
+    + r.0.0.0.0.0.0.0.1.0.0.1 Label "" value="1920" actions=[Click]
+    + r.0.0.0.0.0.0.0.1.0.0.1.0 TextRun "" value="1920"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0.0 SpinButton "W" -> r Window ""
+drive r.0.0.0.0.0.0.0.1.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" value="1,080 px" number=1080 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1,080"
+    - r.0.0.0.0.0.0.0.3.0.0.1 Label "" value="1080" actions=[Click]
+    - r.0.0.0.0.0.0.0.3.0.0.1.0 TextRun "" value="1080"
+    + r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" value="1,081 px" number=1081 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1,081"
+    + r.0.0.0.0.0.0.0.3.0.0.1 Label "" value="1081" actions=[Click]
+    + r.0.0.0.0.0.0.0.3.0.0.1.0 TextRun "" value="1081"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" value="1,081 px" number=1081 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1,081"
+    - r.0.0.0.0.0.0.0.3.0.0.1 Label "" value="1081" actions=[Click]
+    - r.0.0.0.0.0.0.0.3.0.0.1.0 TextRun "" value="1081"
+    + r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" value="1,080 px" number=1080 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.3.0.0.0.0 TextRun "" value="1,080"
+    + r.0.0.0.0.0.0.0.3.0.0.1 Label "" value="1080" actions=[Click]
+    + r.0.0.0.0.0.0.0.3.0.0.1.0 TextRun "" value="1080"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.3.0.0.0 SpinButton "H" -> r Window ""
+drive r.0.0.0.0.0.0.0.3.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" value="15°" number=15 in -180..180 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.5.0.0.0.0 TextRun "" value="15"
+    - r.0.0.0.0.0.0.0.5.0.0.1 Label "" value="15" actions=[Click]
+    - r.0.0.0.0.0.0.0.5.0.0.1.0 TextRun "" value="15"
+    + r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" value="16°" number=16 in -180..180 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.5.0.0.0.0 TextRun "" value="16"
+    + r.0.0.0.0.0.0.0.5.0.0.1 Label "" value="16" actions=[Click]
+    + r.0.0.0.0.0.0.0.5.0.0.1.0 TextRun "" value="16"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" value="16°" number=16 in -180..180 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.5.0.0.0.0 TextRun "" value="16"
+    - r.0.0.0.0.0.0.0.5.0.0.1 Label "" value="16" actions=[Click]
+    - r.0.0.0.0.0.0.0.5.0.0.1.0 TextRun "" value="16"
+    + r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" value="15°" number=15 in -180..180 step 1 labelled_by=[r.0.0.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.5.0.0.0.0 TextRun "" value="15"
+    + r.0.0.0.0.0.0.0.5.0.0.1 Label "" value="15" actions=[Click]
+    + r.0.0.0.0.0.0.0.5.0.0.1.0 TextRun "" value="15"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.5.0.0.0 SpinButton "Angle" -> r Window ""
+drive r.0.0.0.0.0.0.0.5.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.7.0.0.0.0 TextRun "" value="50"
+    - r.0.0.0.0.0.0.0.7.0.0.1 Label "" value="50" actions=[Click]
+    - r.0.0.0.0.0.0.0.7.0.0.1.0 TextRun "" value="50"
+    + r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.7.0.0.0.0 TextRun "" value="51"
+    + r.0.0.0.0.0.0.0.7.0.0.1 Label "" value="51" actions=[Click]
+    + r.0.0.0.0.0.0.0.7.0.0.1.0 TextRun "" value="51"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" value="51%" number=51 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.7.0.0.0.0 TextRun "" value="51"
+    - r.0.0.0.0.0.0.0.7.0.0.1 Label "" value="51" actions=[Click]
+    - r.0.0.0.0.0.0.0.7.0.0.1.0 TextRun "" value="51"
+    + r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" value="50%" number=50 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.7.0.0.0.0 TextRun "" value="50"
+    + r.0.0.0.0.0.0.0.7.0.0.1 Label "" value="50" actions=[Click]
+    + r.0.0.0.0.0.0.0.7.0.0.1.0 TextRun "" value="50"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.7.0.0.0 SpinButton "Wrap" -> r Window ""
+drive r.0.0.0.0.0.0.0.7.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" value="4 px" number=4 in 0..500 step 1 labelled_by=[r.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.9.0.0.0 TextRun "" value="4"
+    + r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" value="5 px" number=5 in 0..500 step 1 labelled_by=[r.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.9.0.0.0 TextRun "" value="5"
+  ArrowDown:
+    - r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" value="5 px" number=5 in 0..500 step 1 labelled_by=[r.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.0.9.0.0.0 TextRun "" value="5"
+    + r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" value="4 px" number=4 in 0..500 step 1 labelled_by=[r.0.0.0.0.0.0.0.8.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.0.9.0.0.0 TextRun "" value="4"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.9.0.0 SpinButton "Radius" -> r Window ""
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

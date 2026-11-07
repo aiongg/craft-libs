@@ -1,0 +1,99 @@
+story composites/keyframe-lane/lane
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Go to previous keyframe" actions=[Click,Focus]
+            r.0.0.0.0.0.2 Button "Go to next keyframe" actions=[Click,Focus]
+            r.0.0.0.0.0.3 Button "Add/Remove Keyframe" actions=[Click,Focus]
+            r.0.0.0.0.0.4 ListBox "Keyframes" actions=[Click,Focus]
+            r.0.0.0.0.0.5 ListBoxOption "00:00:00:29" [unselected]
+            r.0.0.0.0.0.6 ListBoxOption "00:00:02:29" [selected]
+            r.0.0.0.0.0.7 ListBoxOption "00:00:04:29" [selected]
+            r.0.0.0.0.0.8 ListBoxOption "00:00:07:14" [unselected]
+            r.0.0.0.0.0.9 ListBoxOption "00:00:09:29" [unselected]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Toggle animation"
+  2: r.0.0.0.0.0.1 Button "Go to previous keyframe"
+  3: r.0.0.0.0.0.2 Button "Go to next keyframe"
+  4: r.0.0.0.0.0.3 Button "Add/Remove Keyframe"
+  5: r.0.0.0.0.0.4 ListBox "Keyframes"
+  6: r.0.0.0.0.0.0 Button "Toggle animation"
+  cycle after 5 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0 Button "Toggle animation"
+  click:
+    - r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Go to previous keyframe" actions=[Click,Focus]
+    - r.0.0.0.0.0.2 Button "Go to next keyframe" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }"
+  Space:
+    - r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Go to previous keyframe" actions=[Click,Focus]
+    + r.0.0.0.0.0.2 Button "Go to next keyframe" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: true, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: true, modifiers: Modifiers::NONE }"
+  Enter:
+    - r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Go to previous keyframe" actions=[Click,Focus]
+    - r.0.0.0.0.0.2 Button "Go to next keyframe" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Toggle animation" description="Toggle animation" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: true, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: true, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }"
+  Escape:
+    focus: r.0.0.0.0.0.0 Button "Toggle animation" -> r Window ""
+drive r.0.0.0.0.0.1 Button "Go to previous keyframe"
+  all steps: node gone
+drive r.0.0.0.0.0.2 Button "Go to next keyframe"
+  all steps: node gone
+drive r.0.0.0.0.0.3 Button "Add/Remove Keyframe"
+  click:
+    + r.0.0.0.0.0.5 ListBoxOption "00:00:03:29" [unselected]
+    - r.0.0.0.0.1 Label "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set { value: false, modifiers: Modifiers::NONE }"
+    + r.0.0.0.0.1 Label "" value="Last event: Toggle" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Toggle"
+  Space:
+    - r.0.0.0.0.0.5 ListBoxOption "00:00:03:29" [unselected]
+  Enter:
+    + r.0.0.0.0.0.5 ListBoxOption "00:00:03:29" [unselected]
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Add/Remove Keyframe" -> r Window ""
+drive r.0.0.0.0.0.4 ListBox "Keyframes"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.2 ListBox "Keyframes"
+    - r.0.0.0.0.0.4 ListBoxOption "00:00:02:29" [selected]
+    + r.0.0.0.0.0.4 ListBoxOption "00:00:02:29" [unselected]
+    - r.0.0.0.0.0.6 ListBoxOption "00:00:04:29" [selected]
+    + r.0.0.0.0.0.6 ListBoxOption "00:00:04:29" [unselected]
+    - r.0.0.0.0.1 Label "" value="Last event: Toggle" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Toggle"
+    + r.0.0.0.0.1 Label "" value="Last event: Clear" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Clear"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    - r.0.0.0.0.0.8 ListBoxOption "00:00:09:29" [unselected]
+    - r.0.0.0.0.1 Label "" value="Last event: Clear" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Clear"
+    + r.0.0.0.0.0.8 ListBoxOption "00:00:09:29" [selected]
+    + r.0.0.0.0.1 Label "" value="Last event: Replace" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Replace"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 ListBox "Keyframes" -> r Window ""

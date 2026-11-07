@@ -1,0 +1,493 @@
+story patterns/places-tree/places
+args
+  slow listings = Bool(false)
+  favorites = Bool(true)
+  volumes = Bool(true)
+  recent = Bool(true)
+  height = Number { value: 380.0, min: 200.0, max: 600.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Label "" value="Photo 7" actions=[Click,Focus]
+              r.0.0.0.0.0.0.0 TextRun "" value="Photo 7"
+            r.0.0.0.0.0.1 Label "" value="Drag this photo onto a folder under Photos" actions=[Click]
+              r.0.0.0.0.0.1.0 TextRun "" value="Drag this photo onto a folder under Photos"
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 Tree "Places" actions=[Focus]
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.1.0.0.0.0.0 Heading "Favorites" actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.2 Button "Expand Studio" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.3 Heading "Places" actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.5 Button "Expand Home" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.6 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.7 Button "Expand Documents" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.8 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.9 Button "Expand Pictures" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.10 Heading "Volumes" actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.11 TreeItem "Camera Card" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.12 Button "Expand Camera Card" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.13 Heading "Network" actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.14 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.15 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.16 Heading "Recent Folders" actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.17 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.18 Button "Expand 2025" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.19 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+                    r.0.0.0.0.1.0.0.0.0.20 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+                    r.0.0.0.0.1.0.0.0.0.21 TreeItem "Show 1 hidden place" [unselected] actions=[Click,Focus,ScrollIntoView]
+          r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2024/Trip" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2024/Trip"
+          r.0.0.0.0.3 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Label ""
+  2: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+  3: r.0.0.0.0.0.0 Label ""
+  cycle after 2 nodes
+drive: 27 actionable nodes
+drive r.0.0.0.0.0.0 Label ""
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Label "" -> r Window ""
+drive r.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.0 Tree "Places"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2024/Trip" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2024/Trip"
+    - r.0.0.0.0.3 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2024/Studio" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2024/Studio"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Photos/2024/Studio\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Photos/2024/Studio\")"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.2 Button "Expand Studio" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.0 Heading "Favorites"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.2 Button "Expand Studio"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.3 Heading "Places"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.4 TreeItem "Home"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2024/Studio" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2024/Studio"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Photos/2024/Studio\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Photos/2024/Studio\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /home/u" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u\")"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" -> r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.4 Button "Expand Home" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.4 Button "Collapse Home" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 Button "Expand Music" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 Button "Expand Photos" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.14 Button "Expand Documents" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.15 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 Button "Expand Pictures" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "Show 1 hidden place" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.1 ScrollBar "Scroll bar" actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.5 Button "Expand Home"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.6 TreeItem "Documents"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents"
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /home/u/Documents" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Documents"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Documents\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Documents\")"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.13 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" -> r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "Music" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home"
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 Button "Expand Documents" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.7 Button "Expand Documents"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents"
+    - r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 Button "Expand Documents" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.0.8 TreeItem "Pictures"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0.5 TreeItem "Documents" -> r.0.0.0.0.1.0.0.0.0.13 TreeItem "Pictures"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.13 TreeItem "Pictures" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u/Documents" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Documents"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Documents\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Documents\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /home/u/Pictures" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Pictures"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Pictures\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Pictures\")"
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.13 TreeItem "Pictures" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.13 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" -> r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents"
+    - r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" -> r.0.0.0.0.1.0.0.0.0.8 TreeItem "Photos"
+    - r.0.0.0.0.1.0.0.0.0.8 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 TreeItem "Photos" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.12 TreeItem "Documents" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" -> r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.8 TreeItem "Photos" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.11 Button "Expand Pictures" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.11 Button "Collapse Pictures" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.12 TreeItem "Screenshots" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.13 Button "Expand Screenshots" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.24 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.9 Button "Expand Pictures"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures"
+    - r.0.0.0.0.1.0.0.0.0.15 TreeItem "Pictures" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.16 Button "Expand Pictures" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.15 TreeItem "Pictures" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.16 Button "Collapse Pictures" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.18 Button "Expand Screenshots" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.24 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 Button "Expand 2025" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.0.10 Heading "Volumes"
+  click: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.10 TreeItem "Pictures" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.11 TreeItem "Camera Card"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card"
+    - r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.3 TreeItem "Home" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u/Pictures" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Pictures"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Pictures\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Pictures\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /media/card" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /media/card"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/media/card\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/media/card\")"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" -> r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive"
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" -> r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots"
+    - r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.21 Button "Expand Camera Card" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.21 Button "Collapse Camera Card" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.23 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.25 Heading "Recent Folders" actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.12 Button "Expand Camera Card"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.13 Heading "Network"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card"
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.14 TreeItem "Archive"
+  click: no change
+  Space:
+    - r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.17 TreeItem "Screenshots" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.27 Heading "Recent Folders" actions=[Click]
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Browsing: /media/card" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /media/card"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/media/card\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/media/card\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /mnt/archive" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /mnt/archive"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/mnt/archive\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/mnt/archive\")"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" -> r.0.0.0.0.1.0.0.0.0.26 TreeItem "2025"
+    - r.0.0.0.0.1.0.0.0.0.0 Heading "Favorites" actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.1 TreeItem "Studio" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.26 TreeItem "2025" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.27 Button "Expand 2025" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.28 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.29 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" -> r.0.0.0.0.1.0.0.0.0.20 TreeItem "DCIM"
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.20 TreeItem "DCIM" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.26 TreeItem "2025" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.26 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.24 Button "Expand Archive" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.24 Button "Collapse Archive" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.25 TreeItem "Old" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.26 Button "Expand Old" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.28 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.29 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.15 Button "Expand Archive"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.16 Heading "Recent Folders"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive"
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.23 TreeItem "Archive" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.17 TreeItem "2025"
+  click: no change
+  Space:
+    focus: r.0.0.0.0.1.0.0.0.0.28 TreeItem "2025" -> r.0.0.0.0.1.0.0.0.0.27 TreeItem "2025"
+    - r.0.0.0.0.1.0.0.0.0.0 Heading "Places" actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "DCIM" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.19 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.28 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.27 TreeItem "2025" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.29 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.30 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+  Enter:
+    focus: r.0.0.0.0.1.0.0.0.0.27 TreeItem "2025" -> r.0.0.0.0.1.0.0.0.0.31 TreeItem "2025"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.6 Button "Expand Photos" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.6 Button "Collapse Photos" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.8 Button "Expand 2024" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.10 Button "Expand 2025" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.1.0.0.0.0.29 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.30 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    - r.0.0.0.0.2 Label "" value="Browsing: /mnt/archive" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /mnt/archive"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/mnt/archive\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/mnt/archive\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2025" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2025"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Photos/2025\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Photos/2025\")"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" -> r.0.0.0.0.1.0.0.0.0.11 TreeItem "Pictures"
+    - r.0.0.0.0.1.0.0.0.0.11 TreeItem "Pictures" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.11 TreeItem "Pictures" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" -> r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024"
+    - r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.11 TreeItem "Pictures" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.11 TreeItem "Pictures" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" -> r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.7 TreeItem "2024" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.10 Button "Expand 2025" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.9 TreeItem "2025" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.18 Button "Expand 2025"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.19 TreeItem "DCIM"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM"
+    - r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.5 TreeItem "Photos" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.2 Label "" value="Browsing: /home/u/Photos/2025" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Browsing: /home/u/Photos/2025"
+    - r.0.0.0.0.3 Label "" value="Last event: Open(\"/home/u/Photos/2025\")" actions=[Click]
+    - r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/home/u/Photos/2025\")"
+    + r.0.0.0.0.2 Label "" value="Browsing: /media/card/DCIM" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Browsing: /media/card/DCIM"
+    + r.0.0.0.0.3 Label "" value="Last event: Open(\"/media/card/DCIM\")" actions=[Click]
+    + r.0.0.0.0.3.0 TextRun "" value="Last event: Open(\"/media/card/DCIM\")"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" -> r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive"
+    - r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed selected] actions=[Click,Focus,Expand,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" -> r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card"
+    - r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [expanded selected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.0.0.0.0.1.0.0.0.0.25 TreeItem "Archive" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" -> r.0.0.0.0.1.0.0.0.0.20 TreeItem "Camera Card"
+  ArrowRight:
+    - r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [collapsed unselected] actions=[Click,Focus,Expand,ScrollIntoView]
+    - r.0.0.0.0.1.0.0.0.0.23 Button "Expand DCIM" description="Expand  (Alt-click: all groups)" [collapsed] actions=[Click]
+    + r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0.0.22 TreeItem "DCIM" -> r Window ""
+drive r.0.0.0.0.1.0.0.0.0.20 Button "Expand DCIM"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.0.21 TreeItem "Show 1 hidden place"
+  all steps: node gone
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

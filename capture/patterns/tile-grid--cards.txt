@@ -1,0 +1,524 @@
+story patterns/tile-grid/cards
+args
+  caption = Bool(true)
+  check mode = Bool(false)
+  keys = Choice { options: ["none", "digits", "Command and digits"], index: 1 }
+  height = Number { value: 420.0, min: 200.0, max: 700.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+            r.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+            r.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 ListBox "Photos" actions=[Focus]
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 GenericContainer ""
+                  r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 1, rejected, Duplicate of another photo" description="Photo 1" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.1 ListBoxOption "Photo 2, 5 stars" description="Photo 2" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.2 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.3 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.4 ListBoxOption "Photo 5, 3 stars" description="Photo 5" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.5 ListBoxOption "Photo 6, 4 stars" description="Photo 6" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.6 ListBoxOption "Photo 7, 4 stars" description="Photo 7" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.7 ListBoxOption "Photo 8, 3 stars" description="Photo 8" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.8 ListBoxOption "Photo 9, 3 stars" description="Photo 9" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.9 ListBoxOption "Photo 10, 4 stars" description="Photo 10" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.10 ListBoxOption "Photo 11, 3 stars" description="Photo 11" [unselected] actions=[Click,Focus,ShowContextMenu]
+                  r.0.0.0.0.1.0.0.0.11 ListBoxOption "Photo 12, 3 stars, picked" description="Photo 12" [unselected] actions=[Click,Focus,ShowContextMenu]
+              r.0.0.0.0.1.0.1 ScrollBar "Scroll bar" actions=[Click]
+          r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  2: r.0.0.0.0.0.1 Slider "Thumbnail Size"
+  3: r.0.0.0.0.0.2 Button "Larger Thumbnails"
+  4: r.0.0.0.0.1.0.0.0.2 ListBoxOption "Photo 3, 4 stars"
+  5: r.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  cycle after 4 nodes
+drive: 18 actionable nodes
+drive r.0.0.0.0.0.0 Button "Smaller Thumbnails"
+  click:
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=1 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.800000011920929 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.0.12 ListBoxOption "Photo 13, 2 stars" description="Photo 13" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.13 ListBoxOption "Photo 14, 3 stars, Duplicate of another photo" description="Photo 14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.14 ListBoxOption "Photo 15, 3 stars" description="Photo 15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.15 ListBoxOption "Photo 16, 2 stars" description="Photo 16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.16 ListBoxOption "Photo 17, 2 stars" description="Photo 17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.17 ListBoxOption "Photo 18, 3 stars, rejected" description="Photo 18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.18 ListBoxOption "Photo 19, 2 stars" description="Photo 19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.19 ListBoxOption "Photo 20, 2 stars" description="Photo 20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.20 ListBoxOption "Photo 21, 1 star" description="Photo 21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.21 ListBoxOption "Photo 22, 1 star" description="Photo 22" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.22 ListBoxOption "Photo 23, 2 stars, picked" description="Photo 23" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.23 ListBoxOption "Photo 24, 1 star" description="Photo 24" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Space:
+    focus: r.0.0.0.0.0.0 Button "Smaller Thumbnails" -> r Window ""
+    - r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.800000011920929 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6000000238418579 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.0.24 ListBoxOption "Photo 25, 1 star" description="Photo 25" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.25 ListBoxOption "Photo 26" description="Photo 26" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.26 ListBoxOption "Photo 27, 1 star, Duplicate of another photo" description="Photo 27" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.27 ListBoxOption "Photo 28, 1 star" description="Photo 28" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.1 Slider "Thumbnail Size"
+  Space: no change
+  Enter: no change
+  ArrowLeft: no change
+  ArrowRight:
+    - r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6000000238418579 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6440000534057617 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+  ArrowUp:
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6440000534057617 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6880000829696655 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    - r.0.0.0.0.1.0.0.0.24 ListBoxOption "Photo 25, 1 star" description="Photo 25" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.25 ListBoxOption "Photo 26" description="Photo 26" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.26 ListBoxOption "Photo 27, 1 star, Duplicate of another photo" description="Photo 27" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.27 ListBoxOption "Photo 28, 1 star" description="Photo 28" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowDown:
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6880000829696655 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6440000534057617 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.1.0.0.0.24 ListBoxOption "Photo 25, 1 star" description="Photo 25" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.25 ListBoxOption "Photo 26" description="Photo 26" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.26 ListBoxOption "Photo 27, 1 star, Duplicate of another photo" description="Photo 27" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.27 ListBoxOption "Photo 28, 1 star" description="Photo 28" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Home:
+    - r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6440000534057617 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,Increment,SetValue]
+    + r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6000000238418579 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Increment,SetValue]
+  End:
+    - r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Slider "Thumbnail Size" number=0.6000000238418579 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Smaller Thumbnails" description="Smaller Thumbnails" actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Slider "Thumbnail Size" number=5 in 0.6000000238418579..5 step 0.04399999976158142 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.2 Button "Larger Thumbnails" description="Larger Thumbnails" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0.0.1 ListBoxOption "Photo 2, 5 stars" description="Photo 2" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.2 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.3 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.4 ListBoxOption "Photo 5, 3 stars" description="Photo 5" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.5 ListBoxOption "Photo 6, 4 stars" description="Photo 6" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.6 ListBoxOption "Photo 7, 4 stars" description="Photo 7" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.7 ListBoxOption "Photo 8, 3 stars" description="Photo 8" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.8 ListBoxOption "Photo 9, 3 stars" description="Photo 9" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.9 ListBoxOption "Photo 10, 4 stars" description="Photo 10" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.10 ListBoxOption "Photo 11, 3 stars" description="Photo 11" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.11 ListBoxOption "Photo 12, 3 stars, picked" description="Photo 12" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.12 ListBoxOption "Photo 13, 2 stars" description="Photo 13" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.13 ListBoxOption "Photo 14, 3 stars, Duplicate of another photo" description="Photo 14" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.14 ListBoxOption "Photo 15, 3 stars" description="Photo 15" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.15 ListBoxOption "Photo 16, 2 stars" description="Photo 16" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.16 ListBoxOption "Photo 17, 2 stars" description="Photo 17" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.17 ListBoxOption "Photo 18, 3 stars, rejected" description="Photo 18" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.18 ListBoxOption "Photo 19, 2 stars" description="Photo 19" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.19 ListBoxOption "Photo 20, 2 stars" description="Photo 20" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.20 ListBoxOption "Photo 21, 1 star" description="Photo 21" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.21 ListBoxOption "Photo 22, 1 star" description="Photo 22" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.22 ListBoxOption "Photo 23, 2 stars, picked" description="Photo 23" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.23 ListBoxOption "Photo 24, 1 star" description="Photo 24" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.24 ListBoxOption "Photo 25, 1 star" description="Photo 25" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.25 ListBoxOption "Photo 26" description="Photo 26" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.26 ListBoxOption "Photo 27, 1 star, Duplicate of another photo" description="Photo 27" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1.0.0.0.27 ListBoxOption "Photo 28, 1 star" description="Photo 28" [unselected] actions=[Click,Focus,ShowContextMenu]
+  Escape:
+    focus: r.0.0.0.0.0.1 Slider "Thumbnail Size" -> r Window ""
+drive r.0.0.0.0.0.2 Button "Larger Thumbnails"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1.0 ListBox "Photos"
+  Space:
+    - r.0.0.0.0.2 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(2)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(2)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(2)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(2)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(2)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(2)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0 ListBox "Photos" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 1, rejected, Duplicate of another photo" description="Photo 1" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(2)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(2)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: Some(3), anchor: Some(3) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(3), anchor: Some(3) } })"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: Some(3), anchor: Some(3) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(3), anchor: Some(3) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 2, 5 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 2, 5 stars" description="Photo 2" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(1), selection: Selection { items: [1], lead: Some(1), anchor: Some(1) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(1), selection: Selection { items: [1], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(1), anchor: Some(1) } })"
+  ArrowRight:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 2, 5 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 2, 5 stars" description="Photo 2" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(1), selection: Selection { items: [1], lead: Some(1), anchor: Some(1) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(1), selection: Selection { items: [1], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(1), anchor: Some(1) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+  Escape:
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(2), anchor: None } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(2), "
+    + r.0.0.0.0.2.1 TextRun "" value="anchor: None } })"
+drive r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 1, rejected, Duplicate of another photo"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.1 ListBoxOption "Photo 2, 5 stars"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0.0.2 ListBoxOption "Photo 3, 4 stars"
+  click:
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(2), anchor: None } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Clear, row: None, selection: Selection { items: [], lead: Some(2), "
+    - r.0.0.0.0.2.1 TextRun "" value="anchor: None } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: Some(2), anchor: Some(2) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(2), selection: Selection { items: [2], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(2), anchor: Some(2) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(2)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(2)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(2)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(2)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(2)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(2)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 3, 4 stars" description="Photo 3" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(2)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(2)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: Some(3), anchor: Some(3) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(3), anchor: Some(3) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.3 ListBoxOption "Photo 4, 4 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: Some(3), anchor: Some(3) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(3), selection: Selection { items: [3], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(3), anchor: Some(3) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(3)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(3)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(3)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(3)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(3)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(3)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(3)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(3)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(3)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(3)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 5, 3 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 4, 4 stars" description="Photo 4" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 5, 3 stars" description="Photo 5" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(3)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(3)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(4), selection: Selection { items: [4], lead: Some(4), anchor: Some(4) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(4), selection: Selection { items: [4], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(4), anchor: Some(4) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.4 ListBoxOption "Photo 5, 3 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(4), selection: Selection { items: [4], lead: Some(4), anchor: Some(4) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(4), selection: Selection { items: [4], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(4), anchor: Some(4) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(4)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(4)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(4)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(4)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(4)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(4)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(4)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(4)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(4)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(4)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 5, 3 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 6, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 5, 3 stars" description="Photo 5" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 6, 4 stars" description="Photo 6" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(4)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(4)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(5), selection: Selection { items: [5], lead: Some(5), anchor: Some(5) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(5), selection: Selection { items: [5], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(5), anchor: Some(5) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.5 ListBoxOption "Photo 6, 4 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(5), selection: Selection { items: [5], lead: Some(5), anchor: Some(5) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(5), selection: Selection { items: [5], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(5), anchor: Some(5) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(5)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(5)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(5)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(5)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(5)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(5)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(5)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(5)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(5)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(5)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 6, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 7, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 6, 4 stars" description="Photo 6" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 7, 4 stars" description="Photo 7" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(5)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(5)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(6), selection: Selection { items: [6], lead: Some(6), anchor: Some(6) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(6), selection: Selection { items: [6], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(6), anchor: Some(6) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.6 ListBoxOption "Photo 7, 4 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(6), selection: Selection { items: [6], lead: Some(6), anchor: Some(6) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(6), selection: Selection { items: [6], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(6), anchor: Some(6) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(6)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(6)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(6)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(6)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(6)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(6)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(6)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(6)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(6)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(6)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 7, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 8, 3 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 7, 4 stars" description="Photo 7" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 8, 3 stars" description="Photo 8" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(6)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(6)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(7), selection: Selection { items: [7], lead: Some(7), anchor: Some(7) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(7), selection: Selection { items: [7], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(7), anchor: Some(7) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.7 ListBoxOption "Photo 8, 3 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(7), selection: Selection { items: [7], lead: Some(7), anchor: Some(7) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(7), selection: Selection { items: [7], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(7), anchor: Some(7) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(7)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(7)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(7)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(7)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(7)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(7)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(7)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(7)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(7)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(7)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 8, 3 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 9, 3 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 8, 3 stars" description="Photo 8" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 9, 3 stars" description="Photo 9" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(7)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(7)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(8), selection: Selection { items: [8], lead: Some(8), anchor: Some(8) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(8), selection: Selection { items: [8], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(8), anchor: Some(8) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.8 ListBoxOption "Photo 9, 3 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(8), selection: Selection { items: [8], lead: Some(8), anchor: Some(8) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(8), selection: Selection { items: [8], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(8), anchor: Some(8) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(8)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(8)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(8)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(8)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(8)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(8)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(8)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(8)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(8)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(8)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 9, 3 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 10, 4 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 9, 3 stars" description="Photo 9" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 10, 4 stars" description="Photo 10" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(8)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(8)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(9), selection: Selection { items: [9], lead: Some(9), anchor: Some(9) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(9), selection: Selection { items: [9], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(9), anchor: Some(9) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.9 ListBoxOption "Photo 10, 4 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(9), selection: Selection { items: [9], lead: Some(9), anchor: Some(9) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(9), selection: Selection { items: [9], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(9), anchor: Some(9) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(9)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(9)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(9)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(9)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(9)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(9)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(9)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(9)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(9)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(9)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 10, 4 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 11, 3 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 10, 4 stars" description="Photo 10" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 11, 3 stars" description="Photo 11" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(9)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(9)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(10), selection: Selection { items: [10], lead: Some(10), anchor: Some(10) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(10), selection: Selection { items: [10], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(10), anchor: Some(10) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.10 ListBoxOption "Photo 11, 3 stars"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(10), selection: Selection { items: [10], lead: Some(10), anchor: Some(10) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(10), selection: Selection { items: [10], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(10), anchor: Some(10) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(10)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(10)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(10)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(10)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(10)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(10)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(10)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(10)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(10)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(10)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 11, 3 stars" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 12, 3 stars, picked"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 11, 3 stars" description="Photo 11" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 12, 3 stars, picked" description="Photo 12" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(10)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(10)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(11), selection: Selection { items: [11], lead: Some(11), anchor: Some(11) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(11), selection: Selection { items: [11], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(11), anchor: Some(11) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.0.0.11 ListBoxOption "Photo 12, 3 stars, picked"
+  click:
+    - r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(11), selection: Selection { items: [11], lead: Some(11), anchor: Some(11) } })" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(11), selection: Selection { items: [11], lead: "
+    - r.0.0.0.0.2.1 TextRun "" value="Some(11), anchor: Some(11) } })"
+    + r.0.0.0.0.2 Label "" value="Last event: Clicked(11)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(11)"
+  Space:
+    - r.0.0.0.0.2 Label "" value="Last event: Clicked(11)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Clicked(11)"
+    + r.0.0.0.0.2 Label "" value="Last event: Preview(11)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(11)"
+  Enter:
+    - r.0.0.0.0.2 Label "" value="Last event: Preview(11)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Preview(11)"
+    + r.0.0.0.0.2 Label "" value="Last event: Activate(11)" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(11)"
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 12, 3 stars, picked" -> r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 13, 2 stars"
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 12, 3 stars, picked" description="Photo 12" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 13, 2 stars" description="Photo 13" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.2 Label "" value="Last event: Activate(11)" actions=[Click]
+    - r.0.0.0.0.2.0 TextRun "" value="Last event: Activate(11)"
+    + r.0.0.0.0.2 Label "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(12), selection: Selection { items: [12], lead: Some(12), anchor: Some(12) } })" actions=[Click]
+    + r.0.0.0.0.2.0 TextRun "" value="Last event: Selection(SelectionChange { pick: Replace, row: Some(12), selection: Selection { items: [12], lead: "
+    + r.0.0.0.0.2.1 TextRun "" value="Some(12), anchor: Some(12) } })"
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.1.0.1 ScrollBar "Scroll bar"
+  click:
+    focus: r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 13, 2 stars" -> r Window ""
+    - r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 13, 2 stars" description="Photo 13" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.0 ListBoxOption "Photo 120, rejected" description="Photo 120" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.1.0.0.0.1 ListBoxOption "Photo 121, 5 stars" description="Photo 121" [unselected] actions=[Click,Focus,ShowContextMenu]
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change

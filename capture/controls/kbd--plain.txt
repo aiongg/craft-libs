@@ -1,0 +1,37 @@
+story controls/kbd/plain
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="macOS"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Group "macOS" labelled_by=[r.0.0.0.0.0.0.0]
+                  r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.0.0 Label "" value="Cmd+S"
+                    r.0.0.0.0.0.1.0.0.0.1 Label "" value="Shift+Cmd+Z"
+                    r.0.0.0.0.0.1.0.0.0.2 Label "" value="Ctrl+Option+Shift+Cmd+K"
+                    r.0.0.0.0.0.1.0.0.0.3 Label "" value="Escape"
+                    r.0.0.0.0.0.1.0.0.0.4 Label "" value="Shift+Click"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Other"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Group "Other" labelled_by=[r.0.0.0.0.0.2.0]
+                  r.0.0.0.0.0.3.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.3.0.0.0.0 Label "" value="Ctrl+S"
+                    r.0.0.0.0.0.3.0.0.0.1 Label "" value="Ctrl+Shift+Z"
+                    r.0.0.0.0.0.3.0.0.0.2 Label "" value="Ctrl+Alt+Shift+K"
+                    r.0.0.0.0.0.3.0.0.0.3 Label "" value="Escape"
+                    r.0.0.0.0.0.3.0.0.0.4 Label "" value="Shift+Click"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 0 actionable nodes

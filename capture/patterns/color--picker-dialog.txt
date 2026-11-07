@@ -1,0 +1,419 @@
+story patterns/color/picker-dialog
+args
+  open = Bool(true)
+  Only Web Colors = Bool(false)
+  live preview = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Preview: #3D63DE" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Preview: #3D63DE"
+  r.1 Dialog "Color Picker (Foreground Color)"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Color Picker (Foreground Color)" value="Color Picker (Foreground Color)"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 Group "Color Picker (Foreground Color)"
+                    r.1.1.0.0.0.2.0.0.0.0 RadioGroup "Field shows"
+                      r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.0.0 RadioButton "Hue" [checked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.1 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.1.0 RadioButton "Saturation" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.2 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.2.0 RadioButton "Brightness" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.3 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.3.0 RadioButton "Red" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.4 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.4.0 RadioButton "Green" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.5 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.5.0 RadioButton "Blue" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.6 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.6.0 RadioButton "Lightness" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.7 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.7.0 RadioButton "Green-red" [unchecked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.8 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.8.0 RadioButton "Blue-yellow" [unchecked] actions=[Click,Focus]
+                    r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.1.0.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.1.0.0.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.0.0.0.0 Slider "Saturation and brightness" value="Saturation 72 %, Brightness 87 %" actions=[Click,Focus]
+                            r.1.1.0.0.0.2.0.0.0.1.0.0.0.1 Slider "Hue" number=225.7142791748047 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.0.1.0.1 CheckBox "Only Web Colors" [unchecked] actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.1.0.2 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.1.0.2.0 Button "Pick screen color" description="Sample color from the screen" actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.1.1 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.1.1.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.1.1.0.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.0.0 Label "" value="new" actions=[Click]
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.0.0.0 TextRun "" value="new"
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.0.1 Image "New color" value="#3d63de"
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.0.2 Button "Restore current color" value="#3d63de" description="Restore current color" actions=[Click,Focus]
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.0.3 Label "" value="current" actions=[Click]
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.0.3.0 TextRun "" value="current"
+                          r.1.1.0.0.0.2.0.0.0.1.1.0.1 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.1.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.0 Button "Out of gamut for printing: click for the nearest printable color" value="#2d4796" description="Out of gamut for printing: click for the nearest printable color" actions=[Click,Focus]
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.1 Button "Not a web color: click for the nearest web color" value="#3366cc" description="Not a web color: click for the nearest web color" actions=[Click,Focus]
+                          r.1.1.0.0.0.2.0.0.0.1.1.0.2 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.1.0.2.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.0 Button "OK" description="Default" actions=[Click,Focus]
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.1 Button "Cancel" actions=[Click,Focus]
+                              r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.2 Button "Add to Swatches" actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.1.1.1 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.1.1.1.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0 SpinButton "Hue" value="226°" number=225.7142791748047 in 0..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0.0 TextRun "" value="226"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.1 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0 SpinButton "Saturation" value="72%" number=72.41378784179688 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0.0 TextRun "" value="72"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.2 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0 SpinButton "Brightness" value="87%" number=87 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0.0 TextRun "" value="87"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.3 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0 SpinButton "Red" value="61" number=61.19999694824219 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0.0 TextRun "" value="61"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.4 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0 SpinButton "Green" value="99" number=99.44999694824219 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0.0 TextRun "" value="99"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.5 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0 SpinButton "Blue" value="222" number=221.85000610351563 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0.0 TextRun "" value="222"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.0.6 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0.0 Label "" value="#" actions=[Click]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0.0.0 TextRun "" value="#"
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0 GenericContainer ""
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0 TextInput "Hex color" value="3D63DE" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                                    r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0.0 TextRun "" value="3D63DE"
+                          r.1.1.0.0.0.2.0.0.0.1.1.1.1 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness" value="45" number=44.93655014038086 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0.0 TextRun "" value="45"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.1 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0 SpinButton "Green-red" value="20" number=19.534574508666992 in -128..127 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0.0 TextRun "" value="20"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.2 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0 SpinButton "Blue-yellow" value="-68" number=-67.90226745605469 in -128..127 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0.0 TextRun "" value="-68"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.3 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0.0 Label "" value="C:" actions=[Click]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0.0.0 TextRun "" value="C:"
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0 SpinButton "Cyan" value="94%" number=94.37614440917969 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0.0 TextRun "" value="94"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.4 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0.0 Label "" value="M:" actions=[Click]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0.0.0 TextRun "" value="M:"
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0 SpinButton "Magenta" value="70%" number=70.41641998291016 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0.0 TextRun "" value="70"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.5 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0.0 Label "" value="Y:" actions=[Click]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0.0.0 TextRun "" value="Y:"
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0 SpinButton "Yellow" value="0%" number=0 in 0..100 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0.0 TextRun "" value="0"
+                            r.1.1.0.0.0.2.0.0.0.1.1.1.1.6 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0.0 Label "" value="K:" actions=[Click]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0.0.0 TextRun "" value="K:"
+                              r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0 SpinButton "Black" value="0%" number=0 in 0..100 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+                                  r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0.0 TextRun "" value="0"
+tab
+  start: r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0 TextInput "Hex color"
+  1: r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness"
+  2: r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0 SpinButton "Green-red"
+  3: r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0 SpinButton "Blue-yellow"
+  4: r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0 SpinButton "Cyan"
+  5: r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0 SpinButton "Magenta"
+  6: r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0 SpinButton "Yellow"
+  7: r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0 SpinButton "Black"
+  8: r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.0 Button "OK"
+  9: r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.1 Button "Cancel"
+  10: r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.2 Button "Add to Swatches"
+  11: r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0 SpinButton "Hue"
+  12: r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0 SpinButton "Saturation"
+  13: r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0 SpinButton "Brightness"
+  14: r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0 SpinButton "Red"
+  15: r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0 SpinButton "Green"
+  16: r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0 SpinButton "Blue"
+  17: r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0 TextInput "Hex color"
+  18: r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness"
+  cycle after 17 nodes
+drive: 42 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness" -> r Window ""
+  Escape:
+    arg open: Bool(true) -> Bool(false)
+    - r.0.0.0.0.0 Label "" value="Preview: #3D63DE" actions=[Click]
+    - r.0.0.0.0.0.0 TextRun "" value="Preview: #3D63DE"
+    - r.1 Dialog "Color Picker (Foreground Color)"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Color Picker (Foreground Color)" value="Color Picker (Foreground Color)"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 Group "Color Picker (Foreground Color)"
+    - r.1.1.0.0.0.2.0.0.0.0 RadioGroup "Field shows"
+    - r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.0 RadioButton "Hue" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.1.0 RadioButton "Saturation" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.0 RadioButton "Brightness" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.3.0 RadioButton "Red" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.4.0 RadioButton "Green" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.5.0 RadioButton "Blue" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.6.0 RadioButton "Lightness" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.7.0 RadioButton "Green-red" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.8.0 RadioButton "Blue-yellow" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0.0 Slider "Saturation and brightness" value="Saturation 72 %, Brightness 87 %" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.0.0.0.1 Slider "Hue" number=225.7142791748047 in 0..360 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.0.1.0.1 CheckBox "Only Web Colors" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0.2.0 Button "Pick screen color" description="Sample color from the screen" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.0 Label "" value="new" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.0.0 TextRun "" value="new"
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.1 Image "New color" value="#3d63de"
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.2 Button "Restore current color" value="#3d63de" description="Restore current color" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.3 Label "" value="current" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.0.3.0 TextRun "" value="current"
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.0 Button "Out of gamut for printing: click for the nearest printable color" value="#2d4796" description="Out of gamut for printing: click for the nearest printable color" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.1 Button "Not a web color: click for the nearest web color" value="#3366cc" description="Not a web color: click for the nearest web color" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.0 Button "OK" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.1 Button "Cancel" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.2 Button "Add to Swatches" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0 SpinButton "Hue" value="226°" number=225.7142791748047 in 0..360 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0.0 TextRun "" value="226"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0 SpinButton "Saturation" value="72%" number=72.41378784179688 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0.0 TextRun "" value="72"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0 SpinButton "Brightness" value="87%" number=87 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0.0 TextRun "" value="87"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0 SpinButton "Red" value="61" number=61.19999694824219 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0.0 TextRun "" value="61"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0 SpinButton "Green" value="99" number=99.44999694824219 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0.0 TextRun "" value="99"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0 SpinButton "Blue" value="222" number=221.85000610351563 in 0..255 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0.0 TextRun "" value="222"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0.0 Label "" value="#" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0.0.0 TextRun "" value="#"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0 TextInput "Hex color" value="3D63DE" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0.0 TextRun "" value="3D63DE"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness" value="45" number=44.93655014038086 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0.0 TextRun "" value="45"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0 SpinButton "Green-red" value="20" number=19.534574508666992 in -128..127 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0.0 TextRun "" value="20"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0 SpinButton "Blue-yellow" value="-68" number=-67.90226745605469 in -128..127 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0.0 TextRun "" value="-68"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0.0 Label "" value="C:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0.0.0 TextRun "" value="C:"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0 SpinButton "Cyan" value="94%" number=94.37614440917969 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0.0 TextRun "" value="94"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0.0 Label "" value="M:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0.0.0 TextRun "" value="M:"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0 SpinButton "Magenta" value="70%" number=70.41641998291016 in 0..100 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0.0 TextRun "" value="70"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0.0 Label "" value="Y:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0.0.0 TextRun "" value="Y:"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0 SpinButton "Yellow" value="0%" number=0 in 0..100 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0.0 TextRun "" value="0"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0.0 Label "" value="K:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0.0.0 TextRun "" value="K:"
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0 SpinButton "Black" value="0%" number=0 in 0..100 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0 Label "" value="Result: Cancelled" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancelled"
+drive r.1.1.0.0.0.1 Button "Close"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.0 RadioButton "Hue"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.1.0 RadioButton "Saturation"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.0 RadioButton "Brightness"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.3.0 RadioButton "Red"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.4.0 RadioButton "Green"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0 RadioButton "Blue"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.6.0 RadioButton "Lightness"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.7.0 RadioButton "Green-red"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.8.0 RadioButton "Blue-yellow"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.0.0.0 Slider "Saturation and brightness"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.0.0.1 Slider "Hue"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.1 CheckBox "Only Web Colors"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.0.2.0 Button "Pick screen color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.0.2 Button "Restore current color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.0.3 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.0 Button "Out of gamut for printing: click for the nearest printable color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.1.0.1 Button "Not a web color: click for the nearest web color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.0 Button "OK"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.1 Button "Cancel"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.0.2.0.2 Button "Add to Swatches"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.0.1.0 SpinButton "Hue"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.1.1.0 SpinButton "Saturation"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.2.1.0 SpinButton "Brightness"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.3.1.0 SpinButton "Red"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.4.1.0 SpinButton "Green"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.5.1.0 SpinButton "Blue"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.0.6.1.0.0 TextInput "Hex color"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.0.1.0 SpinButton "Lightness"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.1.1.0 SpinButton "Green-red"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.2.1.0 SpinButton "Blue-yellow"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.3.1.0 SpinButton "Cyan"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.4.1.0 SpinButton "Magenta"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.5.1.0 SpinButton "Yellow"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.1.1.1.1.6.1.0 SpinButton "Black"
+  all steps: node gone

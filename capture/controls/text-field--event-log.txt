@@ -1,0 +1,50 @@
+story controls/text-field/event-log
+args
+  update rate = Choice { options: ["realtime", "debounced 300 ms"], index: 0 }
+  cancellable = Bool(true)
+  on release only = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Label "" value="Name"
+                r.0.0.0.0.0.0.0.1 GenericContainer ""
+                  r.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.1.0.0 TextInput "Name" value="" placeholder="Type, then Enter, Esc or Tab" labelled_by=[r.0.0.0.0.0.0.0.0.0] actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                      r.0.0.0.0.0.0.0.1.0.0.0 TextRun "" value=""
+              r.0.0.0.0.0.0.1 Label "" value="\"\", 0 undo steps" actions=[Click]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="\"\", 0 undo steps"
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 Label "" value="No events yet" actions=[Click]
+                  r.0.0.0.0.0.0.2.0.0 TextRun "" value="No events yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1.0.0 TextInput "Name"
+  2: r.0.0.0.0.0.0.0.1.0.0 TextInput "Name"
+  cycle after 1 nodes
+drive: 3 actionable nodes
+drive r.0.0.0.0.0.0.0.1.0.0 TextInput "Name"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.1.0.0 TextInput "Name" -> r Window ""
+    - r.0.0.0.0.0.0.2.0 Label "" value="No events yet" actions=[Click]
+    - r.0.0.0.0.0.0.2.0.0 TextRun "" value="No events yet"
+    + r.0.0.0.0.0.0.2.0 Label "" value="field: submitted" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="field: submitted"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1.0.0 TextInput "Name" -> r Window ""
+    + r.0.0.0.0.0.0.2.0 Label "" value="field: escaped (the press goes on)" actions=[Click]
+    + r.0.0.0.0.0.0.2.0.0 TextRun "" value="field: escaped (the press goes on)"
+drive r.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0 Label ""
+  click: no change
+  Escape: no change

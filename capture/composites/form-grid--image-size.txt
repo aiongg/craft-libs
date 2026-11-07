@@ -1,0 +1,317 @@
+story composites/form-grid/image-size
+args
+  roomy = Bool(false)
+  labels at start = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="Image Size"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "" value="3.7M (was 3.7M)"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Label "" value="Dimensions"
+            r.0.0.0.0.0.3 GenericContainer ""
+              r.0.0.0.0.0.3.0 GenericContainer ""
+                r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 800 px"
+            r.0.0.0.0.0.4 GenericContainer ""
+              r.0.0.0.0.0.4.0 Label "" value="Width"
+            r.0.0.0.0.0.5 GenericContainer ""
+              r.0.0.0.0.0.5.0 GenericContainer ""
+                r.0.0.0.0.0.5.0.0 SpinButton "Width" value="1,200" number=1200 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.5.0.0.0 TextRun "" value="1,200"
+                r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.6 GenericContainer ""
+              r.0.0.0.0.0.6.0 Label "" value="Height"
+            r.0.0.0.0.0.7 GenericContainer ""
+              r.0.0.0.0.0.7.0 GenericContainer ""
+                r.0.0.0.0.0.7.0.0 SpinButton "Height" value="800" number=800 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.7.0.0.0 TextRun "" value="800"
+                r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+            r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [checked] actions=[Click,Focus]
+            r.0.0.0.0.0.9 GenericContainer ""
+              r.0.0.0.0.0.9.0 Label "" value="Resolution"
+            r.0.0.0.0.0.10 GenericContainer ""
+              r.0.0.0.0.0.10.0 GenericContainer ""
+                r.0.0.0.0.0.10.0.0 SpinButton "Resolution" value="72" number=72 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                  r.0.0.0.0.0.10.0.0.0 TextRun "" value="72"
+                r.0.0.0.0.0.10.0.1 Label "" value="Pixels/Inch" actions=[Click]
+                  r.0.0.0.0.0.10.0.1.0 TextRun "" value="Pixels/Inch"
+            r.0.0.0.0.0.11 GenericContainer ""
+              r.0.0.0.0.0.11.0 GenericContainer ""
+                r.0.0.0.0.0.11.0.0 CheckBox "Resample" [checked] actions=[Click,Focus]
+                r.0.0.0.0.0.11.0.1 ComboBox "Resample method" value="Automatic" [collapsed popup:Listbox] actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.5.0.0 SpinButton "Width"
+  2: r.0.0.0.0.0.5.0.1 ComboBox "Width unit"
+  3: r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  4: r.0.0.0.0.0.7.0.1 ComboBox "Height unit"
+  5: r.0.0.0.0.0.8 Button "Constrain proportions"
+  6: r.0.0.0.0.0.10.0.0 SpinButton "Resolution"
+  7: r.0.0.0.0.0.11.0.0 CheckBox "Resample"
+  8: r.0.0.0.0.0.11.0.1 ComboBox "Resample method"
+  9: r.0.0.0.0.0.5.0.0 SpinButton "Width"
+  cycle after 8 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.5.0.0 SpinButton "Width"
+  click: no change
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.5.0.0 SpinButton "Width" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 800 px"
+    + r.0.0.0.0.0.3.0.0 Label "" value="1201 px × 800 px"
+    - r.0.0.0.0.0.5.0.0 SpinButton "Width" value="1,200" number=1200 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="1,200"
+    + r.0.0.0.0.0.5.0.0 SpinButton "Width" value="1,201" number=1201 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="1,201"
+  ArrowDown:
+    - r.0.0.0.0.0.3.0.0 Label "" value="1201 px × 800 px"
+    + r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 800 px"
+    - r.0.0.0.0.0.5.0.0 SpinButton "Width" value="1,201" number=1201 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.5.0.0.0 TextRun "" value="1,201"
+    + r.0.0.0.0.0.5.0.0 SpinButton "Width" value="1,200" number=1200 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.5.0.0.0 TextRun "" value="1,200"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.0.0 SpinButton "Width" -> r Window ""
+drive r.0.0.0.0.0.5.0.1 ComboBox "Width unit"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1.0 ListBox ""
+    + r.0.0.0.0.0.5.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.5.0.1 ComboBox "Width unit"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.1.0 ListBox ""
+    - r.0.0.0.0.0.5.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.5.0.1 ComboBox "Width unit" -> r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1.0 ListBox ""
+    + r.0.0.0.0.0.5.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Percent" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [selected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Percent" [collapsed popup:Listbox] actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" -> r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Percent" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [unselected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Percent" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.5.0.1 ComboBox "Width unit"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" controls=[r.0.0.0.0.0.5.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.5.0.1.0 ListBox ""
+    - r.0.0.0.0.0.5.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    - r.0.0.0.0.0.5.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  click:
+    focus: r.0.0.0.0.0.5.0.1 ComboBox "Width unit" -> r.0.0.0.0.0.7.0.0 SpinButton "Height"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.7.0.0 SpinButton "Height" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 800 px"
+    + r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 801 px"
+    - r.0.0.0.0.0.7.0.0 SpinButton "Height" value="800" number=800 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.7.0.0.0 TextRun "" value="800"
+    + r.0.0.0.0.0.7.0.0 SpinButton "Height" value="801" number=801 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0.0 TextRun "" value="801"
+  ArrowDown:
+    - r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 801 px"
+    + r.0.0.0.0.0.3.0.0 Label "" value="1200 px × 800 px"
+    - r.0.0.0.0.0.7.0.0 SpinButton "Height" value="801" number=801 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.7.0.0.0 TextRun "" value="801"
+    + r.0.0.0.0.0.7.0.0 SpinButton "Height" value="800" number=800 in 1..300000 step 1 labelled_by=[r.0.0.0.0.0.6.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.7.0.0.0 TextRun "" value="800"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.7.0.0 SpinButton "Height" -> r Window ""
+drive r.0.0.0.0.0.7.0.1 ComboBox "Height unit"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1.0 ListBox ""
+    + r.0.0.0.0.0.7.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.7.0.1 ComboBox "Height unit"
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1.0 ListBox ""
+    - r.0.0.0.0.0.7.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.7.0.1 ComboBox "Height unit" -> r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1.0 ListBox ""
+    + r.0.0.0.0.0.7.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Percent" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Percent" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [selected] actions=[Click]
+  ArrowUp:
+    focus: r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" -> r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels"
+    - r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Percent" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.5.0.1 ComboBox "Width unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Percent" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [selected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" -> r.0.0.0.0.0.7.0.1 ComboBox "Height unit"
+    - r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" controls=[r.0.0.0.0.0.7.0.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.7.0.1.0 ListBox ""
+    - r.0.0.0.0.0.7.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.0 ListBoxOption "Pixels" [selected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.1 ListBoxOption "Percent" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.2 ListBoxOption "Inches" [unselected] actions=[Click]
+    - r.0.0.0.0.0.7.0.1.0.0.0.0.0.3 ListBoxOption "Centimeters" [unselected] actions=[Click]
+    + r.0.0.0.0.0.7.0.1 ComboBox "Height unit" value="Pixels" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.8 Button "Constrain proportions"
+  click:
+    focus: r.0.0.0.0.0.7.0.1 ComboBox "Height unit" -> r Window ""
+    - r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 Button "Constrain proportions" description="Constrain proportions" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.8 Button "Constrain proportions" -> r Window ""
+drive r.0.0.0.0.0.10.0.0 SpinButton "Resolution"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.10.0.0 SpinButton "Resolution"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.10.0.0 SpinButton "Resolution" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.10.0.0 SpinButton "Resolution" value="72" number=72 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.10.0.0.0 TextRun "" value="72"
+    + r.0.0.0.0.0.10.0.0 SpinButton "Resolution" value="73" number=73 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.10.0.0.0 TextRun "" value="73"
+  ArrowDown:
+    - r.0.0.0.0.0.10.0.0 SpinButton "Resolution" value="73" number=73 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.10.0.0.0 TextRun "" value="73"
+    + r.0.0.0.0.0.10.0.0 SpinButton "Resolution" value="72" number=72 in 1..30000 step 1 labelled_by=[r.0.0.0.0.0.9.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.10.0.0.0 TextRun "" value="72"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.10.0.0 SpinButton "Resolution" -> r Window ""
+drive r.0.0.0.0.0.10.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.11.0.0 CheckBox "Resample"
+  click:
+    - r.0.0.0.0.0.11.0.0 CheckBox "Resample" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.11.0.1 ComboBox "Resample method" value="Automatic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.0 CheckBox "Resample" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.11.0.0 CheckBox "Resample" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.0 CheckBox "Resample" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.1 ComboBox "Resample method" value="Automatic" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.11.0.0 CheckBox "Resample" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.11.0.1 ComboBox "Resample method" value="Automatic" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.11.0.0 CheckBox "Resample" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.11.0.0 CheckBox "Resample" -> r Window ""
+drive r.0.0.0.0.0.11.0.1 ComboBox "Resample method"
+  all steps: node gone

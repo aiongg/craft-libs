@@ -1,0 +1,23 @@
+story primitives/surface/kind
+args
+  kind = Choice { options: ["background", "panel", "raised", "sunken", "pressed", "popup", "dialog", "knob"], index: 2 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Label "" value="raised" actions=[Click]
+                  r.0.0.0.0.0.0.0.0.0 TextRun "" value="raised"
+tab
+  start: r Window ""
+  1: r Window ""
+  2: r Window ""
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change

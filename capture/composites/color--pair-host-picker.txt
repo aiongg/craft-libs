@@ -1,0 +1,73 @@
+story composites/color/pair-host-picker
+args
+  buttons = Bool(true)
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Colours"
+            r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [selected] actions=[Click,Focus]
+            r.0.0.0.0.0.2 Button "Default colours" description="Default colours" actions=[Click,Focus]
+            r.0.0.0.0.0.3 Button "Swap colours" description="Swap colours" actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Nothing yet" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Nothing yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Button "Foreground colour"
+  2: r.0.0.0.0.0.2 Button "Default colours"
+  3: r.0.0.0.0.0.3 Button "Swap colours"
+  4: r.0.0.0.0.0.1 Button "Foreground colour"
+  cycle after 3 nodes
+drive: 5 actionable nodes
+drive r.0.0.0.0.0.0 Button "Background colour"
+  click:
+    focus: r.0.0.0.0.0.1 Button "Foreground colour" -> r Window ""
+    - r.0.0.0.0.1 Label "" value="Nothing yet" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Nothing yet"
+    + r.0.0.0.0.1 Label "" value="Clicked Background colour" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked Background colour"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0 Button "Background colour" -> r Window ""
+drive r.0.0.0.0.0.1 Button "Foreground colour"
+  click:
+    - r.0.0.0.0.1 Label "" value="Clicked Background colour" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Clicked Background colour"
+    + r.0.0.0.0.1 Label "" value="Clicked Foreground colour" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Clicked Foreground colour"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.1 Button "Foreground colour" -> r Window ""
+drive r.0.0.0.0.0.2 Button "Default colours"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 Button "Default colours" -> r Window ""
+drive r.0.0.0.0.0.3 Button "Swap colours"
+  click:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [selected] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [selected] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [unselected] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [selected] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.3 Button "Swap colours" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

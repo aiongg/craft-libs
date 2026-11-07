@@ -1,0 +1,160 @@
+story controls/linked-fields/clone-source
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="X" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="X"
+              r.0.0.0.0.0.0.1 SpinButton "X" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.0.1.0 TextRun "" value="0"
+              r.0.0.0.0.0.0.2 Label "" value="W" actions=[Click]
+                r.0.0.0.0.0.0.2.0 TextRun "" value="W"
+              r.0.0.0.0.0.0.3 SpinButton "W" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.0.3.0 TextRun "" value="100"
+              r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.5 Label "" value="Y" actions=[Click]
+                r.0.0.0.0.0.0.5.0 TextRun "" value="Y"
+              r.0.0.0.0.0.0.6 SpinButton "Y" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.0.6.0 TextRun "" value="0"
+              r.0.0.0.0.0.0.7 Label "" value="H" actions=[Click]
+                r.0.0.0.0.0.0.7.0 TextRun "" value="H"
+              r.0.0.0.0.0.0.8 SpinButton "H" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                r.0.0.0.0.0.0.8.0 TextRun "" value="100"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1 SpinButton "X"
+  2: r.0.0.0.0.0.0.3 SpinButton "W"
+  3: r.0.0.0.0.0.0.4 Button "Maintain aspect ratio"
+  4: r.0.0.0.0.0.0.6 SpinButton "Y"
+  5: r.0.0.0.0.0.0.8 SpinButton "H"
+  6: r.0.0.0.0.0.0.1 SpinButton "X"
+  cycle after 5 nodes
+drive: 9 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1 SpinButton "X" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.0.1 SpinButton "X"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.1 SpinButton "X"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.1 SpinButton "X" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.1 SpinButton "X" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.1 SpinButton "X" value="1" number=1 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.0.0.1 SpinButton "X" value="1" number=1 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.1.0 TextRun "" value="1"
+    + r.0.0.0.0.0.0.1 SpinButton "X" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.1.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 SpinButton "X" -> r Window ""
+drive r.0.0.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.3 SpinButton "W"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.3 SpinButton "W"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.3 SpinButton "W" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.3 SpinButton "W" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.3 SpinButton "W" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="101"
+    - r.0.0.0.0.0.0.8 SpinButton "H" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.8.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.8 SpinButton "H" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.8.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.0.3 SpinButton "W" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.3 SpinButton "W" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="100"
+    - r.0.0.0.0.0.0.8 SpinButton "H" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.8.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.8 SpinButton "H" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.8.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3 SpinButton "W" -> r Window ""
+drive r.0.0.0.0.0.0.4 Button "Maintain aspect ratio"
+  click:
+    - r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" description="Maintain aspect ratio" [unchecked] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.4 Button "Maintain aspect ratio" -> r Window ""
+drive r.0.0.0.0.0.0.5 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.6 SpinButton "Y"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.6 SpinButton "Y"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.6 SpinButton "Y" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.6 SpinButton "Y" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.6.0 TextRun "" value="0"
+    + r.0.0.0.0.0.0.6 SpinButton "Y" value="1" number=1 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.6.0 TextRun "" value="1"
+  ArrowDown:
+    - r.0.0.0.0.0.0.6 SpinButton "Y" value="1" number=1 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.6.0 TextRun "" value="1"
+    + r.0.0.0.0.0.0.6 SpinButton "Y" value="0" number=0 in -..- step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.6.0 TextRun "" value="0"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.6 SpinButton "Y" -> r Window ""
+drive r.0.0.0.0.0.0.7 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.8 SpinButton "H"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.8 SpinButton "H"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.8 SpinButton "H" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.0.8 SpinButton "H" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.8.0 TextRun "" value="100"
+    + r.0.0.0.0.0.0.8 SpinButton "H" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.8.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.0.8 SpinButton "H" value="101" number=101 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.0.8.0 TextRun "" value="101"
+    + r.0.0.0.0.0.0.8 SpinButton "H" value="100" number=100 in -1000..1000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.0.8.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.8 SpinButton "H" -> r Window ""

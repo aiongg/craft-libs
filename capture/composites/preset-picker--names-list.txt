@@ -1,0 +1,223 @@
+story composites/preset-picker/names-list
+args
+  editable = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.1 Button "Plugin preset: Init" [collapsed popup:Dialog] actions=[Click,Focus]
+          r.0.0.0.0.2 Label "" value="Selected: Medium Contrast" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Selected: Medium Contrast"
+          r.0.0.0.0.3 Label "" value="Selected: Init" actions=[Click]
+            r.0.0.0.0.3.0 TextRun "" value="Selected: Init"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Button "Curve preset: Medium Contrast"
+  2: r.0.0.0.0.1 Button "Plugin preset: Init"
+  3: r.0.0.0.0.0 Button "Curve preset: Medium Contrast"
+  cycle after 2 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0 Button "Curve preset: Medium Contrast"
+  click:
+    focus: r.0.0.0.0.0 Button "Curve preset: Medium Contrast" -> r.1.0.0.0.0.2.0 TreeItem "Medium Contrast"
+    - r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Curve preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 Tree "Curve preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0.0 TreeItem "Standard" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.1.0.0.0.0.0.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.1.0.0.0.0.1 GenericContainer ""
+    + r.1.0.0.0.0.1.0 TreeItem "Linear" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.0.0.0.2.0 TreeItem "Medium Contrast" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 GenericContainer ""
+    + r.1.0.0.0.0.3.0 TreeItem "Strong Contrast" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 GenericContainer ""
+    + r.1.0.0.0.0.4.0 TreeItem "Film" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.1.0.0.0.0.4.1 Button "Collapse Film" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.1.0.0.0.0.5 GenericContainer ""
+    + r.1.0.0.0.0.5.0 TreeItem "Lighten Shadows" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 GenericContainer ""
+    + r.1.0.0.0.0.6.0 TreeItem "Darken Highlights" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 GenericContainer ""
+    + r.1.0.0.0.0.7.0 TreeItem "Faded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 GenericContainer ""
+    + r.1.0.0.0.0.8.0 TreeItem "Cross Process" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.1 ScrollBar "" actions=[Click]
+  Space:
+    - r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Curve preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 Tree "Curve preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 TreeItem "Standard" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.1.0.0.0.0.0.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.1.0.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.0.1.0 TreeItem "Linear" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.0.0.0.2.0 TreeItem "Medium Contrast" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 GenericContainer ""
+    - r.1.0.0.0.0.3.0 TreeItem "Strong Contrast" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 GenericContainer ""
+    - r.1.0.0.0.0.4.0 TreeItem "Film" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.1.0.0.0.0.4.1 Button "Collapse Film" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.1.0.0.0.0.5 GenericContainer ""
+    - r.1.0.0.0.0.5.0 TreeItem "Lighten Shadows" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 GenericContainer ""
+    - r.1.0.0.0.0.6.0 TreeItem "Darken Highlights" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 GenericContainer ""
+    - r.1.0.0.0.0.7.0 TreeItem "Faded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 GenericContainer ""
+    - r.1.0.0.0.0.8.0 TreeItem "Cross Process" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.1 ScrollBar "" actions=[Click]
+  Enter:
+    focus: r.0.0.0.0.0 Button "Curve preset: Medium Contrast" -> r.1.0.0.0.0.2.0 TreeItem "Medium Contrast"
+    - r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Curve preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 Tree "Curve preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0.0 TreeItem "Standard" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.1.0.0.0.0.0.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.1.0.0.0.0.1 GenericContainer ""
+    + r.1.0.0.0.0.1.0 TreeItem "Linear" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.0.0.0.2.0 TreeItem "Medium Contrast" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 GenericContainer ""
+    + r.1.0.0.0.0.3.0 TreeItem "Strong Contrast" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 GenericContainer ""
+    + r.1.0.0.0.0.4.0 TreeItem "Film" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    + r.1.0.0.0.0.4.1 Button "Collapse Film" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    + r.1.0.0.0.0.5 GenericContainer ""
+    + r.1.0.0.0.0.5.0 TreeItem "Lighten Shadows" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.6 GenericContainer ""
+    + r.1.0.0.0.0.6.0 TreeItem "Darken Highlights" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.7 GenericContainer ""
+    + r.1.0.0.0.0.7.0 TreeItem "Faded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.8 GenericContainer ""
+    + r.1.0.0.0.0.8.0 TreeItem "Cross Process" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.1 ScrollBar "" actions=[Click]
+  Escape:
+    - r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Curve preset: Medium Contrast" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Curve preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 Tree "Curve preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 TreeItem "Standard" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.1.0.0.0.0.0.1 Button "Collapse Standard" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.1.0.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.0.1.0 TreeItem "Linear" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.0.0.0.2.0 TreeItem "Medium Contrast" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 GenericContainer ""
+    - r.1.0.0.0.0.3.0 TreeItem "Strong Contrast" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 GenericContainer ""
+    - r.1.0.0.0.0.4.0 TreeItem "Film" [expanded unselected] actions=[Click,Focus,Collapse,ScrollIntoView]
+    - r.1.0.0.0.0.4.1 Button "Collapse Film" description="Collapse  (Alt-click: all groups)" [expanded] actions=[Click]
+    - r.1.0.0.0.0.5 GenericContainer ""
+    - r.1.0.0.0.0.5.0 TreeItem "Lighten Shadows" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.6 GenericContainer ""
+    - r.1.0.0.0.0.6.0 TreeItem "Darken Highlights" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.7 GenericContainer ""
+    - r.1.0.0.0.0.7.0 TreeItem "Faded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.8 GenericContainer ""
+    - r.1.0.0.0.0.8.0 TreeItem "Cross Process" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.1 ScrollBar "" actions=[Click]
+drive r.0.0.0.0.1 Button "Plugin preset: Init"
+  click:
+    focus: r.0.0.0.0.0 Button "Curve preset: Medium Contrast" -> r.1.0.0.0.0.0.0 ListBoxOption "Init"
+    - r.0.0.0.0.1 Button "Plugin preset: Init" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Plugin preset: Init" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Plugin preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Plugin preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0.0 ListBoxOption "Init" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 GenericContainer ""
+    + r.1.0.0.0.0.1.0 ListBoxOption "Warm Pad" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.0.0.0.2.0 ListBoxOption "Plucked Bass" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 GenericContainer ""
+    + r.1.0.0.0.0.3.0 ListBoxOption "Glass Bell" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 GenericContainer ""
+    + r.1.0.0.0.0.4.0 ListBoxOption "Wide Lead" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space:
+    - r.0.0.0.0.1 Button "Plugin preset: Init" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Plugin preset: Init" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Plugin preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Plugin preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 ListBoxOption "Init" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.0.1.0 ListBoxOption "Warm Pad" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.0.0.0.2.0 ListBoxOption "Plucked Bass" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 GenericContainer ""
+    - r.1.0.0.0.0.3.0 ListBoxOption "Glass Bell" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 GenericContainer ""
+    - r.1.0.0.0.0.4.0 ListBoxOption "Wide Lead" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    focus: r.0.0.0.0.1 Button "Plugin preset: Init" -> r.1.0.0.0.0.0.0 ListBoxOption "Init"
+    - r.0.0.0.0.1 Button "Plugin preset: Init" [collapsed popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Plugin preset: Init" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.1 Dialog "Plugin preset"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 ListBox "Plugin preset" actions=[Focus]
+    + r.1.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0 GenericContainer ""
+    + r.1.0.0.0.0.0.0 ListBoxOption "Init" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.1 GenericContainer ""
+    + r.1.0.0.0.0.1.0 ListBoxOption "Warm Pad" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.2 GenericContainer ""
+    + r.1.0.0.0.0.2.0 ListBoxOption "Plucked Bass" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.3 GenericContainer ""
+    + r.1.0.0.0.0.3.0 ListBoxOption "Glass Bell" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.1.0.0.0.0.4 GenericContainer ""
+    + r.1.0.0.0.0.4.0 ListBoxOption "Wide Lead" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    - r.0.0.0.0.1 Button "Plugin preset: Init" [expanded popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.1 Button "Plugin preset: Init" [collapsed popup:Dialog] actions=[Click,Focus]
+    - r.1 Dialog "Plugin preset"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 ListBox "Plugin preset" actions=[Focus]
+    - r.1.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0 GenericContainer ""
+    - r.1.0.0.0.0.0.0 ListBoxOption "Init" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.1 GenericContainer ""
+    - r.1.0.0.0.0.1.0 ListBoxOption "Warm Pad" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.2 GenericContainer ""
+    - r.1.0.0.0.0.2.0 ListBoxOption "Plucked Bass" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.3 GenericContainer ""
+    - r.1.0.0.0.0.3.0 ListBoxOption "Glass Bell" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.0.0.0.0.4 GenericContainer ""
+    - r.1.0.0.0.0.4.0 ListBoxOption "Wide Lead" [unselected] actions=[Click,Focus,ScrollIntoView]
+drive r.0.0.0.0.2 Label ""
+  click:
+    focus: r.0.0.0.0.1 Button "Plugin preset: Init" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

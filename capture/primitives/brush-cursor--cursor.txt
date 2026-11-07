@@ -1,0 +1,38 @@
+story primitives/brush-cursor/cursor
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  tip = Choice { options: ["round", "traced", "Thin ellipse", "pixels"], index: 0 }
+  reach = Choice { options: ["normal", "Full size", "precise"], index: 0 }
+  diameter = Number { value: 80.0, min: 8.0, max: 240.0 }
+  hardness = Number { value: 0.6, min: 0.0, max: 1.0 }
+  angle = Number { value: 0.0, min: -180.0, max: 180.0 }
+  squash = Number { value: 0.3, min: 0.1, max: 1.0 }
+  round pixel tip = Bool(true)
+  caps lock = Bool(false)
+  painting = Bool(false)
+  crosshair only while painting = Bool(true)
+  center = Bool(false)
+  second ring = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.0 Canvas "Document"
+  cycle after 1 nodes
+drive: 1 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""

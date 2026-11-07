@@ -1,0 +1,304 @@
+story patterns/shell/start
+args
+  view = Choice { options: ["grid", "list"], index: 0 }
+  sort = Choice { options: ["opened", "name", "created"], index: 0 }
+  empty = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Home"
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.0.0 Button "New…" actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Open…" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.1.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.1.0.0 Label "" value="Recent"
+                    r.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.2.0 RadioGroup "View"
+                        r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid" description="Grid" [checked] actions=[Click,Focus]
+                        r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List" description="List" [unchecked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" [collapsed popup:Listbox] actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.3 Button "Harbour.psd" description="/home/user/Pictures, Just now" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.4 Button "Poster draft.psd" description="/home/user/Pictures, 2 hours ago" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.5 Button "Logo.psd" description="/home/user/Pictures, 2 days ago" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.6 Button "a10.psd" description="/home/user/Pictures, 9 days ago" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.7 Button "a2.psd" description="/home/user/Pictures, 1 month ago" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.8 Button "Scan 0007.psd" description="/home/user/Pictures, 1 year ago" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.9 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.9.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.9.0.0 Label "" value="Pinned Folders"
+                    r.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.10.0 Button "Pin Folder…" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.11 ListBox "Pinned Folders" actions=[Focus]
+                      r.0.0.0.0.0.0.0.0.0.11.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.11.0.0 GenericContainer ""
+                          r.0.0.0.0.0.0.0.0.0.11.0.0.0 GenericContainer ""
+                            r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+                            r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.12.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.12.0.0 Label "" value="Templates"
+                    r.0.0.0.0.0.0.0.0.0.13 Button "Full HD" description="1920 × 1080 px" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.14 Button "A4" description="210 × 297 mm" actions=[Click,Focus]
+                    r.0.0.0.0.0.0.0.0.0.15 Button "Square" description="1080 × 1080 px" actions=[Click,Focus]
+            r.0.0.0.0.0.1 ScrollBar "" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "New…"
+  2: r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Open…"
+  3: r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid"
+  4: r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List"
+  5: r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort"
+  6: r.0.0.0.0.0.0.0.0.0.3 Button "Harbour.psd"
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  7: r.0.0.0.0.0.0.0.0.0.10.0 Button "Pin Folder…"
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  8: r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+  9: r.0.0.0.0.0.0.0.0.0.13 Button "Full HD"
+  10: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "New…"
+  cycle after 9 nodes
+drive: 19 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0.0.0 Button "New…"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "New…" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Open…"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Open…" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid" -> r.0.0.0.0.0.0.0.0.0.0.0.1 Button "Open…"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid" -> r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List" -> r.0.0.0.0.0.0.0.0.0.10.0 Button "Pin Folder…"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List" -> r.0.0.0.0.0.0.0.0.0.2.0.0 RadioButton "Grid"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List" -> r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2.0.1 RadioButton "List" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened"
+    - r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" controls=[r.0.0.0.0.0.0.0.0.0.2.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.2 ListBoxOption "Created" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" -> r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort"
+    - r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" controls=[r.0.0.0.0.0.0.0.0.0.2.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.2 ListBoxOption "Created" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" -> r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened"
+    - r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" controls=[r.0.0.0.0.0.0.0.0.0.2.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0 ListBox ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" [selected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.2 ListBoxOption "Created" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" -> r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name" -> r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" -> r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort"
+    - r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" controls=[r.0.0.0.0.0.0.0.0.0.2.1.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0 ListBox ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.0 ListBoxOption "Last Opened" [selected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.1 ListBoxOption "Name" [unselected] actions=[Click]
+    - r.0.0.0.0.0.0.0.0.0.2.1.0.0.0.0.0.2 ListBoxOption "Created" [unselected] actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" value="Last Opened" [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.0.0.0.0.3 Button "Harbour.psd"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0.2.1 ComboBox "Sort" -> r Window ""
+    + r.0.0.0.0.0.0.0.0.0.4 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.3 Button "Harbour.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.4 Button "Poster draft.psd"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.4 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.5 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.4 Button "Poster draft.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.5 Button "Logo.psd"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.5 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.6 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.5 Button "Logo.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.6 Button "a10.psd"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.6 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.7 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.6 Button "a10.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.7 Button "a2.psd"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.7 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.8 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.7 Button "a2.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.8 Button "Scan 0007.psd"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.8 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0.9 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.8 Button "Scan 0007.psd" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.10.0 Button "Pin Folder…"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.9 Button "Remove from Recent" description="Remove from Recent" actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.10.0 Button "Pin Folder…" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.11 ListBox "Pinned Folders"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects"
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects"
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects"
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" -> r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures"
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.0 ListBoxOption "Pictures, /home/user/Pictures" description="/home/user/Pictures" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" description="/home/user/Projects" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.11.0.0.0.1 ListBoxOption "Projects, /home/user/Projects" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.13 Button "Full HD"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.13 Button "Full HD" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.14 Button "A4"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.14 Button "A4" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.15 Button "Square"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.15 Button "Square" -> r Window ""
+drive r.0.0.0.0.0.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change

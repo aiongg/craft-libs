@@ -1,0 +1,158 @@
+story patterns/check-spelling-dialog/dialog
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Check Spelling"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Check Spelling" value="Check Spelling"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Not in Dictionary:" actions=[Click]
+                        r.1.1.0.0.0.2.0.0.0.0.0.0 TextRun "" value="Not in Dictionary:"
+                      r.1.1.0.0.0.2.0.0.0.0.1 TextInput "Not in Dictionary:" value="Teh" [disabled]
+                        r.1.1.0.0.0.2.0.0.0.0.1.0 TextRun "" value="Teh"
+                      r.1.1.0.0.0.2.0.0.0.0.2 Label "" value="Change To:" actions=[Click]
+                        r.1.1.0.0.0.2.0.0.0.0.2.0 TextRun "" value="Change To:"
+                      r.1.1.0.0.0.2.0.0.0.0.3 TextInput "Change To:" value="The" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+                        r.1.1.0.0.0.2.0.0.0.0.3.0 TextRun "" value="The"
+                      r.1.1.0.0.0.2.0.0.0.0.4 Label "" value="Suggestions:" actions=[Click]
+                        r.1.1.0.0.0.2.0.0.0.0.4.0 TextRun "" value="Suggestions:"
+                      r.1.1.0.0.0.2.0.0.0.0.5 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.5.0 ListBox "Suggestions:" actions=[Focus]
+                          r.1.1.0.0.0.2.0.0.0.0.5.0.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.5.0.0.0 GenericContainer ""
+                              r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0 GenericContainer ""
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.0 ListBoxOption "The" [selected] actions=[Click,Focus,ScrollIntoView]
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.1 ListBoxOption "Tea" [unselected] actions=[Click,Focus,ScrollIntoView]
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.2 ListBoxOption "Ten" [unselected] actions=[Click,Focus,ScrollIntoView]
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.3 ListBoxOption "Eh" [unselected] actions=[Click,Focus,ScrollIntoView]
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.4 ListBoxOption "Tee" [unselected] actions=[Click,Focus,ScrollIntoView]
+                                r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.5 ListBoxOption "Meh" [unselected] actions=[Click,Focus,ScrollIntoView]
+                          r.1.1.0.0.0.2.0.0.0.0.5.0.1 ScrollBar "Scroll bar" actions=[Click]
+                      r.1.1.0.0.0.2.0.0.0.0.6 CheckBox "Check All Layers" [unchecked] actions=[Click,Focus]
+              r.1.1.0.0.0.2.1 GenericContainer ""
+                r.1.1.0.0.0.2.1.0 Button "Done" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.1 Button "Ignore" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.2 Button "Ignore All" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.3 Button "Change" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.4 Button "Change All" actions=[Click,Focus]
+                r.1.1.0.0.0.2.1.5 Button "Add" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.0.0.3 TextInput "Change To:"
+  1: r.1.1.0.0.0.2.1.0 Button "Done"
+  2: r.1.1.0.0.0.2.1.1 Button "Ignore"
+  3: r.1.1.0.0.0.2.1.2 Button "Ignore All"
+  4: r.1.1.0.0.0.2.1.3 Button "Change"
+  5: r.1.1.0.0.0.2.1.4 Button "Change All"
+  6: r.1.1.0.0.0.2.1.5 Button "Add"
+  7: r.1.1.0.0.0.2.0.0.0.0.3 TextInput "Change To:"
+  8: r.1.1.0.0.0.2.1.0 Button "Done"
+  cycle after 7 nodes
+drive: 20 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.1.0 Button "Done" -> r Window ""
+    - r.1 Dialog "Check Spelling"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Check Spelling" value="Check Spelling"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 Label "" value="Not in Dictionary:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.0.0 TextRun "" value="Not in Dictionary:"
+    - r.1.1.0.0.0.2.0.0.0.0.1 TextInput "Not in Dictionary:" value="Teh" [disabled]
+    - r.1.1.0.0.0.2.0.0.0.0.1.0 TextRun "" value="Teh"
+    - r.1.1.0.0.0.2.0.0.0.0.2 Label "" value="Change To:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.2.0 TextRun "" value="Change To:"
+    - r.1.1.0.0.0.2.0.0.0.0.3 TextInput "Change To:" value="The" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.0.3.0 TextRun "" value="The"
+    - r.1.1.0.0.0.2.0.0.0.0.4 Label "" value="Suggestions:" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.4.0 TextRun "" value="Suggestions:"
+    - r.1.1.0.0.0.2.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.5.0 ListBox "Suggestions:" actions=[Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.0 ListBoxOption "The" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.1 ListBoxOption "Tea" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.2 ListBoxOption "Ten" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.3 ListBoxOption "Eh" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.4 ListBoxOption "Tee" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.5 ListBoxOption "Meh" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.1.1.0.0.0.2.0.0.0.0.5.0.1 ScrollBar "Scroll bar" actions=[Click]
+    - r.1.1.0.0.0.2.0.0.0.0.6 CheckBox "Check All Layers" [unchecked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.1.0 Button "Done" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.1 Button "Ignore" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.2 Button "Ignore All" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.3 Button "Change" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.4 Button "Change All" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.1.5 Button "Add" actions=[Click,Focus]
+    + r.0.0.0.0.0 Button "Show dialog" actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Result: Done" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Result: Done"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.0.3 TextInput "Change To:"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.1.1.0.0.0.2.0.0.0.0.5.0 ListBox "Suggestions:"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.0 ListBoxOption "The"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.1 ListBoxOption "Tea"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.2 ListBoxOption "Ten"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.3 ListBoxOption "Eh"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.4 ListBoxOption "Tee"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.0.0.0.5 ListBoxOption "Meh"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.5.0.1 ScrollBar "Scroll bar"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.6 CheckBox "Check All Layers"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.0 Button "Done"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.1 Button "Ignore"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.2 Button "Ignore All"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.3 Button "Change"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.4 Button "Change All"
+  all steps: node gone
+drive r.1.1.0.0.0.2.1.5 Button "Add"
+  all steps: node gone

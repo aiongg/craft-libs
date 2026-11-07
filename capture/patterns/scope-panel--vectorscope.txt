@@ -1,0 +1,33 @@
+story patterns/scope-panel/vectorscope
+args
+  red right = Bool(false)
+  skin line = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Image "Histogram" value="RGB channel, Entire Image" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Image "Vectorscope" value="Peak saturation 95 %, mean hue 68 degrees" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Image "Histogram"
+  2: r.0.0.0.0.0.0.1 Image "Vectorscope"
+  3: r.0.0.0.0.0.0.0 Image "Histogram"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0.0 Image "Histogram"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Image "Histogram" -> r Window ""
+drive r.0.0.0.0.0.0.1 Image "Vectorscope"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Image "Vectorscope" -> r Window ""

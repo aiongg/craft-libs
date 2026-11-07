@@ -1,0 +1,212 @@
+story patterns/export-as-dialog/dialog
+args
+  open = Bool(true)
+  format = Choice { options: ["png", "jpg", "webp", "tiff", "tga", "ico"], index: 1 }
+  preview ready = Bool(true)
+  exact size = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+  r.1 Dialog "Export As"
+    r.1.0 GenericContainer ""
+    r.1.1 GenericContainer ""
+      r.1.1.0 GenericContainer ""
+        r.1.1.0.0 GenericContainer ""
+          r.1.1.0.0.0 GenericContainer ""
+            r.1.1.0.0.0.0 GenericContainer ""
+              r.1.1.0.0.0.0.0 Heading "Export As" value="Export As"
+            r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+            r.1.1.0.0.0.2 GenericContainer ""
+              r.1.1.0.0.0.2.0 GenericContainer ""
+                r.1.1.0.0.0.2.0.0 GenericContainer ""
+                  r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+                    r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.0.0 Label "" value="Format"
+                        r.1.1.0.0.0.2.0.0.0.0.0.1 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.1.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.1.0.0 ComboBox "Format" value="JPG" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.0.0.2 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.2.0 Label "" value="Quality"
+                        r.1.1.0.0.0.2.0.0.0.0.0.3 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.3.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.3.0.0 SpinButton "Quality" value="85" number=85 in 1..100 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                              r.1.1.0.0.0.2.0.0.0.0.0.3.0.0.0 TextRun "" value="85"
+                        r.1.1.0.0.0.2.0.0.0.0.0.4 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.4.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.4.0.0 Slider "Quality" number=85 in 1..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+                        r.1.1.0.0.0.2.0.0.0.0.0.5 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.5.0 Label "" value="Metadata"
+                        r.1.1.0.0.0.2.0.0.0.0.0.6 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.6.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.6.0.0 ComboBox "Metadata" value="None" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.5.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.0.0.7 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.7.0 Label "" value="Color Space"
+                        r.1.1.0.0.0.2.0.0.0.0.0.8 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.8.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.8.0.0 ComboBox "Color Space" value="Document Profile" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.7.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.0.0.9 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.0.9.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.0.9.0.0 CheckBox "Embed Color Profile" [checked] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.1 Label "" value="Image Size"
+                      r.1.1.0.0.0.2.0.0.0.0.2 GenericContainer ""
+                        r.1.1.0.0.0.2.0.0.0.0.2.0 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.0.0 Label "" value="Scale"
+                        r.1.1.0.0.0.2.0.0.0.0.2.1 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.1.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale" value="100%" number=100 in 1..1000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                              r.1.1.0.0.0.2.0.0.0.0.2.1.0.0.0 TextRun "" value="100"
+                        r.1.1.0.0.0.2.0.0.0.0.2.2 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.2.0 Label "" value="Width"
+                        r.1.1.0.0.0.2.0.0.0.0.2.3 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.3.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.2.3.0.0 SpinButton "Width" value="4,000 px" number=4000 in 1..300000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                              r.1.1.0.0.0.2.0.0.0.0.2.3.0.0.0 TextRun "" value="4,000"
+                        r.1.1.0.0.0.2.0.0.0.0.2.4 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.4.0 Label "" value="Height"
+                        r.1.1.0.0.0.2.0.0.0.0.2.5 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.5.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.2.5.0.0 SpinButton "Height" value="3,000 px" number=3000 in 1..300000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                              r.1.1.0.0.0.2.0.0.0.0.2.5.0.0.0 TextRun "" value="3,000"
+                        r.1.1.0.0.0.2.0.0.0.0.2.6 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.6.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.2.6.0.0 CheckBox "Constrain proportions" [checked] actions=[Click,Focus]
+                        r.1.1.0.0.0.2.0.0.0.0.2.7 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.7.0 Label "" value="Resample"
+                        r.1.1.0.0.0.2.0.0.0.0.2.8 GenericContainer ""
+                          r.1.1.0.0.0.2.0.0.0.0.2.8.0 GenericContainer ""
+                            r.1.1.0.0.0.2.0.0.0.0.2.8.0.0 ComboBox "Resample" value="Bicubic (smooth gradients)" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.7.0] [collapsed popup:Listbox] actions=[Click,Focus]
+                      r.1.1.0.0.0.2.0.0.0.0.3 Label "" value="4000 px × 3000 px"
+                    r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+                      r.1.1.0.0.0.2.0.0.0.1.0 Label "" value="JPG  ≈ 3.4M"
+              r.1.1.0.0.0.2.1 GenericContainer ""
+              r.1.1.0.0.0.2.2 GenericContainer ""
+                r.1.1.0.0.0.2.2.0 Button "Export…" description="Default" actions=[Click,Focus]
+                r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+tab
+  start: r.1.1.0.0.0.2.0.0.0.0.0.3.0.0 SpinButton "Quality"
+  1: r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale"
+  2: r.1.1.0.0.0.2.0.0.0.0.2.3.0.0 SpinButton "Width"
+  3: r.1.1.0.0.0.2.0.0.0.0.2.5.0.0 SpinButton "Height"
+  4: r.1.1.0.0.0.2.2.0 Button "Export…"
+  5: r.1.1.0.0.0.2.2.1 Button "Cancel"
+  6: r.1.1.0.0.0.2.0.0.0.0.0.3.0.0 SpinButton "Quality"
+  7: r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale"
+  cycle after 6 nodes
+drive: 14 actionable nodes
+drive r.1.1.0.0.0.1 Button "Close"
+  click:
+    focus: r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale" -> r Window ""
+    arg open: Bool(true) -> Bool(false)
+    - r.1 Dialog "Export As"
+    - r.1.0 GenericContainer ""
+    - r.1.1 GenericContainer ""
+    - r.1.1.0 GenericContainer ""
+    - r.1.1.0.0 GenericContainer ""
+    - r.1.1.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.0.0 Heading "Export As" value="Export As"
+    - r.1.1.0.0.0.1 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.1.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.0.0 Label "" value="Format"
+    - r.1.1.0.0.0.2.0.0.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.1.0.0 ComboBox "Format" value="JPG" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.2.0 Label "" value="Quality"
+    - r.1.1.0.0.0.2.0.0.0.0.0.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.3.0.0 SpinButton "Quality" value="85" number=85 in 1..100 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.0.0.3.0.0.0 TextRun "" value="85"
+    - r.1.1.0.0.0.2.0.0.0.0.0.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.4.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.4.0.0 Slider "Quality" number=85 in 1..100 step 1 actions=[Focus,Decrement,Increment,SetValue]
+    - r.1.1.0.0.0.2.0.0.0.0.0.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.5.0 Label "" value="Metadata"
+    - r.1.1.0.0.0.2.0.0.0.0.0.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.6.0.0 ComboBox "Metadata" value="None" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.5.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.0.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.7.0 Label "" value="Color Space"
+    - r.1.1.0.0.0.2.0.0.0.0.0.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.8.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.8.0.0 ComboBox "Color Space" value="Document Profile" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.0.7.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.0.9 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.9.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.0.9.0.0 CheckBox "Embed Color Profile" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.1 Label "" value="Image Size"
+    - r.1.1.0.0.0.2.0.0.0.0.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.0.0 Label "" value="Scale"
+    - r.1.1.0.0.0.2.0.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.1.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale" value="100%" number=100 in 1..1000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.0.2.1.0.0.0 TextRun "" value="100"
+    - r.1.1.0.0.0.2.0.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.2.0 Label "" value="Width"
+    - r.1.1.0.0.0.2.0.0.0.0.2.3 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.3.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.3.0.0 SpinButton "Width" value="4,000 px" number=4000 in 1..300000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.2.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.0.2.3.0.0.0 TextRun "" value="4,000"
+    - r.1.1.0.0.0.2.0.0.0.0.2.4 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.4.0 Label "" value="Height"
+    - r.1.1.0.0.0.2.0.0.0.0.2.5 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.5.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.5.0.0 SpinButton "Height" value="3,000 px" number=3000 in 1..300000 step 1 labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.4.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.1.1.0.0.0.2.0.0.0.0.2.5.0.0.0 TextRun "" value="3,000"
+    - r.1.1.0.0.0.2.0.0.0.0.2.6 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.6.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.6.0.0 CheckBox "Constrain proportions" [checked] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.2.7 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.7.0 Label "" value="Resample"
+    - r.1.1.0.0.0.2.0.0.0.0.2.8 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.8.0 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.0.2.8.0.0 ComboBox "Resample" value="Bicubic (smooth gradients)" labelled_by=[r.1.1.0.0.0.2.0.0.0.0.2.7.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.1.1.0.0.0.2.0.0.0.0.3 Label "" value="4000 px × 3000 px"
+    - r.1.1.0.0.0.2.0.0.0.1 GenericContainer ""
+    - r.1.1.0.0.0.2.0.0.0.1.0 Label "" value="JPG  ≈ 3.4M"
+    - r.1.1.0.0.0.2.1 GenericContainer ""
+    - r.1.1.0.0.0.2.2 GenericContainer ""
+    - r.1.1.0.0.0.2.2.0 Button "Export…" description="Default" actions=[Click,Focus]
+    - r.1.1.0.0.0.2.2.1 Button "Cancel" actions=[Click,Focus]
+    + r.0.0.0.0.0 Label "" value="Result: Cancel" actions=[Click]
+    + r.0.0.0.0.0.0 TextRun "" value="Result: Cancel"
+  Space: node gone
+  Enter: node gone
+  Escape: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.1.0.0 ComboBox "Format"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.3.0.0 SpinButton "Quality"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.4.0.0 Slider "Quality"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.6.0.0 ComboBox "Metadata"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.8.0.0 ComboBox "Color Space"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.0.9.0.0 CheckBox "Embed Color Profile"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.1.0.0 SpinButton "Scale"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.3.0.0 SpinButton "Width"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.5.0.0 SpinButton "Height"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.6.0.0 CheckBox "Constrain proportions"
+  all steps: node gone
+drive r.1.1.0.0.0.2.0.0.0.0.2.8.0.0 ComboBox "Resample"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.0 Button "Export…"
+  all steps: node gone
+drive r.1.1.0.0.0.2.2.1 Button "Cancel"
+  all steps: node gone

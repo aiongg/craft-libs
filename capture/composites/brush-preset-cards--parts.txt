@@ -1,0 +1,502 @@
+story composites/brush-preset-cards/parts
+args
+  scale = Choice { options: ["0.15", "0.7", "1", "2"], index: 2 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Label "" value="Brush Name" actions=[Click]
+            r.0.0.0.0.0.0 TextRun "" value="Brush Name"
+          r.0.0.0.0.1 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GenericContainer ""
+                r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.1.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.2 Label "" value="Brush Stroke" actions=[Click]
+            r.0.0.0.0.2.0 TextRun "" value="Brush Stroke"
+          r.0.0.0.0.3 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.3.0 GenericContainer ""
+              r.0.0.0.0.3.0.0 GenericContainer ""
+                r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.3.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.4 Label "" value="Brush Stroke, Brush Name" actions=[Click]
+            r.0.0.0.0.4.0 TextRun "" value="Brush Stroke, Brush Name"
+          r.0.0.0.0.5 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.5.0 GenericContainer ""
+              r.0.0.0.0.5.0.0 GenericContainer ""
+                r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.5.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.6 Label "" value="Brush Tip" actions=[Click]
+            r.0.0.0.0.6.0 TextRun "" value="Brush Tip"
+          r.0.0.0.0.7 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.7.0 GenericContainer ""
+              r.0.0.0.0.7.0.0 GenericContainer ""
+                r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.7.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.8 Label "" value="Brush Tip, Brush Name" actions=[Click]
+            r.0.0.0.0.8.0 TextRun "" value="Brush Tip, Brush Name"
+          r.0.0.0.0.9 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.9.0 GenericContainer ""
+              r.0.0.0.0.9.0.0 GenericContainer ""
+                r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.9.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.10 Label "" value="Brush Tip, Brush Stroke" actions=[Click]
+            r.0.0.0.0.10.0 TextRun "" value="Brush Tip, Brush Stroke"
+          r.0.0.0.0.11 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.11.0 GenericContainer ""
+              r.0.0.0.0.11.0.0 GenericContainer ""
+                r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.11.1 ScrollBar "" actions=[Click]
+          r.0.0.0.0.12 Label "" value="Brush Tip, Brush Stroke, Brush Name" actions=[Click]
+            r.0.0.0.0.12.0 TextRun "" value="Brush Tip, Brush Stroke, Brush Name"
+          r.0.0.0.0.13 ListBox "Brush presets" actions=[Focus]
+            r.0.0.0.0.13.0 GenericContainer ""
+              r.0.0.0.0.13.0.0 GenericContainer ""
+                r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" description="Brush 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+                r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" description="Brush 2" [unselected] actions=[Click,Focus,ScrollIntoView]
+            r.0.0.0.0.13.1 ScrollBar "" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+  2: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px"
+  3: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px"
+  4: r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px"
+  5: r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px"
+  6: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px"
+  7: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px"
+  8: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+  cycle after 7 nodes
+drive: 37 actionable nodes
+drive r.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.1 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click: no change
+  Space:
+    - r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px"
+  ArrowUp:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.1.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px"
+    + r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.1.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.1.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.2 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.3 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.1.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Space:
+    - r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px"
+  ArrowUp:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.3.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px"
+    + r.0.0.0.0.3.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.3.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.4 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.5 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.3.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space:
+    - r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px"
+  ArrowUp:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.5.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px"
+    + r.0.0.0.0.5.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.5.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.5.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.6 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.7 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Escape:
+    focus: r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Escape:
+    focus: r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.7.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Escape:
+    focus: r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px" -> r.0.0.0.0.7.0.0.1 ListBoxOption "Brush 2, 42 px"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.7.0.0.2 ListBoxOption "Brush 3, 79 px" -> r Window ""
+drive r.0.0.0.0.7.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.8 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.9 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Escape:
+    focus: r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Escape:
+    focus: r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.9.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Escape:
+    focus: r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px" -> r.0.0.0.0.9.0.0.1 ListBoxOption "Brush 2, 42 px"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px" -> r Window ""
+drive r.0.0.0.0.9.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.10 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.11 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.9.0.0.2 ListBoxOption "Brush 3, 79 px"
+  Space:
+    - r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px"
+  ArrowUp:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.11.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px"
+    + r.0.0.0.0.11.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.11.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.12 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.13 ListBox "Brush presets"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.11.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space:
+    - r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" -> r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+    + r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px" -> r Window ""
+drive r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+  click:
+    focus: r Window "" -> r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px"
+  ArrowUp:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px"
+    - r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.13.0.0.0 ListBoxOption "Brush 1, 5 px"
+  ArrowRight:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px"
+    + r.0.0.0.0.13.0.0.2 ListBoxOption "Brush 3, 79 px" description="Brush 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Escape:
+    focus: r.0.0.0.0.13.0.0.1 ListBoxOption "Brush 2, 42 px" -> r Window ""
+drive r.0.0.0.0.13.1 ScrollBar ""
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change

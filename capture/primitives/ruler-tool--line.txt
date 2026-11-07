@@ -1,0 +1,69 @@
+story primitives/ruler-tool/line
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  with line = Bool(true)
+  width = Number { value: 220.0, min: 40.0, max: 600.0 }
+  height = Number { value: 140.0, min: 40.0, max: 380.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Ruler" value="Length 260.8 px, angle -32.5°" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Start point" value="210.0 px, 130.0 px" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "End point" value="430.0 px, 270.0 px" [unselected]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.2.1 Label "" value="L 260.8 · A -32.5°" actions=[Click]
+              r.0.0.0.0.2.1.0 TextRun "" value="L 260.8 · A -32.5°"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Start point"
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start point" value="210.0 px, 130.0 px" [unselected]
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start point" value="210.0 px, 130.0 px" [selected]
+  3: r.0.0.0.0.2.0 Button "Reset"
+  4: r.0.0.0.0.0 Canvas "Document"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""
+    - r.0.0.0.0.1 Group "Ruler" value="Length 260.8 px, angle -32.5°" actions=[Focus]
+    - r.0.0.0.0.1.0 GenericContainer ""
+    - r.0.0.0.0.1.0.0 GraphicsObject "Start point" value="210.0 px, 130.0 px" [selected]
+    - r.0.0.0.0.1.0.1 GraphicsObject "End point" value="430.0 px, 270.0 px" [unselected]
+    - r.0.0.0.0.2.1 Label "" value="L 260.8 · A -32.5°" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="L 260.8 · A -32.5°"
+    + r.0.0.0.0.1.1 Label "" value="No line · Cleared" actions=[Click]
+    + r.0.0.0.0.1.1.0 TextRun "" value="No line · Cleared"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.1 Group "Ruler"
+  all steps: node gone
+drive r.0.0.0.0.2.0 Button "Reset"
+  click:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""
+    + r.0.0.0.0.1 Group "Ruler" value="Length 260.8 px, angle -32.5°" actions=[Focus]
+    + r.0.0.0.0.1.0 GenericContainer ""
+    + r.0.0.0.0.1.0.0 GraphicsObject "Start point" value="210.0 px, 130.0 px" [unselected]
+    + r.0.0.0.0.1.0.1 GraphicsObject "End point" value="430.0 px, 270.0 px" [unselected]
+    - r.0.0.0.0.1.1 Label "" value="No line · Cleared" actions=[Click]
+    - r.0.0.0.0.1.1.0 TextRun "" value="No line · Cleared"
+    + r.0.0.0.0.2.1 Label "" value="L 260.8 · A -32.5°" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="L 260.8 · A -32.5°"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.2.1 Label ""
+  click: no change
+  Escape: no change

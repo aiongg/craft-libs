@@ -1,0 +1,150 @@
+story composites/findings-list/list
+args
+  errors = Number { value: 2.0, min: 0.0, max: 4.0 }
+  warnings = Number { value: 3.0, min: 0.0, max: 5.0 }
+  summary = Bool(true)
+  width = Number { value: 420.0, min: 240.0, max: 640.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Label "" value="2 errors, 3 warnings" actions=[Click]
+                r.0.0.0.0.0.0.0.0 TextRun "" value="2 errors, 3 warnings"
+            r.0.0.0.0.0.1 ListBox "Findings" actions=[Focus]
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 GenericContainer ""
+                  r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+                    r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+              r.0.0.0.0.0.1.1 ScrollBar "Scroll bar" actions=[Click]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+  2: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+  cycle after 1 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0.0 Label ""
+  click:
+    focus: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" -> r Window ""
+  Escape: no change
+drive r.0.0.0.0.0.1 ListBox "Findings"
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    + r.0.0.0.0.0.2 Label "" value="Activated: Missing font: Minion Pro Bold" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="Activated: Missing font: Minion Pro Bold"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" -> r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" -> r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" -> r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.2 Label "" value="Activated: Missing font: Minion Pro Bold" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="Activated: Missing font: Minion Pro Bold"
+    + r.0.0.0.0.0.2 Label "" value="Activated: Missing link: cover-photo.psd" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="Activated: Missing link: cover-photo.psd"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" -> r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2"
+    - r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" -> r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" -> r Window ""
+drive r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2"
+  click: no change
+  Space:
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Enter:
+    - r.0.0.0.0.0.2 Label "" value="Activated: Missing link: cover-photo.psd" actions=[Click]
+    - r.0.0.0.0.0.2.0 TextRun "" value="Activated: Missing link: cover-photo.psd"
+    + r.0.0.0.0.0.2 Label "" value="Activated: photo.jpg: effective 96 ppi (< 150)" actions=[Click]
+    + r.0.0.0.0.0.2.0 TextRun "" value="Activated: photo.jpg: effective 96 ppi (< 150)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" -> r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: Image scaled to 312 percent, page 5"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Text on a hairline stroke, page 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" -> r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2"
+    - r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.0 ListBoxOption "Error: Missing font: Minion Pro Bold, page 3" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.1 ListBoxOption "Error: Missing link: cover-photo.psd, page A-2" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Text on a hairline stroke, page 1" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.1.0.0.0.3 ListBoxOption "Warning: Image scaled to 312 percent, page 5" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.0.0.0.2 ListBoxOption "Warning: photo.jpg: effective 96 ppi (< 150), page A-2" -> r Window ""
+drive r.0.0.0.0.0.1.1 ScrollBar "Scroll bar"
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change

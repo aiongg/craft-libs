@@ -1,0 +1,145 @@
+story composites/tab-strip/documents
+args
+  width = Number { value: 640.0, min: 160.0, max: 1200.0 }
+  large = Bool(false)
+  tear_off = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 TabList "Documents" actions=[Focus]
+              r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" [unselected] actions=[Click,Focus,ShowContextMenu]
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Button "Close Untitled-1" actions=[Click]
+              r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [selected] actions=[Click,Focus,ShowContextMenu]
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                  r.0.0.0.0.0.0.1.0.0 Button "Close Harbour at dusk.psd" actions=[Click]
+              r.0.0.0.0.0.0.2 Button "More documents" [collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Click, middle-click, double-click or right-click a tab" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Click, middle-click, double-click or right-click a tab"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified"
+  2: r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified"
+  cycle after 1 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0.0 TabList "Documents"
+  Space:
+    - r.0.0.0.0.1 Label "" value="Click, middle-click, double-click or right-click a tab" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Click, middle-click, double-click or right-click a tab"
+    + r.0.0.0.0.1 Label "" value="Show Harbour at dusk.psd" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Show Harbour at dusk.psd"
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" -> r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)"
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" -> r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified"
+  Escape:
+    focus: r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" -> r Window ""
+drive r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)"
+  click:
+    - r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [unselected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Show Harbour at dusk.psd" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Show Harbour at dusk.psd"
+    + r.0.0.0.0.1 Label "" value="Show Untitled-1" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Show Untitled-1"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" -> r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0 Button "Close Untitled-1"
+  click:
+    - r.0.0.0.0.0.0.0 Tab "Untitled-1, 100% (RGB/8)" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0 Button "Close Untitled-1" actions=[Click]
+    - r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [unselected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.1 Label "" value="Show Untitled-1" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Show Untitled-1"
+    + r.0.0.0.0.1 Label "" value="Close Untitled-1" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Close Untitled-1"
+  Escape: node gone
+drive r.0.0.0.0.0.0.1 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified"
+  click:
+    - r.0.0.0.0.1 Label "" value="Close Untitled-1" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Close Untitled-1"
+    + r.0.0.0.0.1 Label "" value="Show Harbour at dusk.psd" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Show Harbour at dusk.psd"
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0.0 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" -> r.0.0.0.0.0.0.1 Button "More documents"
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.0 Button "Close Harbour at dusk.psd"
+  click:
+    - r.0.0.0.0.0.0.0 Tab "Harbour at dusk.psd, 50% (Layer 1, RGB/8), modified" [selected] actions=[Click,Focus,ShowContextMenu]
+    + r.0.0.0.0.0.0.0 Tab "Portrait retouch, final version for the printer.tif, 33.3% (Background, CMYK/16)" [selected] actions=[Click,Focus,ShowContextMenu]
+    - r.0.0.0.0.0.0.0.0.0 Button "Close Harbour at dusk.psd" actions=[Click]
+    + r.0.0.0.0.0.0.0.0.0 Button "Close Portrait retouch, final version for the printer.tif" actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Show Harbour at dusk.psd" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Show Harbour at dusk.psd"
+    + r.0.0.0.0.1 Label "" value="Close Harbour at dusk.psd" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Close Harbour at dusk.psd"
+  Escape: node gone
+drive r.0.0.0.0.0.0.2 Button "More documents"
+  click:
+    - r.0.0.0.0.0.0.1 Button "More documents" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 Button "More documents" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.0 Menu ""
+    + r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.1.0.0.0.0.0 MenuItemCheckBox "Portrait retouch, final version for the printer.tif, 33.3% (Background, CMYK/16)" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.1 MenuItemCheckBox "Logo.svg, 200% (RGB/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.2 MenuItemCheckBox "Opening.raw" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.3 MenuItemCheckBox "Saving.psd, 25% (Curves 1, RGB/16)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.4 MenuItemCheckBox "Mountains panorama, stitched from twelve frames.psb, 12.5% (RGB/16)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.5 MenuItemCheckBox "Scan 0042.tif, 66.7% (Gray/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.6 MenuItemCheckBox "Banner.png, 100% (Layer 3, RGB/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.7 MenuItemCheckBox "Cover art.psd, 50% (Type, CMYK/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.8 MenuItemCheckBox "Texture.exr, 100% (RGB/32)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.9 MenuItemCheckBox "Sketch.jpg, 75% (RGB/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.10 MenuItemCheckBox "Wedding album page 17.psd, 25% (Group 2, RGB/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1.0.0.0.0.11 MenuItemCheckBox "Icon set.psd, 800% (Icons, RGB/8)" [unchecked] actions=[Click]
+  Space: no change
+  Enter: no change
+  Escape:
+    - r.0.0.0.0.0.0.1 Button "More documents" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.0 Menu ""
+    - r.0.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.1.0.0.0.0.0 MenuItemCheckBox "Portrait retouch, final version for the printer.tif, 33.3% (Background, CMYK/16)" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.1 MenuItemCheckBox "Logo.svg, 200% (RGB/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.2 MenuItemCheckBox "Opening.raw" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.3 MenuItemCheckBox "Saving.psd, 25% (Curves 1, RGB/16)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.4 MenuItemCheckBox "Mountains panorama, stitched from twelve frames.psb, 12.5% (RGB/16)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.5 MenuItemCheckBox "Scan 0042.tif, 66.7% (Gray/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.6 MenuItemCheckBox "Banner.png, 100% (Layer 3, RGB/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.7 MenuItemCheckBox "Cover art.psd, 50% (Type, CMYK/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.8 MenuItemCheckBox "Texture.exr, 100% (RGB/32)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.9 MenuItemCheckBox "Sketch.jpg, 75% (RGB/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.10 MenuItemCheckBox "Wedding album page 17.psd, 25% (Group 2, RGB/8)" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.1.0.0.0.0.11 MenuItemCheckBox "Icon set.psd, 800% (Icons, RGB/8)" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.1 Button "More documents" [collapsed popup:Menu] actions=[Click,Focus]
+drive r.0.0.0.0.1 Label ""
+  click:
+    focus: r.0.0.0.0.0.0.1 Button "More documents" -> r Window ""
+  Escape: no change

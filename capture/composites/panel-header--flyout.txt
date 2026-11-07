@@ -1,0 +1,65 @@
+story composites/panel-header/flyout
+args
+  float = Bool(true)
+  close = Bool(true)
+  menu = Bool(true)
+  actions = Bool(false)
+  width = Number { value: 280.0, min: 60.0, max: 400.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Header "Brush settings"
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "" value="Brush settings"
+            r.0.0.0.0.0.2 GenericContainer ""
+              r.0.0.0.0.0.2.0 Button "Panel menu" description="Panel menu" actions=[Click,Focus]
+              r.0.0.0.0.0.2.1 Button "Float panel" description="Float panel" actions=[Click,Focus]
+              r.0.0.0.0.0.2.2 Button "Close panel" description="Close panel" actions=[Click,Focus]
+            r.0.0.0.0.0.3 Label "" value="drag the header to move the panel" actions=[Click]
+              r.0.0.0.0.0.3.0 TextRun "" value="drag the header to move the panel"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.2.0 Button "Panel menu"
+  2: r.0.0.0.0.0.2.1 Button "Float panel"
+  3: r.0.0.0.0.0.2.2 Button "Close panel"
+  4: r.0.0.0.0.0.2.0 Button "Panel menu"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.2.0 Button "Panel menu"
+  click:
+    - r.0.0.0.0.0.3 Label "" value="drag the header to move the panel" actions=[Click]
+    - r.0.0.0.0.0.3.0 TextRun "" value="drag the header to move the panel"
+    + r.0.0.0.0.0.3 Label "" value="clicked menu" actions=[Click]
+    + r.0.0.0.0.0.3.0 TextRun "" value="clicked menu"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.0 Button "Panel menu" -> r Window ""
+drive r.0.0.0.0.0.2.1 Button "Float panel"
+  click:
+    - r.0.0.0.0.0.3 Label "" value="clicked menu" actions=[Click]
+    - r.0.0.0.0.0.3.0 TextRun "" value="clicked menu"
+    + r.0.0.0.0.0.3 Label "" value="clicked float" actions=[Click]
+    + r.0.0.0.0.0.3.0 TextRun "" value="clicked float"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.1 Button "Float panel" -> r Window ""
+drive r.0.0.0.0.0.2.2 Button "Close panel"
+  click:
+    - r.0.0.0.0.0.3 Label "" value="clicked float" actions=[Click]
+    - r.0.0.0.0.0.3.0 TextRun "" value="clicked float"
+    + r.0.0.0.0.0.3 Label "" value="clicked close" actions=[Click]
+    + r.0.0.0.0.0.3.0 TextRun "" value="clicked close"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2.2 Button "Close panel" -> r Window ""
+drive r.0.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

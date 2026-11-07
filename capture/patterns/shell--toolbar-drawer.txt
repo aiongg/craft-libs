@@ -1,0 +1,123 @@
+story patterns/shell/toolbar-drawer
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 Pane ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 Toolbar "Tools"
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.0.0 Button "Move" description="V" [checked] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.1 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.2 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+                      r.0.0.0.0.0.0.0.0.0.0.3 Button "Edit Toolbar…" description="Edit Toolbar…" actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 GenericContainer ""
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "Move"
+  2: r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee"
+  3: r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso"
+  4: r.0.0.0.0.0.0.0.0.0.0.3 Button "Edit Toolbar…"
+  5: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "Move"
+  cycle after 4 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0.0.0.0 Button "Move"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0.0 Button "Move" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.3 Button "Edit Toolbar…"
+  click:
+    focus: r Window "" -> r.1.0.2.0.1 ListItem "Rectangular Marquee"
+    + r.0.0.0.0.0.0.0.0.0.0.0.1 Unknown "" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" description="M" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.1.1 Unknown "" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" description="L" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.2.1 Unknown "" actions=[Focus]
+    + r.1 Dialog "Edit Toolbar"
+    + r.1.0 GenericContainer ""
+    + r.1.0.0 GenericContainer ""
+    + r.1.0.0.0 Label "" value="Edit Toolbar" actions=[Click]
+    + r.1.0.0.0.0 TextRun "" value="Edit Toolbar"
+    + r.1.0.0.1 GenericContainer ""
+    + r.1.0.0.1.0 Button "Close" description="Close" actions=[Click,Focus]
+    + r.1.0.1 Label "" value="Drag tools to or from the toolbar." actions=[Click]
+    + r.1.0.1.0 TextRun "" value="Drag tools to or from the toolbar."
+    + r.1.0.2 GenericContainer ""
+    + r.1.0.2.0 GenericContainer ""
+    + r.1.0.2.0.0 Label "" value="Select" actions=[Click]
+    + r.1.0.2.0.0.0 TextRun "" value="Select"
+    + r.1.0.2.0.1 ListItem "Rectangular Marquee" description="In toolbar" shortcut="M" actions=[Click]
+    + r.1.0.2.0.2 ListItem "Elliptical Marquee" description="In toolbar" shortcut="M" actions=[Click]
+    + r.1.0.2.0.3 ListItem "Single Row Marquee" description="In toolbar" actions=[Click]
+    + r.1.0.2.0.4 ListItem "Single Column Marquee" description="In toolbar" actions=[Click]
+    + r.1.0.2.0.5 ListItem "Lasso" description="In toolbar" shortcut="L" actions=[Click]
+    + r.1.0.2.0.6 ListItem "Magnetic Lasso" description="In toolbar" shortcut="L" actions=[Click]
+    + r.1.0.2.0.7 Label "" value="Paint" actions=[Click]
+    + r.1.0.2.0.7.0 TextRun "" value="Paint"
+    + r.1.0.2.0.8 ListItem "Brush" shortcut="B" actions=[Click,Focus]
+    + r.1.0.2.0.9 ListItem "Pencil" shortcut="B" actions=[Click,Focus]
+    + r.1.0.2.0.10 ListItem "Gradient" shortcut="G" actions=[Click,Focus]
+    + r.1.0.2.0.11 ListItem "Paint Bucket" shortcut="G" actions=[Click,Focus]
+    + r.1.0.3 Button "Restore Defaults" actions=[Click,Focus]
+  Space: no change
+  Enter:
+    focus: r.1.0.0.1.0 Button "Close" -> r.0.0.0.0.0.0.0.0.0.0.3 Button "Edit Toolbar…"
+    - r.0.0.0.0.0.0.0.0.0.0.0.1 Unknown "" actions=[Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" description="M" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.1.1 Unknown "" actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.1.0 Button "Rectangular Marquee" description="M" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" description="L" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.0.0.0.0.2.1 Unknown "" actions=[Focus]
+    + r.0.0.0.0.0.0.0.0.0.0.2.0 Button "Lasso" description="L" [unchecked collapsed popup:Menu] actions=[Click,Focus]
+    - r.1 Dialog "Edit Toolbar"
+    - r.1.0 GenericContainer ""
+    - r.1.0.0 GenericContainer ""
+    - r.1.0.0.0 Label "" value="Edit Toolbar" actions=[Click]
+    - r.1.0.0.0.0 TextRun "" value="Edit Toolbar"
+    - r.1.0.0.1 GenericContainer ""
+    - r.1.0.0.1.0 Button "Close" description="Close" actions=[Click,Focus]
+    - r.1.0.1 Label "" value="Drag tools to or from the toolbar." actions=[Click]
+    - r.1.0.1.0 TextRun "" value="Drag tools to or from the toolbar."
+    - r.1.0.2 GenericContainer ""
+    - r.1.0.2.0 GenericContainer ""
+    - r.1.0.2.0.0 Label "" value="Select" actions=[Click]
+    - r.1.0.2.0.0.0 TextRun "" value="Select"
+    - r.1.0.2.0.1 ListItem "Rectangular Marquee" description="In toolbar" shortcut="M" actions=[Click]
+    - r.1.0.2.0.2 ListItem "Elliptical Marquee" description="In toolbar" shortcut="M" actions=[Click]
+    - r.1.0.2.0.3 ListItem "Single Row Marquee" description="In toolbar" actions=[Click]
+    - r.1.0.2.0.4 ListItem "Single Column Marquee" description="In toolbar" actions=[Click]
+    - r.1.0.2.0.5 ListItem "Lasso" description="In toolbar" shortcut="L" actions=[Click]
+    - r.1.0.2.0.6 ListItem "Magnetic Lasso" description="In toolbar" shortcut="L" actions=[Click]
+    - r.1.0.2.0.7 Label "" value="Paint" actions=[Click]
+    - r.1.0.2.0.7.0 TextRun "" value="Paint"
+    - r.1.0.2.0.8 ListItem "Brush" shortcut="B" actions=[Click,Focus]
+    - r.1.0.2.0.9 ListItem "Pencil" shortcut="B" actions=[Click,Focus]
+    - r.1.0.2.0.10 ListItem "Gradient" shortcut="G" actions=[Click,Focus]
+    - r.1.0.2.0.11 ListItem "Paint Bucket" shortcut="G" actions=[Click,Focus]
+    - r.1.0.3 Button "Restore Defaults" actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.3 Button "Edit Toolbar…" -> r Window ""

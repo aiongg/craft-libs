@@ -1,0 +1,104 @@
+story composites/gradient/swatch
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  width = Number { value: 96.0, min: 24.0, max: 300.0 }
+  enabled = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 Button "Fading in" [popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.0.0.1 Label "" value="Fading in" actions=[Click]
+                    r.0.0.0.0.0.0.0.0.1.0 TextRun "" value="Fading in"
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                  r.0.0.0.0.0.0.1.0.0 Button "Midpoint at 15 %" [popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.1.0.1 Label "" value="Midpoint at 15 %" actions=[Click]
+                    r.0.0.0.0.0.0.1.0.1.0 TextRun "" value="Midpoint at 15 %"
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 GenericContainer ""
+                  r.0.0.0.0.0.0.2.0.0 Button "Opacity in the colour" [popup:Dialog] actions=[Click,Focus]
+                  r.0.0.0.0.0.0.2.0.1 Label "" value="Opacity in the colour" actions=[Click]
+                    r.0.0.0.0.0.0.2.0.1.0 TextRun "" value="Opacity in the colour"
+              r.0.0.0.0.0.0.3 Label "" value="Clicked 0 times" actions=[Click]
+                r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 0 times"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0 Button "Fading in"
+  2: r.0.0.0.0.0.0.1.0.0 Button "Midpoint at 15 %"
+  3: r.0.0.0.0.0.0.2.0.0 Button "Opacity in the colour"
+  4: r.0.0.0.0.0.0.0.0.0 Button "Fading in"
+  cycle after 3 nodes
+drive: 7 actionable nodes
+drive r.0.0.0.0.0.0.0.0.0 Button "Fading in"
+  click:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 0 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 0 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 1 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 1 times"
+  Space:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 1 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 1 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 2 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 2 times"
+  Enter:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 2 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 2 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 3 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 3 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0 Button "Fading in" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1.0.0 Button "Midpoint at 15 %"
+  click:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 3 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 3 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 4 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 4 times"
+  Space:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 4 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 4 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 5 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 5 times"
+  Enter:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 5 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 5 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 6 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 6 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.1.0.0 Button "Midpoint at 15 %" -> r Window ""
+drive r.0.0.0.0.0.0.1.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.2.0.0 Button "Opacity in the colour"
+  click:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 6 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 6 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 7 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 7 times"
+  Space:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 7 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 7 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 8 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 8 times"
+  Enter:
+    - r.0.0.0.0.0.0.3 Label "" value="Clicked 8 times" actions=[Click]
+    - r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 8 times"
+    + r.0.0.0.0.0.0.3 Label "" value="Clicked 9 times" actions=[Click]
+    + r.0.0.0.0.0.0.3.0 TextRun "" value="Clicked 9 times"
+  Escape:
+    focus: r.0.0.0.0.0.0.2.0.0 Button "Opacity in the colour" -> r Window ""
+drive r.0.0.0.0.0.0.2.0.1 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.3 Label ""
+  click: no change
+  Escape: no change

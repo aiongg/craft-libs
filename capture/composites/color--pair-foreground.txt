@@ -1,0 +1,258 @@
+story composites/color/pair-foreground
+args
+  buttons = Bool(true)
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Group "Colours"
+            r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+            r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+            r.0.0.0.0.0.2 Button "Default colours" description="Default colours" actions=[Click,Focus]
+            r.0.0.0.0.0.3 Button "Swap colours" description="Swap colours" actions=[Click,Focus]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 Label "" value="Active: Foreground colour" actions=[Click]
+                r.0.0.0.0.1.0.0.0 TextRun "" value="Active: Foreground colour"
+              r.0.0.0.0.1.0.1 Label "" value="Last event: " actions=[Click]
+                r.0.0.0.0.1.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.1 Button "Foreground colour"
+  2: r.0.0.0.0.0.2 Button "Default colours"
+  3: r.0.0.0.0.0.3 Button "Swap colours"
+  4: r.0.0.0.0.0.1 Button "Foreground colour"
+  cycle after 3 nodes
+drive: 6 actionable nodes
+drive r.0.0.0.0.0.0 Button "Background colour"
+  click:
+    focus: r.0.0.0.0.0.1 Button "Foreground colour" -> r Window ""
+    - r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0 Label "" value="Active: Foreground colour" actions=[Click]
+    - r.0.0.0.0.1.0.0.0 TextRun "" value="Active: Foreground colour"
+    + r.0.0.0.0.1.0.0 Label "" value="Active: Background colour" actions=[Click]
+    + r.0.0.0.0.1.0.0.0 TextRun "" value="Active: Background colour"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1 Button "Background colour" -> r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+    - r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 Group "Background colour"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 100 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.9 Slider "Brightness" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="FFFFFF" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="FFFFFF"
+  Escape:
+    - r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 Group "Background colour"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 100 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="100"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.9 Slider "Brightness" number=100 in 0..100 step 1 actions=[Focus,Decrement,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="FFFFFF" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="FFFFFF"
+    + r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.1 Button "Foreground colour"
+  click:
+    focus: r.0.0.0.0.0.1 Button "Background colour" -> r Window ""
+    - r.0.0.0.0.0.0 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Background colour" value="#ffffff" description="Background colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.1.0.0 Label "" value="Active: Background colour" actions=[Click]
+    - r.0.0.0.0.1.0.0.0 TextRun "" value="Active: Background colour"
+    + r.0.0.0.0.1.0.0 Label "" value="Active: Foreground colour" actions=[Click]
+    + r.0.0.0.0.1.0.0.0 TextRun "" value="Active: Foreground colour"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1 Button "Foreground colour" -> r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color"
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0 Dialog ""
+    + r.0.0.0.0.0.1.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0 Group "Foreground colour"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 0 %" actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.7 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.9 Slider "Brightness" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.10 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="000000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="000000"
+  Escape:
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [expanded selected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0 Dialog ""
+    - r.0.0.0.0.0.1.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0 Group "Foreground colour"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.0 Slider "Saturation and brightness" value="Saturation 0 %, Brightness 0 %" actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.0.0.1 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.1.0 Label "" value="Hue"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0 SpinButton "Hue" value="0°" number=0 in 0..360 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.1.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.2.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.3 Slider "Hue" number=0 in 0..360 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.4.0 Label "" value="Saturation"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0 SpinButton "Saturation" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.4.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.5.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.6 Slider "Saturation" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.7 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.7.0 Label "" value="Brightness"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0 SpinButton "Brightness" value="0%" number=0 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.0.0.0.0.0.0.7.0] actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.8.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.9 Slider "Brightness" number=0 in 0..100 step 1 actions=[Focus,Increment,SetValue]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.10 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.10.0 Button "Color model: HSB" [collapsed popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0 Label "" value="#" actions=[Click]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.0.0 TextRun "" value="#"
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1 GenericContainer ""
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0 TextInput "Hex color" value="000000" actions=[Click,Focus,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.0.0.0.0.0.0.11.0.1.0.0 TextRun "" value="000000"
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+drive r.0.0.0.0.0.2 Button "Default colours"
+  click:
+    focus: r.0.0.0.0.0.1 Button "Foreground colour" -> r Window ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.2 Button "Default colours" -> r Window ""
+drive r.0.0.0.0.0.3 Button "Swap colours"
+  click:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Space:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Enter:
+    - r.0.0.0.0.0.0 Button "Background colour" value="#ffffff" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 Button "Foreground colour" value="#000000" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 Button "Background colour" value="#000000" description="Background colour" [collapsed unselected popup:Dialog] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 Button "Foreground colour" value="#ffffff" description="Foreground colour" [collapsed selected popup:Dialog] actions=[Click,Focus]
+  Escape:
+    focus: r.0.0.0.0.0.3 Button "Swap colours" -> r Window ""
+drive r.0.0.0.0.1.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.1.0.1 Label ""
+  click: no change
+  Escape: no change

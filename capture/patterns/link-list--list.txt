@@ -1,0 +1,550 @@
+story patterns/link-list/list
+args
+  filter = Choice { options: ["all", "missing", "modified", "embedded"], index: 0 }
+  sort = Choice { options: ["name", "kind", "status"], index: 0 }
+  thumbnails = Choice { options: ["none", "small", "medium", "large"], index: 1 }
+  info open = Bool(true)
+  actions = Bool(true)
+  height = Number { value: 380.0, min: 200.0, max: 600.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 ListBox "Links" actions=[Focus]
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                    r.0.0.0.0.0.0.0.0.0.0 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.1 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.3 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.4 GenericContainer ""
+                        r.0.0.0.0.0.0.0.0.0.0.4.0 Label "" value="Page 2"
+                      r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.6 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.8 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.10 GenericContainer ""
+                      r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+                      r.0.0.0.0.0.0.0.0.0.0.12 GenericContainer ""
+                r.0.0.0.0.0.0.0.1 ScrollBar "Scroll bar" actions=[Click]
+              r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [expanded] actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 GenericContainer ""
+                  r.0.0.0.0.0.0.2.0.0 Label "" value="Link Info"
+              r.0.0.0.0.0.0.3 GenericContainer ""
+                r.0.0.0.0.0.0.3.0 GenericContainer ""
+                  r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+                    r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+              r.0.0.0.0.0.0.4 GenericContainer ""
+                r.0.0.0.0.0.0.4.0 GenericContainer ""
+                  r.0.0.0.0.0.0.4.0.0 Button "Relink…" description="Relink…" actions=[Click,Focus]
+                r.0.0.0.0.0.0.4.1 GenericContainer ""
+                  r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+                r.0.0.0.0.0.0.4.2 GenericContainer ""
+                  r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+                r.0.0.0.0.0.0.4.3 GenericContainer ""
+                  r.0.0.0.0.0.0.4.3.0 Button "Go to Link" description="Go to Link" actions=[Click,Focus]
+                r.0.0.0.0.0.0.4.4 GenericContainer ""
+                  r.0.0.0.0.0.0.4.4.0 Button "Break Link" description="Break Link" actions=[Click,Focus]
+                r.0.0.0.0.0.0.4.5 Button "Links Menu" description="Links Menu" [collapsed popup:Menu] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+  2: r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info"
+  3: r.0.0.0.0.0.0.4.0.0 Button "Relink…"
+  4: r.0.0.0.0.0.0.4.3.0 Button "Go to Link"
+  5: r.0.0.0.0.0.0.4.4.0 Button "Break Link"
+  6: r.0.0.0.0.0.0.4.5 Button "Links Menu"
+  7: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+  cycle after 6 nodes
+drive: 15 actionable nodes
+drive r.0.0.0.0.0.0.0 ListBox "Links"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(2)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" -> r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai"
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" -> r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/beach.jpg" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/beach.jpg"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(0)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(0)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" -> r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/beach.jpg" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/beach.jpg"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+  ArrowUp:
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/beach.jpg" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/beach.jpg"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(0)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(0)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(1)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(1)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" -> r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" -> r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/beach.jpg" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/beach.jpg"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(1)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(1)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(2)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(2)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" -> r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai"
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" -> r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified"
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/brochure.pdf" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/brochure.pdf"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai"
+    - r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.2 ListBoxOption "brochure.pdf, Page 2, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(2)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(2)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(3)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(3)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" -> r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" -> r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing"
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/cover.psd" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/cover.psd"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable"
+    - r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.5 ListBoxOption "cover.psd, Missing" description="Missing" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(3)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(3)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(4)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" -> r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified"
+    - r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.13 ListBoxOption "remote.jpg, Not followed: the path is on another computer" description="Not followed: the path is on another computer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" -> r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/logo.ai" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/logo.ai"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "map.png, Unreadable" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "logo.ai" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+  Space: no change
+  Enter:
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(5)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(5)"
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" -> r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "remote.jpg, Not followed: the path is on another computer"
+    - r.0.0.0.0.0.0.0.0.0.0.0 ListBoxOption "beach.jpg" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.1 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "poster.tif, Modified" description="Modified" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "poster.tif, Modified" description="Modified" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.13 ListBoxOption "remote.jpg, Not followed: the path is on another computer" description="Not followed: the path is on another computer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "remote.jpg, Not followed: the path is on another computer" description="Not followed: the path is on another computer" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.13 ListBoxOption "scan.raw, Not followed: the path names a device, not a file" description="Not followed: the path names a device, not a file" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.14 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/remote.jpg" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/remote.jpg"
+    - r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.1.0 Button "Update Link" description="Update Link" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.4.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "poster.tif, Modified" -> r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Unreadable"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Unreadable" description="Unreadable" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "remote.jpg, Not followed: the path is on another computer" description="Not followed: the path is on another computer" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.11 ListBoxOption "remote.jpg, Not followed: the path is on another computer" description="Not followed: the path is on another computer" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/map.png" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/map.png"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.0.0.9 ListBoxOption "poster.tif, Modified" -> r Window ""
+drive r.0.0.0.0.0.0.0.1 ScrollBar "Scroll bar"
+  click: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown: no change
+  Home: no change
+  End: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info"
+  click:
+    + r.0.0.0.0.0.0.0.0.0.0.15 ListBoxOption "sketch.png, Embedded" description="Embedded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.16 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.17 ListBoxOption "stock.jpg, Not followed: the link is not a file path" description="Not followed: the link is not a file path" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.18 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.19 ListBoxOption "stray.png, Not followed: the path is not valid" description="Not followed: the path is not valid" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.21 ListBoxOption "texture.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.22 GenericContainer ""
+    - r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+  Space:
+    - r.0.0.0.0.0.0.0.0.0.0.15 ListBoxOption "sketch.png, Embedded" description="Embedded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.16 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.17 ListBoxOption "stock.jpg, Not followed: the link is not a file path" description="Not followed: the link is not a file path" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.18 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.19 ListBoxOption "stray.png, Not followed: the path is not valid" description="Not followed: the path is not valid" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    - r.0.0.0.0.0.0.0.0.0.0.21 ListBoxOption "texture.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.0.0.22 GenericContainer ""
+    - r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [collapsed] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3 GenericContainer ""
+    + r.0.0.0.0.0.0.3.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    + r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+  Enter:
+    + r.0.0.0.0.0.0.0.0.0.0.15 ListBoxOption "sketch.png, Embedded" description="Embedded" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.16 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.17 ListBoxOption "stock.jpg, Not followed: the link is not a file path" description="Not followed: the link is not a file path" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.18 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.19 ListBoxOption "stray.png, Not followed: the path is not valid" description="Not followed: the path is not valid" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.20 GenericContainer ""
+    + r.0.0.0.0.0.0.0.0.0.0.21 ListBoxOption "texture.png" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.22 GenericContainer ""
+    - r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [expanded] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" [collapsed] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.0.0 Label "" value="Path: /shoot/poster.tif" actions=[Click]
+    - r.0.0.0.0.0.0.3.0.0.0 TextRun "" value="Path: /shoot/poster.tif"
+  Escape:
+    focus: r.0.0.0.0.0.0.1 DisclosureTriangle "Link Info" -> r Window ""
+drive r.0.0.0.0.0.0.3.0.0 Label ""
+  click: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.4.0.0 Button "Relink…"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Unreadable" description="Unreadable" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(5)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(5)"
+    + r.0.0.0.0.1 Label "" value="Last event: Relink([4])" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Relink([4])"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.0.0 Button "Relink…" -> r Window ""
+drive r.0.0.0.0.0.0.4.3.0 Button "Go to Link"
+  click:
+    - r.0.0.0.0.1 Label "" value="Last event: Relink([4])" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Relink([4])"
+    + r.0.0.0.0.1 Label "" value="Last event: GoTo(4)" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(4)"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.3.0 Button "Go to Link" -> r Window ""
+drive r.0.0.0.0.0.0.4.4.0 Button "Break Link"
+  click:
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Embedded" description="Embedded" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.4.0 Button "Break Link" description="Break Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.4.0 Button "Break Link" description="Break Link" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: GoTo(4)" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: GoTo(4)"
+    + r.0.0.0.0.1 Label "" value="Last event: BreakLink([4])" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: BreakLink([4])"
+  Space: no change
+  Enter: no change
+  Escape: no change
+drive r.0.0.0.0.0.0.4.5 Button "Links Menu"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Relink…"
+    - r.0.0.0.0.0.0.3.5 Button "Links Menu" description="Links Menu" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.5 Button "Links Menu" description="Links Menu" [expanded popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.5.0 Menu ""
+    + r.0.0.0.0.0.0.3.5.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Relink…" actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.1 MenuItem "Relink to Folder…" actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.2 MenuItem "Find Missing Links…" actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.3 MenuItem "Update Link" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.4 MenuItem "Edit Original" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.5 MenuItem "Break Link" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.6 MenuItem "Reveal in Finder" [disabled] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.7 MenuItem "Go to Link" actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.8 MenuItemRadio "Show All" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.9 MenuItemRadio "Show Missing" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.10 MenuItemRadio "Show Modified" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.11 MenuItemRadio "Show Embedded" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.12 MenuItemRadio "Sort by Name" [checked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.13 MenuItemRadio "Sort by Kind" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.14 MenuItemRadio "Sort by Status" [unchecked] actions=[Click]
+    + r.0.0.0.0.0.0.3.5.0.0.0.0.15 MenuItem "Thumbnails" [collapsed popup:Menu] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Relink…" -> r.0.0.0.0.0.0.3.5 Button "Links Menu"
+    - r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png, Embedded" description="Embedded" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0.0.7 ListBoxOption "map.png" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.2.0 Button "Edit Original" description="Edit Original" actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.4.0 Button "Break Link" description="Break Link" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.5 Button "Links Menu" description="Links Menu" [expanded popup:Menu] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.3.5.0 Menu ""
+    - r.0.0.0.0.0.0.3.5.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.0 MenuItem "Relink…" actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.1 MenuItem "Relink to Folder…" actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.2 MenuItem "Find Missing Links…" actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.3 MenuItem "Update Link" [disabled] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.4 MenuItem "Edit Original" [disabled] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.5 MenuItem "Break Link" [disabled] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.6 MenuItem "Reveal in Finder" [disabled] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.7 MenuItem "Go to Link" actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.8 MenuItemRadio "Show All" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.9 MenuItemRadio "Show Missing" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.10 MenuItemRadio "Show Modified" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.11 MenuItemRadio "Show Embedded" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.12 MenuItemRadio "Sort by Name" [checked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.13 MenuItemRadio "Sort by Kind" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.14 MenuItemRadio "Sort by Status" [unchecked] actions=[Click]
+    - r.0.0.0.0.0.0.3.5.0.0.0.0.15 MenuItem "Thumbnails" [collapsed popup:Menu] actions=[Click]
+    - r.0.0.0.0.1 Label "" value="Last event: BreakLink([4])" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: BreakLink([4])"
+    + r.0.0.0.0.0.0.3.4.0 Button "Break Link" description="Break Link" actions=[Click,Focus]
+    + r.0.0.0.0.0.0.3.5 Button "Links Menu" description="Links Menu" [collapsed popup:Menu] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Relink([4])" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Relink([4])"
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.3.5 Button "Links Menu" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

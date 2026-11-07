@@ -1,0 +1,111 @@
+story patterns/compare-tile/survey
+args
+  count = Number { value: 12.0, min: 2.0, max: 12.0 }
+  height = Number { value: 360.0, min: 200.0, max: 600.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Image "1: Photo 1, 1 star" actions=[Click,Focus]
+          r.0.0.0.0.1 Image "2: Photo 2, 2 stars" actions=[Click,Focus]
+          r.0.0.0.0.2 Image "3: Photo 3, 3 stars" actions=[Click,Focus]
+          r.0.0.0.0.3 Image "4: Photo 4, 4 stars" actions=[Click,Focus]
+          r.0.0.0.0.4 Image "5: Photo 5, 5 stars" actions=[Click,Focus]
+          r.0.0.0.0.5 Image "6: Photo 6, 1 star" actions=[Click,Focus]
+          r.0.0.0.0.6 Image "7: Photo 7, 2 stars" actions=[Click,Focus]
+          r.0.0.0.0.7 Image "8: Photo 8, 3 stars" actions=[Click,Focus]
+          r.0.0.0.0.8 Image "9: Photo 9, 4 stars" actions=[Click,Focus]
+          r.0.0.0.0.9 Image "10: Photo 10, 5 stars" actions=[Click,Focus]
+          r.0.0.0.0.10 Image "11: Photo 11, 1 star" actions=[Click,Focus]
+          r.0.0.0.0.11 Image "12: Photo 12, 2 stars" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Image "1: Photo 1, 1 star"
+  2: r.0.0.0.0.1 Image "2: Photo 2, 2 stars"
+  3: r.0.0.0.0.2 Image "3: Photo 3, 3 stars"
+  4: r.0.0.0.0.3 Image "4: Photo 4, 4 stars"
+  5: r.0.0.0.0.4 Image "5: Photo 5, 5 stars"
+  6: r.0.0.0.0.5 Image "6: Photo 6, 1 star"
+  7: r.0.0.0.0.6 Image "7: Photo 7, 2 stars"
+  8: r.0.0.0.0.7 Image "8: Photo 8, 3 stars"
+  9: r.0.0.0.0.8 Image "9: Photo 9, 4 stars"
+  10: r.0.0.0.0.9 Image "10: Photo 10, 5 stars"
+  11: r.0.0.0.0.10 Image "11: Photo 11, 1 star"
+  12: r.0.0.0.0.11 Image "12: Photo 12, 2 stars"
+  13: r.0.0.0.0.0 Image "1: Photo 1, 1 star"
+  cycle after 12 nodes
+drive: 12 actionable nodes
+drive r.0.0.0.0.0 Image "1: Photo 1, 1 star"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Image "1: Photo 1, 1 star" -> r Window ""
+drive r.0.0.0.0.1 Image "2: Photo 2, 2 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1 Image "2: Photo 2, 2 stars" -> r Window ""
+drive r.0.0.0.0.2 Image "3: Photo 3, 3 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2 Image "3: Photo 3, 3 stars" -> r Window ""
+drive r.0.0.0.0.3 Image "4: Photo 4, 4 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.3 Image "4: Photo 4, 4 stars" -> r Window ""
+drive r.0.0.0.0.4 Image "5: Photo 5, 5 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.4 Image "5: Photo 5, 5 stars" -> r Window ""
+drive r.0.0.0.0.5 Image "6: Photo 6, 1 star"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.5 Image "6: Photo 6, 1 star" -> r Window ""
+drive r.0.0.0.0.6 Image "7: Photo 7, 2 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.6 Image "7: Photo 7, 2 stars" -> r Window ""
+drive r.0.0.0.0.7 Image "8: Photo 8, 3 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.7 Image "8: Photo 8, 3 stars" -> r Window ""
+drive r.0.0.0.0.8 Image "9: Photo 9, 4 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.8 Image "9: Photo 9, 4 stars" -> r Window ""
+drive r.0.0.0.0.9 Image "10: Photo 10, 5 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.9 Image "10: Photo 10, 5 stars" -> r Window ""
+drive r.0.0.0.0.10 Image "11: Photo 11, 1 star"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.10 Image "11: Photo 11, 1 star" -> r Window ""
+drive r.0.0.0.0.11 Image "12: Photo 12, 2 stars"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.11 Image "12: Photo 12, 2 stars" -> r Window ""

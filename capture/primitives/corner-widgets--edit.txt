@@ -1,0 +1,78 @@
+story primitives/corner-widgets/edit
+args
+  zoom = Number { value: 100.0, min: 10.0, max: 800.0 }
+  rotation = Number { value: 0.0, min: -180.0, max: 180.0 }
+  flip = Bool(false)
+  aspect = Number { value: 1.0, min: 0.5, max: 2.0 }
+  ppp = Choice { options: ["gallery", "1", "1.25", "1.5", "2"], index: 0 }
+  kinds = Bool(true)
+  hide above = Number { value: 177.0, min: 90.0, max: 180.0 }
+  individual = Bool(true)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 Canvas "Document" actions=[Click,Focus]
+          r.0.0.0.0.1 Group "Corner radius" actions=[Focus]
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 GraphicsObject "Corner 1 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.1 GraphicsObject "Corner 2 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.2 GraphicsObject "Corner 3 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.3 GraphicsObject "Corner 4 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.4 GraphicsObject "Corner 5 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.5 GraphicsObject "Corner 6 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.6 GraphicsObject "Corner 7 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.7 GraphicsObject "Corner 8 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.8 GraphicsObject "Corner 9 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.9 GraphicsObject "Corner 10 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.10 GraphicsObject "Corner 11 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.11 GraphicsObject "Corner 12 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.12 GraphicsObject "Corner 13 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.13 GraphicsObject "Corner 14 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.14 GraphicsObject "Corner 15 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.15 GraphicsObject "Corner 16 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.16 GraphicsObject "Corner 17 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.17 GraphicsObject "Corner 18 of 19" value="radius 16 px" [unselected]
+              r.0.0.0.0.1.0.18 GraphicsObject "Corner 19 of 19" value="radius 16 px" [unselected]
+          r.0.0.0.0.2 GenericContainer ""
+            r.0.0.0.0.2.0 Button "Reset" actions=[Click,Focus]
+            r.0.0.0.0.2.1 Label "" value="No event yet" actions=[Click]
+              r.0.0.0.0.2.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0 Canvas "Document"
+  2: r.0.0.0.0.1.0.0 GraphicsObject "Corner 1 of 19"
+  3: r.0.0.0.0.2.0 Button "Reset"
+  4: r.0.0.0.0.0 Canvas "Document"
+  cycle after 3 nodes
+drive: 4 actionable nodes
+drive r.0.0.0.0.0 Canvas "Document"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0 Canvas "Document" -> r Window ""
+drive r.0.0.0.0.1 Group "Corner radius"
+  Space: no change
+  Enter:
+    - r.0.0.0.0.2.1 Label "" value="No event yet" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="No event yet"
+    + r.0.0.0.0.2.1 Label "" value="Last event: Activated" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="Last event: Activated"
+  Escape:
+    focus: r.0.0.0.0.1.0.0 GraphicsObject "Corner 1 of 19" -> r Window ""
+drive r.0.0.0.0.2.0 Button "Reset"
+  click:
+    - r.0.0.0.0.2.1 Label "" value="Last event: Activated" actions=[Click]
+    - r.0.0.0.0.2.1.0 TextRun "" value="Last event: Activated"
+    + r.0.0.0.0.2.1 Label "" value="No event yet" actions=[Click]
+    + r.0.0.0.0.2.1.0 TextRun "" value="No event yet"
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.2.0 Button "Reset" -> r Window ""
+drive r.0.0.0.0.2.1 Label ""
+  click: no change
+  Escape: no change

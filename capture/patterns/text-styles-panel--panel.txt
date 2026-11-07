@@ -1,0 +1,129 @@
+story patterns/text-styles-panel/panel
+args
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 ListBox "Paragraph Styles" actions=[Focus]
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                  r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+                  r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+          r.0.0.0.0.1 GenericContainer ""
+            r.0.0.0.0.1.0 GenericContainer ""
+              r.0.0.0.0.1.0.0 Button "Delete style" description="Delete style" actions=[Click,Focus]
+              r.0.0.0.0.1.0.1 Button "Create new style (from the selected type)" description="Create new style (from the selected type)" actions=[Click,Focus]
+              r.0.0.0.0.1.0.2 Button "Duplicate style" description="Duplicate style" actions=[Click,Focus]
+              r.0.0.0.0.1.0.3 Button "Style Options…" description="Style Options…" actions=[Click,Focus]
+            r.0.0.0.0.1.1 GenericContainer ""
+              r.0.0.0.0.1.1.0 Button "Clear Override" description="Clear Override" actions=[Click,Focus]
+              r.0.0.0.0.1.1.1 Button "Redefine style by current selection" description="Redefine style by current selection" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy"
+  2: r.0.0.0.0.1.0.0 Button "Delete style"
+  3: r.0.0.0.0.1.0.1 Button "Create new style (from the selected type)"
+  4: r.0.0.0.0.1.0.2 Button "Duplicate style"
+  5: r.0.0.0.0.1.0.3 Button "Style Options…"
+  6: r.0.0.0.0.1.1.0 Button "Clear Override"
+  7: r.0.0.0.0.1.1.1 Button "Redefine style by current selection"
+  8: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy"
+  cycle after 7 nodes
+drive: 10 actionable nodes
+drive r.0.0.0.0.0 ListBox "Paragraph Styles"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" -> r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden"
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" -> r Window ""
+drive r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph, overridden"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+  Space: node gone
+  Enter: node gone
+  ArrowDown: node gone
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph, overridden" -> r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden"
+    - r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.0 ListBoxOption "Basic Paragraph" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [unselected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: node gone
+  Enter: node gone
+  ArrowDown: node gone
+  ArrowUp: node gone
+  ArrowLeft: node gone
+  ArrowRight: node gone
+  Escape: node gone
+drive r.0.0.0.0.0.0.0.0.2 ListBoxOption "Heading, overridden"
+  all steps: node gone
+drive r.0.0.0.0.1.0.0 Button "Delete style"
+  click:
+    focus: r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" -> r Window ""
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.0 Button "Delete style" -> r Window ""
+drive r.0.0.0.0.1.0.1 Button "Create new style (from the selected type)"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.1 Button "Create new style (from the selected type)" -> r Window ""
+drive r.0.0.0.0.1.0.2 Button "Duplicate style"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.2 Button "Duplicate style" -> r Window ""
+drive r.0.0.0.0.1.0.3 Button "Style Options…"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.0.3 Button "Style Options…" -> r Window ""
+drive r.0.0.0.0.1.1.0 Button "Clear Override"
+  click:
+    - r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy, overridden" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+    + r.0.0.0.0.0.0.0.0.1 ListBoxOption "Body Copy" description="Click to apply, Alt-click to clear overrides, double-click for Style Options" [selected] actions=[Click,Focus,ScrollIntoView]
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.0 Button "Clear Override" -> r Window ""
+drive r.0.0.0.0.1.1.1 Button "Redefine style by current selection"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.1.1.1 Button "Redefine style by current selection" -> r Window ""

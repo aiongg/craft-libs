@@ -1,0 +1,33 @@
+story controls/tooltip/text
+args
+  tip = Text("Moves the selection to the next layer")
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 GenericContainer ""
+              r.0.0.0.0.0.0.0 Button "Next layer" description="Moves the selection to the next layer" actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 Button "Disabled" description="Moves the selection to the next layer" [disabled] actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 Button "Stock egui" description="Moves the selection to the next layer" actions=[Click,Focus]
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0 Button "Next layer"
+  2: r.0.0.0.0.0.0.2 Button "Stock egui"
+  3: r.0.0.0.0.0.0.0 Button "Next layer"
+  cycle after 2 nodes
+drive: 2 actionable nodes
+drive r.0.0.0.0.0.0.0 Button "Next layer"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0 Button "Next layer" -> r Window ""
+drive r.0.0.0.0.0.0.2 Button "Stock egui"
+  click: no change
+  Space: no change
+  Enter: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2 Button "Stock egui" -> r Window ""

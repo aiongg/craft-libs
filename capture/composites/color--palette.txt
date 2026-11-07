@@ -1,0 +1,286 @@
+story composites/color/palette
+args
+  size = Choice { options: ["sm", "md"], index: 1 }
+  width = Number { value: 200.0, min: 60.0, max: 400.0 }
+  disabled = Bool(false)
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 RadioGroup "Swatches"
+            r.0.0.0.0.0.0 RadioButton "Red" value="#e5484d" description="Red" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.1 RadioButton "Orange" value="#f76b15" description="Orange" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.2 RadioButton "Amber" value="#f5a524" description="Amber" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.3 RadioButton "Yellow" value="#f5d90a" description="Yellow" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.4 RadioButton "Lime" value="#7ac55c" description="Lime" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.5 RadioButton "Green" value="#30a46c" description="Green" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.6 RadioButton "Teal" value="#12a594" description="Teal" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.7 RadioButton "Sky" value="#009ee1" description="Sky" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [checked selected] actions=[Click,Focus]
+            r.0.0.0.0.0.9 RadioButton "Violet" value="#8e4ec6" description="Violet" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.10 RadioButton "Pink" value="#d6409f" description="Pink" [unchecked unselected] actions=[Click,Focus]
+            r.0.0.0.0.0.11 RadioButton "Grey" value="#888d91" description="Grey" [unchecked unselected] actions=[Click,Focus]
+          r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="Last event: "
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.8 RadioButton "Blue"
+  2: r.0.0.0.0.0.8 RadioButton "Blue"
+  cycle after 1 nodes
+drive: 13 actionable nodes
+drive r.0.0.0.0.0.0 RadioButton "Red"
+  click:
+    focus: r.0.0.0.0.0.8 RadioButton "Blue" -> r Window ""
+    - r.0.0.0.0.0.0 RadioButton "Red" value="#e5484d" description="Red" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 RadioButton "Red" value="#e5484d" description="Red" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [checked selected] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [unchecked unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: " actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: "
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#e5484d\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#e5484d\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0 RadioButton "Red" -> r.0.0.0.0.0.8 RadioButton "Blue"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight:
+    focus: r.0.0.0.0.0.0 RadioButton "Red" -> r.0.0.0.0.0.1 RadioButton "Orange"
+  Escape:
+    focus: r.0.0.0.0.0.0 RadioButton "Red" -> r Window ""
+drive r.0.0.0.0.0.1 RadioButton "Orange"
+  click:
+    - r.0.0.0.0.0.0 RadioButton "Red" value="#e5484d" description="Red" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.1 RadioButton "Orange" value="#f76b15" description="Orange" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.0 RadioButton "Red" value="#e5484d" description="Red" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 RadioButton "Orange" value="#f76b15" description="Orange" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#e5484d\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#e5484d\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#f76b15\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f76b15\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.1 RadioButton "Orange" -> r.0.0.0.0.0.9 RadioButton "Violet"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.1 RadioButton "Orange" -> r.0.0.0.0.0.0 RadioButton "Red"
+  ArrowRight:
+    focus: r.0.0.0.0.0.1 RadioButton "Orange" -> r.0.0.0.0.0.2 RadioButton "Amber"
+  Escape:
+    focus: r.0.0.0.0.0.1 RadioButton "Orange" -> r Window ""
+drive r.0.0.0.0.0.2 RadioButton "Amber"
+  click:
+    - r.0.0.0.0.0.1 RadioButton "Orange" value="#f76b15" description="Orange" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 RadioButton "Amber" value="#f5a524" description="Amber" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.1 RadioButton "Orange" value="#f76b15" description="Orange" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 RadioButton "Amber" value="#f5a524" description="Amber" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#f76b15\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f76b15\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#f5a524\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f5a524\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.2 RadioButton "Amber" -> r.0.0.0.0.0.10 RadioButton "Pink"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.2 RadioButton "Amber" -> r.0.0.0.0.0.1 RadioButton "Orange"
+  ArrowRight:
+    focus: r.0.0.0.0.0.2 RadioButton "Amber" -> r.0.0.0.0.0.3 RadioButton "Yellow"
+  Escape:
+    focus: r.0.0.0.0.0.2 RadioButton "Amber" -> r Window ""
+drive r.0.0.0.0.0.3 RadioButton "Yellow"
+  click:
+    - r.0.0.0.0.0.2 RadioButton "Amber" value="#f5a524" description="Amber" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 RadioButton "Yellow" value="#f5d90a" description="Yellow" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.2 RadioButton "Amber" value="#f5a524" description="Amber" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 RadioButton "Yellow" value="#f5d90a" description="Yellow" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#f5a524\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f5a524\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#f5d90a\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f5d90a\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.3 RadioButton "Yellow" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.3 RadioButton "Yellow" -> r.0.0.0.0.0.2 RadioButton "Amber"
+  ArrowRight:
+    focus: r.0.0.0.0.0.3 RadioButton "Yellow" -> r.0.0.0.0.0.4 RadioButton "Lime"
+  Escape:
+    focus: r.0.0.0.0.0.3 RadioButton "Yellow" -> r Window ""
+drive r.0.0.0.0.0.4 RadioButton "Lime"
+  click:
+    - r.0.0.0.0.0.3 RadioButton "Yellow" value="#f5d90a" description="Yellow" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.4 RadioButton "Lime" value="#7ac55c" description="Lime" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 RadioButton "Yellow" value="#f5d90a" description="Yellow" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.4 RadioButton "Lime" value="#7ac55c" description="Lime" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#f5d90a\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#f5d90a\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#7ac55c\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#7ac55c\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.4 RadioButton "Lime" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.4 RadioButton "Lime" -> r.0.0.0.0.0.3 RadioButton "Yellow"
+  ArrowRight:
+    focus: r.0.0.0.0.0.4 RadioButton "Lime" -> r.0.0.0.0.0.5 RadioButton "Green"
+  Escape:
+    focus: r.0.0.0.0.0.4 RadioButton "Lime" -> r Window ""
+drive r.0.0.0.0.0.5 RadioButton "Green"
+  click:
+    - r.0.0.0.0.0.4 RadioButton "Lime" value="#7ac55c" description="Lime" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.5 RadioButton "Green" value="#30a46c" description="Green" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.4 RadioButton "Lime" value="#7ac55c" description="Lime" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 RadioButton "Green" value="#30a46c" description="Green" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#7ac55c\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#7ac55c\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#30a46c\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#30a46c\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.5 RadioButton "Green" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.5 RadioButton "Green" -> r.0.0.0.0.0.4 RadioButton "Lime"
+  ArrowRight:
+    focus: r.0.0.0.0.0.5 RadioButton "Green" -> r.0.0.0.0.0.6 RadioButton "Teal"
+  Escape:
+    focus: r.0.0.0.0.0.5 RadioButton "Green" -> r Window ""
+drive r.0.0.0.0.0.6 RadioButton "Teal"
+  click:
+    - r.0.0.0.0.0.5 RadioButton "Green" value="#30a46c" description="Green" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.6 RadioButton "Teal" value="#12a594" description="Teal" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.5 RadioButton "Green" value="#30a46c" description="Green" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 RadioButton "Teal" value="#12a594" description="Teal" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#30a46c\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#30a46c\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#12a594\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#12a594\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.6 RadioButton "Teal" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.6 RadioButton "Teal" -> r.0.0.0.0.0.5 RadioButton "Green"
+  ArrowRight:
+    focus: r.0.0.0.0.0.6 RadioButton "Teal" -> r.0.0.0.0.0.7 RadioButton "Sky"
+  Escape:
+    focus: r.0.0.0.0.0.6 RadioButton "Teal" -> r Window ""
+drive r.0.0.0.0.0.7 RadioButton "Sky"
+  click:
+    - r.0.0.0.0.0.6 RadioButton "Teal" value="#12a594" description="Teal" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.7 RadioButton "Sky" value="#009ee1" description="Sky" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 RadioButton "Teal" value="#12a594" description="Teal" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.7 RadioButton "Sky" value="#009ee1" description="Sky" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#12a594\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#12a594\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#009ee1\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#009ee1\""
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.7 RadioButton "Sky" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  ArrowUp: no change
+  ArrowLeft:
+    focus: r.0.0.0.0.0.7 RadioButton "Sky" -> r.0.0.0.0.0.6 RadioButton "Teal"
+  ArrowRight:
+    focus: r.0.0.0.0.0.7 RadioButton "Sky" -> r.0.0.0.0.0.8 RadioButton "Blue"
+  Escape:
+    focus: r.0.0.0.0.0.7 RadioButton "Sky" -> r Window ""
+drive r.0.0.0.0.0.8 RadioButton "Blue"
+  click:
+    - r.0.0.0.0.0.7 RadioButton "Sky" value="#009ee1" description="Sky" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.7 RadioButton "Sky" value="#009ee1" description="Sky" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#009ee1\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#009ee1\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#3e63dd\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#3e63dd\""
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.8 RadioButton "Blue" -> r.0.0.0.0.0.0 RadioButton "Red"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.8 RadioButton "Blue" -> r.0.0.0.0.0.7 RadioButton "Sky"
+  ArrowRight:
+    focus: r.0.0.0.0.0.8 RadioButton "Blue" -> r.0.0.0.0.0.9 RadioButton "Violet"
+  Escape:
+    focus: r.0.0.0.0.0.8 RadioButton "Blue" -> r Window ""
+drive r.0.0.0.0.0.9 RadioButton "Violet"
+  click:
+    - r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.9 RadioButton "Violet" value="#8e4ec6" description="Violet" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.8 RadioButton "Blue" value="#3e63dd" description="Blue" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.9 RadioButton "Violet" value="#8e4ec6" description="Violet" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#3e63dd\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#3e63dd\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#8e4ec6\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#8e4ec6\""
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.9 RadioButton "Violet" -> r.0.0.0.0.0.1 RadioButton "Orange"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.9 RadioButton "Violet" -> r.0.0.0.0.0.8 RadioButton "Blue"
+  ArrowRight:
+    focus: r.0.0.0.0.0.9 RadioButton "Violet" -> r.0.0.0.0.0.10 RadioButton "Pink"
+  Escape:
+    focus: r.0.0.0.0.0.9 RadioButton "Violet" -> r Window ""
+drive r.0.0.0.0.0.10 RadioButton "Pink"
+  click:
+    - r.0.0.0.0.0.9 RadioButton "Violet" value="#8e4ec6" description="Violet" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.10 RadioButton "Pink" value="#d6409f" description="Pink" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.9 RadioButton "Violet" value="#8e4ec6" description="Violet" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.10 RadioButton "Pink" value="#d6409f" description="Pink" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#8e4ec6\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#8e4ec6\""
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#d6409f\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#d6409f\""
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.10 RadioButton "Pink" -> r.0.0.0.0.0.2 RadioButton "Amber"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.10 RadioButton "Pink" -> r.0.0.0.0.0.9 RadioButton "Violet"
+  ArrowRight:
+    focus: r.0.0.0.0.0.10 RadioButton "Pink" -> r.0.0.0.0.0.11 RadioButton "Grey"
+  Escape:
+    focus: r.0.0.0.0.0.10 RadioButton "Pink" -> r Window ""
+drive r.0.0.0.0.0.11 RadioButton "Grey"
+  click:
+    - r.0.0.0.0.0.10 RadioButton "Pink" value="#d6409f" description="Pink" [checked selected] actions=[Click,Focus]
+    - r.0.0.0.0.0.11 RadioButton "Grey" value="#888d91" description="Grey" [unchecked unselected] actions=[Click,Focus]
+    - r.0.0.0.0.1 Label "" value="Last event: Set \"#d6409f\"" actions=[Click]
+    - r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#d6409f\""
+    + r.0.0.0.0.0.10 RadioButton "Pink" value="#d6409f" description="Pink" [unchecked unselected] actions=[Click,Focus]
+    + r.0.0.0.0.0.11 RadioButton "Grey" value="#888d91" description="Grey" [checked selected] actions=[Click,Focus]
+    + r.0.0.0.0.1 Label "" value="Last event: Set \"#888d91\"" actions=[Click]
+    + r.0.0.0.0.1.0 TextRun "" value="Last event: Set \"#888d91\""
+  Space: no change
+  Enter: no change
+  ArrowDown: no change
+  ArrowUp:
+    focus: r.0.0.0.0.0.11 RadioButton "Grey" -> r.0.0.0.0.0.3 RadioButton "Yellow"
+  ArrowLeft:
+    focus: r.0.0.0.0.0.11 RadioButton "Grey" -> r.0.0.0.0.0.10 RadioButton "Pink"
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.11 RadioButton "Grey" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change

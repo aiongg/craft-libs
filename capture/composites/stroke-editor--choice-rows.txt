@@ -1,0 +1,603 @@
+story composites/stroke-editor/choice-rows
+args
+  mixed = Bool(false)
+  width = Number { value: 272.0, min: 160.0, max: 480.0 }
+tree
+r Window ""
+  r.0 GenericContainer ""
+    r.0.0 GenericContainer ""
+      r.0.0.0 GenericContainer ""
+        r.0.0.0.0 GenericContainer ""
+          r.0.0.0.0.0 GenericContainer ""
+            r.0.0.0.0.0.0 RadioGroup "Stroke Options"
+              r.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.0 GenericContainer ""
+                r.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.1 GenericContainer ""
+                r.0.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+              r.0.0.0.0.0.0.2 GenericContainer ""
+                r.0.0.0.0.0.0.2.0 GenericContainer ""
+                r.0.0.0.0.0.0.2.1 RadioButton "Dotted" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.1 GenericContainer ""
+              r.0.0.0.0.0.1.0 GenericContainer ""
+                r.0.0.0.0.0.1.0.0 Label "" value="Alignment"
+              r.0.0.0.0.0.1.1 GenericContainer ""
+                r.0.0.0.0.0.1.1.0 GenericContainer ""
+                  r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.2 GenericContainer ""
+                r.0.0.0.0.0.1.2.0 Label "" value="Caps" [disabled]
+              r.0.0.0.0.0.1.3 GenericContainer ""
+                r.0.0.0.0.0.1.3.0 GenericContainer ""
+                  r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.0.0.0.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.4 GenericContainer ""
+                r.0.0.0.0.0.1.4.0 Label "" value="Corners"
+              r.0.0.0.0.0.1.5 GenericContainer ""
+                r.0.0.0.0.0.1.5.0 GenericContainer ""
+                  r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.6 GenericContainer ""
+                r.0.0.0.0.0.1.6.0 Label "" value="Start"
+              r.0.0.0.0.0.1.7 GenericContainer ""
+                r.0.0.0.0.0.1.7.0 GenericContainer ""
+                  r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.8 GenericContainer ""
+                r.0.0.0.0.0.1.8.0 Label "" value="End"
+              r.0.0.0.0.0.1.9 GenericContainer ""
+                r.0.0.0.0.0.1.9.0 GenericContainer ""
+                  r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.10 GenericContainer ""
+                r.0.0.0.0.0.1.10.0 Label "" value="Profile"
+              r.0.0.0.0.0.1.11 GenericContainer ""
+                r.0.0.0.0.0.1.11.0 GenericContainer ""
+                  r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+              r.0.0.0.0.0.1.12 GenericContainer ""
+                r.0.0.0.0.0.1.12.0 Label "" value="Miter limit"
+              r.0.0.0.0.0.1.13 GenericContainer ""
+                r.0.0.0.0.0.1.13.0 GenericContainer ""
+                  r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.1.13.0.0.0 TextRun "" value="100"
+              r.0.0.0.0.0.1.14 GenericContainer ""
+                r.0.0.0.0.0.1.14.0 Label "" value="Opacity"
+              r.0.0.0.0.0.1.15 GenericContainer ""
+                r.0.0.0.0.0.1.15.0 GenericContainer ""
+                  r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.14.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+                    r.0.0.0.0.0.1.15.0.0.0 TextRun "" value="100"
+            r.0.0.0.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+            r.0.0.0.0.0.3 Image "Solid"
+          r.0.0.0.0.1 Label "" value="No event yet" actions=[Click]
+            r.0.0.0.0.1.0 TextRun "" value="No event yet"
+tab
+  start: r Window ""
+  1: r.0.0.0.0.0.0.0.1 RadioButton "Solid"
+  2: r.0.0.0.0.0.0.1.1 RadioButton "Dashed"
+  3: r.0.0.0.0.0.0.2.1 RadioButton "Dotted"
+  4: r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment"
+  5: r.0.0.0.0.0.1.5.0.0 ComboBox "Corners"
+  6: r.0.0.0.0.0.1.7.0.0 ComboBox "Start"
+  7: r.0.0.0.0.0.1.9.0.0 ComboBox "End"
+  8: r.0.0.0.0.0.1.11.0.0 ComboBox "Profile"
+  9: r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit"
+  10: r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity"
+  11: r.0.0.0.0.0.2 CheckBox "Dashed line"
+  12: r.0.0.0.0.0.0.0.1 RadioButton "Solid"
+  cycle after 11 nodes
+drive: 12 actionable nodes
+drive r.0.0.0.0.0.0.0.1 RadioButton "Solid"
+  click: no change
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.0.1 RadioButton "Solid" -> r.0.0.0.0.0.0.1.1 RadioButton "Dashed"
+  ArrowUp: no change
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.0.1 RadioButton "Solid" -> r Window ""
+drive r.0.0.0.0.0.0.1.1 RadioButton "Dashed"
+  click:
+    - r.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2.0 Label "" value="Caps" [disabled]
+    + r.0.0.0.0.0.1.2.0 Label "" value="Caps"
+    - r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.0.0.0.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 Image "Solid"
+    + r.0.0.0.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    + r.0.0.0.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    + r.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.4.0 Label "" value="Dash" actions=[Click]
+    + r.0.0.0.0.0.4.0.0 TextRun "" value="Dash"
+    + r.0.0.0.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.4.1.0 TextRun "" value="4"
+    + r.0.0.0.0.0.4.2 Label "" value="Gap" actions=[Click]
+    + r.0.0.0.0.0.4.2.0 TextRun "" value="Gap"
+    + r.0.0.0.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.4.3.0 TextRun "" value="2"
+    + r.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.6.0 GenericContainer ""
+    + r.0.0.0.0.0.6.0.0 Label "" value="Dash offset"
+    + r.0.0.0.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.0.6.1.0 GenericContainer ""
+    + r.0.0.0.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.6.1.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.7 Image "Dashed"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.1.1 RadioButton "Dashed" -> r.0.0.0.0.0.0.2.1 RadioButton "Dotted"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.1.1 RadioButton "Dashed" -> r.0.0.0.0.0.0.0.1 RadioButton "Solid"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.1.1 RadioButton "Dashed" -> r Window ""
+drive r.0.0.0.0.0.0.2.1 RadioButton "Dotted"
+  click:
+    - r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.1 RadioButton "Dotted" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.1 RadioButton "Dotted" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Butt / Flat" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.4.1.0 TextRun "" value="4"
+    + r.0.0.0.0.0.4.1 SpinButton "Dash" value="0×" number=0 in 0..10000 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.4.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.7 Image "Dashed"
+    + r.0.0.0.0.0.7 Image "Dotted"
+  Space: no change
+  Enter: no change
+  ArrowDown:
+    focus: r.0.0.0.0.0.0.2.1 RadioButton "Dotted" -> r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment"
+  ArrowUp:
+    focus: r.0.0.0.0.0.0.2.1 RadioButton "Dotted" -> r.0.0.0.0.0.0.1.1 RadioButton "Dashed"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.0.2.1 RadioButton "Dotted" -> r Window ""
+drive r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center"
+    - r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] controls=[r.0.0.0.0.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Inside" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" -> r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment"
+    - r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] controls=[r.0.0.0.0.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Inside" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" -> r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center"
+    - r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] controls=[r.0.0.0.0.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.1.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Inside" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" -> r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside" -> r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" -> r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment"
+    - r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] controls=[r.0.0.0.0.0.1.1.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.1.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.1.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.0 ListBoxOption "Inside" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.1 ListBoxOption "Center" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.1.0.0.0.0.0.0.0.2 ListBoxOption "Outside" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" value="Center" labelled_by=[r.0.0.0.0.0.1.0.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.5.0.0 ComboBox "Corners"
+  click:
+    focus: r.0.0.0.0.0.1.1.0.0 ComboBox "Alignment" -> r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter"
+    - r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] controls=[r.0.0.0.0.0.1.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.5.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.2 ListBoxOption "Bevel" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" -> r.0.0.0.0.0.1.5.0.0 ComboBox "Corners"
+    - r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] controls=[r.0.0.0.0.0.1.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.5.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.2 ListBoxOption "Bevel" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" -> r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter"
+    - r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] controls=[r.0.0.0.0.0.1.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.5.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.5.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.2 ListBoxOption "Bevel" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" -> r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round" -> r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" -> r.0.0.0.0.0.1.5.0.0 ComboBox "Corners"
+    - r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] controls=[r.0.0.0.0.0.1.5.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.5.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.5.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.0 ListBoxOption "Miter" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.1 ListBoxOption "Round" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.5.0.0.0.0.0.0.0.2 ListBoxOption "Bevel" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" value="Miter" labelled_by=[r.0.0.0.0.0.1.4.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.7.0.0 ComboBox "Start"
+  click:
+    focus: r.0.0.0.0.0.1.5.0.0 ComboBox "Corners" -> r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None"
+    - r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] controls=[r.0.0.0.0.0.1.7.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.7.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.7.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" -> r.0.0.0.0.0.1.7.0.0 ComboBox "Start"
+    - r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] controls=[r.0.0.0.0.0.1.7.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.7.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.7.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.7.0.0 ComboBox "Start" -> r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None"
+    - r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] controls=[r.0.0.0.0.0.1.7.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.7.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.7.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" -> r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" -> r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" -> r.0.0.0.0.0.1.7.0.0 ComboBox "Start"
+    - r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] controls=[r.0.0.0.0.0.1.7.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.7.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.7.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.0 ListBoxOption "None" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.7.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.7.0.0 ComboBox "Start" value="None" labelled_by=[r.0.0.0.0.0.1.6.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.9.0.0 ComboBox "End"
+  click:
+    focus: r.0.0.0.0.0.1.7.0.0 ComboBox "Start" -> r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow"
+    - r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] controls=[r.0.0.0.0.0.1.9.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.9.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.9.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.0 ListBoxOption "None" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" -> r.0.0.0.0.0.1.9.0.0 ComboBox "End"
+    - r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] controls=[r.0.0.0.0.0.1.9.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.9.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.9.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.0 ListBoxOption "None" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.9.0.0 ComboBox "End" -> r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow"
+    - r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] controls=[r.0.0.0.0.0.1.9.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.9.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.9.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.0 ListBoxOption "None" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" -> r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle" -> r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" -> r.0.0.0.0.0.1.9.0.0 ComboBox "End"
+    - r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] controls=[r.0.0.0.0.0.1.9.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.9.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.9.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.0 ListBoxOption "None" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.1 ListBoxOption "Arrow" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.2 ListBoxOption "Circle" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.3 ListBoxOption "Square" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.9.0.0.0.0.0.0.0.4 ListBoxOption "Bar" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.9.0.0 ComboBox "End" value="Arrow" labelled_by=[r.0.0.0.0.0.1.8.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.11.0.0 ComboBox "Profile"
+  click:
+    focus: r.0.0.0.0.0.1.9.0.0 ComboBox "End" -> r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform"
+    - r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] controls=[r.0.0.0.0.0.1.11.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.11.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.2 ListBoxOption "Bulge" [unselected] actions=[Click]
+  Space:
+    focus: r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" -> r.0.0.0.0.0.1.11.0.0 ComboBox "Profile"
+    - r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] controls=[r.0.0.0.0.0.1.11.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.11.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.2 ListBoxOption "Bulge" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+  Enter:
+    focus: r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" -> r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform"
+    - r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] controls=[r.0.0.0.0.0.1.11.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.11.0.0.0 ListBox ""
+    + r.0.0.0.0.0.1.11.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0 GenericContainer ""
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" [selected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.2 ListBoxOption "Bulge" [unselected] actions=[Click]
+  ArrowDown:
+    focus: r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" -> r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper"
+  ArrowUp:
+    focus: r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper" -> r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform"
+  ArrowLeft: no change
+  ArrowRight: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" -> r.0.0.0.0.0.1.11.0.0 ComboBox "Profile"
+    - r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] controls=[r.0.0.0.0.0.1.11.0.0.0] [expanded popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.11.0.0.0 ListBox ""
+    - r.0.0.0.0.0.1.11.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0 GenericContainer ""
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.0 ListBoxOption "Uniform" [selected] actions=[Click]
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.1 ListBoxOption "Taper" [unselected] actions=[Click]
+    - r.0.0.0.0.0.1.11.0.0.0.0.0.0.0.2 ListBoxOption "Bulge" [unselected] actions=[Click]
+    + r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" value="Uniform" labelled_by=[r.0.0.0.0.0.1.10.0] [collapsed popup:Listbox] actions=[Click,Focus]
+drive r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit"
+  click:
+    focus: r.0.0.0.0.0.1.11.0.0 ComboBox "Profile" -> r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp:
+    - r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.13.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" value="101×" number=101 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.13.0.0.0 TextRun "" value="101"
+  ArrowDown:
+    - r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" value="101×" number=101 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.13.0.0.0 TextRun "" value="101"
+    + r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" value="100×" number=100 in 1..500 step 1 labelled_by=[r.0.0.0.0.0.1.12.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.13.0.0.0 TextRun "" value="100"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.13.0.0 SpinButton "Miter limit" -> r Window ""
+drive r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity"
+  click:
+    focus: r Window "" -> r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity"
+  Space: no change
+  Enter:
+    focus: r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity" -> r Window ""
+  ArrowLeft: no change
+  ArrowRight: no change
+  ArrowUp: no change
+  ArrowDown:
+    - r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity" value="100%" number=100 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.14.0] actions=[Click,Focus,Decrement,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.1.15.0.0.0 TextRun "" value="100"
+    + r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity" value="99.000001%" number=99.00000095367432 in 0..100 step 1 labelled_by=[r.0.0.0.0.0.1.14.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.1.15.0.0.0 TextRun "" value="99.000001"
+  Home: no change
+  End: no change
+  Escape:
+    focus: r.0.0.0.0.0.1.15.0.0 SpinButton "Opacity" -> r Window ""
+drive r.0.0.0.0.0.2 CheckBox "Dashed line"
+  click:
+    - r.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.2.1 RadioButton "Dotted" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.2.1 RadioButton "Dotted" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2.0 Label "" value="Caps"
+    + r.0.0.0.0.0.1.2.0 Label "" value="Caps" [disabled]
+    - r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    - r.0.0.0.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    - r.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.4.0 Label "" value="Dash" actions=[Click]
+    - r.0.0.0.0.0.4.0.0 TextRun "" value="Dash"
+    - r.0.0.0.0.0.4.1 SpinButton "Dash" value="0×" number=0 in 0..10000 step 1 actions=[Click,Focus,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.4.1.0 TextRun "" value="0"
+    - r.0.0.0.0.0.4.2 Label "" value="Gap" actions=[Click]
+    - r.0.0.0.0.0.4.2.0 TextRun "" value="Gap"
+    - r.0.0.0.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.4.3.0 TextRun "" value="2"
+    - r.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.6.0 GenericContainer ""
+    - r.0.0.0.0.0.6.0.0 Label "" value="Dash offset"
+    - r.0.0.0.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.0.6.1.0 GenericContainer ""
+    - r.0.0.0.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.6.1.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.7 Image "Dotted"
+    + r.0.0.0.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 Image "Solid"
+  Space:
+    - r.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2.0 Label "" value="Caps" [disabled]
+    + r.0.0.0.0.0.1.2.0 Label "" value="Caps"
+    - r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 Image "Solid"
+    + r.0.0.0.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    + r.0.0.0.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    + r.0.0.0.0.0.4 GenericContainer ""
+    + r.0.0.0.0.0.4.0 Label "" value="Dash" actions=[Click]
+    + r.0.0.0.0.0.4.0.0 TextRun "" value="Dash"
+    + r.0.0.0.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.4.1.0 TextRun "" value="4"
+    + r.0.0.0.0.0.4.2 Label "" value="Gap" actions=[Click]
+    + r.0.0.0.0.0.4.2.0 TextRun "" value="Gap"
+    + r.0.0.0.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.4.3.0 TextRun "" value="2"
+    + r.0.0.0.0.0.5 GenericContainer ""
+    + r.0.0.0.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    + r.0.0.0.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    + r.0.0.0.0.0.6 GenericContainer ""
+    + r.0.0.0.0.0.6.0 GenericContainer ""
+    + r.0.0.0.0.0.6.0.0 Label "" value="Dash offset"
+    + r.0.0.0.0.0.6.1 GenericContainer ""
+    + r.0.0.0.0.0.6.1.0 GenericContainer ""
+    + r.0.0.0.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    + r.0.0.0.0.0.6.1.0.0.0 TextRun "" value="0"
+    + r.0.0.0.0.0.7 Image "Dashed"
+  Enter:
+    - r.0.0.0.0.0.0.0.1 RadioButton "Solid" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.0.1 RadioButton "Solid" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [checked] actions=[Click,Focus]
+    + r.0.0.0.0.0.0.1.1 RadioButton "Dashed" [unchecked] actions=[Click,Focus]
+    - r.0.0.0.0.0.1.2.0 Label "" value="Caps"
+    + r.0.0.0.0.0.1.2.0 Label "" value="Caps" [disabled]
+    - r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [collapsed popup:Listbox] actions=[Click,Focus]
+    + r.0.0.0.0.0.1.3.0.0 ComboBox "Caps" value="Round" labelled_by=[r.0.0.0.0.0.1.2.0] [disabled collapsed popup:Listbox] actions=[Click,Focus]
+    - r.0.0.0.0.0.2 CheckBox "Dashed line" [checked] actions=[Click,Focus]
+    - r.0.0.0.0.0.3 Label "" value="Dash / gap lengths × stroke width" actions=[Click]
+    - r.0.0.0.0.0.3.0 TextRun "" value="Dash / gap lengths × stroke width"
+    - r.0.0.0.0.0.4 GenericContainer ""
+    - r.0.0.0.0.0.4.0 Label "" value="Dash" actions=[Click]
+    - r.0.0.0.0.0.4.0.0 TextRun "" value="Dash"
+    - r.0.0.0.0.0.4.1 SpinButton "Dash" value="4×" number=4 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.4.1.0 TextRun "" value="4"
+    - r.0.0.0.0.0.4.2 Label "" value="Gap" actions=[Click]
+    - r.0.0.0.0.0.4.2.0 TextRun "" value="Gap"
+    - r.0.0.0.0.0.4.3 SpinButton "Gap" value="2×" number=2 in 0..10000 step 1 actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.4.3.0 TextRun "" value="2"
+    - r.0.0.0.0.0.5 GenericContainer ""
+    - r.0.0.0.0.0.5.0 Button "Add pair" actions=[Click,Focus]
+    - r.0.0.0.0.0.5.1 Button "Remove pair" [disabled] actions=[Click,Focus]
+    - r.0.0.0.0.0.6 GenericContainer ""
+    - r.0.0.0.0.0.6.0 GenericContainer ""
+    - r.0.0.0.0.0.6.0.0 Label "" value="Dash offset"
+    - r.0.0.0.0.0.6.1 GenericContainer ""
+    - r.0.0.0.0.0.6.1.0 GenericContainer ""
+    - r.0.0.0.0.0.6.1.0.0 SpinButton "Dash offset" value="0×" number=0 in -1000000..1000000 step 1 labelled_by=[r.0.0.0.0.0.6.0.0] actions=[Click,Focus,Decrement,Increment,SetValue,ReplaceSelectedText]
+    - r.0.0.0.0.0.6.1.0.0.0 TextRun "" value="0"
+    - r.0.0.0.0.0.7 Image "Dashed"
+    + r.0.0.0.0.0.2 CheckBox "Dashed line" [unchecked] actions=[Click,Focus]
+    + r.0.0.0.0.0.3 Image "Solid"
+  Escape:
+    focus: r.0.0.0.0.0.2 CheckBox "Dashed line" -> r Window ""
+drive r.0.0.0.0.1 Label ""
+  click: no change
+  Escape: no change
