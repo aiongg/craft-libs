@@ -302,23 +302,30 @@ fn a_modal_viewport_mount_opens_a_dialog_window() {
     assert_eq!(seen.get(), Some(craft_host::target::WindowKind::Dialog), "the modal mount's window is a dialog window");
 }
 
-/// A close request the container did not take in its frame (the window's first pass only measures) is dropped: showing
-/// the container in later frames does not close it.
+/// A close request the container did not take in its frame (it was shown in a parent's sizing pass, which runs no
+/// update step) is dropped: showing the container in later frames does not close it.
 #[trial]
 fn a_close_request_not_taken_this_frame_does_not_close_the_container_later() {
     let windows = Windows::new();
     let ran = Cell::new(0);
-    let frame = || {
-        windows.frame(vec![], vec![], |ui| {
-            let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
-            Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
-                ran.set(ran.get() + 1);
-                Block::new(BODY).show(ui);
-            });
+    let show = |ui: &mut Ui| {
+        let props = ContainerProps::new().mount(Mount::viewport(Overlay::floating())).sizing(Sizing::Content);
+        Slab::new(props).label("Export").id_salt("window").show(ui, |ui, _| {
+            ran.set(ran.get() + 1);
+            Block::new(BODY).show(ui);
         });
     };
+    let frame = || {
+        windows.frame(vec![], vec![], |ui| show(ui));
+    };
+    for _ in 0..3 {
+        frame();
+    }
     windows.child_info(ViewportInfo { events: vec![ViewportEvent::Close], ..ViewportInfo::default() });
-    frame();
+    windows.frame(vec![], vec![], |ui| {
+        let mut sizing = ui.new_child(egui::UiBuilder::new().sizing_pass().invisible());
+        show(&mut sizing);
+    });
     windows.child_info(ViewportInfo::default());
     for _ in 0..3 {
         frame();
