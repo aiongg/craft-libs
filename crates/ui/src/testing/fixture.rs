@@ -295,11 +295,21 @@ impl Fixture {
 
     /// Hover, press and release on `target`, in separate frames, then one idle frame.
     pub fn click(&mut self, target: &Target) -> &mut Self {
-        let at = target.center();
-        self.frame(vec![super::pointer::moved(at)]);
-        self.frame(vec![super::pointer::press(at)]);
-        self.frame(vec![super::pointer::release(at)]);
+        self.click_at(target.center())
+    }
+
+    /// Hover, press and release at `pos`, in separate frames, then one idle frame.
+    pub fn click_at(&mut self, pos: Pos2) -> &mut Self {
+        self.frame(vec![super::pointer::moved(pos)]);
+        self.frame(vec![super::pointer::press(pos)]);
+        self.frame(vec![super::pointer::release(pos)]);
         self.frame(Vec::new())
+    }
+
+    /// The modifiers held in every following frame, until the next call.
+    pub fn hold(&mut self, modifiers: Modifiers) -> &mut Self {
+        self.frames.hold(modifiers);
+        self
     }
 
     /// Press on `target`.
