@@ -427,6 +427,6 @@ note = "A group header is a section row of the item step that holds the lead (`D
 
 [[setter]]
 type = "Tile"
-old = ""
+old = "thumb(..) as the only picture"
 new = "icon(impl Into<IconSpec<'static>>)"
 note = "The picture area shows the icon centred on the placeholder, at the style's face size, in place of a picture; the last of `thumb` and `icon` called wins."
