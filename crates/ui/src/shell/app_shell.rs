@@ -32,6 +32,16 @@ use std::sync::Arc;
 /// The closure that fills a slot or the body.
 pub(super) type RegionFn<'a> = Box<dyn FnMut(&mut Ui, &mut BodyCx<'_>) + 'a>;
 
+/// The closure that fills a region, as a `func` prop.
+pub(super) struct RegionBody<'a>(pub(super) RegionFn<'a>);
+
+impl<'a> RegionBody<'a> {
+    /// The body that runs `body`.
+    pub(super) fn new(body: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+        RegionBody(Box::new(body))
+    }
+}
+
 /// The style of a shell region: the surface comes from the container.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -222,7 +232,9 @@ pub struct AppShell<'a> {
     chrome_toggles: &'a [(ViewportId, ChromeToggle)],
     title: Option<Placed<'a>>,
     slots: Vec<Placed<'a>>,
-    body: Option<RegionFn<'a>>,
+    /// The body, shown in what the slots leave.
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    body: Option<RegionBody<'a>>,
 }
 
 impl<'a> AppShell<'a> {
@@ -279,12 +291,6 @@ impl<'a> AppShell<'a> {
     /// A slot at the reading end, inside the ones added before it.
     pub fn end(self, slot: Slot, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.place(PaneEdge::End, slot, add)
-    }
-
-    /// The body, shown in what the slots leave.
-    pub fn body(mut self, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.body = Some(Box::new(add));
-        self
     }
 
     fn place(mut self, edge: PaneEdge, slot: Slot, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
@@ -380,7 +386,7 @@ impl<'a> AppShell<'a> {
                 }
                 let center = ShellRegion::pane(ShellPane::new("body")).surface(backdrop).label(body_label.clone());
                 let out = center.show(ui, |ui, bcx| {
-                    if let Some(body) = body.as_mut() {
+                    if let Some(RegionBody(body)) = body.as_mut() {
                         body(ui, bcx);
                     }
                 });

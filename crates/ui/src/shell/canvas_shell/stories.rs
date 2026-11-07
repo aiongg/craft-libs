@@ -13,7 +13,7 @@ fn canvas_shell(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
         .title(true, |ui, _| {
             Text::new("Title").show(ui);
         })
-        .options(true, |ui, _| {
+        .options_bar(true, |ui, _| {
             Text::new("Options").show(ui);
         })
         .tools(true, |ui, _| {

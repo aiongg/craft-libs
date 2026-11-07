@@ -307,3 +307,9 @@ type = "CanvasShell"
 old = "labels(CanvasLabels)"
 new = ""
 note = "The regions are named by `AppShellWords`."
+
+[[setter]]
+type = "CanvasShell"
+old = "options(bool, f)"
+new = "options_bar(bool, f)"
+note = "Renamed: a method named `options` trips the egui-behaviour lint."

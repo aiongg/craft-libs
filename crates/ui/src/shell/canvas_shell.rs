@@ -21,7 +21,7 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::app_shell::{AppShell, AppShellOutput, RegionFn, ShellRegion};
+use super::app_shell::{AppShell, AppShellOutput, RegionBody, RegionFn, ShellRegion};
 use super::reveal::PanelsHidden;
 use super::screen_mode::ScreenMode;
 use super::words::AppShellWords;
@@ -77,7 +77,7 @@ impl<'a> CanvasShell<'a> {
     }
 
     /// The options bar, below the title.
-    pub fn options(mut self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
+    pub fn options_bar(mut self, visible: bool, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.options = Some((visible, Box::new(add)));
         self
     }
@@ -212,7 +212,9 @@ impl Outcome for CanvasPanelOutput {
 #[derive(crate::contract::Pattern, crate::contract::Props)]
 pub struct CanvasPanel<'a> {
     rail: Option<(Label, RegionFn<'a>)>,
-    tabs: Option<RegionFn<'a>>,
+    /// The document tab strip.
+    #[prop(func = "FnMut(&mut Ui, &mut BodyCx<'_>)")]
+    tabs: Option<RegionBody<'a>>,
     /// Documents are opening: the tab strip shows even when the host hides the tabs, in normal mode.
     #[prop]
     opening: bool,
@@ -227,12 +229,6 @@ impl<'a> CanvasPanel<'a> {
     /// The panel rail, named `label`.
     pub fn rail(mut self, label: impl Into<Label>, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
         self.rail = Some((label.into(), Box::new(add)));
-        self
-    }
-
-    /// The document tab strip.
-    pub fn tabs(mut self, add: impl FnMut(&mut Ui, &mut BodyCx<'_>) + 'a) -> Self {
-        self.tabs = Some(Box::new(add));
         self
     }
 
@@ -253,7 +249,7 @@ impl<'a> CanvasPanel<'a> {
             rail_rect = Some(out.response.rect);
         }
         let mut tabs_rect = None;
-        if let (Some(mut add), true) = (tabs, tabs_shown) {
+        if let (Some(mut add), true) = (tabs.map(|RegionBody(add)| add), tabs_shown) {
             let out = ShellRegion::pane(ShellPane::new("document_tabs").edge(PaneEdge::Top))
                 .label(words.document_tabs.clone())
                 .show(ui, |ui, cx| add(ui, cx));
