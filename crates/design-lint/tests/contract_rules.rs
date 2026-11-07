@@ -87,10 +87,18 @@ fn each_reject_fixture_reports_every_shape() {
 
 #[test]
 fn accept_fixtures_pass() {
-    for file in ["behavior-pipeline-only.rs", "props.rs", "style.rs", "entry.rs", "contract-widget.rs"] {
+    for file in ["behavior-pipeline-only.rs", "props.rs", "style.rs", "entry.rs"] {
         let findings = analyze_contract(&fixture("accept", file), Path::new(FAMILY), &scope(), false);
         assert!(findings.is_empty(), "{file}: {findings:?}");
     }
+}
+
+#[test]
+fn an_egui_trait_other_than_widget_spelled_with_a_path_is_not_a_widget() {
+    let findings = analyze_contract(&fixture("accept", "contract-widget.rs"), Path::new(FAMILY), &scope(), false);
+    assert!(findings.is_empty(), "{findings:?}");
+    let widget = fixture("reject", "contract-widget.rs");
+    assert!(!analyze_contract(&widget, Path::new(FAMILY), &scope(), false).is_empty(), "`egui::Widget` is still flagged");
 }
 
 #[test]
