@@ -85,7 +85,11 @@ fn events_after_menu_delete(label: &str) -> Vec<PresetEvent<u32>> {
     fixture.frame(vec![pointer::secondary(at, false)]);
     fixture.settle();
     let names: Vec<String> = fixture.tree().keys().into_iter().map(|k| format!("{:?}", fixture.tree().name_of(k))).collect();
-    let delete = fixture.by_label("Delete").unwrap_or_else(|| panic!("DEBUG {names:?} {:?}", seen.borrow()));
+    let delete = fixture.by_label("Delete");
+    if label == "Coral" {
+        panic!("DEBUGC {names:?} {:?} {}", seen.borrow(), delete.is_some());
+    }
+    let delete = delete.unwrap_or_else(|| panic!("DEBUG {names:?} {:?}", seen.borrow()));
     fixture.click(&delete);
     fixture.idle(3);
     let reported = seen.borrow().clone();

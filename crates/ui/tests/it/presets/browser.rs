@@ -83,7 +83,7 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
         reported.borrow_mut().extend(out.events);
     });
     fixture.settle();
-    let at = fixture.by_label("Coral").expect("the preset's tile").rect.center();
+    let at = fixture.by_label("Amber").expect("the preset's tile").rect.center();
     fixture.frame(vec![pointer::moved(at)]);
     fixture.frame(vec![pointer::secondary(at, true)]);
     fixture.frame(vec![pointer::secondary(at, false)]);
