@@ -6,7 +6,7 @@ use std::sync::{Arc, OnceLock};
 
 use craft_host::Host;
 use craft_host::target::Os;
-use craft_i18n::{I18n, Lang, WordSet as _, Words};
+use craft_i18n::{I18n, Lang, Words};
 use craft_theme::{Rgba, Srgba};
 use egui::{Context, Ui};
 use serde::Serialize;
