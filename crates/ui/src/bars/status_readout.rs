@@ -148,10 +148,9 @@ impl StatusItem {
             template.fill(&[("n", &format.number(compact.value, 1))])
         };
         match self {
-            StatusItem::DocumentSizes => values.document_sizes.map_or_else(
-                || MISSING.to_owned(),
-                |(flat, layered)| words.doc_prefix.fill(&[("flat", &size(flat)), ("layered", &size(layered))]),
-            ),
+            StatusItem::DocumentSizes => values
+                .document_sizes
+                .map_or_else(|| MISSING.to_owned(), |(flat, layered)| words.doc_prefix.fill(&[("flat", &size(flat)), ("layered", &size(layered))])),
             StatusItem::DocumentProfile => given(&values.document_profile),
             StatusItem::DocumentDimensions => given(&values.document_dimensions),
             StatusItem::MeasurementScale => given(&values.measurement_scale),
@@ -159,13 +158,12 @@ impl StatusItem {
                 || MISSING.to_owned(),
                 |(used, available)| words.scratch_prefix.fill(&[("used", &size(used)), ("available", &size(available))]),
             ),
-            StatusItem::Efficiency => values.efficiency.map_or_else(
-                || MISSING.to_owned(),
-                |n| words.efficiency_text.fill(&[("n", &format.integer(u64::from(n.min(100))))]),
-            ),
-            StatusItem::Timing => values
-                .timing
-                .map_or_else(|| MISSING.to_owned(), |time| words.timing_text.fill(&[("n", &format.number(time.as_secs_f64(), 1))])),
+            StatusItem::Efficiency => {
+                values.efficiency.map_or_else(|| MISSING.to_owned(), |n| words.efficiency_text.fill(&[("n", &format.integer(u64::from(n.min(100))))]))
+            }
+            StatusItem::Timing => {
+                values.timing.map_or_else(|| MISSING.to_owned(), |time| words.timing_text.fill(&[("n", &format.number(time.as_secs_f64(), 1))]))
+            }
             StatusItem::CurrentTool => given(&values.current_tool),
             StatusItem::LayerCount => {
                 values.layer_count.map_or_else(|| MISSING.to_owned(), |n| words.layers.text(n as u64, &format.integer(n as u64)))

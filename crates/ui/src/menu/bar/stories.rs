@@ -20,16 +20,18 @@ fn view(ui: &mut Ui) {
 }
 
 static HELP: LazyLock<Vec<HelpEntry>> = LazyLock::new(|| {
-    vec![
-        HelpEntry::new(EditCommands::Undo, "Undo").path(["Edit"]),
-        HelpEntry::new(EditCommands::SelectAll, "Select All").path(["Edit"]),
-    ]
+    vec![HelpEntry::new(EditCommands::Undo, "Undo").path(["Edit"]), HelpEntry::new(EditCommands::SelectAll, "Select All").path(["Edit"])]
 });
 
 fn titles() -> Vec<MenuTitle<'static>> {
-    vec![MenuTitle::new("&File", file), MenuTitle::new("&Edit", EditMenu::show), MenuTitle::new("&View", view), MenuTitle::new("&Help", |ui| {
-        MenuItem::new("&About").show(ui);
-    })]
+    vec![
+        MenuTitle::new("&File", file),
+        MenuTitle::new("&Edit", EditMenu::show),
+        MenuTitle::new("&View", view),
+        MenuTitle::new("&Help", |ui| {
+            MenuItem::new("&About").show(ui);
+        }),
+    ]
 }
 
 #[story(MenuBar<'static>, covers = [Default], drive = Drive::Never)]

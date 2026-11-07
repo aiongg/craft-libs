@@ -3,8 +3,8 @@
 use super::item::{LevelMemory, MenuItem, MenuLevel, level_env};
 use crate::contract::overlay::{Anchor, Dismiss, Outside};
 use crate::contract::{
-    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _, Remember as _, Role,
-    Show as _, ShowContainer as _, Trigger,
+    Bind, BindMut, BodyCx, Common, Component, Container, ContainerProps, Cx, Entry, Focus as _, Mount, NoValue, Outcome, Overlay, Pad, Props as _,
+    Remember as _, Role, Show as _, ShowContainer as _, Trigger,
 };
 use crate::display::Divider;
 use crate::runtime::env::Label;
