@@ -11,6 +11,7 @@ use crate::primitives::{Rule, ScrollBar, Surface};
 use crate::runtime::access::scope;
 use crate::runtime::access::{self, Politeness, Role};
 use crate::runtime::commands::{self, CommandSet as _, WindowCommand};
+use crate::runtime::egui::pass;
 use crate::runtime::egui::{alloc, areas, child, response, style, viewports};
 use crate::runtime::env::{AppValues, ArenaId, Env};
 use crate::runtime::focus::FocusPolicy;
@@ -26,8 +27,9 @@ use craft_behavior::{
     Axis, CancelRule, CursorIcon, EditEvent, GestureId, GesturePhase, HitLevel, HitPriority, Intent, KeyRole, Mixed, PartKey, PressPhase, Roving,
     ScrollPos, ScrollSpan, WheelNotch, WheelTaker,
 };
+use craft_host::target::{Caps, WindowChrome, WindowState};
 use craft_keymap::{Chord, Key, Mods};
-use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2};
+use egui::{Align, Context, Id, Layout, Pos2, Rect, Shape, Ui, UiBuilder, Vec2, ViewportId};
 use serde::{Deserialize, Serialize};
 use std::any::Any;
 
@@ -169,6 +171,29 @@ fn opener_of(props: &ContainerProps) -> Option<&super::overlay::Opener> {
     overlay_of(props)?.opener.as_ref()
 }
 
+/// Whether the app moves and resizes the OS window of `viewport` (16.3, 21.2): the one rule every move band and grip
+/// of the body step reads. It holds when the app draws the frame (the chrome is not `Native`), the window is neither
+/// maximized nor full screen, and the platform does not answer the hit test of an undecorated window's edges itself.
+/// When it does not hold, the move and resize parts are not registered: no cursor and no press.
+pub(crate) fn app_moves_window(ctx: &Context, viewport: ViewportId) -> bool {
+    let shell = windows::shell_of(ctx, viewport);
+    let framed_by_app = shell.window.chrome != WindowChrome::Native;
+    let sized_by_os = matches!(shell.window.state, WindowState::Maximized | WindowState::Fullscreen);
+    let answered_by_platform = shell.caps.contains(Caps::OS_RESIZES_UNDECORATED) && shell.window.chrome == WindowChrome::Integrated;
+    framed_by_app && !sized_by_os && !answered_by_platform
+}
+
+/// The viewport of the OS window a container's move and resize parts act on: a viewport mount's own window, the
+/// window a `Window`, `Pane` or `Inline` container is shown in. A layer (also a viewport mount's fallback layer)
+/// and a full-window mount are not an OS window of their own.
+fn os_window(props: &ContainerProps, ctx: &Context, id: Id) -> Option<ViewportId> {
+    match &props.mount {
+        Mount::Viewport { .. } if viewports::available(ctx) => Some(viewports::viewport_id(id)),
+        Mount::Window { .. } | Mount::Pane(_) | Mount::Inline => Some(pass::current_viewport(ctx)),
+        Mount::Viewport { .. } | Mount::Layer(_) | Mount::FullWindow => None,
+    }
+}
+
 /// The floor of a resizable layer's size: the larger of the style minimum and the overlay's `min_size`.
 fn window_min(props: &ContainerProps, style_min: Vec2) -> Vec2 {
     overlay_of(props).and_then(|overlay| overlay.min_size).map_or(style_min, |min| style_min.max(min))
@@ -201,6 +226,19 @@ struct WindowMode {
     kind: Option<WindowModeKind>,
     restore: Placement,
     began: Option<Rect>,
+}
+
+/// Whether the second press of a double click went down on the container's move band in this pass.
+#[derive(Clone, Default)]
+struct BandDouble(bool);
+
+impl BodyCx<'_> {
+    /// Whether the second press of a double click went down on the container's move band in this pass. The body step
+    /// only reports it; the container decides what it means (a title bar maximizes the window, a floating frame
+    /// minimizes it). A band double click that the container never reads does nothing.
+    pub fn band_double_pressed(&self) -> bool {
+        self.memory.recall::<BandDouble>(sub(self.id, "band_double")).0
+    }
 }
 
 /// What every change of a layer's rect keeps to: the least and most size, and the rect it stays inside.
@@ -574,8 +612,8 @@ impl BodyHooks<'_> {
     }
 
     /// A press on the move band or a grip of a container in an OS window starts the OS move or resize.
-    fn window_os<C: Container>(&self, cx: &Cx<'_, C>) {
-        let viewport = viewports::viewport_id(cx.core.id);
+    fn window_os<C: Container>(&self, viewport: ViewportId, cx: &Cx<'_, C>) {
+        // The parts are registered only under the rule, and the results of a part not registered this pass are gone.
         let started =
             |key: (PartKey, Option<u64>)| cx.core.results.get(&key).is_some_and(|result| matches!(result.press.phase, PressPhase::DragStart { .. }));
         if started((MOVE_BAND, None)) {
@@ -586,6 +624,14 @@ impl BodyHooks<'_> {
                 windows::act(&cx.core.ctx, viewport, WindowAction::StartResize(edge_of(dx, dy)));
             }
         }
+    }
+
+    /// Records for the container's header hooks whether the second press of a double click went down on the move
+    /// band in this pass (`BodyCx::band_double_pressed`).
+    fn band_double<C: Container>(&self, cx: &mut Cx<'_, C>) {
+        let Some(band) = cx.core.results.get(&(MOVE_BAND, None)) else { return };
+        let double = band.press.double_pressed();
+        cx.core.memory.shown::<BandDouble>(sub(sub(cx.core.id, "body"), "band_double")).0 = double;
     }
 }
 
@@ -634,7 +680,7 @@ impl<'b> BodyHooks<'b> {
     /// from its content until the user sizes it; an inline container follows its props.
     fn sizing(&self, props: &ContainerProps) -> Sizing {
         match &props.mount {
-            Mount::Pane(_) => Sizing::Fill,
+            Mount::Pane(_) | Mount::Window { .. } => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } | Mount::FullWindow if self.fixed => Sizing::Fill,
             Mount::Layer(_) | Mount::Viewport { .. } => Sizing::Content,
             _ => props.sizing,
@@ -1120,10 +1166,13 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         self.nudge = gap_of(tokens, Gap::Row);
         let handle = tokens.tokens().size.handle.sm;
         let reason = "the Move and Size commands of the window command set do the same";
+        // The window an OS move or resize acts on, and whether the app does it (the rule in `app_moves_window`).
+        let os = os_window(&props, &ctx, pcx.id);
+        let app_moves = os.is_none_or(|viewport| app_moves_window(&ctx, viewport));
         // A layer moves when its overlay says so; other mounts follow the header's band.
         let movable = match &props.mount {
-            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable,
-            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move),
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => overlay.movable && app_moves,
+            _ => props.header.is_some_and(|header| header.band == super::DragBand::Move) && app_moves,
         };
         if props.header.is_some() && movable && regions.header.height() > 0.0 {
             pcx.part(MOVE_BAND, regions.header)
@@ -1143,14 +1192,18 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
                 .drag_cursor(CursorIcon::Grabbing)
                 .pointer_only("Alt+Up and Alt+Down move the section");
         }
-        if let Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } = &props.mount
-            && overlay.resize.grips
-        {
+        // The grips of a layer straddle its edge; those of a window lie inside it, where the window has pixels.
+        let (grips, inset) = match &props.mount {
+            Mount::Layer(overlay) | Mount::Viewport { fallback: overlay, .. } => (overlay.resize.grips, 0.0),
+            Mount::Window { resize } => (resize.grips, handle / 2.0),
+            _ => (false, 0.0),
+        };
+        if grips && app_moves {
             for (index, (dx, dy, cursor)) in GRIPS.into_iter().enumerate() {
                 let along = |edge: i8, low: f32, high: f32| match edge {
-                    -1 => (low - handle / 2.0, low + handle / 2.0),
-                    1 => (high - handle / 2.0, high + handle / 2.0),
-                    _ => (low + handle / 2.0, high - handle / 2.0),
+                    -1 => (low - handle / 2.0 + inset, low + handle / 2.0 + inset),
+                    1 => (high - handle / 2.0 - inset, high + handle / 2.0 - inset),
+                    _ => (low + handle / 2.0 + inset, high - handle / 2.0 - inset),
                 };
                 let (x0, x1) = along(dx, rect.min.x, rect.max.x);
                 let (y0, y1) = along(dy, rect.min.y, rect.max.y);
@@ -1193,11 +1246,14 @@ impl<C: Container> ShapeHooks<C> for BodyHooks<'_> {
         if props.collapse.is_some() && cx.activation().is_some_and(|activation| activation.by_key) {
             self.open = !self.open;
         }
-        if !layer {
-            return;
+        self.band_double(cx);
+        let band = props.header.is_some_and(|header| header.band == DragBand::Move);
+        if (band || matches!(props.mount, Mount::Viewport { .. } | Mount::Window { .. }))
+            && let Some(viewport) = os_window(props, cx.core.memory.ctx(), cx.core.id)
+        {
+            self.window_os(viewport, cx);
         }
-        if matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx()) {
-            self.window_os(cx);
+        if !layer || (matches!(props.mount, Mount::Viewport { .. }) && viewports::available(cx.core.memory.ctx())) {
             return;
         }
         self.window_keys(props, cx);

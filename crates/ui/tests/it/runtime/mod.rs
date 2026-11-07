@@ -6,4 +6,5 @@ mod memory;
 mod pointer;
 mod pointer_input;
 mod wheel;
+mod window_move;
 mod windows;
