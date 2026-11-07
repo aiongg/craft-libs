@@ -423,7 +423,7 @@ impl Component for Tab<'_> {
             }
         }
         if let (Some(_), Some(fraction)) = (placed.progress, self.progress) {
-            ui.face(PROGRESS, Progress::new(fraction));
+            ui.face(PROGRESS, Progress::new(fraction).label(cx.resolved.label.to_owned()));
         }
     }
 
