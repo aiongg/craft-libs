@@ -40,7 +40,7 @@ pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
 pub use cx::{Accessible, Activation, BodyCx, Cx, CxCore, Edit, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use group::{GroupHandle, GroupKind, GroupState};
 pub use items::ColumnCommands;
-pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, SideLabel};
+pub use label::{CellWidth, FieldLabelRole, FieldLayout, LabelKind, Scrub, SideLabel};
 pub use looks::Looks;
 pub use overlay::{Overlay, OverlayUi, Overlays, PopupHandle, Trigger};
 pub use paint_ui::PaintUi;
@@ -229,6 +229,11 @@ pub trait Component: Meta + Sized {
 
     /// Value components return their binding; the same binding on every call, with no side effects.
     fn bind(&mut self) -> Option<BindMut<'_, ValueOf<Self>>> {
+        None
+    }
+
+    /// Lets a drag on the field's side label change the value; the pipeline runs the gesture (16.3, B2).
+    fn scrub(&self) -> Option<Scrub<ValueOf<Self>>> {
         None
     }
 

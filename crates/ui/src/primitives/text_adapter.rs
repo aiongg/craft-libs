@@ -1,6 +1,8 @@
 //! The text adapter: places the egui text widget at a text part's rect, applies the IME engine's edits and the
 //! edit commands to it, and records what happened for the pass's typing run (18.2).
 
+mod completion;
+
 use crate::primitives::{TextLayout, TextOptions};
 use crate::runtime::access::text::{Line, Run};
 use crate::runtime::egui::{clipboard, focus as egui_focus, text_edit};
@@ -50,6 +52,7 @@ pub(crate) struct TextState {
     /// The pass time the caret last moved or text was typed, for the blink.
     pub caret_moved: f64,
     pub focused: bool,
+    pub completions: completion::Completions,
 }
 
 /// The id of a text part's egui widget, which holds key focus.
@@ -146,6 +149,12 @@ fn replace(text: &mut String, selection: (usize, usize), insert: &str) -> usize 
     lo + insert.chars().count()
 }
 
+/// Replaces `selection` (characters) of `text` with `insert` and puts the caret after it, in the widget as well.
+fn replace_selection(ctx: &Context, widget: Id, text: &mut String, selection: (usize, usize), insert: &str) {
+    let caret = replace(text, selection, insert);
+    text_edit::select(ctx, widget, caret, caret);
+}
+
 /// Applies the IME engine's edits and this pass's edit commands to the draft; returns whether the text changed.
 fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, widget: Id) -> bool {
     let ctx = input.ctx;
@@ -153,8 +162,11 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
     let selection = |text: &str| text_edit::selection(ctx, widget).unwrap_or((text.chars().count(), text.chars().count()));
     if let Some(preedit) = ime::take_leaving(ctx, widget).filter(|preedit| !preedit.is_empty()) {
         let at = state.preedit.take().map_or_else(|| text.chars().count(), |p| p.at);
-        let caret = replace(text, (at, at), &preedit);
-        text_edit::select(ctx, widget, caret, caret);
+        replace_selection(ctx, widget, text, (at, at), &preedit);
+        changed = true;
+    }
+    if let Some(insert) = &input.options.replace_selection {
+        replace_selection(ctx, widget, text, selection(text), insert);
         changed = true;
     }
     let edits = ime::take(ctx, widget, input.read_only);
@@ -170,8 +182,7 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
             EditorInput::ImeCommit => {}
             EditorInput::Text(typed) => {
                 let at = state.preedit.take().map_or_else(|| selection(text), |p| (p.at, p.at));
-                let caret = replace(text, at, &typed);
-                text_edit::select(ctx, widget, caret, caret);
+                replace_selection(ctx, widget, text, at, &typed);
                 changed = true;
             }
             _ => {}
@@ -189,8 +200,7 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
                     let (lo, hi) = (a.min(b), a.max(b));
                     clipboard::copy_text(ctx, text[byte_of(text, lo)..byte_of(text, hi)].to_owned());
                     if command == EditCommand::Cut {
-                        let caret = replace(text, (lo, hi), "");
-                        text_edit::select(ctx, widget, caret, caret);
+                        replace_selection(ctx, widget, text, (lo, hi), "");
                         changed = true;
                     }
                 }
@@ -198,8 +208,7 @@ fn apply(input: &mut AdapterIn<'_>, state: &mut TextState, text: &mut String, wi
             EditCommand::Paste => {
                 if let Some(pasted) = keys::pasted_text(ctx, input.id) {
                     let pasted = if input.options.multiline() { pasted.to_string() } else { pasted.replace(['\n', '\r'], " ") };
-                    let caret = replace(text, selection(text), &pasted);
-                    text_edit::select(ctx, widget, caret, caret);
+                    replace_selection(ctx, widget, text, selection(text), &pasted);
                     changed = true;
                 }
             }
@@ -224,7 +233,13 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
     let (ctx, widget) = (input.ctx, text_id(input.id, input.key));
     let focused_before = input.focused;
     let mut base = state.draft.clone().or_else(|| state.normalised.take()).unwrap_or_else(|| input.shown.to_owned());
-    let edited = apply(&mut input, state, &mut base, widget);
+    let mut edited = apply(&mut input, state, &mut base, widget);
+    if let Some((range, insert)) = state.completions.take(ctx, input.id, &base) {
+        let chars = |byte: usize| base.get(..byte).map_or_else(|| base.chars().count(), |head| head.chars().count());
+        let selection = (chars(range.start), chars(range.end));
+        replace_selection(ctx, widget, &mut base, selection, &insert);
+        edited = true;
+    }
     if focused_before && (state.draft.is_some() || state.preedit.is_some()) && input.intents.take(Intent::Cancel) {
         state.end = Some(End::Escape);
         state.preedit = None;
@@ -272,6 +287,9 @@ pub(crate) fn run(state: &mut TextState, mut input: AdapterIn<'_>) -> AdapterOut
         state.caret = caret;
         state.caret_moved = input.now;
     }
+    let typing = shown.focused && state.preedit.is_none() && !input.read_only;
+    let at = state.draft.as_deref().filter(|_| typing).map(|text| (text, caret.unwrap_or_else(|| text.chars().count())));
+    state.completions.refresh(ctx, input.id, input.options.complete.as_deref(), at);
     if shown.entered && shown.focused && !input.options.multiline() {
         state.end = Some(End::Submit);
     } else if shown.lost_focus && state.draft.is_some() && state.end.is_none() {

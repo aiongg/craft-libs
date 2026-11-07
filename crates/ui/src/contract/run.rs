@@ -418,6 +418,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::gesture_gate(cx);
     steps::update_inputs(&mut cx.core);
     steps::edit_intents(comp, cx);
+    steps::scrub_by_label(comp, cx);
     overlay::begin_owner(&ctx, id);
     comp.update(cx);
     p.hooks.updated(comp, cx);

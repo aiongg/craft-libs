@@ -37,6 +37,10 @@ pub(crate) struct Line {
 /// What a text component tells AccessKit about its text this pass.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TextFacts {
+    /// The egui widget that holds the text and key focus; its node carries the name.
+    pub widget: Id,
+    /// The component's name, which names the widget's node.
+    pub name: String,
     /// The whole text, for the node's value.
     pub text: String,
     /// A password: the value is dots and no runs are exposed.
@@ -78,8 +82,15 @@ fn end_of(entries: &[Entry], owner: Id, pos: TextPos) -> Option<(Id, usize)> {
     Some((run_id(owner, entry.line, run), character))
 }
 
-/// Adds the text facts to the node of `owner` and fills its run nodes. Call it after the node's common facts.
+/// Whether the text part's `widget` has an AccessKit node this pass: the facts are built only then.
+pub(crate) fn exposed(ctx: &Context, widget: Id) -> bool {
+    adapter::enabled(ctx, widget)
+}
+
+/// Adds the text facts to the node of `owner` and fills its run nodes, and names the widget's node. Call it after
+/// the node's common facts.
 pub(crate) fn report_text(ctx: &Context, owner: Id, facts: &TextFacts) {
+    adapter::set_label(ctx, facts.widget, &facts.name);
     let mut entries = Vec::new();
     if !facts.masked {
         for (line_at, line) in facts.lines.iter().enumerate() {

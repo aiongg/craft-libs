@@ -650,6 +650,39 @@ pub(crate) fn edit_intents<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     }
 }
 
+/// The value a label scrub started from.
+#[derive(Clone, Default)]
+struct ScrubStart(f64);
+
+/// Step 9, before the component: a drag on the side label scrubs the value of a component that opts in with
+/// `Component::scrub`. The control registers with its label scope so the label senses the drag from the next pass on.
+pub(crate) fn scrub_by_label<C: Component>(comp: &C, cx: &mut Cx<'_, C>) {
+    use super::cx::Edit as _;
+    use craft_behavior::PressPhase;
+    if cx.core.resolved.read_only || !cx.core.resolved.enabled {
+        return;
+    }
+    let Some(scrub) = comp.scrub() else { return };
+    let Some(label) = scope::field_label(&cx.core.ctx) else { return };
+    scope::register_scrub(&cx.core.ctx);
+    let start_id = sub(cx.core.id, "scrub_start");
+    let rtl = cx.core.env.direction().is_rtl();
+    match label.press.phase {
+        PressPhase::DragStart { .. } => {
+            cx.core.memory.shown::<ScrubStart>(start_id).0 = cx.value().map_or(0.0, scrub.read);
+            cx.begin();
+        }
+        PressPhase::Drag { .. } => {
+            let start = cx.core.memory.shown::<ScrubStart>(start_id).0;
+            if let Some(next) = scrub.drag.value(start, &label.press, rtl) {
+                cx.propose((scrub.write)(next));
+            }
+        }
+        PressPhase::Release { .. } if cx.gesture().is_some_and(|phase| matches!(phase, GesturePhase::Begin | GesturePhase::Update)) => cx.commit(),
+        _ => {}
+    }
+}
+
 /// A second press of a double click went down on the component's root or one of its value parts this pass (10.2).
 fn is_double_click(core: &CxCore<'_>) -> bool {
     let second = |phase: &craft_behavior::PressPhase| matches!(phase, craft_behavior::PressPhase::Down { start, .. } if start.clicks >= 2);

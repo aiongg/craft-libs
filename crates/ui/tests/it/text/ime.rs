@@ -7,7 +7,7 @@ use craft_ui::testing::Frames;
 use craft_ui::testing::pointer::{click, middle, moved, press, release};
 use craft_ui::testing::text::{ime_preedit, widget_id};
 use craft_ui::testing::trial;
-use craft_ui::text::TextField;
+use craft_ui::text::{SelectableText, TextField};
 use egui::{Event, ImeEvent};
 
 fn preedit(text: &str) -> Event {
@@ -75,4 +75,37 @@ fn clicking_elsewhere_while_composing_commits_the_preedit_once_and_interrupts_th
     assert!(interrupted, "the old owner's output interrupts the OS composition");
     assert_eq!(*first.borrow(), "helloni", "the composed text was committed once, into the composing field");
     assert!(second.borrow().is_empty(), "the new owner receives none of it");
+}
+
+/// Edits that arrive in a pass where their owner is not shown are dropped, not delivered when it is shown again.
+#[trial]
+fn ime_edits_for_an_owner_that_is_not_shown_are_dropped() {
+    let mut rig = Rig::new("hello");
+    rig.focus();
+    rig.idle(1);
+    rig.frames.frame(vec![Event::Ime(ImeEvent::Commit("zz".into()))], |_| {});
+    rig.idle(3);
+    assert_eq!(rig.text, "hello", "the commit that arrived while the field was away is gone");
+}
+
+/// A read-only field that owns the IME ends a composition at once: the OS composition is interrupted and the
+/// text stays as it was.
+#[trial]
+fn a_read_only_owner_interrupts_a_composition_the_os_started() {
+    let mut frames = Frames::new();
+    let (rect, id) = (std::cell::Cell::new(egui::Rect::NOTHING), std::cell::Cell::new(egui::Id::NULL));
+    let mut show = |ui: &mut egui::Ui| {
+        let out = SelectableText::new("Note", "read me").id_salt("note").show(ui);
+        rect.set(out.response.rect);
+        id.set(out.response.id);
+    };
+    frames.idle(3, &mut show);
+    click(&mut frames, rect.get().center(), &mut show);
+    let owner = widget_id(id.get(), TEXT);
+    let mut interrupted = false;
+    for events in [vec![preedit("ni")], vec![], vec![]] {
+        frames.frame(events, &mut show);
+        interrupted |= frames.ime().is_some_and(|ime| ime.interrupt && ime.owner == owner);
+    }
+    assert!(interrupted, "the output interrupts the composition of the read-only owner");
 }

@@ -20,8 +20,10 @@ struct Engine {
     guard: u8,
     /// A reset was asked for; events of the old composition are dropped until the OS answers or the IME disables.
     stale: bool,
-    /// Edits for `owner`, in arrival order, until its next run takes them.
+    /// Edits for `owner`, in arrival order, until its run of this pass takes them.
     edits: Vec<EditorInput>,
+    /// `owner` took its edits this pass; an owner not shown for a pass never does, and its edits are dropped.
+    ran: bool,
     /// The preedit of the owner that lost focus, for its adapter to append as typed text.
     leaving: Option<(Id, String)>,
     preedit: String,
@@ -103,15 +105,21 @@ pub(crate) fn begin(ctx: &Context, owner: Option<Id>) {
     });
 }
 
-/// The edits waiting for `owner`; empty for any other component. A read-only owner takes none and never composes.
+/// The edits waiting for `owner`; empty for any other component. A read-only owner takes none and never composes:
+/// a composition it was in is interrupted.
 pub(crate) fn take(ctx: &Context, owner: Id, read_only: bool) -> Vec<EditorInput> {
     current(ctx, |engine| {
         if engine.owner != Some(owner) {
             return Vec::new();
         }
+        engine.ran = true;
         if read_only {
             engine.edits.clear();
-            engine.composing = false;
+            if engine.composing {
+                engine.composing = false;
+                engine.stale = true;
+                engine.interrupt = Some(owner);
+            }
             engine.preedit.clear();
             return Vec::new();
         }
@@ -161,8 +169,12 @@ pub(crate) fn note_caret(ctx: &Context, owner: Id, field: Rect, caret: Rect, pas
 /// The end hook: writes the pass's IME output.
 pub(crate) fn end_pass(ctx: &Context) {
     let viewport = pass::current_viewport(ctx);
-    let (owner, interrupt, caret, generation) =
-        with(ctx, viewport, |engine| (engine.owner, engine.interrupt.take(), engine.caret.take(), engine.generation));
+    let (owner, interrupt, caret, generation) = with(ctx, viewport, |engine| {
+        if !std::mem::take(&mut engine.ran) {
+            engine.edits.clear();
+        }
+        (engine.owner, engine.interrupt.take(), engine.caret.take(), engine.generation)
+    });
     os::clear(ctx);
     match (caret, interrupt, owner) {
         (Some((id, field, caret, password)), interrupt, _) if Some(id) == owner => {
