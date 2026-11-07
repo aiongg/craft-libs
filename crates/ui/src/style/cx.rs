@@ -146,6 +146,20 @@ impl<'a> StyleCx<'a> {
         })
     }
 
+    /// The tinted background text and icons of `tone` sit on: the status or accent background, and the sunken surface
+    /// for no status.
+    pub fn tone_fill(&self, tone: Tone) -> StyleColor {
+        let c = &self.tokens.color;
+        self.color(match tone {
+            Tone::Accent => c.accent.soft,
+            Tone::Info => c.status.info.bg,
+            Tone::Good => c.status.good.bg,
+            Tone::Warn => c.status.warn.bg,
+            Tone::Bad => c.status.bad.bg,
+            _ => c.surface.sunken,
+        })
+    }
+
     /// A text or icon colour that is `base` when the component stands alone and the text colour of the host part
     /// when it is shown as that part's face, so a face reads on whatever fill the host draws under it.
     pub fn host_ink(&self, base: Stateful<StyleColor>) -> Stateful<StyleColor> {
