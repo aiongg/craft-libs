@@ -23,7 +23,9 @@ use crate::runtime::env::Label;
 use crate::runtime::focus::KeyUse;
 use crate::style::{ComponentStyle, StyleCx, SurfaceKind};
 use craft_behavior::nav::{StepResult, ValueAxes, ValueSteps, step_value};
-use craft_behavior::{Axis, CursorIcon, DockSide, DockTree, Flow, GroupId, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense};
+use craft_behavior::{
+    Axis, CursorIcon, DockHandle, DockSide, DockTree, Flow, GroupId, HitLevel, HitPriority, Metrics, NavMove, PartKey, PressPhase, Sense,
+};
 use egui::{Pos2, Rect, Response, Ui};
 use tab::PanelTab;
 
@@ -190,6 +192,47 @@ fn along_y(mv: NavMove) -> NavMove {
     }
 }
 
+/// Dragging a handle moves its boundary: one gesture from the drag's start to its release.
+fn resize_by_pointer(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[DockHandle]) {
+    let (rect, rtl, least) = (cx.rect, cx.flow.is_rtl(), cx.style.least);
+    for handle in handles {
+        let phase = cx.part(HANDLE.at(u64::from(handle.key.0))).press.phase;
+        match phase {
+            PressPhase::DragStart { .. } => cx.begin(),
+            PressPhase::Drag { pos, .. } => {
+                let along = if handle.axis == Axis::X { logical_x(rect, rtl, pos.x) } else { pos.y };
+                let mut next = tree.clone();
+                if next.move_boundary(&handle.path, handle.index, handle.split, along, least) {
+                    cx.propose(next);
+                }
+            }
+            PressPhase::Release { .. } => cx.commit(),
+            _ => {}
+        }
+    }
+}
+
+/// The arrow keys move the focused handle's boundary by a step, Shift or Page by a jump.
+fn resize_by_keys(cx: &mut Cx<'_, SplitArea<'_>>, tree: &DockTree, handles: &[DockHandle]) {
+    let style = cx.style;
+    let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
+    let Some(key) = focused else { return };
+    let Some((mv, mods)) = cx.intents().take_move() else { return };
+    let Some(handle) = handles.iter().find(|handle| u64::from(handle.key.0) == key) else { return };
+    let (at, lo, hi, axes, mv) = match handle.axis {
+        Axis::X => (handle.bar.center().x, handle.split.left(), handle.split.right(), ValueAxes::Horizontal, mv),
+        _ => (handle.bar.center().y, handle.split.top(), handle.split.bottom(), ValueAxes::Vertical, along_y(mv)),
+    };
+    let steps =
+        ValueSteps::new(f64::from(at), f64::from(lo + style.least), f64::from(hi - style.least), f64::from(style.step), f64::from(style.jump));
+    if let StepResult::Set(value) = step_value(&steps, axes, mv, mods) {
+        let mut next = tree.clone();
+        if next.move_boundary(&handle.path, handle.index, handle.split, value as f32, style.least) {
+            cx.set(next);
+        }
+    }
+}
+
 impl Component for SplitArea<'_> {
     const ROLE: Role = Role::GROUP;
     const KEYS: KeyUse = KeyUse::CANVAS;
@@ -232,46 +275,10 @@ impl Component for SplitArea<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let Some(tree) = cx.value().cloned() else { return };
-        let (rect, rtl, style) = (cx.rect, cx.flow.is_rtl(), cx.style);
-        let handles = tree.handles(rect, style.reach);
-        for handle in &handles {
-            let phase = cx.part(HANDLE.at(u64::from(handle.key.0))).press.phase;
-            match phase {
-                PressPhase::DragStart { .. } => cx.begin(),
-                PressPhase::Drag { pos, .. } => {
-                    let along = if handle.axis == Axis::X { logical_x(rect, rtl, pos.x) } else { pos.y };
-                    let mut next = tree.clone();
-                    if next.move_boundary(&handle.path, handle.index, handle.split, along, style.least) {
-                        cx.propose(next);
-                    }
-                }
-                PressPhase::Release { .. } => cx.commit(),
-                _ => {}
-            }
-        }
-        let focused = cx.active_part().filter(|part| part.key == HANDLE).and_then(|part| part.index);
-        if let Some(key) = focused
-            && let Some((mv, mods)) = cx.intents().take_move()
-            && let Some(handle) = handles.iter().find(|handle| u64::from(handle.key.0) == key)
-        {
-            let (at, lo, hi, axes, mv) = match handle.axis {
-                Axis::X => (handle.bar.center().x, handle.split.left(), handle.split.right(), ValueAxes::Horizontal, mv),
-                _ => (handle.bar.center().y, handle.split.top(), handle.split.bottom(), ValueAxes::Vertical, along_y(mv)),
-            };
-            let steps = ValueSteps::new(
-                f64::from(at),
-                f64::from(lo + style.least),
-                f64::from(hi - style.least),
-                f64::from(style.step),
-                f64::from(style.jump),
-            );
-            if let StepResult::Set(value) = step_value(&steps, axes, mv, mods) {
-                let mut next = tree.clone();
-                if next.move_boundary(&handle.path, handle.index, handle.split, value as f32, style.least) {
-                    cx.set(next);
-                }
-            }
-        }
+        let handles = tree.handles(cx.rect, cx.style.reach);
+        resize_by_pointer(cx, &tree, &handles);
+        resize_by_keys(cx, &tree, &handles);
+        let (rect, rtl) = (cx.rect, cx.flow.is_rtl());
         let target = GroupDrops { groups: group_rects(&tree, rect, rtl), rtl };
         if let Some(drop) = cx.drop_target::<PanelDrag, _>(&target) {
             self.dropped = Some(drop);
