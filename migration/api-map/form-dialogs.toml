@@ -24,9 +24,9 @@ note = "The `StackDialog` form of `ParamDialog` and `CommandForm`: `HostedParamD
 [[type]]
 name = "CommandForm"
 old = "craft_ui::dialog::command_form::CommandForm"
-new = ""
-status = "removed"
-note = "A `ParamDialog` with no `preview` and no `remember` key; hosted, a `HostedParamDialog`."
+new = "craft_ui::patterns::form_dialogs::CommandForm"
+status = "moved"
+note = "A `Pattern` that builds a `ParamDialog` with no `preview` and no `remember` key (`CommandForm::dialog`) and shows it: `CommandForm::new(key, title, params).values(Bind::bound(&mut fields)).show(ui)`. Hosted, a `HostedCommandForm`."
 
 [[type]]
 name = "ParamLayout"
@@ -454,8 +454,41 @@ note = "`HostedParamDialog` keeps the `StackDialog::show(ui, stack)` form."
 
 [[setter]]
 type = "CommandForm"
-old = "CommandForm::new(key, title, params)"
-new = "ParamDialog::new(key, title, params)"
+old = "CommandForm::new(key, title: impl Into<String>, params: Vec<Param>)"
+new = "CommandForm::new(key, title: impl Into<Label>, params: impl Into<Cow<[Param]>>)"
+
+[[setter]]
+type = "CommandForm"
+old = "values(DialogFields)"
+new = "values(Bind<DialogFields>)"
+note = "The values are a binding; without one the form keeps its own between passes."
+
+[[setter]]
+type = "CommandForm"
+old = "set_ok_enabled(bool)"
+new = "ok_enabled(bool)"
+note = "The app passes the state each pass; there is no setter on an open form."
+
+[[setter]]
+type = "CommandForm"
+old = "history(bool)"
+new = "outer_gesture(bool)"
+
+[[setter]]
+type = "CommandForm"
+old = "close_label(Option<String>)"
+new = "closable(bool)"
+note = "The close action's name is the common word; `None` becomes `closable(false)`."
+
+[[setter]]
+type = "CommandForm"
+old = "below(impl Fn(&mut Ui, &DialogFields))"
+new = "below(impl Fn(&mut Ui, &DialogFields))"
+
+[[setter]]
+type = "CommandForm"
+old = "footer_extra(impl FnMut(&mut Ui))"
+new = "footer_extra(impl FnMut(&mut Ui))"
 
 [[setter]]
 type = "CommandForm"
