@@ -535,9 +535,12 @@ impl<'b> BodyHooks<'b> {
         let top = inner.min.y + stacked_h;
         let content_sized = self.sizing(props) == Sizing::Content;
         let (bottom, footer_top) = if content_sized {
-            let body_h = self.remembered.map_or(0.0, |size| size.y) * self.presence.t;
-            let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h);
-            (top + (room.y - stacked_h - footer_h).max(0.0), top + line_h)
+            let body_room = (room.y - stacked_h - footer_h).max(0.0);
+            // A body that fills records the band it was given, which may predate the footer's measure: the line is
+            // never taller than the room less header and footer, so the footer stays inside the room.
+            let body_h = (self.remembered.map_or(0.0, |size| size.y) * self.presence.t).min(body_room);
+            let line_h = if inline { body_h.max(header_h) } else { body_h }.max(end_h).min(body_room);
+            (top + body_room, top + line_h)
         } else {
             (inner.max.y - footer_h, inner.max.y - footer_h)
         };

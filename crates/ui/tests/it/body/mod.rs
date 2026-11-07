@@ -5,3 +5,5 @@ mod keyboard;
 pub(crate) mod kit;
 mod mounts;
 mod scroll;
+
+mod footer_reserve;

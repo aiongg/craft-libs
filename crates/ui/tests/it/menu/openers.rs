@@ -1,8 +1,8 @@
 //! A menu with several openers, and a menu a held press opened.
 
 use craft_ui::buttons::Button;
-use craft_ui::contract::overlay::HOLD;
-use craft_ui::contract::{Role, Show as _, ShowContainer as _, Trigger};
+use craft_ui::contract::overlay::{Anchor, HOLD};
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _, Trigger};
 use craft_ui::menu::{Menu, MenuItem};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
@@ -103,4 +103,62 @@ fn a_menu_a_held_press_opened_runs_the_row_the_press_ends_on() {
     fixture.settle();
     assert_eq!(ran.get(), Some("Second"), "the release ran the row under it");
     assert!(menu_rect(&fixture).is_none(), "running the row closed the menu");
+}
+
+/// One response that is both a Manual opener hung from a separate control and a Context opener.
+fn manual_and_context(open_bound: bool) -> (Fixture, Rc<Ids>) {
+    let ids = Rc::new(Ids { button: Cell::new(None), area: Cell::new(None) });
+    let shown = ids.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let (menu_button, target) = ui.horizontal(|ui| (Button::new("Menu").show(ui), Button::new("Target").show(ui))).inner;
+        shown.button.set(Some(menu_button.id));
+        shown.area.set(Some(target.id));
+        let mut menu = Menu::new("Actions").opened_by(&target, Trigger::Manual).anchor(Anchor::Rect(menu_button.rect));
+        if open_bound {
+            menu = menu.open(Bind::bound(true));
+        }
+        menu.opened_by(&target, Trigger::Context).show(ui, |ui, _| {
+            MenuItem::new("Open").show(ui);
+        });
+    });
+    fixture.settle();
+    (fixture, ids)
+}
+
+#[trial]
+fn a_context_opening_shares_the_response_of_a_manual_opener_and_hangs_at_the_pointer() {
+    let (mut fixture, ids) = manual_and_context(false);
+    let target = fixture.node_of(ids.area.get().unwrap()).expect("the target has a node");
+    let button = fixture.node_of(ids.button.get().unwrap()).expect("the menu button has a node");
+    let at = target.center();
+    fixture.frame(vec![pointer::moved(at)]);
+    fixture.frame(vec![pointer::secondary(at, true)]);
+    fixture.frame(vec![pointer::secondary(at, false)]);
+    fixture.settle();
+    let menu = menu_rect(&fixture).expect("a secondary click on the target opens the menu");
+    assert!(menu.left() >= button.rect.right() - 1.0, "the menu does not hang under the menu button: {menu:?} vs {:?}", button.rect);
+    assert!(menu.left() <= at.x + 1.0 && menu.right() >= at.x, "the menu starts at the pointer");
+}
+
+#[trial]
+fn a_context_key_on_a_shared_response_returns_the_focus_to_it_when_the_menu_closes() {
+    let (mut fixture, ids) = manual_and_context(false);
+    fixture.key(Key::Tab, Modifiers::NONE);
+    fixture.key(Key::Tab, Modifiers::NONE);
+    assert_eq!(fixture.focused(), ids.area.get(), "the target has the focus");
+    fixture.key(Key::F10, Modifiers::SHIFT);
+    fixture.settle();
+    assert!(menu_rect(&fixture).is_some(), "the Menu key opens the menu");
+    fixture.key(Key::Escape, Modifiers::NONE);
+    fixture.settle();
+    assert!(menu_rect(&fixture).is_none(), "Escape closes the menu");
+    assert_eq!(fixture.focused(), ids.area.get(), "the focus returns to the response");
+}
+
+#[trial]
+fn a_menu_a_manual_opener_opens_hangs_from_the_opener_rect() {
+    let (fixture, ids) = manual_and_context(true);
+    let button = fixture.node_of(ids.button.get().unwrap()).expect("the menu button has a node");
+    let menu = menu_rect(&fixture).expect("the bound menu is open");
+    assert!(menu.top() >= button.rect.bottom() - 1.0, "the menu hangs under the menu button: {menu:?} vs {:?}", button.rect);
 }
