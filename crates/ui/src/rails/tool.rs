@@ -291,7 +291,7 @@ impl<T: Value + 'static> Container for ToolRail<'_, T> {
     /// The column toggle.
     fn header(&mut self, ui: &mut Ui, _: &mut BodyCx<'_>) {
         let Some(label) = self.column_toggle.clone() else { return };
-        let (columns, rtl) = (self.column_count(), Env::of(ui).direction().is_rtl());
+        let (columns, rtl) = (self.column_count(), Env::of(ui).direction.is_rtl());
         let icon = column_toggle_icon(columns, !self.at_end() != rtl, rtl);
         let toggle = IconButton::new(IconId::new(icon)).id_salt("column-toggle").label(label).show(ui);
         self.toggled |= clicked(&toggle);

@@ -1,7 +1,6 @@
 //! Stories of `ToolRail`, and the commands its stories and the flyout's use as tools.
 
 use super::{LastUsed, RailTool, ToolRail, ToolSlot};
-use crate::contract::Props as _;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use egui::Ui;
 
