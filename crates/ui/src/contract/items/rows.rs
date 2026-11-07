@@ -41,9 +41,9 @@ pub(super) fn measured_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
     sub(collection, ("row_size", key_hash(key)))
 }
 
-/// The height the last pass measured for the auto row `id`.
-pub(super) fn measured_height(ctx: &Context, id: Id) -> Option<f32> {
-    layout_memory::peek(ctx, id).map(|size| size.y)
+/// Runs `f` with a reader of the heights the last pass measured for auto rows.
+pub(super) fn measured_heights<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<f32>) -> R) -> R {
+    layout_memory::peeking(ctx, |peek| f(&|id| peek(id).map(|size| size.y)))
 }
 
 /// Records the size an auto row measured this pass. The row is placed by it in the same pass, so the entry is
