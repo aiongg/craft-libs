@@ -22,7 +22,7 @@ fn picker() -> (Fixture, Rc<Cell<Option<u32>>>) {
         let mut held = shown.get();
         let rows = rows();
         let mut view = state.borrow_mut();
-        PresetPicker::new("Swatch", Bind::bound(&mut held), &rows, Bind::bound(&mut *view)).show(ui);
+        let _ = PresetPicker::new("Swatch", Bind::bound(&mut held), &rows, Bind::bound(&mut *view)).show(ui);
         shown.set(held);
     });
     fixture.settle();

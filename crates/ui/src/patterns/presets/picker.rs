@@ -118,9 +118,6 @@ pub struct PresetPicker<'a, K: Value + Eq + Hash + 'static> {
     /// Which presets and groups the browser may rename.
     #[prop(func = "Fn(&K) -> bool")]
     can_rename: Option<RowTest<'a, K>>,
-    /// Which presets and groups the browser's context menu may delete.
-    #[prop(func = "Fn(&K) -> bool")]
-    can_delete: Option<RowTest<'a, K>>,
     /// Shown, muted, while the value is no preset of the rows.
     #[prop(into)]
     placeholder: Option<Label>,
@@ -145,7 +142,6 @@ impl<'a, K: Value + Eq + Hash + 'static> PresetPicker<'a, K> {
             default_open: DefaultOpen::All,
             toolbar: false,
             can_rename: None,
-            can_delete: None,
             placeholder: None,
             display_name: None,
             picked: None,
@@ -259,25 +255,20 @@ impl<K: Value + Eq + Hash + 'static> Component for PresetPicker<'_, K> {
         let popup = cx.popup("browser");
         let name = cx.label();
         let current = cx.value().and_then(Clone::clone);
-        let menu = self.can_rename.is_some() || self.can_delete.is_some();
         let (rows, shape, view, default_open, toolbar) = (self.rows, self.cell_shape, self.view, self.default_open, self.toolbar);
-        let (can_rename, can_delete) = (self.can_rename.as_ref(), self.can_delete.as_ref());
+        let can_rename = self.can_rename.as_ref();
         let state = &mut self.state;
         let out = ui.show(popup, Overlay::popover(), |ui, _| {
             let mut browser = PresetBrowser::new(name.clone(), state.reborrowed(), rows)
                 .cell_shape(shape)
                 .view_lock(view)
                 .default_open(default_open)
-                .toolbar(toolbar)
-                .context_menu(menu);
+                .toolbar(toolbar);
             if let Some(key) = current.clone() {
                 browser = browser.selected(key);
             }
             if let Some(test) = can_rename {
                 browser = browser.can_rename(|key| test.passes(key));
-            }
-            if let Some(test) = can_delete {
-                browser = browser.can_delete(|key| test.passes(key));
             }
             browser.show(ui)
         });

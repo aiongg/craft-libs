@@ -592,8 +592,6 @@ old = "can_rename(Fn(&K) -> bool)"
 new = "can_rename(Fn(&K) -> bool)"
 
 [[setter]]
-type = "PresetPicker"
-old = "can_delete(Fn(&K) -> bool)"
 new = "can_delete(Fn(&K) -> bool)"
 
 [[setter]]
