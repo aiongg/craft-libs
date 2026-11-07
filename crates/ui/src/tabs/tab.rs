@@ -17,8 +17,8 @@ use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, Corners, Flags, IconLook, RuleKind, StyleColor, StyleCx, SurfaceLook, TextLook, UiTokens};
 use craft_behavior::{Flow, IconId, Insets, Metrics, PartKey, PointerButton, PressPhase, Proposal, Sense};
-use craft_theme::{Contrast, Rgba, RowStyle, Stateful, States, TypeRole};
-use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
+use craft_theme::{Rgba, RowStyle, Stateful, States, TypeRole};
+use egui::{Pos2, Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]
 mod stories;
@@ -74,7 +74,6 @@ struct Sizes {
     min_content: f32,
     label_line: f32,
     detail_line: f32,
-    indicator: f32,
     underline_gap: f32,
     text_only: bool,
 }
@@ -97,8 +96,6 @@ pub struct TabStyle {
     /// The icon before the label, in the label's ink.
     #[style(icon)]
     icon: IconLook,
-    /// The bar along the selected tab's top edge: only in high contrast.
-    indicator: Option<StyleColor>,
     /// Under the selected text tab's label.
     underline: StyleColor,
     /// A divider at the tab's trailing edge, in a theme that divides rows.
@@ -251,7 +248,6 @@ impl Component for Tab<'_> {
             min_content: size.icon.md,
             label_line: line(role),
             detail_line: line(TypeRole::Caption),
-            indicator: stroke.thick,
             underline_gap: space.gap.tight,
             text_only,
         };
@@ -261,7 +257,6 @@ impl Component for Tab<'_> {
             label: TextLook::new(role, ink(colors.text.muted, colors.text.normal)),
             detail: TextLook::new(TypeRole::Caption, ink(colors.text.faint, colors.text.faint)),
             icon: IconLook::new(sizes.icon, ink(colors.text.muted, colors.text.normal)),
-            indicator: (!text_only && tokens.appearance.contrast == Contrast::High).then(|| c(colors.accent.solid)),
             underline: c(colors.text.normal),
             divider: key.kind.compact_dividers() && tokens.shape.rows == RowStyle::Divided,
             close_side: close_side(cx.os, cx.direction.is_rtl()),
@@ -382,10 +377,6 @@ impl Component for Tab<'_> {
         let sizes = style.sizes;
         let selected = cx.resolved.selected == Some(true) || cx.state().flags.contains(Flags::SELECTED);
         let draw = ui.draw();
-        if let (true, Some(color)) = (selected, style.indicator) {
-            let bar = Rect::from_min_size(rect.min, Vec2::new(rect.width(), sizes.indicator.min(rect.height())));
-            draw.fill(&PaintShape::Rect(bar, CornerRadius::ZERO), color);
-        }
         if style.divider {
             let x = cx.flow.end_x();
             draw.rule(RuleKind::Divider, Pos2::new(x, rect.top()), Pos2::new(x, rect.bottom()));
