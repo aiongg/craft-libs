@@ -501,7 +501,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     steps::register_reset(comp, cx);
     // 12 state
     p.trace.mark(Step::State);
-    steps::state(comp, cx, C::OVERLAYS && overlay::popup_shown(&ctx, id), env.ink);
+    steps::state(comp, cx, C::OVERLAYS && overlay::popup_shown(&ctx, id), p.hooks.expanded(comp) == Some(true), env.ink);
     if cx.core.state.flags.contains(crate::style::Flags::FOCUSED) {
         commands::note_focus(&ctx, id, &env.commands);
     }

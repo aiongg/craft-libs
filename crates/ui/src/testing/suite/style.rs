@@ -60,7 +60,10 @@ fn reachable(subject: &Subject) -> Flags {
         flags |= Flags::OPEN;
     }
     if matches!(probe.shape, crate::contract::ShapeKind::Items) {
-        flags |= Flags::OPEN | Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET;
+        flags |= Flags::LEAD | Flags::DRAGGING | Flags::DROP_TARGET;
+    }
+    if !matches!(probe.shape, crate::contract::ShapeKind::Leaf) {
+        flags |= Flags::EXPANDED;
     }
     flags
 }

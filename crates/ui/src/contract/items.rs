@@ -482,7 +482,7 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
                 let child = if state.lead { rows::child_focus(&ctx, row_group) } else { None };
                 lead_child = lead_child.or(child);
                 flags.set(crate::style::Flags::LEAD, state.lead && (focused || child.is_some()));
-                flags.set(crate::style::Flags::OPEN, state.open);
+                flags.set(crate::style::Flags::EXPANDED, state.open);
                 flags.set(crate::style::Flags::DRAGGING, state.dragging);
                 flags.set(crate::style::Flags::DROP_TARGET, state.drop_target);
                 let mut position = SetPosition::new(at).of(len);
