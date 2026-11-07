@@ -17,14 +17,22 @@ fn is_text(subject: &Subject) -> bool {
     matches!(subject.probe.input, Input::Text | Input::Editor)
 }
 
-/// The text the focused node shows: its value, or its text runs for an editor.
+/// The text the focused component shows. Its text runs and value are on the component's node, and egui's focus is
+/// on the text part's widget below it, whose own node holds the value only for a text field.
 fn shown_text(fixture: &Fixture) -> String {
-    let Some(id) = fixture.focused() else { return String::new() };
+    let Some(focus) = fixture.focused() else { return String::new() };
     let tree = fixture.tree();
-    let runs = tree.run_texts(id).join("\n");
-    match tree.value(id) {
-        Some(value) if runs.is_empty() => value.to_owned(),
-        _ => runs,
+    let from = |id| {
+        let runs = tree.run_texts(id).join("\n");
+        match tree.value(id) {
+            Some(value) if runs.is_empty() => value.to_owned(),
+            _ => runs,
+        }
+    };
+    let text = from(focus);
+    match fixture.root_id() {
+        Some(root) if text.is_empty() => from(root),
+        _ => text,
     }
 }
 
