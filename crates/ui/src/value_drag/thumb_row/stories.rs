@@ -97,7 +97,7 @@ fn thumb_row_invalid(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 #[story(ThumbRow<'static, 4>, covers = [], drive = Drive::Never)]
 fn thumb_row_track_face(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
     levels(Bind::bound(data.value("levels", Mixed::each([30.0, 60.0, 190.0, 220.0]))))
-        .track_face(TrackFace::new(Progress::new(1.0)))
+        .track_face(TrackFace::new(Progress::new(1.0).label("Track")))
         .label("Levels")
         .show(ui)
         .into()

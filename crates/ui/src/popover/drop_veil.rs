@@ -35,12 +35,18 @@ pub struct VeilCardStyle {
 
 /// The card of a veil: a popup surface around the label's `Text`, as wide and high as the text with its padding.
 #[derive(crate::contract::Component)]
+#[component(sample = VeilCard::sample)]
 struct VeilCard {
     #[common]
     common: Common,
 }
 
 impl VeilCard {
+    #[cfg(feature = "testing")]
+    fn sample() -> Self {
+        VeilCard::new("Drop files here")
+    }
+
     fn new(label: impl Into<Label>) -> Self {
         VeilCard { common: Common::new() }.label(label)
     }

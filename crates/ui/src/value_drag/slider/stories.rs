@@ -71,5 +71,9 @@ fn slider_value_text(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
 
 #[story(Slider<'static>, covers = [], drive = Drive::Never)]
 fn slider_track_face(ui: &mut Ui, data: &mut StoryData) -> StoryOutput {
-    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE).track_face(TrackFace::new(Progress::new(1.0))).label("Hue").show(ui).into()
+    Slider::new(Bind::bound(data.value("value", 40.0)), RANGE)
+        .track_face(TrackFace::new(Progress::new(1.0).label("Track")))
+        .label("Hue")
+        .show(ui)
+        .into()
 }
