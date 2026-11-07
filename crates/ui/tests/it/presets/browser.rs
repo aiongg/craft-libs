@@ -1,6 +1,6 @@
 //! The browser's reorder rules: where a dragged preset or group may land.
 
-use craft_ui::contract::{Bind, ListDrag, Show as _};
+use craft_ui::contract::{Bind, ListDrag};
 use craft_ui::patterns::presets::{PresetBrowser, PresetEvent, PresetReorder, PresetRow, PresetState};
 use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
@@ -94,5 +94,6 @@ fn the_row_menu_of_an_unselected_preset_acts_on_that_preset() {
     fixture.type_text("Plum");
     fixture.key(Key::Enter, Modifiers::NONE);
     fixture.idle(3);
-    assert!(seen.borrow().contains(&PresetEvent::Rename { key: CORAL, text: "Plum".to_owned() }), "events: {:?}", seen.borrow());
+    let renamed = seen.borrow().iter().any(|event| matches!(event, PresetEvent::Rename { key: CORAL, text, .. } if text == "Plum"));
+    assert!(renamed, "events: {:?}", seen.borrow());
 }
