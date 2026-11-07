@@ -229,7 +229,7 @@ impl<T: Value + 'static> Component for Select<'_, T> {
                         let field = TextField::search(search_name(&words, &name), Bind::bound(&mut typed.text)).show(ui);
                         query.clone_from(&typed.text);
                         // The dropdown leaves the key focus on the select; the filter field takes it so typing reaches it.
-                        eprintln!("DBG field focus={} q={:?} id={:?}", field.response.has_focus(), typed_dbg(&query), field.response.id);
+                        eprintln!("DBG focus={} q={:?} stop={:?} want={:?}", field.response.has_focus(), typed_dbg(&query), focus::focused_stop(ui.ctx()).map(|k| format!("{k:?}").chars().rev().take(60).collect::<String>()), format!("{:?}", field.response.id).chars().rev().take(60).collect::<String>());
                         let taken = &mut body.memory::<Query>().focused;
                         if field.response.has_focus() {
                             *taken = true;
