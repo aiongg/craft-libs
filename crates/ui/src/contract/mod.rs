@@ -11,8 +11,8 @@ mod steps;
 mod values;
 
 pub use crate::runtime::access::{Access, FieldLabel, Name, Numeric, Politeness, PopupKind, Role, SetPosition, SubNode, announce};
-pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
+pub use crate::runtime::commands::{CommandSet, Commands};
 pub use crate::runtime::motion::{Animate, Interpolate, MotionSpec, Presence, Tween, spec};
 pub use crate::runtime::pending::{Job, Pending, Progress};
 pub use craft_ui_macros::{CommandSet, Component, Props, register_contract};
