@@ -48,6 +48,7 @@ impl<'a> Checkbox<'a> {
 
 impl Component for Checkbox<'_> {
     const ROLE: Role = Role::CHECK_BOX;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = CheckboxStyle;
     type Output = EditResponse<bool>;

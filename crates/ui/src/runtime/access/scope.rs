@@ -4,8 +4,8 @@
 //! one child's node.
 
 use super::emit;
-use crate::runtime::env::Message;
 use crate::runtime::egui::{access as adapter, memory as store, memory::Service};
+use crate::runtime::env::Message;
 use crate::runtime::inspect::Finding;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::{self, sub};

@@ -11,8 +11,8 @@ use super::toggle::{ToggleCell, ToggleFace, ToggleState};
 use super::words::ListWords;
 use crate::choice::Checkbox;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Focus as _, GridPlace, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    Styled as _, WordSetCx as _,
+    Access, Bind, Common, Component, Cx, Focus as _, GridPlace, ItemOutput, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _,
+    Props as _, Role, Styled as _, WordSetCx as _,
 };
 use crate::controls::disclosure::Disclosure;
 use crate::primitives::{ContentPainterCx, Draw, IconSpec, PaintShape, RuleKind, Span, StrokeWidth, TextRun, Wrap};
@@ -1127,6 +1127,8 @@ impl<'a> RowThumb<'a> {
 
 impl Component for RowThumb<'_> {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = RowThumbStyle;
     type Output = Response;

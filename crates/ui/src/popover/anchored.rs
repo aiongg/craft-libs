@@ -179,6 +179,8 @@ impl<'a> Popover<'a> {
 
 impl Component for Popover<'_> {
     const ROLE: Role = Role::DIALOG;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = PopoverStyle;
     type Output = PopoverOutput;
 

@@ -64,6 +64,8 @@ impl SelectFace {
 
 impl Component for SelectFace {
     const ROLE: Role = Role::LABEL;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const OVERLAYS: bool = false;
     type Style = SelectFaceStyle;

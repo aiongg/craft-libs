@@ -101,6 +101,8 @@ impl<'a> BlockingOverlay<'a> {
 
 impl Component for BlockingOverlay<'_> {
     const ROLE: Role = Role::DIALOG;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = BlockingOverlayStyle;
     type Output = DialogOutput;
 

@@ -3,8 +3,8 @@
 use super::{Elide, Shade, Text};
 use crate::contract::Show as _;
 use crate::style::TypeRole;
-use craft_theme::variant::Tone;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
+use craft_theme::variant::Tone;
 use egui::Ui;
 
 #[story(Text, covers = [Default], drive = Drive::Never)]

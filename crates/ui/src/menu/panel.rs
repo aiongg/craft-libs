@@ -1,8 +1,8 @@
 //! `PanelMenu`: the rows of a dock panel's menu (the button at the end of a group's tab strip and a tab's context
 //! menu): the host's rows, then the dock's group rows.
 
-use super::words::PanelMenuWords;
 use super::MenuItem;
+use super::words::PanelMenuWords;
 use crate::contract::Show as _;
 use crate::display::Divider;
 use crate::runtime::commands::CommandRef;

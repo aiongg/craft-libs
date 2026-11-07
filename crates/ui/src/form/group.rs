@@ -35,6 +35,8 @@ impl FieldGroup {
 
 impl Component for FieldGroup {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = FieldGroupStyle;
     type Output = Response;
 

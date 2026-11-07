@@ -5,8 +5,8 @@
 use super::words::BreadcrumbWords;
 use crate::buttons::Link;
 use crate::contract::{
-    Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi,
-    PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _, WordSetCx as _,
+    Access, ActivateOn, Bind, CollectionEvent, Common, Component, Cx, Entry, Focus as _, LeadOnOpen, MeasureCx, Name, Outcome, Overlay, OverlayUi,
+    Overlays as _, PaintUi, PartsCx, Pointer as _, Props as _, Role, SelectMode, ShowCollection as _, Styled as _, WordSetCx as _,
 };
 use crate::display::{Elide, Shade, Text};
 use crate::list::{List, ListRow};
@@ -14,9 +14,7 @@ use crate::primitives::IconSpec;
 use crate::runtime::env::Label;
 use crate::runtime::focus::{ActivateKeys, KeyUse};
 use crate::style::{ComponentStyle, FocusLook, IconLook, Stateful, StyleCx, TypeRole};
-use craft_behavior::{
-    Axis, DisplayOrder, Flow, IconId, ItemSource, Metrics, NavShape, PartKey, PartRef, Roving, Selection, Sense, Value,
-};
+use craft_behavior::{Axis, DisplayOrder, Flow, IconId, ItemSource, Metrics, NavShape, PartKey, PartRef, Roving, Selection, Sense, Value};
 use egui::{Rect, Response, Vec2};
 
 #[cfg(feature = "testing")]

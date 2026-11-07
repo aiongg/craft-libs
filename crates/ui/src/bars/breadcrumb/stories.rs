@@ -7,6 +7,7 @@ use egui::Ui;
 
 #[story(BreadcrumbBar<'static, u8>, covers = [Default], drive = Drive::Never)]
 fn breadcrumb_bar(ui: &mut Ui, _: &mut StoryData) -> StoryOutput {
-    let crumbs: Vec<Entry<u8>> = ["photos", "2026", "trip", "day-one", "selects"].into_iter().zip(0u8..).map(|(name, at)| Entry::new(at, name)).collect();
+    let crumbs: Vec<Entry<u8>> =
+        ["photos", "2026", "trip", "day-one", "selects"].into_iter().zip(0u8..).map(|(name, at)| Entry::new(at, name)).collect();
     BreadcrumbBar::new("Path", &crumbs).show(ui).into()
 }

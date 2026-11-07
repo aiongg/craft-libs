@@ -206,6 +206,8 @@ impl<'a, const N: usize> LinkedFields<'a, N> {
 
 impl<const N: usize> Component for LinkedFields<'_, N> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = LinkedFieldsStyle;
     type Output = LinkedOutput<N>;

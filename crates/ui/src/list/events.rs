@@ -222,6 +222,7 @@ impl<'a> EventList<'a> {
 
 impl Component for EventList<'_> {
     const ROLE: Role = Role::LIST;
+    const PARTS: bool = false;
     type Style = EventListStyle;
     type Output = CollectionResponse<u64, RowEvent>;
 

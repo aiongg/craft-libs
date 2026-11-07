@@ -102,6 +102,8 @@ impl<'a> SliderField<'a> {
 
 impl Component for SliderField<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = SliderFieldStyle;
     type Output = EditResponse<f64>;

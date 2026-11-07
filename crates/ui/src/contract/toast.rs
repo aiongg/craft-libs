@@ -95,6 +95,7 @@ impl ToastCard<'static> {
 
 impl Component for ToastCard<'_> {
     const ROLE: Role = Role::STATUS;
+    const PARTS: bool = false;
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     type Style = CardStyle;
     type Output = egui::Response;

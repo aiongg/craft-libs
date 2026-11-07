@@ -167,6 +167,8 @@ impl<P: Clone + Send + Sync + 'static> DropTarget<P> for OnSlot<P> {
 
 impl<P: Clone + Send + Sync + 'static> Component for DropAction<P> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = DropActionStyle;
     type Output = DropActionOutput<P>;
 
@@ -416,6 +418,8 @@ struct Shown {
 
 impl Component for FooterBar {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = FooterBarStyle;
     type Output = Response;
 

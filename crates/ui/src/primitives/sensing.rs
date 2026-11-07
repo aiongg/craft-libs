@@ -321,6 +321,15 @@ pub(crate) fn sense_root(ui: &Ui, spec: RootSpec<'_>) -> RootResult {
     }
 }
 
+/// Step 8 for a root with no sense, no parts and no members: nothing can hit it, so it has no arena entry, shape
+/// record or press lifecycle, only its egui widget and its entry in the widget record.
+pub(crate) fn sense_none(ui: &Ui, id: Id, rect: Rect) -> RootResult {
+    let ctx = ui.ctx();
+    let response = response::widget(ui, id, rect.intersect(ui.clip_rect()), Sense::empty());
+    pointer::record_widgets(ctx, ui.layer_id(), id, &[id, sub(id, "transform")], false);
+    RootResult { response, parts: PartResults::new(), press: PressState::IDLE, activation: false, activated_member: None, sense: Sense::empty() }
+}
+
 /// A member's step 8: it joins the arena and builds its `Response` and results from the arena's outcome.
 pub(crate) struct MemberSpec<'a> {
     pub id: Id,

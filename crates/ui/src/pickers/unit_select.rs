@@ -1,8 +1,8 @@
 //! `UnitSelect`: a number field with a select of units beside it that picks the unit the field reads and writes.
 
 use super::select::Select;
-use crate::contract::{WordSetCx as _, 
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Props as _, Role,
+use crate::contract::{
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Props as _, Role, WordSetCx as _,
 };
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
@@ -80,7 +80,8 @@ pub struct UnitSelect<'a> {
 impl<'a> UnitSelect<'a> {
     /// A number field named `label` over `value`, with a select of `units` over `unit` after it.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<f64>>, unit: Bind<'a, UnitKind>, units: &'a [Entry<UnitKind>]) -> Self {
-        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, unit_event: None, unit_width: Cell::new(0.0) }.label(label)
+        UnitSelect { common: Common::new(), value, unit, units, range: None, unit_label: None, unit_event: None, unit_width: Cell::new(0.0) }
+            .label(label)
     }
 
     fn number(&self, name: Label, value: Mixed<Option<f64>>, kind: Option<UnitKind>) -> NumberField<'static> {
@@ -107,6 +108,8 @@ fn shown_of(value: Option<&Option<f64>>) -> Mixed<Option<f64>> {
 
 impl Component for UnitSelect<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const OVERLAYS: bool = false;
     type Style = UnitSelectStyle;
     type Output = UnitSelectOutput;

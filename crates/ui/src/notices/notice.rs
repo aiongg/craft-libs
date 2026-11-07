@@ -401,7 +401,8 @@ impl Component for Notice<'_> {
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         let hit = |cx: &Cx<'_, Self>, part: PartRef| {
-            cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click()) || (by_key == Some(part) && cx.part_if_declared(part).is_some())
+            cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click())
+                || (by_key == Some(part) && cx.part_if_declared(part).is_some())
         };
         for (at, action) in self.actions.iter().enumerate() {
             if hit(cx, ACTION.at(at as u64)) {

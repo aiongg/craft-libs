@@ -4,10 +4,10 @@
 
 use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
 use craft_behavior::{CancelReason, CanvasTransform, EditEvent, Selection, keyed};
-use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
 use craft_ui::contract::Entry;
-use craft_ui::pickers::Select;
+use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, Role, SelectMode, Show as _, ShowCollection as _};
 use craft_ui::graph::{Node, NodeEvent, NodeGraph, NodeId, NodeKind, PortRef};
+use craft_ui::pickers::Select;
 use craft_ui::runtime::focus::{FocusTarget, request};
 use craft_ui::testing::layout::in_region;
 use craft_ui::testing::{Fixture, Frames, focus as testing_focus, input, pointer, trial};

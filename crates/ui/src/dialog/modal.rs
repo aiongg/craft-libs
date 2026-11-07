@@ -168,6 +168,8 @@ impl<'a> Dialog<'a> {
 
 impl Component for Dialog<'_> {
     const ROLE: Role = Role::DIALOG;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = DialogStyle;
     type Output = DialogOutput;
 

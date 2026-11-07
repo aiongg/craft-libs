@@ -47,6 +47,7 @@ impl Link {
 
 impl Component for Link {
     const ROLE: Role = Role::LINK;
+    const PARTS: bool = false;
     const OVERLAYS: bool = false;
     type Style = LinkStyle;
     type Output = Response;

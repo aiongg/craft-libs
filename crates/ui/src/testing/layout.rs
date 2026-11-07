@@ -85,6 +85,8 @@ pub struct BlockStyle {
 
 impl Component for Block {
     const ROLE: Role = Role::None;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = BlockStyle;
     type Output = Response;
 

@@ -168,8 +168,7 @@ impl<'a> AlignBar<'a> {
         let words = cx.words::<AlignWords>();
         let mut picked = None;
         let mut button = |ui: &mut Ui, action: AlignAction| {
-            let response =
-                IconButton::new(action.icon()).label(action.full_name(&words)).enabled((self.enabled)(action)).id_salt(action).show(ui);
+            let response = IconButton::new(action.icon()).label(action.full_name(&words)).enabled((self.enabled)(action)).id_salt(action).show(ui);
             if crate::contract::clicked(&response) {
                 picked = Some(action);
             }

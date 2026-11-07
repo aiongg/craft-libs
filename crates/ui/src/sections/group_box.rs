@@ -65,6 +65,8 @@ impl<'a> GroupBox<'a> {
 
 impl Component for GroupBox<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = GroupBoxStyle;
     type Output = EditResponse<bool>;
 

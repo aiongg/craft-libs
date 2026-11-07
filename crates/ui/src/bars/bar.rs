@@ -3,8 +3,8 @@
 use super::words::BarWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, Gap, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role, Show as _,
-    Sizing, WordSetCx as _,
+    Access, BodyCx, BodyLayout, Common, Component, Container, ContainerProps, Cx, Gap, HeaderRegion, NoValue, Outcome, Pad, Props as _, Role,
+    Show as _, Sizing, WordSetCx as _,
 };
 use crate::runtime::access::Name;
 use crate::runtime::env::Label;
@@ -127,6 +127,8 @@ impl Bar {
 
 impl Component for Bar {
     const ROLE: Role = Role::TOOLBAR;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::GROUP, Role::STATUS];
     const OVERLAYS: bool = false;
     type Style = BarStyle;

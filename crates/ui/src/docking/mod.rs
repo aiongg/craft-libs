@@ -394,6 +394,7 @@ impl<'a> DockGroup<'a> {
 
 impl Component for DockGroup<'_> {
     const ROLE: Role = Role::TAB_PANEL;
+    const PARTS: bool = false;
     type Style = DockGroupStyle;
     type Output = DockGroupOutput;
 

@@ -563,6 +563,11 @@ pub(crate) fn register_stops(input: &StopsIn<'_>) {
     }
 }
 
+/// Whether step 7 declared no parts, no roving group, no scroll part and no text or editor part.
+pub(crate) fn declares_none(parts: &PartsStep) -> bool {
+    parts.decls.is_empty() && parts.rovings.is_empty() && parts.scrolls.is_empty() && parts.text.decl.is_none() && parts.text.editor.is_none()
+}
+
 /// Step 7's finding (22.4): a part that senses `CLICK` or `DRAG` is focusable, declares its keyboard path, or names
 /// the focusable part of the component that carries it.
 pub(crate) fn check_parts(ctx: &Context, component: &'static str, parts: &PartsStep) {

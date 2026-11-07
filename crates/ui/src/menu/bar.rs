@@ -16,8 +16,8 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::words::MenuBarWords;
 use super::MenuItem;
+use super::words::MenuBarWords;
 use crate::buttons::ToggleButton;
 use crate::contract::overlay::Anchor;
 use crate::contract::{

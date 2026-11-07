@@ -231,22 +231,22 @@ impl<'a> MetadataTable<'a> {
             ColumnSpec::new(VALUE, words.value.clone(), ColumnWidth::fill(VALUE_SHARE)),
         ];
         if choose.is_some() {
-            columns.insert(0, ColumnSpec::new(SHOW, words.show.clone(), ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
+            columns
+                .insert(0, ColumnSpec::new(SHOW, words.show.clone(), ColumnWidth::Controls(1.0)).kind(ColumnKind::Toggle(ToggleColumn::sweepable())));
         }
         let source = Fields { keys, entries, chosen: choose.as_deref().map(Vec::as_slice) };
         let checks = choose.is_some();
-        let table = Table::<FieldKey>::new(label, columns)
-            .select(SelectMode::Single)
-            .striped(true)
-            .empty(empty)
-            .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
-                Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).strong(true),
-                Entry::Field(row) => {
-                    let line = ListRow::new(row.name.clone()).cells(icx.cells()).striped(icx.row.striped).cell_lines(VALUE, row.value.clone());
-                    if checks {
-                        line.toggle(ToggleCell::check(SHOW, ToggleState::of(source.toggled(icx.at, &SHOW)), words.show_field.clone()))
-                    } else {
-                        line
+        let table =
+            Table::<FieldKey>::new(label, columns).select(SelectMode::Single).striped(true).empty(empty).show_items(ui, &source, &mut |_, icx| {
+                match &source.entries[icx.at] {
+                    Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).strong(true),
+                    Entry::Field(row) => {
+                        let line = ListRow::new(row.name.clone()).cells(icx.cells()).striped(icx.row.striped).cell_lines(VALUE, row.value.clone());
+                        if checks {
+                            line.toggle(ToggleCell::check(SHOW, ToggleState::of(source.toggled(icx.at, &SHOW)), words.show_field.clone()))
+                        } else {
+                            line
+                        }
                     }
                 }
             });

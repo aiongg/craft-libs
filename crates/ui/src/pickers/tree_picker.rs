@@ -6,8 +6,8 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use super::words::TreePickerWords;
 use super::SelectFace;
+use super::words::TreePickerWords;
 use crate::contract::overlay::{OverlayFit, ViewportShare};
 use crate::contract::{
     Access, ActivateOn, Bind, BindMut, CollectionEvent, Common, Component, Cx, Edit as _, EditResponse, LeadOnOpen, MeasureCx, Overlay, OverlayUi,

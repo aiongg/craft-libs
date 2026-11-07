@@ -42,6 +42,7 @@ impl<'a> Icon<'a> {
 
 impl Component for Icon<'_> {
     const ROLE: Role = Role::IMAGE;
+    const PARTS: bool = false;
     const ALT_ROLES: &'static [Role] = &[Role::None];
     const INPUT: craft_behavior::Input = craft_behavior::Input::Display;
     const SHOWS_LABEL: bool = false;

@@ -73,6 +73,7 @@ impl<'a> IconButton<'a> {
 
 impl Component for IconButton<'_> {
     const ROLE: Role = Role::BUTTON;
+    const PARTS: bool = false;
     const SHOWS_LABEL: bool = false;
     const OVERLAYS: bool = false;
     type Style = IconButtonStyle;

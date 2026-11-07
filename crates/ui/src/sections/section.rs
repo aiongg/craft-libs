@@ -141,6 +141,8 @@ impl<'a> Section<'a> {
 
 impl Component for Section<'_> {
     const ROLE: Role = Role::GROUP;
+    const PARTS: bool = false;
+    const STOPS: bool = false;
     type Style = SectionStyle;
     type Output = SectionOutput;
 
