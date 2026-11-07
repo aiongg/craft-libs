@@ -4,7 +4,7 @@
 use super::body::placement_of;
 use super::container::PaneEdge;
 use super::overlay::{self, FloatPlace, Layer, Outside, Overlay, Place};
-use super::run::{Host, HostCx, ShowAt};
+use super::run::{Host, HostCx, HostPass, ShowAt};
 use super::{ContainerProps, Mount, ShellPane};
 use crate::runtime::egui::areas;
 use crate::runtime::egui::panels::{self, Edge};
@@ -74,14 +74,14 @@ pub(super) fn host(props: &ContainerProps, at: &HostCx<'_>, open: bool, title: &
 struct ClosedHost;
 
 impl Host for ClosedHost {
-    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {}
+    fn run(&mut self, _: Id, _: &mut Ui, _: &Env, _: &mut HostPass<'_>) {}
 }
 
 /// The parent `Ui` is the host `Ui`.
 struct InlineHost;
 
 impl Host for InlineHost {
-    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
         pass(parent, None, None);
     }
 }
@@ -90,7 +90,7 @@ impl Host for InlineHost {
 struct PaneHost(ShellPane);
 
 impl Host for PaneHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
         let rtl = env.direction.is_rtl();
         let (edge, along_x) = match self.0.edge {
             PaneEdge::Start => (if rtl { Edge::Right } else { Edge::Left }, true),
@@ -132,7 +132,7 @@ impl LayerHost {
 }
 
 impl Host for LayerHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
         // A sizing pass of the parent shows no layer: a layer takes no room in its parent.
         if parent.is_sizing_pass() {
             return;
@@ -176,7 +176,7 @@ struct FullWindowHost {
 }
 
 impl Host for FullWindowHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
         if parent.is_sizing_pass() {
             return;
         }
@@ -205,7 +205,7 @@ struct ViewportHost {
 }
 
 impl Host for ViewportHost {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>) {
         let ctx = parent.ctx().clone();
         let focus = self.overlay.focus;
         let mut window_rules = self.overlay.clone();

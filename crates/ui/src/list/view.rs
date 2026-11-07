@@ -32,6 +32,7 @@ pub struct ListStyle {
 /// close with the arrow keys, and the list reports each change as `CollectionEvent::Open`.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(collection, probe(List<'static, usize>))]
+#[allow(clippy::type_complexity, reason = "`#[derive(Props)]` writes a setter from the boxed closure type spelled in the field")]
 pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     #[common]
     common: Common,
@@ -47,14 +48,20 @@ pub struct List<'a, K: Clone + Eq + Hash + Send + Sync + 'static> {
     /// A tree: rows are indented by depth and groups open and close.
     #[prop]
     tree: bool,
-    can_rename: Option<KeyTest<'a, K>>,
-    can_drag: Option<KeyTest<'a, K>>,
+    /// Which rows may be renamed; a rename request on another row does nothing.
+    #[prop]
+    can_rename: Option<Box<dyn Fn(&K) -> bool + 'a>>,
+    /// Which rows may be dragged.
+    #[prop]
+    can_drag: Option<Box<dyn Fn(&K) -> bool + 'a>>,
+    /// Which collections a drag may come from: the test gets the id of the list the drag started in.
+    #[prop]
     accept_from: Option<Box<dyn Fn(Id) -> bool + 'a>>,
-    accepts: Option<DropTest<'a, K>>,
+    /// Where a drag may land: the test gets the drag, the row under the pointer and the position before which the
+    /// dragged rows would go. A refused spot shows no drop mark.
+    #[prop]
+    accepts: Option<Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>>,
 }
-
-type KeyTest<'a, K> = Box<dyn Fn(&K) -> bool + 'a>;
-type DropTest<'a, K> = Box<dyn Fn(&ListDrag<K>, &K, usize) -> bool + 'a>;
 
 impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     /// A list named `label`, with multiple selection.
@@ -106,35 +113,6 @@ impl<'a, K: Clone + Eq + Hash + Send + Sync + 'static> List<'a, K> {
     #[must_use]
     pub fn allow_empty(mut self, on: bool) -> Self {
         self.items = self.items.allow_empty(on);
-        self
-    }
-
-    /// Which rows may be renamed; a rename request on another row does nothing.
-    #[must_use]
-    pub fn can_rename(mut self, test: impl Fn(&K) -> bool + 'a) -> Self {
-        self.can_rename = Some(Box::new(test));
-        self
-    }
-
-    /// Which rows may be dragged.
-    #[must_use]
-    pub fn can_drag(mut self, test: impl Fn(&K) -> bool + 'a) -> Self {
-        self.can_drag = Some(Box::new(test));
-        self
-    }
-
-    /// Which collections a drag may come from: `test` gets the id of the list the drag started in.
-    #[must_use]
-    pub fn accept_from(mut self, test: impl Fn(Id) -> bool + 'a) -> Self {
-        self.accept_from = Some(Box::new(test));
-        self
-    }
-
-    /// Where a drag may land: `test` gets the drag, the row under the pointer and the position before which the
-    /// dragged rows would go. A refused spot shows no drop mark.
-    #[must_use]
-    pub fn accepts(mut self, test: impl Fn(&ListDrag<K>, &K, usize) -> bool + 'a) -> Self {
-        self.accepts = Some(Box::new(test));
         self
     }
 

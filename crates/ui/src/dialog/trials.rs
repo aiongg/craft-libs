@@ -152,8 +152,11 @@ fn a_footer_button_closes_the_dialog_by_its_role() {
             }
         });
         fixture.idle(30);
-        let button = fixture.by_label(label).expect("the button is shown");
-        fixture.click(&button);
+        let button = fixture.by_label(label);
+        assert!(button.is_some(), "the button is shown");
+        if let Some(button) = button {
+            fixture.click(&button);
+        }
         seen.get()
     };
     assert_eq!(run("Cancel"), (Some(CloseReason::Requested), Some(1)), "Cancel closes as requested");
@@ -172,8 +175,11 @@ fn a_blocking_overlays_cancel_button_closes_it() {
         }
     });
     fixture.settle();
-    let button = fixture.by_label("Stop").expect("the cancel button is shown");
-    fixture.click(&button);
+    let button = fixture.by_label("Stop");
+    assert!(button.is_some(), "the cancel button is shown");
+    if let Some(button) = button {
+        fixture.click(&button);
+    }
     assert_eq!(seen.get(), Some(CloseReason::Requested));
 }
 

@@ -16,7 +16,7 @@ mod words;
 
 pub use events::{EventLevel, EventList, EventListStyle, EventLog, EventLogState, LevelCounts, LogEvent};
 pub use findings::{Finding, Findings, FindingsList, FindingsListStyle, FindingsSummary, FindingsSummaryStyle, Severity, summary_text};
-pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbPaint, ThumbSize, ThumbTarget};
+pub use row::{ListRow, ListRowStyle, RowEvent, RowInk, RowOutput, ThumbAspect, ThumbPaint, ThumbSize, ThumbTarget};
 pub use toggle::{ToggleCell, ToggleFace, ToggleState};
 pub use tree::OpenSet;
 pub use undo::{UndoList, UndoListStyle, UndoMark, UndoRow, UndoRowStyle, UndoRows, footer_text, undo_count};

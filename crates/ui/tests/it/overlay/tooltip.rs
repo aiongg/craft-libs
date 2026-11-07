@@ -35,7 +35,7 @@ fn a_tooltip_shows_after_its_delay_and_hides_on_press() {
 }
 
 /// Whether resting the pointer on the shown component past the delay opens a tooltip.
-fn tooltip_opens(show_component: impl Fn(&mut Ui)) -> bool {
+fn tooltip_opens(mut show_component: impl FnMut(&mut Ui)) -> bool {
     let mut frames = Frames::new();
     let mut show = |ui: &mut Ui| show_component(ui);
     frames.idle(3, &mut show);

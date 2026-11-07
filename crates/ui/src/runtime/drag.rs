@@ -243,7 +243,7 @@ fn os_files(ctx: &Context) {
     let started = board(ctx, |board| match &mut board.session {
         None if !seen.hovered.is_empty() => {
             board.session = Some(Session {
-                source: Id::new("craft_ui::os_files"),
+                source: Id::NULL.with("craft_ui::os_files"),
                 viewport,
                 button: PointerButton::Primary,
                 payload: Arc::new(OsFiles { files: seen.hovered }),

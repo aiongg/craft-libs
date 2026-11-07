@@ -30,12 +30,15 @@ pub(crate) enum ShowAt {
     Rect(Rect),
 }
 
+/// The pass a host runs: the `Ui` it runs in, the placement that `Ui` imposes and the env it runs under.
+pub(crate) type HostPass<'a> = dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>) + 'a;
+
 /// Where a component's steps 6 to 16 run: calls `pass` with the `Ui` they run in and the placement that `Ui`
 /// imposes (`None` keeps the caller's), and the env it runs under when that is not the caller's (a viewport's own
 /// window facts). A host that opens a new egui layer or viewport installs `env` there. F5 adds the layer and
 /// viewport hosts, which call `pass` once per child pass.
 pub(crate) trait Host {
-    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>));
+    fn run(&mut self, id: Id, parent: &mut Ui, env: &Env, pass: &mut HostPass<'_>);
 
     /// Why the host asks the component to close, decided after its passes ran.
     fn dismissed(&self) -> Option<CloseReason> {
@@ -57,7 +60,7 @@ pub(crate) struct HostCx<'a> {
 pub(super) struct Inline;
 
 impl Host for Inline {
-    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut dyn FnMut(&mut Ui, Option<ShowAt>, Option<&Env>)) {
+    fn run(&mut self, _: Id, parent: &mut Ui, _: &Env, pass: &mut HostPass<'_>) {
         pass(parent, None, None);
     }
 }
@@ -290,6 +293,13 @@ fn pass<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<Show
     }
 }
 
+/// A component wider than its room widens the flow `Ui` it was placed in, toward the end of the line.
+fn expand_for_overflow(ui: &mut Ui, at: ShowAt, rect: Rect, overflow: f32, rtl: bool) {
+    if overflow > 0.0 && matches!(at, ShowAt::Flow) {
+        ui.expand_to_include_x(if rtl { rect.min.x - overflow } else { rect.max.x + overflow });
+    }
+}
+
 fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Option<ShowAt>, host_env: Option<&Env>) {
     let ctx = p.cx.core.ctx.clone();
     let (id, rtl) = (p.resolved.id, p.env.direction.is_rtl());
@@ -299,9 +309,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     let rect = steps::place(ui, host_at.unwrap_or(p.at), if inert { Vec2::ZERO } else { p.size });
     p.trace.mark(Step::Place);
     let overflow = p.hooks.overflow();
-    if overflow > 0.0 && matches!(host_at.unwrap_or(p.at), ShowAt::Flow) {
-        ui.expand_to_include_x(if rtl { rect.min.x - overflow } else { rect.max.x + overflow });
-    }
+    expand_for_overflow(ui, host_at.unwrap_or(p.at), rect, overflow, rtl);
     // A sizing pass of the parent or host `Ui` allocates the size and stops: no parts, no body, and the stage
     // opened at step 3 is written back unchanged.
     if p.sizing || ui.is_sizing_pass() {
@@ -406,7 +414,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.flow = flow;
     cx.core.visible = rect.intersect(ui.clip_rect());
     // A read-only component takes no activation: the response reports no click either.
-    if !steps::takes_activation(&resolved) {
+    if !steps::takes_activation(resolved) {
         response.flags.remove(egui::response::Flags::CLICKED | egui::response::Flags::FAKE_PRIMARY_CLICKED);
     }
     cx.core.response = response;
@@ -420,7 +428,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     cx.core.member_of = member.map(|arena| arena.0);
     // A key or AccessKit activation of a member reaches its arena root, which names the member.
     let keyed = member.is_some_and(|arena| keys::activated_member(&ctx, arena.0) == Some(id));
-    cx.core.activation = if !steps::takes_activation(&resolved) {
+    cx.core.activation = if !steps::takes_activation(resolved) {
         None
     } else if keyed {
         Some(Activation { by_key: true })

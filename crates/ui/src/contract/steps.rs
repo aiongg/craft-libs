@@ -608,7 +608,7 @@ pub(crate) fn takes_activation(resolved: &Resolved<'_>) -> bool {
 
 /// Step 9, update, the part the library writes: the keyboard activation.
 pub(crate) fn update_inputs(core: &mut CxCore<'_>) {
-    if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(&core.resolved) {
+    if core.intents.take(craft_behavior::Intent::Activate) && takes_activation(core.resolved) {
         core.activation = Some(super::Activation { by_key: true });
     }
 }

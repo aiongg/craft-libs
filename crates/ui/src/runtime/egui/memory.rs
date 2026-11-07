@@ -19,9 +19,14 @@ pub(crate) fn take_raw<T: Any + Send + Sync>(data: &mut Map, id: Id) -> Option<R
     data.remove_temp_raw(RawKey::new::<T>(id))
 }
 
+/// Moves the slot of type `T` under `id` out of context data as the box it is stored in.
+pub(crate) fn take_boxed<T: Any + Send + Sync>(ctx: &Context, id: Id) -> Option<Removed> {
+    ctx.data_mut(|data| take_raw::<T>(data, id))
+}
+
 /// Moves the slot of type `T` under `id` out of context data.
 pub(crate) fn take<T: Any + Send + Sync>(ctx: &Context, id: Id) -> Option<T> {
-    let boxed = ctx.data_mut(|data| take_raw::<T>(data, id))?;
+    let boxed = take_boxed::<T>(ctx, id)?;
     boxed.downcast::<T>().ok().map(|value| *value)
 }
 

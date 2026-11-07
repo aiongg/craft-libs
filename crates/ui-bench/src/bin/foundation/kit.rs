@@ -9,6 +9,7 @@ use craft_ui::contract::{
 use craft_ui::primitives::TextRun;
 use craft_ui::style::{ComponentStyle, Corners, Metrics, StyleCx, SurfaceKind};
 use egui::{Rect, Response, Vec2, vec2};
+use std::convert::Infallible;
 
 /// The height of every list row.
 pub const ROW_H: f32 = 20.0;
@@ -47,13 +48,6 @@ impl DisplayOrder<usize> for Count {
 
 impl ItemSource<usize> for Count {}
 
-/// What a row reports.
-#[derive(Clone, Debug, PartialEq)]
-#[non_exhaustive]
-pub enum Dismissed {
-    Row,
-}
-
 /// The output of a row.
 pub struct RowOut {
     response: Response,
@@ -67,8 +61,8 @@ impl Outcome for RowOut {
     }
 }
 
-impl ItemOutput<Dismissed> for RowOut {
-    fn into_event(self) -> Option<Dismissed> {
+impl ItemOutput<Infallible> for RowOut {
+    fn into_event(self) -> Option<Infallible> {
         None
     }
 }
@@ -114,10 +108,9 @@ impl Component for Row {
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
-        if let RowKind::Cells { cells, .. } = self.kind {
-            for column in 0..cells {
-                cx.part(CELL.at(column as u64), cell_rect(rect, column)).sense(Sense::CLICK).pointer_only("the sheet's keys move between cells");
-            }
+        let RowKind::Cells { cells, .. } = self.kind;
+        for column in 0..cells {
+            cx.part(CELL.at(column as u64), cell_rect(rect, column)).sense(Sense::CLICK).pointer_only("the sheet's keys move between cells");
         }
     }
 
@@ -154,7 +147,7 @@ impl BenchList {
 impl Component for BenchList {
     const ROLE: Role = Role::LIST;
     type Style = PlainStyle;
-    type Output = CollectionResponse<usize, Dismissed>;
+    type Output = CollectionResponse<usize, Infallible>;
 
     fn style(_: &StyleCx<'_>, _: BenchListStyleKey) -> PlainStyle {
         PlainStyle::default()
@@ -170,7 +163,7 @@ impl Collection for BenchList {
     type ItemLayout = SpanLayout;
     type Selection = Selection<usize>;
     type Item<'r> = Row;
-    type ItemEvent = Dismissed;
+    type ItemEvent = Infallible;
 
     fn items(&self) -> &CollectionProps {
         &self.items

@@ -29,7 +29,15 @@ pub(crate) fn seen(ctx: &Context) -> Seen {
             .raw
             .dropped_files
             .iter()
-            .map(|file| OsFile { name: file.name.clone(), path: file.path.clone(), mime: file.mime.clone(), bytes: file.bytes.clone() })
+            .map(|file| {
+                let path = file.path();
+                OsFile {
+                    name: path.file_name().map(|name| name.to_string_lossy().into_owned()).unwrap_or_default(),
+                    path: Some(path.to_path_buf()),
+                    mime: String::new(),
+                    bytes: None,
+                }
+            })
             .collect(),
     })
 }

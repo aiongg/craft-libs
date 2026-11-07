@@ -23,6 +23,24 @@ use craft_theme::variant::Tone;
 use craft_theme::{ControlSize, Rgba, RowStyle, Stateful, States, TypeRole, over};
 use egui::{CornerRadius, Pos2, Rect, Response, Vec2};
 
+/// The width of a thumbnail as a multiple of its height.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ThumbAspect(f32);
+
+impl ThumbAspect {
+    /// As wide as high.
+    pub const SQUARE: Self = Self(1.0);
+
+    /// `wide` parts of width to `high` parts of height; a zero part counts as a vanishing one.
+    pub fn new(wide: u16, high: u16) -> Self {
+        Self((f32::from(wide) / f32::from(high.max(1))).max(f32::EPSILON))
+    }
+
+    fn of(self, height: f32) -> f32 {
+        self.0 * height
+    }
+}
+
 /// The thumbnail setting of a list, which the host stores.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
@@ -214,7 +232,7 @@ pub struct ListRow<'a> {
     #[prop]
     pub(super) icon: Option<IconSpec<'a>>,
     pub(super) thumb: ThumbSize,
-    pub(super) thumb_aspect: f32,
+    pub(super) thumb_aspect: ThumbAspect,
     pub(super) first: Option<ThumbPaint<'a>>,
     pub(super) extras: Vec<Thumb<'a>>,
     /// The thumbnail the row's editing is aimed at: framed with corner brackets whether or not the row is selected.
@@ -259,7 +277,7 @@ impl<'a> ListRow<'a> {
             toggles: Vec::new(),
             icon: None,
             thumb: ThumbSize::None,
-            thumb_aspect: 1.0,
+            thumb_aspect: ThumbAspect::SQUARE,
             first: None,
             extras: Vec::new(),
             target: None,
@@ -300,7 +318,7 @@ impl<'a> ListRow<'a> {
     #[must_use]
     pub fn thumb(mut self, size: ThumbSize, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self.thumb = size;
-        self.thumb_aspect = 1.0;
+        self.thumb_aspect = ThumbAspect::SQUARE;
         self.first = Some(Box::new(paint));
         self
     }
@@ -308,9 +326,9 @@ impl<'a> ListRow<'a> {
     /// A thumbnail as high as `size` and `aspect` times as wide, for a gradient or other strip that is not square:
     /// its height sets the row's height as for any thumbnail. `ThumbSize::None` draws none.
     #[must_use]
-    pub fn thumb_aspect(mut self, size: ThumbSize, aspect: f32, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+    pub fn thumb_aspect(mut self, size: ThumbSize, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
         self = self.thumb(size, paint);
-        self.thumb_aspect = aspect.max(f32::EPSILON);
+        self.thumb_aspect = aspect;
         self
     }
 
@@ -468,7 +486,7 @@ impl ListRow<'_> {
     fn leading(&self, sizes: &Sizes) -> Option<f32> {
         let side = sizes.side(self.thumb);
         if self.shows_thumbs(sizes) {
-            let first = side * self.thumb_aspect;
+            let first = self.thumb_aspect.of(side);
             let between = |extra: &Thumb<'_>| if extra.link.is_some() { sizes.icon } else { sizes.gap };
             Some(first + self.extras.iter().map(|extra| first + between(extra)).sum::<f32>())
         } else {
@@ -479,7 +497,7 @@ impl ListRow<'_> {
     /// The thumbnail width and height of this row.
     fn thumb_size(&self, sizes: &Sizes) -> Vec2 {
         let side = sizes.side(self.thumb);
-        Vec2::new(side * self.thumb_aspect, side)
+        Vec2::new(self.thumb_aspect.of(side), side)
     }
 
     /// The levels of indent: a leaf inside a group indents one more level, past its parent's disclosure column.

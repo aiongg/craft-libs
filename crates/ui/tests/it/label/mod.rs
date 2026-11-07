@@ -129,6 +129,8 @@ fn dragging_a_label_that_scrubs_changes_the_value() {
 /// The window's right edge as the scrub trial's pointer reaches it, and the point the warp puts it at.
 const EDGE_X: f32 = 799.0;
 const LANDED_X: f32 = 4.0;
+/// How far two values may differ and still count as the same.
+const SAME: f64 = 0.01;
 
 #[trial]
 fn a_wrapped_scrub_keeps_its_value_continuous() {
@@ -161,10 +163,10 @@ fn a_wrapped_scrub_keeps_its_value_continuous() {
     let before = value;
     let landed = Pos2::new(LANDED_X, from.y);
     step(&mut frames, &mut value, vec![moved(landed)], landed);
-    assert!((value - before).abs() < 0.01, "the warp does not move the value: {before} -> {value}");
+    assert!((value - before).abs() < SAME, "the warp does not move the value: {before} -> {value}");
     let on = landed + Vec2::new(DRAG, 0.0);
     step(&mut frames, &mut value, vec![moved(on)], on);
-    assert!((value - before - f64::from(DRAG)).abs() < 0.01, "the drag goes on from the value before the warp: {before} -> {value}");
+    assert!((value - before - f64::from(DRAG)).abs() < SAME, "the drag goes on from the value before the warp: {before} -> {value}");
     assert_eq!(system.warps().len(), 1, "the pointer far from an edge does not warp again");
 }
 

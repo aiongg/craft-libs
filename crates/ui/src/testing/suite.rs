@@ -111,7 +111,7 @@ pub fn trials(package: &'static str, registered: &[&'static Registration]) -> Ve
         trials.push(Trial::test(format!("suite::{}", probe.type_name()), move || run_type(probe, stories)));
     }
     let patterns: Vec<&'static PatternProbe> = registered.iter().copied().filter_map(Registration::pattern_probe).collect();
-    for pattern in patterns.iter().copied() {
+    for pattern in &patterns {
         let stories: Vec<Story> = own.iter().filter(|entry| (entry.type_name)() == pattern.type_name()).map(|entry| entry.story).collect();
         let name = pattern.type_name();
         trials.push(Trial::test(format!("suite::{name}"), move || pattern::run(name, &stories).map_err(Failed::from)));

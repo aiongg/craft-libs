@@ -363,7 +363,7 @@ impl MemoryStage {
                 Box::new(store::peek_clone::<Wrapped<TIER, T>>(ctx, id).unwrap_or_default())
             } else {
                 // The box the slot was stored in stays the entry's value.
-                match ctx.data_mut(|data| take_raw::<Wrapped<TIER, T>>(data, id)) {
+                match store::take_boxed::<Wrapped<TIER, T>>(ctx, id) {
                     Some(boxed) if boxed.is::<Wrapped<TIER, T>>() => boxed,
                     _ => Box::new(Wrapped::<TIER, T>::default()),
                 }

@@ -1,6 +1,7 @@
 //! The egui calls `craft_ui::testing` needs: frames, raw input and options that apps reach only through the runtime.
 
-use egui::{Context, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
+use egui::{Context, DroppedFile, Event, Key, Modifiers, Pos2, Rect, Shape, Ui, ViewportCommand};
+use std::sync::Arc;
 
 /// What a frame sent out that trials read.
 pub(crate) struct FrameResult {
@@ -54,12 +55,25 @@ pub(crate) struct OsFiles {
     pub dropped: Vec<String>,
 }
 
+/// A dropped file that exists only as a path.
+#[derive(Debug)]
+struct DroppedPath(std::path::PathBuf);
+
+impl DroppedFile for DroppedPath {
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+
+    fn bytes(&self) -> Result<Vec<u8>, String> {
+        std::fs::read(&self.0).map_err(|error| error.to_string())
+    }
+}
+
 /// Runs one frame at `time` seconds with `events` and `files`, and drops its texture changes.
 pub(crate) fn run_frame(ctx: &Context, time: f64, events: Vec<Event>, files: OsFiles, ui: impl FnMut(&mut Ui)) -> FrameResult {
     let screen = Rect::from_min_max(Pos2::ZERO, Pos2::new(800.0, 600.0));
     let hovered_files = files.hovered.iter().map(|name| egui::HoveredFile { path: Some(name.into()), ..egui::HoveredFile::default() }).collect();
-    let dropped_files =
-        files.dropped.iter().map(|name| egui::DroppedFile { path: Some(name.into()), name: name.clone(), ..egui::DroppedFile::default() }).collect();
+    let dropped_files = files.dropped.iter().map(|name| Arc::new(DroppedPath(name.into())) as egui::DroppedFileHandle).collect();
     let input = RawInput { screen_rect: Some(screen), time: Some(time), events, hovered_files, dropped_files, ..RawInput::default() };
     let mut output = ctx.run_ui(input, ui);
     output.textures_delta.clear();
