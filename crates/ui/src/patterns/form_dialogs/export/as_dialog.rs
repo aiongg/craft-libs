@@ -8,7 +8,7 @@ use super::{
 };
 use crate::choice::Checkbox;
 use crate::contract::{
-    ActivateOn, Bind, CollectionEvent, EditResponse, Entry, NoValue, Outcome, Props as _, SelectMode, Show as _, ShowCollection as _,
+    ActivateOn, Bind, CollectionEvent, EditResponse, Entry, NoValue, Outcome, Props as _, Remember as _, SelectMode, Show as _, ShowCollection as _,
     ShowContainer as _, Sizing,
 };
 use crate::dialog::{Dialog, DialogOutput};

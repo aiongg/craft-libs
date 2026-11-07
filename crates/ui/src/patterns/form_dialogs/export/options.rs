@@ -2,7 +2,7 @@
 //! JPEG, layered TIFF, Targa and DDS are one form over four parameter lists; OK and Cancel, Enter and Escape come from
 //! `ParamDialog`, and Cancel abandons the save.
 
-use crate::contract::{Bind, Entry, NoValue, Outcome, Props as _, Show as _};
+use crate::contract::{Bind, Entry, NoValue, Outcome, Show as _};
 use crate::display::Text;
 use crate::patterns::form_dialogs::{DialogFields, FieldValue, Param, ParamDialog, ParamKind, ParamResult};
 use crate::pickers::Select;
