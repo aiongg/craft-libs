@@ -317,9 +317,7 @@ impl BodyHooks<'_> {
             if within {
                 keys::capture(&ctx, id, chord);
             }
-            eprintln!("ZZ reorder id {id:?} within {within} key {key:?}");
             while keys::take_claimed(&ctx, id, chord) {
-                eprintln!("ZZ taken {key:?}");
                 cx.core.intents.push(Intent::move_item(toward_end));
             }
         }

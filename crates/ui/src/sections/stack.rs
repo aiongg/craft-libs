@@ -139,7 +139,6 @@ impl<'a, K: Clone + PartialEq + std::hash::Hash + Send + Sync + 'static> Section
                 self.push_move(cx, &payload.grabbed, from, reorder::move_to(from, gap.insert));
             }
         }
-        eprintln!("ZZ drive nudged {:?}", seen.iter().map(|s| s.nudged).collect::<Vec<_>>());
         if let Some((from, forward)) = seen.iter().enumerate().find_map(|(at, section)| section.nudged.map(|forward| (at, forward))) {
             self.push_move(cx, &seen[from].key, from, reorder::nudge_to(from, seen.len(), forward));
         }

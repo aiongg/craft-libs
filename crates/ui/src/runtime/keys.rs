@@ -467,9 +467,6 @@ pub(crate) fn begin(ctx: &Context, press_captured: bool) -> bool {
     }
     // A text opener's list keys arrive as claimed chords, withheld from its text part: they go to the list.
     let mut claimed = Vec::new();
-    if !batch.claimed.is_empty() || !captures.is_empty() {
-        eprintln!("ZZ keys claimed {:?} captures {:?}", batch.claimed, captures.iter().map(|c| c.1).collect::<Vec<_>>());
-    }
     for chord in &batch.claimed {
         match dropdown.and_then(|dropdown| dropdown.intent_of(chord)) {
             Some(intent) => push(&mut routed, dropdown.map(|dropdown| dropdown.list), intent, false),

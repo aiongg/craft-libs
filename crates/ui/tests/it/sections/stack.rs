@@ -4,6 +4,7 @@
 use craft_ui::contract::{Role, ShowContainer as _};
 use craft_ui::runtime::drag;
 use craft_ui::sections::{Section, SectionStack};
+use craft_ui::testing::access::NodeKey;
 use craft_ui::testing::pointer::{moved, press, release};
 use craft_ui::testing::{Fixture, trial};
 use egui::{Id, Key, Modifiers, Vec2};
@@ -61,12 +62,16 @@ fn scene() -> (Fixture, Rc<RefCell<Seen>>) {
     (fixture, seen)
 }
 
-/// Puts focus in the section titled `title`: two clicks on its disclosure close and reopen it.
+/// Puts keyboard focus on the disclosure of the section titled `title`: Tab walks the sections' headers in order.
 fn focus_section(fixture: &mut Fixture, title: &str) {
-    let lead = fixture.by_role(Role::BUTTON).into_iter().find(|button| fixture.tree().name_of(button.node) == Some(title)).expect("a disclosure");
-    fixture.click(&lead);
-    fixture.click(&lead);
-    fixture.settle();
+    for _ in 0..TITLES.len() * 2 {
+        fixture.key(Key::Tab, Modifiers::NONE);
+        fixture.settle();
+        if fixture.focused().is_some_and(|id| fixture.tree().name_of(NodeKey::of(id)) == Some(title)) {
+            return;
+        }
+    }
+    panic!("Tab never reached the section {title}");
 }
 
 #[trial]

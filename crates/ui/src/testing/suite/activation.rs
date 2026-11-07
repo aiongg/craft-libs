@@ -145,6 +145,7 @@ fn declared_actions_are_handled(subject: &Subject) -> Result<(), String> {
                 || signature(fixture.tree()) != before
                 || fixture.focused() != focus;
             if !acted {
+                eprintln!("ZZ did nothing: {kind:?} key {key:?} name {:?} before {before:?}", fixture.tree().name_of(key));
                 return Err(format!("{}: {kind:?} on {:?} did nothing", story.name, fixture.tree().role_of(key)));
             }
         }
