@@ -86,7 +86,7 @@ pub struct ExportFormat {
     #[prop]
     pub bits: &'static [u8],
     /// The largest side the format can hold (ICO: 256); the dialog warns under the size when the output is larger.
-    #[prop]
+    #[prop(quantity = "document pixels")]
     pub max_side: Option<u32>,
 }
 
