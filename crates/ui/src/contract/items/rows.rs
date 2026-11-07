@@ -7,7 +7,7 @@ use crate::runtime::egui::memory as store;
 use crate::runtime::memory::sub;
 use crate::runtime::{focus, layout_memory};
 use crate::style::Flags;
-use craft_behavior::{CellRange, ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
+use craft_behavior::{CellAt, CellRange, ItemLayout, MoveMods, NavMove, SelectionChange, SelectionModel};
 use egui::{Context, Id, Vec2};
 use std::sync::Arc;
 
@@ -100,7 +100,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
             self.lead.anchor_column = column;
         }
         if toggle {
-            self.change(SelectionChange::Toggle(self.source.key(at)));
+            let key = self.source.key(at);
+            match layout.column_key(column) {
+                Some(column_key) => self.change(SelectionChange::ToggleCell(CellAt::new(key, column as u32, column_key))),
+                None => self.change(SelectionChange::Toggle(key)),
+            }
         } else {
             let anchor = if extend { self.anchor_at(self.lead.at) } else { at };
             self.select_cells(layout, anchor, at);

@@ -86,6 +86,11 @@ pub(crate) trait ShapeHooks<C: Component> {
         size
     }
 
+    /// The root's sense, from the component's own `own`.
+    fn sense(&self, _comp: &C, own: Sense) -> Sense {
+        own
+    }
+
     /// Whether the root is an arena root: its sense covers its members.
     fn arena(&self, _comp: &C) -> bool {
         false
@@ -361,7 +366,7 @@ fn steps_6_to_16<C: Component>(p: &mut Pass<'_, '_, C>, ui: &mut Ui, host_at: Op
     };
     let own = match (inert, resolved.enabled) {
         (true, _) => Sense::HOVER,
-        (false, true) => comp.sense(),
+        (false, true) => p.hooks.sense(comp, comp.sense()),
         // A disabled component that shows a reason on focus stays a Tab stop and senses nothing else.
         (false, false) if steps::takes_focus(resolved) => Sense::HOVER | comp.sense().intersection(Sense::FOCUS),
         (false, false) => Sense::HOVER,

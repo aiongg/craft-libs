@@ -225,6 +225,18 @@ impl<'a> List<'a> {
         self
     }
 
+    /// A press on the empty space, or on the selected row of a single selection, empties the selection.
+    pub fn allow_empty(mut self) -> Self {
+        self.items = self.items.allow_empty(true);
+        self
+    }
+
+    /// A press picks a row and leaves key focus where it is.
+    pub fn keep_focus(mut self) -> Self {
+        self.items = self.items.focus_on_press(false);
+        self
+    }
+
     pub fn selection(mut self, selection: Bind<'a, Selection<usize>>) -> Self {
         self.selection = Some(selection);
         self

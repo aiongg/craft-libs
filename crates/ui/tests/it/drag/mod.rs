@@ -1,9 +1,10 @@
 //! Drag and drop (8.4): the session, drop targets, the operation, cancel and the ghost layer's preview.
 
 use crate::windows_kit::Windows;
-use craft_behavior::{DropOperation, PartKey, PressPhase};
+use craft_behavior::{DisplayOrder, DropOperation, ItemSource, PartKey, PressPhase};
 use craft_ui::contract::{
-    Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, OsFiles, PartsCx, Pointer as _, Props as _, Role, Show as _,
+    CollectionEvent, Common, Component, Cx, DragPreview, DropMark, DropTarget, MeasureCx, OsFiles, PartsCx, Pointer as _, Props as _, Role,
+    Show as _, ShowCollection as _,
 };
 use craft_ui::runtime::drag;
 use craft_ui::runtime::env::Label;
@@ -467,4 +468,69 @@ fn a_dropped_file_keeps_the_media_type_it_had_while_hovering() {
     frames.frame(vec![moved(LIST.center())], &mut show);
     let expected = [("b.txt", "text/plain"), ("a.png", "image/png"), ("c.bin", "")].map(|(name, mime)| (name.to_owned(), mime.to_owned()));
     assert_eq!(*seen.borrow(), expected, "a drop carries the type the file had while hovering, and none for a file never seen");
+}
+
+/// `n` rows keyed by position.
+struct Rows(usize);
+
+impl DisplayOrder<usize> for Rows {
+    fn len(&self) -> usize {
+        self.0
+    }
+
+    fn key(&self, at: usize) -> usize {
+        at
+    }
+
+    fn index_of(&self, key: &usize) -> Option<usize> {
+        (*key < self.0).then_some(*key)
+    }
+}
+
+impl ItemSource<usize> for Rows {}
+
+/// Files dropped on the lower half of a row of a `List` that takes files land before the next row; a list that does
+/// not take them reports nothing.
+#[trial]
+fn a_file_drop_on_a_list_reports_the_files_at_the_insert_position() {
+    let files = ["a.png", "b.png"];
+    let rows = Rows(5);
+    let rects = RefCell::new(Vec::<Rect>::new());
+    let dropped = |takes: bool| {
+        let events = RefCell::new(Vec::new());
+        let mut frames = Frames::new();
+        let mut show = |ui: &mut Ui| {
+            craft_ui::testing::layout::in_region(ui, LIST, |ui| {
+                let out = craft_ui::list::List::new("Files").takes_files(takes).id_salt("files").show_items(ui, &rows, &mut |_, cx| {
+                    let mut seen = rects.borrow_mut();
+                    seen.resize(rows.0, Rect::NOTHING);
+                    seen[cx.at] = cx.rect;
+                    craft_ui::list::ListRow::new("row")
+                });
+                events.borrow_mut().extend(out.events);
+            });
+        };
+        frames.idle(3, &mut show);
+        let row = rects.borrow()[2];
+        let at = Pos2::new(row.center().x, row.max.y - 2.0);
+        frames.hover_files(&files);
+        frames.frame(vec![moved(at)], &mut show);
+        frames.frame(vec![moved(at)], &mut show);
+        frames.drop_files(&files);
+        frames.frame(vec![moved(at)], &mut show);
+        frames.idle(1, &mut show);
+        events.into_inner()
+    };
+    let landed: Vec<_> = dropped(true)
+        .into_iter()
+        .filter_map(|event| match event {
+            CollectionEvent::FilesDropped { insert, files, .. } => Some((insert, files.into_iter().map(|file| file.name).collect::<Vec<_>>())),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(landed, vec![(3, files.map(String::from).to_vec())], "the files land before the row after the one under the pointer");
+    assert!(
+        !dropped(false).iter().any(|event| matches!(event, CollectionEvent::FilesDropped { .. })),
+        "a list that does not take files reports no drop"
+    );
 }

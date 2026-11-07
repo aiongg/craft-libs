@@ -3,7 +3,7 @@
 
 use super::ItemsHooks;
 use crate::contract::collection::{CollectionEvent, CollectionProps, ColumnKind, ListDrag, ReorderMove, ToggleColumn, ToggleEdit};
-use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, Pointer as _};
+use crate::contract::{Collection, Cx, DragPreview, DropMark, DropTarget, OsFiles, Pointer as _};
 use crate::runtime::env::Label;
 use craft_behavior::{
     CancelReason, ColumnKey, DropOperation, EditEvent, Flow, GestureId, ItemLayout, Mixed, NavShape, PointerButton, PressCancel, PressPhase,
@@ -71,6 +71,23 @@ impl<K> DropTarget<ListDrag<K>> for RowDrop {
 
     fn mark(&self, drop: &Landed) -> DropMark {
         drop.spot.mark
+    }
+}
+
+/// Files from the OS dropped where the rows say an internal drag would.
+struct FileDrop {
+    spot: Option<Spot>,
+}
+
+impl DropTarget<OsFiles> for FileDrop {
+    type Drop = Spot;
+
+    fn accept(&self, _: &OsFiles, _: Pos2, _: DropOperation) -> Option<Spot> {
+        self.spot
+    }
+
+    fn mark(&self, drop: &Spot) -> DropMark {
+        drop.mark
     }
 }
 
@@ -302,5 +319,23 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
         } else {
             self.drags.grabbed = None;
         }
+        if comp.takes_files()
+            && let Some((files, at)) = cx.dragging::<OsFiles>()
+        {
+            let at = layer(at);
+            // An empty collection takes files at its first position.
+            let spot = if self.source.is_empty() {
+                rect.contains(at).then_some(Spot { over: 0, insert: 0, mark: DropMark::Into(self.on_screen_rect(rect)) })
+            } else {
+                self.spot(layout, rect, offset, rtl, at)
+            };
+            if let Some(spot) = cx.drop_target::<OsFiles, _>(&FileDrop { spot }) {
+                self.events.push(CollectionEvent::FilesDropped { insert: spot.insert, files: files.files.clone() });
+            }
+        }
+    }
+
+    fn on_screen_rect(&self, rect: Rect) -> Rect {
+        Rect::from_min_max(self.on_screen(rect.min), self.on_screen(rect.max))
     }
 }

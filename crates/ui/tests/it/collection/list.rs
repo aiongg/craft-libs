@@ -1,10 +1,13 @@
 //! The list trials: wheel and thumb, keys and selection, rename, the empty state, trees and large sources.
 
 use super::kit::{Count, Dismissed, List, ROW_H, Row, Words};
+use craft_behavior::PartKey;
 use craft_behavior::{CancelReason, EditEvent, Selection, SelectionChange};
 use craft_ui::contract::{Bind, CollectionEvent, CollectionResponse, Props as _, SelectMode, Show as _, ShowCollection as _};
 use craft_ui::runtime::focus::{FocusTarget, request};
+use craft_ui::testing::focus::egui_focused;
 use craft_ui::testing::layout::in_region;
+use craft_ui::testing::text::widget_id;
 use craft_ui::testing::{Frames, input, pointer, trial};
 use egui::{Event, Id, Key, Modifiers, Pos2, Rect, Ui, Vec2};
 use std::cell::{Cell, RefCell};
@@ -491,4 +494,58 @@ fn a_secondary_release_on_a_row_asks_for_its_context_menu() {
         .collect();
     assert_eq!(menus, [1]);
     assert!(seen.leads().contains(&1), "the row under the pointer holds the lead");
+}
+
+/// A press on a row of a popup list whose opener keeps focus picks the row while the opener's text field stays
+/// focused with its draft open.
+#[trial]
+fn a_click_in_a_popup_list_picks_while_the_field_keeps_focus() {
+    let words = Words::flat(&labels());
+    let seen = Seen::default();
+    let text = RefCell::new(String::from("a"));
+    let field = Cell::new((Id::NULL, Rect::NOTHING));
+    let commits = Cell::new(0);
+    let list_at = Pos2::new(10.0, 100.0);
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| {
+        in_region(ui, Rect::from_min_size(ORIGIN, Vec2::new(200.0, 30.0)), |ui| {
+            let out = craft_ui::text::TextField::new("Name", Bind::bound(&mut *text.borrow_mut())).id_salt("name").show(ui);
+            field.set((out.response.id, out.response.rect));
+            if matches!(out.event, Some(EditEvent::Commit { .. })) {
+                commits.set(commits.get() + 1);
+            }
+        });
+        in_region(ui, Rect::from_min_size(list_at, VIEW), |ui| {
+            seen.take(List::new(SelectMode::Single).keep_focus().id_salt("list").show_items(ui, &words, &mut |_, _| Row::new()));
+        });
+    };
+    frames.idle(3, &mut show);
+    pointer::click(&mut frames, field.get().1.center(), &mut show);
+    frames.frame(vec![Event::Text("b".into())], &mut show);
+    frames.idle(2, &mut show);
+    let widget = widget_id(field.get().0, PartKey::new("text"));
+    assert_eq!(egui_focused(&frames.ctx), Some(widget), "the field has focus and a draft before the pick");
+    let before = commits.get();
+    pointer::click(&mut frames, list_at + Vec2::new(50.0, ROW_H * 1.5), &mut show);
+    assert_eq!(seen.selections(), [SelectionChange::Set(vec![1])], "the press picks the row");
+    assert_eq!(egui_focused(&frames.ctx), Some(widget), "focus stays in the field");
+    assert_eq!(commits.get(), before, "the field does not blur or commit before the pick");
+}
+
+/// A click on the selected row of a single list that allows an empty selection clears it on release; a click on
+/// another row picks that row.
+#[trial]
+fn a_click_on_the_selected_row_of_a_single_list_that_allows_empty_clears_it() {
+    let words = Words::flat(&labels());
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).allow_empty(), &words, &seen);
+    frames.idle(3, &mut show);
+    let over = |row: usize| ORIGIN + Vec2::new(50.0, ROW_H * (row as f32 + 0.5));
+    pointer::click(&mut frames, over(1), &mut show);
+    assert_eq!(seen.selections(), [SelectionChange::Set(vec![1])], "a click on an unselected row picks it");
+    pointer::click(&mut frames, over(1), &mut show);
+    assert_eq!(seen.selections(), [SelectionChange::Set(vec![1]), SelectionChange::Clear], "a click on the selected row empties the selection");
+    pointer::click(&mut frames, over(2), &mut show);
+    assert_eq!(seen.selections().last(), Some(&SelectionChange::Set(vec![2])), "a click on another row picks it");
 }

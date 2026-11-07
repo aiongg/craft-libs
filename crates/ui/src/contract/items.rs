@@ -19,7 +19,7 @@ use crate::runtime::{focus, frame, wheel};
 use crate::style::{StyleCx, scroll_bar_look};
 use craft_behavior::{
     Axis, EditEvent, Flow, GestureId, Intent, ItemLayout, ItemSource, Mixed, NavState, NavStep, Outline, PressPhase, Proposal, ScrollPos, ScrollSpan,
-    SelectionChange, SelectionModel, TypeAhead, WheelTaker, nav,
+    SelectionChange, SelectionModel, Sense, TypeAhead, WheelTaker, nav,
 };
 use egui::{Context, Id, Pos2, Rect, Ui, UiBuilder, Vec2};
 use std::ops::Range;
@@ -243,6 +243,11 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
 
     fn arena(&self, _: &C) -> bool {
         true
+    }
+
+    /// A collection that keeps focus on press senses the press without taking focus.
+    fn sense(&self, comp: &C, own: Sense) -> Sense {
+        if comp.items().focus_on_press { own } else { own.difference(Sense::TAKE_FOCUS).union(Sense::KEEP_FOCUS) }
     }
 
     fn key_role(&self, comp: &C) -> craft_behavior::KeyRole {
@@ -748,8 +753,14 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     let key = self.source.key(at);
                     let column = if Self::selects_cells(comp) { layout.column_at(local(start.origin), offset) } else { None };
                     // A plain press on a selected row of a multiple selection leaves the selection whole, so a drag
-                    // carries all of it; the release as a click narrows it to the row.
-                    let hold = primary && !mods.shift && !mods.cmd && Self::select_mode(comp) == SelectMode::Multi && self.selection.contains(&key);
+                    // carries all of it; the release as a click narrows it to the row. In a single selection that
+                    // allows an empty one, the release as a click empties it.
+                    let holds = match Self::select_mode(comp) {
+                        SelectMode::Multi => true,
+                        SelectMode::Single => props.allow_empty,
+                        _ => false,
+                    };
+                    let hold = primary && !mods.shift && !mods.cmd && holds && self.selection.contains(&key);
                     match column {
                         Some(column) => self.cell_press(layout, at, column, mods.shift, mods.cmd),
                         None if hold => self.drags.collapse = Some(key.clone()),
@@ -788,7 +799,11 @@ impl<C: Collection> ItemsHooks<'_, '_, C> {
                     && click
                     && let Some(at) = self.index_of(&key)
                 {
-                    self.pick(comp, at, false, false);
+                    if Self::select_mode(comp) == SelectMode::Single {
+                        self.change(SelectionChange::Clear);
+                    } else {
+                        self.pick(comp, at, false, false);
+                    }
                 }
             }
             PressPhase::Cancel { .. } => self.drags.collapse = None,
