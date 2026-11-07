@@ -46,6 +46,16 @@ pub(super) fn measured_heights<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> O
     layout_memory::peeking(ctx, |peek| f(&|id| peek(id).map(|size| size.y)))
 }
 
+/// The id an auto-width item's measured widths (ideal, then minimum) are kept under.
+pub(super) fn measured_width_id<K: std::hash::Hash>(collection: Id, key: &K) -> Id {
+    sub(collection, ("item_width", key_hash(key)))
+}
+
+/// Runs `f` with a reader of the `(ideal, min)` widths the last pass measured for auto-width items.
+pub(super) fn measured_widths<R>(ctx: &Context, f: impl FnOnce(&dyn Fn(Id) -> Option<(f32, f32)>) -> R) -> R {
+    layout_memory::peeking(ctx, |peek| f(&|id| peek(id).map(|size| (size.x, size.y))))
+}
+
 /// Records the size an auto row measured this pass. The row is placed by it in the same pass, so the entry is
 /// never read for a placement and a change asks for no discard.
 pub(super) fn record_measure(ctx: &Context, id: Id, size: Vec2) {

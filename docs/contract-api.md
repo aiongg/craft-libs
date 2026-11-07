@@ -442,6 +442,8 @@ Item geometry: where each item of a collection sits for a scroll offset and view
   - `fn is_auto(&self, _at: usize) -> bool`. Whether item `at` is as tall as it measures itself.
   - `fn measured(&mut self, _heights: &dyn Fn(usize) -> Option<f32>)`. Takes the measured heights of the auto items: `heights(at)` is `None` before the item's first measure.
   - `fn set_height(&mut self, _at: usize, _height: f32)`. An auto item measured `height` in this pass; the items after it move.
+  - `fn is_auto_width(&self, _at: usize) -> bool`. Whether item `at` is as wide as it measures itself. A layout that asks for widths places the items from their measured ideal and minimum widths, so every item must be built and measured: its `visible` lists all items, and the collection does not virtualise it.
+  - `fn set_width(&mut self, _at: usize, _ideal: f32, _min: f32)`. An auto-width item measured `ideal` and `min` width. The previous pass's values arrive before placement and the current pass's during it; the items after it move.
   - `fn set_view(&mut self, _viewport: Vec2, _offset: ScrollPos)`. The viewport and scroll offset the grid view describes. Layouts without a grid ignore it.
 - `craft_behavior::item_layout::SheetLayout`: `pub struct SheetLayout { pub row_h: f32, pub rows: usize, pub columns: Vec<(ColumnKey, f32)>, pub frozen: usize }`. Rows of a sheet: one position per row, each split into the sheet's columns. A million rows place and hit
   - `pub fn new<K>(source: &dyn DisplayOrder<K>, row_h: f32, columns: Vec<(ColumnKey, f32)>) -> Self`. A row of `row_h` per entry of `source`, split into `columns`.

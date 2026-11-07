@@ -8,5 +8,6 @@ mod list;
 mod review;
 mod row_children;
 mod rows;
+mod strip;
 mod table;
 mod table_trials;
