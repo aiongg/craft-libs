@@ -69,16 +69,25 @@ impl<K: Value> SelectionModel<K> for Selection<K> {
     fn apply(&mut self, change: SelectionChange<K>) {
         match change {
             SelectionChange::Set(keys) => {
+                self.anchor = keys.first().cloned();
                 self.lead = keys.last().cloned();
                 self.items = keys;
             }
-            SelectionChange::Toggle(key) => match self.items.iter().position(|k| *k == key) {
-                Some(at) => {
-                    self.items.remove(at);
+            SelectionChange::Toggle(key) => {
+                match self.items.iter().position(|k| *k == key) {
+                    Some(at) => {
+                        self.items.remove(at);
+                    }
+                    None => self.items.push(key.clone()),
                 }
-                None => self.items.push(key),
-            },
-            SelectionChange::Clear => self.items.clear(),
+                self.anchor = Some(key.clone());
+                self.lead = Some(key);
+            }
+            SelectionChange::Clear => {
+                self.items.clear();
+                self.lead = None;
+                self.anchor = None;
+            }
         }
     }
 }
@@ -131,13 +140,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn set_leads_with_the_last_key_and_toggle_keeps_the_lead() {
+    fn set_anchors_at_the_first_key_and_leads_with_the_last() {
         let mut selection = Selection::<u32>::default();
         selection.apply(SelectionChange::Set(vec![3, 1, 2]));
-        assert_eq!(selection.lead(), Some(&2));
-        selection.apply(SelectionChange::Toggle(1));
+        assert_eq!((selection.anchor(), selection.lead()), (Some(&3), Some(&2)));
+        selection.apply(SelectionChange::Set(vec![]));
+        assert_eq!((selection.anchor(), selection.lead()), (None, None));
+    }
+
+    #[test]
+    fn toggle_moves_the_lead_and_anchor_to_the_toggled_key_whether_it_turns_on_or_off() {
+        let mut selection = Selection::<u32>::default();
+        selection.apply(SelectionChange::Set(vec![3, 2]));
         selection.apply(SelectionChange::Toggle(7));
-        assert_eq!(selection.items, vec![3, 2, 7]);
-        assert_eq!(selection.lead(), Some(&2));
+        assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![3, 2, 7], Some(&7), Some(&7)));
+        selection.apply(SelectionChange::Toggle(3));
+        assert_eq!((selection.items.clone(), selection.lead(), selection.anchor()), (vec![2, 7], Some(&3), Some(&3)));
+    }
+
+    #[test]
+    fn clear_forgets_the_lead_and_anchor() {
+        let mut selection = Selection::<u32>::default();
+        selection.apply(SelectionChange::Set(vec![1, 2]));
+        selection.apply(SelectionChange::Clear);
+        assert_eq!((selection.items.len(), selection.lead(), selection.anchor()), (0, None, None));
     }
 }
