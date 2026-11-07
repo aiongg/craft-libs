@@ -118,7 +118,12 @@ fn an_evicted_components_gesture_is_cancelled_as_removed() {
         session.frames.frame(vec![], |_: &mut Ui| {});
     }
     craft_ui::testing::memory::dispose_evicted(&session.frames.ctx);
-    session.host.handle_removed(&session.frames.ctx, &mut session.doc);
+    let output = craft_ui::runtime::frame::take_output(&session.frames.ctx);
+    // A host that owns no gesture ignores the removal, whichever host reads the output first.
+    let mut other = GestureHost::<Doc>::new();
+    let mut other_doc = Doc::default();
+    other.handle_output(&output, &mut other_doc);
+    session.host.handle_output(&output, &mut session.doc);
     assert!(!session.host.is_active(), "the gesture ended");
     assert_eq!((session.doc.steps.len(), session.doc.value), (0, INITIAL), "its edits are taken back");
 }

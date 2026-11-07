@@ -6,6 +6,7 @@ use crate::runtime::egui::memory::{self as store, Service};
 use crate::runtime::egui::{pass, scale, style};
 use crate::runtime::env::{Env, RootEnv};
 use crate::runtime::{access, cursor, drag, focus, ime, keys, layout_memory, memory, motion, overlay, pointer, toast, wheel, windows};
+use craft_behavior::GestureId;
 use craft_host::Host;
 use craft_host::target::Os;
 use craft_theme::{AppSizes, Appearance, Contrast, HitSizes, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
@@ -63,6 +64,9 @@ pub struct FrameOutput {
     pub announcements: Vec<String>,
     /// Whether the chrome-toggle key was pressed.
     pub toggle_chrome: bool,
+    /// The gestures whose component was evicted while they ran. Every `GestureHost` reads the list with
+    /// `handle_output` and ends the gestures it owns as a cancel with `CancelReason::Removed`.
+    pub removed_gestures: Vec<GestureId>,
 }
 
 /// The per-frame and per-context state of the frame loop.
@@ -227,6 +231,11 @@ pub(crate) fn set_frame_layers(ctx: &Context, painter: Option<fn(&Context)>) {
 /// Whether decision records are kept for the debug inspector.
 pub(crate) fn inspecting(ctx: &Context) -> bool {
     store::with::<FrameState, _>(ctx, |state| state.input.as_ref().is_some_and(|input| input.inspect))
+}
+
+/// Adds a gesture whose component was evicted to the next `FrameOutput`.
+pub(crate) fn note_removed_gesture(ctx: &Context, id: GestureId) {
+    store::with::<FrameState, _>(ctx, |state| state.output.removed_gestures.push(id));
 }
 
 /// Adds text to the next `FrameOutput`'s announcements.

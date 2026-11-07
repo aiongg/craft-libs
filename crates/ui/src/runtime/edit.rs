@@ -40,21 +40,11 @@ pub(crate) fn next_gesture_id(ctx: &Context) -> GestureId {
     })
 }
 
-/// The gestures whose component was evicted while they ran.
-#[derive(Default)]
-struct Removed(Vec<GestureId>);
-
 /// Notes that the component running gesture `id` was evicted: the gesture ends with `CancelReason::Removed`, which the
-/// edit host reads with `take_removed`.
+/// edit hosts read from `FrameOutput::removed_gestures`.
 pub(crate) fn note_removed(ctx: &Context, id: GestureId) {
-    Service::<Removed>::of(ctx).with(|removed| removed.0.push(id));
+    super::frame::note_removed_gesture(ctx, id);
     repaint::request(ctx);
-}
-
-/// The gestures whose component was evicted while they ran, once. The edit host ends each as a cancel with
-/// `CancelReason::Removed`.
-pub fn take_removed(ctx: &Context) -> Vec<GestureId> {
-    Service::<Removed>::of(ctx).with(|removed| std::mem::take(&mut removed.0))
 }
 
 /// The removal watch of a running gesture, a shown slot beside it under the same owner. Its drop is the dispose hook of

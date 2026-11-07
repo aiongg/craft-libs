@@ -234,14 +234,15 @@ pub(crate) fn current_operation(ctx: &Context) -> DropOperation {
     operation(ctx, pointer::frame(ctx).mods)
 }
 
-/// Whether the primary button was released in this pass.
+/// Whether the session's button was released in this pass.
 fn released(ctx: &Context) -> bool {
     let viewport = pass::current_viewport(ctx);
-    pointer::frame(ctx).release == Some(PointerButton::Primary)
+    let button = board(ctx, |board| board.session.as_ref().map(|session| session.button)).unwrap_or(PointerButton::Primary);
+    pointer::frame(ctx).release == Some(button)
         || board(ctx, |board| board.session.as_ref().is_some_and(|session| session.released.is_some() && session.viewport != viewport))
 }
 
-/// Takes the drop for `owner`'s `ordinal`th target when it won last pass and the primary button was released in this
+/// Takes the drop for `owner`'s `ordinal`th target when it won last pass and the session's button was released in this
 /// one: the drop ends the session's chance of another target taking it, and the source reads `op` in the next frame.
 pub(crate) fn take_drop<P: 'static>(ctx: &Context, owner: Id, ordinal: u32, op: DropOperation) -> bool {
     let won = PerViewport::<Targets>::with(ctx, pass::current_viewport(ctx), |targets| targets.winner == Some((owner, ordinal)));

@@ -8,7 +8,7 @@ use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::layout::Block;
-use craft_ui::testing::pointer::{moved, press, release};
+use craft_ui::testing::pointer::{moved, press, release, secondary};
 use craft_ui::testing::{Frames, trial};
 use egui::{Key, Modifiers, Pos2, Rect, Response, Shape, Ui, Vec2, ViewportBuilder, ViewportId, ViewportInfo};
 use std::cell::{Cell, RefCell};
@@ -178,6 +178,27 @@ fn drag_preview_paints_on_a_frame_with_no_popup() {
     frames.frame(vec![release(over)], &mut show);
     frames.idle(1, &mut show);
     assert!(!texts(&frames.frame_shapes(&mut show)).iter().any(|text| text == BADGE), "the preview ends with the drag");
+}
+
+/// A drag begun with the secondary button drops when that button comes up, in the source window.
+#[trial]
+fn a_secondary_button_drag_drops_on_the_secondary_release() {
+    let seen = RefCell::new(Seen::default());
+    let mut show = scene(&seen);
+    let mut frames = Frames::new();
+    let from = CHIP.center();
+    let over = SLOT.center();
+    frames.idle(2, &mut show);
+    frames.frame(vec![moved(from)], &mut show);
+    frames.frame(vec![secondary(from, true)], &mut show);
+    for at in [from + Vec2::new(30.0, 0.0), from + Vec2::new(100.0, 0.0), over] {
+        frames.frame(vec![moved(at)], &mut show);
+    }
+    frames.idle(1, &mut show);
+    assert!(drag::active::<Payload>(&frames.ctx).is_some(), "the secondary-button drag runs");
+    frames.frame(vec![secondary(over, false)], &mut show);
+    frames.idle(2, &mut show);
+    assert_eq!(seen.borrow().dropped, vec![(7, DropOperation::Move)], "the target takes the drop on the secondary release");
 }
 
 /// Escape ends the session and the press: the release that follows drops nothing and the source is told nothing.

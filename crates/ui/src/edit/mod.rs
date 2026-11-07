@@ -3,7 +3,8 @@
 //! The adapter turns the events of a value component into undo steps of an app that keeps its own history, behind one
 //! sink trait. Dialogs, tool sessions and the keymap editor use `craft_behavior::EditHistory` instead.
 
-use crate::runtime::edit::{cancel_all, take_removed};
+use crate::runtime::edit::cancel_all;
+use crate::runtime::frame::FrameOutput;
 use craft_behavior::{CancelReason, DocKey, EditEvent, GestureId, Mixed, Value};
 use egui::Context;
 use std::any::Any;
@@ -126,11 +127,12 @@ impl<U: UndoMarks> GestureHost<U> {
         }
     }
 
-    /// Ends the gestures whose component was evicted while they ran, as a `Cancel` with `CancelReason::Removed` does.
-    /// The app calls it once per frame, beside `handle`.
-    pub fn handle_removed(&mut self, ctx: &Context, doc: &mut U) {
-        for id in take_removed(ctx) {
-            self.cancel(doc, id, CancelReason::Removed);
+    /// Ends the gesture of this host whose component was evicted while it ran, as a `Cancel` with
+    /// `CancelReason::Removed` does. The app passes each frame's `FrameOutput` to every host it keeps; a host ignores
+    /// the removals of gestures it does not own.
+    pub fn handle_output(&mut self, output: &FrameOutput, doc: &mut U) {
+        for id in &output.removed_gestures {
+            self.cancel(doc, *id, CancelReason::Removed);
         }
     }
 
