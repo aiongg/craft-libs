@@ -12,7 +12,7 @@ use crate::controls::disclosure::Disclosure;
 use crate::primitives::{IconSpec, Span, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
-use craft_behavior::{Flow, IconId, Metrics, NavShape, PartKey, PartRef, Roving, Sense};
+use craft_behavior::{CursorIcon, Flow, IconId, Metrics, NavShape, PartKey, Roving, Sense};
 use craft_theme::{Stateful, States};
 use egui::{Rect, Response, Vec2};
 use std::borrow::Cow;
@@ -119,6 +119,10 @@ pub struct TitleRow<'a> {
     /// parts.
     #[prop]
     fill: bool,
+    /// Whether the title band is the grab handle of a reorderable container: it shows the grab cursor and, under
+    /// the pointer, a handle mark at its end.
+    #[prop]
+    handle: bool,
     lead: Lead<'a>,
     actions: Vec<HeaderAction>,
     taken: Option<HeaderAction>,
@@ -129,6 +133,7 @@ pub struct TitleRow<'a> {
 #[derive(Clone, Copy)]
 struct Placed {
     icon: Option<Rect>,
+    handle: Option<Rect>,
     title: Rect,
     subtitle: Option<Rect>,
 }
@@ -144,6 +149,7 @@ impl<'a> TitleRow<'a> {
             subtitle: None,
             icon: None,
             fill: true,
+            handle: false,
             lead: Lead::None,
             actions: Vec::new(),
             taken: None,
@@ -186,6 +192,13 @@ impl<'a> TitleRow<'a> {
     /// both texts fit whole.
     fn place(&self, mut band: Flow, cx: &PartsCx<'_, Self>) -> Placed {
         let side = band.rect().height();
+        let mut handle = None;
+        if self.handle {
+            let (slot, rest) = band.take_end(side);
+            let (_, rest) = rest.take_end(cx.gap());
+            handle = Some(slot);
+            band = rest;
+        }
         let mut icon = None;
         if self.icon.is_some() {
             let (slot, rest) = band.take_start(side);
@@ -203,9 +216,9 @@ impl<'a> TitleRow<'a> {
             Some(title) => {
                 let (title, rest) = band.take_start(title);
                 let (_, rest) = rest.take_start(cx.gap());
-                Placed { icon, title, subtitle: Some(rest.rect()) }
+                Placed { icon, handle, title, subtitle: Some(rest.rect()) }
             }
-            None => Placed { icon, title: band.rect(), subtitle: None },
+            None => Placed { icon, handle, title: band.rect(), subtitle: None },
         }
     }
 }
@@ -235,7 +248,7 @@ impl Component for TitleRow<'_> {
         let role = cx.style.text.role;
         let title = cx.layout(&TextRun::new(self.title_text(cx.resolved.label)).role(role)).galley.size();
         let subtitle = self.subtitle.as_ref().map(|subtitle| cx.layout(&subtitle_run(subtitle.as_str(), role)).galley.size().x);
-        let parts = usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + self.actions.len();
+        let parts = usize::from(self.has_lead()) + usize::from(self.icon.is_some()) + usize::from(self.handle) + self.actions.len();
         // The parts are square on the row's height, which the height token can raise above the text's.
         let side = title.y.max(cx.style.metrics.min_size.y);
         let text = title.x + subtitle.map_or(0.0, |width| width + cx.gap());
@@ -277,6 +290,7 @@ impl Component for TitleRow<'_> {
         } else {
             cx.part(TITLE, band).sense(Sense::HOVER)
         };
+        let part = if self.handle { part.cursor(CursorIcon::Grab).drag_cursor(CursorIcon::Grabbing) } else { part };
         if elided {
             part.tooltip(tooltip);
         }
@@ -291,15 +305,13 @@ impl Component for TitleRow<'_> {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
-        let hit = |cx: &Cx<'_, Self>, part: PartRef| cx.part(part).press.phase.is_click() || by_key == Some(part);
-        let row_toggles = matches!(self.lead, Lead::Disclosure(_)) && cx.part(TITLE).press.phase.is_click();
-        if self.has_lead() && (hit(cx, LEAD.into()) || row_toggles) {
+        let row_toggles = matches!(self.lead, Lead::Disclosure(_)) && cx.part_activated(TITLE).is_some();
+        if self.has_lead() && (cx.part_activated(LEAD).is_some() || row_toggles) {
             let now = cx.value().copied().unwrap_or(false);
             cx.set(!now);
         }
         for (at, action) in self.actions.iter().enumerate() {
-            if hit(cx, ACTION.at(at as u64)) {
+            if cx.part_activated(ACTION.at(at as u64)).is_some() {
                 self.taken = Some(*action);
             }
         }
@@ -323,6 +335,13 @@ impl Component for TitleRow<'_> {
         }
         let Some(placed) = self.placed else { return };
         let role = cx.style.text.role;
+        if let Some(rect) = placed.handle
+            && cx.part(TITLE).hovered
+        {
+            let mut mark = IconSpec::svg(IconId::new("move"));
+            mark.color = Some(cx.resolve(&cx.style.icon.color));
+            ui.draw().icon(rect, &mark);
+        }
         if let (Some(rect), Some(icon)) = (placed.icon, &mut self.icon) {
             if icon.color.is_none() {
                 icon.color = Some(cx.resolve(&cx.style.icon.color));
