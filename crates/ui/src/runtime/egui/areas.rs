@@ -3,7 +3,7 @@
 #[cfg(feature = "testing")]
 use egui::Ui;
 use egui::emath::TSTransform;
-use egui::{Context, Id, LayerId, Pos2, Rect, Vec2};
+use egui::{Context, Id, LayerId, Order, Painter, Pos2, Rect, Vec2};
 
 /// Shows an `egui::Area` named `name` and runs `body` on its `Ui`.
 #[cfg(feature = "testing")]
@@ -102,3 +102,9 @@ pub(crate) fn show_body_layer<R>(
 
 /// An egui layer, as the runtime's shape records name it.
 pub type LayerKey = egui::LayerId;
+
+// F5-MERGE: F5a (the overlay host owns the ghost layer; this is its one call)
+/// The painter of the ghost layer, over the whole screen and above every popup. The layer takes no input.
+pub(crate) fn ghost_painter(ctx: &Context) -> Painter {
+    ctx.layer_painter(LayerId::new(Order::Tooltip, crate::runtime::egui::memory::unique("craft_ui.ghost")))
+}

@@ -3,7 +3,7 @@
 
 use crate::primitives::{Draw, DrawEnv, PaintRecord, RuleKind, TextRun};
 use crate::runtime::drag::{self, DragPreview, DropMark};
-use crate::runtime::egui::ghost;
+use crate::runtime::egui::areas;
 use crate::runtime::env::Env;
 use crate::runtime::pointer;
 use crate::style::{Corners, Ink, SurfaceKind};
@@ -14,7 +14,7 @@ use std::cell::RefCell;
 pub fn paint(ctx: &Context) {
     let Some(session) = drag::ghost(ctx) else { return };
     let env = Env::of_root(ctx);
-    let painter = ghost::painter(ctx);
+    let painter = areas::ghost_painter(ctx);
     let record = RefCell::new(PaintRecord::default());
     let draw = Draw::new(&painter, &record, DrawEnv { tokens: &env.tokens, direction: env.direction, ink: Ink::OnPanel });
     if let Some(mark) = session.mark {

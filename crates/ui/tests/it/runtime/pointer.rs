@@ -466,8 +466,7 @@ fn a_middle_press_pans_a_drag_part_and_never_clicks() {
         frames.frame(vec![pointer::moved(to + Vec2::new(5.0, 0.0))], &mut show_frame);
         frames.frame(vec![pointer::middle(to, false)], &mut show_frame);
         frames.idle(1, &mut show_frame);
-        let phases = log.borrow().root_phases(0, Some(BACKGROUND));
-        phases
+        log.borrow().root_phases(0, Some(BACKGROUND))
     };
     let phases = run(Sense::CLICK | Sense::DRAG);
     let by_middle = |start: &craft_behavior::PressStart| start.button == craft_behavior::PointerButton::Middle;
