@@ -342,3 +342,15 @@ type = "TreePicker"
 old = "labels(TreePickerLabels), style(tokens, size)"
 new = ""
 note = "Removed: words come from the library word sets and the style from the theme."
+
+[[setter]]
+type = "SelectFace"
+old = "PickerField::ThumbnailAndName(PickerThumb)"
+new = "thumb(ThumbAspect, paint)"
+note = "The closed box shows the thumbnail before the name. The thumbnail's height is `size.thumb.sm`; its aspect is `ThumbAspect::SQUARE` for `PickerThumb::Square` and the host's wide aspect for `Wide`."
+
+[[setter]]
+type = "SelectFace"
+old = "PickerField::Thumbnail(PickerThumb)"
+new = "thumb(ThumbAspect, paint).name(false)"
+note = "The thumbnail alone; the name stays the face's accessible name."

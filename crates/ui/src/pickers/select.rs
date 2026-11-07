@@ -31,8 +31,8 @@ mod stories;
 /// The part that shows the face over the whole field and opens the list on a click.
 const FACE: PartKey = PartKey::new("face");
 
-/// The style of a select: the field well and focus edge, which the face is shown over, and the text ink the face
-/// reads as its host.
+/// The style of a select: the field well and focus edge, which the face is shown over, and the text and muted inks
+/// the face reads as its host.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct SelectStyle {
@@ -44,6 +44,9 @@ pub struct SelectStyle {
     /// The face's text.
     #[style(text)]
     text: TextLook,
+    /// The face's placeholder text.
+    #[style(text)]
+    muted: TextLook,
 }
 
 /// The icon of the button in the popup header that opens the header menu.
@@ -136,7 +139,12 @@ impl<T: Value + 'static> Component for Select<'_, T> {
     type Output = EditResponse<T>;
 
     fn style(cx: &StyleCx<'_>, _: SelectStyleKey<T>) -> SelectStyle {
-        SelectStyle { surface: cx.field(), metrics: Metrics::new(), text: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))) }
+        SelectStyle {
+            surface: cx.field(),
+            metrics: Metrics::new(),
+            text: TextLook::new(TypeRole::Body, Stateful::new(cx.ink(Ink::OnPanel))),
+            muted: TextLook::new(TypeRole::Body, Stateful::new(cx.color(cx.tokens.color.text.muted))),
+        }
     }
 
     /// The widest face of an entry, the placeholder and the mixed word, so the field keeps its size whichever is shown.

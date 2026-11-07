@@ -290,3 +290,23 @@ fn a_footer_buttons_letter_activates_it_and_a_disabled_buttons_does_not() {
     fixture.idle(2);
     assert_eq!(closed.get(), (None, None), "a disabled button ignores its letter");
 }
+
+#[trial]
+fn a_viewport_dialog_shows_on_its_fallback_layer_where_viewports_are_unavailable() {
+    let closed: Closed = Rc::default();
+    let sink = closed.clone();
+    let mut fixture = Fixture::new(move |ui| {
+        let mut open = true;
+        let shown = Dialog::new("Preferences").modeless().viewport().opened(Bind::bound(&mut open)).show(ui, |_, _| {});
+        if shown.output.closed.is_some() {
+            sink.set((shown.output.closed, shown.output.picked));
+        }
+    });
+    fixture.settle();
+    assert!(fixture.by_label("Preferences").is_some(), "the title shows on the fallback layer");
+    assert_eq!(fixture.by_role(Role::DIALOG).len(), 1);
+    let close = fixture.by_label("Close").expect("the close action");
+    fixture.click(&close);
+    fixture.idle(2);
+    assert!(closed.get().0.is_some(), "the close action closes it");
+}

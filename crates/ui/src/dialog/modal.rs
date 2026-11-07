@@ -82,12 +82,21 @@ impl<'a> Dialog<'a> {
     }
 
     fn with_overlay(mut self, change: impl FnOnce(Overlay) -> Overlay) -> Self {
-        let overlay = match std::mem::take(&mut self.props.mount) {
-            Mount::Layer(overlay) => overlay,
-            _ => Overlay::dialog().resizable(false),
+        self.props = match std::mem::take(&mut self.props.mount) {
+            Mount::Layer(overlay) => self.props.mount(Mount::Layer(change(overlay))),
+            Mount::Viewport { fallback } => self.props.mount(Mount::viewport(change(fallback))),
+            _ => self.props.mount(Mount::Layer(change(Overlay::dialog().resizable(false)))),
         };
-        self.props = self.props.mount(Mount::Layer(change(overlay)));
         self
+    }
+
+    /// Shows the dialog in its own OS window, with the layer it has so far as the fallback where windows are
+    /// unavailable. Call it after the settings that shape that layer, or before: later settings shape the fallback.
+    #[must_use]
+    pub fn viewport(self) -> Self {
+        let Mount::Layer(overlay) = self.props.mount.clone() else { return self };
+        let mount = Mount::viewport(overlay);
+        Dialog { props: self.props.mount(mount), ..self }
     }
 
     /// A tool window: no modal layer and no backdrop; its edits are the app's normal edits.

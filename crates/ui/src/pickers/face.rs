@@ -1,18 +1,20 @@
 //! `SelectFace`: the closed box of a dropdown picker, the text and a trailing chevron.
 
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, PopupHandle, Props as _, Role, Styled as _};
-use crate::primitives::{IconSpec, TextRun};
+use crate::list::{RowThumb, ThumbAspect, ThumbPaint};
+use crate::primitives::{ContentPainterCx, IconSpec, TextRun};
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, IconLook, Ink, StyleCx, TextLook, TypeRole};
 use crate::text::{Adornment, FieldStyle, place, reserve};
-use craft_behavior::{IconId, Metrics, Sense};
+use craft_behavior::{Flow, IconId, Metrics, Sense};
 use craft_theme::Stateful;
-use egui::{Response, Vec2};
+use egui::{Rect, Response, Vec2};
 
 /// The icon of the chevron after the text.
 const CHEVRON: &str = "chevron_down";
 
-/// The style of a select face: the field's metrics, the text, the muted placeholder and the chevron. The host owns the
+/// The style of a select face: the field's metrics, the text, the muted placeholder, the thumbnail's height and the
+/// chevron. The host owns the
 /// surface (the field well), so a face paints only its content.
 #[derive(Clone, Debug, PartialEq, ComponentStyle)]
 #[non_exhaustive]
@@ -28,6 +30,8 @@ pub struct SelectFaceStyle {
     /// The chevron.
     #[style(icon)]
     chevron: IconLook,
+    /// The height of the thumbnail: `size.thumb.sm`; its width follows the aspect.
+    thumb: f32,
     /// The field look the chevron is placed by.
     field: FieldStyle,
 }
@@ -35,26 +39,44 @@ pub struct SelectFaceStyle {
 /// The closed box of a picker: `text` elided to the room left of a trailing chevron. The box is as wide as the text
 /// and the chevron need, at least a field wide. A host shows it as the look of one of its parts with
 /// `ui.face(part, SelectFace::new(text))` over the field well it paints itself, and gives the box the width of its
-/// widest text so the width does not change with the pick.
+/// widest text so the width does not change with the pick. A thumbnail goes before the text, or alone.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(sample = SelectFace::sample)]
-pub struct SelectFace {
+pub struct SelectFace<'a> {
     #[common]
     common: Common,
     /// The text is a placeholder, not a pick: it shows in the muted ink.
     #[prop(flag)]
     placeholder: bool,
+    thumb: Option<(ThumbAspect, ThumbPaint<'a>)>,
+    /// Whether the text shows beside the thumbnail; `false` shows the thumbnail alone. The text is the face's
+    /// accessible name either way.
+    #[prop]
+    name: bool,
 }
 
-impl SelectFace {
+impl<'a> SelectFace<'a> {
     /// A face showing `text`, which is also its name.
     pub fn new(text: impl Into<Label>) -> Self {
-        SelectFace { common: Common::new(), placeholder: false }.label(text)
+        SelectFace { common: Common::new(), placeholder: false, thumb: None, name: true }.label(text)
+    }
+
+    /// A picture `aspect` times as wide as high before the text; `paint` draws into the picture's rect through the
+    /// content painter, which is clipped to it. The picture's height comes from the style.
+    #[must_use]
+    pub fn thumb(mut self, aspect: ThumbAspect, paint: impl FnOnce(&ContentPainterCx, Rect) + 'a) -> Self {
+        self.thumb = Some((aspect, Box::new(paint)));
+        self
     }
 
     #[cfg(feature = "testing")]
-    fn sample() -> Self {
+    fn sample() -> SelectFace<'static> {
         SelectFace::new("Multiply")
+    }
+
+    /// The width of the thumbnail and its gap to the text, or nothing without a thumbnail.
+    fn lead(&self, style: &SelectFaceStyle) -> f32 {
+        self.thumb.as_ref().map_or(0.0, |(aspect, _)| aspect.of(style.thumb) + if self.name { style.field.metrics().gap } else { 0.0 })
     }
 
     fn chevron() -> Adornment {
@@ -62,7 +84,7 @@ impl SelectFace {
     }
 }
 
-impl Component for SelectFace {
+impl Component for SelectFace<'_> {
     const ROLE: Role = Role::LABEL;
     const PARTS: bool = false;
     const STOPS: bool = false;
@@ -77,8 +99,9 @@ impl Component for SelectFace {
         SelectFaceStyle {
             metrics: field.metrics(),
             text: TextLook::new(TypeRole::Body, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
-            placeholder: TextLook::new(TypeRole::Body, cx.host_ink(Stateful::new(muted))),
+            placeholder: TextLook::new(TypeRole::Body, cx.host_muted_ink(Stateful::new(muted))),
             chevron: IconLook::new(field.glyph().side, cx.host_ink(Stateful::new(cx.ink(Ink::OnPanel)))),
+            thumb: cx.tokens.size.thumb.sm,
             field,
         }
     }
@@ -88,16 +111,27 @@ impl Component for SelectFace {
     }
 
     fn measure(&mut self, cx: &MeasureCx<'_, Self>) -> Vec2 {
-        let text = cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size();
-        Vec2::new(text.x + reserve(&cx.style.field, &[], &[Self::chevron()]), text.y)
+        let text = if self.name { cx.layout(&TextRun::new(cx.resolved.label).role(cx.style.text.role)).size() } else { Vec2::ZERO };
+        let picture = if self.thumb.is_some() { cx.style.thumb } else { 0.0 };
+        Vec2::new(self.lead(cx.style) + text.x + reserve(&cx.style.field, &[], &[Self::chevron()]), text.y.max(picture))
     }
 
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let chevron = Self::chevron();
-        let placed = place(cx.content_rect, &cx.style.field, &[], std::slice::from_ref(&chevron), cx.flow.is_rtl());
-        let look = if self.placeholder { &cx.style.placeholder } else { &cx.style.text };
-        let run = TextRun::new(cx.resolved.label).role(look.role).elide().color(cx.resolve(&look.color));
-        ui.draw().text(placed.text, &run);
+        let rtl = cx.flow.is_rtl();
+        let mut flow = Flow::new(cx.content_rect, rtl);
+        if let Some((aspect, paint)) = self.thumb.take() {
+            let (cell, rest) = flow.take_start(aspect.of(cx.style.thumb));
+            let picture = Rect::from_center_size(cell.center(), Vec2::new(cell.width(), cx.style.thumb));
+            let _ = ui.child("thumb", picture, RowThumb::new(paint));
+            flow = if self.name { rest.take_start(cx.style.field.metrics().gap).1 } else { rest };
+        }
+        let placed = place(flow.rect(), &cx.style.field, &[], std::slice::from_ref(&chevron), rtl);
+        if self.name {
+            let look = if self.placeholder { &cx.style.placeholder } else { &cx.style.text };
+            let run = TextRun::new(cx.resolved.label).role(look.role).elide().color(cx.resolve(&look.color));
+            ui.draw().text(placed.text, &run);
+        }
         if let Some(rect) = placed.trailing.first() {
             chevron.paint(ui, *rect, cx.resolve(&cx.style.chevron.color));
         }
@@ -107,6 +141,9 @@ impl Component for SelectFace {
         cx.response.clone()
     }
 }
+
+#[cfg(feature = "testing")]
+mod stories;
 
 /// Opens the popup of a picker whose face part toggles it, from the keyboard: Enter and Space (an activation by key)
 /// toggle it. A click on the face reaches the popup through the part's `toggles`, so the pointer is not read here.

@@ -39,6 +39,8 @@ pub struct StyleCx<'a> {
     pub key: EnvKey,
     /// The text colour of the part this component is shown as the face of.
     host: Option<&'a Stateful<StyleColor>>,
+    /// The muted text colour of the host part, when the host has one.
+    host_muted: Option<&'a Stateful<StyleColor>>,
     ctx: &'a Context,
     values: &'a AppValues,
 }
@@ -99,7 +101,7 @@ impl<'a> StyleCx<'a> {
         active: bool,
         key: EnvKey,
     ) -> Self {
-        StyleCx { tokens, size, variant, direction, scale, os, active, key, host: None, ctx, values }
+        StyleCx { tokens, size, variant, direction, scale, os, active, key, host: None, host_muted: None, ctx, values }
     }
 
     /// The same context with another variant.
@@ -107,10 +109,11 @@ impl<'a> StyleCx<'a> {
         StyleCx { variant, ..*self }
     }
 
-    /// The same context for a component shown as the face of a part whose text colour is `ink`. The key folds the
-    /// ink in, so a face's cached styles are per host look.
-    pub(crate) fn hosted(&self, ink: &'a Stateful<StyleColor>) -> StyleCx<'a> {
-        StyleCx { host: Some(ink), key: self.key.folded(ink_hash(ink)), ..*self }
+    /// The same context for a component shown as the face of a part whose text colour is `ink` and whose muted text
+    /// colour is `muted`. The key folds both in, so a face's cached styles are per host look.
+    pub(crate) fn hosted(&self, ink: &'a Stateful<StyleColor>, muted: Option<&'a Stateful<StyleColor>>) -> StyleCx<'a> {
+        let key = muted.map_or(self.key.folded(ink_hash(ink)), |muted| self.key.folded(ink_hash(ink)).folded(ink_hash(muted)));
+        StyleCx { host: Some(ink), host_muted: muted, key, ..*self }
     }
 
     /// An app value set by a scope. Its hash is part of the style cache key.
@@ -164,6 +167,12 @@ impl<'a> StyleCx<'a> {
     /// when it is shown as that part's face, so a face reads on whatever fill the host draws under it.
     pub fn host_ink(&self, base: Stateful<StyleColor>) -> Stateful<StyleColor> {
         self.host.cloned().unwrap_or(base)
+    }
+
+    /// A muted text colour that is `base` when the component stands alone and the muted text colour of the host part
+    /// when it is shown as that part's face and the host has one.
+    pub fn host_muted_ink(&self, base: Stateful<StyleColor>) -> Stateful<StyleColor> {
+        self.host_muted.cloned().unwrap_or(base)
     }
 
     /// The fill of an accent control that is on or filled: the strong accent at rest, with its hover and pressed
