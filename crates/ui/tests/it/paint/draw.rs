@@ -106,3 +106,34 @@ fn an_icon_loads_its_texture_once_and_paints_it_every_frame() {
     }
     assert_eq!(TextureCache::len(&frames.ctx), 1, "one texture serves every frame");
 }
+
+/// Hashes like the `u64` it holds, so only the cache's own key namespacing tells it apart.
+#[derive(Hash)]
+struct Stamp(u64);
+
+#[trial]
+fn texture_keys_of_different_types_name_different_textures() {
+    let frames = Frames::new();
+    let image = || egui::ColorImage::filled([2, 2], Color32::WHITE);
+    let plain = TextureCache::texture(&frames.ctx, 7u64, image);
+    let wrapped = TextureCache::texture(&frames.ctx, Stamp(7), image);
+    assert_ne!(plain, wrapped, "equal hashes of different key types share one texture");
+    assert_eq!(TextureCache::len(&frames.ctx), 2);
+}
+
+#[trial]
+fn textures_nobody_asks_for_are_freed_once_the_cache_is_over_capacity() {
+    let mut frames = Frames::new();
+    let image = || egui::ColorImage::filled([1, 1], Color32::WHITE);
+    let ctx = frames.ctx.clone();
+    frames.frame(Vec::new(), |_| {
+        for key in 0..TextureCache::CAPACITY as u64 + 10 {
+            TextureCache::texture(&ctx, key, image);
+        }
+    });
+    assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY + 10, "textures asked for in the running frame stay");
+    frames.frame(Vec::new(), |_| {
+        TextureCache::texture(&ctx, u64::MAX, image);
+    });
+    assert_eq!(TextureCache::len(&ctx), TextureCache::CAPACITY, "the oldest unused textures are freed down to the capacity");
+}
