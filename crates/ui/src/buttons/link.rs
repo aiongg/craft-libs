@@ -3,7 +3,7 @@
 use crate::contract::{Access, Common, Component, Cx, MeasureCx, PaintUi, Pointer as _, Role, Styled as _};
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::style::{ComponentStyle, FocusLook, StyleColor, StyleCx, Stateful, TypeRole};
-use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics};
+use craft_behavior::{CursorIcon, CursorPriority, Flow, Metrics, PointerButton, PressPhase};
 use craft_theme::{Contrast, States};
 use egui::{Pos2, Response, Vec2};
 
@@ -23,7 +23,7 @@ pub struct LinkStyle {
 }
 
 /// A link: drawn in the accent colour in a type role (body by default) and underlined, so colour is not its only cue.
-/// The caller acts on `clicked()`; Enter and Space activate it. AccessKit reports the role `Link`, with the URL when
+/// A click, Enter or Space opens the URL in the same tab and a middle click opens it in a new tab; the caller can also act on `clicked()`. AccessKit reports the role `Link`, with the URL when
 /// it has one.
 #[derive(crate::contract::Component, crate::contract::Props)]
 pub struct Link {
@@ -67,6 +67,15 @@ impl Component for Link {
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
+        let middle_click = match cx.press().phase {
+            PressPhase::Release { start, click: true, .. } => start.button == PointerButton::Middle,
+            _ => false,
+        };
+        if let Some(url) = &self.url
+            && (cx.activation().is_some() || middle_click)
+        {
+            cx.open_url(url, middle_click);
+        }
         if cx.hit() {
             cx.cursor(CursorIcon::PointingHand, CursorPriority::Part);
         }
