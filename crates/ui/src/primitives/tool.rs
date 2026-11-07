@@ -6,146 +6,146 @@
 
 use craft_behavior::IconId;
 
-/// A tool, for its icon. Photoshop's tool set, in PhotoCraft's order; other apps use the same
-/// variant for the same tool (VectorCraft's Pen is [`ToolIcon::Pen`]).
+/// A tool, for its icon: a raster editor's tool set, which other apps share variant for variant (a vector
+/// editor's Pen is [`ToolIcon::Pen`]). A tool the set lacks needs a variant here, because the enum is closed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ToolIcon {
-    /// PhotoCraft's `move` icon.
+    /// The `move` icon.
     Move,
-    /// PhotoCraft's `artboard` icon.
+    /// The `artboard` icon.
     Artboard,
-    /// PhotoCraft's `square-dashed` icon.
+    /// The `square-dashed` icon.
     RectangularMarquee,
-    /// PhotoCraft's `ellipse-dashed` icon.
+    /// The `ellipse-dashed` icon.
     EllipticalMarquee,
-    /// PhotoCraft's `marquee-row` icon.
+    /// The `marquee-row` icon.
     SingleRowMarquee,
-    /// PhotoCraft's `marquee-column` icon.
+    /// The `marquee-column` icon.
     SingleColumnMarquee,
-    /// PhotoCraft's `brush` icon.
+    /// The `brush` icon.
     Brush,
-    /// PhotoCraft's `pencil` icon.
+    /// The `pencil` icon.
     Pencil,
-    /// PhotoCraft's `palette` icon.
+    /// The `palette` icon.
     MixerBrush,
-    /// PhotoCraft's `brush-replace` icon.
+    /// The `brush-replace` icon.
     ColorReplacement,
-    /// PhotoCraft's `eraser` icon.
+    /// The `eraser` icon.
     Eraser,
-    /// PhotoCraft's `eraser-background` icon.
+    /// The `eraser-background` icon.
     BackgroundEraser,
-    /// PhotoCraft's `eraser-magic` icon.
+    /// The `eraser-magic` icon.
     MagicEraser,
-    /// PhotoCraft's `pipette` icon.
+    /// The `pipette` icon.
     Eyedropper,
-    /// PhotoCraft's `sampler` icon.
+    /// The `sampler` icon.
     ColorSampler,
-    /// PhotoCraft's `ruler` icon.
+    /// The `ruler` icon.
     Ruler,
-    /// PhotoCraft's `message-square` icon.
+    /// The `message-square` icon.
     Note,
-    /// PhotoCraft's `circle-dot` icon.
+    /// The `circle-dot` icon.
     Count,
-    /// PhotoCraft's `lasso` icon.
+    /// The `lasso` icon.
     Lasso,
-    /// PhotoCraft's `pentagon` icon.
+    /// The `pentagon` icon.
     PolygonalLasso,
-    /// PhotoCraft's `lasso-magnetic` icon.
+    /// The `lasso-magnetic` icon.
     MagneticLasso,
-    /// PhotoCraft's `wand-sparkles` icon.
+    /// The `wand-sparkles` icon.
     MagicWand,
-    /// PhotoCraft's `crop` icon.
+    /// The `crop` icon.
     Crop,
-    /// PhotoCraft's `perspective-crop` icon.
+    /// The `perspective-crop` icon.
     PerspectiveCrop,
-    /// PhotoCraft's `slice-knife` icon.
+    /// The `slice-knife` icon.
     Slice,
-    /// PhotoCraft's `slice-select` icon.
+    /// The `slice-select` icon.
     SliceSelect,
-    /// PhotoCraft's `frame-placeholder` icon.
+    /// The `frame-placeholder` icon.
     Frame,
-    /// PhotoCraft's `gradient` icon.
+    /// The `gradient` icon.
     Gradient,
-    /// PhotoCraft's `paint-bucket` icon.
+    /// The `paint-bucket` icon.
     PaintBucket,
-    /// PhotoCraft's `type` icon.
+    /// The `type` icon.
     HorizontalType,
-    /// PhotoCraft's `type` icon.
+    /// The `type` icon.
     VerticalType,
-    /// PhotoCraft's `type-mask` icon.
+    /// The `type-mask` icon.
     HorizontalTypeMask,
-    /// PhotoCraft's `type-mask-vertical` icon.
+    /// The `type-mask-vertical` icon.
     VerticalTypeMask,
-    /// PhotoCraft's `hand` icon.
+    /// The `hand` icon.
     Hand,
-    /// PhotoCraft's `compass` icon.
+    /// The `compass` icon.
     RotateView,
-    /// PhotoCraft's `zoom-in` icon.
+    /// The `zoom-in` icon.
     Zoom,
-    /// PhotoCraft's `bandage` icon.
+    /// The `bandage` icon.
     SpotHealing,
-    /// PhotoCraft's `bandage` icon.
+    /// The `bandage` icon.
     Healing,
-    /// PhotoCraft's `bandage-sparkle` icon.
+    /// The `bandage-sparkle` icon.
     Remove,
-    /// PhotoCraft's `lasso-select` icon.
+    /// The `lasso-select` icon.
     Patch,
-    /// PhotoCraft's `arrow-left-right` icon.
+    /// The `arrow-left-right` icon.
     ContentAwareMove,
-    /// PhotoCraft's `eye` icon.
+    /// The `eye` icon.
     RedEye,
-    /// PhotoCraft's `stamp` icon.
+    /// The `stamp` icon.
     CloneStamp,
-    /// PhotoCraft's `grid-3x3` icon.
+    /// The `grid-3x3` icon.
     PatternStamp,
-    /// PhotoCraft's `clock` icon.
+    /// The `clock` icon.
     HistoryBrush,
-    /// PhotoCraft's `sparkles` icon.
+    /// The `sparkles` icon.
     ArtHistoryBrush,
-    /// PhotoCraft's `droplet` icon.
+    /// The `droplet` icon.
     Blur,
-    /// PhotoCraft's `triangle` icon.
+    /// The `triangle` icon.
     Sharpen,
-    /// PhotoCraft's `pointer` icon.
+    /// The `pointer` icon.
     Smudge,
-    /// PhotoCraft's `lollipop` icon.
+    /// The `lollipop` icon.
     Dodge,
-    /// PhotoCraft's `flame` icon.
+    /// The `flame` icon.
     Burn,
-    /// PhotoCraft's `cloud` icon.
+    /// The `cloud` icon.
     Sponge,
-    /// PhotoCraft's `quick-selection` icon.
+    /// The `quick-selection` icon.
     QuickSelection,
-    /// PhotoCraft's `square-dashed-mouse-pointer` icon.
+    /// The `square-dashed-mouse-pointer` icon.
     ObjectSelection,
-    /// PhotoCraft's `pen-tool` icon.
+    /// The `pen-tool` icon.
     Pen,
-    /// PhotoCraft's `pen-freeform` icon.
+    /// The `pen-freeform` icon.
     FreeformPen,
-    /// PhotoCraft's `pen-curvature` icon.
+    /// The `pen-curvature` icon.
     CurvaturePen,
-    /// PhotoCraft's `pen-add-anchor` icon.
+    /// The `pen-add-anchor` icon.
     AddAnchorPoint,
-    /// PhotoCraft's `pen-delete-anchor` icon.
+    /// The `pen-delete-anchor` icon.
     DeleteAnchorPoint,
-    /// PhotoCraft's `convert-point` icon.
+    /// The `convert-point` icon.
     ConvertPoint,
-    /// PhotoCraft's `mouse-pointer-2` icon.
+    /// The `mouse-pointer-2` icon.
     PathSelection,
-    /// PhotoCraft's `direct-select` icon.
+    /// The `direct-select` icon.
     DirectSelection,
-    /// PhotoCraft's `rectangle-horizontal` icon.
+    /// The `rectangle-horizontal` icon.
     Rectangle,
-    /// PhotoCraft's `circle` icon.
+    /// The `circle` icon.
     Ellipse,
-    /// PhotoCraft's `triangle` icon.
+    /// The `triangle` icon.
     Triangle,
-    /// PhotoCraft's `pentagon` icon.
+    /// The `pentagon` icon.
     Polygon,
-    /// PhotoCraft's `slash` icon.
+    /// The `slash` icon.
     Line,
-    /// PhotoCraft's `cloud` icon.
+    /// The `cloud` icon.
     CustomShape,
 }
 
