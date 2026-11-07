@@ -1,6 +1,8 @@
 //! `Disclosure`: the open/closed toggle of a section, a title row's lead and a tree row's expander.
 
-use crate::contract::{Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, spec};
+use crate::contract::{
+    Animate as _, Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Pointer as _, Role, Styled as _, spec,
+};
 use crate::primitives::{PaintShape, StrokeWidth};
 use crate::style::{ComponentStyle, IconLook, Ink, Stateful, StyleCx};
 use craft_behavior::{Metrics, Sense};

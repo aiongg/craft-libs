@@ -9,7 +9,7 @@ use super::words::ControlWords;
 use crate::contract::{
     ActivateOn, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, Cx, Edit as _,
     EditResponse, Focus as _, LeadOnOpen, MeasureCx, Overlay, OverlayUi, Overlays as _, PaintUi, Props as _, Remember as _, Role, SelectMode,
-    ShowCollection as _, Sizing, Trigger, WordSetCx as _,
+    ShowCollection as _, Sizing, Styled as _, Trigger, WordSetCx as _,
 };
 use crate::primitives::{PaintShape, StrokeWidth, TextRun};
 use crate::runtime::env::Label;
