@@ -3,12 +3,11 @@
 use super::words::TileWords;
 use crate::buttons::IconButton;
 use crate::contract::{
-    Access, Bind, Common, Component, Cx, Edit as _, EditResponse, Focus as _, MeasureCx, Name, PaintUi, PartsCx, Pointer as _, Props as _, Role,
-    WordSetCx as _,
+    Access, Bind, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, Name, PaintUi, PartsCx, Props as _, Role, WordSetCx as _,
 };
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, StyleCx};
-use craft_behavior::{IconId, Metrics, Mixed, NavShape, PartKey, PartRef, Proposal, Roving, Sense};
+use craft_behavior::{IconId, Metrics, Mixed, NavShape, PartKey, Proposal, Roving, Sense};
 use egui::{Rect, Vec2};
 use std::ops::RangeInclusive;
 
@@ -30,16 +29,17 @@ pub enum ZoomStep {
 pub enum TileZoom {
     /// Factors on [`TileZoom::LADDER`], default 1.0 (card grids).
     Ladder,
-    /// A continuous size (bins: 48 to 400), `step` per key press, `default` for Reset.
+    /// A continuous factor on the medium thumbnail side (1 is the medium thumbnail), `step` per key press, `default`
+    /// for Reset.
     #[non_exhaustive]
     Range {
-        /// Smallest size.
+        /// Smallest factor.
         min: f64,
-        /// Largest size.
+        /// Largest factor.
         max: f64,
-        /// Size change per key press.
+        /// Factor change per key press.
         step: f64,
-        /// Size that Reset returns to.
+        /// Factor that Reset returns to.
         default: f64,
     },
 }
@@ -48,7 +48,7 @@ impl TileZoom {
     /// The zoom ladder: 0.6, 0.8, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0.
     pub const LADDER: [f64; 11] = [0.6, 0.8, 1.0, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0];
 
-    /// A continuous zoom from `min` to `max`, `step` per key press, `default` for Reset.
+    /// A continuous zoom from the factor `min` to `max`, `step` per key press, `default` for Reset.
     pub const fn bounded(min: f64, max: f64, step: f64, default: f64) -> Self {
         TileZoom::Range { min, max, step, default }
     }
@@ -117,7 +117,8 @@ struct Placed {
 }
 
 /// The tile size slider: a small picture glyph button, a `Slider` over [`TileZoom::range`] and a large picture glyph
-/// button. The buttons step `Out` and `In` by the zoom; a `Range` zoom's step is also the slider's arrow and wheel
+/// button. The value is the factor `TileGrid::zoom` takes; a double click on the slider restores the binding's reset
+/// value, the zoom's default without one. The buttons step `Out` and `In` by the zoom; a `Range` zoom's step is also the slider's arrow and wheel
 /// step, and a `Ladder` zoom's rungs are the slider's marks. The label names the slider.
 #[derive(crate::contract::Component)]
 pub struct ThumbnailSlider<'a> {
@@ -135,7 +136,8 @@ impl<'a> ThumbnailSlider<'a> {
     }
 
     fn track(&self, shown: Mixed<f64>, name: Label) -> crate::value_drag::Slider<'static> {
-        let slider = crate::value_drag::Slider::new(Bind::given(shown), self.zoom.range()).label(name);
+        let reset = self.value.reset_value().copied().unwrap_or_else(|| self.zoom.default_value());
+        let slider = crate::value_drag::Slider::new(Bind::given(shown).reset(reset), self.zoom.range()).label(name);
         match self.zoom {
             TileZoom::Ladder => slider.marks(&TileZoom::LADDER),
             TileZoom::Range { step, .. } => slider.step(step).wheel_step(step),
@@ -161,7 +163,8 @@ impl Component for ThumbnailSlider<'_> {
         let button = cx.face(IconButton::new(IconId::new(SMALLER_ICON)));
         let shown = cx.value().copied().map_or(Mixed::Mixed, Mixed::Same);
         let track = cx.child("slider", &mut self.track(shown, cx.label()), Proposal::Ideal);
-        Vec2::new(2.0 * (button.x + cx.gap()) + track.x, button.y.max(track.y))
+        let width = 2.0 * (button.x + cx.gap()) + track.x;
+        Vec2::new(cx.room.map_or(width, |room| width.min(room)), button.y.max(track.y))
     }
 
     fn parts(&mut self, rect: Rect, cx: &mut PartsCx<'_, Self>) {
@@ -192,12 +195,9 @@ impl Component for ThumbnailSlider<'_> {
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
         let current = cx.value().copied().unwrap_or_else(|| self.zoom.default_value());
-        let by_key = cx.activation().filter(|activation| activation.by_key).and(cx.active_part());
         for (key, step) in [(OUT, ZoomStep::Out), (IN, ZoomStep::In)] {
-            let part = PartRef::from(key);
-            let hit = cx.part_if_declared(part).is_some_and(|result| result.press.phase.is_click()) || by_key == Some(part);
             let next = self.zoom.step(current, step);
-            if hit && next != current {
+            if cx.part_activated(key).is_some() && next != current {
                 cx.set(next);
             }
         }
