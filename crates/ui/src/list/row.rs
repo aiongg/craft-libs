@@ -693,7 +693,8 @@ impl ListRow<'_> {
 
     /// The offsets from the reading start of the row of the label column's near edge and of what lies past its
     /// far edge, and the toggle cells and text cells with whether each leads. A cell leads when it displays before
-    /// the label column. Without a label column the label band is empty and every cell leads.
+    /// the label column. Without a label column the label band is empty and every cell leads;
+    /// without cells the label band is the whole row.
     fn bands(&self, cells_of: &[(ColumnKey, Rect)], rect: Rect, rtl: bool) -> Bands {
         let start = if rtl { rect.right() } else { rect.left() };
         let span = |cell: Rect| {
@@ -706,6 +707,7 @@ impl ListRow<'_> {
                 let (near, far) = span(cells_of[at].1);
                 (near, (rect.width() - far).max(0.0))
             }
+            None if cells_of.is_empty() => (0.0, 0.0),
             None => {
                 let end = cells_of.iter().map(|(_, cell)| span(*cell).1).fold(0.0, f32::max);
                 (end, (rect.width() - end).max(0.0))
