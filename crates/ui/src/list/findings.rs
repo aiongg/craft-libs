@@ -192,6 +192,10 @@ impl Collection for FindingsList<'_> {
         SpanLayout::sized(source, width, cx.control().height)
     }
 
+    fn empty_height(&self, _width: f32, cx: &StyleCx<'_>) -> f32 {
+        cx.control().height
+    }
+
     fn empty(&mut self, ui: &mut Ui, cx: &mut BodyCx<'_>) {
         let words = cx.words::<ListWords>();
         EmptyNote::new().label(words.no_findings.clone()).show_at(ui, cx.rect);

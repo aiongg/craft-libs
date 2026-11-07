@@ -405,6 +405,17 @@ fn a_menu_list_opens_on_its_first_row_and_follows_the_pointer() {
     assert_eq!(seen.leads(), [2], "a still pointer leaves the lead alone");
 }
 
+/// A list sized by its content keeps the height of its empty state while it has no rows.
+#[trial]
+fn an_empty_content_sized_list_keeps_the_height_of_its_empty_state() {
+    let words = Words::flat(&[]);
+    let seen = Seen::default();
+    let mut frames = Frames::new();
+    let mut show = |ui: &mut Ui| show_words(ui, List::new(SelectMode::Single).content_sized(), &words, &seen);
+    frames.idle(4, &mut show);
+    assert_eq!(seen.rect.get().height(), ROW_H, "the list is as tall as its empty state: {:?}", seen.rect.get());
+}
+
 /// A press on a row's click part leaves the selection alone and moves focus to the row (17.3 step 8).
 #[trial]
 fn a_press_on_an_item_part_moves_focus_to_the_row_and_does_not_select_it() {

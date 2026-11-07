@@ -324,7 +324,8 @@ impl<C: Collection> ShapeHooks<C> for ItemsHooks<'_, '_, C> {
         let content = layout.content_size();
         self.content = Vec2::new(content.x as f32, content.y as f32);
         self.layout = Some(Rc::new(layout));
-        let height = self.content.y + self.header.height;
+        let empty = if self.source.is_empty() { comp.empty_height(width, scx) } else { 0.0 };
+        let height = self.content.y.max(empty) + self.header.height;
         if !(self.scrolls && room.y.is_finite()) {
             return Vec2::new(self.content.x, height);
         }

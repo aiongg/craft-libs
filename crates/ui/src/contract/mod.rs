@@ -352,6 +352,11 @@ pub trait Collection: Component + HasProps + Meta<Shape = shape::Items> {
         true
     }
 
+    /// The height of the empty state at `width`: a `Sizing::Content` collection with no rows is this tall.
+    fn empty_height(&self, _width: f32, _cx: &StyleCx<'_>) -> f32 {
+        0.0
+    }
+
     /// The empty state at the rect the item step placed.
     fn empty(&mut self, _ui: &mut Ui, _cx: &mut BodyCx<'_>) {}
 }

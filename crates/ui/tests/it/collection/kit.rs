@@ -214,6 +214,12 @@ impl<'a> List<'a> {
         self
     }
 
+    /// The list takes the height of its rows, or of its empty state.
+    pub fn content_sized(mut self) -> Self {
+        self.props = self.props.sizing(craft_ui::contract::Sizing::Content);
+        self
+    }
+
     pub fn rename(mut self) -> Self {
         self.items = self.items.rename(true);
         self
@@ -283,11 +289,14 @@ impl Collection for List<'_> {
         Some(NameEditor::new(draft).shown(ui))
     }
 
-    fn empty(&mut self, ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
+    fn empty(&mut self, _ui: &mut Ui, cx: &mut craft_ui::contract::BodyCx<'_>) {
         if let Some(seen) = self.on_empty {
             seen.set(cx.rect);
         }
-        let _ = ui;
+    }
+
+    fn empty_height(&self, _: f32, _: &StyleCx<'_>) -> f32 {
+        ROW_H
     }
 }
 
