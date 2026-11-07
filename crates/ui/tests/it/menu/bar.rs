@@ -7,7 +7,7 @@ use craft_ui::contract::{PopupKind, Show as _};
 use craft_ui::menu::MenuItem;
 use craft_ui::menu::bar::{HelpEntry, MenuBar, MenuHelp, MenuTitle, TitleFit, fit_titles};
 use craft_ui::runtime::commands::EditCommands;
-use craft_ui::testing::{Fixture, trial};
+use craft_ui::testing::{Fixture, pointer, trial};
 use egui::{Id, Key, Modifiers};
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -92,6 +92,7 @@ fn a_press_on_a_title_opens_its_menu_and_a_release_on_a_row_runs_it() {
     rig.fixture.idle(3);
     assert!(rig.open("Save"), "the menu is open while the press is still held");
     let save = rig.fixture.by_label("Save").expect("the Save row");
+    rig.fixture.frame(vec![pointer::moved(save.center())]);
     rig.fixture.release(&save);
     rig.fixture.settle();
     assert_eq!(*rig.ran.borrow(), ["Save"]);

@@ -1,7 +1,7 @@
 //! `MenuItem` (11.4, 12.3): one row of a menu, and the level it shares with the rows around it.
 
 use crate::contract::{
-    Access, Common, Component, Cx, Focus as _, MeasureCx, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Styled as _,
+    Access, Common, Component, Cx, Focus as _, MeasureCx, Name, NoValue, Outcome, PaintUi, PartsCx, Pointer as _, Props, Remember as _, Role, Styled as _,
 };
 use crate::display::Kbd;
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth, TextLayout, TextRun, glyph};
@@ -728,6 +728,7 @@ impl Component for MenuItem<'_> {
 
     fn access(&self, access: &mut Access, cx: &Cx<'_, Self>) {
         let level = cx.env.get::<MenuLevel>();
+        access.name(Name::Text(mnemonic::marked(cx.resolved.label).0));
         match self.mark(cx.command.as_deref(), &level) {
             Some(Mark::Radio(_)) => {
                 access.role(Role::MENU_ITEM_RADIO);

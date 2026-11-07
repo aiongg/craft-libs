@@ -462,7 +462,7 @@ impl Component for MenuBar<'_> {
                 MenuKey::Focus => Self::focus_key(cx, &slots, found, opened),
             }
         }
-        if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Close) {
+        if opened.is_none() && cx.is_focused() && cx.intents().take(Intent::Cancel) {
             focus::give_back_bar(&cx.core.ctx);
         }
         let mut state = cx.memory::<BarState>().clone();
