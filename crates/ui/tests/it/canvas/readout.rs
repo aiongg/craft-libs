@@ -3,7 +3,7 @@
 use craft_behavior::Metrics;
 use craft_i18n::Direction;
 use craft_ui::canvas::readout;
-use craft_ui::contract::{Common, Component, Cx, MeasureCx, Role, Show as _};
+use craft_ui::contract::{Common, Component, Cx, MeasureCx, Props as _, Role, Show as _};
 use craft_ui::runtime::env::Label;
 use craft_ui::style::{ComponentStyle, StyleCx};
 use craft_ui::testing::{Fixture, trial};
