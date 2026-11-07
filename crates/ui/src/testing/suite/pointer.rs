@@ -116,7 +116,8 @@ fn parts_take_presses_in_their_hit_areas(subject: &Subject) -> Result<(), String
             let off_middle = Pos2::new(grip.rect.center().x + 0.25 * grip.rect.width(), grip.rect.center().y);
             let mut fixture = fixture;
             let before = fixture.data().snapshot();
-            gesture(&mut fixture, &at(&grip, off_middle), 2.0 * input::max_click_dist(fixture.ctx()));
+            let travel = 2.0 * input::max_click_dist(fixture.ctx());
+            gesture(&mut fixture, &at(&grip, off_middle), travel);
             if fixture.data().changed_since(&before).is_empty() {
                 return Err(format!("{}: a drag from {off_middle:?}, inside the part {part:?}, moved no value", story.name));
             }
@@ -133,7 +134,7 @@ fn rect(x: f32, y: f32, w: f32, h: f32) -> Rect {
 }
 
 /// The arena the order case shows: member `a` has a handle part over the corner of member `b`'s body. `reversed`
-/// shows `b` first; `late` adds a member whose handle part covers the whole arena, revealed after the press began.
+/// shows `b` first, so `a` is above it; `late` adds a member whose handle part covers the whole arena, revealed after the press began.
 fn arena(reversed: bool, late: bool) -> ProbeRoot {
     let a = ProbeMember::new("a", rect(40.0, 40.0, 120.0, 60.0), Sense::CLICK)
         .part(ProbePart::new(PORT, rect(120.0, 60.0, 30.0, 30.0), Sense::CLICK).level(HitLevel::Handle, 0));
@@ -183,8 +184,8 @@ fn claim(shape: ShapeKind) -> bool {
     CLAIMED.get_or_init(Mutex::default).lock().is_ok_and(|mut claimed| claimed.insert(name))
 }
 
-/// A press where a member's handle part overlaps another member's body goes to the handle in either show order,
-/// and a press keeps its winner when a member whose handle covers the pointer is revealed after it began.
+/// A press where a member's handle part overlaps another member's body goes to the member shown last, whatever the
+/// levels of the parts below it, and a press keeps its winner when a member whose handle covers the pointer is revealed after it began.
 fn arena_winner_ignores_show_order(subject: &Subject) -> Result<(), String> {
     if !claim(subject.probe.shape) {
         return Ok(());
@@ -198,8 +199,11 @@ fn arena_winner_ignores_show_order(subject: &Subject) -> Result<(), String> {
         log.borrow_mut().clear();
         pointer::click(&mut frames, overlap, &mut show_frame);
         let (handle, body) = (clicks_of(&log, "a", Some(PORT)), clicks_of(&log, "b", None));
-        if (handle, body) != (1, 0) {
-            return Err(format!("the handle over another member's body got {handle} clicks and that body {body} (show order reversed: {reversed})"));
+        let expected = if reversed { (1, 0) } else { (0, 1) };
+        if (handle, body) != expected {
+            return Err(format!(
+                "a press where a handle part overlaps another member's body gave the handle {handle} clicks and the body {body}, expected {expected:?}: the member shown last wins (show order reversed: {reversed})"
+            ));
         }
     }
     let pressed = Pos2::new(60.0, 45.0);

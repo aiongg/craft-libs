@@ -50,9 +50,12 @@ fn each_activation_clicks_once(subject: &Subject) -> Result<(), String> {
 
 /// Every part that senses `CLICK` of a component that carries no value gives exactly one click on each path it has:
 /// a primary click, AccessKit `Click` when its node declares it, and Enter or Space after AccessKit `Focus` when it
-/// is a focus stop. Two clicks mean the part's press also reached the root's activation.
+/// is a focus stop; a collection's parts report events, not clicks, and are read by the collection cases. Two clicks mean the part's press also reached the root's activation.
 fn each_part_activates_once(subject: &Subject) -> Result<(), String> {
-    if subject.probe.carries_value() || matches!(subject.probe.input, Input::Text | Input::Editor | Input::Display) {
+    if subject.probe.carries_value()
+        || matches!(subject.probe.input, Input::Text | Input::Editor | Input::Display)
+        || matches!(subject.probe.shape, ShapeKind::Items)
+    {
         return Ok(());
     }
     let keys = [(Key::Enter, subject.probe.keys.activate.enter()), (Key::Space, subject.probe.keys.activate.space())];
