@@ -7,9 +7,13 @@
 //! answered it: a rename case runs on the stories whose F2 began a rename.
 
 use super::Subject;
-use super::nodes::{focused_row, position_in_set, root, rows};
+use super::nodes::{focused_row, position_in_set, root, rows, subtree};
+use crate::contract::ColumnCommands;
 use crate::contract::ShapeKind;
 use crate::runtime::access::Role;
+use crate::runtime::commands::{self, FireSource};
+use crate::runtime::egui::access::Declared;
+use crate::runtime::egui::fixture::AccessActionKind;
 use crate::testing::fixture::{Fixture, Target};
 use crate::testing::story::{CollectionKind, EditKind, Story};
 use craft_behavior::MotionMode;
@@ -279,6 +283,99 @@ pub(super) fn scroll_shows_rows_in_the_same_frame(subject: &Subject) -> Result<(
         if now.windows(2).any(|pair| pair[1].rect.min.y - pair[0].rect.max.y > row) {
             return Err(format!("{}: the frame of the scroll shows rows with a gap between them", story.name));
         }
+    }
+    Ok(())
+}
+
+/// The cell sub-nodes and the column header sub-nodes of the collection below `container`.
+fn nodes_of(fixture: &Fixture, container: &Target, role: Role) -> Vec<Target> {
+    let inside = subtree(fixture.tree(), container.node);
+    let mut found: Vec<Target> = fixture.by_role(role).into_iter().filter(|target| inside.contains(&target.node)).collect();
+    found.sort_by(|a, b| (a.rect.min.y, a.rect.min.x).partial_cmp(&(b.rect.min.y, b.rect.min.x)).unwrap_or(std::cmp::Ordering::Equal));
+    found
+}
+
+/// A click on a cell that changes the selection leaves that cell's sub-node reporting `SELECTED`, and a cell in
+/// another row reporting none. A collection whose click selects nothing is not read.
+fn selected_cell_reports_selected(story: &Story) -> Result<(), String> {
+    let Some((mut fixture, container, _)) = with_rows(story, 2) else { return Ok(()) };
+    let cells = nodes_of(&fixture, &container, Role::CELL);
+    let Some(clicked) = cells.first().copied() else { return Ok(()) };
+    fixture.take_outputs();
+    fixture.click(&clicked);
+    if !events(&mut fixture).contains(&CollectionKind::Selection) {
+        return Ok(());
+    }
+    let now = nodes_of(&fixture, &container, Role::CELL);
+    if !now.iter().any(|cell| cell.node == clicked.node && super::nodes::is_selected(&fixture, cell.node)) {
+        return Err(format!("{}: a clicked cell does not report `SELECTED`", story.name));
+    }
+    let row = clicked.rect.height();
+    if let Some(other) = now.iter().find(|cell| (cell.rect.center().y - clicked.rect.center().y).abs() > row)
+        && super::nodes::is_selected(&fixture, other.node)
+    {
+        return Err(format!("{}: a cell outside the selection reports `SELECTED`", story.name));
+    }
+    Ok(())
+}
+
+/// Header cells carry a name. From the keyboard, Enter on a header cell that declares `Click` gives a column event,
+/// and the resize and move commands that are enabled for the focused column give one: a resize through the arrow
+/// keys, a move at once. A column that is not movable or resizable leaves its command disabled and is not read.
+fn header_cells_report_column_events(story: &Story) -> Result<(), String> {
+    let Some((mut fixture, container, _)) = with_rows(story, 0) else { return Ok(()) };
+    let headers = nodes_of(&fixture, &container, Role::COLUMN_HEADER);
+    let Some(first) = headers.first().copied() else { return Ok(()) };
+    let name = story.name;
+    if headers.iter().any(|header| fixture.tree().name_of(header.node).is_none_or(str::is_empty)) {
+        return Err(format!("{name}: a column header has no name"));
+    }
+    let columns = |fixture: &mut Fixture| events(fixture).contains(&CollectionKind::Column);
+    fixture.access(AccessActionKind::Focus, &first);
+    fixture.idle(2);
+    fixture.take_outputs();
+    if fixture.tree().declares_key(first.node, Declared::Click) {
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(2);
+        if !columns(&mut fixture) {
+            return Err(format!("{name}: Enter on a sortable header gave no column event"));
+        }
+    }
+    let enabled = |fixture: &Fixture, command: ColumnCommands| commands::resolve(fixture.ctx(), command).enabled;
+    if enabled(&fixture, ColumnCommands::Resize) {
+        commands::fire(fixture.ctx(), ColumnCommands::Resize, FireSource::Automation);
+        fixture.idle(2);
+        fixture.take_outputs();
+        fixture.key(Key::ArrowRight, Modifiers::NONE);
+        fixture.idle(2);
+        if !columns(&mut fixture) {
+            return Err(format!("{name}: the Resize Column command and an arrow key gave no column event"));
+        }
+        fixture.key(Key::Enter, Modifiers::NONE);
+        fixture.idle(2);
+    }
+    for command in [ColumnCommands::MoveRight, ColumnCommands::MoveLeft] {
+        if enabled(&fixture, command) {
+            fixture.take_outputs();
+            commands::fire(fixture.ctx(), command, FireSource::Automation);
+            fixture.idle(2);
+            if !columns(&mut fixture) {
+                return Err(format!("{name}: {command:?} gave no column event"));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The sub-nodes of cells and columns: a selected cell's sub-node reports `SELECTED`, and header cells are announced
+/// and report column events from the keyboard.
+pub(super) fn cells_and_columns_are_reported(subject: &Subject) -> Result<(), String> {
+    if !is_items(subject) {
+        return Ok(());
+    }
+    for story in &subject.stories {
+        selected_cell_reports_selected(story)?;
+        header_cells_report_column_events(story)?;
     }
     Ok(())
 }

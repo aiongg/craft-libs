@@ -2,17 +2,25 @@
 
 use super::drive::{Plan, root_target, run, settled, variant_name, variants};
 use super::{ANY, Case, Subject};
+use crate::contract::ShapeKind;
 use crate::runtime::egui::access::{AccessTree, Declared};
 use crate::runtime::egui::fixture::AccessActionKind;
+use crate::testing::fixture::Fixture;
 use crate::testing::pointer;
-use crate::testing::story::{EditKind, Required};
-use egui::{Key, Modifiers};
+use crate::testing::story::{EditKind, Required, StoryData, StoryOutput};
+use craft_behavior::Input;
+use egui::{Id, Key, Modifiers};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
 pub(super) const CASES: &[Case] = &[
     Case::new("activate-once", ANY, each_activation_clicks_once),
+    Case::new("part-activate", ANY, each_part_activates_once),
     Case::new("actions", ANY, declared_actions_are_handled),
+    Case::new("intent-actions", ANY, every_intent_has_a_declared_action),
     Case::new("access-focus", ANY, access_focus_focuses),
     Case::new("press-cancel", ANY, escape_and_blur_cancel_a_press),
+    Case::new("press-removal", ANY, removal_cancels_a_press),
 ];
 
 /// Enter, Space, AccessKit `Click` and a primary click each give exactly one click on a component that reports
@@ -34,6 +42,60 @@ fn each_activation_clicks_once(subject: &Subject) -> Result<(), String> {
             let clicks = fixture.take_outputs().iter().filter(|output| output.clicked).count();
             if clicks != 1 {
                 return Err(format!("{}: {} gave {clicks} clicks", story.name, variant_name(plan, variant)));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Every part that senses `CLICK` of a component that carries no value gives exactly one click on each path it has:
+/// a primary click, AccessKit `Click` when its node declares it, and Enter or Space after AccessKit `Focus` when it
+/// is a focus stop. Two clicks mean the part's press also reached the root's activation.
+fn each_part_activates_once(subject: &Subject) -> Result<(), String> {
+    if subject.probe.carries_value() || matches!(subject.probe.input, Input::Text | Input::Editor | Input::Display) {
+        return Ok(());
+    }
+    let keys = [(Key::Enter, subject.probe.keys.activate.enter()), (Key::Space, subject.probe.keys.activate.space())];
+    for story in &subject.stories {
+        let (fixture, _) = settled(story, subject.probe);
+        let Some(id) = fixture.root_id() else { continue };
+        let mut parts = crate::runtime::pointer::sensing_parts(fixture.ctx(), id, craft_behavior::Sense::CLICK);
+        parts.dedup();
+        for part in parts {
+            // Paths: 0 click, 1 AccessKit Click, 2 and 3 the activation keys.
+            for path in 0..4 {
+                let (mut fixture, _) = settled(story, subject.probe);
+                let Some(target) = fixture.root_id().and_then(|id| fixture.part(id, part)) else { continue };
+                if fixture.tree().data_of(target.node).is_some_and(|node| node.is_disabled()) {
+                    continue;
+                }
+                let declares = |fixture: &Fixture, action| fixture.tree().declares_key(target.node, action);
+                let name = match path {
+                    0 => "a click",
+                    1 if declares(&fixture, Declared::Click) => "AccessKit Click",
+                    2 if keys[0].1 && declares(&fixture, Declared::Focus) => "Enter",
+                    3 if keys[1].1 && declares(&fixture, Declared::Focus) => "Space",
+                    _ => continue,
+                };
+                fixture.take_outputs();
+                match path {
+                    0 => {
+                        fixture.click(&target);
+                    }
+                    1 => {
+                        fixture.access(AccessActionKind::Click, &target);
+                    }
+                    _ => {
+                        fixture.access(AccessActionKind::Focus, &target);
+                        fixture.idle(1);
+                        fixture.key(keys[path - 2].0, Modifiers::NONE);
+                    }
+                }
+                fixture.idle(2);
+                let clicks = fixture.take_outputs().iter().filter(|output| output.clicked).count();
+                if clicks != 1 {
+                    return Err(format!("{}: {name} on the part {part:?} gave {clicks} clicks", story.name));
+                }
             }
         }
     }
@@ -81,6 +143,60 @@ fn declared_actions_are_handled(subject: &Subject) -> Result<(), String> {
                 || fixture.focused() != focus;
             if !acted {
                 return Err(format!("{}: {kind:?} on {:?} did nothing", story.name, fixture.tree().role_of(key)));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether any node of the tree reports itself expanded.
+fn any_expanded(tree: &AccessTree) -> bool {
+    tree.keys().into_iter().any(|key| tree.data_of(key).is_some_and(|node| node.is_expanded() == Some(true)))
+}
+
+/// Every intent the component takes has its AccessKit action declared on a node (core 12.2). The intents are read
+/// from what the keys the type keeps do on a focused story: an activation key or arrow that gives a click or changes
+/// the value needs `Click`; an arrow that changes the value of a control needs `Increment` or `Decrement`; a key that
+/// opens something needs `Expand` and `Collapse`. Text types take edit intents, which the text cases cover.
+fn every_intent_has_a_declared_action(subject: &Subject) -> Result<(), String> {
+    let probe = subject.probe;
+    if matches!(probe.input, Input::Text | Input::Editor | Input::Display) {
+        return Ok(());
+    }
+    let keys = [
+        (Key::Enter, probe.keys.activate.enter(), None),
+        (Key::Space, probe.keys.activate.space(), None),
+        (Key::ArrowRight, true, Some(Declared::Increment)),
+        (Key::ArrowUp, true, Some(Declared::Increment)),
+        (Key::ArrowLeft, true, Some(Declared::Decrement)),
+        (Key::ArrowDown, true, Some(Declared::Decrement)),
+    ];
+    for story in subject.stories.iter().filter(|story| !story.covers.contains(&Required::Invalid)) {
+        for &(key, _, step) in keys.iter().filter(|(_, kept, _)| *kept) {
+            let (mut fixture, _) = settled(story, probe);
+            fixture.key(Key::Tab, Modifiers::NONE);
+            fixture.idle(2);
+            let (before, was_open) = (fixture.data().snapshot(), any_expanded(fixture.tree()));
+            fixture.take_outputs();
+            fixture.key(key, Modifiers::NONE);
+            fixture.idle(2);
+            let clicked = fixture.take_outputs().iter().any(|output| output.clicked);
+            let changed = !fixture.data().changed_since(&before).is_empty();
+            let mut needs = Vec::new();
+            if clicked || (changed && step.is_none()) {
+                needs.push(Declared::Click);
+            }
+            if let Some(step) = step.filter(|_| changed && !matches!(probe.shape, ShapeKind::Items)) {
+                needs.push(step);
+            }
+            if !was_open && any_expanded(fixture.tree()) {
+                needs.extend([Declared::Expand, Declared::Collapse]);
+            }
+            let tree = fixture.tree();
+            for declared in needs {
+                if !tree.keys().into_iter().any(|node| tree.declares_key(node, declared)) {
+                    return Err(format!("{}: {key:?} took an intent and no node declares {declared:?}", story.name));
+                }
             }
         }
     }
@@ -135,6 +251,52 @@ fn escape_and_blur_cancel_a_press(subject: &Subject) -> Result<(), String> {
             if outputs.iter().any(|output| output.clicked) || ended || !fixture.data().changed_since(&before).is_empty() {
                 return Err(format!("{}: a press cancelled by {} still acted", story.name, if escape { "Escape" } else { "blur" }));
             }
+        }
+    }
+    Ok(())
+}
+
+/// A component that is not shown for one pass while a press on it is open loses the press: the pointer service
+/// holds no capture afterwards, and the release that follows gives no click, commit or value change.
+fn removal_cancels_a_press(subject: &Subject) -> Result<(), String> {
+    for story in &subject.stories {
+        let (fixture, plan) = settled(story, subject.probe);
+        let root = root_target(&fixture);
+        let part = match plan {
+            Plan::Activate if fixture.tree().declares_key(root.node, Declared::Click) => None,
+            Plan::Drag(part) => Some(part),
+            _ => continue,
+        };
+        let data = Rc::new(RefCell::new(StoryData::default()));
+        let outputs: Rc<RefCell<Vec<StoryOutput>>> = Rc::default();
+        let (hidden, id): (Rc<Cell<bool>>, Rc<Cell<Option<Id>>>) = (Rc::default(), Rc::default());
+        let (shared_data, shared_outputs, shared_hidden, shared_id, show) = (data.clone(), outputs.clone(), hidden.clone(), id.clone(), story.show);
+        let mut fixture = Fixture::new(move |ui| {
+            if shared_hidden.get() {
+                return;
+            }
+            let output = show(ui, &mut shared_data.borrow_mut());
+            shared_id.set(output.id);
+            shared_outputs.borrow_mut().push(output);
+        });
+        fixture.settle();
+        let Some(id) = id.get() else { continue };
+        let Some(target) = part.and_then(|part| fixture.part(id, part)).or_else(|| fixture.node_of(id)) else { continue };
+        let before = data.borrow().snapshot();
+        outputs.borrow_mut().clear();
+        fixture.press(&target);
+        hidden.set(true);
+        fixture.frame(Vec::new());
+        hidden.set(false);
+        if crate::testing::pointer::press_captured(fixture.ctx()) {
+            return Err(format!("{}: a press still holds the pointer after its component was not shown for a pass", story.name));
+        }
+        fixture.release(&target);
+        fixture.idle(2);
+        let outputs = std::mem::take(&mut *outputs.borrow_mut());
+        let ended = outputs.iter().flat_map(|output| output.edits.iter()).any(|kind| matches!(kind, EditKind::Commit | EditKind::Set));
+        if outputs.iter().any(|output| output.clicked) || ended || !data.borrow().changed_since(&before).is_empty() {
+            return Err(format!("{}: a press whose component was not shown for a pass still acted on release", story.name));
         }
     }
     Ok(())
