@@ -183,15 +183,15 @@ impl<'a, D: Clone + Eq + Hash + Send + Sync + std::fmt::Debug + 'static> Documen
         if leading.is_none() && trailing.is_none() {
             show_strip(ui, strip);
         } else {
-            let mut strip = Some(strip);
+            let (mut strip, mut leading, mut trailing) = (Some(strip), leading, trailing);
             Row::new().show(ui, |ui, _| {
-                if let Some(area) = leading {
+                if let Some(area) = leading.take() {
                     area(ui);
                 }
                 if let Some(strip) = strip.take() {
                     show_strip(ui, strip);
                 }
-                if let Some(area) = trailing {
+                if let Some(area) = trailing.take() {
                     area(ui);
                 }
             });

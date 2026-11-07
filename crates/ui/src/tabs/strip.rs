@@ -15,8 +15,8 @@ use super::{Tab, TabPartEvent};
 use crate::buttons::IconButton;
 use crate::contract::{
     Access, Bind, BindMut, Collection, CollectionEvent, CollectionProps, CollectionResponse, Common, Component, ContainerProps, ContextMenuRequest,
-    Cx, DropMark, Entry, ListDrag, Name, NoValue, Outcome, OverlayUi, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode, Sizing,
-    WindowDropTarget, WordSetCx as _,
+    Cx, DropMark, Entry, ListDrag, Name, NoValue, Outcome, OverlayUi, Overlays as _, PartsCx, Pointer as _, Props as _, Role, RowState, SelectMode,
+    Sizing, WindowDropTarget, WordSetCx as _,
 };
 use crate::list::{DropTest, RowTest, SourceTest};
 use crate::menu::Menu;
