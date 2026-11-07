@@ -218,7 +218,7 @@ impl<T: Value + 'static> Component for SplitButton<'_, T> {
         let draw = ui.draw();
         let side = cx.style.face.icon;
         let chevron = Rect::from_center_size(arrow.center(), Vec2::splat(side));
-        draw.icon(chevron, &IconSpec::svg(IconId::new("chevron_down")).ink(cx.style.face.icon_ink));
+        draw.icon(chevron, &IconSpec::svg(IconId::new("chevron_down")).color(cx.resolve(&cx.style.face.text)));
         let x = if rtl { arrow.right() } else { arrow.left() };
         let inset = cx.style.divider_inset;
         draw.stroke(

@@ -99,7 +99,7 @@ impl<'a> Draw<'a> {
         self.painter.galley(pos, layout.galley.clone(), ink_color(self.env.tokens, self.env.ink));
     }
 
-    /// Paints `icon` centred in `rect`, in the ink the spec names, mirrored under right-to-left when it is
+    /// Paints `icon` centred in `rect`, in the colour or ink the spec names, mirrored under right-to-left when it is
     /// directional.
     pub fn icon(&self, rect: Rect, icon: &super::IconSpec<'_>) {
         super::icon::paint(self.painter, self.env.tokens, self.env.direction, rect, icon);

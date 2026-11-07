@@ -1,10 +1,10 @@
 //! `IconButton`: a square ghost button that shows only an icon.
 
-use super::face::{self, FaceLook};
+use super::face;
 use crate::contract::{Common, Component, Cx, MeasureCx, PaintUi, Props, Role};
 use crate::primitives::{IconSpec, PaintShape, StrokeWidth};
 use crate::runtime::commands::CommandRef;
-use crate::style::{ComponentStyle, DataColor, FocusLook, Ink, StyleColor, StyleCx, SurfaceLook};
+use crate::style::{ComponentStyle, DataColor, FocusLook, Stateful, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{IconId, Metrics, Sense};
 use craft_theme::{ControlSize, Srgba, Variant, variant::{Emphasis, Tone}};
 use egui::{Color32, Pos2, Response, Vec2};
@@ -33,8 +33,8 @@ pub struct IconButtonStyle {
     metrics: Metrics,
     #[style(focus)]
     focus: FocusLook,
-    /// The ink the glyph reads in.
-    ink: Ink,
+    /// The glyph colour per state; the on look takes the accent text.
+    color: Stateful<StyleColor>,
     /// The side of the glyph.
     glyph: f32,
     /// The badge dot's diameter.
@@ -91,7 +91,7 @@ impl Component for IconButton {
             surface,
             metrics: Metrics::new().min_size(Vec2::splat(control.height)),
             focus: face::focus(cx),
-            ink: FaceLook::of(cx).icon_ink,
+            color: off.text.clone().on(on.text.off),
             glyph: control.icon - less,
             badge: control.icon * BADGE_RATIO,
             badge_edge: cx.color(cx.tokens.color.line.mark),
@@ -113,7 +113,7 @@ impl Component for IconButton {
     fn paint(&mut self, ui: &mut PaintUi<'_>, cx: &Cx<'_, Self>) {
         let glyph = egui::Rect::from_center_size(cx.rect.center(), Vec2::splat(cx.style.glyph));
         let draw = ui.draw();
-        draw.icon(glyph, &IconSpec::svg(self.icon.clone()).ink(cx.style.ink));
+        draw.icon(glyph, &IconSpec::svg(self.icon.clone()).color(cx.resolve(&cx.style.color)));
         if let Some(badge) = self.badge {
             let radius = cx.style.badge / 2.0;
             let x = if cx.flow.is_rtl() { glyph.left() + radius } else { glyph.right() - radius };
