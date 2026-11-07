@@ -1,0 +1,94 @@
+//! `#[derive(Props)]`: one setter per `#[prop]` field.
+
+use crate::util::{is_named, named_fields, wrapped};
+use proc_macro2::TokenStream;
+use quote::quote;
+use syn::{Attribute, DeriveInput, Field, Ident, LitStr, Meta};
+
+#[derive(Default)]
+struct Prop {
+    into: bool,
+    flag: bool,
+    name: Option<Ident>,
+}
+
+fn parse_prop(attr: &Attribute) -> syn::Result<Prop> {
+    let mut prop = Prop::default();
+    if matches!(attr.meta, Meta::Path(_)) {
+        return Ok(prop);
+    }
+    attr.parse_nested_meta(|meta| {
+        if meta.path.is_ident("into") {
+            prop.into = true;
+        } else if meta.path.is_ident("flag") {
+            prop.flag = true;
+        } else if meta.path.is_ident("name") {
+            let name: LitStr = meta.value()?.parse()?;
+            prop.name = Some(name.parse().map_err(|_| syn::Error::new(name.span(), "`name` is the setter's identifier"))?);
+        } else {
+            return Err(meta.error("unknown `prop` option; expected `into`, `flag` or `name = \"..\"`"));
+        }
+        Ok(())
+    })?;
+    Ok(prop)
+}
+
+fn setter(field: &Field, attr: &Attribute) -> syn::Result<TokenStream> {
+    let Some(field_name) = &field.ident else {
+        return Err(syn::Error::new_spanned(field, "`#[prop]` needs a named field"));
+    };
+    let prop = parse_prop(attr)?;
+    let docs: Vec<_> = field.attrs.iter().filter(|attr| attr.path().is_ident("doc")).collect();
+    if docs.is_empty() {
+        return Err(syn::Error::new_spanned(field_name, "a `#[prop]` needs a doc comment: it becomes the setter's documentation"));
+    }
+    let name = prop.name.as_ref().unwrap_or(field_name);
+    let ty = &field.ty;
+    let (parameter, stored) = if prop.flag {
+        if prop.into || !is_named(ty, "bool") {
+            return Err(syn::Error::new_spanned(ty, "`flag` is for a `bool` field and takes no `into`"));
+        }
+        let body = quote!(self.#field_name = true;);
+        return Ok(quote! {
+            #(#docs)*
+            pub fn #name(mut self) -> Self {
+                #body
+                self
+            }
+        });
+    } else if let Some(inner) = wrapped(ty, "Option") {
+        if prop.into {
+            (quote!(value: impl ::core::convert::Into<#inner>), quote!(::core::option::Option::Some(value.into())))
+        } else {
+            (quote!(value: #inner), quote!(::core::option::Option::Some(value)))
+        }
+    } else if prop.into || is_named(ty, "String") {
+        (quote!(value: impl ::core::convert::Into<#ty>), quote!(value.into()))
+    } else {
+        (quote!(value: #ty), quote!(value))
+    };
+    Ok(quote! {
+        #(#docs)*
+        pub fn #name(mut self, #parameter) -> Self {
+            self.#field_name = #stored;
+            self
+        }
+    })
+}
+
+pub(crate) fn derive(input: TokenStream) -> syn::Result<TokenStream> {
+    let input: DeriveInput = syn::parse2(input)?;
+    let mut setters = Vec::new();
+    for field in named_fields(&input, "Props")? {
+        if let Some(attr) = field.attrs.iter().find(|attr| attr.path().is_ident("prop")) {
+            setters.push(setter(&field, attr)?);
+        }
+    }
+    let ident = &input.ident;
+    let (impl_generics, type_generics, where_clause) = input.generics.split_for_impl();
+    Ok(quote! {
+        impl #impl_generics #ident #type_generics #where_clause {
+            #(#setters)*
+        }
+    })
+}

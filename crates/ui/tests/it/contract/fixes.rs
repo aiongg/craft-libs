@@ -5,12 +5,11 @@ use super::kit::{PartSpec, PlainStyle, Probe, Seen};
 use craft_behavior::{Proposal, Sense};
 use craft_theme::Stateful;
 use craft_ui::contract::{
-    Common, Component, Container, ContainerProps, Cx, HasProps, Internal, Looks, MeasureCx, Meta, PaintUi, PartsCx, Props as _, Role, Show as _,
-    ShowContainer as _, shape,
+    Common, Component, Container, ContainerProps, Cx, Looks, MeasureCx, OverlayUi, PaintUi, PartsCx, Props as _, Role, Show as _, ShowContainer as _,
 };
-use craft_ui::runtime::env::{AppValues, EnvValue, StyleValue};
+use craft_ui::runtime::env::{AppValues, EnvValue};
 use craft_ui::runtime::{InstallSpec, install};
-use craft_ui::style::{ComponentStyle, Ink, StateSet, StyleCx, StyleKey, SurfaceKind, SurfaceLook};
+use craft_ui::style::{ComponentStyle, Ink, StateSet, StyleCx, SurfaceKind, SurfaceLook};
 use craft_ui::testing::contract::{allocate, clicked as is_clicked, clicked_by_primary, findings};
 use craft_ui::testing::focus::named_id;
 use craft_ui::testing::input::key_press;
@@ -22,44 +21,18 @@ use std::cell::RefCell;
 
 type Log = RefCell<Vec<&'static str>>;
 
-macro_rules! style_key {
-    ($name:ident) => {
-        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name;
-
-        impl StyleKey for $name {}
-    };
-}
-
-style_key!(HookedKey);
-style_key!(SpyKey);
-style_key!(InkedKey);
-style_key!(ChipKey);
-
 /// A style-affecting app value the body hands to its children.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnvValue)]
+#[env(style, root = Tone(1))]
 struct Tone(u8);
 
-impl EnvValue for Tone {
-    const AFFECTS_STYLE: bool = true;
-
-    fn root() -> Self {
-        Tone(1)
-    }
-
-    fn style_hash(&self) -> Option<u64> {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        Some(hasher.finish())
-    }
-}
-
-impl StyleValue for Tone {}
-
 /// A body that logs every hook the pipeline calls and can hand `Tone` to its body.
+#[derive(Component)]
+#[component(container, overlay)]
 struct Hooked<'a> {
+    #[common]
     common: Common,
+    #[container]
     props: ContainerProps,
     log: &'a Log,
     tone: Option<u8>,
@@ -75,35 +48,12 @@ impl<'a> Hooked<'a> {
     }
 }
 
-impl Meta for Hooked<'_> {
-    type Shape = shape::Body;
-    type StyleKey = HookedKey;
-
-    fn style_key(&self) -> HookedKey {
-        HookedKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
-impl HasProps for Hooked<'_> {
-    fn props(&self, _: Internal) -> &ContainerProps {
-        &self.props
-    }
-}
-
 impl Component for Hooked<'_> {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: HookedKey) -> PlainStyle {
+    fn style(_: &StyleCx<'_>, _: HookedStyleKey) -> PlainStyle {
         PlainStyle::default()
     }
 
@@ -129,6 +79,10 @@ impl Component for Hooked<'_> {
 
     fn update(&mut self, _: &mut Cx<'_, Self>) {
         self.mark("update");
+    }
+
+    fn overlay(&mut self, _: &mut OverlayUi<'_>, _: &mut Cx<'_, Self>) {
+        self.mark("overlay");
     }
 
     fn flags(&self) -> craft_ui::style::Flags {
@@ -165,7 +119,10 @@ fn hooks_run_in_pipeline_order_with_the_body_between_paint_and_paint_over() {
         log.borrow_mut().clear();
         Hooked::new(&log).show(ui, |_, _| log.borrow_mut().push("body"));
     });
-    assert_eq!(*log.borrow(), ["measure", "parts", "update", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"]);
+    assert_eq!(
+        *log.borrow(),
+        ["measure", "parts", "update", "overlay", "flags", "content_env", "paint", "body", "paint_over", "activated", "finish"]
+    );
 }
 
 /// A sizing pass of the parent `Ui` allocates the size and runs nothing else.
@@ -220,26 +177,11 @@ fn showing_one_id_twice_in_a_pass_is_a_duplicate_id_finding() {
 }
 
 /// A leaf that records the id its `measure` and `update` ran under.
+#[derive(Component)]
 struct Spy<'a> {
+    #[common]
     common: Common,
     ids: &'a RefCell<(Vec<Id>, Vec<Id>)>,
-}
-
-impl Meta for Spy<'_> {
-    type Shape = shape::Leaf;
-    type StyleKey = SpyKey;
-
-    fn style_key(&self) -> SpyKey {
-        SpyKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
 }
 
 impl Component for Spy<'_> {
@@ -247,7 +189,7 @@ impl Component for Spy<'_> {
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: SpyKey) -> PlainStyle {
+    fn style(_: &StyleCx<'_>, _: SpyStyleKey) -> PlainStyle {
         PlainStyle::default()
     }
 
@@ -341,7 +283,7 @@ fn a_focused_part_that_disappears_is_no_longer_active() {
 /// Frames of a `Hooked` body with a minimum size larger than its padding; `fill` makes the body take all its room.
 fn body_sizes(fill: bool) -> (Vec<Vec2>, Vec2) {
     let mut looks = Looks::new();
-    looks.style::<Hooked<'static>>(|_, _| PlainStyle { min: Vec2::new(200.0, 100.0) });
+    looks.style::<Hooked<'static>>(|_, _| PlainStyle::min(Vec2::new(200.0, 100.0)));
     let mut frames = Frames::uninstalled();
     assert!(install(&frames.ctx, InstallSpec::new().looks(looks)).is_ok());
     let log: Log = RefCell::new(Vec::new());
@@ -376,7 +318,9 @@ fn a_body_smaller_than_the_minimum_size_takes_the_minimum_size() {
 }
 
 /// A leaf on a `Scrim` surface.
+#[derive(Component)]
 struct Inked<'a> {
+    #[common]
     common: Common,
     ink: &'a RefCell<Option<Ink>>,
 }
@@ -396,29 +340,12 @@ impl ComponentStyle for InkStyle {
     }
 }
 
-impl Meta for Inked<'_> {
-    type Shape = shape::Leaf;
-    type StyleKey = InkedKey;
-
-    fn style_key(&self) -> InkedKey {
-        InkedKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
 impl Component for Inked<'_> {
     const ROLE: Role = Role::None;
     type Style = InkStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: InkedKey) -> InkStyle {
+    fn style(cx: &StyleCx<'_>, _: InkedStyleKey) -> InkStyle {
         InkStyle { look: SurfaceLook::new(Stateful::new(cx.ink(Ink::OnPanel))).kind(SurfaceKind::Scrim) }
     }
 
@@ -448,25 +375,10 @@ fn a_component_on_a_scrim_surface_reads_the_scrims_ink() {
 }
 
 /// A leaf whose width follows `Tone`.
+#[derive(Component)]
 struct Chip {
+    #[common]
     common: Common,
-}
-
-impl Meta for Chip {
-    type Shape = shape::Leaf;
-    type StyleKey = ChipKey;
-
-    fn style_key(&self) -> ChipKey {
-        ChipKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
 }
 
 impl Component for Chip {
@@ -474,8 +386,8 @@ impl Component for Chip {
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: ChipKey) -> PlainStyle {
-        PlainStyle { min: Vec2::splat(f32::from(cx.env::<Tone>().0) * 10.0) }
+    fn style(cx: &StyleCx<'_>, _: ChipStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(f32::from(cx.env::<Tone>().0) * 10.0))
     }
 
     fn sense(&self) -> Sense {

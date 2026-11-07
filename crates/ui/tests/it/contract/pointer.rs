@@ -1,8 +1,8 @@
 //! Pointer and focus rules the pipeline keeps between the services: one press cancel path, parts and their focus.
 
-use super::kit::{PartSpec, Panel, Probe, Seen};
+use super::kit::{Panel, PartSpec, Probe, Seen};
 use craft_behavior::{PartKey, PartRef, PressPhase, Sense};
-use craft_ui::contract::{Show as _, ShowContainer as _, Props as _};
+use craft_ui::contract::{Props as _, Show as _, ShowContainer as _};
 use craft_ui::testing::contract::findings;
 use craft_ui::testing::input::key_press;
 use craft_ui::testing::pointer::{moved, press, release};
@@ -34,9 +34,13 @@ fn canvas_tool_release_in_a_discarded_pass_reaches_the_tool_once() {
     let discard = Cell::new(false);
     let mut show = |ui: &mut Ui| {
         let tool = RefCell::new(Seen::default());
-        Panel::new().arena(true).sense(Sense::HOVER | Sense::DRAG).seen(&canvas).id_salt("canvas").show_at(ui, rect(10.0, 10.0, 300.0, 200.0), |ui, _| {
-            Probe::new(&tool).size(Vec2::new(40.0, 20.0)).id_salt("control").show_at(ui, rect(20.0, 20.0, 40.0, 20.0));
-        });
+        Panel::new().arena(true).sense(Sense::HOVER | Sense::DRAG).seen(&canvas).id_salt("canvas").show_at(
+            ui,
+            rect(10.0, 10.0, 300.0, 200.0),
+            |ui, _| {
+                Probe::new(&tool).size(Vec2::new(40.0, 20.0)).id_salt("control").show_at(ui, rect(20.0, 20.0, 40.0, 20.0));
+            },
+        );
         if discard.get() && ui.ctx().current_pass_index() == 0 {
             ui.ctx().request_discard("the release frame runs twice");
         }

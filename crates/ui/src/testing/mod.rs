@@ -15,6 +15,7 @@ pub mod sensing;
 pub mod style;
 pub mod wheel;
 
+pub use crate::contract::{Exemption, Probe, Registration};
 pub use craft_ui_macros::trial;
 pub use frames::Frames;
 
@@ -48,6 +49,26 @@ impl Trial {
 /// Every `#[trial]` linked into the running binary.
 #[linkme::distributed_slice]
 pub static TRIALS: [Trial];
+
+/// Every registration of the package `crate_name` linked into the running binary, in link order.
+pub fn registered_in(crate_name: &str) -> Vec<&'static Registration> {
+    crate::contract::REGISTRATIONS.iter().filter(|registration| registration.crate_name() == crate_name).collect()
+}
+
+/// Writes `pub fn registered()` for the invoking package: its registrations in the running binary. A crate invokes
+/// it once, in its `testing` module, and its integration binary calls the function by name, so the linker keeps the
+/// crate's registrations.
+#[macro_export]
+macro_rules! testing_registered {
+    () => {
+        /// Every registration of this package linked into the running binary.
+        pub fn registered() -> ::std::vec::Vec<&'static $crate::testing::Registration> {
+            $crate::testing::registered_in(env!("CARGO_PKG_NAME"))
+        }
+    };
+}
+
+testing_registered!();
 
 #[doc(hidden)]
 pub mod __private {

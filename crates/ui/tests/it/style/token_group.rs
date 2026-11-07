@@ -1,31 +1,24 @@
 //! Token groups: literal defaults reach paint through `cx.color`, a theme's values replace them, and a group is
 //! built once per token set.
 
-use craft_theme::{Contrast, ControlSize, GroupValues, Mode, Rgba, TokenGroup, Tokens, Variant};
+use craft_theme::{Contrast, ControlSize, GroupValues, Mode, Rgba, Tokens, Variant};
+use craft_ui::style::TokenGroup;
 use craft_ui::testing::style::{tokens, with_cx};
 use craft_ui::testing::{Frames, trial};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 static DERIVES: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, TokenGroup)]
+#[group(path = "craft_ui_tests.clips")]
 struct ClipColors {
     audio: Rgba,
 }
 
-// derive output
-impl TokenGroup for ClipColors {
-    const PATH: &'static str = "craft_ui_tests.clips";
-
+impl ClipColors {
     fn derive(_: &Tokens) -> Self {
         DERIVES.fetch_add(1, Ordering::SeqCst);
         ClipColors { audio: Rgba::rgb(10, 20, 30) }
-    }
-
-    fn overlay(&mut self, values: &GroupValues) {
-        if let Some(color) = values.color(Self::PATH, "audio") {
-            self.audio = color;
-        }
     }
 }
 
@@ -46,13 +39,11 @@ fn a_group_colour_reaches_paint_and_a_theme_value_under_its_path_replaces_it() {
 
 static COUNTED: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Clone)]
+#[derive(Clone, TokenGroup)]
+#[group(path = "craft_ui_tests.counted")]
 struct CountedColors;
 
-// derive output
-impl TokenGroup for CountedColors {
-    const PATH: &'static str = "craft_ui_tests.counted";
-
+impl CountedColors {
     fn derive(_: &Tokens) -> Self {
         COUNTED.fetch_add(1, Ordering::SeqCst);
         CountedColors

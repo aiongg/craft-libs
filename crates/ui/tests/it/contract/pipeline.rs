@@ -9,8 +9,7 @@ use std::cell::RefCell;
 use std::sync::Mutex;
 
 const LEAF: [&str; 16] = [
-    "env", "style", "id", "value", "measure", "place", "parts", "sense", "update", "overlay", "apply", "state", "paint", "settle", "report",
-    "finish",
+    "env", "style", "id", "value", "measure", "place", "parts", "sense", "update", "overlay", "apply", "state", "paint", "settle", "report", "finish",
 ];
 
 const WITH_CONTENT: [&str; 17] = [

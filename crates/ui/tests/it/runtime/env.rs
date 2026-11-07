@@ -7,14 +7,9 @@ use craft_ui::testing::frames::show_area;
 use craft_ui::testing::memory::scoped;
 use craft_ui::testing::{Frames, trial};
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, EnvValue)]
+#[env(root = Units("pt"))]
 struct Units(&'static str);
-
-impl EnvValue for Units {
-    fn root() -> Self {
-        Units("pt")
-    }
-}
 
 /// Skeleton: `frames_state::interface_scale_from_the_root_env_changes_pixels_per_point_in_the_next_pass`.
 #[trial]

@@ -12,6 +12,7 @@ mod values;
 
 pub use crate::runtime::access::{Access, Role};
 pub use crate::runtime::memory::{Remember, Savable, SaveKey, Slot};
+pub use craft_ui_macros::{Component, Props, register_contract};
 pub use cx::{Activation, BodyCx, Cx, CxCore, Focus, ItemCx, MeasureCx, PartBuilder, PartsCx, Pointer, Styled, WordSetCx};
 pub use looks::Looks;
 pub use paint_ui::PaintUi;
@@ -20,7 +21,10 @@ pub use props::{Common, Props, Resolved, Tooltip, TooltipAt, TooltipSpec, Toolti
 #[cfg(feature = "testing")]
 pub use registry::CANVAS_CONTROLS;
 #[doc(hidden)]
-pub use registry::CanvasControl;
+#[cfg(feature = "testing")]
+pub use registry::REGISTRATIONS;
+#[doc(hidden)]
+pub use registry::{CanvasControl, Exemption, Probe, Registration};
 pub use shell::{CollectionProps, ContainerProps, OverlayUi};
 pub use values::{Bind, BindMut, EditResponse, ItemOutput, NoValue, Outcome, ValueOf};
 
@@ -72,21 +76,38 @@ mod sealed {
     pub trait ShowCollection {}
 }
 
+/// The shape of a component, as a value: what a registration records.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ShapeKind {
+    /// No body and no items.
+    Leaf,
+    /// The caller supplies a body.
+    Body,
+    /// An item per visible entry of a source.
+    Items,
+}
+
 /// Which show trait applies, and the shape's default sense.
 pub trait ShowShape: sealed::ShowShape {
+    /// The shape as a value.
+    const KIND: ShapeKind;
     /// Leaf `CLICK | FOCUS`; body empty; items `CLICK | DRAG | FOCUS | WHEEL | TAKE_FOCUS`.
     const DEFAULT_SENSE: Sense;
 }
 
 impl ShowShape for shape::Leaf {
+    const KIND: ShapeKind = ShapeKind::Leaf;
     const DEFAULT_SENSE: Sense = Sense::CLICK.union(Sense::FOCUS);
 }
 
 impl ShowShape for shape::Body {
+    const KIND: ShapeKind = ShapeKind::Body;
     const DEFAULT_SENSE: Sense = Sense::empty();
 }
 
 impl ShowShape for shape::Items {
+    const KIND: ShapeKind = ShapeKind::Items;
     const DEFAULT_SENSE: Sense = Sense::CLICK.union(Sense::DRAG).union(Sense::FOCUS).union(Sense::WHEEL).union(Sense::TAKE_FOCUS);
 }
 

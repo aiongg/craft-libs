@@ -12,8 +12,20 @@ autotests = false
 # Every test lives in the `it` integration binary, so `cargo test` builds the library once.
 test = false
 
-[lints]
-workspace = true
+# Not `workspace = true`: with the `testing` feature, registrations written by the derives inside this crate expand
+# `linkme`'s `link_section` statics from a macro this crate defines, which the workspace's `forbid` rejects (a
+# macro from another crate is exempt). `lib.rs` allows it under that feature only.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unexpected_cfgs = { level = "warn", check-cfg = ["cfg(craft_pdf_unicode_fixtures)"] }
+
+[lints.clippy]
+cognitive_complexity = "deny"
+too_many_arguments = "deny"
+wildcard_imports = "deny"
+dbg_macro = "warn"
+todo = "warn"
 
 [features]
 default = []

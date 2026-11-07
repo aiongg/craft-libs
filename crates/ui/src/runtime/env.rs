@@ -13,6 +13,7 @@ use craft_host::Host;
 use craft_host::target::Os;
 pub use craft_i18n::Direction;
 use craft_theme::{AppSizes, Appearance, Contrast, ControlSize, Mode, SUITE_DEFAULT, Size, TextSize, ThemeDef, builtins, resolve_sized};
+pub use craft_ui_macros::EnvValue;
 use egui::{Context, Id, Ui, ViewportId};
 use std::any::{Any, TypeId};
 use std::collections::HashMap;

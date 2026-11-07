@@ -1,40 +1,25 @@
-//! Hand-written components for the contract trials: a leaf, a container and a collection with no derives.
+//! Components for the contract trials, written with the derives: a leaf, a container and a collection.
 
-use craft_behavior::{
-    Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout,
-};
+use craft_behavior::{Intent, ItemSource, Metrics, PartKey, PartRef, PressPhase, Selection, Sense, SpanLayout};
 use craft_ui::contract::{
-    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, HasProps, Internal, MeasureCx, Meta, PartsCx,
-    Pointer as _, Role, shape,
+    Collection, CollectionProps, Common, Component, Container, ContainerProps, Cx, Focus as _, MeasureCx, PartsCx, Pointer as _, Role,
 };
-use craft_ui::style::{ComponentStyle, StyleCx, StyleKey};
+use craft_ui::style::{ComponentStyle, StyleCx};
 use egui::{Id, Rect, Response, Vec2};
 use std::cell::RefCell;
 
-macro_rules! style_key {
-    ($name:ident) => {
-        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name;
-
-        impl StyleKey for $name {}
-    };
-}
-
-style_key!(ProbeKey);
-style_key!(PanelKey);
-style_key!(TableKey);
-style_key!(RowProbeKey);
-
 /// A style with a minimum size.
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
 #[non_exhaustive]
 pub struct PlainStyle {
-    pub min: Vec2,
+    #[style(metrics)]
+    metrics: Metrics,
 }
 
-impl ComponentStyle for PlainStyle {
-    fn metrics(&self) -> Metrics {
-        Metrics::new().min_size(self.min)
+impl PlainStyle {
+    /// A style whose component is at least `min` large.
+    pub fn min(min: Vec2) -> Self {
+        PlainStyle { metrics: Metrics::new().min_size(min) }
     }
 }
 
@@ -85,21 +70,14 @@ fn record<C: Component>(seen: &RefCell<Seen>, parts: &[PartSpec], cx: &mut Cx<'_
 
 impl Default for Seen {
     fn default() -> Self {
-        Seen {
-            rect: Rect::NOTHING,
-            id: None,
-            press: Vec::new(),
-            parts: Vec::new(),
-            activations: 0,
-            cancels: 0,
-            active: None,
-            updates: 0,
-        }
+        Seen { rect: Rect::NOTHING, id: None, press: Vec::new(), parts: Vec::new(), activations: 0, cancels: 0, active: None, updates: 0 }
     }
 }
 
 /// A leaf of a given size that records what the pipeline gives it.
+#[derive(Component)]
 pub struct Probe<'a> {
+    #[common]
     common: Common,
     size: Vec2,
     sense: Option<Sense>,
@@ -128,29 +106,12 @@ impl<'a> Probe<'a> {
     }
 }
 
-impl Meta for Probe<'_> {
-    type Shape = shape::Leaf;
-    type StyleKey = ProbeKey;
-
-    fn style_key(&self) -> ProbeKey {
-        ProbeKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
 impl Component for Probe<'_> {
     const ROLE: Role = Role::BUTTON;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: ProbeKey) -> PlainStyle {
+    fn style(_: &StyleCx<'_>, _: ProbeStyleKey) -> PlainStyle {
         PlainStyle::default()
     }
 
@@ -182,8 +143,12 @@ impl Component for Probe<'_> {
 }
 
 /// A container whose body is the caller's closure.
+#[derive(Component)]
+#[component(container)]
 pub struct Panel<'a> {
+    #[common]
     common: Common,
+    #[container]
     props: ContainerProps,
     sense: Sense,
     seen: Option<&'a RefCell<Seen>>,
@@ -210,35 +175,12 @@ impl<'a> Panel<'a> {
     }
 }
 
-impl Meta for Panel<'_> {
-    type Shape = shape::Body;
-    type StyleKey = PanelKey;
-
-    fn style_key(&self) -> PanelKey {
-        PanelKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
-impl HasProps for Panel<'_> {
-    fn props(&self, _: Internal) -> &ContainerProps {
-        &self.props
-    }
-}
-
 impl Component for Panel<'_> {
     const ROLE: Role = Role::GROUP;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: PanelKey) -> PlainStyle {
+    fn style(_: &StyleCx<'_>, _: PanelStyleKey) -> PlainStyle {
         PlainStyle::default()
     }
 
@@ -274,8 +216,12 @@ impl ItemSource<usize> for Rows {
 }
 
 /// A collection of rows of fixed height.
+#[derive(Component)]
+#[component(collection)]
 pub struct Table {
+    #[common]
     common: Common,
+    #[container]
     props: ContainerProps,
     items: CollectionProps,
     row_h: f32,
@@ -287,35 +233,12 @@ impl Table {
     }
 }
 
-impl Meta for Table {
-    type Shape = shape::Items;
-    type StyleKey = TableKey;
-
-    fn style_key(&self) -> TableKey {
-        TableKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
-impl HasProps for Table {
-    fn props(&self, _: Internal) -> &ContainerProps {
-        &self.props
-    }
-}
-
 impl Component for Table {
     const ROLE: Role = Role::LIST;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: TableKey) -> PlainStyle {
+    fn style(_: &StyleCx<'_>, _: TableStyleKey) -> PlainStyle {
         PlainStyle::default()
     }
 
@@ -342,7 +265,9 @@ impl Collection for Table {
 
 /// One row of a `Table`: it records its key and the arena it joined.
 #[non_exhaustive]
+#[derive(Component)]
 pub struct RowProbe {
+    #[common]
     common: Common,
     pub log: &'static std::sync::Mutex<Vec<(usize, Rect)>>,
     key: usize,
@@ -354,30 +279,13 @@ impl RowProbe {
     }
 }
 
-impl Meta for RowProbe {
-    type Shape = shape::Leaf;
-    type StyleKey = RowProbeKey;
-
-    fn style_key(&self) -> RowProbeKey {
-        RowProbeKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
 impl Component for RowProbe {
     const ROLE: Role = Role::LIST_ITEM;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: RowProbeKey) -> PlainStyle {
-        PlainStyle { min: Vec2::new(10.0, 10.0) }
+    fn style(_: &StyleCx<'_>, _: RowProbeStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::new(10.0, 10.0))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {

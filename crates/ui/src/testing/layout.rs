@@ -1,12 +1,12 @@
 //! The layout services the trials check: bodies, measured blocks, the label column, `measure_slot` and
 //! `arrange`, with placeholder children that take a given size.
 
-use crate::contract::{Common, Component, Cx, Internal, MeasureCx, Meta, Role, shape};
+use crate::contract::{Common, Component, Cx, MeasureCx, Role};
 use crate::layout::{BodyLayout, run_body};
 use crate::runtime::egui::fixture;
 use crate::runtime::layout_memory;
 use crate::runtime::memory::sub;
-use crate::style::{ComponentStyle, StyleCx, StyleKey};
+use crate::style::{ComponentStyle, StyleCx};
 use craft_behavior::{Metrics, Sense};
 use egui::{Id, Rect, Response, Ui, Vec2};
 
@@ -62,7 +62,9 @@ pub fn reordered_fonts() -> egui::FontDefinitions {
 }
 
 /// A placeholder child of a fixed size: a leaf that measures `size`, senses nothing and paints nothing.
+#[derive(Component)]
 pub struct Block {
+    #[common]
     common: Common,
     size: Vec2,
 }
@@ -74,37 +76,11 @@ impl Block {
     }
 }
 
-/// The style key of a `Block`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub struct BlockKey;
-
-impl StyleKey for BlockKey {}
-
 /// The style of a `Block`: no padding.
-#[derive(Clone, Debug, PartialEq)]
-pub struct BlockStyle;
-
-impl ComponentStyle for BlockStyle {
-    fn metrics(&self) -> Metrics {
-        Metrics::new()
-    }
-}
-
-impl Meta for Block {
-    type Shape = shape::Leaf;
-    type StyleKey = BlockKey;
-
-    fn style_key(&self) -> BlockKey {
-        BlockKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
+#[derive(Clone, Debug, PartialEq, ComponentStyle)]
+pub struct BlockStyle {
+    #[style(metrics)]
+    metrics: Metrics,
 }
 
 impl Component for Block {
@@ -112,8 +88,8 @@ impl Component for Block {
     type Style = BlockStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: BlockKey) -> BlockStyle {
-        BlockStyle
+    fn style(_: &StyleCx<'_>, _: BlockStyleKey) -> BlockStyle {
+        BlockStyle { metrics: Metrics::new() }
     }
 
     fn measure(&mut self, _: &MeasureCx<'_, Self>) -> Vec2 {

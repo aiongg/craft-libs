@@ -4,83 +4,36 @@
 use super::kit::{PlainStyle, Probe, Seen};
 use craft_behavior::{Metrics, PartKey, Sense};
 use craft_ui::contract::{
-    BindMut, Common, Component, Cx, EditResponse, Internal, Looks, MeasureCx, Meta, PaintUi, PartsCx, Props as _, Remember as _, Role, Show as _,
-    shape,
+    BindMut, Common, Component, Cx, EditResponse, Looks, MeasureCx, PaintUi, PartsCx, Props as _, Remember as _, Role, Show as _,
 };
 use craft_ui::primitives::PaintShape;
-use craft_ui::runtime::env::{EnvValue, RootEnv, StyleValue};
+use craft_ui::runtime::env::{EnvValue, RootEnv};
 use craft_ui::runtime::{InstallSpec, install};
-use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx, StyleKey};
+use craft_ui::style::{ComponentStyle, Ink, StyleColor, StyleCx};
 use craft_ui::testing::{Frames, trial};
 use egui::{Context, CornerRadius, Rect, Response, Vec2};
 use std::cell::RefCell;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 
-macro_rules! style_key {
-    ($name:ident) => {
-        #[derive(Clone, Copy, PartialEq, Eq, Hash)]
-        pub struct $name;
-
-        impl StyleKey for $name {}
-    };
-}
-
-style_key!(TintedKey);
-style_key!(DotKey);
-style_key!(HostKey);
-style_key!(HolderKey);
-style_key!(KeeperKey);
-
 /// A leaf whose style reads a style-affecting app value.
+#[derive(Component)]
 struct Tinted {
+    #[common]
     common: Common,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, EnvValue)]
+#[env(style, root = Accent(1))]
 struct Accent(u8);
-
-impl EnvValue for Accent {
-    const AFFECTS_STYLE: bool = true;
-
-    fn root() -> Self {
-        Accent(1)
-    }
-
-    fn style_hash(&self) -> Option<u64> {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        Some(hasher.finish())
-    }
-}
-
-impl StyleValue for Accent {}
-
-impl Meta for Tinted {
-    type Shape = shape::Leaf;
-    type StyleKey = TintedKey;
-
-    fn style_key(&self) -> TintedKey {
-        TintedKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
 
 impl Component for Tinted {
     const ROLE: Role = Role::None;
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: TintedKey) -> PlainStyle {
-        PlainStyle { min: Vec2::splat(f32::from(cx.env::<Accent>().0) * 10.0) }
+    fn style(cx: &StyleCx<'_>, _: TintedStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(f32::from(cx.env::<Accent>().0) * 10.0))
     }
 
     fn sense(&self) -> Sense {
@@ -124,7 +77,7 @@ fn looks_replace_a_components_style_app_wide() {
     assert!(install(&plain.ctx, InstallSpec::new()).is_ok());
     let mut replaced = Frames::uninstalled();
     let mut looks = Looks::new();
-    looks.style::<Probe<'static>>(|_, _| PlainStyle { min: Vec2::new(80.0, 10.0) });
+    looks.style::<Probe<'static>>(|_, _| PlainStyle::min(Vec2::new(80.0, 10.0)));
     assert!(install(&replaced.ctx, InstallSpec::new().looks(looks)).is_ok());
     assert!(size(&mut replaced) > size(&mut plain), "the replacement's minimum size applies");
 
@@ -137,7 +90,9 @@ fn looks_replace_a_components_style_app_wide() {
 static FACE_UPDATES: AtomicU32 = AtomicU32::new(0);
 
 /// A face: it paints a filled rect and counts the hooks a face must not run.
+#[derive(Component)]
 struct Dot {
+    #[common]
     common: Common,
 }
 
@@ -152,29 +107,12 @@ impl ComponentStyle for DotStyle {
     }
 }
 
-impl Meta for Dot {
-    type Shape = shape::Leaf;
-    type StyleKey = DotKey;
-
-    fn style_key(&self) -> DotKey {
-        DotKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
-}
-
 impl Component for Dot {
     const ROLE: Role = Role::None;
     type Style = DotStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: DotKey) -> DotStyle {
+    fn style(cx: &StyleCx<'_>, _: DotStyleKey) -> DotStyle {
         DotStyle { color: cx.ink(Ink::OnDark) }
     }
 
@@ -194,25 +132,10 @@ impl Component for Dot {
 const FACE: PartKey = PartKey::new("face");
 
 /// A composite that paints one part as a `Dot`.
+#[derive(Component)]
 struct Host {
+    #[common]
     common: Common,
-}
-
-impl Meta for Host {
-    type Shape = shape::Leaf;
-    type StyleKey = HostKey;
-
-    fn style_key(&self) -> HostKey {
-        HostKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
 }
 
 impl Component for Host {
@@ -220,7 +143,7 @@ impl Component for Host {
     type Style = DotStyle;
     type Output = Response;
 
-    fn style(cx: &StyleCx<'_>, _: HostKey) -> DotStyle {
+    fn style(cx: &StyleCx<'_>, _: HostStyleKey) -> DotStyle {
         DotStyle { color: cx.ink(Ink::OnPanel) }
     }
 
@@ -270,26 +193,11 @@ impl Clone for Counted {
 }
 
 /// A leaf with a value binding.
+#[derive(Component)]
 struct Holder<'a> {
+    #[common]
     common: Common,
     value: &'a mut Counted,
-}
-
-impl Meta for Holder<'_> {
-    type Shape = shape::Leaf;
-    type StyleKey = HolderKey;
-
-    fn style_key(&self) -> HolderKey {
-        HolderKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
 }
 
 impl Component for Holder<'_> {
@@ -297,8 +205,8 @@ impl Component for Holder<'_> {
     type Style = PlainStyle;
     type Output = EditResponse<Counted>;
 
-    fn style(_: &StyleCx<'_>, _: HolderKey) -> PlainStyle {
-        PlainStyle { min: Vec2::splat(10.0) }
+    fn style(_: &StyleCx<'_>, _: HolderStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(10.0))
     }
 
     fn bind(&mut self) -> Option<BindMut<'_, Counted>> {
@@ -360,25 +268,10 @@ impl Drop for Tracker {
 }
 
 /// A leaf that keeps a slot in shown memory.
+#[derive(Component)]
 struct Keeper {
+    #[common]
     common: Common,
-}
-
-impl Meta for Keeper {
-    type Shape = shape::Leaf;
-    type StyleKey = KeeperKey;
-
-    fn style_key(&self) -> KeeperKey {
-        KeeperKey
-    }
-
-    fn common(&self, _: Internal) -> &Common {
-        &self.common
-    }
-
-    fn common_mut(&mut self, _: Internal) -> &mut Common {
-        &mut self.common
-    }
 }
 
 impl Component for Keeper {
@@ -386,8 +279,8 @@ impl Component for Keeper {
     type Style = PlainStyle;
     type Output = Response;
 
-    fn style(_: &StyleCx<'_>, _: KeeperKey) -> PlainStyle {
-        PlainStyle { min: Vec2::splat(10.0) }
+    fn style(_: &StyleCx<'_>, _: KeeperStyleKey) -> PlainStyle {
+        PlainStyle::min(Vec2::splat(10.0))
     }
 
     fn update(&mut self, cx: &mut Cx<'_, Self>) {
