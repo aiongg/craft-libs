@@ -14,7 +14,7 @@ use crate::runtime::env::{Env, Label};
 use crate::runtime::memory::{MemoryStage, unique};
 use crate::runtime::overlay::CloseReason;
 use crate::runtime::words::CommonWords;
-use crate::sections::{DialogRole, FooterBar, FooterButton};
+use crate::sections::{DialogRole, FooterButton};
 use craft_behavior::{EditEvent, GestureId, Mixed};
 use egui::load::SizedTexture;
 use egui::{Response, Ui};
