@@ -1184,7 +1184,7 @@ fn command_facts(command: &ResolvedCommand, platform: craft_keymap::Platform) ->
 }
 
 /// The message of a validity that warns or refuses.
-fn validity_of<C: Component>(cx: &Cx<'_, C>) -> Option<&Message> {
+fn validity_of<'c, C: Component>(cx: &'c Cx<'_, C>) -> Option<&'c Message> {
     match &cx.validity {
         Validity::Warn(message) | Validity::Refuse(message) => Some(message),
         _ => None,

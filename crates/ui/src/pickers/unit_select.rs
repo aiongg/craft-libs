@@ -1,8 +1,8 @@
 //! `UnitSelect`: a number field with a select of units beside it that picks the unit the field reads and writes.
 
 use super::select::Select;
-use crate::contract::{
-    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Pointer as _, Props as _, Role,
+use crate::contract::{WordSetCx as _, 
+    Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, Entry, MeasureCx, Outcome, PaintUi, Props as _, Role,
 };
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
@@ -58,7 +58,7 @@ impl Outcome for UnitSelectOutput {
 /// shows its number with; the number itself is the field's value, and the unit goes to its own binding, so the app
 /// converts the number when the unit changes.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(probe(UnitSelect<'static>))]
+#[component]
 pub struct UnitSelect<'a> {
     #[common]
     common: Common,

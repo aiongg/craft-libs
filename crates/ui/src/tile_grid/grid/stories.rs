@@ -1,7 +1,7 @@
 //! Stories of `TileGrid`.
 
 use super::{TileGrid, TileGroup};
-use crate::contract::{Show as _, ShowCollection as _};
+use crate::contract::ShowCollection as _;
 use crate::tile_grid::Tile;
 use crate::testing::{Drive, StoryData, StoryOutput, story};
 use craft_behavior::{DisplayOrder, ItemSource, SizeHint};

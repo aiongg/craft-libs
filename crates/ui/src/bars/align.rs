@@ -3,7 +3,7 @@
 
 use super::words::AlignWords;
 use crate::buttons::IconButton;
-use crate::contract::{BodyCx, Entry, Props as _, Show as _, ShowContainer as _, WordSetCx as _};
+use crate::contract::{BodyCx, Entry, Props as _, Show as _, WordSetCx as _};
 use crate::display::Divider;
 use crate::runtime::env::Label;
 use craft_behavior::IconId;

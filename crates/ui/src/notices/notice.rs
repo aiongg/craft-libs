@@ -152,7 +152,7 @@ pub struct Notice<'a> {
 struct Placed {
     icon: Option<Rect>,
     title: Option<Rect>,
-    message: Rect,
+    message: Option<Rect>,
     actions: Vec<Rect>,
     dismiss: Option<Rect>,
 }
@@ -348,7 +348,7 @@ impl Component for Notice<'_> {
                 placed.title = Some(Rect::from_min_size(Pos2::new(column.left(), y), Vec2::new(column.width(), size.y)));
                 y += size.y;
             }
-            placed.message = Rect::from_min_size(Pos2::new(column.left(), y), Vec2::new(column.width(), plan.message.y));
+            placed.message = Some(Rect::from_min_size(Pos2::new(column.left(), y), Vec2::new(column.width(), plan.message.y)));
             y += plan.message.y + gap;
             let mut line = Flow::new(Rect::from_min_size(Pos2::new(column.left(), y), Vec2::new(column.width(), (rect.bottom() - y).max(0.0))), rtl);
             for size in &plan.actions {
@@ -366,7 +366,7 @@ impl Component for Notice<'_> {
             };
             placed.icon = plan.icon.map(|side| put(Vec2::splat(side)));
             placed.title = plan.title.map(&mut put);
-            placed.message = put(plan.message);
+            placed.message = Some(put(plan.message));
             placed.actions = Vec::new();
             if !plan.actions.is_empty() {
                 let total = plan.actions.iter().map(|size| size.x).sum::<f32>() + gap * (plan.actions.len() - 1) as f32;
@@ -470,7 +470,9 @@ impl Component for Notice<'_> {
             draw.text(rect, &run.color(cx.resolve(&cx.style.title.color)));
         }
         let run = TextRun::new(cx.resolved.label).role(cx.style.message.role).wrap(Wrap::Wrap);
-        draw.text(placed.message, &run.color(cx.resolve(&cx.style.message.color)));
+        if let Some(message) = placed.message {
+            draw.text(message, &run.color(cx.resolve(&cx.style.message.color)));
+        }
     }
 
     fn finish(self, cx: Cx<'_, Self>) -> NoticeOutput {

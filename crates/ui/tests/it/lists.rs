@@ -2,7 +2,7 @@
 
 use craft_behavior::{ColumnKey, DisplayOrder as _, SelectionChange, SelectionModel as _};
 use craft_i18n::Format;
-use craft_ui::contract::CollectionEvent;
+use craft_ui::contract::{CollectionEvent, Show as _};
 use craft_ui::list::{
     EventLevel, EventLog, EventLogState, EventWords, Finding, FindingsWords, List, ListRow, LogEvent, OpenSet, Severity, UndoMark, UndoWords,
     footer_text, summary_text, undo_count,
@@ -132,7 +132,7 @@ fn text_cell_row(text: &'static str, wrapped: bool) -> Fixture {
 
 #[trial]
 fn a_text_cell_is_a_cell_node_in_its_column_and_a_wrapped_one_makes_the_row_taller() {
-    use craft_ui::contract::{Role, Show as _};
+    use craft_ui::contract::Role;
     let note = "A note long enough that it wraps onto several lines in a narrow column";
     let one_line = text_cell_row(note, false);
     let cell = one_line.by_label(note).expect("the text cell has a node named by its text");

@@ -157,6 +157,10 @@ struct Fields<'a> {
 }
 
 impl DisplayOrder<FieldKey> for Fields<'_> {
+    fn is_section(&self, at: usize) -> bool {
+        matches!(self.entries[at], Entry::Group(_))
+    }
+
     fn len(&self) -> usize {
         self.keys.len()
     }
@@ -178,10 +182,6 @@ impl DisplayOrder<FieldKey> for Fields<'_> {
 }
 
 impl ItemSource<FieldKey> for Fields<'_> {
-    fn is_section(&self, at: usize) -> bool {
-        matches!(self.entries[at], Entry::Group(_))
-    }
-
     fn toggled(&self, at: usize, column: &ColumnKey) -> bool {
         match (&self.entries[at], self.chosen) {
             (Entry::Field(row), Some(chosen)) if *column == SHOW => row.locked || chosen.iter().any(|key| key == row.picker_key()),
@@ -239,7 +239,7 @@ impl<'a> MetadataTable<'a> {
             .select(SelectMode::Single)
             .striped(true)
             .empty(empty)
-            .show_items(ui, &source, &mut |key, icx| match &source.entries[icx.at] {
+            .show_items(ui, &source, &mut |_, icx| match &source.entries[icx.at] {
                 Entry::Group(group) => ListRow::new(group.name.clone()).cells(icx.cells()).strong(true),
                 Entry::Field(row) => {
                     let line = ListRow::new(row.name.clone()).cells(icx.cells()).striped(icx.row.striped).cell_lines(VALUE, row.value.clone());

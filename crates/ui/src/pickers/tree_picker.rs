@@ -108,7 +108,7 @@ struct Tree<'a, K> {
     parents: Vec<Option<usize>>,
 }
 
-impl<'a, K: Hash + Eq> Tree<'a, K> {
+impl<'a, K: Hash + Eq + Clone> Tree<'a, K> {
     fn of(entries: &'a [TreeEntry<K>]) -> Self {
         let positions: HashMap<&K, usize> = entries.iter().enumerate().map(|(at, entry)| (&entry.key, at)).collect();
         let parents = entries.iter().map(|entry| entry.parent.as_ref().and_then(|parent| positions.get(parent).copied())).collect();
@@ -139,7 +139,7 @@ impl<'a, K: Hash + Eq> Tree<'a, K> {
 }
 
 /// The visible entries as a collection source, keyed by the entry's key.
-struct Rows<'a, 'k, K> {
+struct Rows<'a, 'k, K: Hash + Eq> {
     tree: &'k Tree<'a, K>,
     shown: &'k [usize],
     depth: &'k [usize],
@@ -183,7 +183,7 @@ impl<K: Clone + Hash + Eq> ItemSource<K> for Rows<'_, '_, K> {}
 /// item's path, folder names joined by the path separator, or the placeholder while nothing is picked.
 #[derive(crate::contract::Component, crate::contract::Props)]
 #[component(overlay, probe(TreePicker<'static, u32>))]
-pub struct TreePicker<'a, K: Value + Eq + Hash> {
+pub struct TreePicker<'a, K: Value + Eq + Hash + 'static> {
     #[common]
     common: Common,
     value: Bind<'a, Option<K>>,
@@ -193,7 +193,7 @@ pub struct TreePicker<'a, K: Value + Eq + Hash> {
     placeholder: Option<Label>,
 }
 
-impl<'a, K: Value + Eq + Hash> TreePicker<'a, K> {
+impl<'a, K: Value + Eq + Hash + 'static> TreePicker<'a, K> {
     /// A picker named `label` over `value`, choosing among `entries` in tree order.
     pub fn new(label: impl Into<Label>, value: Bind<'a, Option<K>>, entries: &'a [TreeEntry<K>]) -> Self {
         TreePicker { common: Common::new(), value, entries, placeholder: None }.label(label)
@@ -218,7 +218,7 @@ impl<'a, K: Value + Eq + Hash> TreePicker<'a, K> {
     }
 }
 
-impl<K: Value + Eq + Hash> Component for TreePicker<'_, K> {
+impl<K: Value + Eq + Hash + 'static> Component for TreePicker<'_, K> {
     const ROLE: Role = Role::COMBO_BOX;
     type Style = TreePickerStyle;
     type Output = EditResponse<Option<K>>;

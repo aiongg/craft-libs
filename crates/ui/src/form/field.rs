@@ -97,8 +97,8 @@ impl Container for Field<'_> {
             return;
         }
         match self.help {
-            Some(Help::Text(text)) => Text::new(text).role(TypeRole::Caption).shade(Shade::Muted).show(ui),
-            Some(Help::Status(tone, text)) => Text::new(text).role(TypeRole::Caption).tone(tone).show(ui),
+            Some(Help::Text(text)) => Text::new(text.to_owned()).role(TypeRole::Caption).shade(Shade::Muted).show(ui),
+            Some(Help::Status(tone, text)) => Text::new(text.to_owned()).role(TypeRole::Caption).tone(tone).show(ui),
             None => return,
         };
     }

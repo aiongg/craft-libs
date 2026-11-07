@@ -65,7 +65,10 @@ pub(super) fn buttons(replies: &[Reply], os: Os) -> Vec<FooterButton> {
         .zip(labels)
         .map(|(reply, label)| {
             let button = FooterButton::new(label, reply.role).enabled(reply.enabled);
-            reply.letter.map_or(button, |letter| button.letter(letter))
+            match reply.letter {
+                Some(letter) => button.letter(letter),
+                None => button,
+            }
         })
         .collect()
 }
@@ -117,6 +120,17 @@ pub(super) struct Extras<'a> {
     below: Option<Below<'a>>,
 }
 
+fn notice_tone(tone: Tone) -> craft_theme::variant::Tone {
+    use craft_theme::variant::Tone as Look;
+    match tone {
+        Tone::Neutral => Look::Neutral,
+        Tone::Info => Look::Info,
+        Tone::Good => Look::Good,
+        Tone::Warn => Look::Warn,
+        Tone::Bad => Look::Bad,
+    }
+}
+
 impl Extras<'_> {
     fn is_empty(&self) -> bool {
         self.tone.is_none() && self.paragraphs.is_empty() && self.lines.is_empty() && self.details.is_none() && self.below.is_none()
@@ -125,7 +139,7 @@ impl Extras<'_> {
     fn show(self, ui: &mut Ui) {
         let Extras { tone, paragraphs, lines, details, below } = self;
         if let Some((tone, text)) = tone {
-            Notice::new(tone, text).layout(NoticeLayout::Inline).show(ui);
+            Notice::new(notice_tone(tone), text).layout(NoticeLayout::Inline).show(ui);
         }
         for paragraph in paragraphs {
             Text::new(paragraph).show(ui);

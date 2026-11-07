@@ -1,7 +1,7 @@
 //! Stories of `SliderField`.
 
 use super::SliderField;
-use crate::contract::{Bind, Props as _, Show as _, Validity};
+use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _, Validity};
 use crate::form::Field;
 use crate::runtime::env::{Message, UnitKind};
 use crate::testing::{Drive, StoryData, StoryOutput, story};

@@ -3,7 +3,7 @@
 #[cfg(feature = "testing")]
 mod stories;
 
-use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role};
+use crate::contract::{Bind, BindMut, Common, Component, Cx, Edit as _, EditResponse, MeasureCx, PaintUi, Props as _, Role, WordSetCx as _};
 use crate::runtime::env::{Label, UnitKind};
 use crate::style::{ComponentStyle, StyleCx};
 use crate::text::NumberField;

@@ -102,7 +102,7 @@ pub(crate) fn pick_from<T: Value + 'static>(ui: &mut Ui, label: impl Into<Label>
 
 /// A row that opens a submenu showing the rows of `body`. The row's request opens the submenu; the open state stays
 /// in egui's temporary memory under the row's id, because a menu body here has no component memory of its own.
-pub(crate) fn submenu_rows(ui: &mut Ui, label: impl Into<Label>, body: impl FnOnce(&mut Ui)) {
+pub(crate) fn submenu_rows(ui: &mut Ui, label: impl Into<Label>, mut body: impl FnMut(&mut Ui)) {
     let label = label.into();
     let head = MenuItem::submenu(label.clone()).show(ui);
     let state = head.response.id.with("submenu_open");

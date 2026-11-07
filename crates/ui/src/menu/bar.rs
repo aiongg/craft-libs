@@ -22,7 +22,7 @@ use crate::buttons::ToggleButton;
 use crate::contract::overlay::Anchor;
 use crate::contract::{
     Access, Bind, Common, Component, Cx, Focus as _, MeasureCx, MenuKey, Name, NoValue, Outcome, Overlay, OverlayUi, Overlays as _, PaintUi, PartsCx,
-    Pointer as _, Props as _, Role, SetPosition, Show as _, ShowContainer as _,
+    Pointer as _, Props as _, Role, SetPosition, Show as _,
 };
 use crate::display::{Divider, Text};
 use crate::runtime::commands::CommandRef;
@@ -249,7 +249,7 @@ fn declared(cx: &impl crate::contract::Pointer) -> Declared {
 ///
 /// AccessKit: the bar is a `MenuBar`; titles are `MenuItem`s that report `expanded` while their menu is open.
 #[derive(crate::contract::Component, crate::contract::Props)]
-#[component(overlay, probe(MenuBar<'static>))]
+#[component(overlay)]
 pub struct MenuBar<'a> {
     #[common]
     common: Common,
@@ -332,7 +332,7 @@ impl Component for MenuBar<'_> {
     }
 
     fn fills(&self) -> Option<Axis> {
-        Some(Axis::Horizontal)
+        Some(Axis::X)
     }
 
     fn sense(&self) -> Sense {
@@ -473,7 +473,7 @@ impl Component for MenuBar<'_> {
         ui.show(popup, overlay, |ui, cx| match open {
             Open::Title(at) => {
                 if let Some(entries) = helped {
-                    TextField::search(words.search.as_str(), Bind::bound(&mut query.0)).show(ui);
+                    TextField::search(words.search.as_str().to_owned(), Bind::bound(&mut query.0)).show(ui);
                     for at in &listed {
                         let entry = &entries[*at];
                         let path: Vec<String> = entry.path.iter().map(|label| cx.env.resolve(label).as_str().to_owned()).collect();
@@ -482,7 +482,7 @@ impl Component for MenuBar<'_> {
                         row.show(ui);
                     }
                     if listed.is_empty() && typed {
-                        Text::new(words.no_matches.as_str()).show(ui);
+                        Text::new(words.no_matches.as_str().to_owned()).show(ui);
                     }
                     Divider::horizontal().show(ui);
                 }

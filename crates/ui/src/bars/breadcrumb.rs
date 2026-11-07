@@ -192,7 +192,7 @@ impl<K: Value + 'static> Component for BreadcrumbBar<'_, K> {
     }
 
     fn fills(&self) -> Option<Axis> {
-        Some(Axis::Horizontal)
+        Some(Axis::X)
     }
 
     fn sense(&self) -> Sense {

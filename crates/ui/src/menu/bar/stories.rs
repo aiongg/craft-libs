@@ -1,7 +1,7 @@
 //! Stories of the menu bar, the edit menu and the panel menu.
 
 use super::{HelpEntry, MenuBar, MenuHelp, MenuTitle};
-use crate::contract::{Bind, Props as _, Show as _, ShowContainer as _};
+use crate::contract::{Bind, Show as _, ShowContainer as _};
 use crate::menu::{EditMenu, GroupItem, Menu, MenuItem, PanelMenu, PanelRow};
 use crate::runtime::commands::EditCommands;
 use crate::testing::{Drive, Fixture, StoryData, StoryOutput, story};

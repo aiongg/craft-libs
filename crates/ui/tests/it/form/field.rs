@@ -1,6 +1,6 @@
 //! `Field`: the help line is part of the field, and a field without help shows none.
 
-use craft_ui::contract::X;
+use craft_ui::contract::{Bind, Role, Show as _, ShowContainer as _};
 use craft_ui::form::{Field, Help};
 use craft_ui::testing::{Fixture, trial};
 use craft_ui::text::NumberField;

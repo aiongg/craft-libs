@@ -14,6 +14,7 @@ craft_ui::words! {
 }
 
 craft_ui::words! {
+    /// The words of the status readout.
     pub struct StatusReadoutWords {
         zoom: "statusReadout.zoom" = "Zoom";
         menu: "statusReadout.menu" = "Show";
@@ -37,6 +38,7 @@ craft_ui::words! {
     }
 }
 craft_ui::words! {
+    /// The words of the align bar.
     pub struct AlignWords {
         align: "align.align" = "Align";
         distribute: "align.distribute" = "Distribute";
@@ -53,6 +55,7 @@ craft_ui::words! {
     }
 }
 craft_ui::words! {
+    /// The words of the breadcrumb.
     pub struct BreadcrumbWords {
         hidden: "breadcrumb.hidden" = "Show the whole path";
     }

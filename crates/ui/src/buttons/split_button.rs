@@ -1,7 +1,7 @@
 //! `SplitButton`: an action button whose end part opens a menu of variants or presets.
 
 use super::face::{self, FaceLook, FaceSpec};
-use crate::contract::{
+use crate::contract::{WordSetCx as _, 
     Access, Common, Component, Cx, Entry, Focus as _, MeasureCx, Name, Outcome, OverlayUi, Overlays as _, PaintUi, PartsCx, Props as _, Role,
     ShowContainer as _, Styled as _,
 };

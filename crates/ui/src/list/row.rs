@@ -1097,7 +1097,7 @@ fn draw_clip_arrow(draw: &Draw<'_>, slot: Rect, rtl: bool, ink: StyleColor) {
 
 /// The style of a thumbnail: it has no look of its own.
 #[derive(Clone, Debug, Default, PartialEq, ComponentStyle)]
-struct RowThumbStyle {
+pub(crate) struct RowThumbStyle {
     #[style(metrics)]
     metrics: Metrics,
 }

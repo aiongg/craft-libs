@@ -8,9 +8,13 @@ const MORE: f32 = 20.0;
 
 #[trial]
 fn titles_that_do_not_fit_go_into_an_overflow_menu() {
-    assert_eq!(fit_titles(&TITLES, MORE, 150.0), TitleFit { shown: 3, overflow: false });
-    assert_eq!(fit_titles(&TITLES, MORE, 120.0), TitleFit { shown: 2, overflow: true });
-    assert_eq!(fit_titles(&TITLES, MORE, 50.0), TitleFit { shown: 0, overflow: true }, "none fit beside the overflow title");
+    let fit = |room| {
+        let TitleFit { shown, overflow, .. } = fit_titles(&TITLES, MORE, room);
+        (shown, overflow)
+    };
+    assert_eq!(fit(150.0), (3, false));
+    assert_eq!(fit(120.0), (2, true));
+    assert_eq!(fit(50.0), (0, true), "none fit beside the overflow title");
 }
 
 #[trial]

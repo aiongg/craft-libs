@@ -3,7 +3,7 @@
 
 use super::words::StatusReadoutWords;
 use crate::buttons::IconButton;
-use crate::contract::{Bind, BodyCx, EditResponse, Entry, Outcome, Props as _, Show as _, ShowContainer as _, WordSetCx as _};
+use crate::contract::{Bind, BodyCx, EditResponse, Entry, Outcome, Props as _, Show as _, WordSetCx as _};
 use crate::display::{Elide, Text};
 use crate::runtime::env::{Label, UnitKind};
 use craft_behavior::IconId;
