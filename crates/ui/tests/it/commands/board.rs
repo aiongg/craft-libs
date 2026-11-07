@@ -122,7 +122,9 @@ fn a_scoped_command_goes_to_the_instance_it_was_fired_in() {
     frames.frame(vec![], |ui| {
         centers.clear();
         for (name, _) in [("a", true), ("b", false)] {
-            super::kit::Pane::new().id_salt(name).show(ui, |ui, _| centers.push(Tap::new().id_salt("zoom").command(PaneCommand::ZoomIn).show(ui).rect.center()));
+            super::kit::Pane::new()
+                .id_salt(name)
+                .show(ui, |ui, _| centers.push(Tap::new().id_salt("zoom").command(PaneCommand::ZoomIn).show(ui).rect.center()));
         }
     });
     click_at(&mut frames, centers[1], &mut show, false);

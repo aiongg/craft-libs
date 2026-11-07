@@ -51,17 +51,18 @@ struct Session {
     frames: Frames,
     doc: Doc,
     host: GestureHost<Doc>,
+    salt: &'static str,
 }
 
 impl Session {
     fn new(value: f32) -> Self {
-        Session { frames: Frames::new(), doc: Doc { value, steps: Vec::new() }, host: GestureHost::new() }
+        Session { frames: Frames::new(), doc: Doc { value, steps: Vec::new() }, host: GestureHost::new(), salt: "gain" }
     }
 
     fn frame(&mut self, events: Vec<egui::Event>) {
-        let (doc, host) = (&mut self.doc, &mut self.host);
+        let (doc, host, salt) = (&mut self.doc, &mut self.host, self.salt);
         self.frames.frame(events, |ui: &mut Ui| {
-            let out = Scrub::new(Bind::given(doc.value)).label("Gain").doc_key(DocKey::new("trial.gain")).id_salt("gain").show_at(ui, AT);
+            let out = Scrub::new(Bind::given(doc.value)).label("Gain").doc_key(DocKey::new("trial.gain")).id_salt(salt).show_at(ui, AT);
             if let Some(event) = out.event {
                 host.handle(doc, event, |doc, value| doc.set(value));
             }
@@ -153,4 +154,21 @@ fn a_local_history_records_one_named_step_per_gesture() {
     assert!(!history.can_undo());
     assert!(history.step(&mut now, Step::Redo));
     assert_eq!((now, history.redo_name()), (7.0, None));
+}
+
+/// Gesture ids are shared by every component: an undo during one component's drag does not make the host drop the
+/// next component's gesture.
+#[trial]
+fn an_undo_during_one_components_drag_does_not_drop_anothers_edit() {
+    let mut session = Session::new(INITIAL);
+    let end = session.drag();
+    session.host.before_undo(&session.frames.ctx, &mut session.doc);
+    session.frame(vec![release(end)]);
+    session.frame(vec![]);
+    session.salt = "pan";
+    session.drag();
+    session.frame(vec![release(Pos2::new(AT.left() + 50.0, AT.center().y))]);
+    session.frame(vec![]);
+    assert!(near(session.doc.value, DRAGGED), "the second component's edit reached the document: {}", session.doc.value);
+    assert_eq!(session.doc.steps.len(), 1, "one step for the second gesture");
 }

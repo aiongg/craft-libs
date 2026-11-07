@@ -5,6 +5,7 @@ use crate::runtime::env::Message;
 use crate::runtime::memory::{MemoryStage, Savable, SaveKey};
 use craft_behavior::{Applied, EditEvent, EditPolicy, Mixed, Value};
 use egui::Response;
+use std::sync::Arc;
 
 /// What a check says about a value, with the message type of craft-ui.
 pub type Validity<T> = craft_behavior::Validity<T, Message>;
@@ -33,11 +34,23 @@ impl Outcome for Response {
 /// The value type of `C`'s output.
 pub type ValueOf<C> = <<C as super::Component>::Output as Outcome>::Value;
 
+/// `held` when it equals `value`, else a new copy of it.
+pub(crate) fn reuse_arc<V: Value>(held: &Option<Arc<V>>, value: &V) -> Arc<V> {
+    match held {
+        Some(held) if **held == *value => held.clone(),
+        _ => Arc::new(value.clone()),
+    }
+}
+
+/// The shown copy a step 4 comparison keeps.
+type Held<T> = Option<Arc<T>>;
+
 /// What `Bind::saved` captures while `T: Savable` is known, so the generic pipeline reaches the saved tier without
 /// the bound.
 struct SaveSpec<T> {
     key: SaveKey,
-    load: fn(&mut MemoryStage, &SaveKey) -> Option<T>,
+    /// Reads the saved value, reusing the held copy when it is equal.
+    load: fn(&mut MemoryStage, &SaveKey, &Held<T>) -> Option<Arc<T>>,
     store: fn(&mut MemoryStage, &SaveKey, T),
 }
 
@@ -96,9 +109,10 @@ impl<'a, T: Value> Bind<'a, T> {
     where
         T: Savable,
     {
+        self.source = Source::Kept;
         self.save = Some(SaveSpec {
             key,
-            load: |stage, key| stage.saved::<Option<T>>(key).clone(),
+            load: |stage, key, held| stage.saved::<Option<T>>(key).as_ref().map(|value| reuse_arc(held, value)),
             store: |stage, key, value| *stage.saved::<Option<T>>(key) = Some(value),
         });
         self
@@ -186,13 +200,13 @@ impl<T: Value> BindMut<'_, T> {
     }
 
     /// The saved tier of a kept binding that has a `SaveKey`: `None` without one, `Some(None)` when nothing was saved.
-    pub(crate) fn saved_get(&self, stage: &mut MemoryStage) -> Option<Option<T>> {
-        self.save.map(|save| (save.load)(stage, &save.key))
+    pub(crate) fn saved_value(&self, stage: &mut MemoryStage, held: &Option<Arc<T>>) -> Option<Option<Arc<T>>> {
+        self.save.as_ref().map(|save| (save.load)(stage, &save.key, held))
     }
 
     /// Stores into the saved tier; false when the binding has no `SaveKey`.
     pub(crate) fn saved_put(&self, stage: &mut MemoryStage, value: T) -> bool {
-        self.save.map(|save| (save.store)(stage, &save.key, value)).is_some()
+        self.save.as_ref().map(|save| (save.store)(stage, &save.key, value)).is_some()
     }
 
     /// The value a reset restores.

@@ -317,15 +317,20 @@ pub struct Gesture<V> {
     /// The latest proposed value.
     pub proposal: Option<V>,
     /// Last pass's given value, read while the gesture runs for the host-change comparison.
+    #[doc(hidden)]
     pub last_given: Option<V>,
     /// The last value the pipeline applied or emitted: the value step 11 wrote to a write-through source, or for a
     /// given source `Begin`'s start value and then each `Update`.
+    #[doc(hidden)]
     pub emitted: Option<V>,
     /// A given caller's `Update` that fell in the pass of its `Begin`, delivered in the next pass.
+    #[doc(hidden)]
     pub held: Option<V>,
     /// A gesture was cancelled under the press that carried it: nothing is proposed until the release.
+    #[doc(hidden)]
     pub dead: bool,
     /// The last `cancel_all` serial this gesture has seen.
+    #[doc(hidden)]
     pub cancel_seen: u64,
 }
 

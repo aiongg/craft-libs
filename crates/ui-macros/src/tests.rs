@@ -217,10 +217,44 @@ fn a_widget_impl_keeps_the_types_bounds_and_requires_a_response_output() {
 
 #[test]
 fn command_set_derive_needs_a_prefix_and_labels() {
-    assert!(error(crate::command_set::derive(quote!(enum Set { #[command(label = "A")] A }))).contains("prefix"));
-    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { A }))).contains("label"));
-    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A", kind = "x")] A }))).contains("kind"));
-    assert!(error(crate::command_set::derive(quote!(#[command(prefix = "p")] enum Set { #[command(label = "A")] A(u8) }))).contains("unit"));
+    assert!(
+        error(crate::command_set::derive(quote!(
+            enum Set {
+                #[command(label = "A")]
+                A,
+            }
+        )))
+        .contains("prefix")
+    );
+    assert!(
+        error(crate::command_set::derive(quote!(
+            #[command(prefix = "p")]
+            enum Set {
+                A,
+            }
+        )))
+        .contains("label")
+    );
+    assert!(
+        error(crate::command_set::derive(quote!(
+            #[command(prefix = "p")]
+            enum Set {
+                #[command(label = "A", kind = "x")]
+                A,
+            }
+        )))
+        .contains("kind")
+    );
+    assert!(
+        error(crate::command_set::derive(quote!(
+            #[command(prefix = "p")]
+            enum Set {
+                #[command(label = "A")]
+                A(u8),
+            }
+        )))
+        .contains("unit")
+    );
 }
 
 fn words(input: TokenStream) -> String {

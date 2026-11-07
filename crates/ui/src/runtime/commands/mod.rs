@@ -8,9 +8,9 @@ mod registry;
 pub use clipboard::{ClipContent, ClipError, ClipItem, ClipboardHandle};
 pub use craft_keymap::{Binding, CommandDef, CommandKind, CommandRef, CommandScope, ModalRule};
 pub use library::{EditCommands, WindowCommand};
+pub use registry::CommandDefError;
 #[doc(hidden)]
 pub use registry::{COMMAND_SETS, SetEntry};
-pub use registry::CommandDefError;
 
 pub(crate) use board::{begin, edit_chords, end, install, note_focus, register_instance, set_input, take_fired};
 pub(crate) use board::{fire_bound, resolve_bound};

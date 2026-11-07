@@ -3,6 +3,7 @@
 
 use super::cx::gesture_key;
 use super::cx::{CxCore, Decls, MeasureCx, PartExtras};
+use super::values::reuse_arc;
 use super::{Common, Component, Cx, IdSource, Pointer as _, Resolved, Styled as _, Validity, ValueOf};
 use crate::primitives::sensing::PartDecl;
 use crate::primitives::{FaceRecord, FocusKind, FocusRing, PaintShape, StateLayer, StateLayerKind, Surface};
@@ -17,9 +18,7 @@ use crate::runtime::memory::{MemoryStage, sub};
 use crate::runtime::motion::{Animate as _, spec};
 use crate::runtime::{inspect, keys, layout_memory, wheel};
 use crate::style::{ComponentStyle, Flags, Ink, StateSet, StyleCx, accepted_variant, resolve_style, surface_style};
-use craft_behavior::{
-    CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value,
-};
+use craft_behavior::{CancelReason, EditEvent, Gesture, GesturePhase, Intent, KeyRole, Mixed, PartRef, PressCancel, Proposal, Roving, Sense, Value};
 use craft_theme::{ControlSize, State, StateMix, Variant};
 use egui::{Context, Id, Rect, Response, Ui, Vec2};
 use std::any::TypeId;
@@ -342,7 +341,7 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
     let bound = comp.bind().map(|bind| {
         let unchanged = held.as_deref().is_some_and(|held| bind.shown_matches(held));
         let got = if unchanged { None } else { bind.get() };
-        (unchanged, got, bind.is_kept(), bind.saved_get(stage))
+        (unchanged, got, bind.is_kept())
     });
     let mut out = ValueStep { value: None, mixed: false, cancelled };
     match (proposal, bound) {
@@ -351,8 +350,12 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
         (None, Some((false, Some(Mixed::Same(value)), ..))) => out.value = Some(Arc::new(value)),
         (None, Some((false, Some(Mixed::Mixed), ..))) => out.mixed = true,
         // A kept binding with a `SaveKey` reads the saved tier, one without reads session memory under the id.
-        (None, Some((false, None, _, Some(saved)))) => out.value = saved.map(|value| reuse_or_new(&held, value)),
-        (None, Some((false, None, _, None))) => out.value = stage.session::<Option<V<C>>>(id).clone().map(|value| reuse_or_new(&held, value)),
+        (None, Some((false, None, _))) => {
+            out.value = match comp.bind().and_then(|bind| bind.saved_value(stage, &held)) {
+                Some(saved) => saved,
+                None => stage.session::<Option<V<C>>>(id).as_ref().map(|value| reuse_arc(&held, value)),
+            }
+        }
         (None, None) => {}
     }
     let shown = &mut stage.shown::<ShownCopy<V<C>>>(id).0;
@@ -369,16 +372,17 @@ pub(crate) fn value<C: Component>(comp: &mut C, stage: &mut MemoryStage, id: Id)
 
 /// The shown value for measuring and faces: reads the binding, applies nothing, opens no stage. A kept binding reads
 /// shown memory.
-pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id) -> Option<Arc<ValueOf<C>>> {
+/// Returns the value and whether the binding is mixed.
+pub(crate) fn peek_value<C: Component>(comp: &mut C, ctx: &Context, id: Id) -> (Option<Arc<ValueOf<C>>>, bool) {
     let held = MemoryStage::peek::<ShownCopy<ValueOf<C>>>(ctx, id).0;
-    let Some(bind) = comp.bind() else { return held };
+    let Some(bind) = comp.bind() else { return (held, false) };
     if held.as_deref().is_some_and(|held| bind.shown_matches(held)) {
-        return held;
+        return (held, false);
     }
     match bind.get() {
-        Some(Mixed::Same(value)) => Some(Arc::new(value)),
-        Some(Mixed::Mixed) => None,
-        None => held,
+        Some(Mixed::Same(value)) => (Some(Arc::new(value)), false),
+        Some(Mixed::Mixed) => (None, true),
+        None => (held, false),
     }
 }
 
@@ -638,7 +642,14 @@ pub(crate) fn apply_values<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     let from = cx.applied;
     cx.applied = cx.events.len();
     if cx.core.resolved.read_only {
-        cx.events.truncate(from);
+        // A gesture's end still reaches the app; only events that carry a value are refused.
+        let mut at = 0;
+        cx.events.retain(|event| {
+            let keep = at < from || matches!(event, EditEvent::Cancel { .. });
+            at += 1;
+            keep
+        });
+        cx.applied = cx.events.len();
         return;
     }
     let Some(mut bind) = comp.bind() else { return };
@@ -862,8 +873,9 @@ pub(crate) fn settle<C: Component>(comp: &mut C, cx: &mut Cx<'_, C>) {
     // F5-LATER: open and gate changes.
     let adopted = std::mem::take(&mut cx.core.paint.borrow_mut().adopted);
     for event in adopted.into_iter().filter_map(|adopted| adopted.take::<ValueOf<C>>()) {
-        cx.absorb(&event);
-        cx.events.push(event);
+        if let Some(event) = cx.absorb(event) {
+            cx.events.push(event);
+        }
     }
     apply_values(comp, cx);
     if let Some(rect) = cx.core.reveal.take()

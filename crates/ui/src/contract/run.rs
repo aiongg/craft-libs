@@ -612,7 +612,7 @@ pub(crate) fn measure_under<C: Component>(comp: &mut C, ui: &Ui, id: Option<Id>,
         None => Env::of(ui),
     };
     let id = id.unwrap_or_else(|| steps::id::<C>(ui, &comp.common(Internal::new()).id, false, false));
-    let shown = steps::peek_value(comp, ui.ctx(), id);
+    let (shown, _) = steps::peek_value(comp, ui.ctx(), id);
     let common = comp.common(Internal::new()).clone();
     let step1 = steps::env::<C>(ui.ctx(), &env, &common);
     let scx = steps::style_cx(ui.ctx(), &env, &step1);
@@ -643,7 +643,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     let style = steps::style::<C>(&ctx, &scx, face.style_key());
     let id = face_id(source.id, part);
     let resolved = steps::resolved(id, &step1, &common);
-    let shown = steps::peek_value(&mut face, &ctx, id);
+    let (shown, mixed) = steps::peek_value(&mut face, &ctx, id);
     // A peek that opens no lifetime stage and is dropped without a write-back; a write through it is a debug assertion.
     let mut stage = MemoryStage::open_peek(&ctx, id);
     stage.face = true;
@@ -662,7 +662,7 @@ pub(crate) fn paint_face<C: Show>(ui: &mut Ui, source: &FaceSource<'_>, part: Pa
     core.stated = true;
     core.ink = steps::surface_ink(style.surface(), &state, env.ink);
     core.visible = rect;
-    let cx = Cx::<C> { core, style: &style, shown, mixed: false, events: Vec::new(), applied: 0, validity: Validity::Ok };
+    let cx = Cx::<C> { core, style: &style, shown, mixed, events: Vec::new(), applied: 0, validity: Validity::Ok };
     steps::paint_surface(ui, &env, &cx);
     {
         let results = HashMap::new();

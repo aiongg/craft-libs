@@ -671,7 +671,16 @@ fn doughnut_chart(tokens: &UiTokens, ppp: f32, size: Vec2, title: &str, shares: 
     let mut from = 0.0;
     for (i, share) in shares.iter().enumerate() {
         let to = from + std::f32::consts::TAU * share / total;
-        prims.push(ChartPrimitive::Wedge { center_x: cx, center_y: cy, outer_radius: r_outer, inner_radius: r_outer * 0.55, start_angle: from, end_angle: to, fill: colors[i % colors.len()], stroke: gap });
+        prims.push(ChartPrimitive::Wedge {
+            center_x: cx,
+            center_y: cy,
+            outer_radius: r_outer,
+            inner_radius: r_outer * 0.55,
+            start_angle: from,
+            end_angle: to,
+            fill: colors[i % colors.len()],
+            stroke: gap,
+        });
         from = to;
     }
     prims

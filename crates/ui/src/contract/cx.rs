@@ -454,6 +454,8 @@ pub trait Edit {
 
     /// Maps the child's edit onto a clone of this component's shown value and queues the resulting event, following the
     /// child's, for step 15.
+    /// A composite whose own value is mixed or not yet shown has no value to map the child's onto: the child's edit is
+    /// dropped.
     fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut Self::Value));
 
     /// The `EditResponse` a value component returns from `finish`.
@@ -500,21 +502,53 @@ impl<C: Component> Cx<'_, C> {
         self.core.resolved.read_only
     }
 
-    /// Records the gesture an adopted event belongs to, as `begin`, `propose`, `commit` and `cancel` do for the
-    /// component's own.
-    pub(crate) fn absorb(&mut self, event: &EditEvent<ValueOf<C>>) {
+    /// Turns an adopted child event into the composite's own and records its gesture, as `begin`, `propose`, `commit`
+    /// and `cancel` do for the component's own. The composite's gesture takes a fresh id; its `Commit` and `Cancel`
+    /// carry the value the gesture began with, not the latest proposal. An event with no gesture of the composite's
+    /// to end is dropped.
+    pub(crate) fn absorb(&mut self, event: EditEvent<ValueOf<C>>) -> Option<EditEvent<ValueOf<C>>> {
         let dead = self.core.press_held();
+        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
         let slot = self.gesture_slot();
         match event {
-            EditEvent::Begin { id, before, .. } => {
+            EditEvent::Begin { before, label, doc_key, .. } => {
                 *slot = slot.ended(false);
-                slot.id = *id;
+                slot.id = fresh;
                 slot.before = Some(before.clone());
+                Some(EditEvent::begin(fresh, before, label, doc_key))
             }
-            EditEvent::Update { value, .. } => slot.proposal = Some(value.clone()),
-            EditEvent::Commit { .. } | EditEvent::Set { .. } => *slot = slot.ended(false),
-            EditEvent::Cancel { .. } => *slot = slot.ended(dead),
-            _ => {}
+            EditEvent::Update { value, .. } => {
+                slot.proposal = Some(value.clone());
+                Some(EditEvent::update(slot.id, value))
+            }
+            EditEvent::Commit { before, after, .. } => {
+                let running = slot.is_running();
+                let began = slot.before.clone().filter(|_| running);
+                let id = if running { slot.id } else { fresh };
+                *slot = slot.ended(false);
+                Some(EditEvent::commit(id, began.unwrap_or(before), after))
+            }
+            EditEvent::Cancel { reason, .. } => {
+                if !slot.is_running() {
+                    return None;
+                }
+                let id = slot.id;
+                let began = slot.before.clone().filter(|_| !reason.document_moved());
+                *slot = slot.ended(dead);
+                if let Some(before) = began.clone() {
+                    self.shown = match before {
+                        Mixed::Same(value) => Some(Arc::new(value)),
+                        Mixed::Mixed => None,
+                    };
+                    self.mixed = self.shown.is_none();
+                }
+                Some(EditEvent::cancel(id, reason, began))
+            }
+            EditEvent::Set { before, after, label, doc_key, .. } => {
+                *slot = slot.ended(false);
+                Some(EditEvent::set(fresh, before, after, label, doc_key))
+            }
+            _ => None,
         }
     }
 }
@@ -542,6 +576,8 @@ impl<C: Component> Edit for Cx<'_, C> {
         Some(if began && !updated { GesturePhase::Begin } else { GesturePhase::Update })
     }
 
+    /// A composite whose own value is mixed or not yet shown has no value to map the child's onto: the child's edit is
+    /// dropped.
     fn adopt<V: Value>(&self, child: &EditResponse<V>, map: impl FnOnce(&V, &mut ValueOf<C>)) {
         let (Some(event), Some(mut mine)) = (child.event.as_ref(), self.shown.as_deref().cloned()) else { return };
         let before = Mixed::Same(mine.clone());
@@ -561,7 +597,9 @@ impl<C: Component> Edit for Cx<'_, C> {
 
     fn edit_response(&self) -> EditResponse<ValueOf<C>> {
         let event = self.events.iter().cloned().fold(None, EditEvent::fold);
-        EditResponse::new(self.core.response.clone(), event, self.validity.clone())
+        let mut response = EditResponse::new(self.core.response.clone(), event, self.validity.clone());
+        response.escaped = matches!(self.events.last(), Some(EditEvent::Cancel { reason: CancelReason::Escape, .. }));
+        response
     }
 
     fn propose(&mut self, v: ValueOf<C>) {
@@ -570,6 +608,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
+        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
         let slot = self.gesture_slot();
         // A gesture cancelled under its press stays cancelled until the release.
         if slot.dead {
@@ -577,7 +616,7 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let started = !slot.is_running();
         if started {
-            slot.id = slot.id.next();
+            slot.id = fresh;
             slot.before = Some(before.clone());
         }
         slot.proposal = Some(v.clone());
@@ -596,7 +635,8 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
-        let id = self.gesture_slot().id;
+        // A `Set` has its own id: a running gesture's id stays that gesture's, which the host ends when it applies the `Set`.
+        let id = crate::runtime::edit::next_gesture_id(&self.core.ctx);
         self.events.push(EditEvent::set(id, before, v.clone(), label, doc_key));
         self.shown = Some(Arc::new(v));
         self.mixed = false;
@@ -608,9 +648,10 @@ impl<C: Component> Edit for Cx<'_, C> {
         }
         let before = self.before();
         let (label, doc_key) = (self.core.label_arc(), self.core.resolved.doc_key);
+        let fresh = crate::runtime::edit::next_gesture_id(&self.core.ctx);
         let slot = self.gesture_slot();
         if !slot.is_running() && !slot.dead {
-            slot.id = slot.id.next();
+            slot.id = fresh;
             slot.before = Some(before.clone());
             let id = slot.id;
             self.events.push(EditEvent::begin(id, before, label, doc_key));

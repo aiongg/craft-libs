@@ -132,7 +132,15 @@ fn a_time_that_does_not_parse_commits_nothing() {
     type_into(&mut harness, "xyz");
     harness.press(KeyboardShortcut::new(Modifiers::NONE, Key::Enter));
     harness.run();
-    assert!(harness.state().events.iter().all(|e| matches!(e, EditEvent::Begin { .. } | EditEvent::Cancel { .. } | EditEvent::Commit { changed: false, .. })), "{:?}", harness.state().events);
+    assert!(
+        harness
+            .state()
+            .events
+            .iter()
+            .all(|e| matches!(e, EditEvent::Begin { .. } | EditEvent::Cancel { .. } | EditEvent::Commit { changed: false, .. })),
+        "{:?}",
+        harness.state().events
+    );
     let input = harness.get_by_role(Role::TextInput);
     assert_eq!(input.accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
     assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())], "Enter reports the error and keeps the text");
@@ -148,7 +156,15 @@ fn clicking_away_from_bad_text_keeps_it_marked_invalid() {
     play(&mut harness, events::click(away, PointerButton::Primary, 1, Modifiers::NONE));
     let input = harness.get_by_role(Role::TextInput);
     assert_eq!(input.accesskit_node().data().invalid(), Some(egui::accesskit::Invalid::True));
-    assert!(harness.state().events.iter().all(|e| matches!(e, EditEvent::Begin { .. } | EditEvent::Cancel { .. } | EditEvent::Commit { changed: false, .. })), "{:?}", harness.state().events);
+    assert!(
+        harness
+            .state()
+            .events
+            .iter()
+            .all(|e| matches!(e, EditEvent::Begin { .. } | EditEvent::Cancel { .. } | EditEvent::Commit { changed: false, .. })),
+        "{:?}",
+        harness.state().events
+    );
     assert_eq!(harness.state().errors, [TimecodeError::NotATime("xyz".into())]);
 }
 

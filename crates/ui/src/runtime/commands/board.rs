@@ -1,12 +1,12 @@
 //! The board: state by `(command, instance)`, the instances of each scope, the queue, resolution, firing and the
 //! dispatcher that turns key presses into fired commands (spec 11.3).
 
-use super::{CommandChain, CommandGate, CommandInput, CommandScope, CommandState, Fired, FirePhase, FireSource, ResolvedCommand, registry};
+use super::EditCommands;
+use super::{CommandChain, CommandGate, CommandInput, CommandScope, CommandState, FirePhase, FireSource, Fired, ResolvedCommand, registry};
 use crate::runtime::egui::input as raw_input;
 use crate::runtime::egui::memory::Service;
 use crate::runtime::egui::pass;
 use crate::runtime::focus;
-use super::EditCommands;
 use craft_behavior::{EditCommand, OwnerClass, pick_instance, resolve_flags};
 use craft_keymap::egui::Dispatcher;
 use craft_keymap::{Active, Chord, CommandRef, Keymap, Overrides, Platform, Scopes};
@@ -183,7 +183,8 @@ fn resolve(ctx: &Context, command: &CommandRef, instance: Option<Id>) -> Resolve
         let gate = board.gate.as_ref().is_none_or(|gate| gate.allows(command));
         let modal = !(board.modal_open && def.is_some_and(|def| def.modal == craft_keymap::ModalRule::Blocked));
         let live = is_app(&scope) || instance.is_some_and(|id| board.is_live(ctx, id));
-        let chord = board.keymap.as_ref().and_then(|cache| cache.keymap.bindings(command).into_iter().find(|b| !b.trigger.double).map(|b| b.trigger.chord));
+        let chord =
+            board.keymap.as_ref().and_then(|cache| cache.keymap.bindings(command).into_iter().find(|b| !b.trigger.double).map(|b| b.trigger.chord));
         ResolvedCommand {
             label: state.and_then(|s| s.title_ref().cloned()).unwrap_or_else(|| Arc::from(def.map_or(command.id.as_str(), |def| def.label.as_str()))),
             icon: def.and_then(|def| def.icon.clone()),
@@ -216,7 +217,10 @@ pub(crate) fn fire_bound(ctx: &Context, command: &ResolvedCommand, by_key: bool)
         return;
     }
     let source = if by_key { FireSource::Key } else { FireSource::Pointer };
-    queue(ctx, Fired { command: command.command.clone(), target: command.instance, source, phase: FirePhase::Press, cycle: false, alt_variant: false });
+    queue(
+        ctx,
+        Fired { command: command.command.clone(), target: command.instance, source, phase: FirePhase::Press, cycle: false, alt_variant: false },
+    );
 }
 
 pub(crate) fn fire_from(ctx: &Context, command: &CommandRef, source: FireSource) -> bool {
@@ -291,14 +295,17 @@ pub(crate) fn begin(ctx: &Context) {
             (scope, instance)
         });
         let target = if is_app(&scope) { None } else { instance };
-        queue(ctx, Fired {
-            command: hit.command,
-            target,
-            source: FireSource::Key,
-            phase: FirePhase::Press,
-            cycle: hit.cycle.len() > 1,
-            alt_variant: hit.alt_variant,
-        });
+        queue(
+            ctx,
+            Fired {
+                command: hit.command,
+                target,
+                source: FireSource::Key,
+                phase: FirePhase::Press,
+                cycle: hit.cycle.len() > 1,
+                alt_variant: hit.alt_variant,
+            },
+        );
     }
 }
 
