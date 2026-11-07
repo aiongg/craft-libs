@@ -202,7 +202,7 @@ impl Completer for Numbered {
 fn new_candidates_return_the_completion_highlight_to_the_first_row() {
     let mut rig = Rig::new("");
     rig.focus();
-    let mut frame = |rig: &mut Rig, events: Vec<Event>| {
+    let frame = |rig: &mut Rig, events: Vec<Event>| {
         let (text, seen) = (&mut rig.text, &mut rig.seen);
         rig.frames.frame(events, |ui| {
             let out = TextField::new("Name", Bind::bound(&mut *text)).complete(Numbered).id_salt("name").show(ui);

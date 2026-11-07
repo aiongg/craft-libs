@@ -255,7 +255,7 @@ impl Component for RangeSlider<'_> {
             let position = travel.value(press, scale.position(if upper { pair.1 } else { pair.0 }), state, fine)?;
             let value = snap(position).unwrap_or_else(|| value_at(position));
             let (low, high) = Self::bounds(&scale, pair, upper);
-            Some(with(from.clone(), upper, value.clamp(low, high)))
+            Some(with(*from, upper, value.clamp(low, high)))
         };
         for key in [LOWER, UPPER, TRACK] {
             let press = cx.part(key).press;

@@ -73,9 +73,9 @@ note = "A `Component` over one `Bind<[Option<f64>; N]>` and a link `Bind<bool>`;
 [[type]]
 name = "ApplyRow"
 old = "craft_ui::controls::mixed::ApplyRow"
-new = "craft_ui::sections::ApplyRow"
+new = "craft_ui::sections::GroupBox::apply"
 status = "moved"
-note = "A container: `ApplyRow::new(label, Bind<bool>).show(ui, |ui, _| field)`. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
+note = "A container: `GroupBox::apply(label, Bind<bool>).show(ui, |ui, _| field)`, a `GroupBox` configuration with no frame and an inline gate header. The check box is in the header and the body is enabled while `apply` is on. The field binds a `Mixed<T>` itself."
 
 [[type]]
 name = "NumberOutput"
@@ -202,7 +202,7 @@ name = "ApplyValue"
 old = "craft_ui::controls::mixed::ApplyValue"
 new = ""
 status = "replaced"
-note = "A `Mixed<T>` for the value and a `bool` for apply: `ApplyRow` binds the bool, the field binds the `Mixed<T>`."
+note = "A `Mixed<T>` for the value and a `bool` for apply: `GroupBox::apply` binds the bool, the field binds the `Mixed<T>`."
 
 # One entry per renamed, removed or reshaped setter or constructor.
 # [[setter]]
@@ -562,8 +562,8 @@ note = "Words come from the installed `LinkedWords`."
 [[setter]]
 type = "ApplyRow"
 old = "ApplyRow::new(id_salt, label, &mut apply_value).show(ui, |ui, value| ..)"
-new = "ApplyRow::new(label, Bind::bound(&mut apply)).show(ui, |ui, _| ..)"
-note = "The row no longer owns the value: the field in the body binds its own `Mixed<T>`."
+new = "GroupBox::apply(label, Bind::bound(&mut apply)).show(ui, |ui, _| ..)"
+note = "The group no longer owns the value: the field in the body binds its own `Mixed<T>`."
 
 [[setter]]
 type = "ApplyRow"
