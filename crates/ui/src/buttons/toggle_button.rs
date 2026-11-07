@@ -7,7 +7,7 @@ use crate::runtime::commands::CommandRef;
 use crate::runtime::env::Label;
 use crate::style::{ComponentStyle, FocusLook, IconLook, StyleCx, SurfaceLook, TextLook, TypeRole};
 use craft_behavior::{Metrics, Sense};
-use craft_theme::{States, Variant};
+use craft_theme::Variant;
 use egui::Vec2;
 
 /// The style of a toggle button.

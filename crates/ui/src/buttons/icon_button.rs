@@ -7,7 +7,7 @@ use crate::runtime::commands::CommandRef;
 use crate::style::{ComponentStyle, DataColor, FocusLook, IconLook, StyleColor, StyleCx, SurfaceLook};
 use craft_behavior::{Metrics, Sense};
 use craft_theme::{
-    Srgba, States, Variant,
+    Srgba, Variant,
     variant::{Emphasis, Tone},
 };
 use egui::{Color32, Pos2, Response, Vec2};
